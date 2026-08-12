@@ -1,18 +1,17 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, memcpy, memset, snprintf, strlen, strtol};
 
-use crate::support::json_funcs::{preserialize};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_int_val, json_str_len, json_str_ptr, json_type_of};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 
 use crate::support::options::{Options};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 
 use crate::support::ctype_compat::{c_isdigit, c_tolower};
 use crate::support::base64::{base64_decode, base64_encode};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_string_new, json_string_new_length};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_string_new, json_string_new_length, preserialize};
 use crate::vendor::sds::{sdsfree, sdsnewlen};
 /// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
 /// their operands are part of the instruction stream rather than separate
@@ -807,7 +806,7 @@ pub unsafe extern "C" fn dump_ttinstr(
     mut instructions: *mut u8,
     mut length: u32,
     mut options: *const Options,
-) -> *mut JsonValue {
+) -> *mut BuiltValue {
     if (*options).instr_as_bytes {
         let mut len: usize = 0 as usize;
         let mut buf: *mut u8 = base64_encode(instructions, length as usize, &raw mut len);
@@ -826,7 +825,7 @@ pub unsafe extern "C" fn dump_ttinstr(
         id.instr_cnt = length;
         id.instrs = instructions;
         instr_typify(&raw mut id);
-        let mut ret: *mut JsonValue = json_array_new(id.instr_cnt as usize);
+        let mut ret: *mut BuiltValue = json_array_new(id.instr_cnt as usize);
         let mut i: u32 = 0 as u32;
         while i < id.instr_cnt {
             if *id.bts.offset(i as isize) == ByteType::WordHi {

@@ -12,11 +12,11 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphClass, GlyphId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
-use crate::vendor::json_builder::{json_object_push};
+use crate::support::built_json::{BuiltValue, json_object_push};
 
 
 pub type Tsi5Table = ClassDef;
@@ -83,7 +83,7 @@ pub unsafe extern "C" fn otfcc_read_tsi5(
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_tsi5(
     table: Option<&Tsi5Table>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut _options: *const Options,
 ) {
     let table = match table {

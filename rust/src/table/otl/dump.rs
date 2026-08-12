@@ -5,9 +5,7 @@
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
-use crate::vendor::json::JsonValue;
 use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
-use crate::support::json_funcs::{otfcc_dump_flags, preserialize};
 use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
 use crate::table::otl::subtables::chaining::dump::{otl_dump_chaining};
 use crate::table::otl::subtables::gpos_cursive::{otl_gpos_dump_cursive};
@@ -19,13 +17,13 @@ use crate::table::otl::subtables::gsub_ligature::{otl_gsub_dump_ligature};
 use crate::table::otl::subtables::gsub_multi::{otl_gsub_dump_multi};
 use crate::table::otl::subtables::gsub_reverse::{otl_gsub_dump_reverse};
 use crate::table::otl::subtables::gsub_single::{otl_gsub_dump_single};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new, json_string_new_from_bytes};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new, json_string_new_from_bytes, otfcc_dump_flags, preserialize};
 use crate::vendor::sds::{sdsempty};
 unsafe extern "C" fn _declare_lookup_dumper(
     mut llt: LookupType,
-    mut dumper: Option<unsafe extern "C" fn(*const Subtable) -> *mut JsonValue>,
+    mut dumper: Option<unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue>,
     mut lookup: *const Lookup,
-    mut dump: *mut JsonValue,
+    mut dump: *mut BuiltValue,
 ) {
     if (*lookup).type_0 == llt {
         json_object_push(
@@ -50,7 +48,7 @@ unsafe extern "C" fn _declare_lookup_dumper(
                 ),
             );
         }
-        let mut subtables: *mut JsonValue = json_array_new((*lookup).subtables.len());
+        let mut subtables: *mut BuiltValue = json_array_new((*lookup).subtables.len());
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
             if let Some(sub) = &(&(*lookup).subtables)[j as usize] {
@@ -70,66 +68,66 @@ unsafe extern "C" fn _declare_lookup_dumper(
         );
     }
 }
-unsafe extern "C" fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut JsonValue) {
+unsafe extern "C" fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut BuiltValue) {
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_SINGLE,
-        Some(otl_gsub_dump_single as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
+        Some(otl_gsub_dump_single as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_MULTIPLE,
-        Some(otl_gsub_dump_multi as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
+        Some(otl_gsub_dump_multi as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_ALTERNATE,
-        Some(otl_gsub_dump_multi as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
+        Some(otl_gsub_dump_multi as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_LIGATURE,
         Some(
-            otl_gsub_dump_ligature as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue,
+            otl_gsub_dump_ligature as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue,
         ),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_CHAINING,
-        Some(otl_dump_chaining as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
+        Some(otl_dump_chaining as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_REVERSE,
-        Some(otl_gsub_dump_reverse as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
+        Some(otl_gsub_dump_reverse as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GPOS_CHAINING,
-        Some(otl_dump_chaining as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
+        Some(otl_dump_chaining as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GPOS_SINGLE,
-        Some(otl_gpos_dump_single as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
+        Some(otl_gpos_dump_single as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GPOS_PAIR,
-        Some(otl_gpos_dump_pair as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
+        Some(otl_gpos_dump_pair as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GPOS_CURSIVE,
-        Some(otl_gpos_dump_cursive as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue),
+        Some(otl_gpos_dump_cursive as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
@@ -137,7 +135,7 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut Json
         OTL_TYPE_GPOS_MARK_TO_BASE,
         Some(
             otl_gpos_dump_mark_to_single
-                as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue,
+                as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue,
         ),
         lookup,
         dump,
@@ -146,7 +144,7 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut Json
         OTL_TYPE_GPOS_MARK_TO_MARK,
         Some(
             otl_gpos_dump_mark_to_single
-                as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue,
+                as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue,
         ),
         lookup,
         dump,
@@ -155,7 +153,7 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut Json
         OTL_TYPE_GPOS_MARK_TO_LIGATURE,
         Some(
             otl_gpos_dump_mark_to_ligature
-                as unsafe extern "C" fn(*const Subtable) -> *mut JsonValue,
+                as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue,
         ),
         lookup,
         dump,
@@ -163,7 +161,7 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut Json
 }
 pub unsafe extern "C" fn otfcc_dump_otl(
     mut table: Option<&OtlTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) {
@@ -183,7 +181,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut otl: *mut JsonValue = json_object_new(3 as usize);
+        let mut otl: *mut BuiltValue = json_object_new(3 as usize);
         (*(*options).logger)
             .start_sds
             .expect("non-null function pointer")(
@@ -192,10 +190,10 @@ pub unsafe extern "C" fn otfcc_dump_otl(
         );
         let mut ___loggedstep_v_0: bool = true;
         while ___loggedstep_v_0 {
-            let mut languages: *mut JsonValue = json_object_new((*table).languages.len());
+            let mut languages: *mut BuiltValue = json_object_new((*table).languages.len());
             let mut j: TableId = 0 as TableId;
             while (j as usize) < (*table).languages.len() {
-                let mut _lang: *mut JsonValue = json_object_new(5 as usize);
+                let mut _lang: *mut BuiltValue = json_object_new(5 as usize);
                 let lang: *const LanguageSystem = &raw const *(&(*table).languages)[j as usize];
                 if !(*lang).required_feature.is_null() {
                     json_object_push(
@@ -204,7 +202,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
                         json_string_new_from_bytes(&(*(*lang).required_feature).name),
                     );
                 }
-                let mut features: *mut JsonValue = json_array_new((*lang).features.len());
+                let mut features: *mut BuiltValue = json_array_new((*lang).features.len());
                 let mut k: TableId = 0 as TableId;
                 while (k as usize) < (*lang).features.len() {
                     if !(&(*lang).features)[k as usize].is_null() {
@@ -243,11 +241,11 @@ pub unsafe extern "C" fn otfcc_dump_otl(
         );
         let mut ___loggedstep_v_1: bool = true;
         while ___loggedstep_v_1 {
-            let mut features_0: *mut JsonValue = json_object_new((*table).features.len());
+            let mut features_0: *mut BuiltValue = json_object_new((*table).features.len());
             let mut j_0: TableId = 0 as TableId;
             while (j_0 as usize) < (*table).features.len() {
                 let feature: *const Feature = &raw const *(&(*table).features)[j_0 as usize];
-                let mut _feature: *mut JsonValue = json_array_new((*feature).lookups.len());
+                let mut _feature: *mut BuiltValue = json_array_new((*feature).lookups.len());
                 let mut k_0: TableId = 0 as TableId;
                 while (k_0 as usize) < (*feature).lookups.len() {
                     if !(&(*feature).lookups)[k_0 as usize].is_null() {
@@ -285,11 +283,11 @@ pub unsafe extern "C" fn otfcc_dump_otl(
         );
         let mut ___loggedstep_v_2: bool = true;
         while ___loggedstep_v_2 {
-            let mut lookups: *mut JsonValue = json_object_new((*table).lookups.len());
-            let mut lookup_order: *mut JsonValue = json_array_new((*table).lookups.len());
+            let mut lookups: *mut BuiltValue = json_object_new((*table).lookups.len());
+            let mut lookup_order: *mut BuiltValue = json_array_new((*table).lookups.len());
             let mut j_1: TableId = 0 as TableId;
             while (j_1 as usize) < (*table).lookups.len() {
-                let mut _lookup: *mut JsonValue = json_object_new(5 as usize);
+                let mut _lookup: *mut BuiltValue = json_object_new(5 as usize);
                 let lookup: *const Lookup = &raw const *(&(*table).lookups)[j_1 as usize];
                 _dump_lookup(lookup, _lookup);
                 json_object_push_bytes_key(

@@ -1,19 +1,19 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 #![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
 
-use crate::support::json_funcs::{json_new_position, json_object_push_tag, preserialize};
+use crate::support::built_json::{json_new_position, json_object_push_tag, preserialize};
 use crate::support::parsed_json::{ParsedValue, json_numof};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, Pos};
-use crate::vendor::json::JsonValue;
+
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::vf::axis::{VfAxes, VfAxis};
 use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vv::VV;
 use crate::support::primitives::{otfcc_from_fixed};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_object_push_length, json_string_new, json_string_new_from_bytes};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_object_push_length, json_string_new, json_string_new_from_bytes};
 use crate::vendor::sds::{sdsempty};
 use crate::vf::region::{vq_axis_span_is_one, vq_delete_region};
 use crate::vf::vq::{I_VQ};
@@ -411,7 +411,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
 }
 pub unsafe extern "C" fn otfcc_dump_fvar(
     table: Option<&FvarTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let table = match table {
@@ -428,14 +428,14 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
     let instances: &Vec<FvarInstance> = &(*table).instances;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut t: *mut JsonValue = json_object_new(2 as usize);
-        let mut _axes: *mut JsonValue = json_object_new(axes.len());
+        let mut t: *mut BuiltValue = json_object_new(2 as usize);
+        let mut _axes: *mut BuiltValue = json_object_new(axes.len());
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
         while keep != 0 && __caryll_index < axes.len() {
             let axis: &VfAxis = &axes[__caryll_index];
             while keep != 0 {
-                let mut _axis: *mut JsonValue = json_object_new(5 as usize);
+                let mut _axis: *mut BuiltValue = json_object_new(5 as usize);
                 json_object_push(
                     _axis,
                     b"minValue\0" as *const u8 as *const ::core::ffi::c_char,
@@ -472,13 +472,13 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
             b"axes\0" as *const u8 as *const ::core::ffi::c_char,
             _axes,
         );
-        let mut _instances: *mut JsonValue = json_array_new(instances.len());
+        let mut _instances: *mut BuiltValue = json_array_new(instances.len());
         let mut __caryll_index_0: usize = 0 as usize;
         let mut keep_0: usize = 1 as usize;
         while keep_0 != 0 && __caryll_index_0 < instances.len() {
             let instance: &FvarInstance = &instances[__caryll_index_0];
             while keep_0 != 0 {
-                let mut _instance: *mut JsonValue = json_object_new(4 as usize);
+                let mut _instance: *mut BuiltValue = json_object_new(4 as usize);
                 json_object_push(
                     _instance,
                     b"subfamilyNameID\0" as *const u8 as *const ::core::ffi::c_char,
@@ -512,7 +512,7 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
             b"instances\0" as *const u8 as *const ::core::ffi::c_char,
             _instances,
         );
-        let mut _masters: *mut JsonValue = json_object_new((*table).masters.len());
+        let mut _masters: *mut BuiltValue = json_object_new((*table).masters.len());
         for master in (*table).masters.values() {
             json_object_push_bytes_key(
                 _masters,
@@ -539,8 +539,8 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
 pub unsafe extern "C" fn json_new_vq_segment(
     mut s: *const VqSegment,
     mut fvar: *const FvarTable,
-) -> *mut JsonValue {
-    let mut d: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+) -> *mut BuiltValue {
+    let mut d: *mut BuiltValue = ::core::ptr::null_mut::<BuiltValue>();
     match (*s).type_0 as ::core::ffi::c_uint {
         0 => return json_new_position((*s).val.still),
         1 => {
@@ -567,7 +567,7 @@ pub unsafe extern "C" fn json_new_vq_segment(
         _ => return json_integer_new(0 as i64),
     };
 }
-pub unsafe extern "C" fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *mut JsonValue {
+pub unsafe extern "C" fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *mut BuiltValue {
     if z.shift.is_empty() {
         return preserialize(json_new_position(I_VQ
             .get_still
@@ -575,7 +575,7 @@ pub unsafe extern "C" fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *
             z
         )));
     } else {
-        let mut a: *mut JsonValue = json_array_new(z.shift.len().wrapping_add(1 as usize));
+        let mut a: *mut BuiltValue = json_array_new(z.shift.len().wrapping_add(1 as usize));
         json_array_push(a, json_new_position(z.kernel));
         let mut j: usize = 0 as usize;
         while j < z.shift.len() {
@@ -596,11 +596,11 @@ pub unsafe extern "C" fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *
 pub unsafe extern "C" fn json_new_v_vp(
     x: *const VV,
     fvar: *const FvarTable,
-) -> *mut JsonValue {
+) -> *mut BuiltValue {
     let axes: &Vec<VfAxis> = &(*fvar).axes;
     let coords: &Vec<Pos> = &*x;
     if axes.len() == coords.len() {
-        let mut _coord: *mut JsonValue = json_object_new(axes.len());
+        let mut _coord: *mut BuiltValue = json_object_new(axes.len());
         let mut m: usize = 0 as usize;
         while m < coords.len() {
             let axis: &VfAxis = &axes[m];
@@ -623,7 +623,7 @@ pub unsafe extern "C" fn json_new_v_vp(
         }
         return preserialize(_coord);
     } else {
-        let mut _coord_0: *mut JsonValue = json_array_new(coords.len());
+        let mut _coord_0: *mut BuiltValue = json_array_new(coords.len());
         let mut m_0: usize = 0 as usize;
         while m_0 < coords.len() {
             json_array_push(_coord_0, json_new_position(coords[m_0]));
@@ -635,11 +635,11 @@ pub unsafe extern "C" fn json_new_v_vp(
 pub unsafe extern "C" fn json_vq_of(mut cv: *const ParsedValue, mut _fvar: *const FvarTable) -> VQ {
     return I_VQ.create_still.expect("non-null function pointer")(json_numof(cv) as Pos);
 }
-pub unsafe extern "C" fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut JsonValue {
+pub unsafe extern "C" fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut BuiltValue {
     if vq_axis_span_is_one(s) {
         return json_string_new(b"*\0" as *const u8 as *const ::core::ffi::c_char);
     } else {
-        let mut a: *mut JsonValue = json_object_new(3 as usize);
+        let mut a: *mut BuiltValue = json_object_new(3 as usize);
         json_object_push(
             a,
             b"start\0" as *const u8 as *const ::core::ffi::c_char,
@@ -661,10 +661,10 @@ pub unsafe extern "C" fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut
 pub unsafe extern "C" fn json_new_vq_region_explicit(
     mut rs: *const VqRegion,
     fvar: *const FvarTable,
-) -> *mut JsonValue {
+) -> *mut BuiltValue {
     let axes: &Vec<VfAxis> = &(*fvar).axes;
     if axes.len() == (*rs).dimensions as usize {
-        let mut r: *mut JsonValue = json_object_new((*rs).dimensions as usize);
+        let mut r: *mut BuiltValue = json_object_new((*rs).dimensions as usize);
         let mut j: usize = 0 as usize;
         while j < (*rs).dimensions as usize {
             json_object_push_tag(
@@ -679,7 +679,7 @@ pub unsafe extern "C" fn json_new_vq_region_explicit(
         }
         return r;
     } else {
-        let mut r_0: *mut JsonValue = json_array_new((*rs).dimensions as usize);
+        let mut r_0: *mut BuiltValue = json_array_new((*rs).dimensions as usize);
         let mut j_0: usize = 0 as usize;
         while j_0 < (*rs).dimensions as usize {
             json_array_push(
@@ -697,7 +697,7 @@ pub unsafe extern "C" fn json_new_vq_region_explicit(
 pub unsafe extern "C" fn json_new_vq_region(
     mut rs: *const VqRegion,
     mut fvar: *const FvarTable,
-) -> *mut JsonValue {
+) -> *mut BuiltValue {
     let mut m: *const FvarMaster = TABLE_I_FVAR
         .find_master_by_region
         .expect("non-null function pointer")(fvar, rs);

@@ -11,7 +11,7 @@
 use ::otfcc_rust;
 
 use otfcc_rust::support::stdio::{stdin, stdout, FILE};
-use libc::{calloc, exit, fclose, fgetc, fileno, fopen, fprintf, fputc, fputs, free, fwrite, isatty, strcmp, strdup, strtol};
+use libc::{exit, fclose, fgetc, fileno, fopen, fprintf, fputc, fwrite, isatty, strcmp, strdup, strtol};
 // `otfcc_read_sfnt` and friends are this crate's own functions, still reached
 // through `extern "C"` rather than `use otfcc_rust::…` because the binary also
 // carries its own copies of the types in their signatures. Once those types
@@ -35,7 +35,7 @@ use otfcc_rust::logger::{LoggerType, ILogger};
 use otfcc_rust::support::options::{Options};
 
 use otfcc_rust::vendor::sds::{SdsRaw};
-use otfcc_rust::vendor::json::{JsonValue};
+use otfcc_rust::support::built_json::BuiltValue;
 use otfcc_rust::font::caryll_font::{Font, IFontBuilder, IFontSerializer};
 use otfcc_rust::font::caryll_sfnt::{SplineFontContainer};
 use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
@@ -72,7 +72,7 @@ use otfcc_rust::support::{EXIT_FAILURE, NULL};
 
 
 
-use otfcc_rust::vendor::json_builder::{JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts};
+use otfcc_rust::support::built_json::{JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts};
 use libc::timespec;
 use otfcc_rust::support::getopt::{NO_ARGUMENT, LongOption, REQUIRED_ARGUMENT};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
@@ -83,7 +83,7 @@ use otfcc_rust::logger::{otfcc_new_logger, otfcc_new_std_err_target};
 use otfcc_rust::otf_reader::{otfcc_new_otf_reader};
 use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
-use otfcc_rust::vendor::json_builder::{json_builder_free, json_measure_ex, json_serialize_ex};
+use otfcc_rust::support::built_json::json_serialize_ex;
 use otfcc_rust::vendor::sds::{sdsempty, sdsfree, sdsnew};
 
 
@@ -587,7 +587,7 @@ unsafe fn main_0(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    let mut root: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut root: *mut BuiltValue = ::core::ptr::null_mut::<BuiltValue>();
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -598,7 +598,7 @@ unsafe fn main_0(
     while ___loggedstep_v_2 {
         let mut dumper: *mut IFontSerializer = otfcc_new_json_writer();
         root = (*dumper).serialize.expect("non-null function pointer")(font, options)
-            as *mut JsonValue;
+            as *mut BuiltValue;
         if root.is_null() {
             (*(*options).logger)
                 .log_sds
@@ -629,8 +629,7 @@ unsafe fn main_0(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    let mut buf: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut buflen: usize = 0;
+    let mut buf: Vec<u8> = Vec::new();
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -655,9 +654,7 @@ unsafe fn main_0(
         if show_ugly {
             jsonOptions.mode = JSON_SERIALIZE_MODE_PACKED;
         }
-        buflen = json_measure_ex(root, jsonOptions);
-        buf = calloc(1 as usize, buflen) as *mut ::core::ffi::c_char;
-        json_serialize_ex(buf, root, jsonOptions);
+        buf = json_serialize_ex(&*root, jsonOptions);
         (*(*options).logger)
             .log_sds
             .expect("non-null function pointer")(
@@ -705,14 +702,10 @@ unsafe fn main_0(
                 fputc(0xbb as ::core::ffi::c_int, outputFile);
                 fputc(0xbf as ::core::ffi::c_int, outputFile);
             }
-            let mut actualLen: usize = buflen.wrapping_sub(1 as usize);
-            while *buf.offset(actualLen as isize) == 0 {
-                actualLen = actualLen.wrapping_sub(1 as usize);
-            }
             fwrite(
-                buf as *const ::core::ffi::c_void,
-                ::core::mem::size_of::<::core::ffi::c_char>() as usize,
-                actualLen.wrapping_add(1 as usize),
+                buf.as_ptr() as *const ::core::ffi::c_void,
+                ::core::mem::size_of::<u8>() as usize,
+                buf.len(),
                 outputFile,
             );
             fclose(outputFile);
@@ -722,7 +715,12 @@ unsafe fn main_0(
                 fputc(0xbb as ::core::ffi::c_int, stdout);
                 fputc(0xbf as ::core::ffi::c_int, stdout);
             }
-            fputs(buf, stdout);
+            fwrite(
+                buf.as_ptr() as *const ::core::ffi::c_void,
+                ::core::mem::size_of::<u8>() as usize,
+                buf.len(),
+                stdout,
+            );
         }
         (*(*options).logger)
             .log_sds
@@ -745,12 +743,11 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
-        free(buf as *mut ::core::ffi::c_void);
         if !font.is_null() {
             OTFCC_I_FONT.free.expect("non-null function pointer")(font);
         }
         if !root.is_null() {
-            json_builder_free(root);
+            drop(Box::from_raw(root));
         }
         if !inPath.is_null() {
             sdsfree(inPath);

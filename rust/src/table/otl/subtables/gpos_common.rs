@@ -1,8 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::json_funcs::{
-    json_new_position,
-    preserialize,
-};
 use crate::support::parsed_json::{
     ParsedValue, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
     json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_ptr,
@@ -16,11 +12,11 @@ use crate::support::binio::{pos_to_u16, read_16u, read_16s};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_push};
 use crate::table::otl::{Anchor, MarkArray, MarkRecord, PositionValue};
 use crate::support::buffer::{bufwrite16b};
-use crate::vendor::json_builder::{json_null_new, json_object_new, json_object_push};
+use crate::support::built_json::{BuiltValue, json_null_new, json_object_new, json_object_push, json_new_position, preserialize};
 use crate::vendor::sds::{sdsnewlen};
 // `MarkRecord` holds only a `GlyphHandle` plus a plain `Anchor`, so dropping
 // the `Vec` runs `Handle`'s own `Drop` for every entry -- no per-element
@@ -230,9 +226,9 @@ pub unsafe extern "C" fn otl_read_anchor(
         return anchor;
     };
 }
-pub unsafe extern "C" fn otl_dump_anchor(mut a: Anchor) -> *mut JsonValue {
+pub unsafe extern "C" fn otl_dump_anchor(mut a: Anchor) -> *mut BuiltValue {
     if a.present {
-        let mut v: *mut JsonValue = json_object_new(2 as usize);
+        let mut v: *mut BuiltValue = json_object_new(2 as usize);
         json_object_push(
             v,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
@@ -1611,8 +1607,8 @@ pub unsafe extern "C" fn read_gpos_value(
     }
     return v;
 }
-pub unsafe extern "C" fn gpos_dump_value(mut value: PositionValue) -> *mut JsonValue {
-    let mut v: *mut JsonValue = json_object_new(4 as usize);
+pub unsafe extern "C" fn gpos_dump_value(mut value: PositionValue) -> *mut BuiltValue {
+    let mut v: *mut BuiltValue = json_object_new(4 as usize);
     if value.dx != 0. {
         json_object_push(
             v,

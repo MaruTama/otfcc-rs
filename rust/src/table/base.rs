@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, qsort};
 
-use crate::support::json_funcs::{json_new_position, json_object_push_tag};
 use crate::support::parsed_json::{ParsedValue, json_numof, json_obj_get_type, json_obj_getstr_share, json_obj_key_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u, read_16s, read_32u};
@@ -9,11 +8,11 @@ use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, Pos, TableId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::bk::bkgraph::{bk_build_block};
-use crate::vendor::json_builder::{json_object_new, json_object_push, json_string_new_length};
+use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_string_new_length, json_new_position, json_object_push_tag};
 use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
@@ -400,12 +399,12 @@ pub unsafe extern "C" fn otfcc_read_base(
     }
     return None;
 }
-unsafe extern "C" fn axis_to_json(mut axis: *const BaseAxis) -> *mut JsonValue {
-    let mut _axis: *mut JsonValue = json_object_new((*axis).script_count as usize);
+unsafe extern "C" fn axis_to_json(mut axis: *const BaseAxis) -> *mut BuiltValue {
+    let mut _axis: *mut BuiltValue = json_object_new((*axis).script_count as usize);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*axis).script_count as ::core::ffi::c_int {
         if !((*(*axis).entries.offset(j as isize)).tag == 0) {
-            let mut _entry: *mut JsonValue = json_object_new(3 as usize);
+            let mut _entry: *mut BuiltValue = json_object_new(3 as usize);
             if (*(*axis).entries.offset(j as isize)).default_baseline_tag != 0 {
                 let mut tag: [::core::ffi::c_char; 4] = [0; 4];
                 tag2str(
@@ -421,7 +420,7 @@ unsafe extern "C" fn axis_to_json(mut axis: *const BaseAxis) -> *mut JsonValue {
                     ),
                 );
             }
-            let mut _values: *mut JsonValue =
+            let mut _values: *mut BuiltValue =
                 json_object_new((*(*axis).entries.offset(j as isize)).base_values_count as usize);
             let mut k: TableId = 0 as TableId;
             while (k as ::core::ffi::c_int)
@@ -462,7 +461,7 @@ unsafe extern "C" fn axis_to_json(mut axis: *const BaseAxis) -> *mut JsonValue {
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_base(
     base: Option<&BaseTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let base = match base {
@@ -477,7 +476,7 @@ pub unsafe extern "C" fn otfcc_dump_base(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _base: *mut JsonValue = json_object_new(2 as usize);
+        let mut _base: *mut BuiltValue = json_object_new(2 as usize);
         if !(*base).horizontal.is_null() {
             json_object_push(
                 _base,

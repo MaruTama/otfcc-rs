@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, qsort};
 
-use crate::support::json_funcs::{preserialize};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_str_len, json_str_ptr, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
@@ -9,9 +8,9 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite_bufdel};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_string_new_from_bytes};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_string_new_from_bytes, preserialize};
 use crate::vendor::sds::{sdsnewlen};
 /// A glyph coverage set: C by way of c2rust had this as a hand-rolled
 /// `malloc`/`realloc` array (`num_glyphs`/`capacity`/`glyphs: *mut
@@ -23,7 +22,7 @@ pub type Coverage = Vec<GlyphHandle>;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct ICoverage {
-    pub dump: Option<unsafe extern "C" fn(*const Coverage) -> *mut JsonValue>,
+    pub dump: Option<unsafe extern "C" fn(*const Coverage) -> *mut BuiltValue>,
     pub parse: Option<unsafe extern "C" fn(*const ParsedValue) -> *mut Coverage>,
     pub build: Option<unsafe extern "C" fn(*const Coverage) -> *mut Buffer>,
     pub build_format:
@@ -174,8 +173,8 @@ pub(crate) unsafe extern "C" fn read_coverage(
     }
     return coverage;
 }
-pub(crate) unsafe extern "C" fn dump_coverage(coverage: *const Coverage) -> *mut JsonValue {
-    let mut a: *mut JsonValue = json_array_new((*coverage).len());
+pub(crate) unsafe extern "C" fn dump_coverage(coverage: *const Coverage) -> *mut BuiltValue {
+    let mut a: *mut BuiltValue = json_array_new((*coverage).len());
     for j in 0..(*coverage).len() {
         json_array_push(
             a,
@@ -388,7 +387,7 @@ pub(crate) unsafe extern "C" fn shrink_coverage(coverage: *mut Coverage, dosort:
 }
 pub static OTL_I_COVERAGE: ICoverage = {
     ICoverage {
-        dump: Some(dump_coverage as unsafe extern "C" fn(*const Coverage) -> *mut JsonValue),
+        dump: Some(dump_coverage as unsafe extern "C" fn(*const Coverage) -> *mut BuiltValue),
         parse: Some(parse_coverage as unsafe extern "C" fn(*const ParsedValue) -> *mut Coverage),
         build: Some(
             build_coverage as unsafe extern "C" fn(*const Coverage) -> *mut Buffer,

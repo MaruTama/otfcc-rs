@@ -4,11 +4,11 @@ use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphSize, TableId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getbool, json_obj_getint_fallback, json_type_of};
 use crate::support::buffer::{bufnew, bufwrite16b};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push};
 use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
@@ -126,7 +126,7 @@ pub unsafe extern "C" fn otfcc_read_gasp(
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_gasp(
     table: Option<&GaspTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let table = match table {
@@ -142,10 +142,10 @@ pub unsafe extern "C" fn otfcc_dump_gasp(
     let records: &Vec<GaspRecord> = &(*table).records;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut t: *mut JsonValue = json_array_new(records.len());
+        let mut t: *mut BuiltValue = json_array_new(records.len());
         let mut j: u16 = 0 as u16;
         while (j as usize) < records.len() {
-            let mut rec: *mut JsonValue = json_object_new(5 as usize);
+            let mut rec: *mut BuiltValue = json_object_new(5 as usize);
             json_object_push(
                 rec,
                 b"rangeMaxPPEM\0" as *const u8 as *const ::core::ffi::c_char,

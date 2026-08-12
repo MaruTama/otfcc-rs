@@ -5,11 +5,11 @@ use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
-use crate::vendor::json_builder::{json_double_new, json_integer_new, json_object_new, json_object_push};
+use crate::support::built_json::{BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push};
 use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
@@ -135,7 +135,7 @@ pub unsafe extern "C" fn otfcc_read_hhea(
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_hhea(
     table: Option<&HheaTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let table = match table {
@@ -150,7 +150,7 @@ pub unsafe extern "C" fn otfcc_dump_hhea(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut hhea: *mut JsonValue = json_object_new(13 as usize);
+        let mut hhea: *mut BuiltValue = json_object_new(13 as usize);
         json_object_push(
             hhea,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,

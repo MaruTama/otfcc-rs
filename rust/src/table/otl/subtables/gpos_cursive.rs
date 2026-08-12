@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc};
 
-use crate::support::json_funcs::{preserialize};
 use crate::support::parsed_json::{ParsedValue, json_obj_get, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
@@ -11,7 +10,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::otl::{Anchor, GposCursiveEntry, Subtable, GposCursiveSubtable, subtable_from_raw};
@@ -20,7 +19,7 @@ use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_dump_anchor, otl_parse_anchor, otl_read_anchor};
-use crate::vendor::json_builder::{json_object_new, json_object_push, json_object_push_bytes_key};
+use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key, preserialize};
 use crate::vendor::sds::{sdsnewlen};
 // `GposCursiveEntry` holds only a `GlyphHandle` plus two plain `Anchor`
 // values, so dropping the `Vec` runs `Handle`'s own `Drop` for every entry --
@@ -134,13 +133,13 @@ pub unsafe extern "C" fn otl_read_gpos_cursive(
 }
 pub unsafe extern "C" fn otl_gpos_dump_cursive(
     mut _subtable: *const Subtable,
-) -> *mut JsonValue {
+) -> *mut BuiltValue {
     let Subtable::GposCursive(mut_subtable) = &*_subtable else { unreachable!() };
     let subtable: *const GposCursiveSubtable = mut_subtable;
-    let mut st: *mut JsonValue = json_object_new((*subtable).len());
+    let mut st: *mut BuiltValue = json_object_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
-        let mut rec: *mut JsonValue = json_object_new(2 as usize);
+        let mut rec: *mut BuiltValue = json_object_new(2 as usize);
         json_object_push(
             rec,
             b"enter\0" as *const u8 as *const ::core::ffi::c_char,

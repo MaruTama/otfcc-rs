@@ -7,10 +7,10 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufnwrite8, bufwrite16b, bufwrite32b};
-use crate::vendor::json_builder::{json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
+use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsnewlen};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -227,7 +227,7 @@ pub unsafe extern "C" fn otfcc_read_tsi(
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_tsi(
     tsi: Option<&TsiTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) {
@@ -244,8 +244,8 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
     let entries: &Vec<TsiEntry> = tsi;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _tsi: *mut JsonValue = json_object_new(2 as usize);
-        let mut _glyphs: *mut JsonValue = json_object_new(entries.len());
+        let mut _tsi: *mut BuiltValue = json_object_new(2 as usize);
+        let mut _glyphs: *mut BuiltValue = json_object_new(entries.len());
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
         while keep != 0 && __caryll_index < entries.len() {
@@ -268,7 +268,7 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
             keep = (keep == 0) as ::core::ffi::c_int as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
-        let mut _extra: *mut JsonValue = json_object_new(entries.len());
+        let mut _extra: *mut BuiltValue = json_object_new(entries.len());
         let mut __caryll_index_0: usize = 0 as usize;
         let mut keep_0: usize = 1 as usize;
         while keep_0 != 0 && __caryll_index_0 < entries.len() {

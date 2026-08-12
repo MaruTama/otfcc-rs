@@ -12,7 +12,7 @@ use crate::support::buffer::{bufninit, Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{Arity, CffSid, FontFilePointer, GlyphId, Pos, Scale, ShapeId, TableId};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::libcff::CffDictOperator;
 use crate::libcff::{CffFile, CffIOutlineBuilder, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES, OP_CID_COUNT, OP_CID_FONT_REVISION, OP_CID_FONT_VERSION, OP_CHAR_STRINGS, OP_COPYRIGHT, OP_EXPANSION_FACTOR, OP_FD_ARRAY, OP_FD_SELECT, OP_FAMILY_BLUES, OP_FAMILY_NAME, OP_FAMILY_OTHER_BLUES, OP_FONT_BBOX, OP_FONT_MATRIX, OP_FONT_NAME, OP_FORCE_BOLD, OP_FULL_NAME, OP_ITALIC_ANGLE, OP_LANGUAGE_GROUP, OP_NOTICE, OP_OTHER_BLUES, OP_PRIVATE, OP_ROS, OP_STD_HW, OP_STD_VW, OP_STEM_SNAP_H, OP_STEM_SNAP_V, OP_STROKE_WIDTH, OP_SUBRS, OP_UID_BASE, OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS, OP_WEIGHT, OP_CHARSET, OP_DEFAULT_WIDTH_X, OP_INITIAL_RANDOM_SEED, OP_IS_FIXED_PITCH, OP_NOMINAL_WIDTH_X, OP_VERSION};
@@ -46,7 +46,7 @@ use crate::support::buffer::{buffree, bufnew, bufwrite_bufdel, bufwrite_sds};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{json_new_vq};
 use crate::table::glyf::{GLYF_I_POINT, otfcc_new_glyf_glyph, table_glyf_create_n};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsnew, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
@@ -1591,7 +1591,7 @@ pub unsafe extern "C" fn otfcc_read_cff_and_glyf_tables(
     return ret;
 }
 unsafe extern "C" fn pd_delta_to_json(
-    mut target: *mut JsonValue,
+    mut target: *mut BuiltValue,
     mut field: *const ::core::ffi::c_char,
     mut count: Arity,
     mut values: *mut ::core::ffi::c_double,
@@ -1599,7 +1599,7 @@ unsafe extern "C" fn pd_delta_to_json(
     if count == 0 || values.is_null() {
         return;
     }
-    let mut a: *mut JsonValue = json_array_new(count as usize);
+    let mut a: *mut BuiltValue = json_array_new(count as usize);
     let mut j: Arity = 0 as Arity;
     while j < count {
         json_array_push(a, json_double_new(*values.offset(j as isize)));
@@ -1607,8 +1607,8 @@ unsafe extern "C" fn pd_delta_to_json(
     }
     json_object_push(target, field, a);
 }
-unsafe extern "C" fn pd_to_json(mut pd: *const CffPrivateDict) -> *mut JsonValue {
-    let mut _pd: *mut JsonValue = json_object_new(24 as usize);
+unsafe extern "C" fn pd_to_json(mut pd: *const CffPrivateDict) -> *mut BuiltValue {
+    let mut _pd: *mut BuiltValue = json_object_new(24 as usize);
     pd_delta_to_json(
         _pd,
         b"blueValues\0" as *const u8 as *const ::core::ffi::c_char,
@@ -1724,8 +1724,8 @@ unsafe extern "C" fn pd_to_json(mut pd: *const CffPrivateDict) -> *mut JsonValue
     }
     return _pd;
 }
-unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
-    let mut _cff: *mut JsonValue = json_object_new(24 as usize);
+unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut BuiltValue {
+    let mut _cff: *mut BuiltValue = json_object_new(24 as usize);
     if (*table).is_cid {
         json_object_push(
             _cff,
@@ -1846,7 +1846,7 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
         );
     }
     if let Some(fm) = (*table).font_matrix.as_deref() {
-        let mut _font_matrix: *mut JsonValue = json_object_new(6 as usize);
+        let mut _font_matrix: *mut BuiltValue = json_object_new(6 as usize);
         json_object_push(
             _font_matrix,
             b"a\0" as *const u8 as *const ::core::ffi::c_char,
@@ -1908,7 +1908,7 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
         );
     }
     if !(*table).fd_array.is_empty() {
-        let mut _fd_array: *mut JsonValue = json_object_new((*table).fd_array.len());
+        let mut _fd_array: *mut BuiltValue = json_object_new((*table).fd_array.len());
         // `table` is `*const CffTable`, but the take/restore below needs a
         // mutable place -- sound here because nothing else touches `table`
         // during a dump pass, matching the same "read-only signature,
@@ -1938,7 +1938,7 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut JsonValue {
 }
 pub unsafe extern "C" fn otfcc_dump_cff(
     mut table: Option<&CffTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let table: *const CffTable = table.map_or(::core::ptr::null(), |t| t as *const CffTable);
@@ -3087,7 +3087,7 @@ pub unsafe extern "C" fn otfcc_build_cff(
     return writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options);
 }
 #[inline]
-unsafe fn json_from_sds(str: &[u8]) -> *mut JsonValue {
+unsafe fn json_from_sds(str: &[u8]) -> *mut BuiltValue {
     return json_string_new_length(
         str.len() as ::core::ffi::c_uint,
         str.as_ptr() as *const ::core::ffi::c_char,

@@ -7,14 +7,14 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::bk::bkblock::{bk_new_block_from_buffer_copy};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::support::base64::{base64_encode};
 use crate::support::buffer::{buffree, bufnew, bufwrite_buf, bufwrite_bytes};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsfree, sdslen};
 
 #[repr(C)]
@@ -183,7 +183,7 @@ unsafe extern "C" fn can_use_plain_format(mut buf: *const Buffer) -> bool {
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_svg(
     svg: Option<&SvgTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let svg = match svg {
@@ -199,13 +199,13 @@ pub unsafe extern "C" fn otfcc_dump_svg(
     let entries: &Vec<SvgAssignment> = svg;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _svg: *mut JsonValue = json_array_new(entries.len());
+        let mut _svg: *mut BuiltValue = json_array_new(entries.len());
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
         while keep != 0 && __caryll_index < entries.len() {
             let a: &SvgAssignment = &entries[__caryll_index];
             while keep != 0 {
-                let mut _a: *mut JsonValue = json_object_new(4 as usize);
+                let mut _a: *mut BuiltValue = json_object_new(4 as usize);
                 json_object_push(
                     _a,
                     b"start\0" as *const u8 as *const ::core::ffi::c_char,

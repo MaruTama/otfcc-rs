@@ -894,6 +894,67 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **All ~40 build/dump-side files now construct `BuiltValue` instead of
+  `vendor::json::JsonValue` — Stage 6-2.5 C-3, part 2, wiring up the
+  representation the previous PR shipped unwired.** Every `otfcc_dump_X`/
+  `otl_dump_X`/`dump_class_def`/`dump_coverage`-family function's signature
+  moved from `*mut JsonValue` to `*mut BuiltValue`, from the two build-side
+  entry points (`json_writer.rs`'s dispatcher, and `bin/otfccdump.rs`'s one
+  `IFontSerializer`/`*mut c_void` boundary crossing) down through every leaf
+  table dumper. Shipped as one PR, same reasoning as C-2 part 2: return-type
+  propagation through a shared tree root is just as viral as parameter-type
+  propagation was on the parse side — confirmed by converting the
+  dispatcher alone and watching the compiler error trail point at exactly
+  the still-unconverted callees, the same tracking strategy C-2 used.
+  - **A real, silent-corruption bug found and fixed during this wiring, not
+    present in C-2's parse-side conversion.** Several dump functions built
+    an empty array/object, pushed it into its parent immediately, and only
+    *afterward* populated it in a loop — sound under the old `JsonValue`
+    API because `json_object_push`/`json_array_push` store a raw pointer,
+    so later mutations through the original handle stayed visible via the
+    alias. `BuiltValue`'s push *moves* the value in by ownership, so that
+    same ordering silently discards everything pushed after the handoff —
+    the parent ends up holding the empty snapshot. Caught by
+    `compare-with-c.sh`'s byte-for-byte check (`meta-test`/`vdmx-test`
+    dumps came back with truncated/empty arrays), not by the type checker,
+    since both old and new APIs return the same pointer type and compile
+    equally well either way. Fixed in `table/meta/dump.rs` (one
+    array) and `table/vdmx/funcs.rs` (nested three levels deep — ratios,
+    each ratio's records, this needed reordering at every level) by
+    restructuring each container to be fully populated with its own
+    children *before* being pushed into its parent. Swept every other
+    converted file for the same shape with a small script (validated
+    against these two known-buggy files first, to confirm it actually
+    catches the pattern before trusting a clean sweep elsewhere) — no
+    further instances found.
+  - Also converted: `support/ttinstr.rs`'s `dump_ttinstr` (the one
+    parse/build pair living outside `table/`, mirroring `parse_ttinstr`'s
+    own C-2 move), and `table/otl/{classdef,coverage}.rs`'s `IClassDef.dump`/
+    `ICoverage.dump` vtable fields (the return-type equivalent of C-2's
+    `.parse` field conversion).
+  - **The last 4 build-side helpers still living in `support/json_funcs.rs`
+    (`otfcc_dump_flags`, `json_object_push_tag`, `json_new_position`,
+    `preserialize`) moved to `support/built_json.rs`, then were deleted
+    from `json_funcs.rs`** once grep confirmed zero remaining callers
+    (mirroring C-2's `json_ident.rs` deletion) — along with their
+    now-unused imports (`round`'s `extern "C"` declaration is gone too;
+    `json_new_position` uses `f64::round` directly, identical rounding
+    behavior, no libm binding needed).
+  - `bin/otfccdump.rs`'s buffer handling simplified along with the
+    `json_measure_ex` removal C-3 part 1 already flagged: `json_serialize_ex`
+    now returns an exact `Vec<u8>`, so the old "scan backward over the
+    over-sized buffer's trailing zero padding to find the real end" step
+    is gone, and both the file-output and stdout-output paths write the
+    exact byte count via `fwrite` uniformly (the old stdout path used
+    `fputs`, relying on NUL-termination that a `Vec<u8>` doesn't carry).
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib (both platforms — the real
+    dlopen check runs in the Linux container); all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green on both
+    platforms too.
+
 - **A new safe Rust representation for the JSON *build/dump* side exists now
   (`support::built_json::{BuiltValue, ...}`) — Stage 6-2.5 C-3, part 1. It
   is not wired into anything yet.** Mirrors C-2's own two-stage shape: this

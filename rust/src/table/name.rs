@@ -8,13 +8,13 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::{buffree, bufnew, bufseek, bufwrite16b, bufwrite_buf, bufwrite_bytes};
 use crate::support::unicodeconv::{utf16be_to_utf8, utf8toutf16be};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsgrowzero, sdsnewlen};
 
 // `Copy` dropped (`name_string` is now `Vec<u8>`, the `sds` sweep's last
@@ -220,7 +220,7 @@ pub unsafe extern "C" fn otfcc_read_name(
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_name(
     name: Option<&NameTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let name = match name {
@@ -236,11 +236,11 @@ pub unsafe extern "C" fn otfcc_dump_name(
     let records: &Vec<NameRecord> = name;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _name: *mut JsonValue = json_array_new(records.len());
+        let mut _name: *mut BuiltValue = json_array_new(records.len());
         let mut j: u16 = 0 as u16;
         while (j as usize) < records.len() {
             let r: *const NameRecord = &records[j as usize];
-            let mut record: *mut JsonValue = json_object_new(5 as usize);
+            let mut record: *mut BuiltValue = json_object_new(5 as usize);
             json_object_push(
                 record,
                 b"platformID\0" as *const u8 as *const ::core::ffi::c_char,

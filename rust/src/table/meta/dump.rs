@@ -2,11 +2,10 @@
 use libc::{free};
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
-use crate::vendor::json::{JsonValue};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_encode};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
 use crate::vendor::sds::{sdsempty};
 #[inline]
 unsafe extern "C" fn is_string_tag(mut tag: u32) -> bool {
@@ -15,7 +14,7 @@ unsafe extern "C" fn is_string_tag(mut tag: u32) -> bool {
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_meta(
     meta: Option<&MetaTable>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let meta = match meta {
@@ -30,7 +29,7 @@ pub unsafe extern "C" fn otfcc_dump_meta(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _meta: *mut JsonValue = json_object_new(3 as usize);
+        let mut _meta: *mut BuiltValue = json_object_new(3 as usize);
         json_object_push(
             _meta,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -42,18 +41,13 @@ pub unsafe extern "C" fn otfcc_dump_meta(
             json_integer_new((*meta).flags as i64),
         );
         let entries: &Vec<MetaEntry> = &(*meta).entries;
-        let mut _entries: *mut JsonValue = json_array_new(entries.len());
-        json_object_push(
-            _meta,
-            b"entries\0" as *const u8 as *const ::core::ffi::c_char,
-            _entries,
-        );
+        let mut _entries: *mut BuiltValue = json_array_new(entries.len());
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
         while keep != 0 && __caryll_index < entries.len() {
             let mut e: *const MetaEntry = &entries[__caryll_index];
             while keep != 0 {
-                let mut _e: *mut JsonValue = json_object_new(2 as usize);
+                let mut _e: *mut BuiltValue = json_object_new(2 as usize);
                 let mut _tag: [::core::ffi::c_char; 4] = [0; 4];
                 tag2str((*e).tag, &raw mut _tag as *mut ::core::ffi::c_char);
                 json_object_push(
@@ -97,6 +91,11 @@ pub unsafe extern "C" fn otfcc_dump_meta(
             keep = (keep == 0) as ::core::ffi::c_int as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
+        json_object_push(
+            _meta,
+            b"entries\0" as *const u8 as *const ::core::ffi::c_char,
+            _entries,
+        );
         json_object_push(
             root,
             b"meta\0" as *const u8 as *const ::core::ffi::c_char,

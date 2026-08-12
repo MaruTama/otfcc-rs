@@ -211,6 +211,52 @@ pub unsafe fn json_null_new() -> *mut BuiltValue {
     Box::into_raw(Box::new(BuiltValue::Null))
 }
 
+/// Serialize a bitfield as a JSON object of `label: true` pairs, one per
+/// set bit -- matches `json_funcs::otfcc_dump_flags` exactly (see its own
+/// doc comment on why a plain slice reproduces the original's
+/// NUL-terminated-table walk).
+pub unsafe fn otfcc_dump_flags(
+    flags: c_int,
+    labels: &[&::core::ffi::CStr],
+) -> *mut BuiltValue {
+    let v = unsafe { json_object_new(0) };
+    for (j, label) in labels.iter().enumerate() {
+        if flags & (1 as c_int) << j != 0 {
+            unsafe { json_object_push(v, label.as_ptr(), json_boolean_new(1)) };
+        }
+    }
+    v
+}
+
+/// Push `b` under a four-character OpenType tag, unpacked big-endian from
+/// `tag` -- matches `json_funcs::json_object_push_tag` exactly.
+pub unsafe fn json_object_push_tag(
+    a: *mut BuiltValue,
+    tag: u32,
+    b: *mut BuiltValue,
+) -> *mut BuiltValue {
+    let tags: [c_char; 4] = [
+        ((tag & 0xff000000u32) >> 24) as c_char,
+        ((tag & 0xff0000u32) >> 16) as c_char,
+        ((tag & 0xff00u32) >> 8) as c_char,
+        (tag & 0xffu32) as c_char,
+    ];
+    unsafe { json_object_push_length(a, 4, tags.as_ptr(), b) }
+}
+
+/// A coordinate, written as an integer when it is one so the JSON stays
+/// readable -- matches `json_funcs::json_new_position` exactly. Uses
+/// `f64::round` directly rather than the old `extern "C" { fn round(...) }`
+/// declaration: both round half away from zero identically, so there is
+/// nothing left to import libm for.
+pub unsafe fn json_new_position(z: crate::support::primitives::Pos) -> *mut BuiltValue {
+    if (z as f64).round() == z as f64 {
+        unsafe { json_integer_new(z as i64) }
+    } else {
+        unsafe { json_double_new(z as f64) }
+    }
+}
+
 /// Serializes `x` now (packed mode) and keeps the bytes, so the writer can
 /// splice them in verbatim later instead of descending into `x` a second
 /// time. Consumes `x` -- matches `json_funcs::preserialize`'s contract

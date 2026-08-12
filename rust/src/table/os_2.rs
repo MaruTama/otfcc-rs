@@ -6,12 +6,11 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::support::json_funcs::{otfcc_dump_flags};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, json_str_len, json_str_ptr, json_type_of, otfcc_parse_flags};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_bytes};
-use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new, otfcc_dump_flags};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -498,7 +497,7 @@ pub static UNICODE_RANGE_LABELS4: [&::core::ffi::CStr; 27] = [
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_dump_os_2(
     table: Option<&Os2Table>,
-    mut root: *mut JsonValue,
+    mut root: *mut BuiltValue,
     mut options: *const Options,
 ) {
     let table = match table {
@@ -513,7 +512,7 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut os_2: *mut JsonValue = json_object_new(30 as usize);
+        let mut os_2: *mut BuiltValue = json_object_new(30 as usize);
         json_object_push(
             os_2,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -597,7 +596,7 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
             b"sFamilyClass\0" as *const u8 as *const ::core::ffi::c_char,
             json_integer_new((*table).s_family_class as i64),
         );
-        let mut panose: *mut JsonValue = json_array_new(10 as usize);
+        let mut panose: *mut BuiltValue = json_array_new(10 as usize);
         let mut j: u8 = 0 as u8;
         while (j as ::core::ffi::c_int) < 10 as ::core::ffi::c_int {
             json_array_push(

@@ -2,7 +2,6 @@
 use libc::{free};
 
 
-use crate::support::json_funcs::{preserialize};
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
@@ -14,7 +13,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::table::otl::{Anchor, BaseArray, BaseRecord, Subtable, GposMarkToSingleSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
@@ -22,7 +21,7 @@ use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_parse_mark_array, otl_parse_anchor, otl_read_mark_array, otl_read_anchor};
-use crate::vendor::json_builder::{json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_object_push_length, json_string_new_length};
+use crate::support::built_json::{BuiltValue, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_object_push_length, json_string_new_length, preserialize};
 use crate::vendor::sds::{sdsempty, sdsfree, sdslen, sdsnewlen};
 // `BaseRecord.anchors` is a plain `Vec<Anchor>` now and `glyph: GlyphHandle`
 // already has its own `Drop`, so a `BaseArray` (`Vec<BaseRecord>`) fully
@@ -172,15 +171,15 @@ pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
 }
 pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
     mut st: *const Subtable,
-) -> *mut JsonValue {
+) -> *mut BuiltValue {
     let Subtable::GposMarkToSingle(mut_subtable) = &*st else { unreachable!() };
     let subtable: *const GposMarkToSingleSubtable = mut_subtable;
-    let mut _subtable: *mut JsonValue = json_object_new(3 as usize);
-    let mut _marks: *mut JsonValue = json_object_new((*subtable).mark_array.len());
-    let mut _bases: *mut JsonValue = json_object_new((*subtable).base_array.len());
+    let mut _subtable: *mut BuiltValue = json_object_new(3 as usize);
+    let mut _marks: *mut BuiltValue = json_object_new((*subtable).mark_array.len());
+    let mut _bases: *mut BuiltValue = json_object_new((*subtable).base_array.len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).mark_array.len() {
-        let mut _mark: *mut JsonValue = json_object_new(3 as usize);
+        let mut _mark: *mut BuiltValue = json_object_new(3 as usize);
         let mut mark_class_name: SdsRaw = crate::sdsbuild!(
             sdsempty(),
             b"anchor",
@@ -214,12 +213,12 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
     }
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).base_array.len() {
-        let mut _base: *mut JsonValue = json_object_new((*subtable).class_count as usize);
+        let mut _base: *mut BuiltValue = json_object_new((*subtable).class_count as usize);
         let mut k: GlyphClass = 0 as GlyphClass;
         while (k as ::core::ffi::c_int) < (*subtable).class_count as ::core::ffi::c_int {
             if (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].present
             {
-                let mut _anchor: *mut JsonValue = json_object_new(2 as usize);
+                let mut _anchor: *mut BuiltValue = json_object_new(2 as usize);
                 json_object_push(
                     _anchor,
                     b"x\0" as *const u8 as *const ::core::ffi::c_char,
