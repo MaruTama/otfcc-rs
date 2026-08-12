@@ -894,6 +894,66 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **A new safe Rust representation for the JSON *build/dump* side exists now
+  (`support::built_json::{BuiltValue, ...}`) — Stage 6-2.5 C-3, part 1. It
+  is not wired into anything yet.** Mirrors C-2's own two-stage shape: this
+  PR ships `BuiltValue` and a constructor/serializer layer that mirrors
+  `vendor::json_builder`'s API name-for-name, plus a differential test
+  suite proving `json_serialize_ex` matches `vendor::json_builder::
+  json_measure_ex`+`json_serialize_ex` byte-for-byte (packed and multiline
+  modes, every escape case, `PreSerialized` splicing, empty containers);
+  the next PR(s) will switch the ~40 `table/*.rs` dump-side functions
+  (currently calling `vendor::json_builder` directly) over to it.
+  - **Real-world scope turned out narrower than C-2's, once actually
+    surveyed** (same shape of finding as C-2's own `json_parse_ex`
+    narrowing): `builderize()` — the "upgrade a bare `JsonValue` the
+    *parser* produced into a builder value in place" escape hatch — never
+    fires in this codebase. Every value ever passed to a `json_*_push`
+    call was itself produced by a `json_*_new` call; now that C-2 already
+    split `ParsedValue` (parse) from `JsonValue` (build) into distinct
+    Rust types, a parsed value reaching this API would be a compile error,
+    not a runtime "maybe". `json_object_sort`/`json_object_merge` have
+    zero callers anywhere in the crate (confirmed by grep) and were
+    dropped rather than ported. `.parent`/`length_iterated` — bookkeeping
+    that let the old measure/serialize/free walk the tree *iteratively*
+    instead of recursively, a pure C-stack-frugality concern — have no
+    equivalent at all; `BuiltValue`'s serializer is ordinary recursion over
+    `&BuiltValue`, and there's no `BuiltValue`-side `free` function
+    (`Drop` does it).
+  - **`json_measure_ex` itself has no replacement, and that's deliberate,
+    not an oversight.** Read closely, it exists purely to pre-size a
+    `calloc`'d C buffer before `json_serialize_ex` fills it in a second
+    pass — and it deliberately *over*-estimates (its arithmetic adds
+    `newlines * indent_size` *and* the actual summed indent depth, not
+    either alone). `bin/otfccdump.rs` has to scan backward over the
+    resulting buffer's trailing zero padding to find where the real
+    content actually ends before writing it out — a workaround for the
+    over-estimate that a `Vec<u8>`-returning serializer makes unnecessary.
+    `built_json::json_serialize_ex` returns the exact bytes directly, no
+    upfront size pass, no trailing-zero scan; wiring this in (the next PR)
+    will delete that scan from `bin/otfccdump.rs` as dead weight along
+    with the measure step itself.
+  - **One more latent bug found and flagged, not fixed here, mirroring
+    C-2's integer-overflow finding on the parse side.** `json_serialize_ex`'s
+    integer arm does `integer = -integer` on a negative `i64` with no
+    overflow guard — UB-but-wraps in C, but a checked-negation panic in a
+    debug-mode Rust build when the value is `i64::MIN`. Found while
+    building this PR's differential test's integer sample set (`i64::MIN`
+    had to be excluded to avoid crashing the *old* builder under test);
+    `BuiltValue`'s own integer serialization uses `i64::to_string()`
+    instead, which has no such edge case. Flagged as a follow-up task
+    rather than fixed in the vendored code, since C-3's own wiring PR will
+    delete that code path entirely once it lands.
+  - `BuiltValue` needs no NUL-termination convention on `Str`/keys, unlike
+    `ParsedValue` — nothing on the build side ever reads a constructed
+    value back out through a C-string accessor; it's only ever
+    constructed, then serialized.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib (as expected — nothing is
+    wired yet, so existing dump behavior is provably unchanged).
+
 - **All ~48 parse-side consumer files now read through `ParsedValue`
   instead of `vendor::json::JsonValue` — Stage 6-2.5 C-2, part 2, wiring up
   the parser this theme's previous PR shipped unwired.** Every
