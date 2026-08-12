@@ -2,7 +2,7 @@
 use libc::{free};
 
 
-use crate::support::json_funcs::{json_obj_get_type, preserialize};
+use crate::support::json_funcs::{json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, preserialize};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
@@ -271,9 +271,8 @@ unsafe extern "C" fn parse_bases(
 ) {
     let class_count: GlyphClass = (*h).len() as GlyphClass;
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < (*_bases).u.object.length {
-        let mut gname: *mut ::core::ffi::c_char =
-            (*(*_bases).u.object.values.offset(j as isize)).name;
+    while (j as ::core::ffi::c_uint) < json_obj_len(_bases) {
+        let mut gname: *mut ::core::ffi::c_char = json_obj_key_at(_bases, j as u32);
         let mut base: BaseRecord = BaseRecord {
             glyph: Handle {
                 state: HandleState::Empty,
@@ -284,22 +283,20 @@ unsafe extern "C" fn parse_bases(
         };
         base.glyph = handle_from_name(sdsnewlen(
             gname as *const ::core::ffi::c_void,
-            (*(*_bases).u.object.values.offset(j as isize)).name_length as usize,
+            json_obj_key_len_at(_bases, j as u32) as usize,
         )) as GlyphHandle;
         // Indexed by `class_id` below, out of JSON key order -- pre-sized
         // and filled with "absent" rather than built with `.push()`.
         base.anchors = vec![otl_anchor_absent(); class_count as usize];
-        let mut base_record: *mut JsonValue =
-            (*(*_bases).u.object.values.offset(j as isize)).value as *mut JsonValue;
+        let mut base_record: *mut JsonValue = json_obj_val_at(_bases, j as u32);
         if base_record.is_null()
             || (*base_record).type_0 != JsonType::Object
         {
             (*subtable).base_array.push(base);
         } else {
             let mut k_0: GlyphClass = 0 as GlyphClass;
-            while (k_0 as ::core::ffi::c_uint) < (*base_record).u.object.length {
-                let name_ptr: *mut ::core::ffi::c_char =
-                    (*(*base_record).u.object.values.offset(k_0 as isize)).name;
+            while (k_0 as ::core::ffi::c_uint) < json_obj_len(base_record) {
+                let name_ptr: *mut ::core::ffi::c_char = json_obj_key_at(base_record, k_0 as u32);
                 // `strlen`-bounded, matching `otl_parse_mark_array`'s
                 // registration key exactly.
                 let class_name: Vec<u8> =
@@ -324,8 +321,7 @@ unsafe extern "C" fn parse_bases(
                     }
                     Some(&class_id) => {
                         base.anchors[class_id as usize] = otl_parse_anchor(
-                            (*(*base_record).u.object.values.offset(k_0 as isize)).value
-                                as *mut JsonValue,
+                            json_obj_val_at(base_record, k_0 as u32),
                         );
                     }
                 }

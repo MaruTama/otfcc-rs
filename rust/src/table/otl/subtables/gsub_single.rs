@@ -4,6 +4,7 @@ use libc::{free, malloc};
 
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
+use crate::support::json_funcs::{json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr};
 
 use crate::support::binio::{read_16u};
 
@@ -156,30 +157,23 @@ pub unsafe extern "C" fn otl_gsub_parse_single(
 ) -> *mut Subtable {
     let subtable: *mut GsubSingleSubtable = subtable_gsub_single_create();
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < (*_subtable).u.object.length {
-        if !(*(*_subtable).u.object.values.offset(j as isize))
-            .value
+    while (j as ::core::ffi::c_uint) < json_obj_len(_subtable) {
+        let val = json_obj_val_at(_subtable, j as u32);
+        if !val
             .is_null()
-            && (*(*(*_subtable).u.object.values.offset(j as isize)).value).type_0
+            && (*val).type_0
                 as ::core::ffi::c_uint
                 == JsonType::String as ::core::ffi::c_int as ::core::ffi::c_uint
         {
             let mut from: GlyphHandle =
                 handle_from_name(sdsnewlen(
-                    (*(*_subtable).u.object.values.offset(j as isize)).name
-                        as *const ::core::ffi::c_void,
-                    (*(*_subtable).u.object.values.offset(j as isize)).name_length as usize,
+                    json_obj_key_at(_subtable, j as u32) as *const ::core::ffi::c_void,
+                    json_obj_key_len_at(_subtable, j as u32) as usize,
                 )) as GlyphHandle;
             let mut to: GlyphHandle =
                 handle_from_name(sdsnewlen(
-                    (*(*(*_subtable).u.object.values.offset(j as isize)).value)
-                        .u
-                        .string
-                        .ptr as *const ::core::ffi::c_void,
-                    (*(*(*_subtable).u.object.values.offset(j as isize)).value)
-                        .u
-                        .string
-                        .length as usize,
+                    json_str_ptr(val) as *const ::core::ffi::c_void,
+                    json_str_len(val) as usize,
                 )) as GlyphHandle;
             (*subtable).push(GsubSingleEntry {
                 from: from as GlyphHandle,

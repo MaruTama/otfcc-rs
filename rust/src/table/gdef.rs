@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, preserialize};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, preserialize};
 use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
@@ -397,9 +397,8 @@ unsafe extern "C" fn lig_caret_from_json(
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < (*_carets).u.object.length {
-        let mut a: *mut JsonValue =
-            (*(*_carets).u.object.values.offset(j as isize)).value as *mut JsonValue;
+    while (j as ::core::ffi::c_uint) < json_obj_len(_carets) {
+        let mut a: *mut JsonValue = json_obj_val_at(_carets, j as u32);
         if !(a.is_null()
             || (*a).type_0 != JsonType::Array)
         {
@@ -412,10 +411,10 @@ unsafe extern "C" fn lig_caret_from_json(
                 carets: Vec::new(),
             };
             v.glyph = handle_from_name(sdsnewlen(
-                (*(*_carets).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-                (*(*_carets).u.object.values.offset(j as isize)).name_length as usize,
+                json_obj_key_at(_carets, j as u32) as *const ::core::ffi::c_void,
+                json_obj_key_len_at(_carets, j as u32) as usize,
             )) as GlyphHandle;
-            let mut caret_count: ShapeId = (*a).u.array.length as ShapeId;
+            let mut caret_count: ShapeId = json_arr_len(a) as ShapeId;
             let mut k: GlyphId = 0 as GlyphId;
             while (k as ::core::ffi::c_int) < caret_count as ::core::ffi::c_int {
                 let mut caret: CaretValue = CaretValue {
@@ -426,8 +425,7 @@ unsafe extern "C" fn lig_caret_from_json(
                 caret.format = 1 as i8;
                 caret.coordiante = 0 as ::core::ffi::c_int as Pos;
                 caret.point_index = 0xffff as ::core::ffi::c_int as i16;
-                let mut _caret: *mut JsonValue =
-                    *(*a).u.array.values.offset(k as isize) as *mut JsonValue;
+                let mut _caret: *mut JsonValue = json_arr_at(a, k as u32);
                 if !_caret.is_null()
                     && (*_caret).type_0 == JsonType::Object
                 {

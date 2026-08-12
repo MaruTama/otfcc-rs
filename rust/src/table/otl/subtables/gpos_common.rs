@@ -1,5 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::json_funcs::{json_new_position, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback, preserialize};
+use crate::support::json_funcs::{
+    json_new_position, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
+    json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_ptr,
+    preserialize,
+};
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
@@ -80,7 +84,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
     mut _options: *const Options,
 ) {
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < (*_marks).u.object.length {
+    while (j as ::core::ffi::c_uint) < json_obj_len(_marks) {
         let mut mark: MarkRecord = MarkRecord {
             glyph: Handle {
                 state: HandleState::Empty,
@@ -94,13 +98,11 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                 y: 0.,
             },
         };
-        let mut gname: *mut ::core::ffi::c_char =
-            (*(*_marks).u.object.values.offset(j as isize)).name;
-        let mut anchor_record: *mut JsonValue =
-            (*(*_marks).u.object.values.offset(j as isize)).value as *mut JsonValue;
+        let mut gname: *mut ::core::ffi::c_char = json_obj_key_at(_marks, j as u32);
+        let mut anchor_record: *mut JsonValue = json_obj_val_at(_marks, j as u32);
         mark.glyph = handle_from_name(sdsnewlen(
             gname as *const ::core::ffi::c_void,
-            (*(*_marks).u.object.values.offset(j as isize)).name_length as usize,
+            json_obj_key_len_at(_marks, j as u32) as usize,
         )) as GlyphHandle;
         mark.mark_class = 0 as GlyphClass;
         mark.anchor = otl_anchor_absent();
@@ -129,7 +131,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                 // equally provisional, later replaced by a
                 // `HASH_SORT`-driven renumbering pass.
                 let class_name: Vec<u8> = ::core::ffi::CStr::from_ptr(
-                    (*_class_name).u.string.ptr as *const ::core::ffi::c_char,
+                    json_str_ptr(_class_name) as *const ::core::ffi::c_char,
                 )
                 .to_bytes()
                 .to_vec();
@@ -169,15 +171,14 @@ pub unsafe extern "C" fn otl_parse_mark_array(
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*array).len() {
         if (&(*array))[j_0 as usize].anchor.present {
-            let mut anchor_record_0: *mut JsonValue =
-                (*(*_marks).u.object.values.offset(j_0 as isize)).value as *mut JsonValue;
+            let mut anchor_record_0: *mut JsonValue = json_obj_val_at(_marks, j_0 as u32);
             let mut _class_name_0: *mut JsonValue = json_obj_get_type(
                 anchor_record_0,
                 b"class\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,
             );
             let class_name_0: Vec<u8> = ::core::ffi::CStr::from_ptr(
-                (*_class_name_0).u.string.ptr as *const ::core::ffi::c_char,
+                json_str_ptr(_class_name_0) as *const ::core::ffi::c_char,
             )
             .to_bytes()
             .to_vec();

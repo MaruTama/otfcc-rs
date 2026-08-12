@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
 
-use crate::support::json_funcs::{json_obj_get_type, json_obj_getint, json_obj_getint_fallback, preserialize};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getint_fallback, preserialize};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_16u, read_32u};
 use crate::logger::{ILogger};
@@ -529,7 +529,7 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
             b"palettes\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::Array,
         );
-        if _palettes.is_null() || (*_palettes).u.array.length == 0 {
+        if _palettes.is_null() || json_arr_len(_palettes) == 0 {
             return None;
         }
         let version = json_obj_getint(
@@ -538,9 +538,8 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
         ) as u16;
         cpal = Some(Box::new(CpalTable { version, palettes: Vec::new() }));
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_uint) < (*_palettes).u.array.length {
-            let mut _palette: *mut JsonValue =
-                *(*_palettes).u.array.values.offset(j as isize) as *mut JsonValue;
+        while (j as ::core::ffi::c_uint) < json_arr_len(_palettes) {
+            let mut _palette: *mut JsonValue = json_arr_at(_palettes, j as u32);
             if !(_palette.is_null()
                 || (*_palette).type_0 != JsonType::Object)
             {
@@ -565,9 +564,9 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
                         0xffff as i32,
                     ) as u32;
                     let mut k: ColorId = 0 as ColorId;
-                    while (k as ::core::ffi::c_uint) < (*_colors).u.array.length {
+                    while (k as ::core::ffi::c_uint) < json_arr_len(_colors) {
                         palette.colorset.push(parse_color(
-                            *(*_colors).u.array.values.offset(k as isize),
+                            json_arr_at(_colors, k as u32),
                         ));
                         k = k.wrapping_add(1);
                     }

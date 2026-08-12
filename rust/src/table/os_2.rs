@@ -8,7 +8,7 @@ use crate::support::primitives::{FontFilePointer};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::support::json_funcs::{json_obj_get, json_obj_get_type, json_obj_getnum_fallback, otfcc_dump_flags, otfcc_parse_flags};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, json_str_len, json_str_ptr, otfcc_dump_flags, otfcc_parse_flags};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_bytes};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
@@ -993,15 +993,14 @@ pub unsafe extern "C" fn otfcc_parse_os_2(
             );
             if !panose.is_null() {
                 let mut j: u32 = 0 as u32;
-                while j < (*panose).u.array.length as u32 && j < 10 as u32 {
-                    let mut term: *mut JsonValue =
-                        *(*panose).u.array.values.offset(j as isize) as *mut JsonValue;
+                while j < json_arr_len(panose) && j < 10 as u32 {
+                    let mut term: *mut JsonValue = json_arr_at(panose, j as u32);
                     if (*term).type_0 == JsonType::Integer
                     {
-                        (*os_2).panose[j as usize] = (*term).u.integer as u8;
+                        (*os_2).panose[j as usize] = json_int_val(term) as u8;
                     } else if (*term).type_0 == JsonType::Double
                     {
-                        (*os_2).panose[j as usize] = (*term).u.dbl as u8;
+                        (*os_2).panose[j as usize] = json_dbl_val(term) as u8;
                     }
                     j = j.wrapping_add(1);
                 }
@@ -1017,17 +1016,17 @@ pub unsafe extern "C" fn otfcc_parse_os_2(
                 (*os_2).ach_vend_id[1 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;
                 (*os_2).ach_vend_id[2 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;
                 (*os_2).ach_vend_id[3 as ::core::ffi::c_int as usize] = ' ' as i32 as u8;
-                if (*vendorid).u.string.length >= 4 as ::core::ffi::c_uint {
+                if json_str_len(vendorid) >= 4 as ::core::ffi::c_uint {
                     memcpy(
                         &raw mut (*os_2).ach_vend_id as *mut u8 as *mut ::core::ffi::c_void,
-                        (*vendorid).u.string.ptr as *const ::core::ffi::c_void,
+                        json_str_ptr(vendorid) as *const ::core::ffi::c_void,
                         4 as usize,
                     );
                 } else {
                     memcpy(
                         &raw mut (*os_2).ach_vend_id as *mut u8 as *mut ::core::ffi::c_void,
-                        (*vendorid).u.string.ptr as *const ::core::ffi::c_void,
-                        (*vendorid).u.string.length as usize,
+                        json_str_ptr(vendorid) as *const ::core::ffi::c_void,
+                        json_str_len(vendorid) as usize,
                     );
                 }
             }

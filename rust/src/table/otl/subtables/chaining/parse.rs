@@ -1,7 +1,10 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 
-use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
+use crate::support::json_funcs::{
+    json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
+    json_str_len, json_str_ptr,
+};
 use crate::table::otl::coverage::coverage_from_raw;
 use crate::support::handle::{handle_from_name, otfcc_handle_empty, LookupHandle};
 
@@ -38,7 +41,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
     (*subtable).type_0 = ChainingType::Canonical;
     let mut rule: *mut ChainingRule =
         &raw mut (*subtable).c2rust_unnamed.rule as *mut ChainingRule;
-    (*rule).match_count = (*_match).u.array.length as TableId;
+    (*rule).match_count = json_arr_len(_match) as TableId;
     // Placement-construct both: `rule` sits inside the zeroed memory
     // `create()` hands back (via `otl_init_chaining`'s `memset`), not a
     // valid `Vec` bit pattern, so there is nothing to drop first.
@@ -48,7 +51,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
     );
     ::core::ptr::write(
         &raw mut (*rule).apply,
-        Vec::with_capacity((*_apply).u.array.length as usize),
+        Vec::with_capacity(json_arr_len(_apply) as usize),
     );
     (*rule).input_begins = json_obj_getnum_fallback(
         _subtable,
@@ -64,17 +67,16 @@ pub unsafe extern "C" fn otl_parse_chaining(
     while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
         (*rule).match_0.push(coverage_from_raw(
             OTL_I_COVERAGE.parse.expect("non-null function pointer")(
-                *(*_match).u.array.values.offset(j as isize),
+                json_arr_at(_match, j as u32),
             ),
         ));
         j = j.wrapping_add(1);
     }
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int) < (*_apply).u.array.length as ::core::ffi::c_int {
+    while (j_0 as ::core::ffi::c_int) < json_arr_len(_apply) as ::core::ffi::c_int {
         let mut index: TableId = 0 as TableId;
         let mut lookup: LookupHandle = otfcc_handle_empty() as LookupHandle;
-        let mut _application: *mut JsonValue =
-            *(*_apply).u.array.values.offset(j_0 as isize) as *mut JsonValue;
+        let mut _application: *mut JsonValue = json_arr_at(_apply, j_0 as u32);
         if (*_application).type_0 == JsonType::Object
         {
             let mut _ln: *mut JsonValue = json_obj_get_type(
@@ -84,8 +86,8 @@ pub unsafe extern "C" fn otl_parse_chaining(
             );
             if !_ln.is_null() {
                 lookup = handle_from_name(sdsnewlen(
-                    (*_ln).u.string.ptr as *const ::core::ffi::c_void,
-                    (*_ln).u.string.length as usize,
+                    json_str_ptr(_ln) as *const ::core::ffi::c_void,
+                    json_str_len(_ln) as usize,
                 )) as LookupHandle;
                 index = json_obj_getnum(
                     _application,

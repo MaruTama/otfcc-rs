@@ -2,7 +2,7 @@
 use libc::{free};
 
 
-use crate::support::json_funcs::{json_obj_get_type};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get_type, json_str_len, json_str_ptr};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 use crate::logger::{ILogger};
@@ -130,7 +130,7 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            let table_length = (*table).u.array.length as u32;
+            let table_length = json_arr_len(table);
             let words = __caryll_allocate_clean(
                 (::core::mem::size_of::<u16>() as usize)
                     .wrapping_mul(table_length.wrapping_add(1 as u32) as usize),
@@ -138,14 +138,13 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
             ) as *mut u16;
             let mut j: u16 = 0 as u16;
             while (j as u32) < table_length {
-                let mut record: *mut JsonValue =
-                    *(*table).u.array.values.offset(j as isize) as *mut JsonValue;
+                let mut record: *mut JsonValue = json_arr_at(table, j as u32);
                 if (*record).type_0 == JsonType::Integer
                 {
-                    *words.offset(j as isize) = (*record).u.integer as u16;
+                    *words.offset(j as isize) = json_int_val(record) as u16;
                 } else if (*record).type_0 == JsonType::Double
                 {
-                    *words.offset(j as isize) = (*record).u.dbl as u16;
+                    *words.offset(j as isize) = json_dbl_val(record) as u16;
                 } else {
                     *words.offset(j as isize) = 0 as u16;
                 }
@@ -172,8 +171,8 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
             while ___loggedstep_v_0 {
                 let mut len: usize = 0;
                 let mut raw: *mut u8 = base64_decode(
-                    (*table).u.string.ptr as *mut u8,
-                    (*table).u.string.length as usize,
+                    json_str_ptr(table) as *mut u8,
+                    json_str_len(table) as usize,
                     &raw mut len,
                 );
                 let table_length = (len >> 1 as ::core::ffi::c_int) as u32;

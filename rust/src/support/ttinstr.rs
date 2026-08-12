@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, memcpy, memset, snprintf, strlen, strtol};
 
-use crate::support::json_funcs::{preserialize};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_int_val, json_str_len, json_str_ptr, preserialize};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 
@@ -882,8 +882,8 @@ pub unsafe extern "C" fn parse_ttinstr(
     {
         let mut instrlen: usize = 0;
         let mut instructions: *mut u8 = base64_decode(
-            (*col).u.string.ptr as *mut u8,
-            (*col).u.string.length as usize,
+            json_str_ptr(col) as *mut u8,
+            json_str_len(col) as usize,
             &raw mut instrlen,
         );
         make.expect("non-null function pointer")(context, instructions, instrlen as u32);
@@ -891,17 +891,12 @@ pub unsafe extern "C" fn parse_ttinstr(
     {
         let mut istrlen: usize = 0 as usize;
         let mut j: u32 = 0 as u32;
-        while j < (*col).u.array.length as u32 {
-            let mut record: *mut JsonValue =
-                *(*col).u.array.values.offset(j as isize) as *mut JsonValue;
+        while j < json_arr_len(col) {
+            let mut record: *mut JsonValue = json_arr_at(col, j as u32);
             if (*record).type_0 == JsonType::String
             {
                 istrlen = istrlen.wrapping_add(
-                    (*record)
-                        .u
-                        .string
-                        .length
-                        .wrapping_add(1 as ::core::ffi::c_uint) as usize,
+                    json_str_len(record).wrapping_add(1 as ::core::ffi::c_uint) as usize,
                 );
             } else if (*record).type_0 == JsonType::Integer
             {
@@ -923,25 +918,24 @@ pub unsafe extern "C" fn parse_ttinstr(
         );
         let mut head: *mut ::core::ffi::c_char = instr_string as *mut ::core::ffi::c_char;
         let mut j_0: u32 = 0 as u32;
-        while j_0 < (*col).u.array.length as u32 {
-            let mut record_0: *mut JsonValue =
-                *(*col).u.array.values.offset(j_0 as isize) as *mut JsonValue;
+        while j_0 < json_arr_len(col) {
+            let mut record_0: *mut JsonValue = json_arr_at(col, j_0 as u32);
             if (*record_0).type_0 == JsonType::String
             {
                 memcpy(
                     head as *mut ::core::ffi::c_void,
-                    (*record_0).u.string.ptr as *const ::core::ffi::c_void,
+                    json_str_ptr(record_0) as *const ::core::ffi::c_void,
                     (::core::mem::size_of::<::core::ffi::c_char>() as usize)
-                        .wrapping_mul((*record_0).u.string.length as usize),
+                        .wrapping_mul(json_str_len(record_0) as usize),
                 );
-                head = head.offset((*record_0).u.string.length as isize);
+                head = head.offset(json_str_len(record_0) as isize);
             } else if (*record_0).type_0 == JsonType::Integer
             {
                 let mut n: ::core::ffi::c_int = snprintf(
                     head,
                     20 as usize,
                     b"%d\0" as *const u8 as *const ::core::ffi::c_char,
-                    (*record_0).u.integer as ::core::ffi::c_int,
+                    json_int_val(record_0) as ::core::ffi::c_int,
                 );
                 head = head.offset(n as isize);
             }

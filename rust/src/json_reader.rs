@@ -5,7 +5,7 @@ use libc::{free, strcmp, strtol};
 
 
 
-use crate::support::json_funcs::{json_obj_get_type};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::handle::{sds_to_vec};
 use crate::otf_reader::FontBuilder;
@@ -142,10 +142,10 @@ unsafe extern "C" fn place_order_entries_from_glyf(
     mut go: *mut GlyphOrder,
 ) {
     let mut j: u32 = 0 as u32;
-    while j < (*table).u.object.length as u32 {
+    while j < json_obj_len(table) as u32 {
         let mut gname: SdsRaw = sdsnewlen(
-            (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-            (*(*table).u.object.values.offset(j as isize)).name_length as usize,
+            json_obj_key_at(table, j as u32) as *const ::core::ffi::c_void,
+            json_obj_key_len_at(table, j as u32) as usize,
         );
         if strcmp(
             gname as *const ::core::ffi::c_char,
@@ -180,13 +180,12 @@ unsafe extern "C" fn place_order_entries_from_cmap(
     mut go: *mut GlyphOrder,
 ) {
     let mut j: u32 = 0 as u32;
-    while j < (*table).u.object.length as u32 {
+    while j < json_obj_len(table) as u32 {
         let mut unicode_str: SdsRaw = sdsnewlen(
-            (*(*table).u.object.values.offset(j as isize)).name as *const ::core::ffi::c_void,
-            (*(*table).u.object.values.offset(j as isize)).name_length as usize,
+            json_obj_key_at(table, j as u32) as *const ::core::ffi::c_void,
+            json_obj_key_len_at(table, j as u32) as usize,
         );
-        let mut item: *mut JsonValue =
-            (*(*table).u.object.values.offset(j as isize)).value as *mut JsonValue;
+        let mut item: *mut JsonValue = json_obj_val_at(table, j as u32);
         let mut unicode: i32 = 0;
         if sdslen(unicode_str) > 2 as usize
             && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
@@ -208,8 +207,8 @@ unsafe extern "C" fn place_order_entries_from_cmap(
             && unicode <= 0x10ffff as i32
         {
             let mut gname: SdsRaw = sdsnewlen(
-                (*item).u.string.ptr as *const ::core::ffi::c_void,
-                (*item).u.string.length as usize,
+                json_str_ptr(item) as *const ::core::ffi::c_void,
+                json_str_len(item) as usize,
             );
             escalate_glyph_order_by_name(
                 go,
@@ -227,19 +226,18 @@ unsafe extern "C" fn place_order_entries_from_subtable(
     mut go: *mut GlyphOrder,
     mut zero_only: bool,
 ) {
-    let mut uplimit: u32 = (*table).u.array.length as u32;
+    let mut uplimit: u32 = json_arr_len(table);
     if uplimit >= 1 as u32 && zero_only as ::core::ffi::c_int != 0 {
         uplimit = 1 as u32;
     }
     let mut j: u32 = 0 as u32;
     while j < uplimit {
-        let mut item: *mut JsonValue =
-            *(*table).u.array.values.offset(j as isize) as *mut JsonValue;
+        let mut item: *mut JsonValue = json_arr_at(table, j as u32);
         if (*item).type_0 == JsonType::String
         {
             let mut gname: SdsRaw = sdsnewlen(
-                (*item).u.string.ptr as *const ::core::ffi::c_void,
-                (*item).u.string.length as usize,
+                json_str_ptr(item) as *const ::core::ffi::c_void,
+                json_str_len(item) as usize,
             );
             escalate_glyph_order_by_name(
                 go,

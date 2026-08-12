@@ -4,6 +4,7 @@ use libc::{free, malloc};
 
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
+use crate::support::json_funcs::{json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at};
 
 use crate::support::alloc::__caryll_reallocate;
 use crate::support::binio::{read_16u};
@@ -132,14 +133,13 @@ pub unsafe extern "C" fn otl_gsub_parse_multi(
     mut _options: *const Options,
 ) -> *mut Subtable {
     let st: *mut GsubMultiSubtable = subtable_gsub_multi_create();
-    for k in 0..(*_subtable).u.object.length as GlyphId {
-        let entry = (*_subtable).u.object.values.offset(k as isize);
-        let _to: *mut JsonValue = (*entry).value as *mut JsonValue;
+    for k in 0..json_obj_len(_subtable) as GlyphId {
+        let _to: *mut JsonValue = json_obj_val_at(_subtable, k as u32);
         if !_to.is_null() && (*_to).type_0 == JsonType::Array {
             (*st).push(GsubMultiEntry {
                 from: handle_from_name(sdsnewlen(
-                    (*entry).name as *const ::core::ffi::c_void,
-                    (*entry).name_length as usize,
+                    json_obj_key_at(_subtable, k as u32) as *const ::core::ffi::c_void,
+                    json_obj_key_len_at(_subtable, k as u32) as usize,
                 )) as GlyphHandle,
                 to: coverage_from_raw(
                     OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to),

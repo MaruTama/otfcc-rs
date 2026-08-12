@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, qsort};
 
-use crate::support::json_funcs::{json_new_position, json_numof, json_obj_get_type, json_obj_getstr_share, json_object_push_tag};
+use crate::support::json_funcs::{json_new_position, json_numof, json_obj_get_type, json_obj_getstr_share, json_obj_key_at, json_obj_len, json_obj_val_at, json_object_push_tag};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::binio::{read_16u, read_16s, read_32u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -519,7 +519,7 @@ unsafe extern "C" fn base_script_from_json(
         (*entry).base_values_count = 0 as TableId;
         (*entry).base_values = ::core::ptr::null_mut::<BaseValue>();
     } else {
-        (*entry).base_values_count = (*_basevalues).u.object.length as TableId;
+        (*entry).base_values_count = json_obj_len(_basevalues) as TableId;
         (*entry).base_values = __caryll_allocate_clean(
             (::core::mem::size_of::<BaseValue>() as usize)
                 .wrapping_mul((*entry).base_values_count as usize),
@@ -528,9 +528,9 @@ unsafe extern "C" fn base_script_from_json(
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*entry).base_values_count as ::core::ffi::c_int {
             (*(*entry).base_values.offset(j as isize)).tag =
-                str2tag((*(*_basevalues).u.object.values.offset(j as isize)).name);
+                str2tag(json_obj_key_at(_basevalues, j as u32));
             (*(*entry).base_values.offset(j as isize)).coordinate =
-                json_numof((*(*_basevalues).u.object.values.offset(j as isize)).value) as Pos;
+                json_numof(json_obj_val_at(_basevalues, j as u32)) as Pos;
             j = j.wrapping_add(1);
         }
     };
@@ -552,7 +552,7 @@ unsafe extern "C" fn axis_from_json(mut _axis: *const JsonValue) -> *mut BaseAxi
         ::core::mem::size_of::<BaseAxis>() as usize,
         186 as ::core::ffi::c_ulong,
     ) as *mut BaseAxis;
-    (*axis).script_count = (*_axis).u.object.length as TableId;
+    (*axis).script_count = json_obj_len(_axis) as TableId;
     (*axis).entries = __caryll_allocate_clean(
         (::core::mem::size_of::<BaseScriptEntry>() as usize)
             .wrapping_mul((*axis).script_count as usize),
@@ -561,15 +561,15 @@ unsafe extern "C" fn axis_from_json(mut _axis: *const JsonValue) -> *mut BaseAxi
     let mut jj: TableId = 0 as TableId;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*axis).script_count as ::core::ffi::c_int {
-        if !(*(*_axis).u.object.values.offset(j as isize))
-            .value
+        let script_val = json_obj_val_at(_axis, j as u32);
+        if !script_val
             .is_null()
-            && (*(*(*_axis).u.object.values.offset(j as isize)).value).type_0 == JsonType::Object
+            && (*script_val).type_0 == JsonType::Object
         {
             (*(*axis).entries.offset(jj as isize)).tag =
-                str2tag((*(*_axis).u.object.values.offset(j as isize)).name);
+                str2tag(json_obj_key_at(_axis, j as u32));
             base_script_from_json(
-                (*(*_axis).u.object.values.offset(j as isize)).value,
+                script_val,
                 (*axis).entries.offset(jj as isize) as *mut BaseScriptEntry,
             );
             jj = jj.wrapping_add(1);

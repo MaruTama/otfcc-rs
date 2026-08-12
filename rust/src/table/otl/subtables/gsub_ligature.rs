@@ -2,7 +2,7 @@
 use libc::{free, malloc};
 
 
-use crate::support::json_funcs::{json_obj_get_type, preserialize};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, preserialize};
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
 
@@ -290,11 +290,10 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             JsonType::Array,
         );
         let st: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
-        let mut n: GlyphId = (*_subtable).u.array.length as GlyphId;
+        let mut n: GlyphId = json_arr_len(_subtable) as GlyphId;
         let mut k: GlyphId = 0 as GlyphId;
         while (k as ::core::ffi::c_int) < n as ::core::ffi::c_int {
-            let mut entry: *mut JsonValue =
-                *(*_subtable).u.array.values.offset(k as isize) as *mut JsonValue;
+            let mut entry: *mut JsonValue = json_arr_at(_subtable, k as u32);
             let mut _from: *mut JsonValue = json_obj_get_type(
                 entry,
                 b"from\0" as *const u8 as *const ::core::ffi::c_char,
@@ -311,8 +310,8 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
                         OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from),
                     ),
                     to: handle_from_name(sdsnewlen(
-                        (*_to).u.string.ptr as *const ::core::ffi::c_void,
-                        (*_to).u.string.length as usize,
+                        json_str_ptr(_to) as *const ::core::ffi::c_void,
+                        json_str_len(_to) as usize,
                     )) as GlyphHandle,
                 });
             }
@@ -321,11 +320,10 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
         return subtable_from_raw(st, Subtable::GsubLigature);
     } else {
         let st_0: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
-        let mut n_0: GlyphId = (*_subtable).u.array.length as GlyphId;
+        let mut n_0: GlyphId = json_obj_len(_subtable) as GlyphId;
         let mut k_0: GlyphId = 0 as GlyphId;
         while (k_0 as ::core::ffi::c_int) < n_0 as ::core::ffi::c_int {
-            let mut _from_0: *mut JsonValue =
-                (*(*_subtable).u.object.values.offset(k_0 as isize)).value as *mut JsonValue;
+            let mut _from_0: *mut JsonValue = json_obj_val_at(_subtable, k_0 as u32);
             if !(_from_0.is_null()
                 || (*_from_0).type_0 != JsonType::Array)
             {
@@ -334,10 +332,8 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
                         OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from_0),
                     ),
                     to: handle_from_name(sdsnewlen(
-                        (*(*_subtable).u.object.values.offset(k_0 as isize)).name
-                            as *const ::core::ffi::c_void,
-                        (*(*_subtable).u.object.values.offset(k_0 as isize)).name_length
-                            as usize,
+                        json_obj_key_at(_subtable, k_0 as u32) as *const ::core::ffi::c_void,
+                        json_obj_key_len_at(_subtable, k_0 as u32) as usize,
                     )) as GlyphHandle,
                 });
             }

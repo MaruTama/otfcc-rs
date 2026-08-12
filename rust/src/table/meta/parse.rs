@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::free;
-use crate::support::json_funcs::{json_obj_get_type};
+use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_str_len, json_str_ptr};
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
 use crate::vendor::json::{JsonType, JsonValue};
@@ -17,8 +17,8 @@ pub unsafe extern "C" fn parse_meta_data(mut v: *const JsonValue) -> Option<Vec<
     if (*v).type_0 == JsonType::String
     {
         return Some(::core::slice::from_raw_parts(
-            (*v).u.string.ptr as *const u8,
-            (*v).u.string.length as usize,
+            json_str_ptr(v) as *const u8,
+            json_str_len(v) as usize,
         ).to_vec());
     } else if (*v).type_0 == JsonType::Object
     {
@@ -29,8 +29,8 @@ pub unsafe extern "C" fn parse_meta_data(mut v: *const JsonValue) -> Option<Vec<
         );
         if !_string.is_null() {
             return Some(::core::slice::from_raw_parts(
-                (*_string).u.string.ptr as *const u8,
-                (*_string).u.string.length as usize,
+                json_str_ptr(_string) as *const u8,
+                json_str_len(_string) as usize,
             ).to_vec());
         }
         let mut _base64: *mut JsonValue = json_obj_get_type(
@@ -41,8 +41,8 @@ pub unsafe extern "C" fn parse_meta_data(mut v: *const JsonValue) -> Option<Vec<
         if !_base64.is_null() {
             let mut str_len: usize = 0 as usize;
             let mut str: *mut u8 = base64_decode(
-                (*_base64).u.string.ptr as *mut u8,
-                (*_base64).u.string.length as usize,
+                json_str_ptr(_base64) as *mut u8,
+                json_str_len(_base64) as usize,
                 &raw mut str_len,
             );
             let s: Vec<u8> = ::core::slice::from_raw_parts(str, str_len).to_vec();
@@ -85,16 +85,15 @@ pub unsafe extern "C" fn otfcc_parse_meta(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut j: usize = 0 as usize;
-        while j < (*_meta_entries).u.array.length as usize {
-            let mut _e: *mut JsonValue =
-                *(*_meta_entries).u.array.values.offset(j as isize) as *mut JsonValue;
+        while j < json_arr_len(_meta_entries) as usize {
+            let mut _e: *mut JsonValue = json_arr_at(_meta_entries, j as u32);
             let mut _tag: *mut JsonValue = json_obj_get_type(
                 _e,
                 b"tag\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,
             );
-            if !(_tag.is_null() || (*_tag).u.string.length != 4 as ::core::ffi::c_uint) {
-                let mut tag: u32 = str2tag((*_tag).u.string.ptr);
+            if !(_tag.is_null() || json_str_len(_tag) != 4 as ::core::ffi::c_uint) {
+                let mut tag: u32 = str2tag(json_str_ptr(_tag));
                 if let Some(data) = parse_meta_data(_e) {
                     (*meta).entries.push(MetaEntry {
                         tag: tag,

@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{strcmp};
-use crate::support::json_funcs::{json_obj_get_type};
+use crate::support::json_funcs::{json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{ILogger};
@@ -355,13 +355,13 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
         );
         if !_glyphs.is_null() {
             let mut j: u32 = 0 as u32;
-            while j < (*_glyphs).u.object.length as u32 {
+            while j < json_obj_len(_glyphs) {
                 let mut _gid: *mut ::core::ffi::c_char =
-                    (*(*_glyphs).u.object.values.offset(j as isize)).name;
+                    json_obj_key_at(_glyphs, j as u32);
                 let mut _gidlen: usize =
-                    (*(*_glyphs).u.object.values.offset(j as isize)).name_length as usize;
+                    json_obj_key_len_at(_glyphs, j as u32) as usize;
                 let mut _content: *mut JsonValue =
-                    (*(*_glyphs).u.object.values.offset(j as isize)).value as *mut JsonValue;
+                    json_obj_val_at(_glyphs, j as u32);
                 if !(_content.is_null()
                     || (*_content).type_0 != JsonType::String)
                 {
@@ -371,8 +371,8 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                                 sdsnewlen(_gid as *const ::core::ffi::c_void, _gidlen),
                             ) as GlyphHandle,
                             content: ::core::slice::from_raw_parts(
-                                (*_content).u.string.ptr as *const u8,
-                                (*_content).u.string.length as usize,
+                                json_str_ptr(_content) as *const u8,
+                                json_str_len(_content) as usize,
                             )
                             .to_vec(),
                         });
@@ -387,11 +387,11 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
         );
         if !_extra.is_null() {
             let mut j_0: u32 = 0 as u32;
-            while j_0 < (*_extra).u.object.length as u32 {
+            while j_0 < json_obj_len(_extra) {
                 let mut _key: *mut ::core::ffi::c_char =
-                    (*(*_extra).u.object.values.offset(j_0 as isize)).name;
+                    json_obj_key_at(_extra, j_0 as u32);
                 let mut _content_0: *mut JsonValue =
-                    (*(*_extra).u.object.values.offset(j_0 as isize)).value as *mut JsonValue;
+                    json_obj_val_at(_extra, j_0 as u32);
                 if !(_content_0.is_null()
                     || (*_content_0).type_0 != JsonType::String)
                 {
@@ -402,8 +402,8 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                                 type_0: TsiEntryType::Cvt,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: ::core::slice::from_raw_parts(
-                                    (*_content_0).u.string.ptr as *const u8,
-                                    (*_content_0).u.string.length as usize,
+                                    json_str_ptr(_content_0) as *const u8,
+                                    json_str_len(_content_0) as usize,
                                 )
                                 .to_vec(),
                             });
@@ -414,8 +414,8 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                                 type_0: TsiEntryType::Fpgm,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: ::core::slice::from_raw_parts(
-                                    (*_content_0).u.string.ptr as *const u8,
-                                    (*_content_0).u.string.length as usize,
+                                    json_str_ptr(_content_0) as *const u8,
+                                    json_str_len(_content_0) as usize,
                                 )
                                 .to_vec(),
                             });
@@ -426,8 +426,8 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                                 type_0: TsiEntryType::Prep,
                                 glyph: otfcc_handle_empty() as GlyphHandle,
                                 content: ::core::slice::from_raw_parts(
-                                    (*_content_0).u.string.ptr as *const u8,
-                                    (*_content_0).u.string.length as usize,
+                                    json_str_ptr(_content_0) as *const u8,
+                                    json_str_len(_content_0) as usize,
                                 )
                                 .to_vec(),
                             });
