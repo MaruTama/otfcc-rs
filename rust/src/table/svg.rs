@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, strcmp};
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getsds, json_obj_getstr_share};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getsds, json_obj_getstr_share, json_type_of};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
@@ -269,10 +269,10 @@ pub unsafe extern "C" fn otfcc_dump_svg(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_parse_svg(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<SvgTable> {
-    let mut _svg: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut _svg: *const ParsedValue = ::core::ptr::null();
     _svg = json_obj_get_type(
         root,
         b"SVG_\0" as *const u8 as *const ::core::ffi::c_char,
@@ -292,9 +292,9 @@ pub unsafe extern "C" fn otfcc_parse_svg(
     while ___loggedstep_v {
         let mut j: GlyphId = 0 as GlyphId;
         while (j as ::core::ffi::c_uint) < json_arr_len(_svg) {
-            let mut _a: *mut JsonValue = json_arr_at(_svg, j as u32);
+            let mut _a: *const ParsedValue = json_arr_at(_svg, j as u32);
             if !(_a.is_null()
-                || (*_a).type_0 != JsonType::Object)
+                || json_type_of(_a) != JsonType::Object)
             {
                 let mut format: *const ::core::ffi::c_char = json_obj_getstr_share(
                     _a,

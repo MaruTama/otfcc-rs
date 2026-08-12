@@ -8,7 +8,8 @@ use crate::support::primitives::{FontFilePointer};
 use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType, JsonValue};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, json_str_len, json_str_ptr, otfcc_dump_flags, otfcc_parse_flags};
+use crate::support::json_funcs::{otfcc_dump_flags};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, json_str_len, json_str_ptr, json_type_of, otfcc_parse_flags};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_bytes};
 use crate::vendor::json_builder::{json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new};
 use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
@@ -758,7 +759,7 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
     }
 }
 pub unsafe extern "C" fn otfcc_parse_os_2(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<Os2Table>> {
     // `Box::new` cannot return null (it aborts on allocation failure), so
@@ -769,7 +770,7 @@ pub unsafe extern "C" fn otfcc_parse_os_2(
     os2_val.version = 4;
     let mut os_2_box: Box<Os2Table> = Box::new(os2_val);
     let os_2: *mut Os2Table = os_2_box.as_mut() as *mut Os2Table;
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     table = json_obj_get_type(
         root,
         b"OS_2\0" as *const u8 as *const ::core::ffi::c_char,
@@ -985,7 +986,7 @@ pub unsafe extern "C" fn otfcc_parse_os_2(
                 b"usUpperOpticalPointSize\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            let mut panose: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+            let mut panose: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
             panose = json_obj_get_type(
                 table,
                 b"panose\0" as *const u8 as *const ::core::ffi::c_char,
@@ -994,18 +995,18 @@ pub unsafe extern "C" fn otfcc_parse_os_2(
             if !panose.is_null() {
                 let mut j: u32 = 0 as u32;
                 while j < json_arr_len(panose) && j < 10 as u32 {
-                    let mut term: *mut JsonValue = json_arr_at(panose, j as u32);
-                    if (*term).type_0 == JsonType::Integer
+                    let mut term: *const ParsedValue = json_arr_at(panose, j as u32);
+                    if json_type_of(term) == JsonType::Integer
                     {
                         (*os_2).panose[j as usize] = json_int_val(term) as u8;
-                    } else if (*term).type_0 == JsonType::Double
+                    } else if json_type_of(term) == JsonType::Double
                     {
                         (*os_2).panose[j as usize] = json_dbl_val(term) as u8;
                     }
                     j = j.wrapping_add(1);
                 }
             }
-            let mut vendorid: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+            let mut vendorid: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
             vendorid = json_obj_get_type(
                 table,
                 b"achVendID\0" as *const u8 as *const ::core::ffi::c_char,

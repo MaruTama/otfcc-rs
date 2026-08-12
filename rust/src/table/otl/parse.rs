@@ -5,16 +5,14 @@ use libc::{strcmp, strncmp};
 
 
 
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_ptr};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_obj_set_val_at, json_str_ptr, json_type_of, otfcc_parse_flags};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, LOG_VL_NOTICE, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
-use crate::vendor::json::{JsonValue, JsonType};
+use crate::vendor::json::{JsonType};
 use crate::support::{TRUE_0};
 use crate::table::otl::{Feature, FeatureRef, FeatureRefList, LanguageSystem, Lookup, LookupRef, LookupRefList, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
-use crate::support::json_funcs::otfcc_parse_flags;
 use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
-use crate::support::json_ident::{json_ident};
 use crate::table::otl::{otfcc_delete_lookup, otl_feature_ref_list_dispose, otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace, subtable_list_slot, new_feature, new_language, new_lookup};
 use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
 use crate::table::otl::subtables::chaining::parse::{otl_parse_chaining};
@@ -27,8 +25,6 @@ use crate::table::otl::subtables::gsub_ligature::{otl_gsub_parse_ligature};
 use crate::table::otl::subtables::gsub_multi::{otl_gsub_parse_multi};
 use crate::table::otl::subtables::gsub_reverse::{otl_gsub_parse_reverse};
 use crate::table::otl::subtables::gsub_single::{otl_gsub_parse_single};
-use crate::vendor::json::{json_value_free};
-use crate::vendor::json_builder::{json_string_new_length};
 use crate::vendor::sds::{sdsempty};
 /// Replaces the uthash-based `FeatureHash`. Same shape as `LookupEntry`
 /// (see its doc comment) and for the same reason: a real feature
@@ -79,7 +75,7 @@ pub enum LookupOrderType {
     File = 1,
 }
 unsafe extern "C" fn _parse_lookup(
-    mut lookup: *mut JsonValue,
+    mut lookup: *const ParsedValue,
     mut lookup_name: *mut ::core::ffi::c_char,
     mut options: *const Options,
     lh: &mut Vec<LookupEntry>,
@@ -91,7 +87,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gsub_parse_single
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -107,7 +103,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gsub_parse_multi
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -123,7 +119,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gsub_parse_multi
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -139,7 +135,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gsub_parse_ligature
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -155,7 +151,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_parse_chaining
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -171,7 +167,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gsub_parse_reverse
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -187,7 +183,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_single
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -203,7 +199,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_pair
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -219,7 +215,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_cursive
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -235,7 +231,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_parse_chaining
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -251,7 +247,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_mark_to_single
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -267,7 +263,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_mark_to_single
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -283,7 +279,7 @@ unsafe extern "C" fn _parse_lookup(
             Some(
                 otl_gpos_parse_mark_to_ligature
                     as unsafe extern "C" fn(
-                        *const JsonValue,
+                        *const ParsedValue,
                         *const Options,
                     ) -> *mut Subtable,
             ),
@@ -298,14 +294,14 @@ unsafe extern "C" fn _parse_lookup(
 unsafe extern "C" fn _declare_lookup_parser(
     mut llt: LookupType,
     mut parser: Option<
-        unsafe extern "C" fn(*const JsonValue, *const Options) -> *mut Subtable,
+        unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
     >,
-    mut _lookup: *mut JsonValue,
+    mut _lookup: *const ParsedValue,
     mut lookup_name: *mut ::core::ffi::c_char,
     mut options: *const Options,
     lh: &mut Vec<LookupEntry>,
 ) -> bool {
-    let mut type_0: *mut JsonValue = json_obj_get_type(
+    let mut type_0: *const ParsedValue = json_obj_get_type(
         _lookup,
         b"type\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::String,
@@ -340,7 +336,7 @@ unsafe extern "C" fn _declare_lookup_parser(
         );
         return false;
     }
-    let mut _subtables: *mut JsonValue = json_obj_get_type(
+    let mut _subtables: *const ParsedValue = json_obj_get_type(
         _lookup,
         b"subtables\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Array,
@@ -394,9 +390,9 @@ unsafe extern "C" fn _declare_lookup_parser(
     while ___loggedstep_v {
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < subtable_count as ::core::ffi::c_int {
-            let mut _subtable: *mut JsonValue = json_arr_at(_subtables, j as u32);
+            let mut _subtable: *const ParsedValue = json_arr_at(_subtables, j as u32);
             if !_subtable.is_null()
-                && (*_subtable).type_0 == JsonType::Object
+                && json_type_of(_subtable) == JsonType::Object
             {
                 let mut _st: *mut Subtable =
                     parser.expect("non-null function pointer")(_subtable, options);
@@ -433,7 +429,7 @@ unsafe extern "C" fn _declare_lookup_parser(
     return true;
 }
 unsafe fn figure_out_lookups_from_json(
-    mut lookups: *mut JsonValue,
+    mut lookups: *const ParsedValue,
     mut options: *const Options,
 ) -> Vec<LookupEntry> {
     let mut lh: Vec<LookupEntry> = Vec::new();
@@ -441,7 +437,7 @@ unsafe fn figure_out_lookups_from_json(
     while j < json_obj_len(lookups) as u32 {
         let mut lookup_name: *mut ::core::ffi::c_char = json_obj_key_at(lookups, j as u32);
         let lookup_val = json_obj_val_at(lookups, j as u32);
-        if (*lookup_val).type_0 == JsonType::Object
+        if json_type_of(lookup_val) == JsonType::Object
         {
             let mut parsed: bool = _parse_lookup(
                 lookup_val,
@@ -464,7 +460,7 @@ unsafe fn figure_out_lookups_from_json(
                     ),
                 );
             }
-        } else if (*lookup_val).type_0
+        } else if json_type_of(lookup_val)
             as ::core::ffi::c_uint
             == JsonType::String as ::core::ffi::c_int as ::core::ffi::c_uint
         {
@@ -491,24 +487,24 @@ unsafe fn figure_out_lookups_from_json(
     return lh;
 }
 unsafe extern "C" fn feature_merger_activate(
-    mut d: *mut JsonValue,
+    mut d: *mut ParsedValue,
     sametag: bool,
     mut objtype: *const ::core::ffi::c_char,
     mut options: *const Options,
 ) {
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(d) as u32 {
-        let mut jthis: *mut JsonValue = json_obj_val_at(d, j as u32);
+        let mut jthis: *const ParsedValue = json_obj_val_at(d, j as u32);
         let mut kthis: *mut ::core::ffi::c_char = json_obj_key_at(d, j as u32);
         let mut nkthis: u32 = json_obj_key_len_at(d, j as u32) as u32;
-        if !((*jthis).type_0 != JsonType::Array
-            && (*jthis).type_0 != JsonType::Object)
+        if !(json_type_of(jthis) != JsonType::Array
+            && json_type_of(jthis) != JsonType::Object)
         {
             let mut k: u32 = j.wrapping_add(1 as u32);
             while k < json_obj_len(d) as u32 {
-                let mut jthat: *mut JsonValue = json_obj_val_at(d, k as u32);
+                let mut jthat: *const ParsedValue = json_obj_val_at(d, k as u32);
                 let mut kthat: *mut ::core::ffi::c_char = json_obj_key_at(d, k as u32);
-                if json_ident(jthis, jthat) as ::core::ffi::c_int != 0
+                if *jthis == *jthat
                     && (if sametag as ::core::ffi::c_int != 0 {
                         (strncmp(kthis, kthat, 4 as usize) == 0 as ::core::ffi::c_int)
                             as ::core::ffi::c_int
@@ -516,12 +512,10 @@ unsafe extern "C" fn feature_merger_activate(
                         TRUE_0
                     }) != 0
                 {
-                    json_value_free(jthat);
-                    let mut v: *mut JsonValue =
-                        json_string_new_length(nkthis as ::core::ffi::c_uint, kthis);
-                    (*v).parent = d as *mut JsonValue;
-                    let ref mut fresh6 = (*(*d).u.object.values.offset(k as isize)).value;
-                    *fresh6 = v as *mut JsonValue;
+                    let kthis_bytes = ::core::ffi::CStr::from_ptr(kthis).to_bytes();
+                    let mut alias_str: Vec<u8> = kthis_bytes[..nkthis as usize].to_vec();
+                    alias_str.push(0);
+                    json_obj_set_val_at(d, k, ParsedValue::Str(alias_str));
                     (*(*options).logger)
                         .log_sds
                         .expect("non-null function pointer")(
@@ -547,7 +541,7 @@ unsafe extern "C" fn feature_merger_activate(
     }
 }
 unsafe fn figure_out_features_from_json(
-    mut features: *mut JsonValue,
+    mut features: *mut ParsedValue,
     lh: &Vec<LookupEntry>,
     mut tag: *const ::core::ffi::c_char,
     mut options: *const Options,
@@ -564,14 +558,14 @@ unsafe fn figure_out_features_from_json(
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(features) as u32 {
         let mut feature_name: *mut ::core::ffi::c_char = json_obj_key_at(features, j as u32);
-        let mut _feature: *mut JsonValue = json_obj_val_at(features, j as u32);
-        if (*_feature).type_0 == JsonType::Array
+        let mut _feature: *const ParsedValue = json_obj_val_at(features, j as u32);
+        if json_type_of(_feature) == JsonType::Array
         {
             let mut al: LookupRefList = Vec::new();
             let mut k: TableId = 0 as TableId;
             while (k as ::core::ffi::c_uint) < json_arr_len(_feature) {
-                let mut term: *mut JsonValue = json_arr_at(_feature, k as u32);
-                if !((*term).type_0 != JsonType::String)
+                let mut term: *const ParsedValue = json_arr_at(_feature, k as u32);
+                if !(json_type_of(term) != JsonType::String)
                 {
                     let term_bytes: Vec<u8> =
                         ::core::ffi::CStr::from_ptr(json_str_ptr(term)).to_bytes().to_vec();
@@ -657,7 +651,7 @@ unsafe fn figure_out_features_from_json(
                 );
                 otl_lookup_ref_list_dispose(&raw mut al);
             }
-        } else if (*_feature).type_0 == JsonType::String
+        } else if json_type_of(_feature) == JsonType::String
         {
             let target: *mut ::core::ffi::c_char = json_str_ptr(_feature);
             let target_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(target).to_bytes().to_vec();
@@ -682,7 +676,7 @@ pub unsafe extern "C" fn is_valid_language_name(
             == SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int;
 }
 unsafe fn figure_out_languages_from_json(
-    mut languages: *mut JsonValue,
+    mut languages: *const ParsedValue,
     fh: &Vec<FeatureEntry>,
     mut tag: *const ::core::ffi::c_char,
     mut options: *const Options,
@@ -692,12 +686,12 @@ unsafe fn figure_out_languages_from_json(
     while j < json_obj_len(languages) as u32 {
         let mut language_name: *mut ::core::ffi::c_char = json_obj_key_at(languages, j as u32);
         let mut language_name_len: usize = json_obj_key_len_at(languages, j as u32) as usize;
-        let mut _language: *mut JsonValue = json_obj_val_at(languages, j as u32);
+        let mut _language: *const ParsedValue = json_obj_val_at(languages, j as u32);
         if is_valid_language_name(language_name, language_name_len) as ::core::ffi::c_int != 0
-            && (*_language).type_0 == JsonType::Object
+            && json_type_of(_language) == JsonType::Object
         {
             let mut required_feature: *mut Feature = ::core::ptr::null_mut::<Feature>();
-            let mut _rf: *mut JsonValue = json_obj_get_type(
+            let mut _rf: *const ParsedValue = json_obj_get_type(
                 _language,
                 b"requiredFeature\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,
@@ -710,7 +704,7 @@ unsafe fn figure_out_languages_from_json(
                 }
             }
             let mut af: FeatureRefList = Vec::new();
-            let mut _features: *mut JsonValue = json_obj_get_type(
+            let mut _features: *const ParsedValue = json_obj_get_type(
                 _language,
                 b"features\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::Array,
@@ -718,8 +712,8 @@ unsafe fn figure_out_languages_from_json(
             if !_features.is_null() {
                 let mut k: TableId = 0 as TableId;
                 while (k as ::core::ffi::c_uint) < json_arr_len(_features) {
-                    let mut term: *mut JsonValue = json_arr_at(_features, k as u32);
-                    if (*term).type_0 == JsonType::String
+                    let mut term: *const ParsedValue = json_arr_at(_features, k as u32);
+                    if json_type_of(term) == JsonType::String
                     {
                         let term_bytes: Vec<u8> =
                             ::core::ffi::CStr::from_ptr(json_str_ptr(term)).to_bytes().to_vec();
@@ -793,17 +787,17 @@ unsafe fn figure_out_languages_from_json(
     return sh;
 }
 pub unsafe extern "C" fn otfcc_parse_otl(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) -> Option<Box<OtlTable>> {
-    let mut languages: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
-    let mut features: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
-    let mut lookups: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut languages: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let mut features: *mut ParsedValue = ::core::ptr::null_mut::<ParsedValue>();
+    let mut lookups: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     let mut current_block: u64;
     let mut otl: *mut OtlTable = ::core::ptr::null_mut::<OtlTable>();
     let mut otl_box: Option<Box<OtlTable>> = None;
-    let mut table: *mut JsonValue = json_obj_get_type(root, tag, JsonType::Object);
+    let mut table: *const ParsedValue = json_obj_get_type(root, tag, JsonType::Object);
     if !table.is_null() {
         otl_box = Some(Box::new(OtlTable { lookups: Vec::new(), features: Vec::new(), languages: Vec::new() }));
         otl = otl_box.as_mut().unwrap().as_mut() as *mut OtlTable;
@@ -836,7 +830,7 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                     break;
                 }
                 let mut lh: Vec<LookupEntry> = figure_out_lookups_from_json(lookups, options);
-                let mut lookup_order: *mut JsonValue = json_obj_get_type(
+                let mut lookup_order: *const ParsedValue = json_obj_get_type(
                     table,
                     b"lookupOrder\0" as *const u8 as *const ::core::ffi::c_char,
                     JsonType::Array,
@@ -844,9 +838,9 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                 if !lookup_order.is_null() {
                     let mut j: TableId = 0 as TableId;
                     while (j as ::core::ffi::c_uint) < json_arr_len(lookup_order) {
-                        let mut _ln: *mut JsonValue = json_arr_at(lookup_order, j as u32);
+                        let mut _ln: *const ParsedValue = json_arr_at(lookup_order, j as u32);
                         if !_ln.is_null()
-                            && (*_ln).type_0 == JsonType::String
+                            && json_type_of(_ln) == JsonType::String
                         {
                             let ln_bytes: Vec<u8> =
                                 ::core::ffi::CStr::from_ptr(json_str_ptr(_ln)).to_bytes().to_vec();

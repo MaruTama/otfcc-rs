@@ -2,7 +2,7 @@
 use libc::{free, malloc, memcpy};
 
 
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum_fallback};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum_fallback};
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, GlyphHandle};
 
@@ -297,15 +297,15 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(
     return _st;
 }
 pub unsafe extern "C" fn otl_gsub_parse_reverse(
-    mut _subtable: *const JsonValue,
+    mut _subtable: *const ParsedValue,
     mut _options: *const Options,
 ) -> *mut Subtable {
-    let mut _match: *mut JsonValue = json_obj_get_type(
+    let mut _match: *const ParsedValue = json_obj_get_type(
         _subtable,
         b"match\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Array,
     );
-    let mut _to: *mut JsonValue = json_obj_get_type(
+    let mut _to: *const ParsedValue = json_obj_get_type(
         _subtable,
         b"to\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Array,

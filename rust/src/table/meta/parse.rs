@@ -1,9 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::free;
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_str_len, json_str_ptr};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_str_len, json_str_ptr, json_type_of};
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_decode};
@@ -13,16 +13,16 @@ use crate::vendor::sds::{sdsempty};
 // same reasoning as every other `#[allow(improper_ctypes_definitions)]`
 // in this migration.
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn parse_meta_data(mut v: *const JsonValue) -> Option<Vec<u8>> {
-    if (*v).type_0 == JsonType::String
+pub unsafe extern "C" fn parse_meta_data(mut v: *const ParsedValue) -> Option<Vec<u8>> {
+    if json_type_of(v) == JsonType::String
     {
         return Some(::core::slice::from_raw_parts(
             json_str_ptr(v) as *const u8,
             json_str_len(v) as usize,
         ).to_vec());
-    } else if (*v).type_0 == JsonType::Object
+    } else if json_type_of(v) == JsonType::Object
     {
-        let mut _string: *mut JsonValue = json_obj_get_type(
+        let mut _string: *const ParsedValue = json_obj_get_type(
             v,
             b"string\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::String,
@@ -33,7 +33,7 @@ pub unsafe extern "C" fn parse_meta_data(mut v: *const JsonValue) -> Option<Vec<
                 json_str_len(_string) as usize,
             ).to_vec());
         }
-        let mut _base64: *mut JsonValue = json_obj_get_type(
+        let mut _base64: *const ParsedValue = json_obj_get_type(
             v,
             b"base64\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::String,
@@ -54,10 +54,10 @@ pub unsafe extern "C" fn parse_meta_data(mut v: *const JsonValue) -> Option<Vec<
     None
 }
 pub unsafe extern "C" fn otfcc_parse_meta(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<MetaTable>> {
-    let mut _meta: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut _meta: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _meta = json_obj_get_type(
         root,
         b"meta\0" as *const u8 as *const ::core::ffi::c_char,
@@ -66,7 +66,7 @@ pub unsafe extern "C" fn otfcc_parse_meta(
     if _meta.is_null() {
         return None;
     }
-    let mut _meta_entries: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut _meta_entries: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _meta_entries = json_obj_get_type(
         _meta,
         b"entries\0" as *const u8 as *const ::core::ffi::c_char,
@@ -86,8 +86,8 @@ pub unsafe extern "C" fn otfcc_parse_meta(
     while ___loggedstep_v {
         let mut j: usize = 0 as usize;
         while j < json_arr_len(_meta_entries) as usize {
-            let mut _e: *mut JsonValue = json_arr_at(_meta_entries, j as u32);
-            let mut _tag: *mut JsonValue = json_obj_get_type(
+            let mut _e: *const ParsedValue = json_arr_at(_meta_entries, j as u32);
+            let mut _tag: *const ParsedValue = json_obj_get_type(
                 _e,
                 b"tag\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::String,

@@ -1,7 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, qsort};
 
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_str_len, json_str_ptr, preserialize};
+use crate::support::json_funcs::{preserialize};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_str_len, json_str_ptr, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -23,7 +24,7 @@ pub type Coverage = Vec<GlyphHandle>;
 #[repr(C)]
 pub struct ICoverage {
     pub dump: Option<unsafe extern "C" fn(*const Coverage) -> *mut JsonValue>,
-    pub parse: Option<unsafe extern "C" fn(*const JsonValue) -> *mut Coverage>,
+    pub parse: Option<unsafe extern "C" fn(*const ParsedValue) -> *mut Coverage>,
     pub build: Option<unsafe extern "C" fn(*const Coverage) -> *mut Buffer>,
     pub build_format:
         Option<unsafe extern "C" fn(*const Coverage, u16) -> *mut Buffer>,
@@ -183,16 +184,16 @@ pub(crate) unsafe extern "C" fn dump_coverage(coverage: *const Coverage) -> *mut
     }
     return preserialize(a);
 }
-pub(crate) unsafe extern "C" fn parse_coverage(mut cov: *const JsonValue) -> *mut Coverage {
+pub(crate) unsafe extern "C" fn parse_coverage(mut cov: *const ParsedValue) -> *mut Coverage {
     let mut c: *mut Coverage = otl_coverage_create();
     if cov.is_null()
-        || (*cov).type_0 != JsonType::Array
+        || json_type_of(cov) != JsonType::Array
     {
         return c;
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < json_arr_len(cov) {
-        if (*json_arr_at(cov, j as u32)).type_0 == JsonType::String
+        if json_type_of(json_arr_at(cov, j as u32)) == JsonType::String
         {
             push_to_coverage(
                 c,
@@ -388,7 +389,7 @@ pub(crate) unsafe extern "C" fn shrink_coverage(coverage: *mut Coverage, dosort:
 pub static OTL_I_COVERAGE: ICoverage = {
     ICoverage {
         dump: Some(dump_coverage as unsafe extern "C" fn(*const Coverage) -> *mut JsonValue),
-        parse: Some(parse_coverage as unsafe extern "C" fn(*const JsonValue) -> *mut Coverage),
+        parse: Some(parse_coverage as unsafe extern "C" fn(*const ParsedValue) -> *mut Coverage),
         build: Some(
             build_coverage as unsafe extern "C" fn(*const Coverage) -> *mut Buffer,
         ),

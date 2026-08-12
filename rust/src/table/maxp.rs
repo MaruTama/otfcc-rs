@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::json_funcs::{json_obj_get_type, json_obj_getnum};
+use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum};
 use crate::support::binio::{read_16u, read_32s};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -245,7 +245,7 @@ pub unsafe extern "C" fn otfcc_dump_maxp(
     }
 }
 pub unsafe extern "C" fn otfcc_parse_maxp(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<MaxpTable>> {
     // `.version` carries `init_maxp`'s `0x10000` default through if the
@@ -258,7 +258,7 @@ pub unsafe extern "C" fn otfcc_parse_maxp(
     maxp_val.version = 0x10000 as ::core::ffi::c_int as F16Dot16;
     let mut maxp_box: Box<MaxpTable> = Box::new(maxp_val);
     let maxp: *mut MaxpTable = maxp_box.as_mut() as *mut MaxpTable;
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     table = json_obj_get_type(
         root,
         b"maxp\0" as *const u8 as *const ::core::ffi::c_char,

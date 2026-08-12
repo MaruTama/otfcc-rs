@@ -1,7 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc};
 
-use crate::support::json_funcs::{json_obj_get, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, preserialize};
+use crate::support::json_funcs::{preserialize};
+use crate::support::parsed_json::{ParsedValue, json_obj_get, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
 use crate::support::binio::{read_16u};
@@ -156,7 +157,7 @@ pub unsafe extern "C" fn otl_gpos_dump_cursive(
     return st;
 }
 pub unsafe extern "C" fn otl_gpos_parse_cursive(
-    mut _subtable: *const JsonValue,
+    mut _subtable: *const ParsedValue,
     mut _options: *const Options,
 ) -> *mut Subtable {
     let subtable: *mut GposCursiveSubtable = subtable_gpos_cursive_create();
@@ -164,7 +165,7 @@ pub unsafe extern "C" fn otl_gpos_parse_cursive(
     while (j as ::core::ffi::c_uint) < json_obj_len(_subtable) {
         let val = json_obj_val_at(_subtable, j as u32);
         if !val.is_null()
-            && (*val).type_0
+            && json_type_of(val)
                 as ::core::ffi::c_uint
                 == JsonType::Object as ::core::ffi::c_int as ::core::ffi::c_uint
         {

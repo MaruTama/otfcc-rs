@@ -1,7 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
 
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getint_fallback, preserialize};
+use crate::support::json_funcs::{preserialize};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getint_fallback, json_type_of};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_16u, read_32u};
 use crate::logger::{ILogger};
@@ -468,10 +469,10 @@ pub unsafe extern "C" fn otfcc_dump_cpal(
     }
 }
 #[inline]
-unsafe extern "C" fn parse_color(mut _color: *const JsonValue) -> CpalColor {
+unsafe extern "C" fn parse_color(mut _color: *const ParsedValue) -> CpalColor {
     let mut color: CpalColor = WHITE;
     if _color.is_null()
-        || (*_color).type_0 != JsonType::Object
+        || json_type_of(_color) != JsonType::Object
     {
         return color;
     }
@@ -503,10 +504,10 @@ unsafe extern "C" fn parse_color(mut _color: *const JsonValue) -> CpalColor {
     return color;
 }
 pub unsafe extern "C" fn otfcc_parse_cpal(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<CpalTable>> {
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null();
     table = json_obj_get_type(
         root,
         b"CPAL\0" as *const u8 as *const ::core::ffi::c_char,
@@ -524,7 +525,7 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _palettes: *mut JsonValue = json_obj_get_type(
+        let mut _palettes: *const ParsedValue = json_obj_get_type(
             table,
             b"palettes\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::Array,
@@ -539,11 +540,11 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
         cpal = Some(Box::new(CpalTable { version, palettes: Vec::new() }));
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_uint) < json_arr_len(_palettes) {
-            let mut _palette: *mut JsonValue = json_arr_at(_palettes, j as u32);
+            let mut _palette: *const ParsedValue = json_arr_at(_palettes, j as u32);
             if !(_palette.is_null()
-                || (*_palette).type_0 != JsonType::Object)
+                || json_type_of(_palette) != JsonType::Object)
             {
-                let mut _colors: *mut JsonValue = json_obj_get_type(
+                let mut _colors: *const ParsedValue = json_obj_get_type(
                     _palette,
                     b"colors\0" as *const u8 as *const ::core::ffi::c_char,
                     JsonType::Array,

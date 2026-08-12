@@ -30,7 +30,7 @@ use crate::table::head::{HeadTable};
 
 
 use crate::vf::vq::{VQ};
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_numof, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_numof, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::libcff::cff_charset::{cff_build_charset};
 use crate::libcff::cff_codecs::{cff_encode_cff_operator};
 use crate::libcff::cff_dict::{CFF_I_DICT};
@@ -1965,12 +1965,12 @@ pub unsafe extern "C" fn otfcc_dump_cff(
     }
 }
 unsafe extern "C" fn pd_delta_from_json(
-    mut dump: *mut JsonValue,
+    mut dump: *const ParsedValue,
     mut count: *mut Arity,
     mut array: *mut *mut ::core::ffi::c_double,
 ) {
     if dump.is_null()
-        || (*dump).type_0 != JsonType::Array
+        || json_type_of(dump) != JsonType::Array
     {
         return;
     }
@@ -1985,9 +1985,9 @@ unsafe extern "C" fn pd_delta_from_json(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn pd_from_json(mut dump: *mut JsonValue) -> Option<Box<CffPrivateDict>> {
+unsafe extern "C" fn pd_from_json(mut dump: *const ParsedValue) -> Option<Box<CffPrivateDict>> {
     if dump.is_null()
-        || (*dump).type_0 != JsonType::Object
+        || json_type_of(dump) != JsonType::Object
     {
         return None;
     }
@@ -2078,14 +2078,14 @@ unsafe extern "C" fn pd_from_json(mut dump: *mut JsonValue) -> Option<Box<CffPri
     return Some(pd_box);
 }
 unsafe extern "C" fn fd_from_json(
-    mut dump: *const JsonValue,
+    mut dump: *const ParsedValue,
     mut options: *const Options,
     mut top_level: bool,
 ) -> *mut CffTable {
     let mut table: *mut CffTable = (
         TABLE_I_CFF.create.expect("non-null function pointer"))();
     if dump.is_null()
-        || (*dump).type_0 != JsonType::Object
+        || json_type_of(dump) != JsonType::Object
     {
         return table;
     }
@@ -2182,7 +2182,7 @@ unsafe extern "C" fn fd_from_json(
         dump,
         b"cidFontRevision\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    let mut fdarraydump: *mut JsonValue = json_obj_get_type(
+    let mut fdarraydump: *const ParsedValue = json_obj_get_type(
         dump,
         b"fdArray\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,
@@ -2242,10 +2242,10 @@ unsafe extern "C" fn fd_from_json(
     return table;
 }
 pub unsafe extern "C" fn otfcc_parse_cff(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<CffTable>> {
-    let mut dump: *mut JsonValue = json_obj_get_type(
+    let mut dump: *const ParsedValue = json_obj_get_type(
         root,
         b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,

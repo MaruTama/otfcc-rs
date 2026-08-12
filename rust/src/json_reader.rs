@@ -5,7 +5,7 @@ use libc::{free, strcmp, strtol};
 
 
 
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::handle::{sds_to_vec};
 use crate::otf_reader::FontBuilder;
@@ -14,7 +14,7 @@ use crate::logger::{LoggerType, LOG_VL_NOTICE, ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::sds::{SdsRaw};
-use crate::vendor::json::{JsonType, JsonValue};
+use crate::vendor::json::{JsonType};
 use crate::font::caryll_font::{FontSubtype, Font, IFontBuilder};
 use crate::support::{NULL};
 use crate::support::glyph_order::{GlyphOrderPass, GlyphOrder, GlyphOrderEntry};
@@ -62,7 +62,7 @@ unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
     ) as ::core::ffi::c_int;
 }
 unsafe extern "C" fn otfcc_decide_font_subtype_from_json(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
 ) -> FontSubtype {
     if !json_obj_get_type(
         root,
@@ -138,7 +138,7 @@ unsafe extern "C" fn escalate_glyph_order_by_name(
     }
 }
 unsafe extern "C" fn place_order_entries_from_glyf(
-    mut table: *mut JsonValue,
+    mut table: *const ParsedValue,
     mut go: *mut GlyphOrder,
 ) {
     let mut j: u32 = 0 as u32;
@@ -176,7 +176,7 @@ unsafe extern "C" fn place_order_entries_from_glyf(
     }
 }
 unsafe extern "C" fn place_order_entries_from_cmap(
-    mut table: *mut JsonValue,
+    mut table: *const ParsedValue,
     mut go: *mut GlyphOrder,
 ) {
     let mut j: u32 = 0 as u32;
@@ -185,7 +185,7 @@ unsafe extern "C" fn place_order_entries_from_cmap(
             json_obj_key_at(table, j as u32) as *const ::core::ffi::c_void,
             json_obj_key_len_at(table, j as u32) as usize,
         );
-        let mut item: *mut JsonValue = json_obj_val_at(table, j as u32);
+        let mut item: *const ParsedValue = json_obj_val_at(table, j as u32);
         let mut unicode: i32 = 0;
         if sdslen(unicode_str) > 2 as usize
             && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
@@ -202,7 +202,7 @@ unsafe extern "C" fn place_order_entries_from_cmap(
             unicode = atoi(unicode_str as *const ::core::ffi::c_char) as i32;
         }
         sdsfree(unicode_str);
-        if (*item).type_0 == JsonType::String
+        if json_type_of(item) == JsonType::String
             && unicode > 0 as i32
             && unicode <= 0x10ffff as i32
         {
@@ -222,7 +222,7 @@ unsafe extern "C" fn place_order_entries_from_cmap(
     }
 }
 unsafe extern "C" fn place_order_entries_from_subtable(
-    mut table: *mut JsonValue,
+    mut table: *const ParsedValue,
     mut go: *mut GlyphOrder,
     mut zero_only: bool,
 ) {
@@ -232,8 +232,8 @@ unsafe extern "C" fn place_order_entries_from_subtable(
     }
     let mut j: u32 = 0 as u32;
     while j < uplimit {
-        let mut item: *mut JsonValue = json_arr_at(table, j as u32);
-        if (*item).type_0 == JsonType::String
+        let mut item: *const ParsedValue = json_arr_at(table, j as u32);
+        if json_type_of(item) == JsonType::String
         {
             let mut gname: SdsRaw = sdsnewlen(
                 json_str_ptr(item) as *const ::core::ffi::c_void,
@@ -251,7 +251,7 @@ unsafe extern "C" fn place_order_entries_from_subtable(
     }
 }
 unsafe extern "C" fn parse_glyph_order(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<GlyphOrder>> {
     // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
@@ -264,11 +264,11 @@ unsafe extern "C" fn parse_glyph_order(
         by_name: ::std::collections::HashMap::new(),
     });
     let go: *mut GlyphOrder = go_box.as_mut() as *mut GlyphOrder;
-    if (*root).type_0 != JsonType::Object
+    if json_type_of(root) != JsonType::Object
     {
         return Some(go_box);
     }
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     table = json_obj_get_type(
         root,
         b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
@@ -326,7 +326,7 @@ impl FontBuilder for JsonReader {
     options: *const ::core::ffi::c_void,
 ) -> *mut ::core::ffi::c_void {
     let options = options as *const Options;
-    let mut root: *const JsonValue = _root as *mut JsonValue;
+    let mut root: *const ParsedValue = _root as *const ParsedValue;
     let mut font: *mut Font = (
         OTFCC_I_FONT.create.expect("non-null function pointer"))();
     if font.is_null() {

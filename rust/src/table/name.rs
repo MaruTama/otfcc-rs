@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc};
 use crate::support::handle::{sds_to_vec};
-use crate::support::json_funcs::{json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_str_len, json_str_ptr};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_str_len, json_str_ptr, json_type_of};
 use crate::support::binio::{read_16u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -285,11 +285,11 @@ pub unsafe extern "C" fn otfcc_dump_name(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_parse_name(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<NameTable> {
     let mut name: NameTable = Vec::new();
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     table = json_obj_get_type(
         root,
         b"name\0" as *const u8 as *const ::core::ffi::c_char,
@@ -306,9 +306,9 @@ pub unsafe extern "C" fn otfcc_parse_name(
         while ___loggedstep_v {
             let mut j: u32 = 0 as u32;
             while j < json_arr_len(table) {
-                let mut _record: *mut JsonValue = json_arr_at(table, j as u32);
+                let mut _record: *const ParsedValue = json_arr_at(table, j as u32);
                 if !_record.is_null()
-                    && (*_record).type_0 == JsonType::Object
+                    && json_type_of(_record) == JsonType::Object
                 {
                     if json_obj_get_type(
                         _record,
@@ -434,7 +434,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                             _record,
                             b"nameID\0" as *const u8 as *const ::core::ffi::c_char,
                         ) as u16;
-                        let mut str: *mut JsonValue = json_obj_get_type(
+                        let mut str: *const ParsedValue = json_obj_get_type(
                             _record,
                             b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
                             JsonType::String,

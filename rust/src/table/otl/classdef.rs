@@ -1,7 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, qsort};
 
-use crate::support::json_funcs::{json_dbl_val, json_int_val, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, preserialize};
+use crate::support::json_funcs::{preserialize};
+use crate::support::parsed_json::{ParsedValue, json_dbl_val, json_int_val, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
@@ -31,7 +32,7 @@ pub struct ClassDef {
 pub struct IClassDef {
     pub free: Option<unsafe extern "C" fn(*mut ClassDef) -> ()>,
     pub dump: Option<unsafe extern "C" fn(*const ClassDef) -> *mut JsonValue>,
-    pub parse: Option<unsafe extern "C" fn(*const JsonValue) -> *mut ClassDef>,
+    pub parse: Option<unsafe extern "C" fn(*const ParsedValue) -> *mut ClassDef>,
     pub build: Option<unsafe extern "C" fn(*const ClassDef) -> *mut Buffer>,
     pub shrink: Option<unsafe extern "C" fn(*mut ClassDef) -> ()>,
 }
@@ -239,9 +240,9 @@ pub(crate) unsafe extern "C" fn dump_class_def(cd: *const ClassDef) -> *mut Json
     }
     return preserialize(a);
 }
-pub(crate) unsafe extern "C" fn parse_class_def(mut _cd: *const JsonValue) -> *mut ClassDef {
+pub(crate) unsafe extern "C" fn parse_class_def(mut _cd: *const ParsedValue) -> *mut ClassDef {
     if _cd.is_null()
-        || (*_cd).type_0 != JsonType::Object
+        || json_type_of(_cd) != JsonType::Object
     {
         return ::core::ptr::null_mut::<ClassDef>();
     }
@@ -253,13 +254,13 @@ pub(crate) unsafe extern "C" fn parse_class_def(mut _cd: *const JsonValue) -> *m
                 json_obj_key_at(_cd, j as u32) as *const ::core::ffi::c_void,
                 json_obj_key_len_at(_cd, j as u32) as usize,
             )) as GlyphHandle;
-        let mut _cid: *mut JsonValue =
+        let mut _cid: *const ParsedValue =
             json_obj_val_at(_cd, j as u32);
         let mut cls: GlyphClass = 0 as GlyphClass;
-        if (*_cid).type_0 == JsonType::Integer
+        if json_type_of(_cid) == JsonType::Integer
         {
             cls = json_int_val(_cid) as GlyphClass;
-        } else if (*_cid).type_0 == JsonType::Double
+        } else if json_type_of(_cid) == JsonType::Double
         {
             cls = json_dbl_val(_cid) as GlyphClass;
         }
@@ -375,7 +376,7 @@ pub static OTL_I_CLASS_DEF: IClassDef = {
     IClassDef {
         free: Some(otl_class_def_free as unsafe extern "C" fn(*mut ClassDef) -> ()),
         dump: Some(dump_class_def as unsafe extern "C" fn(*const ClassDef) -> *mut JsonValue),
-        parse: Some(parse_class_def as unsafe extern "C" fn(*const JsonValue) -> *mut ClassDef),
+        parse: Some(parse_class_def as unsafe extern "C" fn(*const ParsedValue) -> *mut ClassDef),
         build: Some(
             build_class_def as unsafe extern "C" fn(*const ClassDef) -> *mut Buffer,
         ),

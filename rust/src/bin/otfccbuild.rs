@@ -29,7 +29,7 @@ use otfcc_rust::support::buffer::{Buffer};
 use otfcc_rust::support::options::{Options};
 
 use otfcc_rust::vendor::sds::{SdsRaw};
-use otfcc_rust::vendor::json::{JsonValue};
+use otfcc_rust::support::parsed_json::{ParsedValue};
 use otfcc_rust::font::caryll_font::{Font, IFontBuilder, IFontSerializer};
 use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::support::{EXIT_FAILURE, NULL};
@@ -43,7 +43,7 @@ use otfcc_rust::otf_writer::{otfcc_new_otf_writer};
 use otfcc_rust::support::buffer::{buffree, buflen};
 use otfcc_rust::support::options::{otfcc_options_optimize_to, otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
-use otfcc_rust::vendor::json::{json_parse, json_value_free};
+use otfcc_rust::support::parsed_json::{json_parse, json_value_free};
 use otfcc_rust::vendor::sds::{sdsempty, sdsfree, sdsnew};
 
 
@@ -620,7 +620,7 @@ unsafe fn main_0(
             .finish
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
-    let mut json_root: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut json_root: *mut ParsedValue = ::core::ptr::null_mut::<ParsedValue>();
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(

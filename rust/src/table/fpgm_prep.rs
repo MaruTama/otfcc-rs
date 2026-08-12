@@ -2,7 +2,7 @@
 use libc::{free, memcpy};
 
 
-use crate::support::json_funcs::{json_obj_get};
+use crate::support::parsed_json::{ParsedValue, json_obj_get};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
@@ -137,12 +137,12 @@ pub unsafe extern "C" fn wrong_fpgm_prep_instr(
 ) {
 }
 pub unsafe extern "C" fn otfcc_parse_fpgm_prep(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) -> Option<Box<FpgmPrepTable>> {
     let mut t: Option<Box<FpgmPrepTable>> = None;
-    let mut table: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     table = json_obj_get(root, tag);
     if !table.is_null() {
         (*(*options).logger)

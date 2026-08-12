@@ -4,7 +4,7 @@ use libc::{free, malloc};
 
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
-use crate::support::json_funcs::{json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at};
+use crate::support::parsed_json::{ParsedValue, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
 
 use crate::support::alloc::__caryll_reallocate;
 use crate::support::binio::{read_16u};
@@ -129,13 +129,13 @@ pub unsafe extern "C" fn otl_gsub_dump_multi(
     return st;
 }
 pub unsafe extern "C" fn otl_gsub_parse_multi(
-    mut _subtable: *const JsonValue,
+    mut _subtable: *const ParsedValue,
     mut _options: *const Options,
 ) -> *mut Subtable {
     let st: *mut GsubMultiSubtable = subtable_gsub_multi_create();
     for k in 0..json_obj_len(_subtable) as GlyphId {
-        let _to: *mut JsonValue = json_obj_val_at(_subtable, k as u32);
-        if !_to.is_null() && (*_to).type_0 == JsonType::Array {
+        let _to: *const ParsedValue = json_obj_val_at(_subtable, k as u32);
+        if !_to.is_null() && json_type_of(_to) == JsonType::Array {
             (*st).push(GsubMultiEntry {
                 from: handle_from_name(sdsnewlen(
                     json_obj_key_at(_subtable, k as u32) as *const ::core::ffi::c_void,

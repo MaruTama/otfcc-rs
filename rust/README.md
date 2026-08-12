@@ -894,6 +894,73 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **All ~48 parse-side consumer files now read through `ParsedValue`
+  instead of `vendor::json::JsonValue` — Stage 6-2.5 C-2, part 2, wiring up
+  the parser this theme's previous PR shipped unwired.** Every
+  `otfcc_parse_X`/`otl_parse_X`/`otl_gsub_parse_X`/`otl_gpos_parse_X`
+  function's signature moved from `*const JsonValue` to
+  `*const ParsedValue`, all the way from the two top-level entry points
+  (`bin/otfccbuild.rs`, `ffi/dll.rs`, which now call
+  `support::parsed_json::{json_parse, json_value_free}` instead of the
+  vendored parser) down through `json_reader.rs`'s dispatcher to every leaf
+  table parser. Shipped as one PR, not split: unlike the B-3/C-1 themes,
+  these are function *signatures* forming one connected call graph — a
+  callee's signature can't move without every caller moving too, confirmed
+  by converting a callee alone and watching the compiler error trail point
+  at exactly its still-unconverted callers. That compile-error trail is
+  what drove the file-by-file order below.
+  - **`support::parsed_json`'s accessor layer mirrors `support::json_funcs`
+    name-for-name** (both the original 16 helpers and C-1's 11 additions),
+    targeting `*const ParsedValue` instead — so a converted file's call
+    *expressions* stay textually identical; only its `use` line and its own
+    signatures change. Four of those accessors (`json_obj_get`,
+    `json_obj_get_type`, `json_obj_val_at`, `json_arr_at`) return
+    `*mut ParsedValue`, not `*const` — matching `json_funcs`'s own
+    surprising choice (a "read" accessor returning a mutable pointer)
+    exactly, discovered when the first `*const`-returning attempt broke
+    call sites that legitimately need to write back through the result
+    (see the mutation bullet below). `*mut T` coerces to `*const T`
+    implicitly, so this widened return type cost nothing at any read-only
+    call site.
+  - **Two new primitives that don't mirror anything in `json_funcs`,
+    because the old union design had no equivalent.** `json_parse`/
+    `json_value_free` are thin `*const c_char`/`usize` → `*mut ParsedValue`
+    wrappers around `parse_json`/`Box`, matching `vendor::json::json_parse`'s
+    own raw-pointer contract exactly so the two FFI entry points didn't need
+    reshaping. `json_obj_set_val_at`/`json_obj_null_out_val_at` replace two
+    C-side patterns that used to reach into `JsonValueReserved`/`.parent`
+    fields by hand: `glyf.rs` frees each glyph's parse subtree as soon as
+    it's consumed (bounding peak memory on huge fonts) by splicing in a
+    fresh `json_null_new()`, and `table/otl/parse.rs`'s duplicate-feature/
+    lookup merger turns a structurally-identical duplicate definition into
+    an alias string the same way. Both collapse into a single
+    `ParsedValue`-owning assignment now — `*v = ParsedValue::Null` (or
+    `Str(..)`) drops the old subtree for free, no `.parent` bookkeeping
+    left to get wrong.
+  - **The one hand-reasoned bug-compatibility case: `json_ident`'s call
+    site.** `table/otl/parse.rs`'s duplicate merger used to call a
+    hand-written deep-equality walk (`support/json_ident.rs`) because
+    `JsonValue` had no derived `PartialEq`. `ParsedValue` does (`#[derive(
+    ..., PartialEq)]`, added when the type was first defined) — so
+    `json_ident(jthis, jthat)` became `*jthis == *jthat` directly, and
+    `json_ident.rs` was deleted as dead code (confirmed zero remaining
+    callers by grep before removal).
+  - **`json_vq_of` (`table/fvar.rs`) is the one parse-direction function
+    living in an otherwise dump-only file** — every other `fvar.rs`
+    function only *builds* `JsonValue`s for the variable-font dump path,
+    but this one reads a coordinate back out of parsed JSON for `glyf.rs`'s
+    variable-point parsing. Easy to miss on a file-level "is this
+    dump-only?" pass; caught because it's `glyf.rs`'s only remaining
+    `JsonValue` reference once the rest of that file converts, and the
+    compiler pointed straight at it.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 51 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib (both platforms — the real
+    dlopen check runs in the Linux container); all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green on both
+    platforms too.
+
 - **A new safe, single-pass JSON parser exists now (`support::parsed_json::
   {ParsedValue, parse_json}`) — the first piece of C-2 of Stage 6-2.5,
   "make `JsonValue` safe Rust". It is not wired into anything yet.** This

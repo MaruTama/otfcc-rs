@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{strcmp};
-use crate::support::json_funcs::{json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr};
+use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{ILogger};
@@ -330,11 +330,11 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_parse_tsi(
-    mut root: *const JsonValue,
+    mut root: *const ParsedValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
 ) -> Option<TsiTable> {
-    let mut _tsi: *mut JsonValue = ::core::ptr::null_mut::<JsonValue>();
+    let mut _tsi: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _tsi = json_obj_get_type(root, tag, JsonType::Object);
     if _tsi.is_null() {
         return None;
@@ -348,7 +348,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _glyphs: *mut JsonValue = json_obj_get_type(
+        let mut _glyphs: *const ParsedValue = json_obj_get_type(
             _tsi,
             b"glyphs\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::Object,
@@ -360,10 +360,10 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                     json_obj_key_at(_glyphs, j as u32);
                 let mut _gidlen: usize =
                     json_obj_key_len_at(_glyphs, j as u32) as usize;
-                let mut _content: *mut JsonValue =
+                let mut _content: *const ParsedValue =
                     json_obj_val_at(_glyphs, j as u32);
                 if !(_content.is_null()
-                    || (*_content).type_0 != JsonType::String)
+                    || json_type_of(_content) != JsonType::String)
                 {
                     tsi.push(TsiEntry {
                             type_0: TsiEntryType::Glyph,
@@ -380,7 +380,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                 j = j.wrapping_add(1);
             }
         }
-        let mut _extra: *mut JsonValue = json_obj_get_type(
+        let mut _extra: *const ParsedValue = json_obj_get_type(
             _tsi,
             b"extra\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::Object,
@@ -390,10 +390,10 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
             while j_0 < json_obj_len(_extra) {
                 let mut _key: *mut ::core::ffi::c_char =
                     json_obj_key_at(_extra, j_0 as u32);
-                let mut _content_0: *mut JsonValue =
+                let mut _content_0: *const ParsedValue =
                     json_obj_val_at(_extra, j_0 as u32);
                 if !(_content_0.is_null()
-                    || (*_content_0).type_0 != JsonType::String)
+                    || json_type_of(_content_0) != JsonType::String)
                 {
                     if strcmp(_key, b"cvt\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int

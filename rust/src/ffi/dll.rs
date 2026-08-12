@@ -6,7 +6,7 @@ use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 
 
-use crate::vendor::json::{JsonValue};
+use crate::support::parsed_json::{ParsedValue};
 use crate::font::caryll_font::{Font, IFontBuilder, IFontSerializer};
 use crate::font::caryll_font::{OTFCC_I_FONT};
 use crate::json_reader::{otfcc_new_json_reader};
@@ -14,7 +14,7 @@ use crate::logger::{otfcc_new_empty_target, otfcc_new_logger};
 use crate::otf_writer::{otfcc_new_otf_writer};
 use crate::support::buffer::{buffree};
 use crate::support::options::{otfcc_options_optimize_to, otfcc_new_options};
-use crate::vendor::json::{json_parse, json_value_free};
+use crate::support::parsed_json::{json_parse, json_value_free};
 
 
 
@@ -72,7 +72,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         (*options).ignore_glyph_order = true;
         (*options).force_cid = true;
     }
-    let mut json_root: *mut JsonValue = json_parse(injson, inlen as usize);
+    let mut json_root: *mut ParsedValue = json_parse(injson, inlen as usize);
     if json_root.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }

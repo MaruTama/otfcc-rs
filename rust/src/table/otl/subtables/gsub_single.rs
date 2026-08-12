@@ -4,7 +4,7 @@ use libc::{free, malloc};
 
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
-use crate::support::json_funcs::{json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr};
+use crate::support::parsed_json::{ParsedValue, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
 
 use crate::support::binio::{read_16u};
 
@@ -152,7 +152,7 @@ pub unsafe extern "C" fn otl_gsub_dump_single(
     return st;
 }
 pub unsafe extern "C" fn otl_gsub_parse_single(
-    mut _subtable: *const JsonValue,
+    mut _subtable: *const ParsedValue,
     mut _options: *const Options,
 ) -> *mut Subtable {
     let subtable: *mut GsubSingleSubtable = subtable_gsub_single_create();
@@ -161,7 +161,7 @@ pub unsafe extern "C" fn otl_gsub_parse_single(
         let val = json_obj_val_at(_subtable, j as u32);
         if !val
             .is_null()
-            && (*val).type_0
+            && json_type_of(val)
                 as ::core::ffi::c_uint
                 == JsonType::String as ::core::ffi::c_int as ::core::ffi::c_uint
         {
