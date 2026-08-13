@@ -1,8 +1,10 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+// `sdsget_cff_sid` now returns `Option<Vec<u8>>`, its only callers direct
+// Rust call sites (never a real FFI boundary) -- goes away with the
+// vtable/extern "C" cleanup, same as every other instance of this allow.
+#![allow(improper_ctypes_definitions)]
 use crate::support::primitives::{Arity};
-use crate::vendor::sds::{SdsRaw};
 use crate::libcff::cff_index::{CffIndex};
-use crate::vendor::sds::{sdsnew, sdsnewlen};
 
 static STRING_STANDARD: [&::core::ffi::CStr; 391] = [
     c".notdef",
@@ -397,30 +399,28 @@ static STRING_STANDARD: [&::core::ffi::CStr; 391] = [
     c"Roman",
     c"Semibold",
 ];
-pub unsafe extern "C" fn sdsget_cff_sid(mut idx: u16, mut str: CffIndex) -> SdsRaw {
+pub unsafe extern "C" fn sdsget_cff_sid(mut idx: u16, mut str: CffIndex) -> Option<Vec<u8>> {
     if idx as ::core::ffi::c_int <= 390 as ::core::ffi::c_int {
-        return sdsnew(STRING_STANDARD[idx as usize].as_ptr());
+        return Some(STRING_STANDARD[idx as usize].to_bytes().to_vec());
     } else if str.count > 0 as Arity
         && ((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as Arity) < str.count
     {
-        return sdsnewlen(
-            str.data
-                .offset(
-                    *str.offset
-                        .offset((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as isize)
-                        as isize,
-                )
-                .offset(-(1 as ::core::ffi::c_int as isize))
-                as *const ::core::ffi::c_void,
-            (*str
-                .offset
-                .offset((idx as ::core::ffi::c_int - 390 as ::core::ffi::c_int) as isize))
-            .wrapping_sub(
+        let ptr = str.data
+            .offset(
                 *str.offset
-                    .offset((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as isize),
-            ) as usize,
-        );
+                    .offset((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as isize)
+                    as isize,
+            )
+            .offset(-(1 as ::core::ffi::c_int as isize)) as *const u8;
+        let len = (*str
+            .offset
+            .offset((idx as ::core::ffi::c_int - 390 as ::core::ffi::c_int) as isize))
+        .wrapping_sub(
+            *str.offset
+                .offset((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as isize),
+        ) as usize;
+        return Some(::core::slice::from_raw_parts(ptr, len).to_vec());
     } else {
-        return ::core::ptr::null_mut::<::core::ffi::c_char>();
+        return None;
     };
 }

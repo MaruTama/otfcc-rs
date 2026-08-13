@@ -1199,10 +1199,12 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
             b"LTSH_yPel\0" as *const u8 as *const ::core::ffi::c_char,
         ) as u8;
     }
-    (*g).fd_select = handle_from_name(json_obj_getsds(
-        glyphdump,
-        b"CFF_fdSelect\0" as *const u8 as *const ::core::ffi::c_char,
-    )) as FdHandle;
+    (*g).fd_select = handle_from_name(
+        match json_obj_getsds(glyphdump, b"CFF_fdSelect\0" as *const u8 as *const ::core::ffi::c_char) {
+            Some(v) => sdsnewlen(v.as_ptr() as *const ::core::ffi::c_void, v.len()),
+            None => ::core::ptr::null_mut(),
+        },
+    ) as FdHandle;
     if (*g).y_pel == 0 {
         (*g).y_pel = json_obj_getint(
             glyphdump,

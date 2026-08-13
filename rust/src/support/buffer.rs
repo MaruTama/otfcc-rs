@@ -11,7 +11,6 @@ pub struct Buffer {
 }
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-use crate::vendor::sds::{SdsRaw, sdslen};
 
 pub unsafe extern "C" fn bufnew() -> *mut Buffer {
     let mut buf: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
@@ -133,16 +132,6 @@ pub unsafe fn bufninit(bytes: &[u8]) -> *mut Buffer {
 /// no separate count.
 pub unsafe fn bufnwrite8(buf: *mut Buffer, bytes: &[u8]) {
     buf_push_bytes(buf, bytes);
-}
-pub unsafe extern "C" fn bufwrite_sds(buf: *mut Buffer, str: SdsRaw) {
-    if str.is_null() {
-        return;
-    }
-    let len: usize = sdslen(str);
-    if len == 0 {
-        return;
-    }
-    buf_push_bytes(buf, ::core::slice::from_raw_parts(str as *const u8, len));
 }
 pub unsafe extern "C" fn bufwrite_str(buf: *mut Buffer, str: *const ::core::ffi::c_char) {
     if str.is_null() {
