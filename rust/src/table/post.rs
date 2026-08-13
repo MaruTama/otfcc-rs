@@ -10,12 +10,13 @@ use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::glyph_order::{GlyphOrder};
+use crate::support::handle::{sds_to_vec};
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getbool, json_obj_getnum};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::support::built_json::{BuiltValue, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push};
-use crate::vendor::sds::{sdsdup, sdsempty, sdsfree, sdsnew, sdsnewlen};
+use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 
 #[repr(C)]
 pub struct PostTable {
@@ -409,7 +410,7 @@ pub unsafe extern "C" fn otfcc_read_post(
                                     .expect("non-null function pointer")(
                                     map,
                                     j as GlyphId,
-                                    sdsdup(
+                                    sds_to_vec(
                                         pending_names[(name_map as ::core::ffi::c_int
                                             - 258 as ::core::ffi::c_int)
                                             as usize],
@@ -421,7 +422,7 @@ pub unsafe extern "C" fn otfcc_read_post(
                                     .expect("non-null function pointer")(
                                     map,
                                     j as GlyphId,
-                                    sdsnew(STANDARD_MAC_NAMES[name_map as usize].as_ptr()),
+                                    STANDARD_MAC_NAMES[name_map as usize].to_bytes().to_vec(),
                                 );
                             }
                             j = j.wrapping_add(1);
