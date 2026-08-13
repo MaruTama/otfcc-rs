@@ -5,13 +5,11 @@ use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, json_str_len, json_str_ptr, json_type_of, otfcc_parse_flags};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_bytes};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new, otfcc_dump_flags};
-use crate::vendor::sds::{sdsfree, sdsnewlen};
+use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_from_bytes, otfcc_dump_flags};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Os2Table {
@@ -642,16 +640,11 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
                 &UNICODE_RANGE_LABELS4,
             ),
         );
-        let mut vendorid: SdsRaw = sdsnewlen(
-            &raw const (*table).ach_vend_id as *const u8 as *const ::core::ffi::c_void,
-            4 as usize,
-        );
         json_object_push(
             os_2,
             b"achVendID\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new(vendorid as *const ::core::ffi::c_char),
+            json_string_new_from_bytes(&(*table).ach_vend_id),
         );
-        sdsfree(vendorid);
         json_object_push(
             os_2,
             b"fsSelection\0" as *const u8 as *const ::core::ffi::c_char,

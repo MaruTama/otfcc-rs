@@ -12,7 +12,6 @@ use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::table::otl::{Anchor, BaseArray, BaseRecord, Subtable, GposMarkToSingleSubtable, subtable_from_raw};
@@ -21,8 +20,8 @@ use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_parse_mark_array, otl_parse_anchor, otl_read_mark_array, otl_read_anchor};
-use crate::support::built_json::{BuiltValue, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_object_push_length, json_string_new_length, preserialize};
-use crate::vendor::sds::{sdsempty, sdsfree, sdslen, sdsnewlen};
+use crate::support::built_json::{BuiltValue, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes, preserialize};
+use crate::vendor::sds::{sdsnewlen};
 // `BaseRecord.anchors` is a plain `Vec<Anchor>` now and `glyph: GlyphHandle`
 // already has its own `Drop`, so a `BaseArray` (`Vec<BaseRecord>`) fully
 // self-drops -- clearing it (still needed: `consolidate/otl/mark.rs`'s dedup
@@ -180,20 +179,15 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).mark_array.len() {
         let mut _mark: *mut BuiltValue = json_object_new(3 as usize);
-        let mut mark_class_name: SdsRaw = crate::sdsbuild!(
-            sdsempty(),
+        let mark_class_name: Vec<u8> = crate::bytesbuild!(
             b"anchor",
             (&(*subtable).mark_array)[j as usize].mark_class as ::core::ffi::c_int,
         );
         json_object_push(
             _mark,
             b"class\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new_length(
-                sdslen(mark_class_name) as ::core::ffi::c_uint,
-                mark_class_name as *const ::core::ffi::c_char,
-            ),
+            json_string_new_from_bytes(&mark_class_name),
         );
-        sdsfree(mark_class_name);
         json_object_push(
             _mark,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
@@ -233,14 +227,8 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
                         (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].y as i64,
                     ),
                 );
-                let mut mark_class_name_0: SdsRaw = crate::sdsbuild!(sdsempty(), b"anchor", k as ::core::ffi::c_int);
-                json_object_push_length(
-                    _base,
-                    sdslen(mark_class_name_0) as ::core::ffi::c_uint,
-                    mark_class_name_0 as *const ::core::ffi::c_char,
-                    _anchor,
-                );
-                sdsfree(mark_class_name_0);
+                let mark_class_name_0: Vec<u8> = crate::bytesbuild!(b"anchor", k as ::core::ffi::c_int);
+                json_object_push_bytes_key(_base, &mark_class_name_0, _anchor);
             }
             k = k.wrapping_add(1);
         }
