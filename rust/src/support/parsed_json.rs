@@ -824,13 +824,15 @@ mod tests {
         assert_eq!(parse_v("1e309"), ParsedValue::Double(f64::INFINITY)); // overflow-to-infinity
         assert_eq!(parse_v("-1e309"), ParsedValue::Double(f64::NEG_INFINITY));
         assert_eq!(parse_v("9223372036854775807"), ParsedValue::Int(i64::MAX));
-        // NOTE: literals beyond i64::MAX with no '.'/'e' (still
-        // syntactically Integer) are deliberately not covered here --
-        // this parser's `wrapping_mul`/`wrapping_add` integer accumulation
-        // matches the vendored parser's own unchecked `integer = integer *
-        // 10 + digit` (silent UB-but-wraps in C), which panics under
-        // Rust's debug-build overflow checks if driven through directly --
-        // a pre-existing latent bug, not something exercised here.
+        // Beyond i64::MAX with no '.'/'e' (still syntactically Integer)
+        // wraps silently via `wrapping_mul`/`wrapping_add`, matching the
+        // (now-deleted) vendored parser's own wrapping integer
+        // accumulation -- both were fixed to wrap deliberately rather than
+        // panic on overflow (see `parse_number`'s doc comment).
+        assert_eq!(
+            parse_v("99999999999999999999"),
+            ParsedValue::Int(7766279631452241919)
+        );
         assert_eq!(parse_v("0.1"), ParsedValue::Double(0.1));
         assert_eq!(
             parse_v("1.7976931348623157e308"),
