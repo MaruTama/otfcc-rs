@@ -894,6 +894,53 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 6-2's second `sds` sub-theme: `json_obj_getsds`, the CFF
+  string-lookup pair (`sdsget_cff_sid`/`form_cid_string`), and CFF's
+  string-dedup map are all retyped away from `sds`/`SdsRaw`.** Chosen
+  (over the vtable-shaped `GlyphOrderPackage` theme, or scoping the
+  smaller `handle_from_name` pilot first) as a self-contained, no-vtable
+  slice of the theme surveyed after the Logger PR landed.
+  - `support/parsed_json.rs`'s `json_obj_getsds` returns `Option<Vec<u8>>`
+    instead of a possibly-null `SdsRaw` the caller had to `sdsfree`. Its 11
+    callers split three ways: `table/cff.rs`'s 9 sites (already wrapped in
+    `sds_into_vec`, so they collapse to `.unwrap_or_default()`);
+    `table/glyf.rs`'s 1 site, which still has to hand a raw `SdsRaw` to
+    `handle_from_name` (left untouched — out of scope for this PR) so it
+    rebuilds one from the `Option<Vec<u8>>` with `sdsnewlen`; and
+    `table/svg.rs`'s 1 site (the `document` field, both the plain and
+    base64-encoded branches), which now writes straight from the `Vec<u8>`
+    into `bufwrite_bytes` instead of round-tripping through `sdslen`.
+  - `libcff/cff_string.rs`'s `sdsget_cff_sid` returns `Option<Vec<u8>>`
+    (`None` for a SID with no matching entry in the CFF string INDEX);
+    `table/cff.rs`'s private `form_cid_string` returns a never-null
+    `Vec<u8>` built with `bytesbuild!`. 14 call sites across
+    `table/cff.rs`, all already null-checking before use, so the
+    conversion is a mechanical `if let Some(...)`/`.unwrap_or_default()`
+    swap throughout.
+  - **`CffTable.string_hash`** (the CFF string-dedup table built while
+    writing a CFF font, `sid → string` insertion-ordered by
+    `IndexMap`) moves from `IndexMap<Vec<u8>, SdsRaw>` to
+    `IndexMap<Vec<u8>, Vec<u8>>`. `sidof`'s insert becomes a plain
+    `s.to_vec()`; `cffstrings_to_indexblob`'s drain loop calls the
+    existing `bufnwrite8` instead of `bufwrite_sds`+`sdsfree`, which left
+    `bufwrite_sds` itself with zero remaining callers crate-wide —
+    deleted, along with its now-unused `SdsRaw`/`sdslen` imports in
+    `support/buffer.rs`.
+  - No storage-shape surprises this time (unlike Logger's `Logger.indents`
+    or C-3's attach-before-populate hazard) — every site here was already
+    either null-checked before use or paired 1:1 with its own
+    `sdsfree`/`sds_to_vec`, so the conversion only had to swap the type,
+    not restructure ownership.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib (`KRName-Regular` and
+    `Reinebow-SVGinOT` specifically exercise the CFF string and SVG
+    `document` paths touched here); all 10 round-trip payloads stable;
+    issue #1's large-lookup regression test green; `compare-log-output.sh`
+    green on both platforms too (unaffected by this PR, but re-run as part
+    of the standard pipeline going forward).
+
 - **Stage 6-2's Logger vtable is retyped from `sds`/`SdsRaw` to `Vec<u8>`,
   the first sub-theme of the `sds` → `Vec<u8>`/`String` sweep.** `ILogger`'s
   `indent_sds`/`start_sds`/`log_sds` and `ILoggerTarget::push` now pass

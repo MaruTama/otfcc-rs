@@ -6,7 +6,6 @@ use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
@@ -15,7 +14,6 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::support::base64::{base64_encode};
 use crate::support::buffer::{buffree, bufnew, bufwrite_buf, bufwrite_bytes};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
-use crate::vendor::sds::{sdsfree, sdslen};
 
 #[repr(C)]
 pub struct SvgAssignment {
@@ -300,9 +298,10 @@ pub unsafe extern "C" fn otfcc_parse_svg(
                     _a,
                     b"format\0" as *const u8 as *const ::core::ffi::c_char,
                 );
-                let mut doc: SdsRaw =
+                let doc: Option<Vec<u8>> =
                     json_obj_getsds(_a, b"document\0" as *const u8 as *const ::core::ffi::c_char);
-                if !(format.is_null() || doc.is_null()) {
+                if !format.is_null() {
+                if let Some(doc) = doc {
                     let mut asg: SvgAssignment = svg_assignment_empty();
                     asg.start =
                         json_obj_getint(_a, b"start\0" as *const u8 as *const ::core::ffi::c_char)
@@ -316,19 +315,18 @@ pub unsafe extern "C" fn otfcc_parse_svg(
                     ) == 0 as ::core::ffi::c_int
                     {
                         asg.document = bufnew();
-                        bufwrite_bytes(asg.document, sdslen(doc), doc as *mut u8);
-                        sdsfree(doc);
+                        bufwrite_bytes(asg.document, doc.len(), doc.as_ptr() as *mut u8);
                     } else {
                         asg.document = bufnew();
                         let mut len: usize = 0 as usize;
                         let mut buf: *mut u8 =
-                            base64_encode(doc as *mut u8, sdslen(doc), &raw mut len);
+                            base64_encode(doc.as_ptr() as *mut u8, doc.len(), &raw mut len);
                         bufwrite_bytes(asg.document, len, buf);
                         free(buf as *mut ::core::ffi::c_void);
                         buf = ::core::ptr::null_mut::<u8>();
-                        sdsfree(doc);
                     }
                     svg.push(asg);
+                }
                 }
             }
             j = j.wrapping_add(1);

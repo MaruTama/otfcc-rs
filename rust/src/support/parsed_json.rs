@@ -676,21 +676,18 @@ pub unsafe fn json_obj_getint_fallback(
     fallback
 }
 
-/// A member's string value, copied into a fresh [`crate::vendor::sds::
-/// SdsRaw`]; null if it is not a string. The caller owns the copy.
+/// A member's string value, copied into a fresh `Vec<u8>`; `None` if it is
+/// not a string.
 pub unsafe fn json_obj_getsds(
     obj: *const ParsedValue,
     key: *const ::core::ffi::c_char,
-) -> crate::vendor::sds::SdsRaw {
+) -> Option<Vec<u8>> {
     let v = unsafe { json_obj_get_type(obj, key, JsonType::String) };
     if v.is_null() {
-        ::core::ptr::null_mut()
+        None
     } else {
         unsafe {
-            crate::vendor::sds::sdsnewlen(
-                json_str_ptr(v) as *const ::core::ffi::c_void,
-                json_str_len(v) as usize,
-            )
+            Some(::core::slice::from_raw_parts(json_str_ptr(v) as *const u8, json_str_len(v) as usize).to_vec())
         }
     }
 }
