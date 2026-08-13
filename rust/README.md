@@ -894,6 +894,73 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 6-2's third `sds` sub-theme: the `GlyphOrderPackage` vtable
+  (`set_by_gid`/`set_by_name`/`lookup_name`) is retyped from `SdsRaw` to
+  `Vec<u8>`.** The largest remaining piece of the sweep by call-site count
+  (598, versus Logger's 227), chosen over the smaller `handle_from_name`
+  pilot specifically because it's the other vtable-shaped theme, the same
+  reason the Logger PR was scoped ahead of the smaller pilots.
+  `support/glyph_order.rs`'s `GlyphOrderEntry.name` and the
+  `name_a_field_shared` slot were already `Vec<u8>` from earlier work; this
+  PR closes out the 3 slots that still took a raw, `sdsfree`-requiring
+  `SdsRaw` as input.
+  - `otfcc_set_glyph_order_by_gid`/`otfcc_set_glyph_order_by_name`/
+    `gord_lookup_name` all lost their internal `sds_to_vec`/`sdsfree` calls
+    entirely -- `Vec<u8>` drops on its own in every branch, where the old
+    code needed an explicit free matched to each return path by hand.
+  - **The one real ownership wrinkle, resolved by cloning at the call
+    site rather than restructuring the vtable further.**
+    `otfcc_set_glyph_order_by_name` has a conditional-ownership contract:
+    it consumes `name` on the two paths that store it (new entry, or --
+    via `set_by_gid` -- an existing GID), but on the "name already taken"
+    path it never touches `name` at all, leaving the *caller* responsible
+    (documented in the function's own comment, previously "deliberately
+    left un-freed"). `Vec<u8>`'s move semantics can't express "maybe
+    consumed, maybe not" the way a raw pointer convention could -- so
+    `consolidate.rs`'s two calls now pass `name.clone()`/`newname.clone()`
+    and keep their own copy for the log message and retry loop that follow
+    regardless of which path the callee took. This trades a small `Vec`
+    clone (once per glyph during consolidate, not a hot path) for making
+    the "which branch frees this" question -- the exact hazard class
+    flagged when this theme was scoped -- structurally impossible to get
+    wrong again.
+  - `support/aglfn.rs`'s 586 call sites (the Adobe Glyph List name table,
+    100% uniform `sdsnew(b"Name\0" as *const u8 as *const c_char)` →
+    `set_by_gid`) converted with a scripted regex pass to
+    `b"Name".to_vec()`, exactly as scoped -- no hand-editing 586 lines.
+  - `otf_reader/unconsolidate.rs`'s `create_glyph_order` -- the function
+    that actually names every glyph when unconsolidating a font (by hash,
+    by cmap/AGLFN lookup, by prefix, or by position) -- was the one
+    genuinely busy site: every local `SdsRaw` (`prefix`, `gname`, the
+    per-attempt `newname` in the hash-collision retry loop, the cmap/post
+    name-building locals) became `Vec<u8>`, and the hash-naming loop's
+    branchy `sdsbuild!` pair (append "-" then the hex byte, or just the hex
+    byte) simplified to an unconditional `Hex2Upper(...).append_to_vec(&mut
+    gname)` with the "-" pushed first when the branch condition holds --
+    same output, less duplication. The one `lookup_name` call whose result
+    feeds a later branch (deciding whether the hash name needs a numbered
+    suffix) passes `gname.clone()`, matching the same pattern as
+    `consolidate.rs`'s `set_by_name` sites and for the same reason.
+  - `table/post.rs`'s 2 `set_by_gid` sites (mapping the `post` table's
+    name index back to glyph names) needed no local restructuring --
+    `sdsdup(pending_names[i])` became `sds_to_vec(pending_names[i])` (a
+    copy, not a free-then-realloc; `pending_names` itself is still the
+    `[SdsRaw; 65536]` stack array from a separate, not-yet-scoped part of
+    the sweep, and is freed exactly as before) and
+    `sdsnew(STANDARD_MAC_NAMES[i].as_ptr())` became
+    `STANDARD_MAC_NAMES[i].to_bytes().to_vec()`.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib; all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green;
+    `compare-log-output.sh` green. Additionally, since no existing script
+    exercises `--name-by-hash` (the SHA1-hash-naming path through the
+    collision-retry loop this PR restructured the most), manually ran
+    `otfccdump --name-by-hash` + `otfccbuild` through both the C and Rust
+    binaries on both platforms and confirmed byte-identical output there
+    too.
+
 - **Stage 6-2's second `sds` sub-theme: `json_obj_getsds`, the CFF
   string-lookup pair (`sdsget_cff_sid`/`form_cid_string`), and CFF's
   string-dedup map are all retyped away from `sds`/`SdsRaw`.** Chosen

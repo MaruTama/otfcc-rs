@@ -7,14 +7,14 @@ unsafe extern "C" {
 }
 
 
-use crate::support::handle::{HandleState, handle_from_index, handle_name_eq_bytes, sds_to_vec, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose};
+use crate::support::handle::{HandleState, handle_from_index, handle_name_eq_bytes, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, ShapeId, TableId};
-use crate::vendor::sds::{Hex4Upper, SdsRaw};
+use crate::vendor::sds::{Hex4Upper};
 use crate::font::caryll_font::{Font};
 use crate::support::{NULL};
 use crate::support::glyph_order::GlyphOrder;
@@ -66,7 +66,6 @@ use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::_tsi::{tsi_entry_dup};
 use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, otfcc_new_glyf_glyph};
 use crate::table::otl::{otl_feature_list_filter_env, otl_feature_ref_list_filter_env, otl_lookup_list_filter_env, otl_lookup_ref_list_filter_env};
-use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
 pub type OtlConsolidationFunction = Option<
@@ -1390,22 +1389,23 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         let go: *mut GlyphOrder = go_box.as_mut() as *mut GlyphOrder;
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*glyf).len() {
-            let mut name: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
+            let name: Vec<u8>;
             let glyf_name_empty: bool = (&(*glyf))[j as usize].as_deref().unwrap().name.is_empty();
             if !glyf_name_empty {
-                let glyf_name_bytes: &[u8] = &(&(*glyf))[j as usize].as_deref().unwrap().name;
-                name = sdsnewlen(
-                    glyf_name_bytes.as_ptr() as *const ::core::ffi::c_void,
-                    glyf_name_bytes.len(),
-                );
+                name = (&(*glyf))[j as usize].as_deref().unwrap().name.clone();
             } else {
-                name = crate::sdsbuild!(sdsempty(), b"$$gid", j as ::core::ffi::c_int);
+                name = crate::bytesbuild!(b"$$gid", j as ::core::ffi::c_int);
                 let ref mut fresh0 = (&mut (*glyf))[j as usize].as_mut().unwrap().name;
-                *fresh0 = sds_to_vec(name);
+                *fresh0 = name.clone();
             }
+            // `.clone()`, not a move: `otfcc_set_glyph_order_by_name` always
+            // consumes its own copy (no ownership contract to track any
+            // more -- see its doc comment), but `name` is still needed
+            // below regardless of whether this call succeeds or fails, for
+            // the log message and/or the retry loop.
             if !OTFCC_PKG_GLYPH_ORDER
                 .set_by_name
-                .expect("non-null function pointer")(go, name, j)
+                .expect("non-null function pointer")(go, name.clone(), j)
             {
                 (*(*options).logger)
                     .log_sds
@@ -1414,21 +1414,20 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Glyph name ",
-                        name,
+                        &name,
                         b" is already in use.",
                     ),
                 );
                 let mut suffix: u32 = 2 as u32;
                 let mut success: bool = false;
                 loop {
-                    let mut newname: SdsRaw = crate::sdsbuild!(sdsempty(), name, b"_", suffix);
+                    let newname: Vec<u8> = crate::bytesbuild!(&name, b"_", suffix);
                     success = OTFCC_PKG_GLYPH_ORDER
                         .set_by_name
                         .expect("non-null function pointer")(
-                        go, newname, j
+                        go, newname.clone(), j
                     );
                     if !success {
-                        sdsfree(newname);
                         suffix = suffix.wrapping_add(1 as u32);
                     } else {
                         (*(*options).logger)
@@ -1438,20 +1437,19 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"[Consolidate] Glyph ",
-                                name,
+                                &name,
                                 b" is renamed into ",
-                                newname,
+                                &newname,
                                 b".",
                             ),
                         );
                         let ref mut fresh1 = (&mut (*glyf))[j as usize].as_mut().unwrap().name;
-                        *fresh1 = sds_to_vec(newname);
+                        *fresh1 = newname;
                     }
                     if success {
                         break;
                     }
                 }
-                sdsfree(name);
             }
             j = j.wrapping_add(1);
         }

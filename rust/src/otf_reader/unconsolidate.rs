@@ -9,7 +9,7 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos};
-use crate::vendor::sds::{Hex2Upper, Hex4Upper, SdsRaw};
+use crate::vendor::sds::{Hex2Upper, Hex4Upper, SdsPart};
 use crate::font::caryll_font::{Font};
 use crate::support::glyph_order::{GlyphOrder};
 use crate::support::sha1::{BYTE, Sha1Ctx};
@@ -48,7 +48,6 @@ use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, 
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
 use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
-use crate::vendor::sds::{sdsempty, sdsfree, sdsnew};
 use crate::vf::vq::{I_VQ};
 
 #[derive(Copy, Clone)]
@@ -239,34 +238,26 @@ unsafe extern "C" fn create_glyph_order(
     // `.glyf.is_some()` guard.
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let mut num_glyphs: GlyphId = (*glyf).len() as GlyphId;
-    let mut prefix: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    if !(*options).glyph_name_prefix.is_null() {
-        prefix = sdsnew((*options).glyph_name_prefix);
+    let prefix: Vec<u8> = if !(*options).glyph_name_prefix.is_null() {
+        crate::bytesbuild!((*options).glyph_name_prefix)
     } else {
-        prefix = sdsempty();
-    }
+        Vec::new()
+    };
     for j in 0..num_glyphs {
         let mut g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
         if (*options).name_glyphs_by_hash {
             let h: GlyphHash = name_glyph_by_hash(g, glyf);
-            let mut gname: SdsRaw = sdsempty();
+            let mut gname: Vec<u8> = Vec::new();
             for j_0 in 0..SHA1_BLOCK_SIZE as u16 {
                 if j_0 % 4 == 0 && j_0 / 4 != 0 {
-                    gname = crate::sdsbuild!(
-                        gname,
-                        b"-",
-                        Hex2Upper((h.hash[j_0 as usize] as ::core::ffi::c_int) as u32),
-                    );
-                } else {
-                    gname = crate::sdsbuild!(
-                        gname,
-                        Hex2Upper((h.hash[j_0 as usize] as ::core::ffi::c_int) as u32),
-                    );
+                    gname.extend_from_slice(b"-");
                 }
+                Hex2Upper((h.hash[j_0 as usize] as ::core::ffi::c_int) as u32)
+                    .append_to_vec(&mut gname);
             }
             if OTFCC_PKG_GLYPH_ORDER
                 .lookup_name
-                .expect("non-null function pointer")(glyph_order, gname)
+                .expect("non-null function pointer")(glyph_order, gname.clone())
             {
                 let mut n: GlyphId = 2 as GlyphId;
                 let mut still_in: bool = false;
@@ -274,25 +265,25 @@ unsafe extern "C" fn create_glyph_order(
                     if still_in {
                         n = (n as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
                     }
-                    let mut newname: SdsRaw = crate::sdsbuild!(sdsempty(), gname, b"-", prefix, n as ::core::ffi::c_int);
+                    let newname: Vec<u8> =
+                        crate::bytesbuild!(&gname, b"-", &prefix, n as ::core::ffi::c_int);
                     still_in = OTFCC_PKG_GLYPH_ORDER
                         .lookup_name
                         .expect("non-null function pointer")(
                         glyph_order, newname
                     );
-                    sdsfree(newname);
                     if !still_in {
                         break;
                     }
                 }
-                let mut newname_0: SdsRaw = crate::sdsbuild!(sdsempty(), gname, b"-", prefix, n as ::core::ffi::c_int);
+                let newname_0: Vec<u8> =
+                    crate::bytesbuild!(&gname, b"-", &prefix, n as ::core::ffi::c_int);
                 let shared_name: Vec<u8> = OTFCC_PKG_GLYPH_ORDER
                     .set_by_gid
                     .expect("non-null function pointer")(
                     glyph_order, j, newname_0
                 );
                 (*g).name = shared_name;
-                sdsfree(gname);
             } else {
                 let shared_name_0: Vec<u8> = OTFCC_PKG_GLYPH_ORDER
                     .set_by_gid
@@ -303,7 +294,7 @@ unsafe extern "C" fn create_glyph_order(
             }
         } else if !((*options).ignore_glyph_order || (*options).name_glyphs_by_gid) {
             if !(*g).name.is_empty() {
-                let mut gname_0: SdsRaw = crate::sdsbuild!(sdsempty(), prefix, &(*g).name);
+                let gname_0: Vec<u8> = crate::bytesbuild!(&prefix, &(*g).name);
                 let shared_name_1: Vec<u8> = OTFCC_PKG_GLYPH_ORDER
                     .set_by_gid
                     .expect("non-null function pointer")(
@@ -322,7 +313,7 @@ unsafe extern "C" fn create_glyph_order(
         && !(*options).name_glyphs_by_gid
     {
         for (_, &s) in (*post_name_map).by_gid.iter() {
-            let mut gname_1: SdsRaw = crate::sdsbuild!(sdsempty(), prefix, &(*s).name);
+            let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &(*s).name);
             OTFCC_PKG_GLYPH_ORDER
                 .set_by_gid
                 .expect("non-null function pointer")(glyph_order, (*s).gid, gname_1);
@@ -349,11 +340,11 @@ unsafe extern "C" fn create_glyph_order(
                         &raw mut name_bytes,
                     );
                 }
-                let name: SdsRaw;
+                let name: Vec<u8>;
                 if name_bytes.is_empty() {
-                    name = crate::sdsbuild!(sdsempty(), prefix, b"uni", Hex4Upper(unicode as u32));
+                    name = crate::bytesbuild!(&prefix, b"uni", Hex4Upper(unicode as u32));
                 } else {
-                    name = crate::sdsbuild!(sdsempty(), prefix, &name_bytes);
+                    name = crate::bytesbuild!(&prefix, &name_bytes);
                 }
                 OTFCC_PKG_GLYPH_ORDER
                     .set_by_gid
@@ -365,9 +356,9 @@ unsafe extern "C" fn create_glyph_order(
         OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")(aglfn);
     }
     for j_1 in 0..num_glyphs {
-        let mut name_0: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
+        let name_0: Vec<u8>;
         if j_1 > 1 {
-            name_0 = crate::sdsbuild!(sdsempty(), prefix, b"glyph", j_1 as ::core::ffi::c_int);
+            name_0 = crate::bytesbuild!(&prefix, b"glyph", j_1 as ::core::ffi::c_int);
         } else if j_1 == 1 {
             if (&(*glyf))[1 as usize].is_some()
                 && (&(*glyf))[1 as usize].as_deref().unwrap()
@@ -377,18 +368,17 @@ unsafe extern "C" fn create_glyph_order(
                 .references
                 .is_empty()
             {
-                name_0 = crate::sdsbuild!(sdsempty(), prefix, b".null");
+                name_0 = crate::bytesbuild!(&prefix, b".null");
             } else {
-                name_0 = crate::sdsbuild!(sdsempty(), prefix, b"glyph", j_1 as ::core::ffi::c_int);
+                name_0 = crate::bytesbuild!(&prefix, b"glyph", j_1 as ::core::ffi::c_int);
             }
         } else {
-            name_0 = crate::sdsbuild!(sdsempty(), prefix, b".notdef");
+            name_0 = crate::bytesbuild!(&prefix, b".notdef");
         }
         OTFCC_PKG_GLYPH_ORDER
             .set_by_gid
             .expect("non-null function pointer")(glyph_order, j_1, name_0);
     }
-    sdsfree(prefix);
     return glyph_order;
 }
 unsafe extern "C" fn name_glyphs(mut font: *mut Font, mut gord: *mut GlyphOrder) {
