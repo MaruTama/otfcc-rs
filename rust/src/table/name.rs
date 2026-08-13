@@ -15,7 +15,7 @@ use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::{buffree, bufnew, bufseek, bufwrite16b, bufwrite_buf, bufwrite_bytes};
 use crate::support::unicodeconv::{utf16be_to_utf8, utf8toutf16be};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
-use crate::vendor::sds::{sdsempty, sdsfree, sdsgrowzero, sdsnewlen};
+use crate::vendor::sds::{sdsfree, sdsnewlen};
 
 // `Copy` dropped (`name_string` is now `Vec<u8>`, the `sds` sweep's last
 // leaf field) -- `Clone` alone is enough, and nothing relied on
@@ -515,8 +515,7 @@ pub unsafe extern "C" fn otfcc_build_name(
         bufwrite16b(buf, cbefore as u16);
         j = j.wrapping_add(1);
     }
-    let mut copyright: SdsRaw = crate::sdsbuild!(
-        sdsempty(),
+    let mut copyright: Vec<u8> = crate::bytesbuild!(
         b"-- By OTFCC ",
         MAIN_VER,
         b".",
@@ -525,15 +524,12 @@ pub unsafe extern "C" fn otfcc_build_name(
         PATCH_VER,
         b" --",
     );
-    // `sdsgrowzero` may reallocate, so its result has to be assigned back.
-    // `name.c:188` drops it -- a use-after-free that has never fired only
-    // because `sdscatprintf` happened to over-allocate: it grew the buffer to
-    // twice the 21-byte version string, and 42 bytes is (just) enough for the
-    // 32 this then asks for. Appending the string in pieces allocates 24, so
-    // the growth reallocates, and the stale pointer aborts in `sdsfree`.
-    copyright = sdsgrowzero(copyright, COPYRIGHT_LEN as usize);
-    bufwrite_bytes(strings, COPYRIGHT_LEN as usize, copyright as *mut u8);
-    sdsfree(copyright);
+    // The C original's `sdsgrowzero` re-grow-in-place had a use-after-free
+    // latent in it (`name.c:188` drops the reallocated result -- see the
+    // history of this comment in git blame if curious); `Vec::resize`
+    // has no such hazard to begin with, so there is nothing to preserve.
+    copyright.resize(COPYRIGHT_LEN as usize, 0);
+    bufwrite_bytes(strings, COPYRIGHT_LEN as usize, copyright.as_ptr());
     let mut strings_offset: usize = (*buf).cursor;
     bufwrite_buf(buf, strings);
     bufseek(buf, 4 as usize);

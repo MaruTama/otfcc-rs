@@ -894,6 +894,52 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 6-2's fourth `sds` sub-theme: four small, self-contained
+  `sds`/`SdsRaw` sites unrelated to any vtable, batched into one PR.**
+  Chosen as a deliberate change of pace after the vtable-shaped Logger and
+  `GlyphOrderPackage` PRs -- these four don't share any infrastructure or
+  call site with each other, so they're grouped only by being independently
+  small.
+  - **GPOS mark-class JSON keys** (`table/otl/subtables/
+    gpos_mark_to_single.rs`, `gpos_mark_to_ligature.rs`): the
+    `"anchor0"`/`"ac_3"`-style keys built for each mark class during dump,
+    2 sites per file. `sdsbuild!(sdsempty(), b"anchor", k)` +
+    `sdslen`/`sdsfree` became `bytesbuild!(b"anchor", k)` handed straight to
+    `json_string_new_from_bytes`/`json_object_push_bytes_key` -- both
+    already existed (built for the C-3/Logger work), so this needed no new
+    infrastructure, only wiring up already-scoped-out call sites. Verified
+    against `NotoNastaliqUrdu-Regular`, the one standard payload with real
+    `gpos_mark_to_base`/`gpos_mark_to_ligature` content (345 `"class"` keys
+    across its GPOS table) -- byte-identical.
+  - **`table/os_2.rs`'s `achVendID`**: a fixed 4-byte field
+    (`CffTable.ach_vend_id: [u8; 4]`) that used to go through
+    `sdsnewlen`+`json_string_new`+`sdsfree` for no reason beyond that being
+    the only string constructor available at transpile time -- now a
+    direct `json_string_new_from_bytes(&(*table).ach_vend_id)` (array-to-
+    slice coercion, no allocation-shaped detour at all).
+  - **`table/name.rs`'s copyright string**: replaced the version-string
+    build (`sdsbuild!` piecing together `"-- By OTFCC ", MAIN_VER, ".",
+    ...`) and its trailing `sdsgrowzero`-to-`COPYRIGHT_LEN` pad with
+    `bytesbuild!` + `Vec::resize`. Bonus: removes a documented-but-never-
+    triggered latent use-after-free class from the original C
+    (`sdsgrowzero` may reallocate and the C source dropped the result) --
+    `Vec::resize` has no equivalent hazard to begin with, so the comment
+    explaining why the bug never fired could be deleted along with the bug
+    class itself.
+  - **Deliberately left alone**: `gpos_cursive.rs`/`gpos_single.rs` also
+    have `SdsRaw` locals named `gname`, but those are `handle_from_name`
+    call sites (JSON *key* → `Handle`, parse-side), not
+    `mark_class_name`-shaped constructions -- a different, not-yet-scoped
+    theme (`handle_from_name`'s 21 call sites across 10 files). Caught
+    during scoping by checking each file's actual code shape rather than
+    trusting the file name alone.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib; all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green;
+    `compare-log-output.sh` green.
+
 - **Stage 6-2's third `sds` sub-theme: the `GlyphOrderPackage` vtable
   (`set_by_gid`/`set_by_name`/`lookup_name`) is retyped from `SdsRaw` to
   `Vec<u8>`.** The largest remaining piece of the sweep by call-site count
