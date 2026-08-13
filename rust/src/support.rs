@@ -8,7 +8,6 @@ pub mod ctype_compat;
 pub mod getopt;
 pub mod glyph_order;
 pub mod handle;
-pub mod json_funcs;
 pub mod options;
 pub mod parsed_json;
 pub mod primitives;
