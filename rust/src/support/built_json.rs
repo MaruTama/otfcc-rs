@@ -1,8 +1,8 @@
-//! Stage 6-2.5, C-3 (in progress): a safe Rust representation for the JSON
-//! *build/dump* side, meant to eventually replace `vendor::json::JsonValue`
-//! for every consumer that only *constructs* a value (the whole
-//! `table/*/dump.rs` family, reached today through
-//! `vendor::json_builder`'s constructor API).
+//! Stage 6-2.5, C-3: a safe Rust representation for the JSON *build/dump*
+//! side, replacing `vendor::json::JsonValue` for every consumer that only
+//! *constructs* a value (the whole `table/*/dump.rs` family, plus
+//! `bin/otfccdump.rs`'s own serialize call). `vendor::json_builder`'s
+//! constructor API is no longer reached by any of them.
 //!
 //! `vendor::json::JsonValue` stays exactly as it is for now -- this module
 //! is a deliberately *separate* type, following the same reasoning C-2
@@ -38,8 +38,8 @@
 //!   serializer needs no upfront size at all -- it grows exactly as far as
 //!   the real content requires, so this module has no `json_measure_ex`
 //!   equivalent; `json_serialize_ex` below returns the exact bytes
-//!   directly. Wiring this in (a later PR) will delete the "trim trailing
-//!   zeros" step in `bin/otfccdump.rs` as dead weight along with it.
+//!   directly. Wiring this in deleted the "trim trailing zeros" step in
+//!   `bin/otfccdump.rs` as dead weight along with it.
 //! - `JSON_SERIALIZE_MODE_SINGLE_LINE` (the fallback `DEFAULT_OPTS` mode)
 //!   is never reached by any real call site either -- both callers
 //!   (`bin/otfccdump.rs`, `support/json_funcs.rs`'s `preserialize`) always
@@ -47,13 +47,15 @@
 //!   still ported in full below (it is cheap and already written), so
 //!   nothing is lost by not narrowing further here.
 //!
-//! This module is not wired into anything yet -- `BuiltValue` and its
-//! constructor/serializer functions exist and are validated by the
-//! differential test suite at the bottom of this file (which builds the
-//! same tree shape with both this module and `vendor::json_builder`, then
-//! compares the serialized bytes), but no `table/*/dump.rs` consumer has
-//! been switched over. That's the next PR, once this one has proven the
-//! new serializer matches byte-for-byte.
+//! Every `table/*/dump.rs` consumer has been switched over to this module's
+//! constructor API, and `bin/otfccdump.rs` calls this module's
+//! `json_serialize_ex` directly. `vendor::json_builder`'s own
+//! `json_measure_ex`/`json_serialize_ex`/`json_*_new` therefore have no
+//! remaining callers in this crate outside the differential test suite at
+//! the bottom of this file (which still builds the same tree shape with
+//! both APIs and compares the serialized bytes, as a correctness check
+//! against the vendored implementation) -- `vendor/json_builder.rs`'s
+//! build-side API is a deletion candidate.
 
 use ::core::ffi::{c_char, c_int, c_uint};
 
