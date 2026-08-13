@@ -7,7 +7,6 @@ use crate::vendor::json::{JsonType};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_decode};
-use crate::vendor::sds::{sdsempty};
 // `extern "C"` is a c2rust artifact -- this is only ever called from
 // `otfcc_parse_meta` in this same file, never across a real FFI boundary,
 // same reasoning as every other `#[allow(improper_ctypes_definitions)]`
@@ -80,7 +79,7 @@ pub unsafe extern "C" fn otfcc_parse_meta(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"meta"),
+        crate::bytesbuild!(b"meta"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

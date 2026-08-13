@@ -18,7 +18,6 @@ use crate::table::otl::subtables::gsub_multi::{otl_gsub_dump_multi};
 use crate::table::otl::subtables::gsub_reverse::{otl_gsub_dump_reverse};
 use crate::table::otl::subtables::gsub_single::{otl_gsub_dump_single};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new, json_string_new_from_bytes, otfcc_dump_flags, preserialize};
-use crate::vendor::sds::{sdsempty};
 unsafe extern "C" fn _declare_lookup_dumper(
     mut llt: LookupType,
     mut dumper: Option<unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue>,
@@ -177,7 +176,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), tag),
+        crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -186,7 +185,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), b"Languages"),
+            crate::bytesbuild!(b"Languages"),
         );
         let mut ___loggedstep_v_0: bool = true;
         while ___loggedstep_v_0 {
@@ -237,7 +236,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), b"Features"),
+            crate::bytesbuild!(b"Features"),
         );
         let mut ___loggedstep_v_1: bool = true;
         while ___loggedstep_v_1 {
@@ -279,7 +278,7 @@ pub unsafe extern "C" fn otfcc_dump_otl(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), b"Lookups"),
+            crate::bytesbuild!(b"Lookups"),
         );
         let mut ___loggedstep_v_2: bool = true;
         while ___loggedstep_v_2 {

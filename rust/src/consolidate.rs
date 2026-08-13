@@ -119,9 +119,7 @@ unsafe extern "C" fn consolidate_glyph_contours(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Removed empty contour #",
+                crate::bytesbuild!(b"[Consolidate] Removed empty contour #",
                     j as ::core::ffi::c_int,
                     b" in glyph ",
                     &(*g).name,
@@ -152,9 +150,7 @@ unsafe extern "C" fn consolidate_glyph_references(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored absent glyph component reference /",
+                crate::bytesbuild!(b"[Consolidate] Ignored absent glyph component reference /",
                     &r.glyph.name,
                     b" within /",
                     &(*g).name,
@@ -320,9 +316,7 @@ unsafe extern "C" fn consolidate_fd_select(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] CID Subfont ",
+                crate::bytesbuild!(b"[Consolidate] CID Subfont ",
                     &(*h).name,
                     b" is not defined. (in glyph /",
                     gname,
@@ -457,9 +451,7 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(
-                sdsempty(),
-                b"Found circular reference of out-of-range point reference in anchored reference.",
+            crate::bytesbuild!(b"Found circular reference of out-of-range point reference in anchored reference.",
             ),
         );
         (*rr).is_anchored = RefAnchorStatus::Xy;
@@ -513,9 +505,7 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(
-                sdsempty(),
-                b"Failed to access point ",
+            crate::bytesbuild!(b"Failed to access point ",
                 (*rr).outer as ::core::ffi::c_int,
                 b" in outer glyph.",
             ),
@@ -528,9 +518,7 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(
-                sdsempty(),
-                b"Failed to access point ",
+            crate::bytesbuild!(b"Failed to access point ",
                 (*rr).outer as ::core::ffi::c_int,
                 b" in reference to ",
                 &(*rr).glyph.name,
@@ -574,9 +562,7 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"Anchored reference to ",
+                crate::bytesbuild!(b"Anchored reference to ",
                     &(*rr).glyph.name,
                     b" does not match its X/Y offset data.",
                 ),
@@ -618,7 +604,7 @@ pub unsafe extern "C" fn consolidate_glyf(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), &(*g).name),
+            crate::bytesbuild!(&(*g).name),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
@@ -673,9 +659,7 @@ pub unsafe extern "C" fn consolidate_cmap(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Ignored mapping U+",
+                    crate::bytesbuild!(b"[Consolidate] Ignored mapping U+",
                         Hex4Upper(unicode as u32),
                         b" to non-existent glyph /",
                         &glyph.name,
@@ -701,9 +685,7 @@ pub unsafe extern "C" fn consolidate_cmap(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Ignored UVS mapping [U+",
+                    crate::bytesbuild!(b"[Consolidate] Ignored UVS mapping [U+",
                         Hex4Upper(key.unicode as u32),
                         b" U+",
                         Hex4Upper(key.selector as u32),
@@ -735,7 +717,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), &(*lookup).name),
+        crate::bytesbuild!(&(*lookup).name),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -748,9 +730,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Ignored empty subtable ",
+                    crate::bytesbuild!(b"[Consolidate] Ignored empty subtable ",
                         j as ::core::ffi::c_int,
                         b" of lookup ",
                         &(*lookup).name,
@@ -786,9 +766,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(
-                            sdsempty(),
-                            b"[Consolidate] Ignored empty subtable ",
+                        crate::bytesbuild!(b"[Consolidate] Ignored empty subtable ",
                             j as ::core::ffi::c_int,
                             b" of lookup ",
                             &(*lookup).name,
@@ -825,9 +803,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Lookup ",
+                crate::bytesbuild!(b"[Consolidate] Lookup ",
                     &(*lookup).name,
                     b" is empty and will be removed.\n",
                 ),
@@ -1164,7 +1140,7 @@ unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Op
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"GSUB"),
+        crate::bytesbuild!(b"GSUB"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -1178,7 +1154,7 @@ unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Op
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"GPOS"),
+        crate::bytesbuild!(b"GPOS"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
@@ -1192,7 +1168,7 @@ unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Op
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"GDEF"),
+        crate::bytesbuild!(b"GDEF"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
@@ -1233,9 +1209,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Ignored missing glyph of /",
+                    crate::bytesbuild!(b"[Consolidate] Ignored missing glyph of /",
                         &mapping.glyph.name,
                     ),
                 );
@@ -1269,9 +1243,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[Consolidate] Ignored missing glyph of /",
+                                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph of /",
                                     &layer.glyph.name,
                                 ),
                             );
@@ -1292,9 +1264,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(
-                            sdsempty(),
-                            b"[Consolidate] COLR decomposition for /",
+                        crate::bytesbuild!(b"[Consolidate] COLR decomposition for /",
                             &mapping.glyph.name,
                             b" is empth",
                         ),
@@ -1356,9 +1326,7 @@ unsafe extern "C" fn consolidate_tsi(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(
-                            sdsempty(),
-                            b"[Consolidate] Ignored missing glyph of /",
+                        crate::bytesbuild!(b"[Consolidate] Ignored missing glyph of /",
                             &(*entry).glyph.name,
                         ),
                     );
@@ -1445,9 +1413,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Glyph name ",
+                    crate::bytesbuild!(b"[Consolidate] Glyph name ",
                         name,
                         b" is already in use.",
                     ),
@@ -1471,9 +1437,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(
-                                sdsempty(),
-                                b"[Consolidate] Glyph ",
+                            crate::bytesbuild!(b"[Consolidate] Glyph ",
                                 name,
                                 b" is renamed into ",
                                 newname,
@@ -1497,7 +1461,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"glyf"),
+        crate::bytesbuild!(b"glyf"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -1511,7 +1475,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"cmap"),
+        crate::bytesbuild!(b"cmap"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
@@ -1528,7 +1492,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"COLR"),
+        crate::bytesbuild!(b"COLR"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
@@ -1542,7 +1506,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"TSI_01"),
+        crate::bytesbuild!(b"TSI_01"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
@@ -1556,7 +1520,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"TSI_23"),
+        crate::bytesbuild!(b"TSI_23"),
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
@@ -1570,7 +1534,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"TSI5"),
+        crate::bytesbuild!(b"TSI5"),
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {

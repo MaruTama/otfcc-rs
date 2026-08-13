@@ -14,7 +14,6 @@ use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vv::VV;
 use crate::support::primitives::{otfcc_from_fixed};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_object_push_length, json_string_new, json_string_new_from_bytes};
-use crate::vendor::sds::{sdsempty};
 use crate::vf::region::{vq_axis_span_is_one, vq_delete_region};
 use crate::vf::vq::{I_VQ};
 pub struct FvarInstance {
@@ -392,7 +391,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(sdsempty(), b"table 'fvar' corrupted.\n"),
+                        crate::bytesbuild!(b"table 'fvar' corrupted.\n"),
                     );
                     // No `fvar` to free here: every path that constructs one
                     // (deep inside the nested guards above) returns
@@ -422,7 +421,7 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"fvar"),
+        crate::bytesbuild!(b"fvar"),
     );
     let axes: &Vec<VfAxis> = &(*table).axes;
     let instances: &Vec<FvarInstance> = &(*table).instances;

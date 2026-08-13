@@ -26,7 +26,6 @@ use crate::table::otl::subtables::gsub_ligature::{otfcc_build_gsub_ligature_subt
 use crate::table::otl::subtables::gsub_multi::{otfcc_build_gsub_multi_subtable_split};
 use crate::table::otl::subtables::gsub_reverse::{otfcc_build_gsub_reverse};
 use crate::table::otl::subtables::gsub_single::{otfcc_build_gsub_single_subtable};
-use crate::vendor::sds::{sdsempty};
 pub type OtlBuilder =
     Option<unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer>;
 pub type OtlSplitBuilder = Option<
@@ -424,9 +423,7 @@ unsafe extern "C" fn write_otl_lookups(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
             LoggerType::Progress,
-            crate::sdsbuild!(
-                sdsempty(),
-                b"Building lookup ",
+            crate::bytesbuild!(b"Building lookup ",
                 &(*lookup).name,
                 b" (",
                 j as ::core::ffi::c_int,
@@ -469,9 +466,7 @@ unsafe extern "C" fn write_otl_lookups(
                 (*options).logger as *mut ILogger,
                 LOG_VL_NOTICE,
                 LoggerType::Info,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"Lookup ",
+                crate::bytesbuild!(b"Lookup ",
                     &(*(&(*table).lookups)[j_1 as usize]).name,
                     b" is empty.\n",
                 ),
@@ -488,9 +483,7 @@ unsafe extern "C" fn write_otl_lookups(
                 (*options).logger as *mut ILogger,
                 LOG_VL_NOTICE,
                 LoggerType::Info,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[OTFCC-fea] Using extended OpenType table layout for ",
+                crate::bytesbuild!(b"[OTFCC-fea] Using extended OpenType table layout for ",
                     tag,
                     b"/",
                     &(*lookup_0).name,
@@ -728,7 +721,7 @@ pub unsafe extern "C" fn otfcc_build_otl(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), tag),
+        crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

@@ -5,7 +5,6 @@ use crate::support::options::{Options};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
-use crate::vendor::sds::{sdsempty};
 pub unsafe extern "C" fn otfcc_read_meta(
     packet: Packet,
     mut options: *const Options,
@@ -80,7 +79,7 @@ pub unsafe extern "C" fn otfcc_read_meta(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(sdsempty(), b"Table 'meta' corrupted.\n"),
+                        crate::bytesbuild!(b"Table 'meta' corrupted.\n"),
                     );
                     meta = None;
                     __fortable_k2 = 0 as ::core::ffi::c_int;

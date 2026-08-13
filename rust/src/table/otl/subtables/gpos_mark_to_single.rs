@@ -309,9 +309,7 @@ unsafe extern "C" fn parse_bases(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(
-                                sdsempty(),
-                                b"[OTFCC-fea] Invalid anchor class name <",
+                            crate::bytesbuild!(b"[OTFCC-fea] Invalid anchor class name <",
                                 name_ptr,
                                 b"> for /",
                                 gname,

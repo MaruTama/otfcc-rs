@@ -41,7 +41,6 @@ use crate::table::otl::classdef::ClassDef;
 use crate::consolidate::otl::common::{fontop_consolidate_class_def};
 use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
-use crate::vendor::sds::{sdsempty};
 
 pub unsafe extern "C" fn consolidate_gdef(
     mut font: *mut Font,
@@ -114,9 +113,7 @@ pub unsafe extern "C" fn consolidate_gdef(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(
-                            sdsempty(),
-                            b"[Consolidate] Detected caret value double-mapping about glyph ",
+                        crate::bytesbuild!(b"[Consolidate] Detected caret value double-mapping about glyph ",
                             &lig_carets[j as usize].glyph.name,
                         ),
                     );

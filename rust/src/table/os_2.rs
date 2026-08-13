@@ -11,7 +11,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, json_str_len, json_str_ptr, json_type_of, otfcc_parse_flags};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_bytes};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new, otfcc_dump_flags};
-use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
+use crate::vendor::sds::{sdsfree, sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Os2Table {
@@ -256,7 +256,7 @@ pub unsafe extern "C" fn otfcc_read_os_2(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(sdsempty(), b"table 'OS/2' corrupted.\n"),
+                        crate::bytesbuild!(b"table 'OS/2' corrupted.\n"),
                     );
                     os_2_box = None;
                     os_2 = ::core::ptr::null_mut::<Os2Table>();
@@ -508,7 +508,7 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"OS/2"),
+        crate::bytesbuild!(b"OS/2"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -780,7 +780,7 @@ pub unsafe extern "C" fn otfcc_parse_os_2(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), b"OS/2"),
+            crate::bytesbuild!(b"OS/2"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

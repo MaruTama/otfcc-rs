@@ -14,7 +14,6 @@ use crate::libcff::charstring_il::{CffCharstringIl};
 use crate::libcff::cff_index::{CFF_I_INDEX};
 use crate::libcff::cff_writer::{cff_merge_cs2_int, cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite_buf};
-use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffSubrRule {
@@ -694,7 +693,7 @@ pub unsafe extern "C" fn cff_il_graph_to_buffers(
         (*options).logger as *mut ILogger,
         LOG_VL_PROGRESS,
         LoggerType::Progress,
-        crate::sdsbuild!(sdsempty(), b"[libcff] Total ", max_subroutines, b" subroutines extracted."),
+        crate::bytesbuild!(b"[libcff] Total ", max_subroutines, b" subroutines extracted."),
     );
     let mut max_l_subrs: u32 = max_subroutines;
     let mut max_g_subrs: u32 = 0 as u32;

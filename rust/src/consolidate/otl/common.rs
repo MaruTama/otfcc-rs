@@ -34,7 +34,6 @@ use crate::support::glyph_order::{GlyphOrder};
 
 use crate::table::otl::classdef::{ClassDef};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
-use crate::vendor::sds::{sdsempty};
 
 
 
@@ -66,9 +65,7 @@ pub unsafe extern "C" fn fontop_consolidate_coverage(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
                     &(*h).name,
                     b".\n",
                 ),
@@ -100,9 +97,7 @@ pub unsafe extern "C" fn fontop_consolidate_class_def(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
                     &(*h).name,
                     b".\n",
                 ),

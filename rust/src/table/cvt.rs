@@ -14,7 +14,6 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::base64::{base64_decode};
 use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_push};
-use crate::vendor::sds::{sdsempty};
 
 #[repr(C)]
 pub struct CvtTable {
@@ -93,7 +92,7 @@ pub unsafe extern "C" fn otfcc_dump_cvt(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"cvt"),
+        crate::bytesbuild!(b"cvt"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -126,7 +125,7 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), b"cvt"),
+            crate::bytesbuild!(b"cvt"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
@@ -165,7 +164,7 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
                 .start_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                crate::sdsbuild!(sdsempty(), b"cvt"),
+                crate::bytesbuild!(b"cvt"),
             );
             let mut ___loggedstep_v_0: bool = true;
             while ___loggedstep_v_0 {

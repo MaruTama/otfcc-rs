@@ -200,7 +200,7 @@ pub unsafe extern "C" fn otfcc_read_name(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(sdsempty(), b"table 'name' corrupted.\n"),
+                        crate::bytesbuild!(b"table 'name' corrupted.\n"),
                     );
                     // No `name` to free here: every path that constructs
                     // one (deep inside the nested guards above) returns
@@ -231,7 +231,7 @@ pub unsafe extern "C" fn otfcc_dump_name(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"name"),
+        crate::bytesbuild!(b"name"),
     );
     let records: &Vec<NameRecord> = name;
     let mut ___loggedstep_v: bool = true;
@@ -300,7 +300,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), b"name"),
+            crate::bytesbuild!(b"name"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
@@ -323,9 +323,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(
-                                sdsempty(),
-                                b"Missing or invalid platformID for name entry ",
+                            crate::bytesbuild!(b"Missing or invalid platformID for name entry ",
                                 j,
                                 b"\n",
                             ),
@@ -343,9 +341,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(
-                                sdsempty(),
-                                b"Missing or invalid encodingID for name entry ",
+                            crate::bytesbuild!(b"Missing or invalid encodingID for name entry ",
                                 j,
                                 b"\n",
                             ),
@@ -363,9 +359,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(
-                                sdsempty(),
-                                b"Missing or invalid languageID for name entry ",
+                            crate::bytesbuild!(b"Missing or invalid languageID for name entry ",
                                 j,
                                 b"\n",
                             ),
@@ -383,9 +377,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(
-                                sdsempty(),
-                                b"Missing or invalid nameID for name entry ",
+                            crate::bytesbuild!(b"Missing or invalid nameID for name entry ",
                                 j,
                                 b"\n",
                             ),
@@ -403,9 +395,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(
-                                sdsempty(),
-                                b"Missing or invalid name string for name entry ",
+                            crate::bytesbuild!(b"Missing or invalid name string for name entry ",
                                 j,
                                 b"\n",
                             ),

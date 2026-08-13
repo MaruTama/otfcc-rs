@@ -11,7 +11,7 @@ use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufnwrite8, bufwrite16b, bufwrite32b};
 use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
-use crate::vendor::sds::{sdsempty, sdsnewlen};
+use crate::vendor::sds::{sdsnewlen};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -239,7 +239,7 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), tag),
+        crate::bytesbuild!(tag),
     );
     let entries: &Vec<TsiEntry> = tsi;
     let mut ___loggedstep_v: bool = true;
@@ -344,7 +344,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), tag),
+        crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

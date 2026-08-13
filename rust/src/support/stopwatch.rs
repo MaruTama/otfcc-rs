@@ -1,4 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+// `push_stopwatch` now returns `Vec<u8>`, its only caller a direct Rust
+// call site (never a real FFI boundary) -- goes away with the vtable/
+// extern "C" cleanup, same as every other instance of this allow.
+#![allow(improper_ctypes_definitions)]
 // `timespec` and the clock API come from `libc`, which describes the host.
 // c2rust had copied glibc's `struct timespec` and its `__time_t` /
 // `__syscall_slong_t` typedefs verbatim into every file that timed anything --
@@ -6,8 +10,6 @@
 // shape on x86_64 Linux and says nothing about any other target.
 use libc::{clock_gettime, snprintf, time_t, timespec, CLOCK_REALTIME};
 
-use crate::vendor::sds::{SdsRaw};
-use crate::vendor::sds::{sdsempty};
 pub unsafe extern "C" fn time_now(mut tv: *mut timespec) {
     clock_gettime(CLOCK_REALTIME, tv);
 }
@@ -25,7 +27,7 @@ unsafe extern "C" fn timespec_diff(
         (*result).tv_nsec = (*stop).tv_nsec - (*start).tv_nsec;
     };
 }
-pub unsafe extern "C" fn push_stopwatch(mut sofar: *mut timespec) -> SdsRaw {
+pub unsafe extern "C" fn push_stopwatch(mut sofar: *mut timespec) -> Vec<u8> {
     let mut ends: timespec = timespec {
         tv_sec: 0,
         tv_nsec: 0,
@@ -51,8 +53,7 @@ pub unsafe extern "C" fn push_stopwatch(mut sofar: *mut timespec) -> SdsRaw {
         diff.tv_sec as ::core::ffi::c_double
             + diff.tv_nsec as ::core::ffi::c_double / BILLION as ::core::ffi::c_double,
     );
-    return crate::sdsbuild!(
-        sdsempty(),
+    return crate::bytesbuild!(
         b"Step time = ",
         secs.as_ptr() as *const ::core::ffi::c_char,
         b"s.\n",

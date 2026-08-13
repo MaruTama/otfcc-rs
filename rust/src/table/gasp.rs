@@ -9,7 +9,6 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getbool, json_obj_getint_fallback, json_type_of};
 use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push};
-use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -109,7 +108,7 @@ pub unsafe extern "C" fn otfcc_read_gasp(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(sdsempty(), b"table 'gasp' corrupted.\n"),
+                        crate::bytesbuild!(b"table 'gasp' corrupted.\n"),
                     );
                     gasp = None;
                     __fortable_k2 = 0 as ::core::ffi::c_int;
@@ -137,7 +136,7 @@ pub unsafe extern "C" fn otfcc_dump_gasp(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"gasp"),
+        crate::bytesbuild!(b"gasp"),
     );
     let records: &Vec<GaspRecord> = &(*table).records;
     let mut ___loggedstep_v: bool = true;
@@ -205,7 +204,7 @@ pub unsafe extern "C" fn otfcc_parse_gasp(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), b"gasp"),
+            crate::bytesbuild!(b"gasp"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

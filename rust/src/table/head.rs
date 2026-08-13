@@ -10,7 +10,6 @@ use crate::support::parsed_json::{ParsedValue, json_obj_get, json_obj_get_type, 
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite64b};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::support::built_json::{BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push, otfcc_dump_flags};
-use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct HeadTable {
@@ -63,7 +62,7 @@ pub unsafe extern "C" fn otfcc_read_head(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(sdsempty(), b"table 'head' corrupted.\n"),
+                            crate::bytesbuild!(b"table 'head' corrupted.\n"),
                         );
                     } else {
                         let mut head_box: Box<HeadTable> = Box::new(::core::mem::zeroed());
@@ -170,7 +169,7 @@ pub unsafe extern "C" fn otfcc_dump_head(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"head"),
+        crate::bytesbuild!(b"head"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -292,7 +291,7 @@ pub unsafe extern "C" fn otfcc_parse_head(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), b"head"),
+            crate::bytesbuild!(b"head"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

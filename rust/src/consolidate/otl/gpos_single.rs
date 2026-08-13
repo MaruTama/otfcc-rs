@@ -39,7 +39,6 @@ use crate::table::otl::{GposSingleEntry, PositionValue, Subtable, GposSingleSubt
 
 use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gpos_single::{dispose_gpos_single_subtable};
-use crate::vendor::sds::{sdsempty};
 
 
 
@@ -77,9 +76,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
                     &(&(*subtable))[k as usize].target.name,
                     b".\n",
                 ),
@@ -93,9 +90,7 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Detected glyph double-mapping about /",
+                    crate::bytesbuild!(b"[Consolidate] Detected glyph double-mapping about /",
                         &(&(*subtable))[k as usize].target.name,
                         b".\n",
                     ),

@@ -15,7 +15,6 @@ use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::support::{NULL};
 use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Subtable, ChainingType, ChainingSubtable, subtable_from_raw};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
-use crate::vendor::sds::{sdsempty};
 pub type CoverageReaderHandler = Option<
     unsafe extern "C" fn(
         FontFilePointer,
@@ -614,7 +613,7 @@ pub unsafe extern "C" fn otl_read_contextual(
         (*options).logger as *mut ILogger,
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
-        crate::sdsbuild!(sdsempty(), b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
+        crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
@@ -1217,7 +1216,7 @@ pub unsafe extern "C" fn otl_read_chaining(
         (*options).logger as *mut ILogger,
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
-        crate::sdsbuild!(sdsempty(), b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
+        crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();

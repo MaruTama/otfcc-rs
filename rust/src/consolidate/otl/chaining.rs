@@ -13,7 +13,6 @@ use crate::font::caryll_font::{Font};
 
 use crate::table::otl::{ChainingRule, Subtable, ChainingSubtable, OtlTable};
 use crate::consolidate::otl::common::{fontop_consolidate_coverage};
-use crate::vendor::sds::{sdsempty};
 
 pub unsafe extern "C" fn consolidate_chaining(
     mut font: *mut Font,
@@ -30,7 +29,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(sdsempty(), b"[Consolidate] Ignoring non-canonical chaining subtable."),
+            crate::bytesbuild!(b"[Consolidate] Ignoring non-canonical chaining subtable."),
         );
         return false;
     }
@@ -95,9 +94,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Quoting an invalid lookup ",
+                    crate::bytesbuild!(b"[Consolidate] Quoting an invalid lookup ",
                         &(&(*rule).apply)[j_0 as usize].lookup.name,
                         b". This lookup application is ignored.",
                     ),
@@ -115,9 +112,7 @@ pub unsafe extern "C" fn consolidate_chaining(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Quoting an invalid lookup #",
+                    crate::bytesbuild!(b"[Consolidate] Quoting an invalid lookup #",
                         (*h).index as ::core::ffi::c_int,
                         b".",
                     ),

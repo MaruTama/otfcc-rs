@@ -14,7 +14,6 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::bk::bkgraph::{bk_build_block};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, preserialize};
-use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CpalColor {
@@ -431,7 +430,7 @@ pub unsafe extern "C" fn otfcc_dump_cpal(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"CPAL"),
+        crate::bytesbuild!(b"CPAL"),
     );
     let palettes: &Vec<CpalPalette> = &(*table).palettes;
     let mut ___loggedstep_v: bool = true;
@@ -520,7 +519,7 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"CPAL"),
+        crate::bytesbuild!(b"CPAL"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

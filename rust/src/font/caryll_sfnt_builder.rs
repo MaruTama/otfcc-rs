@@ -9,7 +9,6 @@ use crate::support::options::{Options};
 use crate::vendor::sds::Byte;
 use crate::support::binio::{EndianProbe16, EndianProbe32};
 use crate::support::buffer::{buffree, buflen, buflongalign, bufnew, bufseek, bufwrite16b, bufwrite32b, bufwrite_buf};
-use crate::vendor::sds::{sdsempty};
 pub struct SfntTableEntry {
     pub tag: ::core::ffi::c_int,
     pub length: u32,
@@ -144,9 +143,7 @@ pub unsafe extern "C" fn otfcc_sfnt_builder_push_table(
         (*options).logger as *mut ILogger,
         LOG_VL_PROGRESS,
         LoggerType::Progress,
-        crate::sdsbuild!(
-            sdsempty(),
-            b"OpenType table ",
+        crate::bytesbuild!(b"OpenType table ",
             Byte((tag >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
             Byte((tag >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
             Byte((tag >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),

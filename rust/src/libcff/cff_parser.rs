@@ -22,7 +22,6 @@ use crate::libcff::cff_codecs::{cff_decode_cs2_token};
 use crate::libcff::cff_dict::{CFF_I_DICT};
 use crate::libcff::cff_fdselect::{cff_close_fd_select, cff_extract_fd_select};
 use crate::libcff::cff_index::{CFF_I_INDEX};
-use crate::vendor::sds::{sdsempty};
 
 /// Which encoding a cff font carries: one of the two predefined ones, or the
 /// format of an embedded encoding. Again the crate's own classification rather
@@ -163,9 +162,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(
-                sdsempty(),
-                b"[libcff] Bad CFF font: (",
+            crate::bytesbuild!(b"[libcff] Bad CFF font: (",
                 (*cff).name.count,
                 b", name), (",
                 (*cff).top_dict.count,
@@ -234,7 +231,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(sdsempty(), b"[libcff] Bad CFF font: no any glyph data.\n"),
+                crate::bytesbuild!(b"[libcff] Bad CFF font: no any glyph data.\n"),
             );
         }
         offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
@@ -943,9 +940,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_vmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_VMOVETO.0 as u32),
@@ -989,9 +984,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_rmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_RMOVETO.0 as u32),
@@ -1039,9 +1032,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_HMOVETO.0 as u32),
@@ -1745,9 +1736,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hflex\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_HFLEX.0 as u32),
@@ -1802,9 +1791,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_flex\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_FLEX.0 as u32),
@@ -1867,9 +1854,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hflex1\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_HFLEX1.0 as u32),
@@ -1934,9 +1919,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_flex1\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_FLEX1.0 as u32),
@@ -2038,9 +2021,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_and\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_AND.0 as u32),
@@ -2080,9 +2061,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_or\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_OR.0 as u32),
@@ -2122,9 +2101,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_not\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_NOT.0 as u32),
@@ -2154,9 +2131,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_abs\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_ABS.0 as u32),
@@ -2186,9 +2161,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_add\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_ADD.0 as u32),
@@ -2224,9 +2197,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_sub\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_SUB.0 as u32),
@@ -2262,9 +2233,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_div\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_DIV.0 as u32),
@@ -2300,9 +2269,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_neg\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_NEG.0 as u32),
@@ -2332,9 +2299,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_eq\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_EQ.0 as u32),
@@ -2370,9 +2335,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_drop\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_DROP.0 as u32),
@@ -2393,9 +2356,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_put\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_PUT.0 as u32),
@@ -2431,9 +2392,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_get\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_GET.0 as u32),
@@ -2467,9 +2426,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_ifelse\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_IFELSE.0 as u32),
@@ -2522,9 +2479,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_mul\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_MUL.0 as u32),
@@ -2560,9 +2515,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_sqrt\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_SQRT.0 as u32),
@@ -2592,9 +2545,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_dup\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_DUP.0 as u32),
@@ -2618,9 +2569,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_exch\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_EXCH.0 as u32),
@@ -2660,9 +2609,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_index\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_INDEX.0 as u32),
@@ -2692,9 +2639,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_roll\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_ROLL.0 as u32),
@@ -2721,9 +2666,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     (*options).logger as *mut ILogger,
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
-                                    crate::sdsbuild!(
-                                        sdsempty(),
-                                        b"[libcff] Stack cannot provide enough parameters for ",
+                                    crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                         b"op_roll\0" as *const u8 as *const ::core::ffi::c_char,
                                         b" (",
                                         Hex4(OP_ROLL.0 as u32),
@@ -2766,9 +2709,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_callsubr\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_CALLSUBR.0 as u32),
@@ -2822,9 +2763,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*options).logger as *mut ILogger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::sdsbuild!(
-                                    sdsempty(),
-                                    b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_callgsubr\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_CALLGSUBR.0 as u32),
@@ -2873,9 +2812,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(
-                                sdsempty(),
-                                b"Warning: unknown operator ",
+                            crate::bytesbuild!(b"Warning: unknown operator ",
                                 val.c2rust_unnamed.i,
                                 b" occurs in Type 2 CharString. It may caused by file corruption.",
                             ),

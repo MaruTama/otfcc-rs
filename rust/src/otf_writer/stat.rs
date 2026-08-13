@@ -55,7 +55,6 @@ use crate::table::vmtx::{VmtxTable, VerticalMetric};
 use crate::vf::vq::{VQ};
 use crate::font::caryll_font::{OTFCC_I_FONT};
 use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE};
-use crate::vendor::sds::{sdsempty};
 use crate::vf::vq::{I_VQ};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -98,9 +97,7 @@ pub unsafe extern "C" fn stat_single_glyph(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(
-                sdsempty(),
-                b"[Stat] Circular glyph reference found in gid ",
+            crate::bytesbuild!(b"[Stat] Circular glyph reference found in gid ",
                 topj as ::core::ffi::c_int,
                 b" to gid ",
                 j as ::core::ffi::c_int,

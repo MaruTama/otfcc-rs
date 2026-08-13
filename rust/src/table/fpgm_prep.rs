@@ -12,7 +12,6 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite_bytes};
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::support::built_json::{BuiltValue, json_object_push};
-use crate::vendor::sds::{sdsempty};
 
 // `tag` is written on every construction path (read: unconditionally
 // null/empty; parse: `sdsnew(tag)`, now `CStr::from_ptr(tag).to_bytes()`)
@@ -105,7 +104,7 @@ pub unsafe extern "C" fn table_dump_table_fpgm_prep(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), tag),
+        crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -148,7 +147,7 @@ pub unsafe extern "C" fn otfcc_parse_fpgm_prep(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), tag),
+            crate::bytesbuild!(tag),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

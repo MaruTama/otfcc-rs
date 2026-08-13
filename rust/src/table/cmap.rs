@@ -571,7 +571,7 @@ pub unsafe extern "C" fn otfcc_read_cmap(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(sdsempty(), b"table 'cmap' corrupted.\n"),
+                        crate::bytesbuild!(b"table 'cmap' corrupted.\n"),
                     );
                     cmap_box = None;
                     cmap = ::core::ptr::null_mut::<CmapTable>();
@@ -600,7 +600,7 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"cmap"),
+        crate::bytesbuild!(b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -720,9 +720,7 @@ unsafe extern "C" fn parse_cmap_unicodes(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"U+",
+                    crate::bytesbuild!(b"U+",
                         Hex4Upper(unicode as u32),
                         b" is already mapped to ",
                         &(*current_map).name,
@@ -791,9 +789,7 @@ unsafe extern "C" fn parse_cmap_uvs(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"UVS U+",
+                    crate::bytesbuild!(b"UVS U+",
                         Hex4Upper((k.unicode) as u32),
                         b" U+",
                         Hex4Upper((k.selector) as u32),
@@ -826,7 +822,7 @@ pub unsafe extern "C" fn otfcc_parse_cmap(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"cmap"),
+        crate::bytesbuild!(b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -848,7 +844,7 @@ pub unsafe extern "C" fn otfcc_parse_cmap(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"cmap_uvs"),
+        crate::bytesbuild!(b"cmap_uvs"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {

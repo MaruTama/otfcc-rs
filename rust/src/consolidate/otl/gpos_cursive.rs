@@ -39,7 +39,6 @@ use crate::table::otl::{Anchor, GposCursiveEntry, Subtable, GposCursiveSubtable,
 
 use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gpos_cursive::{dispose_gpos_cursive_subtable};
-use crate::vendor::sds::{sdsempty};
 
 
 
@@ -77,9 +76,7 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
                     &(&(*subtable))[k as usize].target.name,
                     b".\n",
                 ),
@@ -93,9 +90,7 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Double-mapping a glyph in a cursive positioning /",
+                    crate::bytesbuild!(b"[Consolidate] Double-mapping a glyph in a cursive positioning /",
                         &(&(*subtable))[k as usize].target.name,
                         b".\n",
                     ),

@@ -12,7 +12,6 @@ use crate::table::otl::{GsubSingleEntry, Subtable, GsubSingleSubtable, OtlTable}
 
 use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gsub_single::{dispose_gsub_single_subtable};
-use crate::vendor::sds::{sdsempty};
 
 pub unsafe extern "C" fn consolidate_gsub_single(
     mut font: *mut Font,
@@ -49,9 +48,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
                     &(&(*subtable))[k as usize].from.name,
                     b".\n",
                 ),
@@ -68,9 +65,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
                     &(&(*subtable))[k as usize].to.name,
                     b".\n",
                 ),
@@ -84,9 +79,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Double-mapping a glyph in a single substitution /",
+                    crate::bytesbuild!(b"[Consolidate] Double-mapping a glyph in a single substitution /",
                         &(&(*subtable))[k as usize].from.name,
                         b".\n",
                     ),
@@ -107,9 +100,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(
-                sdsempty(),
-                b"[Consolidate] In this lookup, some mappings are ignored.\n",
+            crate::bytesbuild!(b"[Consolidate] In this lookup, some mappings are ignored.\n",
             ),
         );
     }

@@ -22,7 +22,6 @@ use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gpos_common::{dispose_mark_array};
 use crate::table::otl::subtables::gpos_mark_to_ligature::{dispose_lig_array};
 use crate::table::otl::subtables::gpos_mark_to_single::{dispose_base_array};
-use crate::vendor::sds::{sdsempty};
 
 struct MarkHashValue {
     name: Vec<u8>,
@@ -60,9 +59,7 @@ unsafe extern "C" fn consolidate_mark_array(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored unknown glyph name ",
+                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
                     &(&(*mark_array))[k as usize].glyph.name,
                     b".",
                 ),
@@ -88,9 +85,7 @@ unsafe extern "C" fn consolidate_mark_array(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(
-                            sdsempty(),
-                            b"[Consolidate] Ignored invalid or double-mapping mark definition for /",
+                        crate::bytesbuild!(b"[Consolidate] Ignored invalid or double-mapping mark definition for /",
                             &(&(*mark_array))[k as usize].glyph.name,
                             b".",
                         ),
@@ -141,9 +136,7 @@ unsafe extern "C" fn consolidate_base_array(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored unknown glyph name ",
+                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
                     &(&(*base_array))[k as usize].glyph.name,
                     b".",
                 ),
@@ -164,9 +157,7 @@ unsafe extern "C" fn consolidate_base_array(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(
-                            sdsempty(),
-                            b"[Consolidate] Ignored anchor double-definition for /",
+                        crate::bytesbuild!(b"[Consolidate] Ignored anchor double-definition for /",
                             &(&(*base_array))[k as usize].glyph.name,
                             b".",
                         ),
@@ -211,9 +202,7 @@ unsafe extern "C" fn consolidate_lig_array(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored unknown glyph name ",
+                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
                     &(&(*lig_array))[k as usize].glyph.name,
                     b".",
                 ),
@@ -235,9 +224,7 @@ unsafe extern "C" fn consolidate_lig_array(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(
-                            sdsempty(),
-                            b"[Consolidate] Ignored anchor double-definition for /",
+                        crate::bytesbuild!(b"[Consolidate] Ignored anchor double-definition for /",
                             &(&(*lig_array))[k as usize].glyph.name,
                             b".",
                         ),

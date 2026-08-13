@@ -15,7 +15,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::bk::bkgraph::{bk_build_block};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_from_bytes, preserialize};
-use crate::vendor::sds::{sdsempty, sdsnewlen};
+use crate::vendor::sds::{sdsnewlen};
 #[derive(Clone)]
 #[repr(C)]
 pub struct ColrLayer {
@@ -213,7 +213,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(sdsempty(), b"Table 'COLR' corrupted.\n"),
+                        crate::bytesbuild!(b"Table 'COLR' corrupted.\n"),
                     );
                     // No `colr` to free here: every path that constructs
                     // one (deep inside the nested guards above) returns
@@ -244,7 +244,7 @@ pub unsafe extern "C" fn otfcc_dump_colr(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"COLR"),
+        crate::bytesbuild!(b"COLR"),
     );
     let mappings: &Vec<ColrMapping> = colr;
     let mut ___loggedstep_v: bool = true;
@@ -325,7 +325,7 @@ pub unsafe extern "C" fn otfcc_parse_colr(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"COLR"),
+        crate::bytesbuild!(b"COLR"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

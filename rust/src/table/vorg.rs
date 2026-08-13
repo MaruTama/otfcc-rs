@@ -10,7 +10,6 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, Pos};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite16b};
-use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -118,7 +117,7 @@ pub unsafe extern "C" fn otfcc_read_vorg(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(sdsempty(), b"Table 'VORG' corrupted."),
+                        crate::bytesbuild!(b"Table 'VORG' corrupted."),
                     );
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
