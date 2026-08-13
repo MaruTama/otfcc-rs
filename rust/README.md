@@ -894,6 +894,65 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 6-2's Logger vtable is retyped from `sds`/`SdsRaw` to `Vec<u8>`,
+  the first sub-theme of the `sds` → `Vec<u8>`/`String` sweep.** `ILogger`'s
+  `indent_sds`/`start_sds`/`log_sds` and `ILoggerTarget::push` now pass
+  `Vec<u8>` instead of the old manually-`sdsfree`'d `SdsRaw`; `Logger.indents`
+  (the per-nesting-level indent-segment stack) is `Vec<Vec<u8>>` instead of a
+  hand-rolled malloc/realloc'd `*mut SdsRaw` array with a separate
+  `level_cap` field tracking its capacity — `level_cap` is gone entirely,
+  replaced by `.push()`/`.pop()`. Shipped as one PR covering both the
+  infrastructure and the full call-site sweep (unlike the JSON work's
+  "ship unwired, then wire up" split): there's only one type here, so there
+  was no unwired-shim stage to ship separately.
+  - **New:** `SdsPart::append_to_vec(self, v: &mut Vec<u8>)`, a sibling to
+    the existing `SdsPart::append_to(self, s: SdsRaw) -> SdsRaw`, implemented
+    on every existing `SdsPart` impl (`&[u8]`, C strings, `Sds`, `Byte`,
+    the `Dec5`/`Hex4`/`Hex2` number-formatting wrappers, etc.) with the exact
+    same rendering logic, writing into a growable `Vec<u8>` instead of an
+    `sds` buffer. `bytesbuild!(...)`, a `sdsbuild!` sibling with no leading
+    `sdsempty()` seed argument (a fresh `Vec::new()` needs no allocator
+    call), replaces every logger-bound `sdsbuild!(sdsempty(), ...)` call —
+    about 190 sites across ~51 files (`consolidate.rs` and its `otl/*.rs`
+    submodules, every `table/*.rs` leaf dumper, `libcff/{cff_parser,subr}.rs`,
+    `json_reader.rs`, `font/caryll_sfnt_builder.rs`, `otf_writer/stat.rs`, and
+    both `bin/{otfccdump,otfccbuild}.rs`), found by iterating
+    `cargo build --lib --bins`'s exact diagnostic spans rather than a
+    blind file-wide regex — several files (`table/cmap.rs`'s JSON-key
+    building, `consolidate.rs`'s glyph-name dedup) mix logger and
+    non-logger `sdsbuild!` calls in the same file, so only the
+    logger-bound ones convert.
+  - `push_stopwatch` (`support/stopwatch.rs`) — the one place a `bytesbuild!`
+    result flows through a variable instead of a direct vtable-call
+    argument — returns `Vec<u8>` now too; its 12 call sites (7 in
+    `otfccdump.rs`, 5 in `otfccbuild.rs`) needed no changes, since they
+    already just forward the return value straight into `log_sds`.
+  - `Logger.indents = Vec::new()` is set explicitly in `otfcc_new_logger`
+    after the `calloc`-equivalent allocation — the zeroed bytes a fresh
+    `Logger` starts with are not a valid `Vec` bit pattern (`Vec`'s empty
+    state is `NonNull::dangling()`, not a null pointer), the same hazard
+    recorded for every other malloc'd-struct-gets-a-`Vec`-field conversion
+    this migration has done.
+  - **New verification script:** `rust/scripts/compare-log-output.sh`.
+    Every existing comparison script (`compare-with-c.sh`,
+    `compare-with-golden.sh`, `run-cycles.sh`) only checks the produced
+    font/JSON files — none of them touch stderr, so nothing was actually
+    exercising the Logger vtable end to end before this PR. The new script
+    runs `otfccdump`/`otfccbuild` under `--verbose`, `--quiet`, and a
+    missing-input-file error case for both the C and Rust builds, and
+    diffs stderr byte-for-byte after blanking out `push_stopwatch`'s
+    `Step time = N.NNNNNNs.` numbers (the one piece of log output that can
+    never match between two separate process runs). Confirmed the script
+    actually detects a divergence (not just trivially passing on empty
+    output) by corrupting one captured log and checking the comparison
+    fails before restoring it.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib; all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green; and the new
+    `compare-log-output.sh` green on both platforms.
+
 - **Stage 6-2.5's Theme C is complete: the old vendored `JsonValue`-based
   JSON parser and builder are deleted entirely (C-4), closing out the
   theme C-1 through C-3 spent four PRs building toward.** With C-2

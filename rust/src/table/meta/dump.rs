@@ -6,7 +6,6 @@ use crate::support::options::{Options};
 use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_encode};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
-use crate::vendor::sds::{sdsempty};
 #[inline]
 unsafe extern "C" fn is_string_tag(mut tag: u32) -> bool {
     return tag == crate::tag::TAG_DLNG || tag == crate::tag::TAG_SLNG;
@@ -25,7 +24,7 @@ pub unsafe extern "C" fn otfcc_dump_meta(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"meta"),
+        crate::bytesbuild!(b"meta"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

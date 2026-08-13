@@ -1949,7 +1949,7 @@ pub unsafe extern "C" fn otfcc_dump_cff(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"CFF"),
+        crate::bytesbuild!(b"CFF"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -2258,7 +2258,7 @@ pub unsafe extern "C" fn otfcc_parse_cff(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), b"CFF"),
+            crate::bytesbuild!(b"CFF"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

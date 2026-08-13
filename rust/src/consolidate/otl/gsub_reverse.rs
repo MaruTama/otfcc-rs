@@ -12,7 +12,6 @@ use crate::font::caryll_font::{Font};
 use crate::table::otl::{Subtable, GsubReverseSubtable, OtlTable};
 
 use crate::consolidate::otl::common::{fontop_consolidate_coverage};
-use crate::vendor::sds::{sdsempty};
 
 pub unsafe extern "C" fn consolidate_gsub_reverse(
     mut font: *mut Font,
@@ -74,9 +73,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
+                crate::bytesbuild!(b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
                     &(&(*from))[k].name,
                     b".\n",
                 ),
@@ -97,9 +94,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(
-                sdsempty(),
-                b"[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n",
+            crate::bytesbuild!(b"[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n",
             ),
         );
     }

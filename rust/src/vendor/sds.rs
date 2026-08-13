@@ -325,17 +325,30 @@ pub unsafe extern "C" fn sdsfromlonglong(mut value: ::core::ffi::c_longlong) -> 
 pub trait SdsPart {
     /// Append this piece to `s`, returning the (possibly reallocated) string.
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw;
+
+    /// [`Self::append_to`]'s `Vec<u8>`-targeting sibling, for
+    /// [`crate::bytesbuild!`] -- same per-type rendering rules, just
+    /// writing into a growable owned buffer instead of an `SdsRaw`. Kept
+    /// on the same trait (rather than a second one) so every `SdsPart`
+    /// impl states both renderings side by side.
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>);
 }
 
 impl SdsPart for &[u8] {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         sdscatlen(s, self.as_ptr() as *const ::core::ffi::c_void, self.len())
     }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        v.extend_from_slice(self);
+    }
 }
 
 impl<const N: usize> SdsPart for &[u8; N] {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         (&self[..]).append_to(s)
+    }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        unsafe { (&self[..]).append_to_vec(v) };
     }
 }
 
@@ -356,6 +369,13 @@ impl SdsPart for &Vec<u8> {
             None => (&self[..]).append_to(s),
         }
     }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        let bytes = match self.iter().position(|&b| b == 0) {
+            Some(nul_pos) => &self[..nul_pos],
+            None => &self[..],
+        };
+        unsafe { bytes.append_to_vec(v) };
+    }
 }
 
 /// A C string (`%s`): the bytes up to the terminating NUL.
@@ -370,6 +390,15 @@ impl SdsPart for *const ::core::ffi::c_char {
         }
         sdscatlen(s, self as *const ::core::ffi::c_void, strlen(self))
     }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        if self.is_null() {
+            return unsafe { b"(null)".append_to_vec(v) };
+        }
+        let bytes = unsafe {
+            ::core::slice::from_raw_parts(self as *const u8, strlen(self))
+        };
+        v.extend_from_slice(bytes);
+    }
 }
 
 /// `SdsRaw` is `*mut c_char`, so this covers both a plain C string and an SdsRaw
@@ -378,6 +407,9 @@ impl SdsPart for *const ::core::ffi::c_char {
 impl SdsPart for *mut ::core::ffi::c_char {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         (self as *const ::core::ffi::c_char).append_to(s)
+    }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        unsafe { (self as *const ::core::ffi::c_char).append_to_vec(v) };
     }
 }
 
@@ -388,6 +420,9 @@ impl SdsPart for &::core::ffi::CStr {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         self.to_bytes().append_to(s)
     }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        unsafe { self.to_bytes().append_to_vec(v) };
+    }
 }
 
 /// An SdsRaw appended by its stored length (`%S`), so unlike `%s` it keeps any
@@ -397,6 +432,12 @@ pub struct Sds(pub SdsRaw);
 impl SdsPart for Sds {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         sdscatsds(s, self.0)
+    }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        let bytes = unsafe {
+            ::core::slice::from_raw_parts(self.0 as *const u8, sdslen(self.0))
+        };
+        v.extend_from_slice(bytes);
     }
 }
 
@@ -415,6 +456,9 @@ impl SdsPart for Byte {
             &self.0 as *const u8 as *const ::core::ffi::c_void,
             1 as usize,
         )
+    }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        v.push(self.0);
     }
 }
 
@@ -437,9 +481,16 @@ unsafe fn cat_ascii(s: SdsRaw, digits: &str) -> SdsRaw {
     digits.as_bytes().append_to(s)
 }
 
+fn cat_ascii_vec(v: &mut Vec<u8>, digits: &str) {
+    v.extend_from_slice(digits.as_bytes());
+}
+
 impl SdsPart for ::core::ffi::c_int {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{self}"))
+    }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        cat_ascii_vec(v, &format!("{self}"));
     }
 }
 
@@ -447,11 +498,17 @@ impl SdsPart for ::core::ffi::c_uint {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{self}"))
     }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        cat_ascii_vec(v, &format!("{self}"));
+    }
 }
 
 impl SdsPart for Dec5 {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{:05}", self.0))
+    }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        cat_ascii_vec(v, &format!("{:05}", self.0));
     }
 }
 
@@ -463,11 +520,17 @@ impl SdsPart for Hex4 {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{:04x}", self.0))
     }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        cat_ascii_vec(v, &format!("{:04x}", self.0));
+    }
 }
 
 impl SdsPart for Hex4Upper {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{:04X}", self.0))
+    }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        cat_ascii_vec(v, &format!("{:04X}", self.0));
     }
 }
 
@@ -475,11 +538,17 @@ impl SdsPart for Hex2 {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{:02x}", self.0))
     }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        cat_ascii_vec(v, &format!("{:02x}", self.0));
+    }
 }
 
 impl SdsPart for Hex2Upper {
     unsafe fn append_to(self, s: SdsRaw) -> SdsRaw {
         cat_ascii(s, &format!("{:02X}", self.0))
+    }
+    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+        cat_ascii_vec(v, &format!("{:02X}", self.0));
     }
 }
 
@@ -504,6 +573,30 @@ macro_rules! sdsbuild {
             __sds = $crate::vendor::sds::SdsPart::append_to($part, __sds);
         )*
         __sds
+    }};
+}
+
+/// [`sdsbuild!`]'s `Vec<u8>`-targeting sibling, for callers with nothing
+/// left to `SdsRaw`-ify a result into (the `ILogger` vtable, once
+/// retyped). No base/seed argument, unlike `sdsbuild!` -- `Vec::new()`
+/// needs no allocator call the way `sdsempty()` does, so there is nothing
+/// to thread through.
+///
+/// ```ignore
+/// sdsbuild!(sdsempty(), b"lookup_", name, b"_", Hex2(kind as u32))
+/// ```
+/// becomes
+/// ```ignore
+/// bytesbuild!(b"lookup_", name, b"_", Hex2(kind as u32))
+/// ```
+#[macro_export]
+macro_rules! bytesbuild {
+    ($($part:expr),* $(,)?) => {{
+        let mut __v: ::std::vec::Vec<u8> = ::std::vec::Vec::new();
+        $(
+            unsafe { $crate::vendor::sds::SdsPart::append_to_vec($part, &mut __v); }
+        )*
+        __v
     }};
 }
 

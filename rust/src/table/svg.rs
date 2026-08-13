@@ -15,7 +15,7 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::support::base64::{base64_encode};
 use crate::support::buffer::{buffree, bufnew, bufwrite_buf, bufwrite_bytes};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
-use crate::vendor::sds::{sdsempty, sdsfree, sdslen};
+use crate::vendor::sds::{sdsfree, sdslen};
 
 #[repr(C)]
 pub struct SvgAssignment {
@@ -194,7 +194,7 @@ pub unsafe extern "C" fn otfcc_dump_svg(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"SVG "),
+        crate::bytesbuild!(b"SVG "),
     );
     let entries: &Vec<SvgAssignment> = svg;
     let mut ___loggedstep_v: bool = true;
@@ -286,7 +286,7 @@ pub unsafe extern "C" fn otfcc_parse_svg(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"SVG "),
+        crate::bytesbuild!(b"SVG "),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {

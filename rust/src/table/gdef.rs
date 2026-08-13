@@ -17,7 +17,7 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, preserialize};
-use crate::vendor::sds::{sdsempty, sdsnewlen};
+use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CaretValue {
@@ -350,7 +350,7 @@ pub unsafe extern "C" fn otfcc_dump_gdef(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"GDEF"),
+        crate::bytesbuild!(b"GDEF"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -472,7 +472,7 @@ pub unsafe extern "C" fn otfcc_parse_gdef(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), b"GDEF"),
+            crate::bytesbuild!(b"GDEF"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

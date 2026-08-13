@@ -19,7 +19,6 @@ use crate::vf::vq::{VQ, VQSegType, VqSegment};
 use crate::support::primitives::{otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{TABLE_I_FVAR};
 use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, glyf_contour_fill, otfcc_new_glyf_glyph};
-use crate::vendor::sds::{sdsempty};
 use crate::vf::region::{vq_create_region};
 use crate::vf::vq::{I_VQ};
 
@@ -412,7 +411,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(sdsempty(), b"glyf: SCALED_COMPONENT_OFFSET is not supported."),
+                crate::bytesbuild!(b"glyf: SCALED_COMPONENT_OFFSET is not supported."),
             );
         }
         if flags.contains(ComponentFlags::WE_HAVE_INSTRUCTIONS) {
@@ -1104,9 +1103,7 @@ unsafe extern "C" fn polymorphize(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(
-                                sdsempty(),
-                                b"Axes number in GVAR and FVAR are inequal",
+                            crate::bytesbuild!(b"Axes number in GVAR and FVAR are inequal",
                             ),
                         );
                         return;
@@ -1248,7 +1245,7 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(sdsempty(), b"table 'loca' corrupted.\n"),
+                            crate::bytesbuild!(b"table 'loca' corrupted.\n"),
                         );
                         if !offsets.is_null() {
                             free(offsets as *mut ::core::ffi::c_void);
@@ -1291,7 +1288,7 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                                     (*options).logger as *mut ILogger,
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
-                                    crate::sdsbuild!(sdsempty(), b"table 'glyf' corrupted.\n"),
+                                    crate::bytesbuild!(b"table 'glyf' corrupted.\n"),
                                 );
                                 // No `glyf` to free here: every path that
                                 // constructs one (below) breaks out of this

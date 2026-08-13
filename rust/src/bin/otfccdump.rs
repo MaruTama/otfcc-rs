@@ -84,7 +84,7 @@ use otfcc_rust::otf_reader::{otfcc_new_otf_reader};
 use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::support::built_json::json_serialize_ex;
-use otfcc_rust::vendor::sds::{sdsempty, sdsfree, sdsnew};
+use otfcc_rust::vendor::sds::{sdsfree, sdsnew};
 
 
 
@@ -433,7 +433,7 @@ unsafe fn main_0(
             (*options).logger as *mut ILogger,
             LOG_VL_CRITICAL,
             LoggerType::Error,
-            otfcc_rust::sdsbuild!(sdsempty(), b"Expected argument for input file name.\n"),
+            otfcc_rust::bytesbuild!(b"Expected argument for input file name.\n"),
         );
         printHelp();
         exit(EXIT_FAILURE);
@@ -451,7 +451,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Read SFNT"),
+        otfcc_rust::bytesbuild!(b"Read SFNT"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -461,7 +461,7 @@ unsafe fn main_0(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
             LoggerType::Progress,
-            otfcc_rust::sdsbuild!(sdsempty(), b"From file ", inPath),
+            otfcc_rust::bytesbuild!(b"From file ", inPath),
         );
         let mut file: *mut FILE = fopen(
             inPath as *const ::core::ffi::c_char,
@@ -475,9 +475,7 @@ unsafe fn main_0(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::sdsbuild!(
-                    sdsempty(),
-                    b"Cannot read SFNT file \"",
+                otfcc_rust::bytesbuild!(b"Cannot read SFNT file \"",
                     inPath,
                     b"\". Exit.\n",
                 ),
@@ -491,9 +489,7 @@ unsafe fn main_0(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::sdsbuild!(
-                    sdsempty(),
-                    b"Subfont index ",
+                otfcc_rust::bytesbuild!(b"Subfont index ",
                     ttcindex,
                     b" out of range for \"",
                     inPath,
@@ -522,7 +518,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Read Font"),
+        otfcc_rust::bytesbuild!(b"Read Font"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
@@ -539,9 +535,7 @@ unsafe fn main_0(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::sdsbuild!(
-                    sdsempty(),
-                    b"Font structure broken or corrupted \"",
+                otfcc_rust::bytesbuild!(b"Font structure broken or corrupted \"",
                     inPath,
                     b"\". Exit.\n",
                 ),
@@ -569,7 +563,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Consolidate"),
+        otfcc_rust::bytesbuild!(b"Consolidate"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
@@ -592,7 +586,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Dump"),
+        otfcc_rust::bytesbuild!(b"Dump"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
@@ -606,9 +600,7 @@ unsafe fn main_0(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::sdsbuild!(
-                    sdsempty(),
-                    b"Font structure broken or corrupted \"",
+                otfcc_rust::bytesbuild!(b"Font structure broken or corrupted \"",
                     inPath,
                     b"\". Exit.\n",
                 ),
@@ -634,7 +626,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Serialize to JSON"),
+        otfcc_rust::bytesbuild!(b"Serialize to JSON"),
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
@@ -672,7 +664,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Output"),
+        otfcc_rust::bytesbuild!(b"Output"),
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
@@ -688,9 +680,7 @@ unsafe fn main_0(
                     (*options).logger as *mut ILogger,
                     LOG_VL_CRITICAL,
                     LoggerType::Error,
-                    otfcc_rust::sdsbuild!(
-                        sdsempty(),
-                        b"Cannot write to file \"",
+                    otfcc_rust::bytesbuild!(b"Cannot write to file \"",
                         outputPath,
                         b"\". Exit.",
                     ),
@@ -739,7 +729,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Finalize"),
+        otfcc_rust::bytesbuild!(b"Finalize"),
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {

@@ -44,7 +44,7 @@ use otfcc_rust::support::buffer::{buffree, buflen};
 use otfcc_rust::support::options::{otfcc_options_optimize_to, otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::support::parsed_json::{json_parse, json_value_free};
-use otfcc_rust::vendor::sds::{sdsempty, sdsfree, sdsnew};
+use otfcc_rust::vendor::sds::{sdsfree, sdsnew};
 
 
 
@@ -549,9 +549,7 @@ unsafe fn main_0(
             (*options).logger as *mut ILogger,
             LOG_VL_CRITICAL,
             LoggerType::Error,
-            otfcc_rust::sdsbuild!(
-                sdsempty(),
-                b"Unable to build OpenType font tile : output path not specified. Exit.\n",
+            otfcc_rust::bytesbuild!(b"Unable to build OpenType font tile : output path not specified. Exit.\n",
             ),
         );
         printHelp();
@@ -563,7 +561,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Load file"),
+        otfcc_rust::bytesbuild!(b"Load file"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -572,7 +570,7 @@ unsafe fn main_0(
                 .start_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                otfcc_rust::sdsbuild!(sdsempty(), b"Load from file ", inPath),
+                otfcc_rust::bytesbuild!(b"Load from file ", inPath),
             );
             let mut ___loggedstep_v_0: bool = true;
             while ___loggedstep_v_0 {
@@ -594,7 +592,7 @@ unsafe fn main_0(
                 .start_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                otfcc_rust::sdsbuild!(sdsempty(), b"Load from stdin"),
+                otfcc_rust::bytesbuild!(b"Load from stdin"),
             );
             let mut ___loggedstep_v_1: bool = true;
             while ___loggedstep_v_1 {
@@ -625,7 +623,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Parse into JSON"),
+        otfcc_rust::bytesbuild!(b"Parse into JSON"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
@@ -646,9 +644,7 @@ unsafe fn main_0(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::sdsbuild!(
-                    sdsempty(),
-                    b"Cannot parse JSON file \"",
+                otfcc_rust::bytesbuild!(b"Cannot parse JSON file \"",
                     inPath,
                     b"\". Exit.\n",
                 ),
@@ -665,7 +661,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Parse"),
+        otfcc_rust::bytesbuild!(b"Parse"),
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
@@ -682,9 +678,7 @@ unsafe fn main_0(
                 (*options).logger as *mut ILogger,
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::sdsbuild!(
-                    sdsempty(),
-                    b"Cannot parse JSON file \"",
+                otfcc_rust::bytesbuild!(b"Cannot parse JSON file \"",
                     inPath,
                     b"\" as a font. Exit.\n",
                 ),
@@ -710,7 +704,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Consolidate"),
+        otfcc_rust::bytesbuild!(b"Consolidate"),
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
@@ -732,7 +726,7 @@ unsafe fn main_0(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        otfcc_rust::sdsbuild!(sdsempty(), b"Build"),
+        otfcc_rust::bytesbuild!(b"Build"),
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
@@ -744,7 +738,7 @@ unsafe fn main_0(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            otfcc_rust::sdsbuild!(sdsempty(), b"Write to file"),
+            otfcc_rust::bytesbuild!(b"Write to file"),
         );
         let mut ___loggedstep_v_6: bool = true;
         while ___loggedstep_v_6 {
@@ -759,9 +753,7 @@ unsafe fn main_0(
                     (*options).logger as *mut ILogger,
                     LOG_VL_CRITICAL,
                     LoggerType::Error,
-                    otfcc_rust::sdsbuild!(
-                        sdsempty(),
-                        b"Cannot write to file \"",
+                    otfcc_rust::bytesbuild!(b"Cannot write to file \"",
                         outputPath,
                         b"\". Exit.\n",
                     ),

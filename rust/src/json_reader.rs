@@ -48,7 +48,7 @@ use crate::table::otl::parse::{otfcc_parse_otl};
 use crate::table::post::{otfcc_parse_post};
 use crate::table::vdmx::funcs::{otfcc_parse_vdmx};
 use crate::table::vhea::{otfcc_parse_vhea};
-use crate::vendor::sds::{sdsempty, sdsfree, sdslen, sdsnewlen};
+use crate::vendor::sds::{sdsfree, sdslen, sdsnewlen};
 
 
 
@@ -305,9 +305,7 @@ unsafe extern "C" fn parse_glyph_order(
                     (*options).logger as *mut ILogger,
                     LOG_VL_NOTICE,
                     LoggerType::Info,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"OpenType SVG table detected. Glyph order is preserved.",
+                    crate::bytesbuild!(b"OpenType SVG table detected. Glyph order is preserved.",
                     ),
                 );
                 ignore_glyph_order = false;

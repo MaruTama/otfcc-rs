@@ -13,7 +13,6 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::table::maxp::{MaxpTable};
 use crate::table::vhea::{VheaTable};
 use crate::support::buffer::{bufnew, bufwrite16b};
-use crate::vendor::sds::{sdsempty};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VerticalMetric {
@@ -87,7 +86,7 @@ pub unsafe extern "C" fn otfcc_read_vmtx(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(sdsempty(), b"Table 'vmtx' corrupted.\n"),
+                            crate::bytesbuild!(b"Table 'vmtx' corrupted.\n"),
                         );
                     } else {
                         let metrics = __caryll_allocate_clean(

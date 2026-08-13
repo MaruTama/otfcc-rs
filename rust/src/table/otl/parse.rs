@@ -25,7 +25,6 @@ use crate::table::otl::subtables::gsub_ligature::{otl_gsub_parse_ligature};
 use crate::table::otl::subtables::gsub_multi::{otl_gsub_parse_multi};
 use crate::table::otl::subtables::gsub_reverse::{otl_gsub_parse_reverse};
 use crate::table::otl::subtables::gsub_single::{otl_gsub_parse_single};
-use crate::vendor::sds::{sdsempty};
 /// Replaces the uthash-based `FeatureHash`. Same shape as `LookupEntry`
 /// (see its doc comment) and for the same reason: a real feature
 /// declaration is rejected if its name already exists, but an alias
@@ -314,9 +313,7 @@ unsafe extern "C" fn _declare_lookup_parser(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"Lookup ",
+                crate::bytesbuild!(b"Lookup ",
                     lookup_name,
                     b" does not have a valid 'type' field.",
                 ),
@@ -332,7 +329,7 @@ unsafe extern "C" fn _declare_lookup_parser(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(sdsempty(), b"Lookup ", lookup_name, b" already exists."),
+            crate::bytesbuild!(b"Lookup ", lookup_name, b" already exists."),
         );
         return false;
     }
@@ -348,9 +345,7 @@ unsafe extern "C" fn _declare_lookup_parser(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(
-                sdsempty(),
-                b"Lookup ",
+            crate::bytesbuild!(b"Lookup ",
                 lookup_name,
                 b" does not have a valid subtable list.",
             ),
@@ -384,7 +379,7 @@ unsafe extern "C" fn _declare_lookup_parser(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), lookup_name),
+        crate::bytesbuild!(lookup_name),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -412,7 +407,7 @@ unsafe extern "C" fn _declare_lookup_parser(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(sdsempty(), b"Lookup ", lookup_name, b" does not have any subtables."),
+            crate::bytesbuild!(b"Lookup ", lookup_name, b" does not have any subtables."),
         );
         otfcc_delete_lookup(lookup);
         return false;
@@ -452,9 +447,7 @@ unsafe fn figure_out_lookups_from_json(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[OTFCC-fea] Ignoring invalid or unsupported lookup ",
+                    crate::bytesbuild!(b"[OTFCC-fea] Ignoring invalid or unsupported lookup ",
                         lookup_name,
                         b".\n",
                     ),
@@ -522,9 +515,7 @@ unsafe extern "C" fn feature_merger_activate(
                         (*options).logger as *mut ILogger,
                         LOG_VL_NOTICE,
                         LoggerType::Info,
-                        crate::sdsbuild!(
-                            sdsempty(),
-                            b"[OTFCC-fea] Merged duplicate ",
+                        crate::bytesbuild!(b"[OTFCC-fea] Merged duplicate ",
                             objtype,
                             b" '",
                             kthat,
@@ -579,9 +570,7 @@ unsafe fn figure_out_features_from_json(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(
-                                sdsempty(),
-                                b"Lookup assignment ",
+                            crate::bytesbuild!(b"Lookup assignment ",
                                 json_str_ptr(term),
                                 b" for feature [",
                                 tag,
@@ -620,9 +609,7 @@ unsafe fn figure_out_features_from_json(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(
-                            sdsempty(),
-                            b"[OTFCC-fea] Duplicate feature for [",
+                        crate::bytesbuild!(b"[OTFCC-fea] Duplicate feature for [",
                             tag,
                             b"/",
                             feature_name,
@@ -640,9 +627,7 @@ unsafe fn figure_out_features_from_json(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[OTFCC-fea] There is no valid lookup assignments for [",
+                    crate::bytesbuild!(b"[OTFCC-fea] There is no valid lookup assignments for [",
                         tag,
                         b"/",
                         feature_name,
@@ -750,9 +735,7 @@ unsafe fn figure_out_languages_from_json(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(
-                            sdsempty(),
-                            b"[OTFCC-fea] Duplicate language item [",
+                        crate::bytesbuild!(b"[OTFCC-fea] Duplicate language item [",
                             tag,
                             b"/",
                             language_name,
@@ -770,9 +753,7 @@ unsafe fn figure_out_languages_from_json(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[OTFCC-fea] There is no valid feature assignments for [",
+                    crate::bytesbuild!(b"[OTFCC-fea] There is no valid feature assignments for [",
                         tag,
                         b"/",
                         language_name,
@@ -821,7 +802,7 @@ pub unsafe extern "C" fn otfcc_parse_otl(
                 .start_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                crate::sdsbuild!(sdsempty(), tag),
+                crate::bytesbuild!(tag),
             );
             let mut ___loggedstep_v: bool = true;
             loop {
@@ -933,9 +914,7 @@ pub unsafe extern "C" fn otfcc_parse_otl(
             (*options).logger as *mut ILogger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::sdsbuild!(
-                sdsempty(),
-                b"[OTFCC-fea] Ignoring invalid or incomplete OTL table ",
+            crate::bytesbuild!(b"[OTFCC-fea] Ignoring invalid or incomplete OTL table ",
                 tag,
                 b".\n",
             ),

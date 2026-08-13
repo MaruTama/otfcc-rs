@@ -10,7 +10,6 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::support::built_json::{BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push};
-use crate::vendor::sds::{sdsempty};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -61,7 +60,7 @@ pub unsafe extern "C" fn otfcc_read_hhea(
                             (*options).logger as *mut ILogger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::sdsbuild!(sdsempty(), b"table 'hhea' corrupted.\n"),
+                            crate::bytesbuild!(b"table 'hhea' corrupted.\n"),
                         );
                     } else {
                         let mut hhea_box: Box<HheaTable> = Box::new(::core::mem::zeroed());
@@ -146,7 +145,7 @@ pub unsafe extern "C" fn otfcc_dump_hhea(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"hhea"),
+        crate::bytesbuild!(b"hhea"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -236,7 +235,7 @@ pub unsafe extern "C" fn otfcc_parse_hhea(
             .start_sds
             .expect("non-null function pointer")(
             (*options).logger as *mut ILogger,
-            crate::sdsbuild!(sdsempty(), b"hhea"),
+            crate::bytesbuild!(b"hhea"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

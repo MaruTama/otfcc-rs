@@ -42,7 +42,6 @@ use crate::table::otl::{GsubMultiEntry, Subtable, GsubMultiSubtable, OtlTable};
 use crate::consolidate::otl::common::{fontop_consolidate_coverage};
 use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gsub_multi::{dispose_gsub_multi_subtable};
-use crate::vendor::sds::{sdsempty};
 
 
 
@@ -79,9 +78,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
                     &(&(*subtable))[k as usize].from.name,
                     b".\n",
                 ),
@@ -105,9 +102,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /",
+                    crate::bytesbuild!(b"[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /",
                         &(&(*subtable))[k as usize].from.name,
                         b".\n",
                     ),

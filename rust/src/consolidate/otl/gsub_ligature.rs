@@ -36,7 +36,6 @@ use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable, OtlTa
 use crate::consolidate::otl::common::{fontop_consolidate_coverage};
 use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::subtables::gsub_ligature::{subtable_gsub_ligature_replace};
-use crate::vendor::sds::{sdsempty};
 
 
 
@@ -70,9 +69,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                 (*options).logger as *mut ILogger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::sdsbuild!(
-                    sdsempty(),
-                    b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
                     &(&(*subtable))[k as usize].to.name,
                     b".\n",
                 ),
@@ -94,9 +91,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                     (*options).logger as *mut ILogger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::sdsbuild!(
-                        sdsempty(),
-                        b"[Consolidate] Ignoring empty ligature substitution to glyph /",
+                    crate::bytesbuild!(b"[Consolidate] Ignoring empty ligature substitution to glyph /",
                         &(&(*subtable))[k as usize].to.name,
                         b".\n",
                     ),

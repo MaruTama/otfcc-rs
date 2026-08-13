@@ -12,7 +12,6 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::table::vdmx::types::{VdmxTable, VdmxRatioRange, VdmxRecord};
 use crate::bk::bkgraph::{bk_build_block_no_minimize};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
-use crate::vendor::sds::{sdsempty};
 pub unsafe extern "C" fn otfcc_read_vdmx(
     packet: Packet,
     mut options: *const Options,
@@ -143,7 +142,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                         (*options).logger as *mut ILogger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::sdsbuild!(sdsempty(), b"Table 'VDMX' corrupted.\n"),
+                        crate::bytesbuild!(b"Table 'VDMX' corrupted.\n"),
                     );
                     vdmx = None;
                     __fortable_k2 = 0 as ::core::ffi::c_int;
@@ -171,7 +170,7 @@ pub unsafe extern "C" fn otfcc_dump_vdmx(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"VDMX"),
+        crate::bytesbuild!(b"VDMX"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -282,7 +281,7 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
         .start_sds
         .expect("non-null function pointer")(
         (*options).logger as *mut ILogger,
-        crate::sdsbuild!(sdsempty(), b"VDMX"),
+        crate::bytesbuild!(b"VDMX"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
