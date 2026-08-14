@@ -894,6 +894,46 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Ninth unit of the `unsafe_op_in_unsafe_fn` burn-down: `libcff/subr.rs`'s
+  `char_strings`/`gsubrs`/`lsubrs` scratch arrays become `Vec<Buffer>`.**
+  `subr.rs` implements CFF subroutinization (the Larsson-Moffat-style
+  dictionary-compression pass that finds repeated charstring fragments and
+  factors them into callable subroutines) as an intrusive doubly-linked-list
+  graph (`CffSubrRule`/`CffSubrNode`, joined via a circular sentinel `guard`
+  node per rule, cross-referenced by raw pointers with manual refcounting).
+  That graph is *not* part of this PR -- unlike `Subtable` or `BkGraph`, an
+  intrusive doubly-linked list with back-pointers and reference counting has
+  no established safe-Rust shape in this migration (arena+index, the pattern
+  used for `GlyphOrder`'s aliased pointers, doesn't fit a structure that's
+  actively spliced/merged/substituted node-by-node throughout the algorithm)
+  and forcing one in for its own sake would be a much larger, much riskier
+  PR than this burn-down's usual unit. What *is* self-contained: `cff_il_
+  graph_to_buffers`, the function that turns the finished graph into output
+  bytes, allocates three `__caryll_allocate_clean`'d arrays of `Buffer`
+  structs (not pointers -- the structs themselves, written into via
+  `serialize_node_to_buffer`, then read back through `CFF_I_INDEX.from_
+  callback`), each freed field-by-field (every `.data`) and then as a whole
+  -- the same "malloc'd scratch array of plain structs" shape already
+  converted to `Vec` for `table/glyf/read.rs`'s six scratch buffers earlier
+  in this migration. `Buffer` is `Copy`/`repr(C)`, and its zeroed state is
+  exactly what `bufnew()` itself produces (`__caryll_allocate_clean` zeroes,
+  then `bufnew` only re-asserts `free`/`size` are 0), so `vec![zero_buffer;
+  n]` starts every slot in the same state a freshly-`bufnew`'d buffer would.
+  `serialize_node_to_buffer` itself (and the graph functions it walks) keeps
+  its `*mut Buffer` signature unchanged -- callers now pass `.as_mut_ptr()`
+  instead of the raw allocation, so the graph-side code doesn't need to know
+  its scratch buffers moved. The three manual `free(array)` calls at the end
+  are simply gone; `Vec`'s own drop glue covers them once every `.data` has
+  already been freed by the existing per-entry loops (unchanged apart from
+  being `Vec` iteration instead of pointer offsetting).
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- `KRName-Regular-O2.otf`
+    (CFF subroutinize) in particular exercises `cff_il_graph_to_buffers`
+    directly; all 10 round-trip payloads stable; issue #1's large-lookup
+    regression test green; `compare-log-output.sh` green.
+
 - **Eighth unit of the `unsafe_op_in_unsafe_fn` burn-down: `bk/bkgraph.rs`'s
   `BkGraph.entries` becomes a `Vec`, replacing its hand-rolled
   realloc-with-slack growth scheme.** `BkGraph` is the block-deduplication/

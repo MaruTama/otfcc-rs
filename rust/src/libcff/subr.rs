@@ -707,34 +707,29 @@ pub unsafe extern "C" fn cff_il_graph_to_buffers(
     let mut total: u32 = max_l_subrs.wrapping_add(max_g_subrs);
     max_l_subrs = total.wrapping_div(2 as u32);
     max_g_subrs = total.wrapping_sub(max_l_subrs);
-    let mut char_strings: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-    let mut gsubrs: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-    let mut lsubrs: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-    char_strings = __caryll_allocate_clean(
-        (::core::mem::size_of::<Buffer>() as usize)
-            .wrapping_mul((*g).total_char_strings.wrapping_add(1 as u32) as usize),
-        608 as ::core::ffi::c_ulong,
-    ) as *mut Buffer;
-    lsubrs = __caryll_allocate_clean(
-        (::core::mem::size_of::<Buffer>() as usize)
-            .wrapping_mul(max_l_subrs.wrapping_add(1 as u32) as usize),
-        609 as ::core::ffi::c_ulong,
-    ) as *mut Buffer;
-    gsubrs = __caryll_allocate_clean(
-        (::core::mem::size_of::<Buffer>() as usize)
-            .wrapping_mul(max_g_subrs.wrapping_add(1 as u32) as usize),
-        610 as ::core::ffi::c_ulong,
-    ) as *mut Buffer;
+    // Was three `__caryll_allocate_clean`'d `*mut Buffer` arrays, each freed
+    // field-by-field (every `.data`) and then as a whole -- the same
+    // "malloc'd scratch array of plain structs" shape already converted to
+    // `Vec` for `table/glyf/read.rs`'s six scratch buffers. `Buffer` is
+    // `Copy`/`repr(C)` and its zeroed state is exactly what `bufnew()`
+    // itself produces (`__caryll_allocate_clean` zeroes, then `bufnew` only
+    // re-asserts `free`/`size` are 0), so a `vec![zero_buffer; n]` starts
+    // every slot in the same state a freshly-`bufnew`'d buffer would.
+    let zero_buffer = Buffer { cursor: 0, size: 0, free: 0, data: ::core::ptr::null_mut() };
+    let mut char_strings: Vec<Buffer> =
+        vec![zero_buffer; (*g).total_char_strings.wrapping_add(1 as u32) as usize];
+    let mut lsubrs: Vec<Buffer> = vec![zero_buffer; max_l_subrs.wrapping_add(1 as u32) as usize];
+    let mut gsubrs: Vec<Buffer> = vec![zero_buffer; max_g_subrs.wrapping_add(1 as u32) as usize];
     let mut j: u32 = 0 as u32;
     let mut r: *mut CffSubrRule = (*g).root;
     let mut e: *mut CffSubrNode = (*(*r).guard).next;
     while e != (*r).guard {
         serialize_node_to_buffer(
             e,
-            char_strings.offset(j as isize),
-            gsubrs,
+            char_strings.as_mut_ptr().add(j as usize),
+            gsubrs.as_mut_ptr(),
             max_g_subrs,
-            lsubrs,
+            lsubrs.as_mut_ptr(),
             max_l_subrs,
         );
         if (*e).rule.is_null() && !(*e).terminal.is_null() && (*e).hard as ::core::ffi::c_int != 0 {
@@ -743,7 +738,7 @@ pub unsafe extern "C" fn cff_il_graph_to_buffers(
         e = (*e).next;
     }
     let mut is: *mut CffIndex = CFF_I_INDEX.from_callback.expect("non-null function pointer")(
-        char_strings as *mut ::core::ffi::c_void,
+        char_strings.as_mut_ptr() as *mut ::core::ffi::c_void,
         (*g).total_char_strings,
         Some(
             from_array
@@ -751,7 +746,7 @@ pub unsafe extern "C" fn cff_il_graph_to_buffers(
         ),
     );
     let mut igs: *mut CffIndex = CFF_I_INDEX.from_callback.expect("non-null function pointer")(
-        gsubrs as *mut ::core::ffi::c_void,
+        gsubrs.as_mut_ptr() as *mut ::core::ffi::c_void,
         max_g_subrs,
         Some(
             from_array
@@ -759,40 +754,25 @@ pub unsafe extern "C" fn cff_il_graph_to_buffers(
         ),
     );
     let mut ils: *mut CffIndex = CFF_I_INDEX.from_callback.expect("non-null function pointer")(
-        lsubrs as *mut ::core::ffi::c_void,
+        lsubrs.as_mut_ptr() as *mut ::core::ffi::c_void,
         max_l_subrs,
         Some(
             from_array
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
         ),
     );
-    let mut j_0: u32 = 0 as u32;
-    while j_0 < (*g).total_char_strings {
-        free((*char_strings.offset(j_0 as isize)).data as *mut ::core::ffi::c_void);
-        let ref mut fresh6 = (*char_strings.offset(j_0 as isize)).data;
-        *fresh6 = ::core::ptr::null_mut::<u8>();
-        j_0 = j_0.wrapping_add(1);
+    for entry in char_strings.iter_mut().take((*g).total_char_strings as usize) {
+        free(entry.data as *mut ::core::ffi::c_void);
+        entry.data = ::core::ptr::null_mut::<u8>();
     }
-    let mut j_1: u32 = 0 as u32;
-    while j_1 < max_g_subrs {
-        free((*gsubrs.offset(j_1 as isize)).data as *mut ::core::ffi::c_void);
-        let ref mut fresh7 = (*gsubrs.offset(j_1 as isize)).data;
-        *fresh7 = ::core::ptr::null_mut::<u8>();
-        j_1 = j_1.wrapping_add(1);
+    for entry in gsubrs.iter_mut().take(max_g_subrs as usize) {
+        free(entry.data as *mut ::core::ffi::c_void);
+        entry.data = ::core::ptr::null_mut::<u8>();
     }
-    let mut j_2: u32 = 0 as u32;
-    while j_2 < max_l_subrs {
-        free((*lsubrs.offset(j_2 as isize)).data as *mut ::core::ffi::c_void);
-        let ref mut fresh8 = (*lsubrs.offset(j_2 as isize)).data;
-        *fresh8 = ::core::ptr::null_mut::<u8>();
-        j_2 = j_2.wrapping_add(1);
+    for entry in lsubrs.iter_mut().take(max_l_subrs as usize) {
+        free(entry.data as *mut ::core::ffi::c_void);
+        entry.data = ::core::ptr::null_mut::<u8>();
     }
-    free(char_strings as *mut ::core::ffi::c_void);
-    char_strings = ::core::ptr::null_mut::<Buffer>();
-    free(gsubrs as *mut ::core::ffi::c_void);
-    gsubrs = ::core::ptr::null_mut::<Buffer>();
-    free(lsubrs as *mut ::core::ffi::c_void);
-    lsubrs = ::core::ptr::null_mut::<Buffer>();
     *s = CFF_I_INDEX.build.expect("non-null function pointer")(is);
     *gs = CFF_I_INDEX.build.expect("non-null function pointer")(igs);
     *ls = CFF_I_INDEX.build.expect("non-null function pointer")(ils);
