@@ -1,19 +1,17 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, strcmp, strtol};
+use libc::{free, strlen, strtol};
 
 
 
 
 
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of};
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::handle::{sds_to_vec};
 use crate::otf_reader::FontBuilder;
 use crate::logger::{LoggerType, LOG_VL_NOTICE, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType};
 use crate::font::caryll_font::{FontSubtype, Font, IFontBuilder};
 use crate::support::{NULL};
@@ -48,7 +46,6 @@ use crate::table::otl::parse::{otfcc_parse_otl};
 use crate::table::post::{otfcc_parse_post};
 use crate::table::vdmx::funcs::{otfcc_parse_vdmx};
 use crate::table::vhea::{otfcc_parse_vhea};
-use crate::vendor::sds::{sdsfree, sdslen, sdsnewlen};
 
 
 
@@ -76,38 +73,38 @@ unsafe extern "C" fn otfcc_decide_font_subtype_from_json(
         return FontSubtype::Ttf;
     };
 }
+// `name` is `Vec<u8>` now instead of `SdsRaw`: the duplicate-name path
+// used to leave the old `SdsRaw` `name` deliberately un-freed (a
+// pre-existing leak this migration didn't own until it reached this
+// function directly), but that hazard is gone by construction -- an
+// unused `Vec<u8>` just drops.
+//
+// Never a real FFI boundary -- internal call site only, same rationale
+// as every other instance of this allow in the crate.
+#[allow(improper_ctypes_definitions)]
 unsafe extern "C" fn set_order_by_name(
     mut go: *mut GlyphOrder,
-    mut name: SdsRaw,
+    mut name: Vec<u8>,
     mut order_type: GlyphOrderPass,
     mut order_entry: u32,
 ) {
-    let name_bytes = sds_to_vec(name);
-    match (*go).by_name.get(&name_bytes) {
+    match (*go).by_name.get(&name) {
         None => {
             let mut s: *mut GlyphOrderEntry = __caryll_allocate_clean(
                 ::core::mem::size_of::<GlyphOrderEntry>() as usize,
                 21 as ::core::ffi::c_ulong,
             ) as *mut GlyphOrderEntry;
             (*s).gid = -(1 as ::core::ffi::c_int) as GlyphId;
-            (*s).name = name_bytes.clone();
+            (*s).name = name.clone();
             (*s).order_type = order_type;
             (*s).order_entry = order_entry;
-            (*go).by_name.insert(name_bytes, s);
-            // The original moved `name` into `(*s).name` here (no separate
-            // free needed); now that the bytes are copied instead, the
-            // now-redundant `sds` needs an explicit free.
-            sdsfree(name);
+            (*go).by_name.insert(name, s);
         }
         Some(&s) => {
             if (*s).order_type > order_type {
                 (*s).order_type = order_type;
                 (*s).order_entry = order_entry;
             }
-            // `name` is deliberately left un-freed here, matching the
-            // original -- a pre-existing leak on the duplicate-name path
-            // (none of this function's callers free it either), preserved
-            // rather than fixed.
         }
     }
 }
@@ -123,14 +120,20 @@ unsafe extern "C" fn order_glyphs(mut go: *mut GlyphOrder) {
         gid = (gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
     }
 }
+// `name` is a borrowed `&[u8]` now, not `SdsRaw` -- this function only
+// ever reads it for the `by_name` lookup, never stores it, so there was
+// never any ownership to plumb through in the first place.
+//
+// Never a real FFI boundary -- internal call sites only, same rationale
+// as every other instance of this allow in the crate.
+#[allow(improper_ctypes_definitions)]
 unsafe extern "C" fn escalate_glyph_order_by_name(
     mut go: *mut GlyphOrder,
-    mut name: SdsRaw,
+    name: &[u8],
     mut order_type: GlyphOrderPass,
     mut order_entry: u32,
 ) {
-    let name_bytes = std::slice::from_raw_parts(name as *const u8, sdslen(name)).to_vec();
-    if let Some(&s) = (*go).by_name.get(&name_bytes) {
+    if let Some(&s) = (*go).by_name.get(name) {
         if (*s).order_type > order_type {
             (*s).order_type = order_type;
             (*s).order_entry = order_entry;
@@ -143,26 +146,15 @@ unsafe extern "C" fn place_order_entries_from_glyf(
 ) {
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(table) as u32 {
-        let mut gname: SdsRaw = sdsnewlen(
-            json_obj_key_at(table, j as u32) as *const ::core::ffi::c_void,
-            json_obj_key_len_at(table, j as u32) as usize,
-        );
-        if strcmp(
-            gname as *const ::core::ffi::c_char,
-            b".notdef\0" as *const u8 as *const ::core::ffi::c_char,
-        ) == 0 as ::core::ffi::c_int
-        {
+        let gname: Vec<u8> = json_obj_key_bytes_at(table, j as u32);
+        if gname.as_slice() == b".notdef" {
             set_order_by_name(
                 go,
                 gname,
                 GlyphOrderPass::Notdef,
                 0 as u32,
             );
-        } else if strcmp(
-            gname as *const ::core::ffi::c_char,
-            b".null\0" as *const u8 as *const ::core::ffi::c_char,
-        ) == 0 as ::core::ffi::c_int
-        {
+        } else if gname.as_slice() == b".null" {
             set_order_by_name(
                 go,
                 gname,
@@ -181,13 +173,16 @@ unsafe extern "C" fn place_order_entries_from_cmap(
 ) {
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(table) as u32 {
-        let mut unicode_str: SdsRaw = sdsnewlen(
-            json_obj_key_at(table, j as u32) as *const ::core::ffi::c_void,
-            json_obj_key_len_at(table, j as u32) as usize,
-        );
+        // Borrows `json_obj_key_at`'s pointer directly rather than an
+        // owned `sds` copy -- every JSON object key is already
+        // NUL-terminated in `ParsedValue`'s own storage, so `strlen` sees
+        // the same length `sdslen` used to on the copy. Same reasoning as
+        // `table/cmap.rs`'s `parse_unicode` (this function inlines the
+        // identical U+XXXX-or-decimal parse).
+        let unicode_str: *const ::core::ffi::c_char = json_obj_key_at(table, j as u32);
         let mut item: *const ParsedValue = json_obj_val_at(table, j as u32);
         let mut unicode: i32 = 0;
-        if sdslen(unicode_str) > 2 as usize
+        if strlen(unicode_str) > 2 as usize
             && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
                 == 'U' as i32
             && *unicode_str.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
@@ -201,22 +196,17 @@ unsafe extern "C" fn place_order_entries_from_cmap(
         } else {
             unicode = atoi(unicode_str as *const ::core::ffi::c_char) as i32;
         }
-        sdsfree(unicode_str);
         if json_type_of(item) == JsonType::String
             && unicode > 0 as i32
             && unicode <= 0x10ffff as i32
         {
-            let mut gname: SdsRaw = sdsnewlen(
-                json_str_ptr(item) as *const ::core::ffi::c_void,
-                json_str_len(item) as usize,
-            );
+            let gname: Vec<u8> = json_str_bytes(item);
             escalate_glyph_order_by_name(
                 go,
-                gname,
+                &gname,
                 GlyphOrderPass::Cmap,
                 unicode as u32,
             );
-            sdsfree(gname);
         }
         j = j.wrapping_add(1);
     }
@@ -235,17 +225,13 @@ unsafe extern "C" fn place_order_entries_from_subtable(
         let mut item: *const ParsedValue = json_arr_at(table, j as u32);
         if json_type_of(item) == JsonType::String
         {
-            let mut gname: SdsRaw = sdsnewlen(
-                json_str_ptr(item) as *const ::core::ffi::c_void,
-                json_str_len(item) as usize,
-            );
+            let gname: Vec<u8> = json_str_bytes(item);
             escalate_glyph_order_by_name(
                 go,
-                gname,
+                &gname,
                 GlyphOrderPass::GlyphOrder,
                 j,
             );
-            sdsfree(gname);
         }
         j = j.wrapping_add(1);
     }

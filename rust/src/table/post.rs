@@ -1,22 +1,18 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{memset};
 
 use crate::support::binio::{read_16u, read_32u, read_32s};
 use crate::logger::{ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, GlyphId};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::glyph_order::{GlyphOrder};
-use crate::support::handle::{sds_to_vec};
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getbool, json_obj_getnum};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::support::built_json::{BuiltValue, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push};
-use crate::vendor::sds::{sdsempty, sdsfree, sdsnewlen};
 
 #[repr(C)]
 pub struct PostTable {
@@ -361,13 +357,7 @@ pub unsafe extern "C" fn otfcc_read_post(
                                 OTFCC_PKG_GLYPH_ORDER
                                     .create
                                     .expect("non-null function pointer"))();
-                        let mut pending_names: [SdsRaw; 65536] =
-                            [::core::ptr::null_mut::<::core::ffi::c_char>(); 65536];
-                        memset(
-                            &raw mut pending_names as *mut SdsRaw as *mut ::core::ffi::c_void,
-                            0 as ::core::ffi::c_int,
-                            ::core::mem::size_of::<[SdsRaw; 65536]>() as usize,
-                        );
+                        let mut pending_names: Vec<Vec<u8>> = Vec::new();
                         let mut number_glyphs: u16 = read_16u(
                             data.offset(32 as ::core::ffi::c_int as isize) as *const u8,
                         );
@@ -379,21 +369,20 @@ pub unsafe extern "C" fn otfcc_read_post(
                             && offset < table.length
                         {
                             let mut len: u8 = *data.offset(offset as isize);
-                            let mut s: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-                            if len as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-                                s = sdsnewlen(
+                            let s: Vec<u8> = if len as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+                                ::core::slice::from_raw_parts(
                                     data.offset(offset as isize)
                                         .offset(1 as ::core::ffi::c_int as isize)
-                                        as *const ::core::ffi::c_void,
+                                        as *const u8,
                                     len as usize,
-                                );
+                                ).to_vec()
                             } else {
-                                s = sdsempty();
-                            }
+                                Vec::new()
+                            };
                             offset = offset.wrapping_add(
                                 (len as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u32,
                             );
-                            pending_names[pending_name_index as usize] = s;
+                            pending_names.push(s);
                             pending_name_index = (pending_name_index as ::core::ffi::c_int
                                 + 1 as ::core::ffi::c_int)
                                 as u16;
@@ -410,11 +399,10 @@ pub unsafe extern "C" fn otfcc_read_post(
                                     .expect("non-null function pointer")(
                                     map,
                                     j as GlyphId,
-                                    sds_to_vec(
-                                        pending_names[(name_map as ::core::ffi::c_int
-                                            - 258 as ::core::ffi::c_int)
-                                            as usize],
-                                    ),
+                                    pending_names[(name_map as ::core::ffi::c_int
+                                        - 258 as ::core::ffi::c_int)
+                                        as usize]
+                                        .clone(),
                                 );
                             } else {
                                 OTFCC_PKG_GLYPH_ORDER
@@ -426,11 +414,6 @@ pub unsafe extern "C" fn otfcc_read_post(
                                 );
                             }
                             j = j.wrapping_add(1);
-                        }
-                        let mut j_0: u32 = 0 as u32;
-                        while j_0 < pending_name_index as u32 {
-                            sdsfree(pending_names[j_0 as usize]);
-                            j_0 = j_0.wrapping_add(1);
                         }
                         post_val.post_name_map = map;
                     }
