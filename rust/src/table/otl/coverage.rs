@@ -1,10 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, qsort};
-
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_str_bytes, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphId};
@@ -28,38 +25,34 @@ pub struct ICoverage {
         Option<unsafe extern "C" fn(*const Coverage, u16) -> *mut Buffer>,
 }
 pub(crate) unsafe extern "C" fn otl_coverage_create() -> *mut Coverage {
-    // `.write()`, not a field assignment: this is placement-constructing a
-    // fresh `Vec` into unwritten `malloc`'d memory (`Coverage` is a bare
-    // `Vec<GlyphHandle>` now), so there is nothing to read or drop first --
-    // same reasoning as `ColrTable`/`TsiTable`.
-    let x: *mut Coverage = malloc(::core::mem::size_of::<Coverage>() as usize) as *mut Coverage;
-    x.write(Vec::new());
-    x
+    // A real Rust allocation now, not a `malloc`'d shell: `Box::into_raw`
+    // gives back a pointer with the same shape (`*mut Coverage`) every
+    // caller already expects, but it must from here on only ever be
+    // reclaimed with `Box::from_raw` (`otl_coverage_free`/
+    // `coverage_from_raw` below), never a bare `free` -- mixing the two
+    // is exactly the hazard this conversion removes.
+    Box::into_raw(Box::new(Vec::new()))
 }
 pub(crate) unsafe extern "C" fn otl_coverage_free(mut x: *mut Coverage) {
     if x.is_null() {
         return;
     }
-    otl_coverage_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-pub(crate) unsafe extern "C" fn otl_coverage_dispose(x: *mut Coverage) {
-    // Dropping the old `Vec` here (via assignment) runs each element's
-    // `Handle::drop` in turn, freeing every glyph name -- the explicit
-    // per-element `otfcc_handle_dispose` loop this replaced is now
-    // redundant, the same finding as the `Handle` Drop/Clone PR.
-    *x = Vec::new();
+    // Dropping the reclaimed `Box` drops the `Vec` first (running every
+    // element's `Handle::drop`, freeing each glyph name -- the explicit
+    // per-element `otfcc_handle_dispose` loop this used to need is
+    // redundant, same finding as the `Handle` Drop/Clone PR), then
+    // deallocates the shell. One step where there used to be two.
+    drop(Box::from_raw(x));
 }
 /// Adopt a `otl_coverage_create()`/vtable-`.parse()`-style raw `*mut
 /// Coverage` into an owned `Coverage` (`Vec<GlyphHandle>`) value -- the
 /// "unwrap_X_table" idiom used throughout Stage 6-4, for the many
 /// `XxxSubtable`/`XxxEntry` fields that hold a coverage table by value now
-/// instead of by raw pointer. `ptr::read` moves the `Vec` out, `free`
-/// releases just the emptied malloc'd shell.
+/// instead of by raw pointer. `Box::from_raw` reclaims the allocation
+/// `otl_coverage_create` made; dereferencing it moves the `Vec` out and
+/// drops the now-empty shell in the same step.
 pub(crate) unsafe fn coverage_from_raw(raw: *mut Coverage) -> Coverage {
-    let value = ::core::ptr::read(raw);
-    free(raw as *mut ::core::ffi::c_void);
-    value
+    *Box::from_raw(raw)
 }
 // `Handle` (aliased `GlyphHandle`) now owns a `Vec<u8>` name, so passing it
 // by value trips `improper_ctypes_definitions`; this is never called across
@@ -202,13 +195,6 @@ pub(crate) unsafe extern "C" fn parse_coverage(mut cov: *const ParsedValue) -> *
     }
     return c;
 }
-unsafe extern "C" fn by_gid(
-    mut a: *const ::core::ffi::c_void,
-    mut b: *const ::core::ffi::c_void,
-) -> ::core::ffi::c_int {
-    return *(a as *mut GlyphId) as ::core::ffi::c_int
-        - *(b as *mut GlyphId) as ::core::ffi::c_int;
-}
 pub(crate) unsafe extern "C" fn build_coverage_format(
     mut coverage: *const Coverage,
     mut format: u16,
@@ -219,51 +205,35 @@ pub(crate) unsafe extern "C" fn build_coverage_format(
         bufwrite16b(buf, 0 as u16);
         return buf;
     }
-    let mut r: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
-    r = __caryll_allocate_clean(
-        (::core::mem::size_of::<GlyphId>() as usize).wrapping_mul((*coverage).len()),
-        144 as ::core::ffi::c_ulong,
-    ) as *mut GlyphId;
-    let mut jj: GlyphId = 0 as GlyphId;
-    for j in 0..(*coverage).len() {
-        *r.offset(jj as isize) = (&(*coverage))[j].index;
-        jj = jj.wrapping_add(1);
-    }
-    qsort(
-        r as *mut ::core::ffi::c_void,
-        jj as usize,
-        ::core::mem::size_of::<GlyphId>() as usize,
-        Some(
-            by_gid
-                as unsafe extern "C" fn(
-                    *const ::core::ffi::c_void,
-                    *const ::core::ffi::c_void,
-                ) -> ::core::ffi::c_int,
-        ),
-    );
+    // A local `Vec` scratch buffer, not a `__caryll_allocate_clean`/`qsort`/
+    // `free` trio: `sort_by_key` (stable, matching the conservative choice
+    // made everywhere else in this file) reproduces `by_gid`'s ordering,
+    // and the `Vec` drops itself at every one of this function's several
+    // return points instead of needing a matching `free` at each.
+    let mut r: Vec<GlyphId> = (*coverage).iter().map(|h| h.index).collect();
+    r.sort_by_key(|&gid| gid);
+    let jj: GlyphId = r.len() as GlyphId;
     let mut format1: *mut Buffer = bufnew();
     bufwrite16b(format1, 1 as u16);
     bufwrite16b(format1, jj as u16);
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as ::core::ffi::c_int) < jj as ::core::ffi::c_int {
-        bufwrite16b(format1, *r.offset(j_0 as isize) as u16);
+        bufwrite16b(format1, r[j_0 as usize] as u16);
         j_0 = j_0.wrapping_add(1);
     }
     if (jj as ::core::ffi::c_int) < 2 as ::core::ffi::c_int {
-        free(r as *mut ::core::ffi::c_void);
-        r = ::core::ptr::null_mut::<GlyphId>();
         return format1;
     }
     let mut format2: *mut Buffer = bufnew();
     bufwrite16b(format2, 2 as u16);
     let mut ranges: *mut Buffer = bufnew();
-    let mut start_gid: GlyphId = *r.offset(0 as ::core::ffi::c_int as isize);
+    let mut start_gid: GlyphId = r[0];
     let mut end_gid: GlyphId = start_gid;
     let mut last_gid: GlyphId = start_gid;
     let mut n_ranges: GlyphId = 0 as GlyphId;
     let mut j_1: GlyphId = 1 as GlyphId;
     while (j_1 as ::core::ffi::c_int) < jj as ::core::ffi::c_int {
-        let mut current: GlyphId = *r.offset(j_1 as isize);
+        let mut current: GlyphId = r[j_1 as usize];
         if !(current as ::core::ffi::c_int <= last_gid as ::core::ffi::c_int) {
             if current as ::core::ffi::c_int
                 == end_gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int
@@ -299,35 +269,20 @@ pub(crate) unsafe extern "C" fn build_coverage_format(
     bufwrite_bufdel(format2, ranges);
     if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
         buffree(format2);
-        free(r as *mut ::core::ffi::c_void);
-        r = ::core::ptr::null_mut::<GlyphId>();
         return format1;
     } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
         buffree(format1);
-        free(r as *mut ::core::ffi::c_void);
-        r = ::core::ptr::null_mut::<GlyphId>();
         return format2;
     } else if buflen(format1) < buflen(format2) {
         buffree(format2);
-        free(r as *mut ::core::ffi::c_void);
-        r = ::core::ptr::null_mut::<GlyphId>();
         return format1;
     } else {
         buffree(format1);
-        free(r as *mut ::core::ffi::c_void);
-        r = ::core::ptr::null_mut::<GlyphId>();
         return format2;
     };
 }
 pub(crate) unsafe extern "C" fn build_coverage(mut coverage: *const Coverage) -> *mut Buffer {
     return build_coverage_format(coverage, 0 as u16);
-}
-unsafe extern "C" fn by_handle_gid(
-    mut a: *const ::core::ffi::c_void,
-    mut b: *const ::core::ffi::c_void,
-) -> ::core::ffi::c_int {
-    return (*(a as *mut GlyphHandle)).index as ::core::ffi::c_int
-        - (*(b as *mut GlyphHandle)).index as ::core::ffi::c_int;
 }
 pub(crate) unsafe extern "C" fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
     if coverage.is_null() {
@@ -352,18 +307,7 @@ pub(crate) unsafe extern "C" fn shrink_coverage(coverage: *mut Coverage, dosort:
     }
     (*coverage).truncate(k);
     if dosort {
-        qsort(
-            (*coverage).as_mut_ptr() as *mut ::core::ffi::c_void,
-            (*coverage).len(),
-            ::core::mem::size_of::<GlyphHandle>() as usize,
-            Some(
-                by_handle_gid
-                    as unsafe extern "C" fn(
-                        *const ::core::ffi::c_void,
-                        *const ::core::ffi::c_void,
-                    ) -> ::core::ffi::c_int,
-            ),
-        );
+        (*coverage).sort_by_key(|h| h.index);
         let mut skip: usize = 0;
         let mut rear: usize = 1;
         while rear < (*coverage).len() {
