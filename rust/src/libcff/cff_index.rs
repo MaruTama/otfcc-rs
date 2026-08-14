@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
+use libc::{free, memcpy, memset};
 
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
@@ -114,15 +114,31 @@ unsafe extern "C" fn cff_index_free(mut x: *mut CffIndex) {
     if x.is_null() {
         return;
     }
+    // `offset`/`data` are still freed here exactly as before -- only the
+    // outer shell's own allocator changed, from a bare `malloc`/`free`
+    // pair to `Box::into_raw`/`Box::from_raw`. Every `CFF_I_INDEX.create`/
+    // `.free` call site pairs consistently (confirmed by grep: no generic
+    // adapter reclaims a `*mut CffIndex` any other way, unlike
+    // `GposPairSubtable`'s `subtable_from_raw`), so this is self-contained.
     cff_index_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
+    drop(Box::from_raw(x));
 }
 #[inline]
 unsafe extern "C" fn cff_index_create() -> *mut CffIndex {
-    let mut x: *mut CffIndex =
-        malloc(::core::mem::size_of::<CffIndex>() as usize) as *mut CffIndex;
-    cff_index_init(x);
-    return x;
+    // `Box::new` of an explicit all-zero literal, not `malloc` + `cff_index_
+    // init`'s `memset`: same fields, same zero values, but a real Rust
+    // allocation from here on -- see `cff_index_free`'s matching `Box::
+    // from_raw`. `cff_index_init` itself stays (and keeps using `memset`):
+    // `CFF_I_INDEX.init` also zero-initializes a stack-local `CffIndex` at
+    // its one other call site (`table/cff.rs`), which was never a `malloc`/
+    // `Box` allocation to begin with.
+    Box::into_raw(Box::new(CffIndex {
+        count_type: CffIndexCountType::U16,
+        count: 0 as Arity,
+        off_size: 0,
+        offset: ::core::ptr::null_mut(),
+        data: ::core::ptr::null_mut(),
+    }))
 }
 #[inline]
 unsafe extern "C" fn cff_index_init(mut x: *mut CffIndex) {
