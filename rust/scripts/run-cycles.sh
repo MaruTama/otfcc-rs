@@ -24,7 +24,13 @@ TTF_PAYLOADS="NotoNastaliqUrdu-Regular iosevka-r BungeeColor-Regular_colr_Window
 # bug in the C CFF interpreter, not introduced by the Rust translation —
 # verified: the C binary also exits with SIGSEGV on them).
 CFF_PAYLOADS="KRName-Regular"
-CFF_FJ_PAYLOADS="WorkSans-Regular kltf-bugfont1"
+# cid-fdselect-test is a small hand-authored CID-keyed CFF font: none of the
+# other payloads are CID-keyed, so CffFdSelect::Format3 (libcff/cff_fdselect.rs)
+# -- the FDSelect format CID fonts use to map glyphs to font dicts -- had zero
+# coverage anywhere in this suite. Its glyphs are assigned across 3 font dicts
+# with 5 ranges (more ranges than FDs, so a naive "one range per FD" build
+# would already fail this), forcing a real multi-range Format3 table.
+CFF_FJ_PAYLOADS="WorkSans-Regular kltf-bugfont1 cid-fdselect-test"
 # A frozen fixture (tests/payload/gvar-test.ttf), not regenerated via
 # fontTools here -- see the comment in compare-with-golden.sh for why.
 GVAR_PAYLOAD="tests/payload/gvar-test.ttf"
