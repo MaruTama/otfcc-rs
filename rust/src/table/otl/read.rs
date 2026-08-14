@@ -3,7 +3,6 @@
 
 
 use crate::support::binio::{read_16u, read_32u};
-use crate::support::handle::{sds_to_vec};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::sds::{Byte, Dec5, Hex2};
@@ -23,7 +22,6 @@ use crate::table::otl::subtables::gsub_ligature::{otl_read_gsub_ligature};
 use crate::table::otl::subtables::gsub_multi::{otl_read_gsub_multi};
 use crate::table::otl::subtables::gsub_reverse::{otl_read_gsub_reverse};
 use crate::table::otl::subtables::gsub_single::{otl_read_gsub_single};
-use crate::vendor::sds::{sdsempty, sdsfree};
 pub unsafe extern "C" fn otfcc_read_otl_subtable(
     mut data: FontFilePointer,
     mut table_length: u32,
@@ -260,8 +258,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                     as *const u8,
                                             );
                                             if !(*options).glyph_name_prefix.is_null() {
-                                                let tmp = crate::sdsbuild!(
-                                                    sdsempty(),
+                                                (*feature).name = crate::bytesbuild!(
                                                     Byte((tag >> 24 as ::core::ffi::c_int
                                                         & 0xff as u32) as u8),
                                                     Byte((tag >> 16 as ::core::ffi::c_int
@@ -274,11 +271,8 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                     b"_",
                                                     Dec5((j_0 as ::core::ffi::c_int) as ::core::ffi::c_int),
                                                 );
-                                                (*feature).name = sds_to_vec(tmp);
-                                                sdsfree(tmp);
                                             } else {
-                                                let tmp = crate::sdsbuild!(
-                                                    sdsempty(),
+                                                (*feature).name = crate::bytesbuild!(
                                                     Byte((tag >> 24 as ::core::ffi::c_int
                                                         & 0xff as u32) as u8),
                                                     Byte((tag >> 16 as ::core::ffi::c_int
@@ -289,8 +283,6 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                     b"_",
                                                     Dec5((j_0 as ::core::ffi::c_int) as ::core::ffi::c_int),
                                                 );
-                                                (*feature).name = sds_to_vec(tmp);
-                                                sdsfree(tmp);
                                             }
                                             let mut feature_offset: u32 = feature_list_offset
                                                 .wrapping_add(read_16u(
@@ -351,8 +343,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                         if !(*options).glyph_name_prefix.is_null() {
                                                             let fresh3 = lnk;
                                                             lnk = lnk.wrapping_add(1);
-                                                            let tmp = crate::sdsbuild!(
-                                                                sdsempty(),
+                                                            (*lookup_0).name = crate::bytesbuild!(
                                                                 b"lookup_",
                                                                 (*options).glyph_name_prefix,
                                                                 b"_",
@@ -366,13 +357,10 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                 b"_",
                                                                 fresh3 as ::core::ffi::c_int,
                                                             );
-                                                            (*lookup_0).name = sds_to_vec(tmp);
-                                                            sdsfree(tmp);
                                                         } else {
                                                             let fresh4 = lnk;
                                                             lnk = lnk.wrapping_add(1);
-                                                            let tmp = crate::sdsbuild!(
-                                                                sdsempty(),
+                                                            (*lookup_0).name = crate::bytesbuild!(
                                                                 b"lookup_",
                                                                 Byte((tag >> 24 as ::core::ffi::c_int
                                                                     & 0xff as u32) as u8),
@@ -384,8 +372,6 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                 b"_",
                                                                 fresh4 as ::core::ffi::c_int,
                                                             );
-                                                            (*lookup_0).name = sds_to_vec(tmp);
-                                                            sdsfree(tmp);
                                                         }
                                                     }
                                                     (*feature).lookups.push(lookup_0 as LookupRef);
@@ -514,8 +500,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                 ) as TableId;
                                                                 if default_lang_system_0 != 0 {
                                                                     let mut lang: Box<LanguageSystem> = new_language();
-                                                                    let tmp = crate::sdsbuild!(
-                                                                        sdsempty(),
+                                                                    (*lang).name = crate::bytesbuild!(
                                                                         Byte((tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
                                                                         Byte((tag_0 >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
                                                                         Byte((tag_0 >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
@@ -523,8 +508,6 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                         Byte((SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int) as u8),
                                                                         b"DFLT",
                                                                     );
-                                                                    (*lang).name = sds_to_vec(tmp);
-                                                                    sdsfree(tmp);
                                                                     parse_language(
                                                                         data,
                                                                         table_length,
@@ -576,8 +559,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                             .offset(4 as ::core::ffi::c_int as isize) as *const u8,
                                                                     ) as TableId;
                                                                     let mut lang_0: Box<LanguageSystem> = new_language();
-                                                                    let tmp = crate::sdsbuild!(
-                                                                        sdsempty(),
+                                                                    (*lang_0).name = crate::bytesbuild!(
                                                                         Byte((tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
                                                                         Byte((tag_0 >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
                                                                         Byte((tag_0 >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
@@ -588,8 +570,6 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                         Byte((lang_tag >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
                                                                         Byte((lang_tag & 0xff as u32) as u8),
                                                                     );
-                                                                    (*lang_0).name = sds_to_vec(tmp);
-                                                                    sdsfree(tmp);
                                                                     parse_language(
                                                                         data,
                                                                         table_length,
@@ -618,8 +598,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                         .glyph_name_prefix
                                                                         .is_null()
                                                                     {
-                                                                        let tmp = crate::sdsbuild!(
-                                                                            sdsempty(),
+                                                                        (*(&mut (*table).lookups)[j_3 as usize]).name = crate::bytesbuild!(
                                                                             b"lookup_",
                                                                             (*options).glyph_name_prefix,
                                                                             b"_",
@@ -627,18 +606,13 @@ unsafe extern "C" fn otfcc_read_otl_common(
                                                                             b"_",
                                                                             j_3 as ::core::ffi::c_int,
                                                                         );
-                                                                        (*(&mut (*table).lookups)[j_3 as usize]).name = sds_to_vec(tmp);
-                                                                        sdsfree(tmp);
                                                                     } else {
-                                                                        let tmp = crate::sdsbuild!(
-                                                                            sdsempty(),
+                                                                        (*(&mut (*table).lookups)[j_3 as usize]).name = crate::bytesbuild!(
                                                                             b"lookup_",
                                                                             Hex2((*(&(*table).lookups)[j_3 as usize]).type_0.raw()),
                                                                             b"_",
                                                                             j_3 as ::core::ffi::c_int,
                                                                         );
-                                                                        (*(&mut (*table).lookups)[j_3 as usize]).name = sds_to_vec(tmp);
-                                                                        sdsfree(tmp);
                                                                     }
                                                                 }
                                                                 j_3 = j_3.wrapping_add(1);

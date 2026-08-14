@@ -4,7 +4,7 @@ unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::support::handle::{handle_from_index, sds_to_vec, FdHandle};
+use crate::support::handle::{handle_from_index, FdHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::logger::{ILogger};
@@ -47,7 +47,6 @@ use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{json_new_vq};
 use crate::table::glyf::{GLYF_I_POINT, otfcc_new_glyf_glyph, table_glyf_create_n};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
-use crate::vendor::sds::{sdsempty, sdsfree};
 use crate::vf::vq::{I_VQ};
 
 #[derive(Clone)]
@@ -1528,9 +1527,8 @@ pub unsafe extern "C" fn otfcc_read_cff_and_glyf_tables(
                                 .font_name
                                 .is_empty()
                             {
-                                let tmp_subfont = crate::sdsbuild!(sdsempty(), b"_Subfont", j as ::core::ffi::c_int);
-                                (&mut (*context.meta).fd_array)[j as usize].font_name = sds_to_vec(tmp_subfont);
-                                sdsfree(tmp_subfont);
+                                (&mut (*context.meta).fd_array)[j as usize].font_name =
+                                    crate::bytesbuild!(b"_Subfont", j as ::core::ffi::c_int);
                             }
                             j = j.wrapping_add(1);
                         }

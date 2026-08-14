@@ -894,6 +894,34 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **The `sds` sweep's true finale: `table/otl/read.rs`'s 12 name-building
+  sites and `table/cff.rs`'s last `_Subfont` site, closing out every real
+  `sds`/`SdsRaw` call site in application code.** A post-merge grep after
+  the previous PR turned up this pocket -- never previously scoped in the
+  sweep -- as GSUB/GPOS feature/lookup/langsys name construction and one
+  CFF FDArray subfont name, all in the exact `let tmp =
+  crate::sdsbuild!(sdsempty(), ...); X.name = sds_to_vec(tmp);
+  sdsfree(tmp);` shape the Logger vtable PR's `bytesbuild!` macro already
+  exists to replace directly (no `sdsempty()` seed, returns `Vec<u8>`
+  outright) -- so all 13 sites collapsed to a single `bytesbuild!(...)`
+  call each, purely mechanical, no behavior change.
+  - `support/handle.rs`'s `sds_to_vec` helper, whose only callers were
+    these 13 sites, is deleted along with it. Its neighbor `sds_into_vec`
+    turned out to already have zero callers anywhere in the crate --
+    genuinely dead code, deleted alongside it rather than left to rot.
+  - Confirmed by grep that this really is the finale: excluding
+    `vendor/sds.rs` itself (the vendored library, its macro definitions,
+    and its own tests, which stay), there is no longer a single real
+    `sds`/`SdsRaw`/`sdsbuild!`/`sdsempty()` call site left anywhere in
+    the crate's application code.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib (the CFF-subroutinize
+    payload in particular exercises the `_Subfont` naming path directly);
+    all 10 round-trip payloads stable; issue #1's large-lookup regression
+    test green; `compare-log-output.sh` green.
+
 - **Stage 6-2's `sds` sweep finale: `table/glyf.rs`'s remaining leftover,
   `support/unicodeconv.rs`, `support/ttinstr.rs`, and both `bin/` CLI entry
   points, closing the explicitly-agreed sub-theme list out.** Chosen over
