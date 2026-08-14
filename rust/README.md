@@ -894,6 +894,44 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Tenth unit of the `unsafe_op_in_unsafe_fn` burn-down: `table/cff.rs`'s
+  `CffPrivateDict` hint arrays become `Vec<f64>`.** `table/cff.rs` was
+  flagged in the original survey as too large and heterogeneous for a single
+  PR (~3000 lines, ~48 malloc/free-ish sites spanning a realloc-grown
+  CharString interpreter stack, a 3-way union charset/FdSelect builder, an
+  FDArray-private-dict-patching loop, and more) -- this unit picks the one
+  piece that was already flagged, in a comment left by an earlier PR, as the
+  clean next step: `CffPrivateDict`'s six parallel `(count: Arity, *mut
+  f64)` pairs (`blueValues`/`otherBlues`/`familyBlues`/`familyOtherBlues`/
+  `stemSnapH`/`stemSnapV`, the CFF Private DICT's hint-replacement delta
+  arrays) become six plain `Vec<f64>` fields, with the `_count` fields
+  dropped entirely (replaced by each `Vec`'s own `.len()`).
+  - The custom `impl Drop for CffPrivateDict` (which freed each of the six
+    arrays by hand) is deleted outright -- `Vec`'s own drop glue now reaches
+    every allocation, the same shape `CffTable` itself reached at the end of
+    the earlier Box化 PR that left these six fields as the one remaining
+    raw-pointer exception.
+  - Three call sites needed matching signature changes, all in this same
+    file: `callback_extract_private`'s six DICT-operator match arms (parse
+    side) build each `Vec` directly with `(0..top).map(|j| cffnum(*stack.
+    offset(j))).collect()` instead of an `__caryll_allocate_clean`+loop
+    pair; `pd_delta_to_json`/`pd_delta_from_json` (dump/parse-from-JSON)
+    drop their `count`/out-param parameters for a plain `&[f64]` borrow and
+    a `Vec<f64>` return value respectively, matching the "unwrap_X_table"
+    return-by-value shape used throughout this migration; `cffdict_input_
+    array` (DICT-entry serialization) drops its `arity: Arity` parameter for
+    the slice's own `.len()`, joining `cffdict_input_doubles`/`cffdict_
+    input_ints` (already slice-taking from an earlier PR) as the third and
+    last `cffdict_input_*` helper to make that switch.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- `KRName-Regular.otf`/
+    `KRName-Regular-O2.otf` in particular exercise `CffPrivateDict` directly
+    on both the parse and build sides; all 10 round-trip payloads stable;
+    issue #1's large-lookup regression test green; `compare-log-output.sh`
+    green.
+
 - **Ninth unit of the `unsafe_op_in_unsafe_fn` burn-down: `libcff/subr.rs`'s
   `char_strings`/`gsubrs`/`lsubrs` scratch arrays become `Vec<Buffer>`.**
   `subr.rs` implements CFF subroutinization (the Larsson-Moffat-style
