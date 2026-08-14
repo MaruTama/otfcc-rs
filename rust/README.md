@@ -894,6 +894,62 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Seventh unit of the `unsafe_op_in_unsafe_fn` burn-down: `libcff/
+  cff_parser.rs`'s `CffEncoding` union becomes a tagged Rust enum.**
+  `CffEncoding` was a `t: CffEncodingType` discriminant plus a `c2rust_
+  unnamed: CffEncodingBody` union (`f0`/`f1`/`ns`, one raw-pointer array
+  each for the CFF Top DICT's three possible Encoding representations:
+  a code-per-glyph table, a range table, or a supplement list layered on
+  a predefined encoding) -- the same shape `Subtable` had, and the same
+  fix: a single enum, discriminant and payload together, so the compiler
+  enforces that only the payload matching the current variant is ever
+  read.
+  - `CffEncoding` is now `enum CffEncoding { Standard, Expert,
+    Format0(Vec<u8>), Format1(Vec<CffEncodingRangeFormat1>),
+    FormatSupplement(Vec<CffEncodingSupplement>), Unspecified }`, with no
+    `#[repr(C)]` -- matching `Subtable`'s own precedent, since this type
+    never crosses the crate's four real FFI symbols (`ffi/dll.rs`,
+    verified with `check-abi.sh`). The `format`/`ncodes`/`nranges`/`nsup`
+    fields that used to sit alongside each raw array are gone entirely:
+    all four were write-only (set once while parsing, never read again
+    anywhere in the crate) and exactly duplicated information the
+    corresponding `Vec`'s own `.len()` (or the enum variant itself, for
+    `format`) already carries.
+  - `parse_encoding` used to fill an already-allocated `*mut CffEncoding`
+    out-param; it now returns `CffEncoding` by value, the same
+    "unwrap_X_table" shape used throughout this migration. It also drops
+    `extern "C"`: a data-carrying enum has no C spelling
+    (`improper_ctypes_definitions`), and the function is only ever called
+    from within this same file, not part of the crate's public ABI --
+    the same reasoning already applied to `bufninit` earlier in the
+    migration.
+  - `CffFile.encodings: CffEncoding` now owns `Vec`s on three of its six
+    variants, but `CffFile` itself is still a manually `__caryll_
+    allocate_clean`'d / raw-`free()`'d struct (not `Box`-managed) --
+    so `cff_close` explicitly resets `(*file).encodings =
+    CffEncoding::Unspecified` before the struct's own `free()`, running
+    the field's Drop glue first. A bare `libc::free()` on the struct's
+    memory would not otherwise invoke it -- the same pattern already
+    established for `dispose_glyph_order`. `#[derive(Copy, Clone)]` was
+    removed from `CffFile` accordingly, after confirming by grep that the
+    struct is never used by value anywhere in the crate (always through
+    `*mut CffFile`/`*const CffFile`) -- the derive was vestigial.
+  - A broad `.c2rust_unnamed` grep across this file initially looked like
+    a much larger task (300+ hits) before it became clear that most
+    belonged to two unrelated unions sharing the same c2rust-generated
+    field name in the same file: `CffValue`'s `i`/`d` union (used
+    pervasively across ~2000 lines of charstring/DICT-value parsing) and
+    `CffFdSelect`'s `f0`/`f3` union. Filtering to only `CffEncoding`-
+    specific access patterns isolated the true scope at roughly 30 sites,
+    matching the original survey's estimate for this theme.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings
+    under `warnings = "deny"`); every standard payload byte-identical in
+    both directions including the `otfccdll` cdylib; all 10 round-trip
+    payloads stable; issue #1's large-lookup regression test green (run
+    against `iosevka-r.ttf`, which has enough glyphs to exceed the 64KB
+    subtable threshold); `compare-log-output.sh` green.
+
 - **Sixth unit of the `unsafe_op_in_unsafe_fn` burn-down, batched at the
   user's request: `table/base.rs`, `table/otl/build.rs`, and `table/glyf/
   read.rs` in one PR.** Each had been surveyed and individually scoped as
