@@ -1,6 +1,5 @@
 use crate::support::primitives::{Arity};
 use crate::libcff::cff_charset::{CffCharset};
-use crate::libcff::cff_parser::{CffEncodingType};
 use crate::libcff::cff_fdselect::{CffFdSelect};
 use crate::libcff::cff_index::{CffIndex};
 use crate::libcff::cff_value::{CffValue};
@@ -292,25 +291,9 @@ pub struct CffHeader {
 
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct CffEncodingFormat0 {
-    pub format: u8,
-    pub ncodes: u8,
-    pub code: *mut u8,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffEncodingRangeFormat1 {
     pub first: u8,
     pub nleft: u8,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CffEncodingFormat1 {
-    pub format: u8,
-    pub nranges: u8,
-    pub range1: *mut CffEncodingRangeFormat1,
 }
 
 #[derive(Copy, Clone)]
@@ -320,26 +303,23 @@ pub struct CffEncodingSupplement {
     pub glyph: u16,
 }
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CffEncodingNs {
-    pub nsup: u8,
-    pub supplement: *mut CffEncodingSupplement,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CffEncoding {
-    pub t: CffEncodingType,
-    pub c2rust_unnamed: CffEncodingBody,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union CffEncodingBody {
-    pub f0: CffEncodingFormat0,
-    pub f1: CffEncodingFormat1,
-    pub ns: CffEncodingNs,
+/// Was a `t: CffEncodingType` discriminant plus a `c2rust_unnamed:
+/// CffEncodingBody` union (`f0`/`f1`/`ns`, one raw-pointer array each) --
+/// same shape `Subtable` had, and the same fix: a single Rust enum,
+/// discriminant and payload together, so the compiler enforces that only
+/// the payload matching the current variant is ever read. `format`/
+/// `ncodes`/`nranges`/`nsup` are gone too -- each was write-only (set
+/// once while parsing, never read again anywhere in the crate) and
+/// exactly duplicated its `Vec`'s own `.len()`; `format` doubly so,
+/// since it just repeated the variant tag itself as a number.
+#[derive(Clone)]
+pub enum CffEncoding {
+    Standard,
+    Expert,
+    Format0(Vec<u8>),
+    Format1(Vec<CffEncodingRangeFormat1>),
+    FormatSupplement(Vec<CffEncodingSupplement>),
+    Unspecified,
 }
 
 #[derive(Copy, Clone)]
@@ -352,7 +332,10 @@ pub struct CffStack {
     pub stem: u8,
 }
 
-#[derive(Copy, Clone)]
+// `Copy`/`Clone` dropped: `encodings: CffEncoding` now owns `Vec`s on
+// three of its variants. Confirmed by grep before removing the derive --
+// `CffFile` is never used by value anywhere in the crate, always through
+// `*mut CffFile`/`*const CffFile`, so the derive was vestigial.
 #[repr(C)]
 pub struct CffFile {
     pub raw_data: *mut u8,

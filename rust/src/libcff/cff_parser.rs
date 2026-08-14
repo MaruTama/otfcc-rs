@@ -23,21 +23,15 @@ use crate::libcff::cff_dict::{CFF_I_DICT};
 use crate::libcff::cff_fdselect::{cff_close_fd_select, cff_extract_fd_select};
 use crate::libcff::cff_index::{CFF_I_INDEX};
 
-/// Which encoding a cff font carries: one of the two predefined ones, or the
-/// format of an embedded encoding. Again the crate's own classification rather
-/// than anything read from the file -- though `cff_extract_Encoding` does lean
-/// on the numbering, comparing the *offset* from the Top DICT against
-/// `CffEncodingType::Standard`/`CffEncodingType::Expert`, which the spec assigns 0 and 1.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[repr(u32)]
-pub enum CffEncodingType {
-    Standard = 0,
-    Expert = 1,
-    Format0 = 2,
-    Format1 = 3,
-    FormatSupplement = 4,
-    Unspecified = 5,
-}
+/// The Top DICT's Encoding offset is overloaded by spec: values 0 and 1
+/// select the two predefined (Standard/Expert) encodings outright, and
+/// any other value is a real offset into an embedded encoding table.
+/// `CffEncoding` (`libcff.rs`) is the crate's own classification of the
+/// result; these two constants are just the spec's special-cased offset
+/// values `parse_encoding` compares against before treating an offset as
+/// real.
+const CFF_STANDARD_ENCODING_OFFSET: i32 = 0;
+const CFF_EXPERT_ENCODING_OFFSET: i32 = 1;
 #[inline]
 unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 = *s.offset(p as isize) as u32;
@@ -52,87 +46,66 @@ unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
         .offset(1 as ::core::ffi::c_int as isize) as u32;
     return b0 | b1;
 }
-unsafe extern "C" fn parse_encoding(
-    mut cff: *mut CffFile,
-    mut offset: i32,
-    mut enc: *mut CffEncoding,
-) {
+// Returns `CffEncoding` by value instead of writing through a `*mut
+// CffEncoding` out-param -- the same "unwrap_X_table"-adjacent shape as
+// every other `parse_*`/`read_*` function elsewhere in this migration
+// that used to fill an already-allocated out-param slot.
+//
+// No longer `extern "C"`: `CffEncoding` is a data-carrying enum with no C
+// spelling, so claiming the C ABI would be a lie (`improper_ctypes_definitions`).
+// Only called from within this file, not part of the crate's public ABI.
+unsafe fn parse_encoding(mut cff: *mut CffFile, mut offset: i32) -> CffEncoding {
     let mut data: *mut u8 = (*cff).raw_data;
-    if offset == CffEncodingType::Standard as ::core::ffi::c_int as i32 {
-        (*enc).t = CffEncodingType::Standard;
-    } else if offset == CffEncodingType::Expert as ::core::ffi::c_int as i32 {
-        (*enc).t = CffEncodingType::Expert;
-    } else {
-        match *data.offset(offset as isize) as ::core::ffi::c_int {
-            0 => {
-                (*enc).t = CffEncodingType::Format0;
-                (*enc).c2rust_unnamed.f0.format = 0 as u8;
-                (*enc).c2rust_unnamed.f0.ncodes = *data.offset((offset + 1 as i32) as isize);
-                (*enc).c2rust_unnamed.f0.code = __caryll_allocate_clean(
-                    (::core::mem::size_of::<u8>() as usize)
-                        .wrapping_mul((*enc).c2rust_unnamed.f0.ncodes as usize),
-                    30 as ::core::ffi::c_ulong,
-                ) as *mut u8;
-                let mut i: u32 = 0 as u32;
-                while i < (*enc).c2rust_unnamed.f0.ncodes as u32 {
-                    *(*enc).c2rust_unnamed.f0.code.offset(i as isize) = *data
-                        .offset(((offset + 2 as i32) as u32).wrapping_add(i) as isize);
-                    i = i.wrapping_add(1);
-                }
+    if offset == CFF_STANDARD_ENCODING_OFFSET {
+        return CffEncoding::Standard;
+    } else if offset == CFF_EXPERT_ENCODING_OFFSET {
+        return CffEncoding::Expert;
+    }
+    match *data.offset(offset as isize) as ::core::ffi::c_int {
+        0 => {
+            let ncodes = *data.offset((offset + 1 as i32) as isize);
+            let mut code: Vec<u8> = Vec::with_capacity(ncodes as usize);
+            let mut i: u32 = 0 as u32;
+            while i < ncodes as u32 {
+                code.push(*data.offset(((offset + 2 as i32) as u32).wrapping_add(i) as isize));
+                i = i.wrapping_add(1);
             }
-            1 => {
-                (*enc).t = CffEncodingType::Format1;
-                (*enc).c2rust_unnamed.f1.format = 1 as u8;
-                (*enc).c2rust_unnamed.f1.nranges = *data.offset((offset + 1 as i32) as isize);
-                (*enc).c2rust_unnamed.f1.range1 = __caryll_allocate_clean(
-                    (::core::mem::size_of::<CffEncodingRangeFormat1>() as usize)
-                        .wrapping_mul((*enc).c2rust_unnamed.f1.nranges as usize),
-                    41 as ::core::ffi::c_ulong,
-                )
-                    as *mut CffEncodingRangeFormat1;
-                let mut i_0: u32 = 0 as u32;
-                while i_0 < (*enc).c2rust_unnamed.f1.nranges as u32 {
-                    (*(*enc).c2rust_unnamed.f1.range1.offset(i_0 as isize)).first = *data.offset(
-                        ((offset + 2 as i32) as u32)
-                            .wrapping_add(i_0.wrapping_mul(2 as u32))
-                            as isize,
-                    );
-                    (*(*enc).c2rust_unnamed.f1.range1.offset(i_0 as isize)).nleft = *data.offset(
-                        ((offset + 3 as i32) as u32)
-                            .wrapping_add(i_0.wrapping_mul(2 as u32))
-                            as isize,
-                    );
-                    i_0 = i_0.wrapping_add(1);
-                }
-            }
-            _ => {
-                (*enc).t = CffEncodingType::FormatSupplement;
-                (*enc).c2rust_unnamed.ns.nsup = *data.offset(offset as isize);
-                (*enc).c2rust_unnamed.ns.supplement = __caryll_allocate_clean(
-                    (::core::mem::size_of::<CffEncodingSupplement>() as usize)
-                        .wrapping_mul((*enc).c2rust_unnamed.ns.nsup as usize),
-                    52 as ::core::ffi::c_ulong,
-                )
-                    as *mut CffEncodingSupplement;
-                let mut i_1: u32 = 0 as u32;
-                while i_1 < (*enc).c2rust_unnamed.ns.nsup as u32 {
-                    (*(*enc).c2rust_unnamed.ns.supplement.offset(i_1 as isize)).code = *data
-                        .offset(
-                            ((offset + 1 as i32) as u32)
-                                .wrapping_add(i_1.wrapping_mul(3 as u32))
-                                as isize,
-                        );
-                    (*(*enc).c2rust_unnamed.ns.supplement.offset(i_1 as isize)).glyph = gu2(
-                        data,
-                        ((offset + 2 as i32) as u32)
-                            .wrapping_add(i_1.wrapping_mul(3 as u32)),
-                    )
-                        as u16;
-                    i_1 = i_1.wrapping_add(1);
-                }
-            }
+            CffEncoding::Format0(code)
         }
-    };
+        1 => {
+            let nranges = *data.offset((offset + 1 as i32) as isize);
+            let mut range1: Vec<CffEncodingRangeFormat1> = Vec::with_capacity(nranges as usize);
+            let mut i_0: u32 = 0 as u32;
+            while i_0 < nranges as u32 {
+                let first = *data.offset(
+                    ((offset + 2 as i32) as u32).wrapping_add(i_0.wrapping_mul(2 as u32)) as isize,
+                );
+                let nleft = *data.offset(
+                    ((offset + 3 as i32) as u32).wrapping_add(i_0.wrapping_mul(2 as u32)) as isize,
+                );
+                range1.push(CffEncodingRangeFormat1 { first, nleft });
+                i_0 = i_0.wrapping_add(1);
+            }
+            CffEncoding::Format1(range1)
+        }
+        _ => {
+            let nsup = *data.offset(offset as isize);
+            let mut supplement: Vec<CffEncodingSupplement> = Vec::with_capacity(nsup as usize);
+            let mut i_1: u32 = 0 as u32;
+            while i_1 < nsup as u32 {
+                let code = *data.offset(
+                    ((offset + 1 as i32) as u32).wrapping_add(i_1.wrapping_mul(3 as u32)) as isize,
+                );
+                let glyph = gu2(
+                    data,
+                    ((offset + 2 as i32) as u32).wrapping_add(i_1.wrapping_mul(3 as u32)),
+                ) as u16;
+                supplement.push(CffEncodingSupplement { code, glyph });
+                i_1 = i_1.wrapping_add(1);
+            }
+            CffEncoding::FormatSupplement(supplement)
+        }
+    }
 }
 unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options) {
     let mut pos: u32 = 0;
@@ -252,9 +225,9 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         .c2rust_unnamed
         .i;
         if offset_0 != -(1 as i32) {
-            parse_encoding(cff, offset_0, &raw mut (*cff).encodings);
+            (*cff).encodings = parse_encoding(cff, offset_0);
         } else {
-            (*cff).encodings.t = CffEncodingType::Unspecified;
+            (*cff).encodings = CffEncoding::Unspecified;
         }
         offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             (*cff).top_dict.data,
@@ -434,31 +407,10 @@ pub unsafe extern "C" fn cff_close(mut file: *mut CffFile) {
         CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).char_strings);
         CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).font_dict);
         CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).local_subr);
-        match (*file).encodings.t {
-            CffEncodingType::Format0 => {
-                if !(*file).encodings.c2rust_unnamed.f0.code.is_null() {
-                    free((*file).encodings.c2rust_unnamed.f0.code as *mut ::core::ffi::c_void);
-                    (*file).encodings.c2rust_unnamed.f0.code = ::core::ptr::null_mut::<u8>();
-                }
-            }
-            CffEncodingType::Format1 => {
-                if !(*file).encodings.c2rust_unnamed.f1.range1.is_null() {
-                    free((*file).encodings.c2rust_unnamed.f1.range1 as *mut ::core::ffi::c_void);
-                    (*file).encodings.c2rust_unnamed.f1.range1 =
-                        ::core::ptr::null_mut::<CffEncodingRangeFormat1>();
-                }
-            }
-            CffEncodingType::FormatSupplement => {
-                if !(*file).encodings.c2rust_unnamed.ns.supplement.is_null() {
-                    free(
-                        (*file).encodings.c2rust_unnamed.ns.supplement as *mut ::core::ffi::c_void,
-                    );
-                    (*file).encodings.c2rust_unnamed.ns.supplement =
-                        ::core::ptr::null_mut::<CffEncodingSupplement>();
-                }
-            }
-            _ => {}
-        }
+        // Reassigning drops whatever Vec the previous variant owned, before the
+        // struct itself is freed via a bare `free()` below (which does not run
+        // Drop glue) -- same pattern as `dispose_glyph_order`.
+        (*file).encodings = CffEncoding::Unspecified;
         cff_close_charset((*file).charsets);
         cff_close_fd_select((*file).fdselect);
         free(file as *mut ::core::ffi::c_void);
