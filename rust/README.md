@@ -894,6 +894,74 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Eighth unit of the `unsafe_op_in_unsafe_fn` burn-down: `bk/bkgraph.rs`'s
+  `BkGraph.entries` becomes a `Vec`, replacing its hand-rolled
+  realloc-with-slack growth scheme.** `BkGraph` is the block-deduplication/
+  offset-resolution graph every table builder in the crate goes through
+  (`bk_build_block` is called from `table/base.rs`, `table/colr.rs`,
+  `table/cpal.rs`, `table/cmap.rs`, `table/gdef.rs`, `table/svg.rs`, every
+  GSUB/GPOS subtable builder, and more) -- `entries: *mut BkGraphNode` was
+  grown by hand via `_bkgraph_grow`, which tracked a separate `free: u32`
+  slack count and called `__caryll_reallocate` whenever it ran out, doubling
+  roughly like a manual `Vec` would but without `Vec`'s bookkeeping.
+  - `BkGraph` is now `{ entries: Vec<BkGraphNode> }` -- `length`/`free` are
+    both gone, replaced by `entries.len()` and `Vec`'s own amortized growth.
+    `_bkgraph_grow`'s two call sites (`dfs_insert_cells`, `try_untabgle_
+    block`) become plain `.push()`s of a fully-formed `BkGraphNode`, and the
+    outer shell (`bk_new_graph_from_root_block`'s allocation, `bk_delete_
+    graph`'s final free) moves from `__caryll_allocate_clean`/`free` to
+    `Box::into_raw`/`Box::from_raw` -- the same "outer shell only" split
+    already used for `CffIndex`/`CffDict`: `BkGraphNode.block: *mut BkBlock`
+    stays a raw pointer, since `bk_delete_graph` still owns and frees the
+    `BkBlock` tree the graph was built from, and converting *that* recursive
+    structure is a separate, unscoped piece of work. `BkGraph` carries no
+    `Copy`/`Clone`/`repr(C)` -- confirmed by grep that the only other file
+    touching it (`gpos_pair.rs`) always goes through the `*mut BkGraph`
+    `bk_new_graph_from_root_block` returns, never by value.
+  - The two `qsort` comparators (`_by_height`, `_by_order`) become `sort_by`
+    closures returning `Ordering`, the same conservative swap already made
+    for `Coverage`/`ClassDef`/`gpos_pair.rs`'s own qsort-scratch-buffer
+    conversions (`qsort` isn't guaranteed stable; `sort_by` is). Both
+    comparators' final tiebreaker is each entry's insertion order, which is
+    unique per entry, so this was already a strict total order with no ties
+    for stability to matter on -- the swap is behavior-preserving either way.
+  - Every other `(*f).length`/`(*f).entries.offset(j)` pair through the file
+    becomes `(*f).entries.len()`/indexing. A newer rustc lint, `implicit_
+    autoref` (autoref through a raw-pointer deref implicitly manufacturing a
+    reference), rejects plain `(*f).entries[j]` bracket-indexing on a `Vec`
+    field reached through `*mut BkGraph`; every such site is written as the
+    compiler's own suggested fix, `(&(*f).entries)[j]` / `(&mut (*f).
+    entries)[j]`, each a fresh, short-lived reborrow rather than one held
+    across other calls -- deliberately, since holding a `&mut` across a call
+    that (through the same raw pointer, from a different function) reborrows
+    the same `Vec` would be exactly the kind of aliasing violation this
+    lint-driven rewrite exists to avoid introducing.
+  - **Caught by the verification pipeline, not by review**: the first
+    version of this conversion inlined `_bkgraph_grow`'s two call sites
+    incompletely and dropped `(*b)._visitstate = BkCellVisitState::Black;`
+    from `dfs_insert_cells` -- the line that marks a `BkBlock` as already
+    inserted into the graph. Every other payload stayed byte-identical (most
+    fixtures' block graphs don't share blocks across parents), but
+    `BungeeColor-Regular_colr_Windows.ttf` -- a COLR font whose per-glyph
+    layer lists reuse the same blocks from multiple parents -- came out 40
+    bytes larger, because shared blocks that should have been visited once
+    and reused were instead being re-inserted as duplicates every time a new
+    parent referenced them. `compare-with-c.sh` caught this immediately as a
+    single non-byte-identical payload with a real size delta (not just a
+    checksum/offset shuffle), which is what pointed at "fewer merges
+    happened" rather than a purely cosmetic difference. Restoring the
+    `_visitstate` write fixed it; recorded here since it's exactly the
+    failure mode this crate's "always verify against a payload that
+    exercises block sharing, not just tree-shaped output" pipeline exists to
+    catch.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- `BungeeColor-Regular_colr_
+    Windows.ttf` in particular exercises the block-sharing path this PR's
+    regression lived in; all 10 round-trip payloads stable; issue #1's
+    large-lookup regression test green; `compare-log-output.sh` green.
+
 - **Seventh unit of the `unsafe_op_in_unsafe_fn` burn-down: `libcff/
   cff_parser.rs`'s `CffEncoding` union becomes a tagged Rust enum.**
   `CffEncoding` was a `t: CffEncodingType` discriminant plus a `c2rust_
