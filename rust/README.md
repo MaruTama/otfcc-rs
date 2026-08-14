@@ -894,6 +894,83 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 6-2's `sds` sweep finale: `table/glyf.rs`'s remaining leftover,
+  `support/unicodeconv.rs`, `support/ttinstr.rs`, and both `bin/` CLI entry
+  points, closing the explicitly-agreed sub-theme list out.** Chosen over
+  fixing only the small `glyf.rs` leftover, and over pausing the sweep here,
+  after a weighted priority pass had ranked these three as the lowest-value
+  remaining pockets -- picked together because none of the four shares any
+  code with the others, so batching was a scheduling choice only.
+  - **`table/glyf.rs`**: the JSON-glyph loop's `gname: SdsRaw` (built via
+    `sdsnewlen` off `json_obj_key_at`/`json_obj_key_len_at`, then copied
+    into a `Vec<u8>` anyway before the `SdsRaw` was freed) collapses to a
+    single `json_obj_key_bytes_at` call, removing a pointless copy-then-
+    free-of-the-copy round trip.
+  - **`support/unicodeconv.rs`**: `utf16le_to_utf8` deleted outright --
+    zero callers anywhere in the crate. `utf16be_to_utf8` returns
+    `Vec<u8>` instead of `SdsRaw`, with the output pass rewritten from
+    raw-pointer writes into an `sdsnewlen`-allocated buffer to
+    `Vec::with_capacity` + `.push()`; the `bytes_needed` sizing pass is
+    unchanged. `utf8toutf16be` now takes `&[u8]` instead of `SdsRaw`: an
+    earlier pass through this file had left a comment explicitly declining
+    this conversion ("its internals walk raw pointers derived from
+    `sdslen`, complex enough that widening it to `&[u8]` isn't worth the
+    risk for its one call site") -- re-examined here and reversed, since
+    the null check it was worried about is only reachable via a null
+    `SdsRaw` (moot for a slice reference, which can't be null) and
+    `sdslen` trivially becomes `.len()`. `table/name.rs`'s two call sites
+    (decode and encode) simplified to match, dropping an `sdsnewlen`/
+    `sdsfree` round trip on the encode side.
+  - **`support/ttinstr.rs`**: the TrueType-instructions-from-JSON-array
+    parser's scratch buffer (`sdsnewlen(NULL, istrlen + 1)`, a
+    zero-filled buffer whose trailing zero byte serves as `parse_instrs`'s
+    NUL terminator -- `parse_instrs` reads it with `strlen`) becomes
+    `vec![0u8; istrlen + 1]`. The fill loop and the untouched
+    `parse_instrs` function both keep working unmodified, since a
+    zero-filled `Vec<u8>` gives the exact same size and the exact same
+    trailing-NUL guarantee `sdsnewlen(NULL, ...)` did.
+  - **`bin/otfccdump.rs` and `bin/otfccbuild.rs`**: `inPath`/`outputPath`
+    (originally `SdsRaw`, built from `argv`/`optarg` via `sdsnew`) become
+    `CString`/`Option<CString>` (mandatory in `otfccdump.rs`; genuinely
+    optional in `otfccbuild.rs`, whose `inPath` falls back to stdin).
+    **`otfccbuild.rs`'s conversion surfaced a genuine pre-existing
+    use-after-free**, not introduced by this PR: the C-derived code freed
+    `inPath` (`sdsfree(inPath)`) immediately after `readEntireFile`
+    consumed it, but `inPath` was read again afterward, in two later
+    `bytesbuild!`-built "Cannot parse JSON file ..." error messages on the
+    parse-failure path. Converting to `Option<CString>` and simply
+    removing that early free -- letting the value live for the function's
+    natural scope and drop at the end -- fixes this by construction; no
+    explicit bug-specific logic was needed, Rust's ownership model just
+    doesn't have room for the buggy access pattern any more. Manually
+    verified with a malformed JSON file and `--verbose` on both platforms:
+    C prints `Cannot parse JSON file "". Exit.` (reading through the freed
+    pointer recovers an empty string), while Rust correctly prints
+    `Cannot parse JSON file "build/manual-uaf-check/broken.json". Exit.`
+    -- a deliberate, documented, correctness-improving divergence from
+    C's exact byte-for-byte output on this one error path, the first such
+    intentional divergence found in this migration so far. The two error
+    messages themselves handle `inPath`'s possible `None` (stdin fallback)
+    with a null-safe raw-pointer fallback that reuses the existing
+    `*const c_char` `SdsPart` impl's `"(null)"` rendering, so the no-path
+    case still renders exactly as before.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib; all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green;
+    `compare-log-output.sh` green; plus the manual use-after-free check
+    above, run on both platforms.
+  - **Not in scope for this PR**: a full-crate grep for remaining `sds`
+    call sites turned up a pocket never previously scoped in this sweep --
+    `table/otl/read.rs` has 24 real (non-comment) sites parsing GSUB/GPOS
+    feature/lookup/langsys names from raw binary tag data -- plus 2
+    remaining sites in `table/cff.rs` (the `tmp_subfont` site, flagged as
+    out-of-scope back during the Logger vtable PR and never picked up
+    since). Left untouched here, consistent with not silently expanding
+    scope beyond what was explicitly agreed going in; to be raised
+    separately.
+
 - **Stage 6-2's seventh `sds` sub-theme: `table/post.rs`'s `pending_names`
   array and `json_reader.rs`'s glyph-order construction, batched into one
   PR.** Picked together per the weighted priority ranking (impact/future-

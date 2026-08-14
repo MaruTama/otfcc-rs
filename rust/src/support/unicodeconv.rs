@@ -1,113 +1,15 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{malloc};
-use crate::vendor::sds::{SdsRaw};
-use crate::vendor::sds::{sdslen, sdsnewlen};
 
-pub unsafe extern "C" fn utf16le_to_utf8(
-    mut inb: *const u8,
-    mut inlenb: ::core::ffi::c_int,
-) -> SdsRaw {
-    let mut in_0: *mut u16 = inb as *mut u16;
-    let mut inend: *mut u16 = ::core::ptr::null_mut::<u16>();
-    let mut c: u32 = 0;
-    let mut d: u32 = 0;
-    let mut inlen: u32 = 0;
-    let mut bits: ::core::ffi::c_int = 0;
-    if inlenb % 2 as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-        inlenb -= 1;
-    }
-    inlen = (inlenb / 2 as ::core::ffi::c_int) as u32;
-    inend = in_0.offset(inlen as isize);
-    let mut bytes_needed: u32 = 0 as u32;
-    while in_0 < inend {
-        let fresh0 = in_0;
-        in_0 = in_0.offset(1);
-        c = *fresh0 as u32;
-        if c & 0xfc00 as u32 == 0xd800 as u32 {
-            if in_0 >= inend {
-                break;
-            }
-            let fresh1 = in_0;
-            in_0 = in_0.offset(1);
-            d = *fresh1 as u32;
-            if d & 0xfc00 as u32 == 0xdc00 as u32 {
-                c &= 0x3ff as u32;
-                c <<= 10 as ::core::ffi::c_int;
-                c |= d & 0x3ff as u32;
-                c = c.wrapping_add(0x10000 as u32);
-            }
-        }
-        if c < 0x80 as u32 {
-            bytes_needed = bytes_needed.wrapping_add(1 as u32);
-        } else if c < 0x800 as u32 {
-            bytes_needed = bytes_needed.wrapping_add(2 as u32);
-        } else if c < 0x10000 as u32 {
-            bytes_needed = bytes_needed.wrapping_add(3 as u32);
-        } else {
-            bytes_needed = bytes_needed.wrapping_add(4 as u32);
-        }
-    }
-    in_0 = inb as *mut u16;
-    let mut out: SdsRaw = sdsnewlen(
-        ::core::ptr::null::<::core::ffi::c_void>(),
-        bytes_needed as usize,
-    );
-    let mut out0: SdsRaw = out;
-    while in_0 < inend {
-        let fresh2 = in_0;
-        in_0 = in_0.offset(1);
-        c = *fresh2 as u32;
-        if c & 0xfc00 as u32 == 0xd800 as u32 {
-            if in_0 >= inend {
-                break;
-            }
-            let fresh3 = in_0;
-            in_0 = in_0.offset(1);
-            d = *fresh3 as u32;
-            if d & 0xfc00 as u32 == 0xdc00 as u32 {
-                c &= 0x3ff as u32;
-                c <<= 10 as ::core::ffi::c_int;
-                c |= d & 0x3ff as u32;
-                c = c.wrapping_add(0x10000 as u32);
-            }
-        }
-        if c < 0x80 as u32 {
-            let fresh4 = out;
-            out = out.offset(1);
-            *fresh4 = c as ::core::ffi::c_char;
-            bits = -(6 as ::core::ffi::c_int);
-        } else if c < 0x800 as u32 {
-            let fresh5 = out;
-            out = out.offset(1);
-            *fresh5 = (c >> 6 as ::core::ffi::c_int & 0x1f as u32 | 0xc0 as u32)
-                as ::core::ffi::c_char;
-            bits = 0 as ::core::ffi::c_int;
-        } else if c < 0x10000 as u32 {
-            let fresh6 = out;
-            out = out.offset(1);
-            *fresh6 = (c >> 12 as ::core::ffi::c_int & 0xf as u32 | 0xe0 as u32)
-                as ::core::ffi::c_char;
-            bits = 6 as ::core::ffi::c_int;
-        } else {
-            let fresh7 = out;
-            out = out.offset(1);
-            *fresh7 = (c >> 18 as ::core::ffi::c_int & 0x7 as u32 | 0xf0 as u32)
-                as ::core::ffi::c_char;
-            bits = 12 as ::core::ffi::c_int;
-        }
-        while bits >= 0 as ::core::ffi::c_int {
-            let fresh8 = out;
-            out = out.offset(1);
-            *fresh8 = (c >> bits & 0x3f as u32 | 0x80 as u32) as ::core::ffi::c_char;
-            bits -= 6 as ::core::ffi::c_int;
-        }
-    }
-    return out0;
-}
+// `utf16be_to_utf8` returns `Vec<u8>` now instead of `SdsRaw`, its only
+// caller (`table/name.rs`) a direct Rust call site (never a real FFI
+// boundary) -- goes away with the vtable/extern "C" cleanup, same as
+// every other instance of this allow in the crate.
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn utf16be_to_utf8(
     mut inb: *const u8,
     mut inlenb: ::core::ffi::c_int,
-) -> SdsRaw {
+) -> Vec<u8> {
     let mut in_0: *mut u16 = inb as *mut u16;
     let mut inend: *mut u16 = ::core::ptr::null_mut::<u16>();
     let mut c: u32 = 0;
@@ -158,11 +60,7 @@ pub unsafe extern "C" fn utf16be_to_utf8(
         }
     }
     in_0 = inb as *mut u16;
-    let mut out: SdsRaw = sdsnewlen(
-        ::core::ptr::null::<::core::ffi::c_void>(),
-        bytes_needed as usize,
-    );
-    let mut out0: SdsRaw = out;
+    let mut out: Vec<u8> = Vec::with_capacity(bytes_needed as usize);
     while in_0 < inend {
         tmp = in_0 as *mut u8;
         let fresh11 = tmp;
@@ -190,46 +88,40 @@ pub unsafe extern "C" fn utf16be_to_utf8(
             }
         }
         if c < 0x80 as u32 {
-            let fresh13 = out;
-            out = out.offset(1);
-            *fresh13 = c as ::core::ffi::c_char;
+            out.push(c as u8);
             bits = -(6 as ::core::ffi::c_int);
         } else if c < 0x800 as u32 {
-            let fresh14 = out;
-            out = out.offset(1);
-            *fresh14 = (c >> 6 as ::core::ffi::c_int & 0x1f as u32 | 0xc0 as u32)
-                as ::core::ffi::c_char;
+            out.push((c >> 6 as ::core::ffi::c_int & 0x1f as u32 | 0xc0 as u32) as u8);
             bits = 0 as ::core::ffi::c_int;
         } else if c < 0x10000 as u32 {
-            let fresh15 = out;
-            out = out.offset(1);
-            *fresh15 = (c >> 12 as ::core::ffi::c_int & 0xf as u32 | 0xe0 as u32)
-                as ::core::ffi::c_char;
+            out.push((c >> 12 as ::core::ffi::c_int & 0xf as u32 | 0xe0 as u32) as u8);
             bits = 6 as ::core::ffi::c_int;
         } else {
-            let fresh16 = out;
-            out = out.offset(1);
-            *fresh16 = (c >> 18 as ::core::ffi::c_int & 0x7 as u32 | 0xf0 as u32)
-                as ::core::ffi::c_char;
+            out.push((c >> 18 as ::core::ffi::c_int & 0x7 as u32 | 0xf0 as u32) as u8);
             bits = 12 as ::core::ffi::c_int;
         }
         while bits >= 0 as ::core::ffi::c_int {
-            let fresh17 = out;
-            out = out.offset(1);
-            *fresh17 = (c >> bits & 0x3f as u32 | 0x80 as u32) as ::core::ffi::c_char;
+            out.push((c >> bits & 0x3f as u32 | 0x80 as u32) as u8);
             bits -= 6 as ::core::ffi::c_int;
         }
     }
-    return out0;
+    return out;
 }
-pub unsafe extern "C" fn utf8toutf16be(mut _in: SdsRaw, mut out_bytes: *mut usize) -> *mut u8 {
-    if _in.is_null() {
-        *out_bytes = 0 as usize;
-        return ::core::ptr::null_mut::<u8>();
-    }
-    let mut in_0: SdsRaw = _in;
-    let mut inlen: usize = sdslen(in_0);
-    let mut inend: *mut ::core::ffi::c_char = in_0.offset(inlen as isize);
+// `_in` is `&[u8]` now instead of `SdsRaw` -- this function only ever
+// reads it (`inlen` from the slice's own length instead of `sdslen`, the
+// raw-pointer walk over `[in_0, inend)` otherwise unchanged), never
+// stores or frees it, so there was no ownership to plumb through in the
+// first place. The null check this replaces was only ever reachable via
+// a null `SdsRaw`; a slice reference can't be null, so it's gone rather
+// than translated.
+//
+// Never a real FFI boundary -- internal call site only, same rationale
+// as every other instance of this allow in the crate.
+#[allow(improper_ctypes_definitions)]
+pub unsafe extern "C" fn utf8toutf16be(_in: &[u8], mut out_bytes: *mut usize) -> *mut u8 {
+    let mut in_0: *const ::core::ffi::c_char = _in.as_ptr() as *const ::core::ffi::c_char;
+    let inlen: usize = _in.len();
+    let mut inend: *const ::core::ffi::c_char = in_0.offset(inlen as isize);
     let mut words_needed: u32 = 0 as u32;
     let mut trailing: u8 = 0 as u8;
     let mut c: u32 = 0 as u32;
@@ -285,7 +177,7 @@ pub unsafe extern "C" fn utf8toutf16be(mut _in: SdsRaw, mut out_bytes: *mut usiz
             .wrapping_mul(::core::mem::size_of::<u8>() as usize),
     ) as *mut u8;
     let mut out: *mut u8 = _out;
-    in_0 = _in;
+    in_0 = _in.as_ptr() as *const ::core::ffi::c_char;
     while in_0 < inend {
         let fresh20 = in_0;
         in_0 = in_0.offset(1);

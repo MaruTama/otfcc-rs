@@ -34,7 +34,6 @@ use otfcc_rust::logger::{LoggerType, ILogger};
 
 use otfcc_rust::support::options::{Options};
 
-use otfcc_rust::vendor::sds::{SdsRaw};
 use otfcc_rust::support::built_json::BuiltValue;
 use otfcc_rust::font::caryll_font::{Font, IFontBuilder, IFontSerializer};
 use otfcc_rust::font::caryll_sfnt::{SplineFontContainer};
@@ -84,7 +83,6 @@ use otfcc_rust::otf_reader::{otfcc_new_otf_reader};
 use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::support::built_json::json_serialize_ex;
-use otfcc_rust::vendor::sds::{sdsfree, sdsnew};
 
 
 
@@ -269,8 +267,10 @@ unsafe fn main_0(
     (*options).decimal_cmap = true;
     let mut option_index: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut c: ::core::ffi::c_int = 0;
-    let mut outputPath: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut inPath: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
+    let mut outputPath: Option<::std::ffi::CString> = None;
+    // Placeholder, unconditionally overwritten below before any real use
+    // (the only path that skips the assignment calls `exit()`).
+    let mut inPath: ::std::ffi::CString = ::std::ffi::CString::default();
     loop {
         c = getopt_long(
             argc,
@@ -391,7 +391,7 @@ unsafe fn main_0(
                 show_pretty = true;
             }
             111 => {
-                outputPath = sdsnew(optarg);
+                outputPath = Some(::std::ffi::CStr::from_ptr(optarg).to_owned());
             }
             113 => {
                 (*options).quiet = true;
@@ -438,7 +438,7 @@ unsafe fn main_0(
         printHelp();
         exit(EXIT_FAILURE);
     } else {
-        inPath = sdsnew(*argv.offset(optind as isize));
+        inPath = ::std::ffi::CStr::from_ptr(*argv.offset(optind as isize)).to_owned();
     }
     let mut begin: timespec = timespec {
         tv_sec: 0,
@@ -461,10 +461,10 @@ unsafe fn main_0(
             (*options).logger as *mut ILogger,
             LOG_VL_PROGRESS,
             LoggerType::Progress,
-            otfcc_rust::bytesbuild!(b"From file ", inPath),
+            otfcc_rust::bytesbuild!(b"From file ", inPath.as_bytes()),
         );
         let mut file: *mut FILE = fopen(
-            inPath as *const ::core::ffi::c_char,
+            inPath.as_ptr(),
             b"rb\0" as *const u8 as *const ::core::ffi::c_char,
         ) as *mut FILE;
         sfnt = otfcc_read_sfnt(file);
@@ -476,7 +476,7 @@ unsafe fn main_0(
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Cannot read SFNT file \"",
-                    inPath,
+                    inPath.as_bytes(),
                     b"\". Exit.\n",
                 ),
             );
@@ -492,7 +492,7 @@ unsafe fn main_0(
                 otfcc_rust::bytesbuild!(b"Subfont index ",
                     ttcindex,
                     b" out of range for \"",
-                    inPath,
+                    inPath.as_bytes(),
                     b"\" (0 -- ",
                     (*sfnt).count.wrapping_sub(1 as u32),
                     b"). Exit.\n",
@@ -536,7 +536,7 @@ unsafe fn main_0(
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Font structure broken or corrupted \"",
-                    inPath,
+                    inPath.as_bytes(),
                     b"\". Exit.\n",
                 ),
             );
@@ -601,7 +601,7 @@ unsafe fn main_0(
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Font structure broken or corrupted \"",
-                    inPath,
+                    inPath.as_bytes(),
                     b"\". Exit.\n",
                 ),
             );
@@ -639,7 +639,7 @@ unsafe fn main_0(
         jsonOptions.opts = 0 as ::core::ffi::c_int;
         jsonOptions.indent_size = 4 as ::core::ffi::c_int;
         if show_pretty as ::core::ffi::c_int != 0
-            || outputPath.is_null() && isatty(fileno(stdout)) != 0
+            || outputPath.is_none() && isatty(fileno(stdout)) != 0
         {
             jsonOptions.mode = JSON_SERIALIZE_MODE_MULTILINE;
         }
@@ -668,9 +668,9 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
-        if !outputPath.is_null() {
+        if let Some(ref output_path) = outputPath {
             let mut outputFile: *mut FILE = fopen(
-                outputPath as *const ::core::ffi::c_char,
+                output_path.as_ptr(),
                 b"wb\0" as *const u8 as *const ::core::ffi::c_char,
             ) as *mut FILE;
             if outputFile.is_null() {
@@ -681,7 +681,7 @@ unsafe fn main_0(
                     LOG_VL_CRITICAL,
                     LoggerType::Error,
                     otfcc_rust::bytesbuild!(b"Cannot write to file \"",
-                        outputPath,
+                        output_path.as_bytes(),
                         b"\". Exit.",
                     ),
                 );
@@ -739,12 +739,9 @@ unsafe fn main_0(
         if !root.is_null() {
             drop(Box::from_raw(root));
         }
-        if !inPath.is_null() {
-            sdsfree(inPath);
-        }
-        if !outputPath.is_null() {
-            sdsfree(outputPath);
-        }
+        // `inPath`/`outputPath` are `CString`/`Option<CString>` now --
+        // both drop on their own at the end of this function's scope, no
+        // explicit free needed.
         (*(*options).logger)
             .log_sds
             .expect("non-null function pointer")(

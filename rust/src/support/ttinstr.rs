@@ -6,13 +6,11 @@ use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_i
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 
 use crate::support::options::{Options};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType};
 
 use crate::support::ctype_compat::{c_isdigit, c_tolower};
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_string_new, json_string_new_length, preserialize};
-use crate::vendor::sds::{sdsfree, sdsnewlen};
 /// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
 /// their operands are part of the instruction stream rather than separate
 /// instructions. `u8`, since that is what `InstrData.instrs` holds.
@@ -912,11 +910,14 @@ pub unsafe extern "C" fn parse_ttinstr(
             }
             j = j.wrapping_add(1);
         }
-        let mut instr_string: SdsRaw = sdsnewlen(
-            ::core::ptr::null::<::core::ffi::c_void>(),
-            istrlen.wrapping_add(1 as usize),
-        );
-        let mut head: *mut ::core::ffi::c_char = instr_string as *mut ::core::ffi::c_char;
+        // Zero-filled, `istrlen + 1` bytes: the fill loop below writes
+        // exactly `istrlen` bytes, leaving the last one at its zero-
+        // initialized value as `parse_instrs`'s NUL terminator (it reads
+        // this buffer with `strlen`) -- same size and same guarantee
+        // `sdsnewlen(NULL, istrlen + 1)` gave, without needing `sds` at
+        // all.
+        let mut instr_string: Vec<u8> = vec![0u8; istrlen.wrapping_add(1 as usize)];
+        let mut head: *mut ::core::ffi::c_char = instr_string.as_mut_ptr() as *mut ::core::ffi::c_char;
         let mut j_0: u32 = 0 as u32;
         while j_0 < json_arr_len(col) {
             let mut record_0: *const ParsedValue = json_arr_at(col, j_0 as u32);
@@ -945,12 +946,11 @@ pub unsafe extern "C" fn parse_ttinstr(
         }
         let mut instr_length: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
         let mut instructions_0: *mut u8 = parse_instrs(
-            instr_string as *mut ::core::ffi::c_char,
+            instr_string.as_mut_ptr() as *mut ::core::ffi::c_char,
             &raw mut instr_length,
             context,
             wrong,
         );
-        sdsfree(instr_string);
         if !instructions_0.is_null() && instr_length != 0 {
             make.expect("non-null function pointer")(
                 context,
