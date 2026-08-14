@@ -28,7 +28,6 @@ use otfcc_rust::logger::{LoggerType, ILogger};
 use otfcc_rust::support::buffer::{Buffer};
 use otfcc_rust::support::options::{Options};
 
-use otfcc_rust::vendor::sds::{SdsRaw};
 use otfcc_rust::support::parsed_json::{ParsedValue};
 use otfcc_rust::font::caryll_font::{Font, IFontBuilder, IFontSerializer};
 use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
@@ -44,7 +43,6 @@ use otfcc_rust::support::buffer::{buffree, buflen};
 use otfcc_rust::support::options::{otfcc_options_optimize_to, otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::support::parsed_json::{json_parse, json_value_free};
-use otfcc_rust::vendor::sds::{sdsfree, sdsnew};
 
 
 
@@ -191,8 +189,8 @@ unsafe fn main_0(
     time_now(&raw mut begin);
     let mut show_help: bool = false;
     let mut show_version: bool = false;
-    let mut outputPath: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut inPath: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
+    let mut outputPath: Option<::std::ffi::CString> = None;
+    let mut inPath: Option<::std::ffi::CString> = None;
     let mut option_index: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut c: ::core::ffi::c_int = 0;
     let mut options: *mut Options = otfcc_new_options();
@@ -502,7 +500,7 @@ unsafe fn main_0(
                 (*options).ignore_glyph_order = true;
             }
             111 => {
-                outputPath = sdsnew(optarg);
+                outputPath = Some(::std::ffi::CStr::from_ptr(optarg).to_owned());
             }
             115 => {
                 (*options).dummy_dsig = true;
@@ -538,11 +536,11 @@ unsafe fn main_0(
         return 0 as ::core::ffi::c_int;
     }
     if optind >= argc {
-        inPath = ::core::ptr::null_mut::<::core::ffi::c_char>();
+        inPath = None;
     } else {
-        inPath = sdsnew(*argv.offset(optind as isize));
+        inPath = Some(::std::ffi::CStr::from_ptr(*argv.offset(optind as isize)).to_owned());
     }
-    if outputPath.is_null() {
+    if outputPath.is_none() {
         (*(*options).logger)
             .log_sds
             .expect("non-null function pointer")(
@@ -565,21 +563,28 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        if !inPath.is_null() {
+        if let Some(ref in_path) = inPath {
             (*(*options).logger)
                 .start_sds
                 .expect("non-null function pointer")(
                 (*options).logger as *mut ILogger,
-                otfcc_rust::bytesbuild!(b"Load from file ", inPath),
+                otfcc_rust::bytesbuild!(b"Load from file ", in_path.as_bytes()),
             );
             let mut ___loggedstep_v_0: bool = true;
             while ___loggedstep_v_0 {
                 readEntireFile(
-                    inPath as *mut ::core::ffi::c_char,
+                    in_path.as_ptr() as *mut ::core::ffi::c_char,
                     &raw mut buffer,
                     &raw mut length,
                 );
-                sdsfree(inPath);
+                // No longer freed here (was: `sdsfree(inPath)`) -- doing
+                // so used to leave a dangling pointer that the two later
+                // "Cannot parse JSON file" error messages below still
+                // read from (`bytesbuild!(..., inPath, ...)`), a genuine
+                // pre-existing use-after-free. `inPath` now just lives
+                // for the rest of the function and drops naturally at
+                // the end, which is exactly what those later reads
+                // needed all along.
                 ___loggedstep_v_0 = false;
                 (*(*options).logger)
                     .finish
@@ -645,7 +650,7 @@ unsafe fn main_0(
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Cannot parse JSON file \"",
-                    inPath,
+                    inPath.as_ref().map_or(::core::ptr::null(), |p| p.as_ptr()),
                     b"\". Exit.\n",
                 ),
             );
@@ -679,7 +684,7 @@ unsafe fn main_0(
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Cannot parse JSON file \"",
-                    inPath,
+                    inPath.as_ref().map_or(::core::ptr::null(), |p| p.as_ptr()),
                     b"\" as a font. Exit.\n",
                 ),
             );
@@ -742,8 +747,11 @@ unsafe fn main_0(
         );
         let mut ___loggedstep_v_6: bool = true;
         while ___loggedstep_v_6 {
+            // Always `Some` here -- the `outputPath.is_none()` branch
+            // above already exited.
+            let output_path = outputPath.as_ref().unwrap();
             let mut outfile: *mut FILE = fopen(
-                outputPath as *const ::core::ffi::c_char,
+                output_path.as_ptr(),
                 b"wb\0" as *const u8 as *const ::core::ffi::c_char,
             ) as *mut FILE;
             if outfile.is_null() {
@@ -754,7 +762,7 @@ unsafe fn main_0(
                     LOG_VL_CRITICAL,
                     LoggerType::Error,
                     otfcc_rust::bytesbuild!(b"Cannot write to file \"",
-                        outputPath,
+                        output_path.as_bytes(),
                         b"\". Exit.\n",
                     ),
                 );
@@ -785,7 +793,9 @@ unsafe fn main_0(
         buffree(otf);
         (*writer).free.expect("non-null function pointer")(writer as *mut IFontSerializer);
         OTFCC_I_FONT.free.expect("non-null function pointer")(font);
-        sdsfree(outputPath);
+        // `inPath`/`outputPath` are `Option<CString>` now -- both drop on
+        // their own at the end of this function's scope, no explicit
+        // free needed.
         ___loggedstep_v_5 = false;
         (*(*options).logger)
             .finish

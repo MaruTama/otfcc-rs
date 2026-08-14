@@ -13,7 +13,6 @@ use crate::support::stdio::{stderr};
 use crate::logger::{ILogger};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType};
 use crate::support::buffer::{Buffer};
 use crate::support::{TRUE_0};
@@ -23,11 +22,10 @@ use crate::table::fvar::{FvarTable};
 
 
 use crate::vf::vq::{VQ};
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_bool_val, json_boolof, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_obj_null_out_val_at, json_str_bytes, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_bool_val, json_boolof, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_obj_null_out_val_at, json_str_bytes, json_type_of};
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes, json_new_position, preserialize};
-use crate::vendor::sds::{sdsfree, sdslen, sdsnewlen};
 use crate::vf::vq::{I_VQ};
 
 #[derive(Clone)]
@@ -1239,13 +1237,8 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
             glyf_val.resize_with(num_glyphs as usize, || None);
             let mut j: GlyphId = 0 as GlyphId;
             while (j as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int {
-                let mut gname: SdsRaw = sdsnewlen(
-                    json_obj_key_at(table, j as u32) as *const ::core::ffi::c_void,
-                    json_obj_key_len_at(table, j as u32) as usize,
-                );
+                let name_bytes: Vec<u8> = json_obj_key_bytes_at(table, j as u32);
                 let mut glyphdump: *const ParsedValue = json_obj_val_at(table, j as u32);
-                let name_bytes =
-                    std::slice::from_raw_parts(gname as *const u8, sdslen(gname)).to_vec();
                 let mut order_entry: *mut GlyphOrderEntry = (*glyph_order)
                     .by_name
                     .get(&name_bytes)
@@ -1259,7 +1252,6 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
                         Some(otfcc_glyf_parse_glyph(glyphdump, order_entry, options));
                 }
                 json_obj_null_out_val_at(table as *mut ParsedValue, j as u32);
-                sdsfree(gname);
                 j = j.wrapping_add(1);
             }
             glyf = Some(glyf_val);

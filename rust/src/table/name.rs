@@ -1,13 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc};
-use crate::support::handle::{sds_to_vec};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_str_len, json_str_ptr, json_type_of};
 use crate::support::binio::{read_16u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
@@ -15,7 +13,6 @@ use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::{buffree, bufnew, bufseek, bufwrite16b, bufwrite_buf, bufwrite_bytes};
 use crate::support::unicodeconv::{utf16be_to_utf8, utf8toutf16be};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
-use crate::vendor::sds::{sdsfree, sdsnewlen};
 
 // `Copy` dropped (`name_string` is now `Vec<u8>`, the `sds` sweep's last
 // leaf field) -- `Clone` alone is enough, and nothing relied on
@@ -166,14 +163,12 @@ pub unsafe extern "C" fn otfcc_read_name(
                                         length_0 as usize,
                                     ).to_vec();
                                 } else if should_decode_as_utf16(&raw mut record) {
-                                    let name_string_0: SdsRaw = utf16be_to_utf8(
+                                    record.name_string = utf16be_to_utf8(
                                         data.offset(string_offset as isize)
                                             .offset(offset as ::core::ffi::c_int as isize)
                                             as *const u8,
                                         length_0 as ::core::ffi::c_int,
                                     );
-                                    record.name_string = sds_to_vec(name_string_0);
-                                    sdsfree(name_string_0);
                                 } else {
                                     let mut len: usize = 0 as usize;
                                     let mut buf: *mut u8 = base64_encode(
@@ -480,16 +475,7 @@ pub unsafe extern "C" fn otfcc_build_name(
         let mut cbefore: usize = (*strings).cursor;
         if should_decode_as_utf16(record) {
             let mut words: usize = 0;
-            // `utf8toutf16be` still takes an `SdsRaw` -- its internals walk
-            // raw pointers derived from `sdslen`, complex enough that
-            // widening it to `&[u8]` isn't worth the risk for its one call
-            // site, so a temporary `sds` copy is round-tripped here instead.
-            let tmp_name = sdsnewlen(
-                (*record).name_string.as_ptr() as *const ::core::ffi::c_void,
-                (*record).name_string.len(),
-            );
-            let mut u16: *mut u8 = utf8toutf16be(tmp_name, &raw mut words);
-            sdsfree(tmp_name);
+            let mut u16: *mut u8 = utf8toutf16be(&(*record).name_string, &raw mut words);
             bufwrite_bytes(strings, words, u16);
             free(u16 as *mut ::core::ffi::c_void);
             u16 = ::core::ptr::null_mut::<u8>();
