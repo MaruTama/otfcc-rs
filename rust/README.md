@@ -894,6 +894,69 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Twelfth unit of the `unsafe_op_in_unsafe_fn` burn-down: `CffFdSelect`
+  becomes a tagged Rust enum.** The natural follow-up to `CffCharset`:
+  `CffFdSelect` (`libcff/cff_fdselect.rs`) was the same `t`-discriminant-
+  plus-`c2rust_unnamed`-union shape, one raw-pointer array per format
+  (`f0`/`f3`) recording which font dict a CID font's glyphs draw their
+  Private DICT from.
+  - `CffFdSelect` is now `enum CffFdSelect { Unspecified, Format0(Vec<u8>),
+    Format3 { range3: Vec<CffFdSelectRangeFormat3>, sentinel: u16 } }`, no
+    `#[repr(C)]`. `s`/`nranges` are gone, replaced by `range3`'s own
+    `.len()` -- but `sentinel` (the one-past-the-last glyph index Format3's
+    final range extends to) stays as a named field, since unlike the
+    counts it's a genuine data value with no `Vec` to derive it from.
+  - `cff_extract_fd_select` returns by value instead of writing through an
+    out-param, and `cff_build_fd_select` takes `&CffFdSelect` rather than
+    by value, both for the same reasons as their `CffCharset` equivalents.
+    `cff_parse_subr` (`cff_parser.rs`) needed the same by-value-to-borrow
+    switch for a sharper reason than style: its two call sites in `table/
+    cff.rs`'s `build_outline` both read `(*f).fdselect` off a `CffFile`
+    that's shared across every glyph in the font, called once per glyph --
+    taking `CffFdSelect` by value would have moved it out on the *first*
+    glyph, leaving every subsequent glyph's lookup reading a moved-from
+    value. Passing `&(*f).fdselect` sidesteps the question entirely.
+    `cff_close_fd_select` is deleted, matching `cff_close_charset`.
+  - `table/cff.rs`'s builder (`cff_make_fdselect`) had the most interesting
+    wrinkle: its `.s` field served two roles across the same function --
+    first a live write cursor advanced through the glyph-scanning loop
+    (`(*fds).s = (*fds).s.wrapping_add(1)`, indexing into `range3` as it
+    went), then overwritten with the final range count right after. Since
+    neither role survives past this one function, both collapse into a
+    single sequential `Vec::push()` per format transition -- which also
+    let the function drop its separate first pass that pre-counted ranges
+    just to size the old `__caryll_allocate_clean` allocation, the same
+    "`Vec` absorbs the counting pass" simplification already used for
+    `Coverage`/`ClassDef`/`gpos_pair.rs`.
+  - **Known gap, called out explicitly rather than silently accepted**: no
+    CID-keyed CFF payload exists anywhere in this repo's test
+    infrastructure (`tests/payload/`, golden fixtures, or the synthetic-
+    payload scripts) -- so `CffFdSelect::Format3`, the only variant with
+    real internal structure, is never exercised by `compare-with-c.sh` or
+    any other verification script in this migration. `FDArrayTest257.otf`/
+    `FDArrayTest65535.otf` sit in `tests/payload/` unreferenced by any
+    script and were confirmed (before this PR's changes, against unmodified
+    `origin/master`) to already segfault identically to the pre-existing,
+    already-excluded `Cormorant-Medium.otf`/`WorkSans-Regular.otf` crashes
+    -- a separate, unrelated bug, not something this PR could have
+    introduced or fixed. Confidence in this conversion instead comes from
+    the diff itself: every arithmetic expression, byte offset, and div/mod
+    split in `cff_build_fd_select`'s Format3 branch and `cff_extract_fd_
+    select`'s Format3 parsing carried over unchanged, only the storage
+    mechanism (raw pointer offsetting -> `Vec` push/iterate/index) moved.
+    A CID test payload remains a real, open gap in this crate's
+    verification coverage -- worth fixing independently of any specific
+    union conversion, either by sourcing a small CID `.otf` or hand-
+    authoring a minimal CID JSON fixture for `otfccbuild`.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib; all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green; `compare-log-
+    output.sh` green. (`CffFdSelect::Format0` -- the non-CID-count path --
+    and the `Unspecified` variant are exercised by every non-CID payload
+    above; `Format3` is not, per the gap noted above.)
+
 - **Eleventh unit of the `unsafe_op_in_unsafe_fn` burn-down: `CffCharset`
   becomes a tagged Rust enum.** Investigating `table/cff.rs`'s remaining
   themes (the realloc-grown CharString interpreter stack) turned up a

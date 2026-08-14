@@ -14,13 +14,13 @@ use crate::support::primitives::{Arity};
 use crate::vendor::sds::Hex4;
 use crate::libcff::{CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, CffIOutlineBuilder, CffStack, OP_CHAR_STRINGS, OP_ENCODING, OP_FD_ARRAY, OP_FD_SELECT, OP_PRIVATE, OP_SUBRS, OP_ABS, OP_ADD, OP_AND, OP_CALLGSUBR, OP_CALLSUBR, OP_CHARSET, OP_CNTRMASK, OP_DIV, OP_DROP, OP_DUP, OP_EQ, OP_EXCH, OP_FLEX, OP_FLEX1, OP_GET, OP_HFLEX, OP_HFLEX1, OP_HMOVETO, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT, OP_RMOVETO, OP_ROLL, OP_SQRT, OP_SUB, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, TYPE2_TRANSIENT_ARRAY};
 use crate::libcff::cff_charset::CffCharset;
-use crate::libcff::cff_fdselect::{CffFdSelectType, CffFdSelect};
+use crate::libcff::cff_fdselect::{CffFdSelect};
 use crate::libcff::cff_index::CffIndex;
 use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
 use crate::libcff::cff_charset::{cff_extract_charset};
 use crate::libcff::cff_codecs::{cff_decode_cs2_token};
 use crate::libcff::cff_dict::{CFF_I_DICT};
-use crate::libcff::cff_fdselect::{cff_close_fd_select, cff_extract_fd_select};
+use crate::libcff::cff_fdselect::{cff_extract_fd_select};
 use crate::libcff::cff_index::{CFF_I_INDEX};
 
 /// The Top DICT's Encoding offset is overloaded by spec: values 0 and 1
@@ -273,14 +273,13 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         .c2rust_unnamed
         .i;
         if (*cff).char_strings.count != 0 && offset_0 != -(1 as i32) {
-            cff_extract_fd_select(
+            (*cff).fdselect = cff_extract_fd_select(
                 (*cff).raw_data,
                 offset_0,
                 (*cff).char_strings.count as u16,
-                &raw mut (*cff).fdselect,
             );
         } else {
-            (*cff).fdselect.t = CffFdSelectType::Unspecified;
+            (*cff).fdselect = CffFdSelect::Unspecified;
         }
         offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             (*cff).top_dict.data,
@@ -411,63 +410,51 @@ pub unsafe extern "C" fn cff_close(mut file: *mut CffFile) {
         // Drop glue) -- same pattern as `dispose_glyph_order`.
         (*file).encodings = CffEncoding::Unspecified;
         (*file).charsets = CffCharset::IsoAdobe;
-        cff_close_fd_select((*file).fdselect);
+        (*file).fdselect = CffFdSelect::Unspecified;
         free(file as *mut ::core::ffi::c_void);
         file = ::core::ptr::null_mut::<CffFile>();
     }
 }
-pub unsafe extern "C" fn cff_parse_subr(
-    mut idx: u16,
-    mut raw: *mut u8,
-    mut fdarray: CffIndex,
-    mut select: CffFdSelect,
-    mut subr: *mut CffIndex,
+// No longer `extern "C"`: `&CffFdSelect` has no C spelling. Only called
+// from within `table/cff.rs`, not part of the crate's public ABI -- same
+// reasoning as `parse_encoding`. Takes `&CffFdSelect` rather than by value
+// since its two callers both read `(*f).fdselect` from a shared `CffFile`
+// across repeated per-glyph calls -- moving it out on the first call would
+// leave it invalid for the rest.
+pub unsafe fn cff_parse_subr(
+    idx: u16,
+    raw: *mut u8,
+    fdarray: CffIndex,
+    select: &CffFdSelect,
+    subr: *mut CffIndex,
 ) -> u8 {
     let mut fd: u8 = 0 as u8;
     let mut off_private: i32 = 0;
     let mut len_private: i32 = 0;
     let mut off_subr: i32 = 0;
-    match select.t {
-        CffFdSelectType::Format0 => {
-            fd = *select.c2rust_unnamed.f0.fds.offset(idx as isize);
+    match select {
+        CffFdSelect::Format0(fds) => {
+            fd = fds[idx as usize];
         }
-        CffFdSelectType::Format3 => {
+        CffFdSelect::Format3 { range3, sentinel } => {
             let mut i: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-            while i < select.c2rust_unnamed.f3.nranges as ::core::ffi::c_int
-                - 1 as ::core::ffi::c_int
-            {
-                if idx as ::core::ffi::c_int
-                    >= (*select.c2rust_unnamed.f3.range3.offset(i as isize)).first
-                        as ::core::ffi::c_int
+            while i < range3.len() as ::core::ffi::c_int - 1 as ::core::ffi::c_int {
+                if idx as ::core::ffi::c_int >= range3[i as usize].first as ::core::ffi::c_int
                     && (idx as ::core::ffi::c_int)
-                        < (*select
-                            .c2rust_unnamed
-                            .f3
-                            .range3
-                            .offset((i + 1 as ::core::ffi::c_int) as isize))
-                        .first as ::core::ffi::c_int
+                        < range3[(i + 1 as ::core::ffi::c_int) as usize].first as ::core::ffi::c_int
                 {
-                    fd = (*select.c2rust_unnamed.f3.range3.offset(i as isize)).fd;
+                    fd = range3[i as usize].fd;
                 }
                 i += 1;
             }
             if idx as ::core::ffi::c_int
-                >= (*select.c2rust_unnamed.f3.range3.offset(
-                    (select.c2rust_unnamed.f3.nranges as ::core::ffi::c_int
-                        - 1 as ::core::ffi::c_int) as isize,
-                ))
-                .first as ::core::ffi::c_int
-                && (idx as ::core::ffi::c_int)
-                    < select.c2rust_unnamed.f3.sentinel as ::core::ffi::c_int
+                >= range3[range3.len() - 1 as usize].first as ::core::ffi::c_int
+                && (idx as ::core::ffi::c_int) < *sentinel as ::core::ffi::c_int
             {
-                fd = (*select.c2rust_unnamed.f3.range3.offset(
-                    (select.c2rust_unnamed.f3.nranges as ::core::ffi::c_int
-                        - 1 as ::core::ffi::c_int) as isize,
-                ))
-                .fd;
+                fd = range3[range3.len() - 1 as usize].fd;
             }
         }
-        CffFdSelectType::Unspecified => {
+        CffFdSelect::Unspecified => {
             fd = 0 as u8;
         }
     }
