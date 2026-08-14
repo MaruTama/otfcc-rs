@@ -13,11 +13,11 @@ use crate::support::options::{Options};
 use crate::support::primitives::{Arity};
 use crate::vendor::sds::Hex4;
 use crate::libcff::{CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, CffIOutlineBuilder, CffStack, OP_CHAR_STRINGS, OP_ENCODING, OP_FD_ARRAY, OP_FD_SELECT, OP_PRIVATE, OP_SUBRS, OP_ABS, OP_ADD, OP_AND, OP_CALLGSUBR, OP_CALLSUBR, OP_CHARSET, OP_CNTRMASK, OP_DIV, OP_DROP, OP_DUP, OP_EQ, OP_EXCH, OP_FLEX, OP_FLEX1, OP_GET, OP_HFLEX, OP_HFLEX1, OP_HMOVETO, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT, OP_RMOVETO, OP_ROLL, OP_SQRT, OP_SUB, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, TYPE2_TRANSIENT_ARRAY};
-use crate::libcff::cff_charset::CFF_CHARSET_UNSPECED;
+use crate::libcff::cff_charset::CffCharset;
 use crate::libcff::cff_fdselect::{CffFdSelectType, CffFdSelect};
 use crate::libcff::cff_index::CffIndex;
 use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
-use crate::libcff::cff_charset::{cff_close_charset, cff_extract_charset};
+use crate::libcff::cff_charset::{cff_extract_charset};
 use crate::libcff::cff_codecs::{cff_decode_cs2_token};
 use crate::libcff::cff_dict::{CFF_I_DICT};
 use crate::libcff::cff_fdselect::{cff_close_fd_select, cff_extract_fd_select};
@@ -247,14 +247,13 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         .c2rust_unnamed
         .i;
         if offset_0 != -(1 as i32) {
-            cff_extract_charset(
+            (*cff).charsets = cff_extract_charset(
                 (*cff).raw_data,
                 offset_0,
                 (*cff).char_strings.count as u16,
-                &raw mut (*cff).charsets,
             );
         } else {
-            (*cff).charsets.t = CFF_CHARSET_UNSPECED;
+            (*cff).charsets = CffCharset::IsoAdobe;
         }
         offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
             (*cff).top_dict.data,
@@ -411,7 +410,7 @@ pub unsafe extern "C" fn cff_close(mut file: *mut CffFile) {
         // struct itself is freed via a bare `free()` below (which does not run
         // Drop glue) -- same pattern as `dispose_glyph_order`.
         (*file).encodings = CffEncoding::Unspecified;
-        cff_close_charset((*file).charsets);
+        (*file).charsets = CffCharset::IsoAdobe;
         cff_close_fd_select((*file).fdselect);
         free(file as *mut ::core::ffi::c_void);
         file = ::core::ptr::null_mut::<CffFile>();

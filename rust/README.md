@@ -894,6 +894,68 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Eleventh unit of the `unsafe_op_in_unsafe_fn` burn-down: `CffCharset`
+  becomes a tagged Rust enum.** Investigating `table/cff.rs`'s remaining
+  themes (the realloc-grown CharString interpreter stack) turned up a
+  different, better-scoped candidate first: `CffCharset` (`libcff/cff_
+  charset.rs`) was a `t: CffCharsetType` discriminant plus a `c2rust_
+  unnamed: CffCharsetBody` union (`f0`/`f1`/`f2`, one raw-pointer array each
+  for the CFF Top DICT's three possible Charset representations -- a
+  glyph-SID-per-glyph table, or one of two range-based encodings) -- the
+  exact same shape `CffEncoding` had (PR #167), and the same fix applies
+  verbatim. (The interpreter stack itself was ruled out: it's a single
+  `CffStack` value in `table/cff.rs`, but the hundreds of `.stack.offset(j)`
+  sites that actually push/pop/index it live in `cff_parser.rs`'s ~2800-line
+  CharString VM -- far outside this burn-down's usual unit size, and left
+  for its own dedicated effort if ever attempted.)
+  - `CffCharset` is now `enum CffCharset { IsoAdobe, Expert, ExpertSubset,
+    Format0(Vec<u16>), Format1(Vec<CffCharsetRangeFormat1>),
+    Format2(Vec<CffCharsetRangeFormat2>) }`, no `#[repr(C)]` (same
+    reasoning as `CffEncoding`: never crosses the crate's four real FFI
+    symbols). `s` (the entry count) is gone, replaced by each `Vec`'s own
+    `.len()` -- write-only, like `CffEncoding`'s `format`/`ncodes`/etc.
+    `CffCharsetType`'s double duty (both the enum discriminant *and* the
+    three magic Top-DICT-offset sentinels 0/1/2 for the predefined
+    charsets) is split the same way `CffEncodingType` was: the discriminant
+    role disappears into the new enum, and the offset-sentinel role becomes
+    three named consts (`CFF_CHARSET_OFFSET_ISO_ADOBE`/`_EXPERT`/
+    `_EXPERT_SUBSET`), mirroring `CFF_STANDARD_ENCODING_OFFSET`/`CFF_EXPERT_
+    ENCODING_OFFSET`.
+  - `cff_extract_charset` returns `CffCharset` by value instead of writing
+    through a `*mut CffCharset` out-param (the usual "unwrap_X_table"
+    shape), and drops `extern "C"` for the same reason `parse_encoding` did
+    -- a data-carrying enum has no C spelling, and the function is only
+    ever called from within `cff_parser.rs`. `cff_build_charset` -- which
+    only ever reads the charset to serialize it, never mutates or frees
+    anything -- switches from taking `CffCharset` by value to `&CffCharset`,
+    sidestepping the question of moving a non-`Copy` value out of a raw
+    pointer deref entirely. `cff_close_charset` is deleted outright: once
+    disposal is just "drop the owned `Vec`", the two calling sites became a
+    plain reassignment (`(*file).charsets = CffCharset::IsoAdobe;` in
+    `cff_parser.rs`'s `cff_close`, matching the `CffEncoding`/`GlyphOrder`
+    "reset the field to run Drop glue before the struct's own bare `free()`"
+    pattern) or disappeared into the new by-value construction (`table/
+    cff.rs`'s `cff_make_charset`, the builder).
+  - `table/cff.rs`'s `name_glyphs_according_to_cff` -- the largest
+    consumption site, two symmetric six-arm matches (CID vs. non-CID glyph
+    naming) reading `.s`/`.c2rust_unnamed.fN...` through a `*mut CffCharset`
+    -- converts to matching `&*charset` directly, each arm binding the
+    variant's owned `Vec` by reference and iterating it instead of indexing
+    by hand.
+  - A test in `cff_charset.rs` pinning `CFF_CHARSET_UNSPECED` and
+    `CffCharsetType::IsoAdobe` as "the same state under two names" is
+    deleted along with both those items -- the premise (Rust can't give one
+    value two variant names) is exactly what the enum conversion resolves
+    directly, so there is nothing left to pin.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`, one fewer than before from the deleted now-moot
+    test) -- every standard payload byte-identical in both directions
+    including the `otfccdll` cdylib -- `KRName-Regular.otf`/`KRName-
+    Regular-O2.otf` exercise `CffCharset` directly on both the parse and
+    build sides; all 10 round-trip payloads stable; issue #1's large-lookup
+    regression test green; `compare-log-output.sh` green.
+
 - **Tenth unit of the `unsafe_op_in_unsafe_fn` burn-down: `table/cff.rs`'s
   `CffPrivateDict` hint arrays become `Vec<f64>`.** `table/cff.rs` was
   flagged in the original survey as too large and heterogeneous for a single
