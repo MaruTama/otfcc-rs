@@ -894,6 +894,39 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Third unit of the `unsafe_op_in_unsafe_fn` burn-down: `table/name.rs`'s
+  `malloc` site wasn't a conversion target at all -- it, and the two
+  functions upstream of it, turned out to be entirely dead code.**
+  Investigating `table_name_create` (`NameTable`'s outer create shell,
+  the next candidate after `gpos_pair.rs` per the original priority
+  survey) to plan its `Box` conversion found instead that its only
+  caller, `create_font_table`, is itself unreachable: grepping every read
+  of `FontElementInterface`'s fields across the crate found `.create`,
+  `.consolidate`, `.free`, and `.delete_table` all genuinely called, but
+  `.create_table` -- the field `create_font_table` is assigned to in
+  `OTFCC_I_FONT` -- never read anywhere. `table_otl_create` (`table/
+  otl.rs`) was `create_font_table`'s other callee and dead for the exact
+  same reason; a previous pass had already left a comment on it (in
+  Japanese, unusually for this file) noting the same finding without
+  acting on it. All three functions, `init_otl` (only called from
+  `table_otl_create`), and the `create_table` field itself (removed from
+  `FontElementInterface` and its one literal) are deleted rather than
+  converted -- there was nothing here to give a `Box`, since nothing
+  live was ever calling it in the first place.
+  - `table/name.rs`'s other three `free()` sites (`base64_encode`,
+    `utf8toutf16be`, `base64_decode`'s temporary buffers) are left as-is:
+    each is a genuinely single-owner, immediately-consumed scratch buffer
+    from a different file's C-shaped helper, with no aliasing and nothing
+    blocking a future conversion -- just out of scope for a `table/
+    name.rs`-focused PR, the same discipline as leaving `gpos_pair.rs`'s
+    `subtable_from_raw` coupling for its own later unit.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib; all 10 round-trip
+    payloads stable; issue #1's large-lookup regression test green;
+    `compare-log-output.sh` green.
+
 - **Second unit of the `unsafe_op_in_unsafe_fn` burn-down: `table/otl/
   subtables/gpos_pair.rs`'s two `qsort` scratch buffers become plain
   `Vec`s, same as `Coverage`/`ClassDef` -- but its outer subtable create/

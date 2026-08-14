@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc};
+use libc::{free};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_str_len, json_str_ptr, json_type_of};
 use crate::support::binio::{read_16u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
@@ -36,18 +36,12 @@ pub const COPYRIGHT_LEN: ::core::ffi::c_int = 32 as ::core::ffi::c_int;
 // `Vec<NameRecord>`'s own `Drop` already frees everything -- no per-element
 // dispose helper needed, unlike `SvgAssignment`/`table/svg.rs`.
 //
-// `table_name_create` stays (only `create_font_table`'s dead
-// `create_table` vtable slot still calls it; harmless to leave since it
-// never actually assigns into `Font.name`).
-pub(crate) unsafe fn table_name_create() -> *mut NameTable {
-    // `.write()`, not a field assignment: `NameTable` is directly `Vec<T>`
-    // (no wrapper struct), so this placement-constructs the whole value and
-    // never reads whatever `malloc` left behind -- same reasoning as
-    // `ColrTable`/`MaskList`'s `table_*_create`.
-    let x: *mut NameTable = malloc(::core::mem::size_of::<NameTable>() as usize) as *mut NameTable;
-    x.write(Vec::new());
-    x
-}
+// `table_name_create` (this file's only other `malloc` site) is deleted,
+// not converted: its sole caller was `create_font_table`'s `create_table`
+// vtable slot, and grepping every `FontElementInterface` field found
+// `.create_table` itself is never read anywhere in the crate --
+// `create_font_table` and its other callee `table_otl_create` are dead
+// for the same reason, deleted alongside it.
 unsafe extern "C" fn should_decode_as_utf16(mut record: *const NameRecord) -> bool {
     return (*record).platform_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         || (*record).platform_id as ::core::ffi::c_int == 2 as ::core::ffi::c_int
