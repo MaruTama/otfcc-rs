@@ -17,7 +17,7 @@ use crate::libcff::CffDictOperator;
 use crate::libcff::{CffFile, CffIOutlineBuilder, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES, OP_CID_COUNT, OP_CID_FONT_REVISION, OP_CID_FONT_VERSION, OP_CHAR_STRINGS, OP_COPYRIGHT, OP_EXPANSION_FACTOR, OP_FD_ARRAY, OP_FD_SELECT, OP_FAMILY_BLUES, OP_FAMILY_NAME, OP_FAMILY_OTHER_BLUES, OP_FONT_BBOX, OP_FONT_MATRIX, OP_FONT_NAME, OP_FORCE_BOLD, OP_FULL_NAME, OP_ITALIC_ANGLE, OP_LANGUAGE_GROUP, OP_NOTICE, OP_OTHER_BLUES, OP_PRIVATE, OP_ROS, OP_STD_HW, OP_STD_VW, OP_STEM_SNAP_H, OP_STEM_SNAP_V, OP_STROKE_WIDTH, OP_SUBRS, OP_UID_BASE, OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS, OP_WEIGHT, OP_CHARSET, OP_DEFAULT_WIDTH_X, OP_INITIAL_RANDOM_SEED, OP_IS_FIXED_PITCH, OP_NOMINAL_WIDTH_X, OP_VERSION};
 use crate::libcff::cff_charset::{CffCharset, CffCharsetRangeFormat2};
 use crate::libcff::cff_dict::{CffDict, CffDictEntry};
-use crate::libcff::cff_fdselect::{CffFdSelectType, CffFdSelect, CffFdSelectRangeFormat3};
+use crate::libcff::cff_fdselect::{CffFdSelect, CffFdSelectRangeFormat3};
 use crate::libcff::cff_index::{CffIndexCountType, CffIndex};
 use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
 use crate::libcff::charstring_il::{CffCharstringIl, CffCharstringInstruction};
@@ -34,7 +34,7 @@ use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_n
 use crate::libcff::cff_charset::{cff_build_charset};
 use crate::libcff::cff_codecs::{cff_encode_cff_operator};
 use crate::libcff::cff_dict::{CFF_I_DICT};
-use crate::libcff::cff_fdselect::{cff_build_fd_select, cff_close_fd_select};
+use crate::libcff::cff_fdselect::{cff_build_fd_select};
 use crate::libcff::cff_index::{CFF_I_INDEX};
 use crate::libcff::cff_parser::{cff_close, cff_open_stream, cff_parse_outline, cff_parse_subr};
 use crate::libcff::cff_string::{sdsget_cff_sid};
@@ -965,12 +965,12 @@ unsafe extern "C" fn build_outline(
         randx: 0 as u64,
     };
     let mut fd: u8 = 0 as u8;
-    if (*f).fdselect.t != CffFdSelectType::Unspecified {
+    if !matches!((*f).fdselect, CffFdSelect::Unspecified) {
         fd = cff_parse_subr(
             i as u16,
             (*f).raw_data,
             (*f).font_dict,
-            (*f).fdselect,
+            &(*f).fdselect,
             &raw mut local_subrs,
         );
     } else {
@@ -978,7 +978,7 @@ unsafe extern "C" fn build_outline(
             i as u16,
             (*f).raw_data,
             (*f).top_dict,
-            (*f).fdselect,
+            &(*f).fdselect,
             &raw mut local_subrs,
         );
     }
@@ -2431,32 +2431,26 @@ unsafe extern "C" fn cff_make_charset(
     let c: *mut Buffer = cff_build_charset(&charset);
     return c;
 }
+// The `range3` array's final length isn't pre-counted anymore -- a `Vec`
+// absorbs the counting pass, same as `Coverage`/`ClassDef`/`gpos_pair.rs`'s
+// own scratch-buffer conversions. `.s`'s old dual role (a running write
+// cursor through the loop, overwritten with the final range count right
+// after) collapses into a single sequential `.push()` per transition.
 unsafe extern "C" fn cff_make_fdselect(
     mut cff: *mut CffTable,
     mut glyf: *mut GlyfTable,
 ) -> *mut Buffer {
-    let mut fdi0: u8 = 0;
     if !(*cff).is_cid {
         return bufnew();
     }
-    let mut ranges: u32 = 1 as u32;
-    let mut current: u8 = 0 as u8;
-    let mut fds: *mut CffFdSelect = ::core::ptr::null_mut::<CffFdSelect>();
-    fds = __caryll_allocate_clean(
-        ::core::mem::size_of::<CffFdSelect>() as usize,
-        1171 as ::core::ffi::c_ulong,
-    ) as *mut CffFdSelect;
-    (*fds).t = CffFdSelectType::Unspecified;
-    if !((*glyf).is_empty()) {
-        fdi0 = (&(*glyf))[0 as usize]
-            .as_deref()
-            .unwrap()
-            .fd_select
-            .index as u8;
+    let fds: CffFdSelect = if !(*glyf).is_empty() {
+        let mut fdi0: u8 = (&(*glyf))[0 as usize].as_deref().unwrap().fd_select.index as u8;
         if fdi0 as usize > (*cff).fd_array.len() {
             fdi0 = 0 as u8;
         }
-        current = fdi0;
+        let mut current: u8 = fdi0;
+        let mut range3: Vec<CffFdSelectRangeFormat3> =
+            vec![CffFdSelectRangeFormat3 { first: 0 as u16, fd: current }];
         let mut j: GlyphId = 1 as GlyphId;
         while (j as usize) < (*glyf).len() {
             let mut fdi: u8 = (&(*glyf))[j as usize].as_deref().unwrap().fd_select.index as u8;
@@ -2465,56 +2459,15 @@ unsafe extern "C" fn cff_make_fdselect(
             }
             if fdi as ::core::ffi::c_int != current as ::core::ffi::c_int {
                 current = fdi;
-                ranges = ranges.wrapping_add(1);
+                range3.push(CffFdSelectRangeFormat3 { first: j as u16, fd: current });
             }
             j = j.wrapping_add(1);
         }
-        (*fds).c2rust_unnamed.f3.range3 = __caryll_allocate_clean(
-            (::core::mem::size_of::<CffFdSelectRangeFormat3>() as usize)
-                .wrapping_mul(ranges as usize),
-            1185 as ::core::ffi::c_ulong,
-        ) as *mut CffFdSelectRangeFormat3;
-        (*(*fds)
-            .c2rust_unnamed
-            .f3
-            .range3
-            .offset(0 as ::core::ffi::c_int as isize))
-        .first = 0 as u16;
-        current = fdi0;
-        (*(*fds)
-            .c2rust_unnamed
-            .f3
-            .range3
-            .offset(0 as ::core::ffi::c_int as isize))
-        .fd = current;
-        let mut j_0: GlyphId = 1 as GlyphId;
-        while (j_0 as usize) < (*glyf).len() {
-            let mut fdi_0: u8 =
-                (&(*glyf))[j_0 as usize].as_deref().unwrap().fd_select.index as u8;
-            if fdi_0 as usize > (*cff).fd_array.len() {
-                fdi_0 = 0 as u8;
-            }
-            if (&(*glyf))[j_0 as usize].as_deref().unwrap().fd_select.index as ::core::ffi::c_int
-                != current as ::core::ffi::c_int
-            {
-                current = fdi_0;
-                (*fds).s = (*fds).s.wrapping_add(1);
-                (*(*fds).c2rust_unnamed.f3.range3.offset((*fds).s as isize)).first =
-                    j_0 as u16;
-                (*(*fds).c2rust_unnamed.f3.range3.offset((*fds).s as isize)).fd = current;
-            }
-            j_0 = j_0.wrapping_add(1);
-        }
-        (*fds).t = CffFdSelectType::Format3;
-        (*fds).s = ranges;
-        (*fds).c2rust_unnamed.f3.format = 3 as u8;
-        (*fds).c2rust_unnamed.f3.nranges = ranges as u16;
-        (*fds).c2rust_unnamed.f3.sentinel = (*glyf).len() as u16;
-    }
-    let mut e: *mut Buffer = cff_build_fd_select(*fds);
-    cff_close_fd_select(*fds);
-    free(fds as *mut ::core::ffi::c_void);
-    fds = ::core::ptr::null_mut::<CffFdSelect>();
+        CffFdSelect::Format3 { range3, sentinel: (*glyf).len() as u16 }
+    } else {
+        CffFdSelect::Unspecified
+    };
+    let e: *mut Buffer = cff_build_fd_select(&fds);
     return e;
 }
 unsafe extern "C" fn callback_makefd(
