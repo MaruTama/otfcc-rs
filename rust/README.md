@@ -894,6 +894,91 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **First unit of the `unsafe_op_in_unsafe_fn` burn-down proper (Stage 6-4
+  continued): `Coverage`/`ClassDef`'s malloc/free shell becomes `Box::
+  into_raw`/`Box::from_raw`, and their `qsort` scratch buffers become
+  plain sorted `Vec`s.** With the `sds` sweep closed out, a survey of the
+  114 files still carrying `#![allow(unsafe_op_in_unsafe_fn)]` (of 141
+  total) found their `malloc`/`calloc`/`realloc`/`free` call sites --
+  205 in total, concentrated in `table/` and `libcff/` -- as the next
+  tractable seam: each site is a C-shaped manual allocation Rust's
+  ownership types can absorb. `table/otl/coverage.rs` and
+  `table/otl/classdef.rs` were picked as the first, smallest, safest unit
+  after a closer read of the top candidates: both already store their
+  actual payload as a `Vec` (`Coverage = Vec<GlyphHandle>`, `ClassDef.
+  {glyphs,classes}: Vec<_>`, both landed in earlier Stage 6-4 PRs) and the
+  remaining allocation sites are just the outer create/free shell around
+  that `Vec` plus a `qsort`-driven scratch buffer -- no aliasing, no
+  unions, no cross-file ownership transfer, unlike several other
+  candidates surveyed alongside them (see below).
+  - `otl_coverage_create`/`otl_class_def_create` switch from `malloc` +
+    placement `.write()` to `Box::into_raw(Box::new(...))`; `otl_coverage_
+    free`/`otl_class_def_free` switch from a `free()` call to `drop(Box::
+    from_raw(x))`. The pointer type callers see (`*mut Coverage`/`*mut
+    ClassDef`) is unchanged, so none of the ~20 files calling these
+    functions needed to change -- only how the memory behind the pointer
+    is obtained and released.
+  - `coverage_from_raw`/`classdef_from_raw` (the "unwrap_X_table" idiom
+    Stage 6-4 established for adopting a raw vtable-produced pointer into
+    an owned value) simplify to a single `Box::from_raw` each, since the
+    allocation being reclaimed already *is* a `Box` now -- no more
+    `ptr::read` the value out, `free` the shell, `Box::new` a fresh copy.
+    `table/tsi5.rs`'s `unwrap_class_def` (a second, independent
+    implementation of the same idiom, predating `classdef_from_raw`)
+    needed the identical fix: it used to `ptr::read` + a bare libc
+    `free()`, which must be updated in lockstep with `otl_class_def_
+    create`'s allocator -- freeing a `Box::into_raw` allocation with raw
+    `free()` instead of `Box::from_raw` is exactly the mismatched-
+    allocator hazard this whole conversion exists to close off, even
+    though the two happen to coincide in practice under the default
+    system allocator.
+  - `otl_coverage_dispose` and `otl_class_def_dispose` (plus classdef's
+    `dispose_class_def` helper) are deleted outright: both existed only
+    to empty the `Vec` fields before the shell was freed, which is now
+    redundant -- dropping the reclaimed `Box` drops its `Vec` fields on
+    the way to deallocating the shell, in one step, and grep confirmed
+    neither had any caller beyond its own file's `_free` function.
+  - The three `qsort` scratch-buffer sites (`build_coverage_format`'s
+    `r: *mut GlyphId`, `shrink_coverage`'s in-place sort of `Coverage`
+    itself, `build_class_def`'s `r: *mut ClassDefSortRecord`) become a
+    local `Vec` built with `.push()`/`.collect()` and sorted with `.sort_
+    by_key(...)` -- **stable**, not `sort_unstable_by_key`, a deliberately
+    conservative choice: `qsort` itself carries no stability guarantee,
+    and while none of the three sites appeared to depend on tie-breaking
+    order by inspection, a stable sort is the closest available match to
+    "whatever glibc's qsort actually did on the tested platforms" without
+    having to prove no payload can produce a tie. This also deletes the
+    `by_gid`/`by_handle_gid` C-ABI comparator functions `qsort` needed,
+    along with the `__caryll_allocate_clean`/`malloc`/`free`/`qsort`
+    imports both files no longer use.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- `unknown-lookup.ttf` in
+    particular exercises coverage/class-def tables heavily and confirmed
+    the stable-sort substitution reproduces the real qsort's output
+    exactly on every tested payload; all 10 round-trip payloads stable;
+    issue #1's large-lookup regression test green; `compare-log-output.sh`
+    green.
+  - **Surveyed but explicitly deferred, for later units of this same
+    burn-down**: `table/base.rs` (its `delete_base_axis` has a
+    *documented* pre-existing leak -- never frees `BaseAxis` itself, only
+    its `entries` -- that a straightforward `Box` conversion of the next
+    layer in would silently fix by construction, the same shape as the
+    `otfccbuild.rs` UAF fix above but not yet a decision this sweep made);
+    `table/glyf/read.rs` (`point_indeces` aliases a shared buffer by
+    default and only owns a private allocation, freed only on that one
+    branch, under a bitflag -- tractable once read closely, but a real
+    borrowed-vs-owned design choice, not a mechanical swap); `libcff/
+    cff_parser.rs` (`CffFile.encodings`' payload is a genuine C union
+    needing the same union-to-enum treatment the `Subtable` conversion
+    already proved out at scale, confined to one file and 58 sites --
+    likely tractable, just bigger); `libcff/subr.rs` (`CffSubrGraph` is a
+    manually refcounted circular doubly-linked list with a sentinel node
+    -- does not map onto `Box`/`Vec` at all, and likely needs either an
+    arena-plus-indices redesign or a deliberate decision to leave it
+    unsafe rather than force-fitting it into this burn-down's usual shape).
+
 - **The `sds` sweep's true finale: `table/otl/read.rs`'s 12 name-building
   sites and `table/cff.rs`'s last `_Subfont` site, closing out every real
   `sds`/`SdsRaw` call site in application code.** A post-merge grep after

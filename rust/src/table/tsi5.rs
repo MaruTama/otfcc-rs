@@ -26,17 +26,14 @@ pub type Tsi5Table = ClassDef;
 // `OTL_I_CLASS_DEF` package used throughout `otl`/`gdef` consolidation) --
 // widening `otl_class_def_create`/`OTL_I_CLASS_DEF.parse` themselves to
 // return `Box<ClassDef>` would ripple across all of those, well beyond this
-// field's own scope. Instead, `unwrap_class_def` "adopts" the malloc'd
-// value into a genuine `Box`: `ptr::read` moves the `ClassDef` value out
-// (its `Vec` fields' heap buffers are unaffected, only the 3-word
-// descriptors are copied, exactly what a normal Rust move does), then the
-// now-empty outer allocation is released with a bare `free` -- not
-// `otl_class_def_free`, which would incorrectly try to drop the `Vec`s a
-// second time.
+// field's own scope. Instead, `unwrap_class_def` "adopts" the value into a
+// genuine `Box`: since `otl_class_def_create` itself allocates via
+// `Box::into_raw` now, `Box::from_raw` reclaims that exact allocation
+// directly -- no read-then-free-then-reallocate needed (and reaching for
+// `free` here would be wrong regardless: it must match `Box::into_raw`, not
+// libc's allocator, even though the two happen to coincide today).
 unsafe fn unwrap_class_def(raw: *mut ClassDef) -> Box<ClassDef> {
-    let value = ::core::ptr::read(raw);
-    free(raw as *mut ::core::ffi::c_void);
-    Box::new(value)
+    Box::from_raw(raw)
 }
 pub unsafe extern "C" fn otfcc_read_tsi5(
     packet: Packet,

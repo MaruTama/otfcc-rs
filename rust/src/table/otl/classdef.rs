@@ -1,11 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, qsort};
-
 use crate::support::parsed_json::{ParsedValue, json_dbl_val, json_int_val, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphClass, GlyphId};
@@ -40,51 +37,44 @@ pub struct ClassDefSortRecord {
     pub gid: GlyphId,
     pub cid: GlyphClass,
 }
-unsafe extern "C" fn dispose_class_def(cd: *mut ClassDef) {
-    // Dropping the old `Vec`s (via assignment) runs each glyph's
-    // `Handle::drop`, freeing every name -- the explicit per-element
-    // `otfcc_handle_dispose` loop this replaced is now redundant, same
-    // finding as `Coverage`'s dispose.
-    (*cd).glyphs = Vec::new();
-    (*cd).classes = Vec::new();
-}
 pub(crate) unsafe extern "C" fn otl_class_def_free(mut x: *mut ClassDef) {
     if x.is_null() {
         return;
     }
-    otl_class_def_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
-}
-pub(crate) unsafe extern "C" fn otl_class_def_dispose(x: *mut ClassDef) {
-    dispose_class_def(x);
+    // Dropping the reclaimed `Box` drops `glyphs`/`classes` first (running
+    // each glyph's `Handle::drop`, freeing every name -- the explicit
+    // per-element `otfcc_handle_dispose` loop this used to need is
+    // redundant, same finding as `Coverage`'s dispose), then deallocates
+    // the shell.
+    drop(Box::from_raw(x));
 }
 pub(crate) unsafe extern "C" fn otl_class_def_create() -> *mut ClassDef {
-    // Whole-struct placement write, not a field assignment: nothing needs
-    // to be read or dropped first regardless of what `malloc` left behind
-    // (see `otl_coverage_create`/`ColrTable`).
-    let x: *mut ClassDef = malloc(::core::mem::size_of::<ClassDef>() as usize) as *mut ClassDef;
-    x.write(ClassDef {
+    // A real Rust allocation now, not a `malloc`'d shell: `Box::into_raw`
+    // gives back a pointer with the same shape (`*mut ClassDef`) every
+    // caller already expects, but it must from here on only ever be
+    // reclaimed with `Box::from_raw` (`otl_class_def_free`/
+    // `classdef_from_raw` below, and `tsi5.rs`'s `unwrap_class_def`),
+    // never a bare `free` -- mixing the two is exactly the hazard this
+    // conversion removes.
+    Box::into_raw(Box::new(ClassDef {
         maxclass: 0,
         glyphs: Vec::new(),
         classes: Vec::new(),
-    });
-    x
+    }))
 }
 /// Adopt a `otl_class_def_create()`/`read_class_def()`/vtable-`.parse()`-style
 /// raw `*mut ClassDef` into an owned `Option<Box<ClassDef>>` -- the same
 /// "unwrap_X_table" idiom as `coverage_from_raw`, but `Option`-wrapped since
 /// (unlike `Coverage`) `ClassDef`-producing calls can legitimately return
-/// null (`parse_class_def` on a non-object JSON value). `ptr::read` moves the
-/// struct (and its owned `Vec`s) out, `free` releases just the emptied
-/// malloc'd shell; the `Box` is a fresh Rust allocation holding the moved
-/// value, not the original malloc'd memory.
+/// null (`parse_class_def` on a non-object JSON value). `Box::from_raw`
+/// reclaims the exact allocation `otl_class_def_create` made -- no extra
+/// copy into a fresh `Box` needed now that the original allocation already
+/// is one.
 pub(crate) unsafe fn classdef_from_raw(raw: *mut ClassDef) -> Option<Box<ClassDef>> {
     if raw.is_null() {
         return None;
     }
-    let value = ::core::ptr::read(raw);
-    free(raw as *mut ::core::ffi::c_void);
-    Some(Box::new(value))
+    Some(Box::from_raw(raw))
 }
 // `Handle` (aliased `GlyphHandle`) now owns a `Vec<u8>` name, so passing it
 // by value trips `improper_ctypes_definitions`; this is never called across
@@ -264,13 +254,6 @@ pub(crate) unsafe extern "C" fn parse_class_def(mut _cd: *const ParsedValue) -> 
     }
     return cd;
 }
-unsafe extern "C" fn by_gid(
-    mut a: *const ::core::ffi::c_void,
-    mut b: *const ::core::ffi::c_void,
-) -> ::core::ffi::c_int {
-    return (*(a as *mut ClassDefSortRecord)).gid as ::core::ffi::c_int
-        - (*(b as *mut ClassDefSortRecord)).gid as ::core::ffi::c_int;
-}
 pub(crate) unsafe extern "C" fn build_class_def(mut cd: *const ClassDef) -> *mut Buffer {
     let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 2 as u16);
@@ -278,50 +261,37 @@ pub(crate) unsafe extern "C" fn build_class_def(mut cd: *const ClassDef) -> *mut
         bufwrite16b(buf, 0 as u16);
         return buf;
     }
-    let mut r: *mut ClassDefSortRecord = ::core::ptr::null_mut::<ClassDefSortRecord>();
-    r = __caryll_allocate_clean(
-        (::core::mem::size_of::<ClassDefSortRecord>() as usize).wrapping_mul((*cd).glyphs.len()),
-        167 as ::core::ffi::c_ulong,
-    ) as *mut ClassDefSortRecord;
-    let mut jj: GlyphId = 0 as GlyphId;
+    // A local `Vec` scratch buffer, not a `__caryll_allocate_clean`/`qsort`/
+    // `free` trio -- same simplification as `Coverage`'s `build_coverage_
+    // format`, `sort_by_key` (stable) reproducing `by_gid`'s ordering.
+    let mut r: Vec<ClassDefSortRecord> = Vec::new();
     for j in 0..(*cd).glyphs.len() {
         if (&(*cd).classes)[j] != 0 {
-            (*r.offset(jj as isize)).gid = (&(*cd).glyphs)[j].index;
-            (*r.offset(jj as isize)).cid = (&(*cd).classes)[j];
-            jj = jj.wrapping_add(1);
+            r.push(ClassDefSortRecord {
+                gid: (&(*cd).glyphs)[j].index,
+                cid: (&(*cd).classes)[j],
+            });
         }
     }
+    let jj: GlyphId = r.len() as GlyphId;
     if jj == 0 {
-        free(r as *mut ::core::ffi::c_void);
-        r = ::core::ptr::null_mut::<ClassDefSortRecord>();
         bufwrite16b(buf, 0 as u16);
         return buf;
     }
-    qsort(
-        r as *mut ::core::ffi::c_void,
-        jj as usize,
-        ::core::mem::size_of::<ClassDefSortRecord>() as usize,
-        Some(
-            by_gid
-                as unsafe extern "C" fn(
-                    *const ::core::ffi::c_void,
-                    *const ::core::ffi::c_void,
-                ) -> ::core::ffi::c_int,
-        ),
-    );
-    let mut start_gid: GlyphId = (*r.offset(0 as ::core::ffi::c_int as isize)).gid;
+    r.sort_by_key(|rec| rec.gid);
+    let mut start_gid: GlyphId = r[0].gid;
     let mut end_gid: GlyphId = start_gid;
-    let mut last_class: GlyphClass = (*r.offset(0 as ::core::ffi::c_int as isize)).cid;
+    let mut last_class: GlyphClass = r[0].cid;
     let mut n_ranges: GlyphId = 0 as GlyphId;
     let mut last_gid: GlyphId = start_gid;
     let mut ranges: *mut Buffer = bufnew();
     let mut j_0: GlyphId = 1 as GlyphId;
     while (j_0 as ::core::ffi::c_int) < jj as ::core::ffi::c_int {
-        let mut current: GlyphId = (*r.offset(j_0 as isize)).gid;
+        let mut current: GlyphId = r[j_0 as usize].gid;
         if !(current as ::core::ffi::c_int <= last_gid as ::core::ffi::c_int) {
             if current as ::core::ffi::c_int
                 == end_gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int
-                && (*r.offset(j_0 as isize)).cid as ::core::ffi::c_int
+                && r[j_0 as usize].cid as ::core::ffi::c_int
                     == last_class as ::core::ffi::c_int
             {
                 end_gid = current;
@@ -332,7 +302,7 @@ pub(crate) unsafe extern "C" fn build_class_def(mut cd: *const ClassDef) -> *mut
                 n_ranges = (n_ranges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
-                last_class = (*r.offset(j_0 as isize)).cid;
+                last_class = r[j_0 as usize].cid;
             }
             last_gid = current;
         }
@@ -344,8 +314,6 @@ pub(crate) unsafe extern "C" fn build_class_def(mut cd: *const ClassDef) -> *mut
     n_ranges = (n_ranges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
     bufwrite16b(buf, n_ranges as u16);
     bufwrite_bufdel(buf, ranges);
-    free(r as *mut ::core::ffi::c_void);
-    r = ::core::ptr::null_mut::<ClassDefSortRecord>();
     return buf;
 }
 pub(crate) unsafe extern "C" fn shrink_class_def(cd: *mut ClassDef) {
