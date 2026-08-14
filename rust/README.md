@@ -894,6 +894,60 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 6-2's seventh `sds` sub-theme: `table/post.rs`'s `pending_names`
+  array and `json_reader.rs`'s glyph-order construction, batched into one
+  PR.** Picked together per the weighted priority ranking (impact/future-
+  value/readability) worked out after the `cmap.rs` PR -- both scored just
+  behind `cmap.rs` and ahead of the remaining pockets (`unicodeconv.rs`,
+  `ttinstr.rs`, the `bin/` CLI paths), and neither shares any code with the
+  other, so batching them was purely a scheduling choice, not a dependency.
+  - **`table/post.rs`**: the format-2.0 `post` table parser's
+    `pending_names: [SdsRaw; 65536]` fixed stack array (pointer-sized *
+    65536 = 512KB, plus a `memset` call that turned out to be fully
+    redundant -- the Rust array literal `[null; 65536]` already
+    zero-initializes, so the C-derived `memset` right after it was
+    reinitializing already-zeroed memory) becomes a growable
+    `Vec<Vec<u8>>`. The trailing manual `sdsfree` cleanup loop is gone
+    entirely -- `Vec<Vec<u8>>` drops its own contents. Same shape as the
+    Logger vtable PR's `Logger.indents` conversion: a fixed-capacity
+    C-shaped array with hand-rolled bookkeeping becomes a plain growable
+    container with none.
+  - **`json_reader.rs`**: `set_order_by_name` and
+    `escalate_glyph_order_by_name` (the two functions every glyph-order
+    JSON source -- `glyf`, `cmap`, the explicit `glyph_order` array --
+    funnels through) retyped off `SdsRaw`. `set_order_by_name` takes owned
+    `Vec<u8>` (it conditionally stores the name), which **closes a
+    documented pre-existing leak by construction**: the duplicate-name
+    path used to leave the old `SdsRaw` `name` deliberately un-freed (the
+    code comment said as much, calling it a leak inherited from the C
+    original that "none of this function's callers free either") -- an
+    unused `Vec<u8>` just drops instead, no explicit fix needed.
+    `escalate_glyph_order_by_name` takes `&[u8]` instead, since it only
+    ever reads for a lookup and never stores -- there was no ownership to
+    plumb through in the first place, so borrowing is both simpler and
+    more honest than following `set_order_by_name`'s owned shape out of
+    misplaced consistency.
+  - `place_order_entries_from_glyf`'s two `strcmp(gname, ".notdef"/
+    ".null")` comparisons became plain `gname.as_slice() == b".notdef"`
+    slice equality once `gname` was a `Vec<u8>` -- no NUL-terminated
+    C-string detour needed at all.
+  - `place_order_entries_from_cmap` inlines the exact same U+XXXX-or-
+    decimal parse `table/cmap.rs`'s `parse_unicode` has (duplicated code,
+    not shared) -- given the identical shape, applied the identical fix:
+    borrow `json_obj_key_at`'s pointer directly instead of copying it into
+    an owned `sds` first (every JSON object key is already NUL-terminated
+    in `ParsedValue`'s own storage), so `strlen` sees the same length
+    `sdslen` used to on the copy, with no `sdsnewlen`+`sdsfree` pair
+    needed around the call any more.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib (every payload's `post`
+    table and JSON-driven glyph ordering exercise both halves of this PR
+    directly, no manual edge-case construction needed this time); all 10
+    round-trip payloads stable; issue #1's large-lookup regression test
+    green; `compare-log-output.sh` green.
+
 - **Stage 6-2's sixth `sds` sub-theme: `table/cmap.rs`'s remaining
   `SdsRaw` usage -- both the dump-side key building and the parse-side
   `parse_unicode`/`parse_uvs_key` pair -- is retyped away entirely,
