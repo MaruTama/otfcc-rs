@@ -894,6 +894,58 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Fourth unit of the `unsafe_op_in_unsafe_fn` burn-down: `GlyphOrder`'s
+  dual `by_gid`/`by_name` index is redesigned as an arena + `usize`
+  indices, replacing the individually-heap-allocated, raw-pointer-aliased
+  `GlyphOrderEntry`s the uthash port left behind.** `support/glyph_order.
+  rs` was next in the priority survey, flagged there as a genuine alias
+  (both maps held `*mut GlyphOrderEntry` pointing at the same
+  allocations, with `by_gid` informally treated as "the owner" for
+  disposal purposes). Reading it closely to plan the fix found the
+  aliasing was more than cosmetic: `json_reader.rs`'s `set_order_by_name`/
+  `order_glyphs` pair shows a JSON-driven glyph-order entry can exist in
+  `by_name` *alone* for a while, with a placeholder `gid`, before
+  `order_glyphs` sorts and inserts it into `by_gid` with a real one -- so
+  "`by_gid` always owns" (which the old disposal code, walking only
+  `by_gid`, implicitly assumed) isn't reliably true partway through that
+  process. An `Rc<RefCell<_>>` per entry would have worked but doesn't
+  fit any existing idiom in this crate; the chosen fix instead gives
+  `GlyphOrder` a third field, `entries: Vec<GlyphOrderEntry>`, as the
+  single real owner (a plain growing arena nothing is ever removed from),
+  with `by_gid`/`by_name` reduced to `BTreeMap<GlyphId, usize>`/
+  `HashMap<Vec<u8>, usize>` -- non-owning indices into it, valid for
+  `GlyphOrder`'s whole lifetime and immune to the dangling-pointer
+  failure mode raw aliasing had, since a plain `usize` can't outlive what
+  it doesn't own in the first place.
+  - The custom `Drop for GlyphOrder` impl is deleted outright: `entries`'
+    own `Vec` drop glue already frees every entry (and its `name: Vec<u8>`)
+    on the way down, so there's nothing left for a hand-written impl to
+    do. `dispose_glyph_order`'s manual `by_gid`-walk-and-`free()` loop
+    collapses to three plain field reassignments for the same reason.
+  - The raw-pointer leak reached three files beyond `glyph_order.rs`
+    itself: `json_reader.rs` (`set_order_by_name`/`order_glyphs`, the
+    transient by-name-only window described above), `table/post.rs`
+    (`build_post_2_0`'s name-table walk), and `table/glyf.rs`
+    (`otfcc_glyf_parse_glyph`'s lookup, read-only -- its `*mut
+    GlyphOrderEntry` parameter becomes `&GlyphOrderEntry`). Every site
+    already only ever read-and-cloned or freshly-inserted through an
+    entry, never held one across an unrelated mutation, so swapping "raw
+    pointer obtained from a map" for "index looked up, then indexed into
+    `entries`" changed no observable behavior at any of them.
+  - The outer `*mut GlyphOrder` shell itself (`otfcc_glyph_order_create`/
+    `.free`, and `Font.glyph_order`'s separate direct-`Box::new`
+    construction, already established before this PR) is untouched --
+    this PR is purely about what a `GlyphOrder` owns internally, not how
+    the struct itself is allocated.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- the `fj-*` payloads in
+    particular build their glyph order entirely from JSON, exercising
+    `set_order_by_name`/`order_glyphs`'s transient-entry window directly;
+    all 10 round-trip payloads stable; issue #1's large-lookup regression
+    test green; `compare-log-output.sh` green.
+
 - **Third unit of the `unsafe_op_in_unsafe_fn` burn-down: `table/name.rs`'s
   `malloc` site wasn't a conversion target at all -- it, and the two
   functions upstream of it, turned out to be entirely dead code.**

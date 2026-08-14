@@ -608,15 +608,17 @@ pub unsafe extern "C" fn otfcc_build_post(
         // (unspecified) iteration order the way a literal `by_name` walk
         // would have to.
         bufwrite16b(buf, (*glyphorder).by_gid.len() as u16);
-        for (_, &s) in (*glyphorder).by_gid.iter() {
+        for (_, &idx) in (*glyphorder).by_gid.iter() {
+            let entry = &(&(*glyphorder).entries)[idx];
             bufwrite16b(
                 buf,
-                (258 as ::core::ffi::c_int + (*s).gid as ::core::ffi::c_int) as u16,
+                (258 as ::core::ffi::c_int + entry.gid as ::core::ffi::c_int) as u16,
             );
         }
-        for (_, &s) in (*glyphorder).by_gid.iter() {
-            bufwrite8(buf, (*s).name.len() as u8);
-            bufwrite_bytes(buf, (*s).name.len(), (*s).name.as_ptr());
+        for (_, &idx) in (*glyphorder).by_gid.iter() {
+            let entry = &(&(*glyphorder).entries)[idx];
+            bufwrite8(buf, entry.name.len() as u8);
+            bufwrite_bytes(buf, entry.name.len(), entry.name.as_ptr());
         }
     }
     return buf;

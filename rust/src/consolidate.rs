@@ -1383,6 +1383,7 @@ pub unsafe extern "C" fn otfcc_consolidate_font(
         // here down), matching the `GaspTable`/`CmapTable` "accumulator is
         // `Option<Box<X>>`/`Box<X>` from the start" idiom.
         let mut go_box: Box<GlyphOrder> = Box::new(GlyphOrder {
+            entries: Vec::new(),
             by_gid: ::std::collections::BTreeMap::new(),
             by_name: ::std::collections::HashMap::new(),
         });

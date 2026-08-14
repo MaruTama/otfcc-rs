@@ -88,35 +88,37 @@ unsafe extern "C" fn set_order_by_name(
     mut order_type: GlyphOrderPass,
     mut order_entry: u32,
 ) {
-    match (*go).by_name.get(&name) {
+    match (*go).by_name.get(&name).copied() {
         None => {
-            let mut s: *mut GlyphOrderEntry = __caryll_allocate_clean(
-                ::core::mem::size_of::<GlyphOrderEntry>() as usize,
-                21 as ::core::ffi::c_ulong,
-            ) as *mut GlyphOrderEntry;
-            (*s).gid = -(1 as ::core::ffi::c_int) as GlyphId;
-            (*s).name = name.clone();
-            (*s).order_type = order_type;
-            (*s).order_entry = order_entry;
-            (*go).by_name.insert(name, s);
+            (*go).entries.push(GlyphOrderEntry {
+                gid: -(1 as ::core::ffi::c_int) as GlyphId,
+                name: name.clone(),
+                order_type,
+                order_entry,
+            });
+            let idx = (*go).entries.len() - 1;
+            (*go).by_name.insert(name, idx);
         }
-        Some(&s) => {
-            if (*s).order_type > order_type {
-                (*s).order_type = order_type;
-                (*s).order_entry = order_entry;
+        Some(idx) => {
+            let entry = &mut (&mut (*go).entries)[idx];
+            if entry.order_type > order_type {
+                entry.order_type = order_type;
+                entry.order_entry = order_entry;
             }
         }
     }
 }
 unsafe extern "C" fn order_glyphs(mut go: *mut GlyphOrder) {
-    let mut entries: Vec<*mut GlyphOrderEntry> = (*go).by_name.values().copied().collect();
-    entries.sort_by(|&a, &b| {
-        ((*a).order_type, (*a).order_entry).cmp(&((*b).order_type, (*b).order_entry))
+    let mut idxs: Vec<usize> = (*go).by_name.values().copied().collect();
+    idxs.sort_by(|&a, &b| {
+        let ea = &(&(*go).entries)[a];
+        let eb = &(&(*go).entries)[b];
+        (ea.order_type, ea.order_entry).cmp(&(eb.order_type, eb.order_entry))
     });
     let mut gid: GlyphId = 0 as GlyphId;
-    for &current in entries.iter() {
-        (*current).gid = gid;
-        (*go).by_gid.insert(gid, current);
+    for &idx in idxs.iter() {
+        (&mut (*go).entries)[idx].gid = gid;
+        (*go).by_gid.insert(gid, idx);
         gid = (gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
     }
 }
@@ -133,10 +135,11 @@ unsafe extern "C" fn escalate_glyph_order_by_name(
     mut order_type: GlyphOrderPass,
     mut order_entry: u32,
 ) {
-    if let Some(&s) = (*go).by_name.get(name) {
-        if (*s).order_type > order_type {
-            (*s).order_type = order_type;
-            (*s).order_entry = order_entry;
+    if let Some(&idx) = (*go).by_name.get(name) {
+        let entry = &mut (&mut (*go).entries)[idx];
+        if entry.order_type > order_type {
+            entry.order_type = order_type;
+            entry.order_entry = order_entry;
         }
     }
 }
@@ -246,6 +249,7 @@ unsafe extern "C" fn parse_glyph_order(
     // alias into `go_box` for the rest of this function (unchanged from
     // here down).
     let mut go_box: Box<GlyphOrder> = Box::new(GlyphOrder {
+        entries: Vec::new(),
         by_gid: ::std::collections::BTreeMap::new(),
         by_name: ::std::collections::HashMap::new(),
     });

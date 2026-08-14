@@ -312,11 +312,12 @@ unsafe extern "C" fn create_glyph_order(
         && !(*options).ignore_glyph_order
         && !(*options).name_glyphs_by_gid
     {
-        for (_, &s) in (*post_name_map).by_gid.iter() {
-            let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &(*s).name);
+        for (_, &idx) in (*post_name_map).by_gid.iter() {
+            let entry = &(&(*post_name_map).entries)[idx];
+            let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &entry.name);
             OTFCC_PKG_GLYPH_ORDER
                 .set_by_gid
-                .expect("non-null function pointer")(glyph_order, (*s).gid, gname_1);
+                .expect("non-null function pointer")(glyph_order, entry.gid, gname_1);
         }
     }
     if (*font).cmap.is_some() && !(*options).name_glyphs_by_gid {
