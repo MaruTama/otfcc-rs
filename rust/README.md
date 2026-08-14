@@ -894,6 +894,53 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Second unit of the `unsafe_op_in_unsafe_fn` burn-down: `table/otl/
+  subtables/gpos_pair.rs`'s two `qsort` scratch buffers become plain
+  `Vec`s, same as `Coverage`/`ClassDef` -- but its outer subtable create/
+  free shell is deliberately left untouched this time.** Picked as the
+  natural follow-up to the `Coverage`/`ClassDef` PR since it directly
+  consumes both of their raw-pointer APIs, but reading it closely
+  surfaced a coupling the initial survey hadn't caught: unlike `Coverage`/
+  `ClassDef`, `GposPairSubtable`'s create/free (`subtable_gpos_pair_
+  create`/`subtable_gpos_pair_free`) isn't the only thing that ever
+  reclaims that allocation -- every read/parse entry point across all 11
+  `Subtable` variants also routes its freshly-`_create()`d value through
+  one shared, generic `subtable_from_raw::<T>` (`table/otl.rs`), which
+  does its own `ptr::read` + a bare `free()` before rewrapping the value
+  into the `Subtable` enum. Converting `subtable_gpos_pair_create`/`_free`
+  alone to `Box::into_raw`/`Box::from_raw` (the `Coverage`/`ClassDef`
+  pattern) would leave `subtable_from_raw`'s `free()` call freeing a
+  `Box`-allocated pointer for this one variant only -- the exact
+  mismatched-allocator hazard that whole conversion exists to close off,
+  and not one this PR can fix in isolation without touching `subtable_
+  from_raw` and, in turn, the other ten variants' own `_create()`
+  functions (all of which still allocate via plain `malloc`) in the same
+  change. Left for a later, appropriately-scoped unit -- this PR only
+  converts what's genuinely self-contained.
+  - `otfcc_build_gpos_pair_individual`'s `pair_counts: *mut GlyphId`
+    (`__caryll_allocate_clean`-zeroed, incremented, read, freed once)
+    becomes `vec![0; ...]`. Its `pairs: *mut IndividualGposPair` (freshly
+    allocated *inside* the per-coverage-glyph loop, filled, `qsort`'d,
+    read, freed every iteration before the next one reallocates) becomes
+    a `Vec` built with `.push()` and `.sort_by_key(...)` -- **stable**,
+    the same deliberately conservative choice as the `Coverage`/
+    `ClassDef` PR, since `qsort` itself carries no stability guarantee.
+    No pre-sizing needed for `pairs`: the same predicate the counting
+    pass used decides what gets pushed, so the `Vec` always ends up
+    exactly `current_pair_count` entries long by construction, the same
+    property that let `pair_counts` size it precisely before. Deletes the
+    `by_pair_second_glyph` C-ABI comparator `qsort` needed, along with
+    the now-unused `qsort`/`__caryll_allocate_clean` imports.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- `unknown-lookup.ttf`
+    (4 GPOS lookups forced to format 10) in particular exercises pair
+    positioning directly and confirmed the stable-sort substitution
+    matches the real `qsort`'s output; all 10 round-trip payloads stable;
+    issue #1's large-lookup regression test green; `compare-log-output.sh`
+    green.
+
 - **First unit of the `unsafe_op_in_unsafe_fn` burn-down proper (Stage 6-4
   continued): `Coverage`/`ClassDef`'s malloc/free shell becomes `Box::
   into_raw`/`Box::from_raw`, and their `qsort` scratch buffers become
