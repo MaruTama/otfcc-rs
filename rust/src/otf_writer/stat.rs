@@ -417,14 +417,12 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
         }
         count_k = (*glyf).len().wrapping_sub(count_a as usize) as GlyphId;
     }
-    let metrics = __caryll_allocate_clean(
-        (::core::mem::size_of::<HorizontalMetric>() as usize).wrapping_mul(count_a as usize),
-        175 as ::core::ffi::c_ulong,
-    ) as *mut HorizontalMetric;
-    let left_side_bearing = __caryll_allocate_clean(
-        (::core::mem::size_of::<Pos>() as usize).wrapping_mul(count_k as usize),
-        176 as ::core::ffi::c_ulong,
-    ) as *mut Pos;
+    // Both arrays fill sequentially within the one loop below (`j < count_a`
+    // covers `metrics`, the rest covers `left_side_bearing` in order), so a
+    // `Vec` + `.push()` per branch reproduces the same content in the same
+    // order as the old pre-sized, index-written arrays.
+    let mut metrics: Vec<HorizontalMetric> = Vec::with_capacity(count_a as usize);
+    let mut left_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
     let mut min_lsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
     let mut min_rsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
     let mut max_extent: Pos = -(0x8000 as ::core::ffi::c_int) as Pos;
@@ -448,11 +446,9 @@ unsafe extern "C" fn stat_hmtx(mut font: *mut Font, mut _options: *const Options
         let lsb: Pos = (*g).stat.x_min - hori;
         let rsb: Pos = advw + hori - (*g).stat.x_max;
         if (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-            (*metrics.offset(j as isize)).advance_width = advw as Length;
-            (*metrics.offset(j as isize)).lsb = lsb;
+            metrics.push(HorizontalMetric { advance_width: advw as Length, lsb });
         } else {
-            *left_side_bearing
-                .offset((j as ::core::ffi::c_int - count_a as ::core::ffi::c_int) as isize) = lsb;
+            left_side_bearing.push(lsb);
         }
         if advw > max_width {
             max_width = advw as Length;
@@ -504,14 +500,10 @@ unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options)
         }
         count_k = (*glyf).len().wrapping_sub(count_a as usize) as GlyphId;
     }
-    let metrics = __caryll_allocate_clean(
-        (::core::mem::size_of::<VerticalMetric>() as usize).wrapping_mul(count_a as usize),
-        230 as ::core::ffi::c_ulong,
-    ) as *mut VerticalMetric;
-    let top_side_bearing = __caryll_allocate_clean(
-        (::core::mem::size_of::<Pos>() as usize).wrapping_mul(count_k as usize),
-        231 as ::core::ffi::c_ulong,
-    ) as *mut Pos;
+    // Same "Vec absorbs both sequential halves of the loop" shape as
+    // `stat_hmtx`'s `metrics`/`left_side_bearing`.
+    let mut metrics: Vec<VerticalMetric> = Vec::with_capacity(count_a as usize);
+    let mut top_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
     let mut min_tsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
     let mut min_bsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
     let mut max_extent: Pos = -(0x8000 as ::core::ffi::c_int) as Pos;
@@ -525,11 +517,9 @@ unsafe extern "C" fn stat_vmtx(mut font: *mut Font, mut options: *const Options)
         let tsb: Pos = vori - (*g).stat.y_max;
         let bsb: Pos = (*g).stat.y_min - vori + advh;
         if (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-            (*metrics.offset(j as isize)).advance_height = advh as Length;
-            (*metrics.offset(j as isize)).tsb = tsb;
+            metrics.push(VerticalMetric { advance_height: advh as Length, tsb });
         } else {
-            *top_side_bearing
-                .offset((j as ::core::ffi::c_int - count_a as ::core::ffi::c_int) as isize) = tsb;
+            top_side_bearing.push(tsb);
         }
         if advh > max_height {
             max_height = advh as Length;

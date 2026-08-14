@@ -528,20 +528,16 @@ unsafe extern "C" fn merge_hmtx(font: *mut Font) {
     let hmtx = (*font).hmtx.take().unwrap();
     for j in 0..(*glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
-        let adw: Pos = (*hmtx.metrics.offset(
-            (if (j as u32) < count_a {
-                j as u32
-            } else {
-                count_a.wrapping_sub(1 as u32)
-            }) as isize,
-        ))
-        .advance_width as Pos;
-        let lsb: Pos = if (j as u32) < count_a {
-            (*hmtx.metrics.offset(j as isize)).lsb
+        let adw: Pos = hmtx.metrics[(if (j as u32) < count_a {
+            j as u32
         } else {
-            *hmtx
-                .left_side_bearing
-                .offset((j as u32).wrapping_sub(count_a) as isize)
+            count_a.wrapping_sub(1 as u32)
+        }) as usize]
+            .advance_width as Pos;
+        let lsb: Pos = if (j as u32) < count_a {
+            hmtx.metrics[j as usize].lsb
+        } else {
+            hmtx.left_side_bearing[(j as u32).wrapping_sub(count_a) as usize]
         };
         I_VQ.inplace_plus.expect("non-null function pointer")(
             &raw mut (*g).advance_width,
@@ -578,20 +574,16 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
     }
     for j_1 in 0..(*glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*glyf))[j_1 as usize].as_mut().unwrap();
-        let adh: Pos = (*vmtx.metrics.offset(
-            (if (j_1 as u32) < count_a {
-                j_1 as u32
-            } else {
-                count_a.wrapping_sub(1 as u32)
-            }) as isize,
-        ))
-        .advance_height as Pos;
-        let tsb: Pos = if (j_1 as u32) < count_a {
-            (*vmtx.metrics.offset(j_1 as isize)).tsb
+        let adh: Pos = vmtx.metrics[(if (j_1 as u32) < count_a {
+            j_1 as u32
         } else {
-            *vmtx
-                .top_side_bearing
-                .offset((j_1 as u32).wrapping_sub(count_a) as isize)
+            count_a.wrapping_sub(1 as u32)
+        }) as usize]
+            .advance_height as Pos;
+        let tsb: Pos = if (j_1 as u32) < count_a {
+            vmtx.metrics[j_1 as usize].tsb
+        } else {
+            vmtx.top_side_bearing[(j_1 as u32).wrapping_sub(count_a) as usize]
         };
         I_VQ.inplace_plus.expect("non-null function pointer")(
             &raw mut (*g).advance_height,

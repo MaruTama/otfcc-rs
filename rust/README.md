@@ -894,6 +894,55 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Fourteenth unit of the `unsafe_op_in_unsafe_fn` burn-down: `HmtxTable`/
+  `VmtxTable`'s inner arrays become `Vec`s.** The cross-file theme the
+  thirteenth unit (`otf_writer/stat.rs`'s local scratch buffers)
+  deliberately left out: `HmtxTable.metrics`/`.left_side_bearing` and
+  `VmtxTable.metrics`/`.top_side_bearing` were the last raw-pointer arrays
+  standing after Stage 6-4's Box化 already wrapped both tables themselves
+  in `Option<Box<>>`. Investigating turned out smaller than expected --
+  neither table ever appears in JSON dump/parse (glyph-level metrics live
+  on `Glyph.advance_width`/`.horizontal_origin` etc. instead; `HmtxTable`/
+  `VmtxTable` exist purely as `hmtx`/`vmtx`-binary-serialization
+  intermediates), so the whole theme closed in three files: `table/
+  hmtx.rs`, `table/vmtx.rs`, and their two touch points elsewhere in the
+  crate.
+  - Both structs drop their custom `Drop` impl entirely -- `Vec`'s own
+    drop glue now reaches both arrays, the same simplification `CffTable`
+    itself reached at the end of Stage 6-4's Box化.
+  - `otfcc_read_hmtx`/`otfcc_read_vmtx` (parse) build both `Vec`s directly
+    with `.push()` instead of `__caryll_allocate_clean` + indexed writes.
+    `otfcc_build_hmtx`/`otfcc_build_vmtx` (binary write) switch from
+    `.offset(j)` to `metrics[j]`/`left_side_bearing[j]` indexing --
+    confirmed safe by tracing `count_a`/`count_k` back through both the
+    read-then-build and stat-then-build pipelines: both always match each
+    `Vec`'s own length exactly, since every one of the three sites
+    (`stat_hmtx`/`stat_vmtx`, `otfcc_read_hmtx`/`otfcc_read_vmtx`, and the
+    caller in `otf_writer.rs` that recomputes `count_a`/`count_k` before
+    calling `otfcc_build_hmtx`/`otfcc_build_vmtx`) derives them the same
+    way, from `hhea.number_of_metrics`/`vhea.num_of_long_ver_metrics` and
+    `maxp.num_glyphs`.
+  - `otf_writer/stat.rs`'s `stat_hmtx`/`stat_vmtx` (construction) fill
+    *both* `Vec`s from the same single loop over every glyph -- glyphs
+    before the split point push onto `metrics`, glyphs after it push onto
+    `left_side_bearing`/`top_side_bearing` -- so the pre-sized, index-
+    written arrays become two plain `Vec`s built with conditional
+    `.push()`, no pre-sizing needed.
+  - `otf_reader/unconsolidate.rs`'s `merge_hmtx`/`merge_vmtx` -- found only
+    by the compiler, not by the initial grep survey (they reach the fields
+    through `(*font).hmtx.take().unwrap()`'s inferred type rather than
+    spelling `HmtxTable` anywhere in the file) -- switch their `.offset(j)`
+    reads to the same `metrics[j]` indexing.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- every payload with a
+    `glyf` table exercises `otfcc_read_hmtx`/`otfcc_read_vmtx`,
+    `merge_hmtx`/`merge_vmtx`, `stat_hmtx`/`stat_vmtx`, and `otfcc_build_
+    hmtx`/`otfcc_build_vmtx` on both the dump and build paths; all 10
+    round-trip payloads stable; issue #1's large-lookup regression test
+    green; `compare-log-output.sh` green.
+
 - **Thirteenth unit of the `unsafe_op_in_unsafe_fn` burn-down: `otf_writer/
   stat.rs`'s local scratch buffers become `Vec`s.** `stat.rs` (the pass
   that computes derived font statistics -- bounding boxes, metrics,
