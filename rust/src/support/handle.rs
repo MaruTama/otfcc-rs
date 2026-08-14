@@ -7,8 +7,6 @@
 // `GsubLigatureSubtable` elsewhere in the crate.
 #![allow(improper_ctypes_definitions)]
 use crate::support::primitives::{GlyphId};
-use crate::vendor::sds::{SdsRaw};
-use crate::vendor::sds::{sdsfree, sdslen};
 
 /// Which of `Handle`'s fields is meaningful.
 ///
@@ -95,22 +93,6 @@ pub(crate) unsafe extern "C" fn handle_from_index(mut id: GlyphId) -> Handle {
         name: Vec::new(),
     };
     return h;
-}
-pub(crate) unsafe fn sds_to_vec(s: SdsRaw) -> Vec<u8> {
-    ::core::slice::from_raw_parts(s as *const u8, sdslen(s)).to_vec()
-}
-/// Like `sds_to_vec`, but takes ownership of (and frees) `s`, treating a
-/// null `s` as an empty `Vec` -- for call sites like `json_obj_getsds`
-/// (returns null when the JSON key is absent) that used to store the raw
-/// `SdsRaw` (possibly null) directly into a now-`Vec<u8>` field.
-pub(crate) unsafe fn sds_into_vec(s: SdsRaw) -> Vec<u8> {
-    if s.is_null() {
-        Vec::new()
-    } else {
-        let v = sds_to_vec(s);
-        sdsfree(s);
-        v
-    }
 }
 /// Compares a `Handle.name`-shaped `Vec<u8>` against a null-terminated
 /// `sds`/C string the way `strcmp(a.name, b.name) == 0` used to, before
