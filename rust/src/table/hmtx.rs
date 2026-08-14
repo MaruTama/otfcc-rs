@@ -1,8 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
-
-
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -19,29 +15,18 @@ pub struct HorizontalMetric {
     pub advance_width: Length,
     pub lsb: Pos,
 }
-// Stage 6-4 "Box化": both fields this struct owns are raw arrays, same
-// shape as `LtshTable`/`VorgTable`. The entire vtable is deleted:
-// grepping confirmed only `.free` was ever called from outside this
-// file (from `caryll_font.rs`'s table disposal and
-// `unconsolidate.rs`'s merge step).
+// Both fields are now plain `Vec`s, so `HmtxTable` needs no custom `Drop`
+// impl -- ordinary field-by-field drop glue reaches both allocations.
+// `HmtxTable` never appears in JSON dump/parse (glyph-level metrics live on
+// `Glyph.advance_width`/`.horizontal_origin` instead; this table exists
+// purely as an `hmtx`-binary-serialization intermediate, confirmed by grep:
+// its only touch points are this file's own read/build functions and
+// `otf_writer/stat.rs`'s `stat_hmtx`, which constructs it), so there is no
+// JSON-side fallout from this field type change.
 #[repr(C)]
 pub struct HmtxTable {
-    pub metrics: *mut HorizontalMetric,
-    pub left_side_bearing: *mut Pos,
-}
-impl Drop for HmtxTable {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.metrics.is_null() {
-                free(self.metrics as *mut ::core::ffi::c_void);
-                self.metrics = ::core::ptr::null_mut::<HorizontalMetric>();
-            }
-            if !self.left_side_bearing.is_null() {
-                free(self.left_side_bearing as *mut ::core::ffi::c_void);
-                self.left_side_bearing = ::core::ptr::null_mut::<Pos>();
-            }
-        }
-    }
+    pub metrics: Vec<HorizontalMetric>,
+    pub left_side_bearing: Vec<Pos>,
 }
 pub unsafe extern "C" fn otfcc_read_hmtx(
     packet: Packet,
@@ -88,35 +73,26 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
                             crate::bytesbuild!(b"Table 'hmtx' corrupted.\n"),
                         );
                     } else {
-                        let metrics = __caryll_allocate_clean(
-                            (::core::mem::size_of::<HorizontalMetric>() as usize)
-                                .wrapping_mul(count_a as usize),
-                            28 as ::core::ffi::c_ulong,
-                        ) as *mut HorizontalMetric;
-                        let left_side_bearing = __caryll_allocate_clean(
-                            (::core::mem::size_of::<Pos>() as usize)
-                                .wrapping_mul(count_k as usize),
-                            29 as ::core::ffi::c_ulong,
-                        ) as *mut Pos;
+                        let mut metrics: Vec<HorizontalMetric> = Vec::with_capacity(count_a as usize);
                         let mut ia: GlyphId = 0 as GlyphId;
                         while (ia as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-                            (*metrics.offset(ia as isize)).advance_width =
-                                read_16u(data.offset(
-                                    (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
-                                ) as *const u8) as Length;
-                            (*metrics.offset(ia as isize)).lsb = read_16s(
+                            let advance_width = read_16u(data.offset(
+                                (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
+                            ) as *const u8) as Length;
+                            let lsb = read_16s(
                                 data.offset(
                                     (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
                                 )
                                 .offset(2 as ::core::ffi::c_int as isize)
                                     as *const u8,
-                            )
-                                as Pos;
+                            ) as Pos;
+                            metrics.push(HorizontalMetric { advance_width, lsb });
                             ia = ia.wrapping_add(1);
                         }
+                        let mut left_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
                         let mut ik: GlyphId = 0 as GlyphId;
                         while (ik as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
-                            *left_side_bearing.offset(ik as isize) = read_16s(
+                            left_side_bearing.push(read_16s(
                                 data.offset(
                                     (count_a as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
                                         as isize,
@@ -124,8 +100,7 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
                                 .offset(
                                     (ik as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
                                 ) as *const u8,
-                            )
-                                as Pos;
+                            ) as Pos);
                             ik = ik.wrapping_add(1);
                         }
                         return Some(Box::new(HmtxTable { metrics, left_side_bearing }));
@@ -153,26 +128,16 @@ pub unsafe extern "C" fn otfcc_build_hmtx(
         Some(h) => h,
         None => return buf,
     };
-    if !(*hmtx).metrics.is_null() {
-        let mut j: GlyphId = 0 as GlyphId;
-        while (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-            bufwrite16b(
-                buf,
-                (*(*hmtx).metrics.offset(j as isize)).advance_width as u16,
-            );
-            bufwrite16b(buf, pos_to_u16((*(*hmtx).metrics.offset(j as isize)).lsb));
-            j = j.wrapping_add(1);
-        }
+    let mut j: GlyphId = 0 as GlyphId;
+    while (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
+        bufwrite16b(buf, hmtx.metrics[j as usize].advance_width as u16);
+        bufwrite16b(buf, pos_to_u16(hmtx.metrics[j as usize].lsb));
+        j = j.wrapping_add(1);
     }
-    if !(*hmtx).left_side_bearing.is_null() {
-        let mut j_0: GlyphId = 0 as GlyphId;
-        while (j_0 as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
-            bufwrite16b(
-                buf,
-                pos_to_u16(*(*hmtx).left_side_bearing.offset(j_0 as isize)),
-            );
-            j_0 = j_0.wrapping_add(1);
-        }
+    let mut j_0: GlyphId = 0 as GlyphId;
+    while (j_0 as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
+        bufwrite16b(buf, pos_to_u16(hmtx.left_side_bearing[j_0 as usize]));
+        j_0 = j_0.wrapping_add(1);
     }
     return buf;
 }

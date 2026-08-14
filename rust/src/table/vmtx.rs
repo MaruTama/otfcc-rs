@@ -1,8 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
-
-
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -19,29 +15,14 @@ pub struct VerticalMetric {
     pub advance_height: Length,
     pub tsb: Pos,
 }
-// Stage 6-4 "Box化": both fields this struct owns are raw arrays, same
-// shape as `HmtxTable` (its horizontal-axis mirror). The entire vtable
-// is deleted: grepping confirmed only `.free` was ever called from
-// outside this file (from `caryll_font.rs`'s table disposal and
-// `unconsolidate.rs`'s merge step).
+// Both fields are now plain `Vec`s, its horizontal-axis mirror `HmtxTable`'s
+// own comment explains why there's no JSON-side fallout: this table is a
+// pure `vmtx`-binary-serialization intermediate, never touched by dump/
+// parse.
 #[repr(C)]
 pub struct VmtxTable {
-    pub metrics: *mut VerticalMetric,
-    pub top_side_bearing: *mut Pos,
-}
-impl Drop for VmtxTable {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.metrics.is_null() {
-                free(self.metrics as *mut ::core::ffi::c_void);
-                self.metrics = ::core::ptr::null_mut::<VerticalMetric>();
-            }
-            if !self.top_side_bearing.is_null() {
-                free(self.top_side_bearing as *mut ::core::ffi::c_void);
-                self.top_side_bearing = ::core::ptr::null_mut::<Pos>();
-            }
-        }
-    }
+    pub metrics: Vec<VerticalMetric>,
+    pub top_side_bearing: Vec<Pos>,
 }
 pub unsafe extern "C" fn otfcc_read_vmtx(
     packet: Packet,
@@ -89,35 +70,26 @@ pub unsafe extern "C" fn otfcc_read_vmtx(
                             crate::bytesbuild!(b"Table 'vmtx' corrupted.\n"),
                         );
                     } else {
-                        let metrics = __caryll_allocate_clean(
-                            (::core::mem::size_of::<VerticalMetric>() as usize)
-                                .wrapping_mul(count_a as usize),
-                            28 as ::core::ffi::c_ulong,
-                        ) as *mut VerticalMetric;
-                        let top_side_bearing = __caryll_allocate_clean(
-                            (::core::mem::size_of::<Pos>() as usize)
-                                .wrapping_mul(count_k as usize),
-                            29 as ::core::ffi::c_ulong,
-                        ) as *mut Pos;
+                        let mut metrics: Vec<VerticalMetric> = Vec::with_capacity(count_a as usize);
                         let mut ia: GlyphId = 0 as GlyphId;
                         while (ia as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-                            (*metrics.offset(ia as isize)).advance_height =
-                                read_16u(data.offset(
-                                    (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
-                                ) as *const u8) as Length;
-                            (*metrics.offset(ia as isize)).tsb = read_16s(
+                            let advance_height = read_16u(data.offset(
+                                (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
+                            ) as *const u8) as Length;
+                            let tsb = read_16s(
                                 data.offset(
                                     (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
                                 )
                                 .offset(2 as ::core::ffi::c_int as isize)
                                     as *const u8,
-                            )
-                                as Pos;
+                            ) as Pos;
+                            metrics.push(VerticalMetric { advance_height, tsb });
                             ia = ia.wrapping_add(1);
                         }
+                        let mut top_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
                         let mut ik: GlyphId = 0 as GlyphId;
                         while (ik as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
-                            *top_side_bearing.offset(ik as isize) = read_16s(
+                            top_side_bearing.push(read_16s(
                                 data.offset(
                                     (count_a as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
                                         as isize,
@@ -125,8 +97,7 @@ pub unsafe extern "C" fn otfcc_read_vmtx(
                                 .offset(
                                     (ik as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
                                 ) as *const u8,
-                            )
-                                as Pos;
+                            ) as Pos);
                             ik = ik.wrapping_add(1);
                         }
                         return Some(Box::new(VmtxTable { metrics, top_side_bearing }));
@@ -154,26 +125,16 @@ pub unsafe extern "C" fn otfcc_build_vmtx(
         Some(v) => v,
         None => return buf,
     };
-    if !(*vmtx).metrics.is_null() {
-        let mut j: GlyphId = 0 as GlyphId;
-        while (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-            bufwrite16b(
-                buf,
-                (*(*vmtx).metrics.offset(j as isize)).advance_height as u16,
-            );
-            bufwrite16b(buf, pos_to_u16((*(*vmtx).metrics.offset(j as isize)).tsb));
-            j = j.wrapping_add(1);
-        }
+    let mut j: GlyphId = 0 as GlyphId;
+    while (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
+        bufwrite16b(buf, vmtx.metrics[j as usize].advance_height as u16);
+        bufwrite16b(buf, pos_to_u16(vmtx.metrics[j as usize].tsb));
+        j = j.wrapping_add(1);
     }
-    if !(*vmtx).top_side_bearing.is_null() {
-        let mut j_0: GlyphId = 0 as GlyphId;
-        while (j_0 as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
-            bufwrite16b(
-                buf,
-                pos_to_u16(*(*vmtx).top_side_bearing.offset(j_0 as isize)),
-            );
-            j_0 = j_0.wrapping_add(1);
-        }
+    let mut j_0: GlyphId = 0 as GlyphId;
+    while (j_0 as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
+        bufwrite16b(buf, pos_to_u16(vmtx.top_side_bearing[j_0 as usize]));
+        j_0 = j_0.wrapping_add(1);
     }
     return buf;
 }
