@@ -1,11 +1,10 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, qsort};
+use libc::{free, malloc};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_type_of};
 use crate::table::otl::classdef::{expand_class_def, classdef_from_raw, ClassDef, otl_class_def_create, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage, shrink_coverage};
 use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphHandle};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 
 use crate::support::buffer::{Buffer};
@@ -709,13 +708,6 @@ unsafe extern "C" fn cov_from_cd(mut cd: *const ClassDef) -> *mut Coverage {
     }
     return cov;
 }
-unsafe extern "C" fn by_pair_second_glyph(
-    mut a: *const ::core::ffi::c_void,
-    mut b: *const ::core::ffi::c_void,
-) -> ::core::ffi::c_int {
-    return (*(a as *mut IndividualGposPair)).gid as ::core::ffi::c_int
-        - (*(b as *mut IndividualGposPair)).gid as ::core::ffi::c_int;
-}
 pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     mut _subtable: *const Subtable,
 ) -> *mut BkBlock {
@@ -745,15 +737,13 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
         }
         j = j.wrapping_add(1);
     }
-    let mut pair_counts: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
-    pair_counts = __caryll_allocate_clean(
-        (::core::mem::size_of::<GlyphId>() as usize)
-            .wrapping_mul((*first_cd).glyphs.len()),
-        290 as ::core::ffi::c_ulong,
-    ) as *mut GlyphId;
+    // A local `Vec`, not a `__caryll_allocate_clean`/`free` pair -- the
+    // zero-fill this function relied on from `__caryll_allocate_clean` is
+    // just `vec![0; ...]`, and the `Vec` drops itself at the end instead of
+    // needing an explicit `free` to match.
+    let mut pair_counts: Vec<GlyphId> = vec![0 as GlyphId; (*first_cd).glyphs.len()];
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*first_cd).glyphs.len() {
-        *pair_counts.offset(j_0 as isize) = 0 as GlyphId;
         let mut k_0: GlyphId = 0 as GlyphId;
         while (k_0 as usize) < (*second_cd).glyphs.len() {
             let mut c1: GlyphClass = (&(*first_cd).classes)[j_0 as usize];
@@ -766,7 +756,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
                 ) as ::core::ffi::c_int
                 != 0
             {
-                let ref mut fresh10 = *pair_counts.offset(j_0 as isize);
+                let ref mut fresh10 = pair_counts[j_0 as usize];
                 *fresh10 = (*fresh10 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
             }
             k_0 = k_0.wrapping_add(1);
@@ -786,18 +776,20 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
                 == (&(*cov))[j_1 as usize].index as ::core::ffi::c_int
             {
                 c1_0 = (&(*first_cd).classes)[k_1 as usize];
-                current_pair_count = *pair_counts.offset(k_1 as isize) as TableId;
+                current_pair_count = pair_counts[k_1 as usize] as TableId;
             }
             k_1 = k_1.wrapping_add(1);
         }
         let mut pair_set: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (current_pair_count as ::core::ffi::c_int) as u32)]);
-        let mut pairs: *mut IndividualGposPair = ::core::ptr::null_mut::<IndividualGposPair>();
-        pairs = __caryll_allocate_clean(
-            (::core::mem::size_of::<IndividualGposPair>() as usize)
-                .wrapping_mul(current_pair_count as usize),
-            324 as ::core::ffi::c_ulong,
-        ) as *mut IndividualGposPair;
-        let mut n: usize = 0 as usize;
+        // A local `Vec`, not a `__caryll_allocate_clean`/`qsort`/`free`
+        // trio: built with exactly `current_pair_count` entries by
+        // construction (this loop applies the same predicate the earlier
+        // counting pass used), sorted with `sort_by_key` (stable, same
+        // conservative choice as the `Coverage`/`ClassDef` PR since `qsort`
+        // itself gives no stability guarantee), and dropped automatically
+        // at the end of this loop iteration instead of needing an explicit
+        // `free` to match the explicit allocation.
+        let mut pairs: Vec<IndividualGposPair> = Vec::with_capacity(current_pair_count as usize);
         let mut k_2: GlyphId = 0 as GlyphId;
         while (k_2 as usize) < (*second_cd).glyphs.len() {
             let mut c2_0: GlyphClass = (&(*second_cd).classes)[k_2 as usize];
@@ -809,42 +801,23 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
                 ) as ::core::ffi::c_int
                 != 0
             {
-                (*pairs.offset(n as isize)).gid =
-                    (&(*second_cd).glyphs)[k_2 as usize].index;
-                (*pairs.offset(n as isize)).fv =
-                    (&(*subtable).first_values)[c1_0 as usize][c2_0 as usize];
-                (*pairs.offset(n as isize)).sv =
-                    (&(*subtable).second_values)[c1_0 as usize][c2_0 as usize];
-                n = n.wrapping_add(1);
+                pairs.push(IndividualGposPair {
+                    gid: (&(*second_cd).glyphs)[k_2 as usize].index,
+                    fv: (&(*subtable).first_values)[c1_0 as usize][c2_0 as usize],
+                    sv: (&(*subtable).second_values)[c1_0 as usize][c2_0 as usize],
+                });
             }
             k_2 = k_2.wrapping_add(1);
         }
-        qsort(
-            pairs as *mut ::core::ffi::c_void,
-            current_pair_count as usize,
-            ::core::mem::size_of::<IndividualGposPair>() as usize,
-            Some(
-                by_pair_second_glyph
-                    as unsafe extern "C" fn(
-                        *const ::core::ffi::c_void,
-                        *const ::core::ffi::c_void,
-                    ) -> ::core::ffi::c_int,
-            ),
-        );
-        let mut n_0: usize = 0 as usize;
-        while n_0 < current_pair_count as usize {
-            bk_push(pair_set, &[bk_int(BkCellType::B16, ((*pairs.offset(n_0 as isize)).gid as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value((*pairs.offset(n_0 as isize)).fv, format1)), bk_ptr(BkCellType::Embed, bk_gpos_value((*pairs.offset(n_0 as isize)).sv, format2))]);
-            n_0 = n_0.wrapping_add(1);
+        pairs.sort_by_key(|p| p.gid);
+        for pair in &pairs {
+            bk_push(pair_set, &[bk_int(BkCellType::B16, (pair.gid as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value(pair.fv, format1)), bk_ptr(BkCellType::Embed, bk_gpos_value(pair.sv, format2))]);
         }
-        free(pairs as *mut ::core::ffi::c_void);
-        pairs = ::core::ptr::null_mut::<IndividualGposPair>();
         bk_push(root, &[bk_ptr(BkCellType::P16, pair_set)]);
         j_1 = j_1.wrapping_add(1);
     }
     otl_coverage_free(cov);
     cov = ::core::ptr::null_mut::<Coverage>();
-    free(pair_counts as *mut ::core::ffi::c_void);
-    pair_counts = ::core::ptr::null_mut::<GlyphId>();
     return root;
 }
 pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
