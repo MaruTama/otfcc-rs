@@ -96,15 +96,6 @@ pub(crate) unsafe extern "C" fn handle_from_index(mut id: GlyphId) -> Handle {
     };
     return h;
 }
-// Callers still pass an owned `SdsRaw` here -- keeping these three
-// functions' public signatures `SdsRaw`-in means none of their ~40 call
-// sites across the crate need to change, only the conversion internals
-// here. `handle_from_name` takes ownership of `s` (the same contract the
-// old `h.name = s;` had), so it copies the bytes out and frees the
-// now-redundant `sds` allocation; `handle_from_consolidated`/
-// `handle_consolidate_to` only ever borrowed `s` (the caller already
-// `sdsdup`'d before calling, and frees its own copy afterward), so they
-// just copy the bytes without touching `s`'s lifetime.
 pub(crate) unsafe fn sds_to_vec(s: SdsRaw) -> Vec<u8> {
     ::core::slice::from_raw_parts(s as *const u8, sdslen(s)).to_vec()
 }
@@ -150,36 +141,25 @@ pub(crate) fn handle_name_eq_bytes(a: &[u8], b: &[u8]) -> bool {
     };
     a_trunc == b_trunc
 }
-pub(crate) unsafe extern "C" fn handle_from_name(mut s: SdsRaw) -> Handle {
+// `s` is `Option<Vec<u8>>`, not a bare `Vec<u8>`, to preserve the exact
+// null-vs-non-null distinction the old `SdsRaw` signature had: `None`
+// (was: a null pointer) leaves the handle in `HandleState::Empty`, while
+// `Some(v)` (was: any non-null `sds`, including a valid empty one) always
+// becomes `HandleState::Name` even when `v` is empty -- an empty-but-
+// present name is a different state from no name at all, and collapsing
+// the two by testing `v.is_empty()` instead would be an observable (if
+// exotic -- an empty-string glyph name) behavior change.
+pub(crate) unsafe extern "C" fn handle_from_name(mut s: Option<Vec<u8>>) -> Handle {
     let mut h: Handle = Handle {
         state: HandleState::Empty,
         index: 0 as GlyphId,
         name: Vec::new(),
     };
-    if !s.is_null() {
+    if let Some(name) = s {
         h.state = HandleState::Name;
-        h.name = sds_to_vec(s);
-        sdsfree(s);
+        h.name = name;
     }
     return h;
-}
-pub(crate) unsafe extern "C" fn handle_from_consolidated(mut id: GlyphId, mut s: SdsRaw) -> Handle {
-    let mut h: Handle = Handle {
-        state: HandleState::Consolidated,
-        index: id,
-        name: sds_to_vec(s),
-    };
-    return h;
-}
-pub(crate) unsafe extern "C" fn handle_consolidate_to(
-    mut h: *mut Handle,
-    mut id: GlyphId,
-    mut name: SdsRaw,
-) {
-    otfcc_handle_dispose(h as *mut Handle);
-    (*h).state = HandleState::Consolidated;
-    (*h).index = id;
-    (*h).name = sds_to_vec(name);
 }
 pub type FdHandle = Handle;
 

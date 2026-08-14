@@ -23,7 +23,7 @@ use crate::table::fvar::{FvarTable};
 
 
 use crate::vf::vq::{VQ};
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_bool_val, json_boolof, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_obj_null_out_val_at, json_str_len, json_str_ptr, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_bool_val, json_boolof, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_obj_null_out_val_at, json_str_bytes, json_type_of};
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes, json_new_position, preserialize};
@@ -853,10 +853,7 @@ unsafe extern "C" fn glyf_parse_reference(mut refdump: *const ParsedValue) -> Co
                 .empty
                 .expect("non-null function pointer"))();
     if !_gname.is_null() {
-        ref_0.glyph = handle_from_name(sdsnewlen(
-            json_str_ptr(_gname) as *const ::core::ffi::c_void,
-            json_str_len(_gname) as usize,
-        )) as GlyphHandle;
+        ref_0.glyph = handle_from_name(Some(json_str_bytes(_gname))) as GlyphHandle;
         I_VQ.replace.expect("non-null function pointer")(
             &raw mut ref_0.x,
             json_vq_of(
@@ -1200,10 +1197,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
         ) as u8;
     }
     (*g).fd_select = handle_from_name(
-        match json_obj_getsds(glyphdump, b"CFF_fdSelect\0" as *const u8 as *const ::core::ffi::c_char) {
-            Some(v) => sdsnewlen(v.as_ptr() as *const ::core::ffi::c_void, v.len()),
-            None => ::core::ptr::null_mut(),
-        },
+        json_obj_getsds(glyphdump, b"CFF_fdSelect\0" as *const u8 as *const ::core::ffi::c_char),
     ) as FdHandle;
     if (*g).y_pel == 0 {
         (*g).y_pel = json_obj_getint(

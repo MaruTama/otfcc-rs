@@ -2,7 +2,7 @@
 use libc::{free};
 
 
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
@@ -21,7 +21,6 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_parse_mark_array, otl_parse_anchor, otl_read_mark_array, otl_read_anchor};
 use crate::support::built_json::{BuiltValue, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes, preserialize};
-use crate::vendor::sds::{sdsnewlen};
 // `BaseRecord.anchors` is a plain `Vec<Anchor>` now and `glyph: GlyphHandle`
 // already has its own `Drop`, so a `BaseArray` (`Vec<BaseRecord>`) fully
 // self-drops -- clearing it (still needed: `consolidate/otl/mark.rs`'s dedup
@@ -269,10 +268,7 @@ unsafe extern "C" fn parse_bases(
             },
             anchors: Vec::new(),
         };
-        base.glyph = handle_from_name(sdsnewlen(
-            gname as *const ::core::ffi::c_void,
-            json_obj_key_len_at(_bases, j as u32) as usize,
-        )) as GlyphHandle;
+        base.glyph = handle_from_name(Some(json_obj_key_bytes_at(_bases, j as u32))) as GlyphHandle;
         // Indexed by `class_id` below, out of JSON key order -- pre-sized
         // and filled with "absent" rather than built with `.push()`.
         base.anchors = vec![otl_anchor_absent(); class_count as usize];

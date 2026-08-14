@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc};
 
-use crate::support::parsed_json::{ParsedValue, json_obj_get, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_obj_get, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
 use crate::support::binio::{read_16u};
@@ -9,7 +9,6 @@ use crate::support::binio::{read_16u};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
@@ -20,7 +19,6 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_dump_anchor, otl_parse_anchor, otl_read_anchor};
 use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key, preserialize};
-use crate::vendor::sds::{sdsnewlen};
 // `GposCursiveEntry` holds only a `GlyphHandle` plus two plain `Anchor`
 // values, so dropping the `Vec` runs `Handle`'s own `Drop` for every entry --
 // no per-element dtor needed anymore.
@@ -168,12 +166,8 @@ pub unsafe extern "C" fn otl_gpos_parse_cursive(
                 as ::core::ffi::c_uint
                 == JsonType::Object as ::core::ffi::c_int as ::core::ffi::c_uint
         {
-            let mut gname: SdsRaw = sdsnewlen(
-                json_obj_key_at(_subtable, j as u32) as *const ::core::ffi::c_void,
-                json_obj_key_len_at(_subtable, j as u32) as usize,
-            );
             (*subtable).push(GposCursiveEntry {
-                target: handle_from_name(gname)
+                target: handle_from_name(Some(json_obj_key_bytes_at(_subtable, j as u32)))
                     as GlyphHandle,
                 enter: otl_parse_anchor(json_obj_get(
                     val,

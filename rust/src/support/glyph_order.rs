@@ -234,9 +234,10 @@ unsafe extern "C" fn otfcc_gord_name_a_field_shared(
     }
 }
 // Builds the consolidated `Handle` directly rather than through
-// `handle_consolidate_to` (which still takes an `SdsRaw`) -- same
-// simplification already used throughout the `consolidate/otl/*.rs`
-// sweep, since the name is already the exact `Vec<u8>` a `Handle` wants.
+// `handle_consolidate_to` (deleted -- it had no other callers by the time
+// the `sds` sweep reached it) -- same simplification already used
+// throughout the `consolidate/otl/*.rs` sweep, since the name is already
+// the exact `Vec<u8>` a `Handle` wants.
 unsafe extern "C" fn otfcc_gord_consolidate_handle(
     mut go: *mut GlyphOrder,
     mut h: *mut GlyphHandle,

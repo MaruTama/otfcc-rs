@@ -2,7 +2,7 @@
 use libc::{free, strtol};
 
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
-use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
+use crate::support::handle::{handle_from_index, handle_from_name, sds_to_vec, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_16u, read_24u, read_32u};
@@ -92,6 +92,15 @@ pub unsafe extern "C" fn otfcc_encode_cmap_by_index(
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
+// `name` stays `SdsRaw`-in (rather than following `handle_from_name` to
+// `Vec<u8>`) so its two callers -- `parse_cmap_unicodes`'s `gname`, built
+// by hand-rolled pointer scanning that's a separate, not-yet-converted
+// theme -- don't need to change. Adapts internally instead: copies the
+// bytes out for `handle_from_name`, then frees `name` itself only on the
+// Vacant path, matching `handle_from_name`'s old contract of consuming
+// its argument only when it actually stores it (the Occupied/"already
+// mapped" path already never freed `name` before this change either --
+// preserved as-is, not this theme's job to fix).
 pub unsafe extern "C" fn otfcc_encode_cmap_by_name(
     mut cmap: *mut CmapTable,
     mut c: ::core::ffi::c_int,
@@ -99,7 +108,8 @@ pub unsafe extern "C" fn otfcc_encode_cmap_by_name(
 ) -> bool {
     match (*cmap).unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_name(name) as GlyphHandle);
+            v.insert(handle_from_name(Some(sds_to_vec(name))) as GlyphHandle);
+            sdsfree(name);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,
@@ -140,6 +150,8 @@ pub unsafe extern "C" fn otfcc_encode_cmap_uvs_by_index(
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
+// Same `SdsRaw`-in adapter as `otfcc_encode_cmap_by_name` above, same
+// reason.
 pub unsafe extern "C" fn otfcc_encode_cmap_uvs_by_name(
     mut cmap: *mut CmapTable,
     mut c: CmapUvsKey,
@@ -147,7 +159,8 @@ pub unsafe extern "C" fn otfcc_encode_cmap_uvs_by_name(
 ) -> bool {
     match (*cmap).uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_name(name) as GlyphHandle);
+            v.insert(handle_from_name(Some(sds_to_vec(name))) as GlyphHandle);
+            sdsfree(name);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,

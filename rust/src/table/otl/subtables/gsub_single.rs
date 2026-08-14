@@ -4,7 +4,7 @@ use libc::{free, malloc};
 
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
-use crate::support::parsed_json::{ParsedValue, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of};
 
 use crate::support::binio::{read_16u};
 
@@ -20,7 +20,6 @@ use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_bytes_key, json_string_new_from_bytes};
-use crate::vendor::sds::{sdsnewlen};
 // `GsubSingleEntry` holds only two `GlyphHandle`s, so dropping the `Vec`
 // runs `Handle`'s own `Drop` for every entry -- no per-element dtor needed
 // anymore.
@@ -166,15 +165,9 @@ pub unsafe extern "C" fn otl_gsub_parse_single(
                 == JsonType::String as ::core::ffi::c_int as ::core::ffi::c_uint
         {
             let mut from: GlyphHandle =
-                handle_from_name(sdsnewlen(
-                    json_obj_key_at(_subtable, j as u32) as *const ::core::ffi::c_void,
-                    json_obj_key_len_at(_subtable, j as u32) as usize,
-                )) as GlyphHandle;
+                handle_from_name(Some(json_obj_key_bytes_at(_subtable, j as u32))) as GlyphHandle;
             let mut to: GlyphHandle =
-                handle_from_name(sdsnewlen(
-                    json_str_ptr(val) as *const ::core::ffi::c_void,
-                    json_str_len(val) as usize,
-                )) as GlyphHandle;
+                handle_from_name(Some(json_str_bytes(val))) as GlyphHandle;
             (*subtable).push(GsubSingleEntry {
                 from: from as GlyphHandle,
                 to: to as GlyphHandle,

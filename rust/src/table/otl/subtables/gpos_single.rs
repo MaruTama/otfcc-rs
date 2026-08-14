@@ -4,12 +4,11 @@ use libc::{free, malloc};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
 use crate::support::binio::{read_16u};
-use crate::support::parsed_json::{ParsedValue, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::sds::{SdsRaw};
 use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
@@ -20,7 +19,6 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, read_gpos_value, required_position_format};
 use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_bytes_key};
-use crate::vendor::sds::{sdsnewlen};
 // `GposSingleEntry` holds only a `GlyphHandle` plus a plain `PositionValue`,
 // so dropping the `Vec` runs `Handle`'s own `Drop` for every entry -- no
 // per-element dtor needed anymore.
@@ -180,12 +178,8 @@ pub unsafe extern "C" fn otl_gpos_parse_single(
                 as ::core::ffi::c_uint
                 == JsonType::Object as ::core::ffi::c_int as ::core::ffi::c_uint
         {
-            let mut gname: SdsRaw = sdsnewlen(
-                json_obj_key_at(_subtable, j as u32) as *const ::core::ffi::c_void,
-                json_obj_key_len_at(_subtable, j as u32) as usize,
-            );
             (*subtable).push(GposSingleEntry {
-                target: handle_from_name(gname)
+                target: handle_from_name(Some(json_obj_key_bytes_at(_subtable, j as u32)))
                     as GlyphHandle,
                 value: gpos_parse_value(val),
             });

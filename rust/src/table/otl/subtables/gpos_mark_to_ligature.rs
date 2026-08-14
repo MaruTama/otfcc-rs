@@ -2,7 +2,7 @@
 use libc::{free};
 
 
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
@@ -21,7 +21,6 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_parse_mark_array, otl_parse_anchor, otl_read_mark_array, otl_read_anchor};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes, preserialize};
-use crate::vendor::sds::{sdsnewlen};
 // `LigatureBaseRecord.anchors` is a plain `Vec<Vec<Anchor>>` now and
 // `glyph: GlyphHandle` already has its own `Drop`, so a `LigatureArray`
 // (`Vec<LigatureBaseRecord>`) fully self-drops -- clearing it (still needed:
@@ -329,10 +328,7 @@ unsafe extern "C" fn parse_bases(
         };
         lig.component_count = 0 as GlyphId;
         lig.anchors = Vec::new();
-        lig.glyph = handle_from_name(sdsnewlen(
-            json_obj_key_at(_bases, j as u32) as *const ::core::ffi::c_void,
-            json_obj_key_len_at(_bases, j as u32) as usize,
-        )) as GlyphHandle;
+        lig.glyph = handle_from_name(Some(json_obj_key_bytes_at(_bases, j as u32))) as GlyphHandle;
         let mut base_record: *const ParsedValue = json_obj_val_at(_bases, j as u32);
         if base_record.is_null()
             || json_type_of(base_record) != JsonType::Array

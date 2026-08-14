@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, qsort};
 
-use crate::support::parsed_json::{ParsedValue, json_dbl_val, json_int_val, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_dbl_val, json_int_val, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
@@ -12,7 +12,6 @@ use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::vendor::json::{JsonType};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite_bufdel};
 use crate::support::built_json::{BuiltValue, json_integer_new, json_object_new, json_object_push_bytes_key, preserialize};
-use crate::vendor::sds::{sdsnewlen};
 /// `glyphs`/`classes` were a hand-rolled `malloc`/`realloc` pair of parallel
 /// arrays (grown, pushed to, and truncated only ever together -- confirmed
 /// by survey before this conversion), now `Vec<GlyphHandle>`/
@@ -249,10 +248,7 @@ pub(crate) unsafe extern "C" fn parse_class_def(mut _cd: *const ParsedValue) -> 
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < json_obj_len(_cd) {
         let mut h: GlyphHandle =
-            handle_from_name(sdsnewlen(
-                json_obj_key_at(_cd, j as u32) as *const ::core::ffi::c_void,
-                json_obj_key_len_at(_cd, j as u32) as usize,
-            )) as GlyphHandle;
+            handle_from_name(Some(json_obj_key_bytes_at(_cd, j as u32))) as GlyphHandle;
         let mut _cid: *const ParsedValue =
             json_obj_val_at(_cd, j as u32);
         let mut cls: GlyphClass = 0 as GlyphClass;

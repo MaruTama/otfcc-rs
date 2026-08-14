@@ -2,7 +2,7 @@
 use libc::{free, malloc};
 
 
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of};
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
 
@@ -19,7 +19,6 @@ use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_object_new, json_object_push, json_string_new_from_bytes, preserialize};
-use crate::vendor::sds::{sdsnewlen};
 // `from: Coverage` and `to: GlyphHandle` both self-drop now, so a
 // `GsubLigatureSubtable` (`Vec<GsubLigatureEntry>`) fully self-drops -- no
 // per-element dtor needed anymore.
@@ -309,10 +308,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
                     from: coverage_from_raw(
                         OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from),
                     ),
-                    to: handle_from_name(sdsnewlen(
-                        json_str_ptr(_to) as *const ::core::ffi::c_void,
-                        json_str_len(_to) as usize,
-                    )) as GlyphHandle,
+                    to: handle_from_name(Some(json_str_bytes(_to))) as GlyphHandle,
                 });
             }
             k = k.wrapping_add(1);
@@ -331,10 +327,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
                     from: coverage_from_raw(
                         OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from_0),
                     ),
-                    to: handle_from_name(sdsnewlen(
-                        json_obj_key_at(_subtable, k_0 as u32) as *const ::core::ffi::c_void,
-                        json_obj_key_len_at(_subtable, k_0 as u32) as usize,
-                    )) as GlyphHandle,
+                    to: handle_from_name(Some(json_obj_key_bytes_at(_subtable, k_0 as u32))) as GlyphHandle,
                 });
             }
             k_0 = k_0.wrapping_add(1);
