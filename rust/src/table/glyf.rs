@@ -1076,11 +1076,11 @@ unsafe extern "C" fn parse_masks(mut md: *const ParsedValue, mut masks: *mut Mas
 }
 unsafe extern "C" fn otfcc_glyf_parse_glyph(
     mut glyphdump: *const ParsedValue,
-    mut order_entry: *mut GlyphOrderEntry,
+    order_entry: &GlyphOrderEntry,
     mut options: *const Options,
 ) -> Box<Glyph> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
-    (*g).name = (*order_entry).name.clone();
+    (*g).name = order_entry.name.clone();
     I_VQ.replace.expect("non-null function pointer")(
         &raw mut (*g).advance_width,
         json_vq_of(
@@ -1239,17 +1239,15 @@ pub unsafe extern "C" fn otfcc_parse_glyf(
             while (j as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int {
                 let name_bytes: Vec<u8> = json_obj_key_bytes_at(table, j as u32);
                 let mut glyphdump: *const ParsedValue = json_obj_val_at(table, j as u32);
-                let mut order_entry: *mut GlyphOrderEntry = (*glyph_order)
-                    .by_name
-                    .get(&name_bytes)
-                    .copied()
-                    .unwrap_or(::core::ptr::null_mut::<GlyphOrderEntry>());
-                if json_type_of(glyphdump) == JsonType::Object
-                    && !order_entry.is_null()
-                    && glyf_val[(*order_entry).gid as usize].is_none()
-                {
-                    glyf_val[(*order_entry).gid as usize] =
-                        Some(otfcc_glyf_parse_glyph(glyphdump, order_entry, options));
+                let order_idx: Option<usize> = (*glyph_order).by_name.get(&name_bytes).copied();
+                if json_type_of(glyphdump) == JsonType::Object {
+                    if let Some(idx) = order_idx {
+                        let order_entry = &(&(*glyph_order).entries)[idx];
+                        if glyf_val[order_entry.gid as usize].is_none() {
+                            glyf_val[order_entry.gid as usize] =
+                                Some(otfcc_glyf_parse_glyph(glyphdump, order_entry, options));
+                        }
+                    }
                 }
                 json_obj_null_out_val_at(table as *mut ParsedValue, j as u32);
                 j = j.wrapping_add(1);

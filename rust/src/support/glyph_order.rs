@@ -11,7 +11,6 @@ use libc::{free, malloc};
 
 use crate::support::handle::{Handle, GlyphHandle, HandleState};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::primitives::{GlyphId};
 /// Which pass of a JSON font's glyph naming placed a glyph, and therefore how
 /// strongly it is placed: the *lowest* pass wins, because `set_order_by_name`
@@ -51,12 +50,20 @@ pub struct GlyphOrderEntry {
 }
 /// Replaces the uthash-based dual index (`GlyphOrderEntry` used to carry
 /// two independent `UtHashHandle`s, `hh_id`/`hh_name`, threading the same
-/// heap-allocated entry into two separate uthash tables at once). Each
-/// entry is still individually heap-allocated and referenced by raw
-/// pointer -- these two containers are non-owning indices over that same
-/// set of allocations, not owners in their own right; disposal walks
-/// `by_gid` once, frees each entry, then clears both maps (see
-/// `dispose_glyph_order`).
+/// heap-allocated entry into two separate uthash tables at once). The
+/// individually-heap-allocated-and-aliased-by-raw-pointer shape those two
+/// hash tables had doesn't map onto ownership Rust can check: `json_reader.
+/// rs`'s `set_order_by_name`/`order_glyphs` pair shows an entry can
+/// legitimately exist in `by_name` alone for a while (a JSON-driven
+/// glyph-order entry starts with a placeholder `gid` and is only inserted
+/// into `by_gid` once `order_glyphs` assigns it a real one), so `by_gid`
+/// cannot simply be "the owner" the way the old disposal code (which only
+/// ever walked `by_gid`) implicitly assumed. `entries` is the actual owner
+/// now -- a single growing arena nothing is ever removed from -- and
+/// `by_gid`/`by_name` hold plain `usize` indices into it, valid for as
+/// long as `GlyphOrder` lives (an index survives handles from either map
+/// referring to the same entry, since it's Copy and has no dangling-
+/// pointer failure mode the way the old aliased raw pointers did).
 ///
 /// `by_gid: BTreeMap`, not `HashMap`: no `HASH_SORT` ever existed on it,
 /// but `order_glyphs` (json_reader.rs) rebuilds it from scratch by
@@ -74,34 +81,25 @@ pub struct GlyphOrderEntry {
 /// shape as `LookupHash`/`FeatureHash` earlier in this migration.
 #[repr(C)]
 pub struct GlyphOrder {
-    pub by_gid: std::collections::BTreeMap<GlyphId, *mut GlyphOrderEntry>,
-    pub by_name: std::collections::HashMap<Vec<u8>, *mut GlyphOrderEntry>,
+    pub entries: Vec<GlyphOrderEntry>,
+    pub by_gid: std::collections::BTreeMap<GlyphId, usize>,
+    pub by_name: std::collections::HashMap<Vec<u8>, usize>,
 }
-// Stage 6-4 "Box化": `by_gid`/`by_name` are non-owning indices over the same
-// set of individually-`__caryll_allocate_clean`'d `GlyphOrderEntry`
-// allocations (see the comment on the struct above) -- this `Drop` impl is
-// the same "walk `by_gid` once, free each entry" shape `dispose_glyph_order`
-// below already has, needed because `BTreeMap`/`HashMap`'s own drop glue
-// only frees their internal node storage, not the raw `*mut
-// GlyphOrderEntry` pointers they hold as values.
+// No `Drop` impl needed: `entries: Vec<GlyphOrderEntry>` is the sole owner
+// now (see the comment on the struct above), and a plain `Vec`'s own drop
+// glue already frees every entry's `name: Vec<u8>` on the way down --
+// `by_gid`/`by_name` hold non-owning `usize` indices, nothing for them to
+// free. This is what let the old per-entry `__caryll_allocate_clean` +
+// manual walk-and-free disposal go away entirely.
 //
 // This type is still constructed and freed as a bare `*mut GlyphOrder` in
 // many places that are *not* `Font.glyph_order` (`PostTable.post_name_map`,
 // the `aglfn`/`gord` locals in `otf_reader/unconsolidate.rs`) -- those keep
-// going through `OTFCC_PKG_GLYPH_ORDER.create`/`.free` unchanged (a raw
-// pointer being `free()`'d never invokes this `Drop` impl; it only fires
-// for an owned value, i.e. a `Box<GlyphOrder>` going out of scope, which
-// after this PR is only ever `Font.glyph_order`).
-impl Drop for GlyphOrder {
-    fn drop(&mut self) {
-        unsafe {
-            for (_, &entry) in self.by_gid.iter() {
-                (*entry).name = Vec::new();
-                free(entry as *mut ::core::ffi::c_void);
-            }
-        }
-    }
-}
+// going through `OTFCC_PKG_GLYPH_ORDER.create`/`.free` unchanged:
+// `dispose_glyph_order` resets `entries`/`by_gid`/`by_name` by field
+// reassignment (which drops each old value in place, same idiom it
+// already used for `by_gid`/`by_name` before this PR) before the malloc'd
+// shell itself is freed.
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct GlyphOrderPackage {
@@ -122,23 +120,16 @@ unsafe extern "C" fn init_glyph_order(mut go: *mut GlyphOrder) {
     // Placement-construct, not a field assignment: the one live caller
     // (`otfcc_glyph_order_create`) hands this fresh `malloc`'d
     // (uninitialized) memory, so there is nothing to read or drop first.
+    ::core::ptr::write(&raw mut (*go).entries, Vec::new());
     ::core::ptr::write(&raw mut (*go).by_gid, std::collections::BTreeMap::new());
     ::core::ptr::write(&raw mut (*go).by_name, std::collections::HashMap::new());
 }
 #[inline]
 unsafe extern "C" fn dispose_glyph_order(mut go: *mut GlyphOrder) {
-    // Every entry is discovered by walking `by_gid` (matching the
-    // original's single-walk-frees-both-indices shape); `by_name` never
-    // owns anything of its own to free, only a second reference to the
-    // same allocations, so clearing it needs no walk.
-    for (_, &entry) in (*go).by_gid.iter() {
-        // Explicit drop-in-place before the raw `free`: `libc::free` has no
-        // idea about `Vec`'s drop glue, so the backing byte buffer must be
-        // torn down here or it leaks (same landmine class as `Handle`'s own
-        // disposal loops elsewhere in this migration).
-        (*entry).name = Vec::new();
-        free(entry as *mut ::core::ffi::c_void);
-    }
+    // `entries`'s own `Vec` drop glue frees every entry's `name: Vec<u8>`
+    // on the way out; `by_gid`/`by_name` hold non-owning indices, nothing
+    // to walk or free separately.
+    (*go).entries = Vec::new();
     (*go).by_gid = std::collections::BTreeMap::new();
     (*go).by_name = std::collections::HashMap::new();
 }
@@ -176,22 +167,23 @@ unsafe extern "C" fn otfcc_set_glyph_order_by_gid(
     mut gid: GlyphId,
     mut name: Vec<u8>,
 ) -> Vec<u8> {
-    if let Some(&existing) = (*go).by_gid.get(&gid) {
-        return (*existing).name.clone();
+    if let Some(&idx) = (*go).by_gid.get(&gid) {
+        return (&(*go).entries)[idx].name.clone();
     }
     let final_bytes: Vec<u8> = if (*go).by_name.contains_key(&name) {
         crate::bytesbuild!(b"$$gid", gid as ::core::ffi::c_int)
     } else {
         ::core::mem::take(&mut name)
     };
-    let mut s: *mut GlyphOrderEntry = __caryll_allocate_clean(
-        ::core::mem::size_of::<GlyphOrderEntry>() as usize,
-        36 as ::core::ffi::c_ulong,
-    ) as *mut GlyphOrderEntry;
-    (*s).gid = gid;
-    (*s).name = final_bytes.clone();
-    (*go).by_gid.insert(gid, s);
-    (*go).by_name.insert(final_bytes.clone(), s);
+    (*go).entries.push(GlyphOrderEntry {
+        gid,
+        name: final_bytes.clone(),
+        order_type: GlyphOrderPass::Unset,
+        order_entry: 0,
+    });
+    let idx = (*go).entries.len() - 1;
+    (*go).by_gid.insert(gid, idx);
+    (*go).by_name.insert(final_bytes.clone(), idx);
     return final_bytes;
 }
 // `name` is a caller-owned clone now (see the two `.clone()` call sites in
@@ -207,14 +199,15 @@ unsafe extern "C" fn otfcc_set_glyph_order_by_name(
     if (*go).by_name.contains_key(&name) {
         return false;
     }
-    let mut s: *mut GlyphOrderEntry = __caryll_allocate_clean(
-        ::core::mem::size_of::<GlyphOrderEntry>() as usize,
-        54 as ::core::ffi::c_ulong,
-    ) as *mut GlyphOrderEntry;
-    (*s).gid = gid;
-    (*s).name = name.clone();
-    (*go).by_gid.insert(gid, s);
-    (*go).by_name.insert(name, s);
+    (*go).entries.push(GlyphOrderEntry {
+        gid,
+        name: name.clone(),
+        order_type: GlyphOrderPass::Unset,
+        order_entry: 0,
+    });
+    let idx = (*go).entries.len() - 1;
+    (*go).by_gid.insert(gid, idx);
+    (*go).by_name.insert(name, idx);
     return true;
 }
 unsafe extern "C" fn otfcc_gord_name_a_field_shared(
@@ -223,8 +216,8 @@ unsafe extern "C" fn otfcc_gord_name_a_field_shared(
     mut field: *mut Vec<u8>,
 ) -> bool {
     match (*go).by_gid.get(&gid) {
-        Some(&t) => {
-            *field = (*t).name.clone();
+        Some(&idx) => {
+            *field = (&(*go).entries)[idx].name.clone();
             true
         }
         None => {
@@ -244,8 +237,9 @@ unsafe extern "C" fn otfcc_gord_consolidate_handle(
 ) -> bool {
     if (*h).state == HandleState::Consolidated {
         let name_bytes = (*h).name.clone();
-        if let Some(&t) = (*go).by_name.get(&name_bytes) {
-            *h = Handle { state: HandleState::Consolidated, index: (*t).gid, name: (*t).name.clone() } as GlyphHandle;
+        if let Some(&entry_idx) = (*go).by_name.get(&name_bytes) {
+            let entry = &(&(*go).entries)[entry_idx];
+            *h = Handle { state: HandleState::Consolidated, index: entry.gid, name: entry.name.clone() } as GlyphHandle;
             return true;
         }
         // Original C (glyph-order.c:83) passed the wrong hash-handle
@@ -257,14 +251,16 @@ unsafe extern "C" fn otfcc_gord_consolidate_handle(
         // below shows what this was clearly meant to do: fall back to a
         // by_gid lookup, exactly like otfcc_gord_name_a_field_shared's
         // already-correct search. Fixed here.
-        if let Some(&t) = (*go).by_gid.get(&(*h).index) {
-            *h = Handle { state: HandleState::Consolidated, index: (*t).gid, name: (*t).name.clone() } as GlyphHandle;
+        if let Some(&entry_idx) = (*go).by_gid.get(&(*h).index) {
+            let entry = &(&(*go).entries)[entry_idx];
+            *h = Handle { state: HandleState::Consolidated, index: entry.gid, name: entry.name.clone() } as GlyphHandle;
             return true;
         }
     } else if (*h).state == HandleState::Name {
         let name_bytes = (*h).name.clone();
-        if let Some(&t) = (*go).by_name.get(&name_bytes) {
-            *h = Handle { state: HandleState::Consolidated, index: (*t).gid, name: (*t).name.clone() } as GlyphHandle;
+        if let Some(&entry_idx) = (*go).by_name.get(&name_bytes) {
+            let entry = &(&(*go).entries)[entry_idx];
+            *h = Handle { state: HandleState::Consolidated, index: entry.gid, name: entry.name.clone() } as GlyphHandle;
             return true;
         }
     } else if (*h).state == HandleState::Index {
