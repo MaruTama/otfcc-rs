@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
+use libc::{free, memcpy, memset};
 
 
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
@@ -72,18 +72,29 @@ unsafe extern "C" fn dispose_dict(mut dict: *mut CffDict) {
 }
 #[inline]
 unsafe extern "C" fn cff_dict_create() -> *mut CffDict {
-    let mut x: *mut CffDict =
-        malloc(::core::mem::size_of::<CffDict>() as usize) as *mut CffDict;
-    cff_dict_init(x);
-    return x;
+    // `Box::new` of an explicit all-zero literal, not `malloc` + `cff_dict_
+    // init`'s `memset` -- see `cff_dict_free`'s matching `Box::from_raw`.
+    // `cff_dict_init` itself stays defined for `CFF_I_DICT.init` (a vtable
+    // slot with no call site anywhere in the crate, same "present but
+    // unreachable" shape as `subtable_gpos_pair_copy`).
+    Box::into_raw(Box::new(CffDict {
+        count: 0,
+        ents: ::core::ptr::null_mut(),
+    }))
 }
 #[inline]
 unsafe extern "C" fn cff_dict_free(mut x: *mut CffDict) {
     if x.is_null() {
         return;
     }
+    // `ents`/each entry's `vals` are still freed here exactly as before --
+    // only the outer shell's own allocator changed, from a bare `malloc`/
+    // `free` pair to `Box::into_raw`/`Box::from_raw`. Every `CFF_I_DICT.
+    // create`/`.free` call site pairs consistently (confirmed by grep: no
+    // generic adapter reclaims a `*mut CffDict` any other way, unlike
+    // `GposPairSubtable`'s `subtable_from_raw`), so this is self-contained.
     cff_dict_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
+    drop(Box::from_raw(x));
 }
 #[inline]
 unsafe extern "C" fn cff_dict_dispose(mut x: *mut CffDict) {

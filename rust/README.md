@@ -1042,6 +1042,53 @@ on the other platform before a commit is trusted.
     payloads stable; issue #1's large-lookup regression test green;
     `compare-log-output.sh` green.
 
+- **Fifth unit of the `unsafe_op_in_unsafe_fn` burn-down: `CffIndex`'s and
+  `CffDict`'s outer create/free shells become `Box::into_raw`/`Box::
+  from_raw`, mirroring `Coverage`/`ClassDef` -- but their inner arrays
+  (`CffIndex.offset`/`.data`, `CffDict.ents`/`CffDictEntry.vals`) are
+  deliberately left as raw pointers this time.** Both files were next in
+  the priority survey. Reading each closely to plan the full conversion
+  found the same shape of problem `gpos_pair.rs`'s `subtable_from_raw`
+  coupling did: `CffIndex.offset`/`.data` are read and written directly
+  (not through any `cff_index.rs` function) by `table/cff.rs`'s
+  `cff_compile_nameindex` and its FDArray-private-dict-patching loop, and
+  `CffDict.ents`'s only growth function, `cffdict_givemeablank`, lives in
+  `table/cff.rs` too, not `cff_dict.rs`. `table/cff.rs` was already
+  flagged in the original survey as too large and heterogeneous for a
+  single PR (a realloc-grown interpreter stack, a 3-way C union charset,
+  several unrelated allocation shapes in one ~3000-line file) -- so
+  converting either inner array now would mean reaching into that file
+  as a side effect of what was meant to be two small, self-contained
+  units, the same scope-creep this burn-down has consistently avoided.
+  - What *is* self-contained: the outer shells. `cff_index_create`/
+    `cff_dict_create` switch from `malloc` + a `memset`-based `_init`
+    helper to `Box::new` of an explicit all-zero struct literal;
+    `cff_index_free`/`cff_dict_free` switch from `free()` to `Box::
+    from_raw` after the existing `_dispose` call (which still frees
+    `offset`/`data`/`ents`/`vals` exactly as before -- only the shell's
+    own allocator changed). Confirmed by grep before touching either:
+    every `CFF_I_INDEX.create`/`.free` and `CFF_I_DICT.create`/`.free`
+    call site pairs consistently through the same vtable functions, with
+    no `subtable_from_raw`-style generic adapter reclaiming either type
+    any other way.
+  - `cff_index_init` survives even though `cff_index_create` no longer
+    calls it: `CFF_I_INDEX.init` has one other call site (`table/cff.rs`,
+    zero-initializing a stack-local `CffIndex` that was never a `malloc`/
+    `Box` allocation to begin with) -- caught by checking every caller
+    before deleting, not just the one this PR happened to be touching.
+    `cff_dict_init` similarly stays defined (for `CFF_I_DICT.init`'s
+    struct-literal slot), even though grepping found that slot itself has
+    no call site anywhere -- the same "present but unreachable" shape as
+    `subtable_gpos_pair_copy` elsewhere in this migration, not something
+    this PR's narrow scope should go delete.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- `KRName-Regular-O2.otf`
+    (CFF subroutinize) in particular exercises `CffIndex`/`CffDict`
+    heavily; all 10 round-trip payloads stable; issue #1's large-lookup
+    regression test green; `compare-log-output.sh` green.
+
 - **Fourth unit of the `unsafe_op_in_unsafe_fn` burn-down: `GlyphOrder`'s
   dual `by_gid`/`by_name` index is redesigned as an arena + `usize`
   indices, replacing the individually-heap-allocated, raw-pointer-aliased
