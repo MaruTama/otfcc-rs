@@ -61,23 +61,17 @@ pub struct CffFontMatrix {
 }
 #[repr(C)]
 pub struct CffPrivateDict {
-    pub blue_values_count: Arity,
-    pub blue_values: *mut ::core::ffi::c_double,
-    pub other_blues_count: Arity,
-    pub other_blues: *mut ::core::ffi::c_double,
-    pub family_blues_count: Arity,
-    pub family_blues: *mut ::core::ffi::c_double,
-    pub family_other_blues_count: Arity,
-    pub family_other_blues: *mut ::core::ffi::c_double,
+    pub blue_values: Vec<::core::ffi::c_double>,
+    pub other_blues: Vec<::core::ffi::c_double>,
+    pub family_blues: Vec<::core::ffi::c_double>,
+    pub family_other_blues: Vec<::core::ffi::c_double>,
     pub blue_scale: ::core::ffi::c_double,
     pub blue_shift: ::core::ffi::c_double,
     pub blue_fuzz: ::core::ffi::c_double,
     pub std_hw: ::core::ffi::c_double,
     pub std_vw: ::core::ffi::c_double,
-    pub stem_snap_h_count: Arity,
-    pub stem_snap_h: *mut ::core::ffi::c_double,
-    pub stem_snap_v_count: Arity,
-    pub stem_snap_v: *mut ::core::ffi::c_double,
+    pub stem_snap_h: Vec<::core::ffi::c_double>,
+    pub stem_snap_v: Vec<::core::ffi::c_double>,
     pub force_bold: bool,
     pub language_group: u32,
     pub expansion_factor: ::core::ffi::c_double,
@@ -87,25 +81,14 @@ pub struct CffPrivateDict {
 }
 // Stage 6-4 "Box化": `CffTable.private_dict` becomes
 // `Option<Box<CffPrivateDict>>`. `Copy`/`Clone` dropped (nothing cloned
-// this type -- confirmed by grep) since a real `Drop` impl is needed for
-// the six `*mut c_double` arrays this struct still owns raw (their own
-// Box化/`Vec化` is out of scope here, matching `CffTable.fd_array`'s own
-// still-raw-pointer status). Replaces `otfcc_delete_privatedict` --
-// construction now goes through `otfcc_new_cff_private()` returning
+// this type -- confirmed by grep). The six `*mut c_double` arrays (each
+// paired with its own `_count: Arity`, left raw at the time -- matching
+// `CffTable.fd_array`'s own still-raw-pointer status then) are now plain
+// `Vec<f64>`, so the custom `Drop` impl that used to free each one by hand
+// is gone entirely: Rust's own field-by-field drop glue reaches them.
+// Construction goes through `otfcc_new_cff_private()` returning
 // `Box<CffPrivateDict>` directly at each call site, matching the
 // `new_lookup`/`new_feature`/`GaspTable` precedent.
-impl Drop for CffPrivateDict {
-    fn drop(&mut self) {
-        unsafe {
-            free(self.blue_values as *mut ::core::ffi::c_void);
-            free(self.other_blues as *mut ::core::ffi::c_void);
-            free(self.family_blues as *mut ::core::ffi::c_void);
-            free(self.family_other_blues as *mut ::core::ffi::c_void);
-            free(self.stem_snap_h as *mut ::core::ffi::c_void);
-            free(self.stem_snap_v as *mut ::core::ffi::c_void);
-        }
-    }
-}
 // `Copy`/`Clone` dropped: nine fields are now `Vec<u8>` (the `sds` sweep
 // reached `CffTable`'s font-info fields). Every use of this type is behind
 // `*mut CffTable`/`*const CffTable` (confirmed by grep before starting;
@@ -225,23 +208,17 @@ pub static DEFAULT_BLUE_FUZZ: ::core::ffi::c_double =
 pub static DEFAULT_EXPANSION_FACTOR: ::core::ffi::c_double = 0.06f64;
 fn otfcc_new_cff_private() -> Box<CffPrivateDict> {
     Box::new(CffPrivateDict {
-        blue_values_count: 0,
-        blue_values: ::core::ptr::null_mut::<::core::ffi::c_double>(),
-        other_blues_count: 0,
-        other_blues: ::core::ptr::null_mut::<::core::ffi::c_double>(),
-        family_blues_count: 0,
-        family_blues: ::core::ptr::null_mut::<::core::ffi::c_double>(),
-        family_other_blues_count: 0,
-        family_other_blues: ::core::ptr::null_mut::<::core::ffi::c_double>(),
+        blue_values: Vec::new(),
+        other_blues: Vec::new(),
+        family_blues: Vec::new(),
+        family_other_blues: Vec::new(),
         blue_scale: DEFAULT_BLUE_SCALE,
         blue_shift: DEFAULT_BLUE_SHIFT,
         blue_fuzz: DEFAULT_BLUE_FUZZ,
         std_hw: 0.,
         std_vw: 0.,
-        stem_snap_h_count: 0,
-        stem_snap_h: ::core::ptr::null_mut::<::core::ffi::c_double>(),
-        stem_snap_v_count: 0,
-        stem_snap_v: ::core::ptr::null_mut::<::core::ffi::c_double>(),
+        stem_snap_h: Vec::new(),
+        stem_snap_v: Vec::new(),
         force_bold: false,
         language_group: 0,
         expansion_factor: DEFAULT_EXPANSION_FACTOR,
@@ -327,82 +304,23 @@ unsafe extern "C" fn callback_extract_private(
     let mut pd: *mut CffPrivateDict = (*meta).private_dict.as_deref_mut().unwrap() as *mut CffPrivateDict;
     match op.0 {
         6 => {
-            (*pd).blue_values_count = top as Arity;
-            (*pd).blue_values = __caryll_allocate_clean(
-                (::core::mem::size_of::<::core::ffi::c_double>() as usize)
-                    .wrapping_mul((*pd).blue_values_count as usize),
-                86 as ::core::ffi::c_ulong,
-            ) as *mut ::core::ffi::c_double;
-            let mut j: Arity = 0 as Arity;
-            while j < (*pd).blue_values_count {
-                *(*pd).blue_values.offset(j as isize) = cffnum(*stack.offset(j as isize));
-                j = j.wrapping_add(1);
-            }
+            (*pd).blue_values = (0..top as Arity).map(|j| cffnum(*stack.offset(j as isize))).collect();
         }
         7 => {
-            (*pd).other_blues_count = top as Arity;
-            (*pd).other_blues = __caryll_allocate_clean(
-                (::core::mem::size_of::<::core::ffi::c_double>() as usize)
-                    .wrapping_mul((*pd).other_blues_count as usize),
-                94 as ::core::ffi::c_ulong,
-            ) as *mut ::core::ffi::c_double;
-            let mut j_0: Arity = 0 as Arity;
-            while j_0 < (*pd).other_blues_count {
-                *(*pd).other_blues.offset(j_0 as isize) = cffnum(*stack.offset(j_0 as isize));
-                j_0 = j_0.wrapping_add(1);
-            }
+            (*pd).other_blues = (0..top as Arity).map(|j| cffnum(*stack.offset(j as isize))).collect();
         }
         8 => {
-            (*pd).family_blues_count = top as Arity;
-            (*pd).family_blues = __caryll_allocate_clean(
-                (::core::mem::size_of::<::core::ffi::c_double>() as usize)
-                    .wrapping_mul((*pd).family_blues_count as usize),
-                102 as ::core::ffi::c_ulong,
-            ) as *mut ::core::ffi::c_double;
-            let mut j_1: Arity = 0 as Arity;
-            while j_1 < (*pd).family_blues_count {
-                *(*pd).family_blues.offset(j_1 as isize) = cffnum(*stack.offset(j_1 as isize));
-                j_1 = j_1.wrapping_add(1);
-            }
+            (*pd).family_blues = (0..top as Arity).map(|j| cffnum(*stack.offset(j as isize))).collect();
         }
         9 => {
-            (*pd).family_other_blues_count = top as Arity;
-            (*pd).family_other_blues = __caryll_allocate_clean(
-                (::core::mem::size_of::<::core::ffi::c_double>() as usize)
-                    .wrapping_mul((*pd).family_other_blues_count as usize),
-                110 as ::core::ffi::c_ulong,
-            ) as *mut ::core::ffi::c_double;
-            let mut j_2: Arity = 0 as Arity;
-            while j_2 < (*pd).family_other_blues_count {
-                *(*pd).family_other_blues.offset(j_2 as isize) = cffnum(*stack.offset(j_2 as isize));
-                j_2 = j_2.wrapping_add(1);
-            }
+            (*pd).family_other_blues =
+                (0..top as Arity).map(|j| cffnum(*stack.offset(j as isize))).collect();
         }
         3084 => {
-            (*pd).stem_snap_h_count = top as Arity;
-            (*pd).stem_snap_h = __caryll_allocate_clean(
-                (::core::mem::size_of::<::core::ffi::c_double>() as usize)
-                    .wrapping_mul((*pd).stem_snap_h_count as usize),
-                118 as ::core::ffi::c_ulong,
-            ) as *mut ::core::ffi::c_double;
-            let mut j_3: Arity = 0 as Arity;
-            while j_3 < (*pd).stem_snap_h_count {
-                *(*pd).stem_snap_h.offset(j_3 as isize) = cffnum(*stack.offset(j_3 as isize));
-                j_3 = j_3.wrapping_add(1);
-            }
+            (*pd).stem_snap_h = (0..top as Arity).map(|j| cffnum(*stack.offset(j as isize))).collect();
         }
         3085 => {
-            (*pd).stem_snap_v_count = top as Arity;
-            (*pd).stem_snap_v = __caryll_allocate_clean(
-                (::core::mem::size_of::<::core::ffi::c_double>() as usize)
-                    .wrapping_mul((*pd).stem_snap_v_count as usize),
-                126 as ::core::ffi::c_ulong,
-            ) as *mut ::core::ffi::c_double;
-            let mut j_4: Arity = 0 as Arity;
-            while j_4 < (*pd).stem_snap_v_count {
-                *(*pd).stem_snap_v.offset(j_4 as isize) = cffnum(*stack.offset(j_4 as isize));
-                j_4 = j_4.wrapping_add(1);
-            }
+            (*pd).stem_snap_v = (0..top as Arity).map(|j| cffnum(*stack.offset(j as isize))).collect();
         }
         3081 => {
             if top != 0 {
@@ -1562,20 +1480,17 @@ pub unsafe extern "C" fn otfcc_read_cff_and_glyf_tables(
     }
     return ret;
 }
-unsafe extern "C" fn pd_delta_to_json(
-    mut target: *mut BuiltValue,
-    mut field: *const ::core::ffi::c_char,
-    mut count: Arity,
-    mut values: *mut ::core::ffi::c_double,
+unsafe fn pd_delta_to_json(
+    target: *mut BuiltValue,
+    field: *const ::core::ffi::c_char,
+    values: &[::core::ffi::c_double],
 ) {
-    if count == 0 || values.is_null() {
+    if values.is_empty() {
         return;
     }
-    let mut a: *mut BuiltValue = json_array_new(count as usize);
-    let mut j: Arity = 0 as Arity;
-    while j < count {
-        json_array_push(a, json_double_new(*values.offset(j as isize)));
-        j = j.wrapping_add(1);
+    let a: *mut BuiltValue = json_array_new(values.len());
+    for &x in values {
+        json_array_push(a, json_double_new(x));
     }
     json_object_push(target, field, a);
 }
@@ -1584,38 +1499,32 @@ unsafe extern "C" fn pd_to_json(mut pd: *const CffPrivateDict) -> *mut BuiltValu
     pd_delta_to_json(
         _pd,
         b"blueValues\0" as *const u8 as *const ::core::ffi::c_char,
-        (*pd).blue_values_count,
-        (*pd).blue_values,
+        &(*pd).blue_values,
     );
     pd_delta_to_json(
         _pd,
         b"otherBlues\0" as *const u8 as *const ::core::ffi::c_char,
-        (*pd).other_blues_count,
-        (*pd).other_blues,
+        &(*pd).other_blues,
     );
     pd_delta_to_json(
         _pd,
         b"familyBlues\0" as *const u8 as *const ::core::ffi::c_char,
-        (*pd).family_blues_count,
-        (*pd).family_blues,
+        &(*pd).family_blues,
     );
     pd_delta_to_json(
         _pd,
         b"familyOtherBlues\0" as *const u8 as *const ::core::ffi::c_char,
-        (*pd).family_other_blues_count,
-        (*pd).family_other_blues,
+        &(*pd).family_other_blues,
     );
     pd_delta_to_json(
         _pd,
         b"stemSnapH\0" as *const u8 as *const ::core::ffi::c_char,
-        (*pd).stem_snap_h_count,
-        (*pd).stem_snap_h,
+        &(*pd).stem_snap_h,
     );
     pd_delta_to_json(
         _pd,
         b"stemSnapV\0" as *const u8 as *const ::core::ffi::c_char,
-        (*pd).stem_snap_v_count,
-        (*pd).stem_snap_v,
+        &(*pd).stem_snap_v,
     );
     if (*pd).blue_scale != DEFAULT_BLUE_SCALE {
         json_object_push(
@@ -1936,26 +1845,11 @@ pub unsafe extern "C" fn otfcc_dump_cff(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-unsafe extern "C" fn pd_delta_from_json(
-    mut dump: *const ParsedValue,
-    mut count: *mut Arity,
-    mut array: *mut *mut ::core::ffi::c_double,
-) {
-    if dump.is_null()
-        || json_type_of(dump) != JsonType::Array
-    {
-        return;
+unsafe fn pd_delta_from_json(dump: *const ParsedValue) -> Vec<::core::ffi::c_double> {
+    if dump.is_null() || json_type_of(dump) != JsonType::Array {
+        return Vec::new();
     }
-    *count = json_arr_len(dump) as Arity;
-    *array = __caryll_allocate_clean(
-        (::core::mem::size_of::<::core::ffi::c_double>() as usize).wrapping_mul(*count as usize),
-        785 as ::core::ffi::c_ulong,
-    ) as *mut ::core::ffi::c_double;
-    let mut j: Arity = 0 as Arity;
-    while j < *count {
-        *(*array).offset(j as isize) = json_numof(json_arr_at(dump, j as u32));
-        j = j.wrapping_add(1);
-    }
+    (0..json_arr_len(dump)).map(|j| json_numof(json_arr_at(dump, j))).collect()
 }
 unsafe extern "C" fn pd_from_json(mut dump: *const ParsedValue) -> Option<Box<CffPrivateDict>> {
     if dump.is_null()
@@ -1965,54 +1859,30 @@ unsafe extern "C" fn pd_from_json(mut dump: *const ParsedValue) -> Option<Box<Cf
     }
     let mut pd_box: Box<CffPrivateDict> = otfcc_new_cff_private();
     let pd: *mut CffPrivateDict = pd_box.as_mut() as *mut CffPrivateDict;
-    pd_delta_from_json(
-        json_obj_get(
-            dump,
-            b"blueValues\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
-        &raw mut (*pd).blue_values_count,
-        &raw mut (*pd).blue_values,
-    );
-    pd_delta_from_json(
-        json_obj_get(
-            dump,
-            b"otherBlues\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
-        &raw mut (*pd).other_blues_count,
-        &raw mut (*pd).other_blues,
-    );
-    pd_delta_from_json(
-        json_obj_get(
-            dump,
-            b"familyBlues\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
-        &raw mut (*pd).family_blues_count,
-        &raw mut (*pd).family_blues,
-    );
-    pd_delta_from_json(
-        json_obj_get(
-            dump,
-            b"familyOtherBlues\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
-        &raw mut (*pd).family_other_blues_count,
-        &raw mut (*pd).family_other_blues,
-    );
-    pd_delta_from_json(
-        json_obj_get(
-            dump,
-            b"stemSnapH\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
-        &raw mut (*pd).stem_snap_h_count,
-        &raw mut (*pd).stem_snap_h,
-    );
-    pd_delta_from_json(
-        json_obj_get(
-            dump,
-            b"stemSnapV\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
-        &raw mut (*pd).stem_snap_v_count,
-        &raw mut (*pd).stem_snap_v,
-    );
+    (*pd).blue_values = pd_delta_from_json(json_obj_get(
+        dump,
+        b"blueValues\0" as *const u8 as *const ::core::ffi::c_char,
+    ));
+    (*pd).other_blues = pd_delta_from_json(json_obj_get(
+        dump,
+        b"otherBlues\0" as *const u8 as *const ::core::ffi::c_char,
+    ));
+    (*pd).family_blues = pd_delta_from_json(json_obj_get(
+        dump,
+        b"familyBlues\0" as *const u8 as *const ::core::ffi::c_char,
+    ));
+    (*pd).family_other_blues = pd_delta_from_json(json_obj_get(
+        dump,
+        b"familyOtherBlues\0" as *const u8 as *const ::core::ffi::c_char,
+    ));
+    (*pd).stem_snap_h = pd_delta_from_json(json_obj_get(
+        dump,
+        b"stemSnapH\0" as *const u8 as *const ::core::ffi::c_char,
+    ));
+    (*pd).stem_snap_v = pd_delta_from_json(json_obj_get(
+        dump,
+        b"stemSnapV\0" as *const u8 as *const ::core::ffi::c_char,
+    ));
     (*pd).blue_scale = json_obj_getnum_fallback(
         dump,
         b"blueScale\0" as *const u8 as *const ::core::ffi::c_char,
@@ -2364,39 +2234,36 @@ unsafe fn cffdict_input_ints(dict: *mut CffDict, op: CffDictOperator, values: &[
     }
 }
 
-unsafe extern "C" fn cffdict_input_array(
-    mut dict: *mut CffDict,
-    mut op: CffDictOperator,
-    mut t: CffValueType,
-    mut arity: Arity,
-    mut arr: *mut ::core::ffi::c_double,
+unsafe fn cffdict_input_array(
+    dict: *mut CffDict,
+    op: CffDictOperator,
+    t: CffValueType,
+    arr: &[::core::ffi::c_double],
 ) {
-    if arity == 0 || arr.is_null() {
+    if arr.is_empty() {
         return;
     }
-    let mut last: *mut CffDictEntry = cffdict_givemeablank(dict);
+    let last: *mut CffDictEntry = cffdict_givemeablank(dict);
     (*last).op = op;
-    (*last).cnt = arity as u32;
+    (*last).cnt = arr.len() as u32;
     (*last).vals = __caryll_allocate_clean(
-        (::core::mem::size_of::<CffValue>() as usize).wrapping_mul(arity as usize),
+        (::core::mem::size_of::<CffValue>() as usize).wrapping_mul(arr.len()),
         994 as ::core::ffi::c_ulong,
     ) as *mut CffValue;
-    let mut j: Arity = 0 as Arity;
-    while j < arity {
-        let mut x: ::core::ffi::c_double = *arr.offset(j as isize);
-        if t as ::core::ffi::c_uint == CffValueType::Double as ::core::ffi::c_int as ::core::ffi::c_uint {
+    for (j, &x) in arr.iter().enumerate() {
+        let slot = (*last).vals.add(j);
+        if t == CffValueType::Double {
             if x == round(x) {
-                (*(*last).vals.offset(j as isize)).t = CffValueType::Integer;
-                (*(*last).vals.offset(j as isize)).c2rust_unnamed.i = round(x) as i32;
+                (*slot).t = CffValueType::Integer;
+                (*slot).c2rust_unnamed.i = round(x) as i32;
             } else {
-                (*(*last).vals.offset(j as isize)).t = CffValueType::Double;
-                (*(*last).vals.offset(j as isize)).c2rust_unnamed.d = x;
+                (*slot).t = CffValueType::Double;
+                (*slot).c2rust_unnamed.d = x;
             }
         } else {
-            (*(*last).vals.offset(j as isize)).t = t;
-            (*(*last).vals.offset(j as isize)).c2rust_unnamed.i = round(x) as i32;
+            (*slot).t = t;
+            (*slot).c2rust_unnamed.i = round(x) as i32;
         }
-        j = j.wrapping_add(1);
     }
 }
 unsafe extern "C" fn cff_make_fd_dict(
@@ -2465,43 +2332,37 @@ unsafe extern "C" fn cff_make_private_dict(mut pd: *mut CffPrivateDict) -> *mut 
         dict,
         OP_BLUE_VALUES,
         CffValueType::Double,
-        (*pd).blue_values_count,
-        (*pd).blue_values,
+        &(*pd).blue_values,
     );
     cffdict_input_array(
         dict,
         OP_OTHER_BLUES,
         CffValueType::Double,
-        (*pd).other_blues_count,
-        (*pd).other_blues,
+        &(*pd).other_blues,
     );
     cffdict_input_array(
         dict,
         OP_FAMILY_BLUES,
         CffValueType::Double,
-        (*pd).family_blues_count,
-        (*pd).family_blues,
+        &(*pd).family_blues,
     );
     cffdict_input_array(
         dict,
         OP_FAMILY_OTHER_BLUES,
         CffValueType::Double,
-        (*pd).family_other_blues_count,
-        (*pd).family_other_blues,
+        &(*pd).family_other_blues,
     );
     cffdict_input_array(
         dict,
         OP_STEM_SNAP_H,
         CffValueType::Double,
-        (*pd).stem_snap_h_count,
-        (*pd).stem_snap_h,
+        &(*pd).stem_snap_h,
     );
     cffdict_input_array(
         dict,
         OP_STEM_SNAP_V,
         CffValueType::Double,
-        (*pd).stem_snap_v_count,
-        (*pd).stem_snap_v,
+        &(*pd).stem_snap_v
     );
     cffdict_input_doubles(dict, OP_BLUE_SCALE, &[((*pd).blue_scale) as f64]);
     cffdict_input_doubles(dict, OP_BLUE_SHIFT, &[((*pd).blue_shift) as f64]);
