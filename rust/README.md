@@ -894,6 +894,60 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 6-2's sixth `sds` sub-theme: `table/cmap.rs`'s remaining
+  `SdsRaw` usage -- both the dump-side key building and the parse-side
+  `parse_unicode`/`parse_uvs_key` pair -- is retyped away entirely,
+  closing out the `otfcc_encode_cmap_by_name`/`_uvs_by_name` adapter
+  shim the `handle_from_name` PR deliberately left `SdsRaw`-in.** Picked
+  first among the remaining themes (over `post.rs`'s `pending_names`
+  array, `json_reader.rs`'s glyph-order construction) for weighing
+  highest on impact/future-value/readability: cmap is a core table every
+  font has, and finishing it cleans up residue from already-landed work
+  rather than opening a new isolated pocket.
+  - **Dump side**: `sdsbuild!`/`sdsfromlonglong`+`sdsfree`-built cmap and
+    cmap_uvs JSON keys (`U+XXXX` hex or plain decimal, depending on
+    `--decimal-cmap`/`--hex-cmap`) become `bytesbuild!` +
+    `json_object_push_bytes_key`, the same shape used throughout this
+    sweep. No behavior change: `c_int`/`c_uint`'s `SdsPart` decimal
+    formatting already matches `sdsfromlonglong`'s output exactly for
+    every value these keys can hold.
+  - **`parse_unicode`/`parse_uvs_key` keep calling libc `strtol`/`atoi`
+    unchanged (deliberately not reimplemented in safe Rust)** -- their
+    real complexity was never the parsing logic itself, just the `SdsRaw`
+    plumbing around it. Both now borrow `json_obj_key_at`'s pointer
+    directly instead of copying it into an owned `sds` first: every JSON
+    object key is already NUL-terminated in `ParsedValue`'s own storage
+    (a `ParsedValue`-level guarantee, not an `sds`-level one), so `strlen`
+    sees exactly the length `sdslen` used to on the copy, and neither call
+    site needs an `sdsnewlen`+`sdsfree` pair around the call any more.
+  - **`otfcc_encode_cmap_by_name`/`_uvs_by_name` finally drop their
+    `SdsRaw`-in adapter shim**, now that the `gname` feeding them is a
+    plain `Vec<u8>` (`json_str_bytes`, added by the `handle_from_name`
+    PR). Both callers pass `gname.clone()` and keep their own copy for the
+    log-warning message that follows on the "already mapped" path -- the
+    same clone-at-the-call-site pattern used for `GlyphOrderPackage`'s
+    `set_by_name`. Bonus: the pre-existing leak on that path (the old
+    `SdsRaw` `name` was never freed when a codepoint/UVS pair was already
+    taken) is gone by construction, not by an explicit fix -- an unused
+    `Vec<u8>` just drops.
+  - **Verification note**: no standard payload happens to have two cmap
+    or cmap_uvs entries mapping to the same codepoint, so the "already
+    mapped" warning path (and the `Vec<u8>`-drops-the-leak change) had
+    zero coverage from the existing scripts. Manually constructed both
+    collisions (a decimal and a zero-padded-decimal key parsing to the
+    same codepoint; a UVS pair likewise) and confirmed byte-identical
+    output *and* log text against the C build on both platforms, plus a
+    `--hex-cmap` dump/build pass (the non-default key format) for the
+    same reason.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib (`KRName-Regular`
+    exercises `cmap_uvs` specifically); all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green;
+    `compare-log-output.sh` green; plus the manual collision/hex-cmap
+    checks above.
+
 - **Stage 6-2's fifth `sds` sub-theme: `handle_from_name` (the
   `Handle`/`GlyphHandle`/`LookupHandle` constructor every parse-side glyph
   name reference goes through) is retyped from `SdsRaw` to

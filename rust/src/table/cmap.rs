@@ -1,8 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, strtol};
+use libc::{free, strlen, strtol};
 
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
-use crate::support::handle::{handle_from_index, handle_from_name, sds_to_vec, GlyphHandle};
+use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of};
+use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_16u, read_24u, read_32u};
@@ -10,7 +10,7 @@ use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId, Unicode};
-use crate::vendor::sds::{Hex4Upper, SdsRaw};
+use crate::vendor::sds::{Hex4Upper};
 use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
@@ -18,8 +18,7 @@ use crate::support::{NULL};
 use crate::bk::bkblock::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::support::buffer::{buffree, buflen, bufnew, bufseek, bufwrite16b, bufwrite24b, bufwrite32b, bufwrite8, bufwrite_buf};
-use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_string_new_from_bytes};
-use crate::vendor::sds::{sdsempty, sdsfree, sdsfromlonglong, sdslen, sdsnewlen};
+use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes};
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
 pub struct CmapUvsKey {
@@ -92,24 +91,24 @@ pub unsafe extern "C" fn otfcc_encode_cmap_by_index(
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-// `name` stays `SdsRaw`-in (rather than following `handle_from_name` to
-// `Vec<u8>`) so its two callers -- `parse_cmap_unicodes`'s `gname`, built
-// by hand-rolled pointer scanning that's a separate, not-yet-converted
-// theme -- don't need to change. Adapts internally instead: copies the
-// bytes out for `handle_from_name`, then frees `name` itself only on the
-// Vacant path, matching `handle_from_name`'s old contract of consuming
-// its argument only when it actually stores it (the Occupied/"already
-// mapped" path already never freed `name` before this change either --
-// preserved as-is, not this theme's job to fix).
+// `name` is a caller-owned `Vec<u8>` now (the two callers -- `parse_cmap_
+// unicodes`/`parse_cmap_uvs` -- pass a clone, keeping their own copy for
+// the log message that follows on the Occupied path). The Occupied
+// ("already mapped") path used to leave the old `SdsRaw` `name` unfreed
+// -- a pre-existing leak this migration didn't own until now -- but that
+// hazard is gone by construction: an unused `Vec<u8>` just drops.
+//
+// Never a real FFI boundary -- internal call sites only, same rationale
+// as every other instance of this allow in the crate.
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_encode_cmap_by_name(
     mut cmap: *mut CmapTable,
     mut c: ::core::ffi::c_int,
-    mut name: SdsRaw,
+    mut name: Vec<u8>,
 ) -> bool {
     match (*cmap).unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_name(Some(sds_to_vec(name))) as GlyphHandle);
-            sdsfree(name);
+            v.insert(handle_from_name(Some(name)) as GlyphHandle);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,
@@ -150,17 +149,17 @@ pub unsafe extern "C" fn otfcc_encode_cmap_uvs_by_index(
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-// Same `SdsRaw`-in adapter as `otfcc_encode_cmap_by_name` above, same
+// Same `Vec<u8>`-in shape as `otfcc_encode_cmap_by_name` above, same
 // reason.
+#[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_encode_cmap_uvs_by_name(
     mut cmap: *mut CmapTable,
     mut c: CmapUvsKey,
-    mut name: SdsRaw,
+    mut name: Vec<u8>,
 ) -> bool {
     match (*cmap).uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_name(Some(sds_to_vec(name))) as GlyphHandle);
-            sdsfree(name);
+            v.insert(handle_from_name(Some(name)) as GlyphHandle);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,
@@ -621,18 +620,16 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
             let mut cmap: *mut BuiltValue = json_object_new((*table).unicodes.len());
             for (&unicode, glyph) in (*table).unicodes.iter() {
                 if !glyph.name.is_empty() {
-                    let mut key: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-                    if (*options).decimal_cmap {
-                        key = sdsfromlonglong(unicode as ::core::ffi::c_longlong);
+                    let key: Vec<u8> = if (*options).decimal_cmap {
+                        crate::bytesbuild!(unicode)
                     } else {
-                        key = crate::sdsbuild!(sdsempty(), b"U+", Hex4Upper(unicode as u32));
-                    }
-                    json_object_push(
+                        crate::bytesbuild!(b"U+", Hex4Upper(unicode as u32))
+                    };
+                    json_object_push_bytes_key(
                         cmap,
-                        key as *const ::core::ffi::c_char,
+                        &key,
                         json_string_new_from_bytes(&glyph.name),
                     );
-                    sdsfree(key);
                 }
             }
             json_object_push(
@@ -645,29 +642,25 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
             let mut uvs: *mut BuiltValue = json_object_new((*table).uvs.len());
             for (key, glyph) in (*table).uvs.iter() {
                 if !glyph.name.is_empty() {
-                    let mut key_0: SdsRaw = ::core::ptr::null_mut::<::core::ffi::c_char>();
-                    if (*options).decimal_cmap {
-                        key_0 = crate::sdsbuild!(
-                            sdsempty(),
+                    let key_0: Vec<u8> = if (*options).decimal_cmap {
+                        crate::bytesbuild!(
                             key.unicode,
                             b" ",
                             key.selector,
-                        );
+                        )
                     } else {
-                        key_0 = crate::sdsbuild!(
-                            sdsempty(),
+                        crate::bytesbuild!(
                             b"U+",
                             Hex4Upper(key.unicode as u32),
                             b" U+",
                             Hex4Upper(key.selector as u32),
-                        );
-                    }
-                    json_object_push(
+                        )
+                    };
+                    json_object_push_bytes_key(
                         uvs,
-                        key_0 as *const ::core::ffi::c_char,
+                        &key_0,
                         json_string_new_from_bytes(&glyph.name),
                     );
-                    sdsfree(key_0);
                 }
             }
             json_object_push(
@@ -682,9 +675,15 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
+// `unicode_str` borrows `json_obj_key_at`'s pointer directly rather than
+// going through an owned `sds` copy: every JSON object key is already
+// NUL-terminated in `ParsedValue`'s own storage (see `json_obj_key_at`'s
+// doc comment), so `strlen` here sees exactly the same length `sdslen`
+// used to on the `sdsnewlen`-copied version -- no allocation or free
+// needed at either call site any more.
 #[inline]
-unsafe extern "C" fn parse_unicode(unicode_str: SdsRaw) -> Unicode {
-    if sdslen(unicode_str) > 2 as usize
+unsafe extern "C" fn parse_unicode(unicode_str: *const ::core::ffi::c_char) -> Unicode {
+    if strlen(unicode_str) > 2 as usize
         && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int == 'U' as i32
         && *unicode_str.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int == '+' as i32
     {
@@ -709,22 +708,14 @@ unsafe extern "C" fn parse_cmap_unicodes(
     }
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(table) as u32 {
-        let mut unicode_str: SdsRaw = sdsnewlen(
-            json_obj_key_at(table, j as u32) as *const ::core::ffi::c_void,
-            json_obj_key_len_at(table, j as u32) as usize,
-        );
         let mut item: *const ParsedValue = json_obj_val_at(table, j as u32);
-        let mut unicode: Unicode = parse_unicode(unicode_str);
-        sdsfree(unicode_str);
+        let mut unicode: Unicode = parse_unicode(json_obj_key_at(table, j as u32));
         if json_type_of(item) == JsonType::String
             && unicode > 0 as Unicode
             && unicode <= 0x10ffff as Unicode
         {
-            let mut gname: SdsRaw = sdsnewlen(
-                json_str_ptr(item) as *const ::core::ffi::c_void,
-                json_str_len(item) as usize,
-            );
-            if !otfcc_encode_cmap_by_name(cmap, unicode as ::core::ffi::c_int, gname) {
+            let gname: Vec<u8> = json_str_bytes(item);
+            if !otfcc_encode_cmap_by_name(cmap, unicode as ::core::ffi::c_int, gname.clone()) {
                 let mut current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup(cmap, unicode as ::core::ffi::c_int) as *mut GlyphHandle;
                 (*(*options).logger)
@@ -738,7 +729,7 @@ unsafe extern "C" fn parse_cmap_unicodes(
                         b" is already mapped to ",
                         &(*current_map).name,
                         b". Assignment to ",
-                        gname,
+                        &gname,
                         b" is ignored.",
                     ),
                 );
@@ -747,14 +738,15 @@ unsafe extern "C" fn parse_cmap_unicodes(
         j = j.wrapping_add(1);
     }
 }
+// Same borrow-`json_obj_key_at`-directly reasoning as `parse_unicode`.
 #[inline]
-unsafe extern "C" fn parse_uvs_key(uvs_str: SdsRaw) -> CmapUvsKey {
-    let mut len: usize = sdslen(uvs_str);
+unsafe extern "C" fn parse_uvs_key(uvs_str: *const ::core::ffi::c_char) -> CmapUvsKey {
+    let mut len: usize = strlen(uvs_str);
     let mut k: CmapUvsKey = CmapUvsKey {
         unicode: 0 as u32,
         selector: 0 as u32,
     };
-    let mut scan: SdsRaw = uvs_str;
+    let mut scan: *const ::core::ffi::c_char = uvs_str;
     while scan < uvs_str.offset(len as isize) {
         if *scan as ::core::ffi::c_int == ' ' as i32 {
             k.unicode = parse_unicode(uvs_str) as u32;
@@ -777,11 +769,7 @@ unsafe extern "C" fn parse_cmap_uvs(
     }
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(table) as u32 {
-        let mut uvs_str: SdsRaw = sdsnewlen(
-            json_obj_key_at(table, j as u32) as *const ::core::ffi::c_void,
-            json_obj_key_len_at(table, j as u32) as usize,
-        );
-        let mut k: CmapUvsKey = parse_uvs_key(uvs_str);
+        let mut k: CmapUvsKey = parse_uvs_key(json_obj_key_at(table, j as u32));
         let mut item: *const ParsedValue = json_obj_val_at(table, j as u32);
         if json_type_of(item) == JsonType::String
             && k.unicode > 0 as u32
@@ -789,11 +777,8 @@ unsafe extern "C" fn parse_cmap_uvs(
             && k.selector > 0 as u32
             && k.selector <= 0x10ffff as u32
         {
-            let mut gname: SdsRaw = sdsnewlen(
-                json_str_ptr(item) as *const ::core::ffi::c_void,
-                json_str_len(item) as usize,
-            );
-            if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname) {
+            let gname: Vec<u8> = json_str_bytes(item);
+            if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname.clone()) {
                 let mut current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup_uvs(cmap, k) as *mut GlyphHandle;
                 (*(*options).logger)
@@ -809,7 +794,7 @@ unsafe extern "C" fn parse_cmap_uvs(
                         b" is already mapped to ",
                         &(*current_map).name,
                         b". Assignment to ",
-                        gname,
+                        &gname,
                         b" is ignored.",
                     ),
                 );
