@@ -9,7 +9,6 @@ use crate::support::options::{Options};
 
 
 
-use crate::support::{NULL};
 use crate::support::glyph_order::GlyphOrder;
 use crate::table::base::BaseTable;
 use crate::table::cff::CffTable;
@@ -41,8 +40,6 @@ use crate::table::vdmx::types::{VdmxTable};
 use crate::table::vhea::VheaTable;
 use crate::table::vmtx::VmtxTable;
 use crate::consolidate::{otfcc_consolidate_font};
-use crate::table::name::{table_name_create};
-use crate::table::otl::{table_otl_create};
 
 
 
@@ -105,23 +102,7 @@ pub struct FontElementInterface {
     pub create: Option<unsafe extern "C" fn() -> *mut Font>,
     pub free: Option<unsafe extern "C" fn(*mut Font) -> ()>,
     pub consolidate: Option<unsafe extern "C" fn(*mut Font, *const Options) -> ()>,
-    pub create_table:
-        Option<unsafe extern "C" fn(*mut Font, u32) -> *mut ::core::ffi::c_void>,
     pub delete_table: Option<unsafe extern "C" fn(*mut Font, u32) -> ()>,
-}
-unsafe extern "C" fn create_font_table(
-    mut _font: *mut Font,
-    tag: u32,
-) -> *mut ::core::ffi::c_void {
-    match tag {
-        crate::tag::TAG_NAME => {
-            return table_name_create() as *mut ::core::ffi::c_void;
-        }
-        crate::tag::TAG_GSUB | crate::tag::TAG_GPOS => {
-            return table_otl_create() as *mut ::core::ffi::c_void;
-        }
-        _ => return NULL,
-    };
 }
 unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
     match tag {
@@ -329,10 +310,6 @@ pub static OTFCC_I_FONT: FontElementInterface = {
         consolidate: Some(
             otfcc_consolidate_font
                 as unsafe extern "C" fn(*mut Font, *const Options) -> (),
-        ),
-        create_table: Some(
-            create_font_table
-                as unsafe extern "C" fn(*mut Font, u32) -> *mut ::core::ffi::c_void,
         ),
         delete_table: Some(delete_font_table as unsafe extern "C" fn(*mut Font, u32) -> ()),
     }

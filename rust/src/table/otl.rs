@@ -8,7 +8,7 @@ pub mod parse;
 pub mod read;
 pub mod subtables;
 
-use libc::{calloc, free};
+use libc::{free};
 
 use crate::table::otl::classdef::{ClassDef};
 use crate::table::otl::coverage::{Coverage};
@@ -742,24 +742,12 @@ pub(crate) fn new_language() -> Box<LanguageSystem> {
 // `Font.gsub`/`Font.gpos`が`Option<Box<OtlTable>>`になったので
 // `table_otl_free`自体が不要になった（`Option`の破棄／再代入で
 // `LookupList`/`FeatureList`/`LangSystemList`が自動的にフルドロップされる）。
-// `table_otl_create`/`init_otl`は`create_font_table`の死んだ
-// `create_table`ベクタースロット（`table_name_create`と同じ理由で
-// 呼び出し側が存在しない）専用に残す——`calloc`、`malloc`ではない点も
-// 従来通り（`init_otl`が`.lookups`/`.features`/`.languages`へ直接フィールド
-// 代入(`= Vec::new()`)するため、gaspと同じ罠が当てはまる）。
-#[inline]
-pub(crate) unsafe fn table_otl_create() -> *mut OtlTable {
-    let x: *mut OtlTable =
-        calloc(1, ::core::mem::size_of::<OtlTable>() as usize) as *mut OtlTable;
-    init_otl(x);
-    x
-}
-#[inline]
-unsafe fn init_otl(table: *mut OtlTable) {
-    (*table).lookups = Vec::new();
-    (*table).features = Vec::new();
-    (*table).languages = Vec::new();
-}
+// `table_otl_create`/`init_otl` deleted, not converted: their sole caller
+// was `create_font_table`'s `create_table` vtable slot, and grepping
+// every `FontElementInterface` field found `.create_table` itself is
+// never read anywhere in the crate -- `create_font_table` and its other
+// callee `table_name_create` (`table/name.rs`) are dead for the same
+// reason, deleted alongside this.
 // テーブル全体の `.copy`（`table_otl_copy`、生ポインタのmemcpy）は
 // crate全体で一度も呼ばれておらず削除——Vec所有下でのmemcpyは
 // 3つの内側リストすべての二重解放になるため、`.clone()`への移植も不要。
