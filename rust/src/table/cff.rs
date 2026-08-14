@@ -15,7 +15,7 @@ use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::libcff::CffDictOperator;
 use crate::libcff::{CffFile, CffIOutlineBuilder, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES, OP_CID_COUNT, OP_CID_FONT_REVISION, OP_CID_FONT_VERSION, OP_CHAR_STRINGS, OP_COPYRIGHT, OP_EXPANSION_FACTOR, OP_FD_ARRAY, OP_FD_SELECT, OP_FAMILY_BLUES, OP_FAMILY_NAME, OP_FAMILY_OTHER_BLUES, OP_FONT_BBOX, OP_FONT_MATRIX, OP_FONT_NAME, OP_FORCE_BOLD, OP_FULL_NAME, OP_ITALIC_ANGLE, OP_LANGUAGE_GROUP, OP_NOTICE, OP_OTHER_BLUES, OP_PRIVATE, OP_ROS, OP_STD_HW, OP_STD_VW, OP_STEM_SNAP_H, OP_STEM_SNAP_V, OP_STROKE_WIDTH, OP_SUBRS, OP_UID_BASE, OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS, OP_WEIGHT, OP_CHARSET, OP_DEFAULT_WIDTH_X, OP_INITIAL_RANDOM_SEED, OP_IS_FIXED_PITCH, OP_NOMINAL_WIDTH_X, OP_VERSION};
-use crate::libcff::cff_charset::{CffCharsetType, CffCharset, CffCharsetRangeFormat2};
+use crate::libcff::cff_charset::{CffCharset, CffCharsetRangeFormat2};
 use crate::libcff::cff_dict::{CffDict, CffDictEntry};
 use crate::libcff::cff_fdselect::{CffFdSelectType, CffFdSelect, CffFdSelectRangeFormat3};
 use crate::libcff::cff_index::{CffIndexCountType, CffIndex};
@@ -1080,44 +1080,29 @@ unsafe extern "C" fn form_cid_string(mut cid: CffSid) -> Vec<u8> {
 unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractContext) {
     let mut cff_file: *mut CffFile = (*context).cff_file;
     let mut glyphs: *mut GlyfTable = (*context).glyphs;
-    let mut charset: *mut CffCharset = &raw mut (*cff_file).charsets;
+    let charset: &CffCharset = &(*cff_file).charsets;
     if (*(*context).meta).is_cid {
-        match (*charset).t {
-            CffCharsetType::Format0 => {
-                let mut j: GlyphId = 0 as GlyphId;
-                while (j as u32) < (*charset).s {
-                    let mut sid: CffSid =
-                        *(*charset).c2rust_unnamed.f0.glyph.offset(j as isize) as CffSid;
+        match charset {
+            CffCharset::Format0(glyph) => {
+                for (j, &g) in glyph.iter().enumerate() {
+                    let sid: CffSid = g as CffSid;
                     let glyphname: Option<Vec<u8>> = sdsget_cff_sid(sid as u16, (*cff_file).string);
                     if let Some(glyphname) = glyphname {
-                        let ref mut fresh2 = (&mut (*glyphs))
-                            [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize].as_mut().unwrap()
-                        .name;
+                        let ref mut fresh2 = (&mut (*glyphs))[j + 1].as_mut().unwrap().name;
                         *fresh2 = glyphname;
-                        (&mut (*glyphs))
-                            [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize].as_mut().unwrap()
-                        .cid = sid as GlyphId;
+                        (&mut (*glyphs))[j + 1].as_mut().unwrap().cid = sid as GlyphId;
                     }
-                    j = j.wrapping_add(1);
                 }
             }
-            CffCharsetType::Format1 => {
+            CffCharset::Format1(range1) => {
                 let mut glyphs_named_sofar: u32 = 1 as u32;
-                let mut j_0: GlyphId = 0 as GlyphId;
-                while (j_0 as u32) < (*charset).s {
-                    let mut first: CffSid =
-                        (*(*charset).c2rust_unnamed.f1.range1.offset(j_0 as isize)).first
-                            as CffSid;
+                for r in range1 {
+                    let first: CffSid = r.first as CffSid;
                     let mut k: GlyphId = 0 as GlyphId;
-                    while k as ::core::ffi::c_int
-                        <= (*(*charset).c2rust_unnamed.f1.range1.offset(j_0 as isize)).nleft
-                            as ::core::ffi::c_int
-                    {
-                        let mut sid_0: CffSid =
-                            (first as ::core::ffi::c_int + k as ::core::ffi::c_int) as CffSid;
+                    while k as ::core::ffi::c_int <= r.nleft as ::core::ffi::c_int {
+                        let sid_0: CffSid = (first as ::core::ffi::c_int + k as ::core::ffi::c_int) as CffSid;
                         let glyphname_0: Vec<u8> = form_cid_string(sid_0);
-                        if (glyphs_named_sofar as usize) < (*glyphs).len()
-                        {
+                        if (glyphs_named_sofar as usize) < (*glyphs).len() {
                             let ref mut fresh3 =
                                 (&mut (*glyphs))[glyphs_named_sofar as usize].as_mut().unwrap().name;
                             *fresh3 = glyphname_0;
@@ -1127,26 +1112,18 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                         glyphs_named_sofar = glyphs_named_sofar.wrapping_add(1);
                         k = k.wrapping_add(1);
                     }
-                    j_0 = j_0.wrapping_add(1);
                 }
             }
-            CffCharsetType::Format2 => {
+            CffCharset::Format2(range2) => {
                 let mut glyphs_named_sofar_0: u32 = 1 as u32;
-                let mut j_1: GlyphId = 0 as GlyphId;
-                while (j_1 as u32) < (*charset).s {
-                    let mut first_0: CffSid =
-                        (*(*charset).c2rust_unnamed.f2.range2.offset(j_1 as isize)).first
-                            as CffSid;
+                for r in range2 {
+                    let first_0: CffSid = r.first as CffSid;
                     let mut k_0: GlyphId = 0 as GlyphId;
-                    while k_0 as ::core::ffi::c_int
-                        <= (*(*charset).c2rust_unnamed.f2.range2.offset(j_1 as isize)).nleft
-                            as ::core::ffi::c_int
-                    {
-                        let mut sid_1: CffSid =
+                    while k_0 as ::core::ffi::c_int <= r.nleft as ::core::ffi::c_int {
+                        let sid_1: CffSid =
                             (first_0 as ::core::ffi::c_int + k_0 as ::core::ffi::c_int) as CffSid;
                         let glyphname_1: Vec<u8> = form_cid_string(sid_1);
-                        if (glyphs_named_sofar_0 as usize) < (*glyphs).len()
-                        {
+                        if (glyphs_named_sofar_0 as usize) < (*glyphs).len() {
                             let ref mut fresh4 =
                                 (&mut (*glyphs))[glyphs_named_sofar_0 as usize].as_mut().unwrap().name;
                             *fresh4 = glyphname_1;
@@ -1156,41 +1133,29 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                         glyphs_named_sofar_0 = glyphs_named_sofar_0.wrapping_add(1);
                         k_0 = k_0.wrapping_add(1);
                     }
-                    j_1 = j_1.wrapping_add(1);
                 }
             }
             _ => {}
         }
     } else {
-        match (*charset).t {
-            CffCharsetType::Format0 => {
-                let mut j_2: GlyphId = 0 as GlyphId;
-                while (j_2 as u32) < (*charset).s {
-                    let mut sid_2: CffSid =
-                        *(*charset).c2rust_unnamed.f0.glyph.offset(j_2 as isize) as CffSid;
+        match charset {
+            CffCharset::Format0(glyph) => {
+                for (j_2, &g) in glyph.iter().enumerate() {
+                    let sid_2: CffSid = g as CffSid;
                     let glyphname_2: Option<Vec<u8>> = sdsget_cff_sid(sid_2 as u16, (*cff_file).string);
                     if let Some(glyphname_2) = glyphname_2 {
-                        let ref mut fresh5 = (&mut (*glyphs))
-                            [(j_2 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize].as_mut().unwrap()
-                        .name;
+                        let ref mut fresh5 = (&mut (*glyphs))[j_2 + 1].as_mut().unwrap().name;
                         *fresh5 = glyphname_2;
                     }
-                    j_2 = j_2.wrapping_add(1);
                 }
             }
-            CffCharsetType::Format1 => {
+            CffCharset::Format1(range1) => {
                 let mut glyphs_named_sofar_1: u32 = 1 as u32;
-                let mut j_3: GlyphId = 0 as GlyphId;
-                while (j_3 as u32) < (*charset).s {
-                    let mut first_1: GlyphId =
-                        (*(*charset).c2rust_unnamed.f1.range1.offset(j_3 as isize)).first
-                            as GlyphId;
+                for r in range1 {
+                    let first_1: GlyphId = r.first as GlyphId;
                     let mut k_1: GlyphId = 0 as GlyphId;
-                    while k_1 as ::core::ffi::c_int
-                        <= (*(*charset).c2rust_unnamed.f1.range1.offset(j_3 as isize)).nleft
-                            as ::core::ffi::c_int
-                    {
-                        let mut sid_3: CffSid =
+                    while k_1 as ::core::ffi::c_int <= r.nleft as ::core::ffi::c_int {
+                        let sid_3: CffSid =
                             (first_1 as ::core::ffi::c_int + k_1 as ::core::ffi::c_int) as CffSid;
                         let glyphname_3: Option<Vec<u8>> =
                             sdsget_cff_sid(sid_3 as u16, (*cff_file).string);
@@ -1204,22 +1169,15 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                         glyphs_named_sofar_1 = glyphs_named_sofar_1.wrapping_add(1);
                         k_1 = k_1.wrapping_add(1);
                     }
-                    j_3 = j_3.wrapping_add(1);
                 }
             }
-            CffCharsetType::Format2 => {
+            CffCharset::Format2(range2) => {
                 let mut glyphs_named_sofar_2: u32 = 1 as u32;
-                let mut j_4: GlyphId = 0 as GlyphId;
-                while (j_4 as u32) < (*charset).s {
-                    let mut first_2: GlyphId =
-                        (*(*charset).c2rust_unnamed.f2.range2.offset(j_4 as isize)).first
-                            as GlyphId;
+                for r in range2 {
+                    let first_2: GlyphId = r.first as GlyphId;
                     let mut k_2: GlyphId = 0 as GlyphId;
-                    while k_2 as ::core::ffi::c_int
-                        <= (*(*charset).c2rust_unnamed.f2.range2.offset(j_4 as isize)).nleft
-                            as ::core::ffi::c_int
-                    {
-                        let mut sid_4: CffSid =
+                    while k_2 as ::core::ffi::c_int <= r.nleft as ::core::ffi::c_int {
+                        let sid_4: CffSid =
                             (first_2 as ::core::ffi::c_int + k_2 as ::core::ffi::c_int) as CffSid;
                         let glyphname_4: Option<Vec<u8>> =
                             sdsget_cff_sid(sid_4 as u16, (*cff_file).string);
@@ -1233,7 +1191,6 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
                         glyphs_named_sofar_2 = glyphs_named_sofar_2.wrapping_add(1);
                         k_2 = k_2.wrapping_add(1);
                     }
-                    j_4 = j_4.wrapping_add(1);
                 }
             }
             _ => {}
@@ -2453,61 +2410,25 @@ unsafe extern "C" fn cff_make_charset(
     mut glyf: *mut GlyfTable,
     mut string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> *mut Buffer {
-    let mut charset: *mut CffCharset = ::core::ptr::null_mut::<CffCharset>();
-    charset = __caryll_allocate_clean(
-        ::core::mem::size_of::<CffCharset>() as usize,
-        1140 as ::core::ffi::c_ulong,
-    ) as *mut CffCharset;
-    if (*glyf).len() > 1 as usize {
-        (*charset).t = CffCharsetType::Format2;
-        (*charset).s = 1 as u32;
-        (*charset).c2rust_unnamed.f2.format = 2 as u8;
-        (*charset).c2rust_unnamed.f2.range2 = __caryll_allocate_clean(
-            ::core::mem::size_of::<CffCharsetRangeFormat2>() as usize,
-            1145 as ::core::ffi::c_ulong,
-        ) as *mut CffCharsetRangeFormat2;
-        if (*cff).is_cid {
-            (*(*charset)
-                .c2rust_unnamed
-                .f2
-                .range2
-                .offset(0 as ::core::ffi::c_int as isize))
-            .first = 1 as u16;
-            (*(*charset)
-                .c2rust_unnamed
-                .f2
-                .range2
-                .offset(0 as ::core::ffi::c_int as isize))
-            .nleft = (*glyf).len().wrapping_sub(2 as usize) as u16;
+    let charset: CffCharset = if (*glyf).len() > 1 as usize {
+        let (first, nleft) = if (*cff).is_cid {
+            (1 as u16, (*glyf).len().wrapping_sub(2 as usize) as u16)
         } else {
             let mut j: GlyphId = 1 as GlyphId;
             while (j as usize) < (*glyf).len() {
                 sidof(string_hash, &(&(*glyf))[j as usize].as_deref().unwrap().name);
                 j = j.wrapping_add(1);
             }
-            (*(*charset)
-                .c2rust_unnamed
-                .f2
-                .range2
-                .offset(0 as ::core::ffi::c_int as isize))
-            .first = sidof(string_hash, &(&(*glyf))[1 as usize].as_deref().unwrap().name) as u16;
-            (*(*charset)
-                .c2rust_unnamed
-                .f2
-                .range2
-                .offset(0 as ::core::ffi::c_int as isize))
-            .nleft = (*glyf).len().wrapping_sub(2 as usize) as u16;
-        }
+            (
+                sidof(string_hash, &(&(*glyf))[1 as usize].as_deref().unwrap().name) as u16,
+                (*glyf).len().wrapping_sub(2 as usize) as u16,
+            )
+        };
+        CffCharset::Format2(vec![CffCharsetRangeFormat2 { first, nleft }])
     } else {
-        (*charset).t = CffCharsetType::IsoAdobe;
-    }
-    let mut c: *mut Buffer = cff_build_charset(*charset);
-    if (*charset).t == CffCharsetType::Format2 {
-        free((*charset).c2rust_unnamed.f2.range2 as *mut ::core::ffi::c_void);
-        (*charset).c2rust_unnamed.f2.range2 = ::core::ptr::null_mut::<CffCharsetRangeFormat2>();
-    }
-    free(charset as *mut ::core::ffi::c_void);
-    charset = ::core::ptr::null_mut::<CffCharset>();
+        CffCharset::IsoAdobe
+    };
+    let c: *mut Buffer = cff_build_charset(&charset);
     return c;
 }
 unsafe extern "C" fn cff_make_fdselect(
