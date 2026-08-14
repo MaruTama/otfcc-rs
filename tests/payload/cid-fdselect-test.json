@@ -1,0 +1,308 @@
+{
+  "glyph_order": [
+    ".notdef",
+    "cid00001",
+    "cid00002",
+    "cid00003",
+    "cid00004",
+    "cid00005",
+    "cid00006",
+    "cid00007",
+    "cid00008"
+  ],
+  "OS_2": {
+    "achVendID": "PfEd"
+  },
+  "CFF_": {
+    "version": "001.000",
+    "fontName": "CIDFDSelectTest",
+    "fullName": "CID FDSelect Test",
+    "weight": "Regular",
+    "isCID": true,
+    "cidRegistry": "Adobe",
+    "cidOrdering": "Identity",
+    "cidSupplement": 0,
+    "fontMatrix": {
+      "a": 0.001,
+      "b": 0,
+      "c": 0,
+      "d": 0.001,
+      "x": 0,
+      "y": 0
+    },
+    "fdArray": {
+      "FD0": {
+        "privates": {
+          "defaultWidthX": 0,
+          "nominalWidthX": 0
+        }
+      },
+      "FD1": {
+        "privates": {
+          "defaultWidthX": 0,
+          "nominalWidthX": 0
+        }
+      },
+      "FD2": {
+        "privates": {
+          "defaultWidthX": 0,
+          "nominalWidthX": 0
+        }
+      }
+    }
+  },
+  "glyf": {
+    ".notdef": {
+      "advanceWidth": 500,
+      "contours": [
+        [
+          {
+            "x": 50,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 450,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 450,
+            "y": 660,
+            "on": true
+          },
+          {
+            "x": 50,
+            "y": 660,
+            "on": true
+          }
+        ]
+      ],
+      "CFF_fdSelect": "FD0"
+    },
+    "cid00001": {
+      "advanceWidth": 501,
+      "contours": [
+        [
+          {
+            "x": 60,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 460,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 460,
+            "y": 660,
+            "on": true
+          },
+          {
+            "x": 60,
+            "y": 660,
+            "on": true
+          }
+        ]
+      ],
+      "CFF_fdSelect": "FD0"
+    },
+    "cid00002": {
+      "advanceWidth": 502,
+      "contours": [
+        [
+          {
+            "x": 70,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 470,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 470,
+            "y": 660,
+            "on": true
+          },
+          {
+            "x": 70,
+            "y": 660,
+            "on": true
+          }
+        ]
+      ],
+      "CFF_fdSelect": "FD0"
+    },
+    "cid00003": {
+      "advanceWidth": 503,
+      "contours": [
+        [
+          {
+            "x": 80,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 480,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 480,
+            "y": 660,
+            "on": true
+          },
+          {
+            "x": 80,
+            "y": 660,
+            "on": true
+          }
+        ]
+      ],
+      "CFF_fdSelect": "FD1"
+    },
+    "cid00004": {
+      "advanceWidth": 504,
+      "contours": [
+        [
+          {
+            "x": 90,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 490,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 490,
+            "y": 660,
+            "on": true
+          },
+          {
+            "x": 90,
+            "y": 660,
+            "on": true
+          }
+        ]
+      ],
+      "CFF_fdSelect": "FD1"
+    },
+    "cid00005": {
+      "advanceWidth": 505,
+      "contours": [
+        [
+          {
+            "x": 100,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 500,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 500,
+            "y": 660,
+            "on": true
+          },
+          {
+            "x": 100,
+            "y": 660,
+            "on": true
+          }
+        ]
+      ],
+      "CFF_fdSelect": "FD2"
+    },
+    "cid00006": {
+      "advanceWidth": 506,
+      "contours": [
+        [
+          {
+            "x": 110,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 510,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 510,
+            "y": 660,
+            "on": true
+          },
+          {
+            "x": 110,
+            "y": 660,
+            "on": true
+          }
+        ]
+      ],
+      "CFF_fdSelect": "FD2"
+    },
+    "cid00007": {
+      "advanceWidth": 507,
+      "contours": [
+        [
+          {
+            "x": 120,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 520,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 520,
+            "y": 660,
+            "on": true
+          },
+          {
+            "x": 120,
+            "y": 660,
+            "on": true
+          }
+        ]
+      ],
+      "CFF_fdSelect": "FD0"
+    },
+    "cid00008": {
+      "advanceWidth": 508,
+      "contours": [
+        [
+          {
+            "x": 130,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 530,
+            "y": 0,
+            "on": true
+          },
+          {
+            "x": 530,
+            "y": 660,
+            "on": true
+          },
+          {
+            "x": 130,
+            "y": 660,
+            "on": true
+          }
+        ]
+      ],
+      "CFF_fdSelect": "FD2"
+    }
+  }
+}

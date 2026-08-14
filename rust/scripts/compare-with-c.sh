@@ -177,6 +177,44 @@ else
 	echo "  (skipping KRName-Regular-O2.otf: ${KRNAME_JSON} not found)"
 fi
 
+# None of the payloads above is CID-keyed, so CffFdSelect::Format3
+# (libcff/cff_fdselect.rs) -- the FDSelect format CID fonts use to map glyphs
+# to font dicts -- has never been exercised by this comparison. A small
+# hand-authored fixture (built directly from committed JSON, like
+# KRName-Regular-O2.otf above, rather than dumped from a binary font first):
+# 9 glyphs assigned across 3 font dicts with 5 ranges (more ranges than FDs,
+# forcing a real multi-range Format3 table rather than one trivial range).
+CID_FDSELECT_JSON="tests/payload/cid-fdselect-test.json"
+if [ -f "${CID_FDSELECT_JSON}" ]; then
+	rm -f "${BUILD}/cid-fdselect-test.c.otf" "${BUILD}/cid-fdselect-test.rust.otf"
+	if ! "${C_BIN}/otfccbuild" "${CID_FDSELECT_JSON}" -o "${BUILD}/cid-fdselect-test.c.otf" --keep-average-char-width --keep-modified-time; then
+		echo "FAIL  cid-fdselect-test.otf: C otfccbuild exited non-zero"
+		fail=1
+	elif ! "${RUST_BIN}/otfccbuild" "${CID_FDSELECT_JSON}" -o "${BUILD}/cid-fdselect-test.rust.otf" --keep-average-char-width --keep-modified-time; then
+		echo "FAIL  cid-fdselect-test.otf: Rust otfccbuild exited non-zero"
+		fail=1
+	elif cmp -s "${BUILD}/cid-fdselect-test.c.otf" "${BUILD}/cid-fdselect-test.rust.otf"; then
+		echo "PASS  cid-fdselect-test.otf (CID FDSelect): byte-identical"
+	else
+		echo "FAIL  cid-fdselect-test.otf (CID FDSelect): differs ($(cmp -l "${BUILD}/cid-fdselect-test.c.otf" "${BUILD}/cid-fdselect-test.rust.otf" 2>/dev/null | wc -l) bytes)"
+		fail=1
+	fi
+
+	rm -f "${BUILD}/cid-fdselect-test.dump.c.json" "${BUILD}/cid-fdselect-test.dump.rust.json"
+	"${C_BIN}/otfccdump" "${BUILD}/cid-fdselect-test.c.otf" -o "${BUILD}/cid-fdselect-test.dump.c.json" --pretty
+	if ! "${RUST_BIN}/otfccdump" "${BUILD}/cid-fdselect-test.c.otf" -o "${BUILD}/cid-fdselect-test.dump.rust.json" --pretty; then
+		echo "FAIL  cid-fdselect-test dump: Rust otfccdump exited non-zero"
+		fail=1
+	elif cmp -s "${BUILD}/cid-fdselect-test.dump.c.json" "${BUILD}/cid-fdselect-test.dump.rust.json"; then
+		echo "PASS  cid-fdselect-test dump: byte-identical"
+	else
+		echo "FAIL  cid-fdselect-test dump: differs ($(cmp -l "${BUILD}/cid-fdselect-test.dump.c.json" "${BUILD}/cid-fdselect-test.dump.rust.json" 2>/dev/null | wc -l) bytes)"
+		fail=1
+	fi
+else
+	echo "  (skipping cid-fdselect-test: ${CID_FDSELECT_JSON} not found)"
+fi
+
 # A lookup type otfcc does not recognise is *kept*, not clamped: the reader does
 # `type = read_16u(data) + base` and hands the result on, so such a lookup gets
 # no subtable, dumps as `{}`, and — with no name from the feature list — is named
