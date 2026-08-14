@@ -894,6 +894,42 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Thirteenth unit of the `unsafe_op_in_unsafe_fn` burn-down: `otf_writer/
+  stat.rs`'s local scratch buffers become `Vec`s.** `stat.rs` (the pass
+  that computes derived font statistics -- bounding boxes, metrics,
+  histograms -- before the binary tables get built) had three
+  `__caryll_allocate_clean`/`free` scratch buffers that never escape the
+  function that allocates them:
+  - `stat_glyf`'s `stated: *mut StatStatus`, a per-glyph cycle-detection
+    array threaded through `stat_single_glyph`'s composite-glyph recursion
+    (`stat_single_glyph` itself keeps its `*mut StatStatus` parameter type
+    unchanged -- including the recursive call passing it straight
+    through -- since only the allocation site needed to know the buffer
+    moved to a `Vec`, matching the same "leave the raw-pointer body
+    untouched, convert only where it's allocated/freed" idiom used for
+    `subr.rs`'s `serialize_node_to_buffer` earlier in this migration).
+  - `stat_cff_widths` and `stat_vorg` each build a fixed 4096-entry `u32`
+    frequency histogram (advance-width and vertical-origin distributions,
+    respectively) to find the most common value for `CFF`'s default/
+    nominal width and `VORG`'s default vertical origin. Both become
+    `vec![0u32; MAX_STAT_METRIC as usize]`.
+  - Deliberately **not** touched: `HmtxTable`/`VmtxTable`/`VorgTable`/
+    `LtshTable` themselves still hold raw-pointer arrays (`metrics`/
+    `left_side_bearing`, `metrics`/`top_side_bearing`, `entries`, `y_pels`)
+    that this same file constructs and hands off via `Some(Box::new(...))`.
+    Those arrays *do* escape into a struct field, so converting them means
+    touching each table's own `table/*.rs` (parse/dump) and wherever the
+    binary table gets serialized -- a separate, larger, cross-file theme
+    left for its own dedicated unit(s), not folded in here.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- every build-direction
+    payload exercises `stat_glyf`/`stat_cff_widths`/`stat_vorg` directly,
+    since `otfcc_stat_font` runs unconditionally before any binary table is
+    written; all 10 round-trip payloads stable; issue #1's large-lookup
+    regression test green; `compare-log-output.sh` green.
+
 - **Twelfth unit of the `unsafe_op_in_unsafe_fn` burn-down: `CffFdSelect`
   becomes a tagged Rust enum.** The natural follow-up to `CffCharset`:
   `CffFdSelect` (`libcff/cff_fdselect.rs`) was the same `t`-discriminant-

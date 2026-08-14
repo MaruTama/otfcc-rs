@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, time, time_t};
+use libc::{time, time_t};
 unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
@@ -270,11 +270,11 @@ pub unsafe extern "C" fn stat_glyf(mut font: *mut Font, mut options: *const Opti
     // Only ever called (from `otfcc_stat_font`) under a `.glyf.is_some()`
     // guard.
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
-    let mut stated: *mut StatStatus = ::core::ptr::null_mut::<StatStatus>();
-    stated = __caryll_allocate_clean(
-        (::core::mem::size_of::<StatStatus>() as usize).wrapping_mul((*glyf).len()),
-        99 as ::core::ffi::c_ulong,
-    ) as *mut StatStatus;
+    // A local `Vec` scratch buffer instead of `__caryll_allocate_clean`/
+    // `free` -- `stat_single_glyph` still takes `*mut StatStatus` unchanged
+    // (its own body, including the recursive call passing `stated` through
+    // unmodified, doesn't need to know its scratch buffer moved).
+    let mut stated: Vec<StatStatus> = vec![StatStatus::NotStarted; (*glyf).len()];
     let mut xmin: Pos = 0xffffffff as ::core::ffi::c_uint as Pos;
     let mut xmax: Pos = (0xffffffff as ::core::ffi::c_uint).wrapping_neg() as Pos;
     let mut ymin: Pos = 0xffffffff as ::core::ffi::c_uint as Pos;
@@ -315,7 +315,7 @@ pub unsafe extern "C" fn stat_glyf(mut font: *mut Font, mut options: *const Opti
         gr.c = 0 as ::core::ffi::c_int as Scale;
         gr.d = 1 as ::core::ffi::c_int as Scale;
         let ref mut fresh2 = (&mut (*glyf))[j as usize].as_mut().unwrap().stat;
-        *fresh2 = stat_single_glyph(glyf, &raw mut gr, stated, 0 as u8, j, options);
+        *fresh2 = stat_single_glyph(glyf, &raw mut gr, stated.as_mut_ptr(), 0 as u8, j, options);
         let mut thatstat: GlyphStat = *fresh2;
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
@@ -334,8 +334,6 @@ pub unsafe extern "C" fn stat_glyf(mut font: *mut Font, mut options: *const Opti
     (*head).x_max = xmax as i16;
     (*head).y_min = ymin as i16;
     (*head).y_max = ymax as i16;
-    free(stated as *mut ::core::ffi::c_void);
-    stated = ::core::ptr::null_mut::<StatStatus>();
 }
 pub unsafe extern "C" fn stat_maxp(mut font: *mut Font) {
     // Only ever called (from `otfcc_stat_font`) under a `.maxp.is_some()`
@@ -1141,25 +1139,22 @@ unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
     }
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let cff: *mut CffTable = (*font).cff.as_deref_mut().unwrap() as *mut CffTable;
-    let mut frequency: *mut u32 = ::core::ptr::null_mut::<u32>();
-    frequency = __caryll_allocate_clean(
-        (::core::mem::size_of::<u32>() as usize).wrapping_mul(4096 as usize),
-        524 as ::core::ffi::c_ulong,
-    ) as *mut u32;
+    // A local `Vec` scratch buffer instead of `__caryll_allocate_clean`/
+    // `free`.
+    let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for j in 0..(*glyf).len() as GlyphId {
         let int_width: u16 = I_VQ.get_still.expect("non-null function pointer")(
             (&(*glyf))[j as usize].as_deref().unwrap().advance_width.clone(),
         ) as u16;
         if (int_width as ::core::ffi::c_int) < MAX_STAT_METRIC {
-            let fresh1 = frequency.offset(int_width as isize);
-            *fresh1 = (*fresh1).wrapping_add(1 as u32);
+            frequency[int_width as usize] = frequency[int_width as usize].wrapping_add(1 as u32);
         }
     }
     let mut maxfreq: u16 = 0 as u16;
     let mut maxj: u16 = 0 as u16;
     for j_0 in 0..MAX_STAT_METRIC as u16 {
-        if *frequency.offset(j_0 as isize) > maxfreq as u32 {
-            maxfreq = *frequency.offset(j_0 as isize) as u16;
+        if frequency[j_0 as usize] > maxfreq as u32 {
+            maxfreq = frequency[j_0 as usize] as u16;
             maxj = j_0;
         }
     }
@@ -1189,7 +1184,6 @@ unsafe extern "C" fn stat_cff_widths(mut font: *mut Font) {
         pd.default_width_x = maxj as ::core::ffi::c_double;
         pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
     }
-    free(frequency as *mut ::core::ffi::c_void);
 }
 unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
     if (*font).glyf.is_none()
@@ -1200,25 +1194,22 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
         return;
     }
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
-    let mut frequency: *mut u32 = ::core::ptr::null_mut::<u32>();
-    frequency = __caryll_allocate_clean(
-        (::core::mem::size_of::<u32>() as usize).wrapping_mul(4096 as usize),
-        562 as ::core::ffi::c_ulong,
-    ) as *mut u32;
+    // A local `Vec` scratch buffer instead of `__caryll_allocate_clean`/
+    // `free`.
+    let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for j in 0..(*glyf).len() as GlyphId {
         let vori: Pos = I_VQ.get_still.expect("non-null function pointer")(
             (&(*glyf))[j as usize].as_deref().unwrap().vertical_origin.clone(),
         ) as Pos;
         if vori >= 0 as ::core::ffi::c_int as Pos && vori < MAX_STAT_METRIC as Pos {
-            let fresh0 = frequency.offset(vori as u16 as isize);
-            *fresh0 = (*fresh0).wrapping_add(1 as u32);
+            frequency[vori as u16 as usize] = frequency[vori as u16 as usize].wrapping_add(1 as u32);
         }
     }
     let mut maxfreq: u32 = 0 as u32;
     let mut maxj: GlyphId = 0 as GlyphId;
     for j_0 in 0..MAX_STAT_METRIC as GlyphId {
-        if *frequency.offset(j_0 as isize) > maxfreq {
-            maxfreq = *frequency.offset(j_0 as isize);
+        if frequency[j_0 as usize] > maxfreq {
+            maxfreq = frequency[j_0 as usize];
             maxj = j_0;
         }
     }
@@ -1247,7 +1238,6 @@ unsafe extern "C" fn stat_vorg(mut font: *mut Font) {
             jj = (jj as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
         }
     }
-    free(frequency as *mut ::core::ffi::c_void);
     (*font).vorg = Some(Box::new(VorgTable {
         num_vert_origin_y_metrics: n_vert_origs,
         default_vertical_origin,
