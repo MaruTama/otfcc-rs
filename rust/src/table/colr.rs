@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint_fallback, json_str_len, json_str_ptr, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint_fallback, json_str_bytes, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_move, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
@@ -15,7 +15,6 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::bk::bkgraph::{bk_build_block};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_from_bytes, preserialize};
-use crate::vendor::sds::{sdsnewlen};
 #[derive(Clone)]
 #[repr(C)]
 pub struct ColrLayer {
@@ -354,10 +353,7 @@ pub unsafe extern "C" fn otfcc_parse_colr(
                         },
                         layers: Vec::new(),
                     };
-                    m.glyph = handle_from_name(sdsnewlen(
-                        json_str_ptr(_baseglyph) as *const ::core::ffi::c_void,
-                        json_str_len(_baseglyph) as usize,
-                    )) as GlyphHandle;
+                    m.glyph = handle_from_name(Some(json_str_bytes(_baseglyph))) as GlyphHandle;
                     let mut k: GlyphId = 0 as GlyphId;
                     while (k as ::core::ffi::c_uint) < json_arr_len(_layers) {
                         let mut _layer: *const ParsedValue = json_arr_at(_layers, k as u32);
@@ -371,13 +367,7 @@ pub unsafe extern "C" fn otfcc_parse_colr(
                             );
                             if !_layerglyph.is_null() {
                                 m.layers.push(ColrLayer {
-                                    glyph: handle_from_name(
-                                        sdsnewlen(
-                                            json_str_ptr(_layerglyph)
-                                                as *const ::core::ffi::c_void,
-                                            json_str_len(_layerglyph) as usize,
-                                        ),
-                                    )
+                                    glyph: handle_from_name(Some(json_str_bytes(_layerglyph)))
                                         as GlyphHandle,
                                     palette_index: json_obj_getint_fallback(
                                         _layer,

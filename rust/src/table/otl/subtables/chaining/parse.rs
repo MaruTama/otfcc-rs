@@ -3,7 +3,7 @@
 
 use crate::support::parsed_json::{
     ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
-    json_str_len, json_str_ptr, json_type_of,
+    json_str_bytes, json_type_of,
 };
 use crate::table::otl::coverage::coverage_from_raw;
 use crate::support::handle::{handle_from_name, otfcc_handle_empty, LookupHandle};
@@ -15,7 +15,6 @@ use crate::vendor::json::{JsonType};
 use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingType, ChainingSubtable, subtable_from_raw};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
-use crate::vendor::sds::{sdsnewlen};
 pub unsafe extern "C" fn otl_parse_chaining(
     mut _subtable: *const ParsedValue,
     mut _options: *const Options,
@@ -85,10 +84,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
                 JsonType::String,
             );
             if !_ln.is_null() {
-                lookup = handle_from_name(sdsnewlen(
-                    json_str_ptr(_ln) as *const ::core::ffi::c_void,
-                    json_str_len(_ln) as usize,
-                )) as LookupHandle;
+                lookup = handle_from_name(Some(json_str_bytes(_ln))) as LookupHandle;
                 index = json_obj_getnum(
                     _application,
                     b"at\0" as *const u8 as *const ::core::ffi::c_char,

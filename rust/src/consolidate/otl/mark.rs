@@ -98,9 +98,10 @@ unsafe extern "C" fn consolidate_mark_array(
     dispose_mark_array(mark_array);
     // `handle_from_consolidated` (which used to take `entry.name` as an
     // owned `SdsRaw`, dup it internally, and leave the caller to free the
-    // original) is no longer needed here: `entry.name` is already the
-    // exact `Vec<u8>` a `Handle` wants, so it moves straight in -- no
-    // sds round trip, no `sdsfree` afterward.
+    // original) had no other callers by the time the `sds` sweep reached
+    // it and was deleted outright: `entry.name` is already the exact
+    // `Vec<u8>` a `Handle` wants, so it moves straight in -- no sds round
+    // trip, no `sdsfree` afterward.
     for (gid, entry) in h.into_iter() {
         (*mark_array).push(
             MarkRecord {

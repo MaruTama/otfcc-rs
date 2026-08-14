@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::parsed_json::{
     ParsedValue, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
-    json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_ptr,
+    json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_ptr,
     json_type_of,
 };
 use crate::table::otl::coverage::{Coverage};
@@ -17,7 +17,6 @@ use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_push};
 use crate::table::otl::{Anchor, MarkArray, MarkRecord, PositionValue};
 use crate::support::buffer::{bufwrite16b};
 use crate::support::built_json::{BuiltValue, json_null_new, json_object_new, json_object_push, json_new_position, preserialize};
-use crate::vendor::sds::{sdsnewlen};
 // `MarkRecord` holds only a `GlyphHandle` plus a plain `Anchor`, so dropping
 // the `Vec` runs `Handle`'s own `Drop` for every entry -- no per-element
 // dtor needed anymore.
@@ -98,12 +97,8 @@ pub unsafe extern "C" fn otl_parse_mark_array(
                 y: 0.,
             },
         };
-        let mut gname: *const ::core::ffi::c_char = json_obj_key_at(_marks, j as u32);
         let mut anchor_record: *const ParsedValue = json_obj_val_at(_marks, j as u32);
-        mark.glyph = handle_from_name(sdsnewlen(
-            gname as *const ::core::ffi::c_void,
-            json_obj_key_len_at(_marks, j as u32) as usize,
-        )) as GlyphHandle;
+        mark.glyph = handle_from_name(Some(json_obj_key_bytes_at(_marks, j as u32))) as GlyphHandle;
         mark.mark_class = 0 as GlyphClass;
         mark.anchor = otl_anchor_absent();
         if anchor_record.is_null()

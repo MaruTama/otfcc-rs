@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{strcmp};
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{ILogger};
@@ -11,7 +11,6 @@ use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufnwrite8, bufwrite16b, bufwrite32b};
 use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
-use crate::vendor::sds::{sdsnewlen};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -356,10 +355,6 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
         if !_glyphs.is_null() {
             let mut j: u32 = 0 as u32;
             while j < json_obj_len(_glyphs) {
-                let mut _gid: *mut ::core::ffi::c_char =
-                    json_obj_key_at(_glyphs, j as u32);
-                let mut _gidlen: usize =
-                    json_obj_key_len_at(_glyphs, j as u32) as usize;
                 let mut _content: *const ParsedValue =
                     json_obj_val_at(_glyphs, j as u32);
                 if !(_content.is_null()
@@ -368,7 +363,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
                     tsi.push(TsiEntry {
                             type_0: TsiEntryType::Glyph,
                             glyph: handle_from_name(
-                                sdsnewlen(_gid as *const ::core::ffi::c_void, _gidlen),
+                                Some(json_obj_key_bytes_at(_glyphs, j as u32)),
                             ) as GlyphHandle,
                             content: ::core::slice::from_raw_parts(
                                 json_str_ptr(_content) as *const u8,

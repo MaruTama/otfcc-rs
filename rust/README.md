@@ -894,6 +894,69 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 6-2's fifth `sds` sub-theme: `handle_from_name` (the
+  `Handle`/`GlyphHandle`/`LookupHandle` constructor every parse-side glyph
+  name reference goes through) is retyped from `SdsRaw` to
+  `Option<Vec<u8>>`, closing out all 21 real call sites across 15 files.**
+  Picked as the natural next step after the vtable-shaped and small-batch
+  PRs, since several of the *other* remaining `sds` sub-themes (the
+  `table/cmap.rs` parse side, `json_reader.rs`'s glyph-order construction)
+  build on `handle_from_name` and would have needed this conversion
+  eventually anyway.
+  - **Why `Option<Vec<u8>>`, not a bare `Vec<u8>`.** The old `SdsRaw`
+    signature let a caller pass a null pointer to mean "no name" while a
+    non-null-but-empty `sds` string meant "named, and the name happens to
+    be empty" -- two different `Handle` states
+    (`HandleState::Empty`/`HandleState::Name`). Collapsing that to
+    `v.is_empty()` on a bare `Vec<u8>` would have quietly merged those two
+    states for the one call site that can legitimately hit it
+    (`table/glyf.rs`'s CFF `fd_select`, sourced from `json_obj_getsds`,
+    which already returns `None` when the JSON key is simply absent).
+    `Option<Vec<u8>>` preserves the distinction exactly, and that same
+    call site now passes its `json_obj_getsds(...)` result straight
+    through with no wrapping at all -- both already speak `Option<Vec<u8>>`.
+  - **New accessors added to `support/parsed_json.rs`:** `json_str_bytes`
+    and `json_obj_key_bytes_at`, the owned-`Vec<u8>` combination of the
+    existing `json_str_ptr`+`json_str_len` / `json_obj_key_at`+
+    `json_obj_key_len_at` pairs every other call site used to feed straight
+    into `sdsnewlen`. Returning an owned copy (not a borrowed `&[u8]`) sidesteps
+    any question of what lifetime a slice reconstructed from a raw pointer
+    could honestly claim -- every call site wanted an owned copy anyway,
+    either for a `Handle.name` field or as `handle_from_name`'s argument.
+  - **Two functions deleted outright:** `handle_from_consolidated` and
+    `handle_consolidate_to` had zero real callers left (grep-confirmed;
+    only comments still named them, explaining what had already replaced
+    each call site during earlier `consolidate/otl/*.rs` and
+    `support/glyph_order.rs` work) -- no need to convert their signatures
+    at all.
+  - **`table/cmap.rs`'s two wrapper functions kept their `SdsRaw`-in
+    signature on purpose.** `otfcc_encode_cmap_by_name`/
+    `_uvs_by_name` forward straight to `handle_from_name`, but their own
+    two callers (`parse_cmap_unicodes`/`parse_cmap_uvs`) build the name via
+    hand-rolled pointer scanning that belongs to a separate, not-yet-scoped
+    `sds` theme -- converting these two wrappers' signatures would have
+    dragged that theme's scope into this PR. Adapted internally instead
+    (copy the bytes for `handle_from_name`, then free the original `SdsRaw`
+    only on the path that used to consume it), leaving both wrappers'
+    callers untouched and their existing "the Occupied/duplicate path never
+    frees `name`" pre-existing behavior exactly as it was (not this PR's
+    job to fix).
+  - Every other call site's `sdsnewlen(json_str_ptr(v), json_str_len(v))`/
+    `sdsnewlen(json_obj_key_at(...), json_obj_key_len_at(...))` shape
+    collapsed to a single `Some(json_str_bytes(v))`/
+    `Some(json_obj_key_bytes_at(obj, i))` call, with the (rare) raw-pointer
+    local that used to hold the intermediate `SdsRaw` -- when nothing else
+    in the function still needed it -- removed entirely rather than kept
+    around unused.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib (every payload's GSUB/GPOS
+    lookups, coverage tables, class defs, and GDEF caret lists exercise
+    `handle_from_name` extensively); all 10 round-trip payloads stable;
+    issue #1's large-lookup regression test green; `compare-log-output.sh`
+    green.
+
 - **Stage 6-2's fourth `sds` sub-theme: four small, self-contained
   `sds`/`SdsRaw` sites unrelated to any vtable, batched into one PR.**
   Chosen as a deliberate change of pace after the vtable-shaped Logger and

@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of};
+use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
@@ -17,7 +17,6 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, preserialize};
-use crate::vendor::sds::{sdsnewlen};
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CaretValue {
@@ -410,10 +409,7 @@ unsafe extern "C" fn lig_caret_from_json(
                 },
                 carets: Vec::new(),
             };
-            v.glyph = handle_from_name(sdsnewlen(
-                json_obj_key_at(_carets, j as u32) as *const ::core::ffi::c_void,
-                json_obj_key_len_at(_carets, j as u32) as usize,
-            )) as GlyphHandle;
+            v.glyph = handle_from_name(Some(json_obj_key_bytes_at(_carets, j as u32))) as GlyphHandle;
             let mut caret_count: ShapeId = json_arr_len(a) as ShapeId;
             let mut k: GlyphId = 0 as GlyphId;
             while (k as ::core::ffi::c_int) < caret_count as ::core::ffi::c_int {

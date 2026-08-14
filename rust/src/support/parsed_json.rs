@@ -471,6 +471,19 @@ pub unsafe fn json_obj_key_len_at(obj: *const ParsedValue, i: u32) -> u32 {
     }
 }
 
+/// [`json_obj_key_at`]/[`json_obj_key_len_at`], combined into one owned
+/// copy -- see [`json_str_bytes`] for why. Returns `Vec::new()` out of
+/// range or on a non-object, matching `json_obj_key_len_at`'s 0.
+pub unsafe fn json_obj_key_bytes_at(obj: *const ParsedValue, i: u32) -> Vec<u8> {
+    match unsafe { obj.as_ref() } {
+        Some(ParsedValue::Object(fields)) => match fields.get(i as usize) {
+            Some((k, _)) => k[..k.len() - 1].to_vec(),
+            None => Vec::new(),
+        },
+        _ => Vec::new(),
+    }
+}
+
 /// The `i`th member's value; null out of range or on a non-object.
 pub unsafe fn json_obj_val_at(obj: *const ParsedValue, i: u32) -> *mut ParsedValue {
     match unsafe { obj.as_ref() } {
@@ -537,6 +550,18 @@ pub unsafe fn json_str_len(v: *const ParsedValue) -> u32 {
     match unsafe { v.as_ref() } {
         Some(ParsedValue::Str(s)) => (s.len() - 1) as u32,
         _ => 0,
+    }
+}
+
+/// [`json_str_ptr`]/[`json_str_len`], combined into one owned copy --
+/// for callers that used to `sdsnewlen(json_str_ptr(v), json_str_len(v))`
+/// right after each other and now just want a `Vec<u8>` (e.g. to hand to
+/// `handle_from_name`). Returns `Vec::new()` for anything but a string,
+/// matching `json_str_len`'s 0.
+pub unsafe fn json_str_bytes(v: *const ParsedValue) -> Vec<u8> {
+    match unsafe { v.as_ref() } {
+        Some(ParsedValue::Str(s)) => s[..s.len() - 1].to_vec(),
+        _ => Vec::new(),
     }
 }
 
