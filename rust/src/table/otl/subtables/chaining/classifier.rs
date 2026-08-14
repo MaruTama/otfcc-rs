@@ -326,16 +326,13 @@ pub unsafe extern "C" fn try_classify_around(
 }
 pub unsafe extern "C" fn otfcc_classified_build_chaining(
     mut lookup: *const Lookup,
-    mut subtable_buffers: *mut *mut *mut Buffer,
+    subtable_buffers: &mut Vec<*mut Buffer>,
     mut last_offset: *mut usize,
 ) -> TableId {
     let mut is_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup);
     let mut subtables_written: TableId = 0 as TableId;
-    *subtable_buffers = __caryll_allocate_clean(
-        (::core::mem::size_of::<*mut Buffer>() as usize)
-            .wrapping_mul((*lookup).subtables.len()),
-        223 as ::core::ffi::c_ulong,
-    ) as *mut *mut Buffer;
+    subtable_buffers.clear();
+    subtable_buffers.reserve((*lookup).subtables.len());
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*lookup).subtables.len() {
         let j_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, j as usize);
@@ -354,8 +351,7 @@ pub unsafe extern "C" fn otfcc_classified_build_chaining(
             if st != st0 {
                 I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(st);
             }
-            let ref mut fresh0 = *(*subtable_buffers).offset(subtables_written as isize);
-            *fresh0 = buf;
+            subtable_buffers.push(buf);
             *last_offset = (*last_offset).wrapping_add((*buf).size);
             subtables_written =
                 (subtables_written as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;

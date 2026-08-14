@@ -894,6 +894,98 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Sixth unit of the `unsafe_op_in_unsafe_fn` burn-down, batched at the
+  user's request: `table/base.rs`, `table/otl/build.rs`, and `table/glyf/
+  read.rs` in one PR.** Each had been surveyed and individually scoped as
+  tractable but not yet started; rather than three separate PR cycles,
+  they landed together.
+  - **`table/base.rs`**: `BaseAxis`/`BaseScriptEntry`/`BaseValue`/
+    `BaseTagList`'s remaining raw arrays (`entries`, `base_values`) become
+    `Vec`s, and `BaseTable.horizontal`/`.vertical` become `Option<Box<
+    BaseAxis>>` -- the layer inside the `horizontal`/`vertical` Box化 an
+    earlier PR left as raw pointers. The custom `Drop for BaseTable` impl
+    (and `delete_base_axis`, its only caller) is deleted entirely --
+    `Option`/`Box`/`Vec`'s own drop glue reaches every allocation now.
+    This closes a *documented* pre-existing leak by construction, not by
+    an explicit fix: the earlier PR's comment on this file recorded that
+    `delete_base_axis` never freed `axis` itself, only its `entries` --
+    true in the original C too. A raw `*mut BaseAxis` freed by a hand-
+    written dispose function can leak that way; a `Box<BaseAxis>` cannot,
+    the same shape as the `otfccbuild.rs` use-after-free fixed by
+    construction earlier in this migration. `read_base_script`/
+    `base_script_from_json` (the two functions that used to fill a
+    `*mut BaseScriptEntry` slot through an out-param, resetting it to
+    empty on any of several validation failures) now return `(u32,
+    Vec<BaseValue>)` by value instead -- every original failure branch
+    reset the entry to the same `(0, empty)` state regardless of what had
+    been partially written along the way, so the two representations
+    agree on every observable outcome; this version just never writes
+    the intermediate values that were always going to be discarded.
+    Confirmed before starting that `BaseAxis`/`BaseScriptEntry`/
+    `BaseValue`/`BaseTagList` are referenced nowhere outside this file.
+  - **`table/otl/build.rs`**: the `subtables`/`subtable_quantity`/
+    `prefer_ext_for_this_lut` triple of parallel, `__caryll_allocate_
+    clean`'d arrays (one `*mut *mut *mut Buffer`, sized to `lookups.
+    len()`, each slot itself another dynamically-sized array of per-
+    lookup subtable buffers) become `Vec<Vec<*mut Buffer>>`/`Vec<TableId>`/
+    `Vec<bool>`. `_declare_lookup_writer`/`_declare_lookup_writer_split`/
+    `_build_lookup` take `&mut Vec<*mut Buffer>` instead of writing
+    through a `*mut *mut *mut Buffer` out-param; Rust's implicit
+    reborrowing lets `_build_lookup`'s dozen sequential, mutually-
+    exclusive `_declare_lookup_writer(_split)` calls keep passing the
+    same `&mut` reference without any explicit `&mut *x` at each site.
+    `otfcc_classified_build_chaining` (`chaining/classifier.rs`, `_build_
+    lookup`'s other, chaining-specific dispatch target -- its only call
+    site anywhere in the crate) needed the identical signature change to
+    stay consistent; confirmed no other caller before touching it.
+  - **`table/glyf/read.rs`**: six independent malloc/free scratch
+    buffers -- `flags`, `nudges`, `glyph_refs`, `delta_x`/`delta_y`,
+    `offsets` -- become local `Vec`s, each dropping itself instead of
+    needing a matching `free()` at every one of the function's several
+    exit points (`offsets` alone had three). `fill_the_gaps`/
+    `apply_coords` take `&mut [VqSegment]`/`&[*mut Point]` borrows now
+    instead of raw pointers they never owned in the first place.
+    `parse_point_numbers` returns `(FontFilePointer, Vec<ShapeId>)`
+    instead of writing through two out-params (a data pointer and a
+    count that is now just `.len()`). The trickiest piece was `point_
+    indeces`/`shared_point_indeces`: a GVAR tuple's point-index array is
+    a genuine borrowed-vs-owned split, not just a leftover raw pointer --
+    it normally *borrows* `shared_point_indeces` (parsed once per glyph,
+    outliving every tuple that reads it) and only *owns* a fresh
+    allocation when that one tuple's `PRIVATE_POINT_NUMBERS` bit is set,
+    freed within that same loop iteration rather than at the end. This
+    is modeled directly with `std::borrow::Cow<[ShapeId]>` --
+    `Cow::Borrowed(&shared_point_indeces)` in the common case, `Cow::
+    Owned(private_point_numbers)` when private -- rather than force-
+    fitting it into a single owned `Vec` (which would have meant either
+    cloning the shared array on every tuple that doesn't need a private
+    one, or leaving the aliasing as raw pointers and converting nothing).
+  - **Explicitly not attempted**: `font/caryll_sfnt.rs`, the fourth file
+    from the same round of surveying, turned out to need far more than
+    its own malloc/free sites suggested. `Packet` (`SplineFontContainer`'s
+    per-table-directory-entry struct, containing `pieces: *mut
+    PacketPiece`) is `Copy` and passed *by value* into every single OTF
+    table reader in the crate -- 30 files' `otfcc_read_*` entry points all
+    take `packet: Packet` this way. Converting `pieces` to `Vec<
+    PacketPiece>` would make `Packet` no longer `Copy`, which would in
+    turn require changing all 30 signatures (and every call site that
+    currently relies on the implicit copy) in the same PR -- an order of
+    magnitude bigger than the "many access-site edits across ~200 lines"
+    the original survey estimated for this file alone, discovered only
+    by tracing where `Packet` actually flows rather than just counting
+    this file's own allocation sites. Left for a dedicated future PR,
+    not folded into this batch.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 55 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- `gvar-test.ttf`
+    exercises the `point_indeces`/`Cow` design directly, `unknown-
+    lookup.ttf` (51 GSUB lookups, 4 GPOS lookups forced to format 10)
+    exercises `table/otl/build.rs`'s lookup-splitting logic, and `base-
+    test.ttf` exercises `table/base.rs` directly; all 10 round-trip
+    payloads stable; issue #1's large-lookup regression test green;
+    `compare-log-output.sh` green.
+
 - **Fourth unit of the `unsafe_op_in_unsafe_fn` burn-down: `GlyphOrder`'s
   dual `by_gid`/`by_name` index is redesigned as an arena + `usize`
   indices, replacing the individually-heap-allocated, raw-pointer-aliased
