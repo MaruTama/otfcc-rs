@@ -894,6 +894,47 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Two real bugs, found by a final full-crate audit for anything still
+  not memory-safe or not idiomatic, fixed in one small PR.** With every
+  item from the original full-crate audit's Vec-conversion list now
+  landed (the two units above), three parallel agents re-swept the entire
+  crate (`table/`, `libcff/`, everything else) looking specifically for
+  what earlier passes might have missed -- genuinely live gaps, not
+  re-litigating already-accepted patterns like the vtable/`*ElementInterface`
+  dispatch shape or the documented "outer struct shell stays a raw pointer"
+  fold points. Five candidates came back; three were dead code or already
+  provably harmless (a `Copy`-deriving `DeviceRecord` in the confirmed-dead
+  `HdmxTable`; a pre-existing leak in `otl/subtables/chaining/read.rs`'s
+  Format-2 malformed-input path that already exists in the original C, left
+  alone for C-parity; a `memcpy`-based whole-`Font` struct copy with zero
+  call sites, deferred rather than fixed since it's inert). Two were real:
+  - **`table/cff.rs`'s `cff_make_private_dict` zero-initialized a `CffDict`
+    via `__caryll_allocate_clean` (calloc) instead of `CFF_I_DICT.create()`**
+    -- unsound now that `CffDict` owns `ents: Vec<CffDictEntry>` (an all-zero
+    bit pattern is not a valid `Vec`), and the calloc'd memory was later
+    reclaimed via `Box::from_raw` in `CFF_I_DICT.free`, an allocator
+    mismatch on top of the invalid-`Vec` UB. Live on every CFF-flavored font
+    build (both the plain and CID/FD-array private-dict paths) --
+    `cff_make_fd_dict`, two functions above in the same file, already did
+    this correctly, confirming the miss was an oversight, not a deliberate
+    choice, when `CffDict`'s outer shell was converted to `Box`.
+  - **`support/ttinstr.rs`'s `dump_ttinstr` leaked the buffer
+    `base64_encode` allocates** when `options.instr_as_bytes` is set --
+    `json_string_new_length` copies the bytes into a fresh `Vec` rather than
+    taking ownership of the buffer passed to it, so the buffer itself was
+    never freed. `table/name.rs`'s three sibling `base64_encode`/
+    `base64_decode` call sites already free correctly; this one was missed.
+  - Both fixes are small and behaviorally invisible to the standard
+    byte-comparison pipeline (neither changes any output, only what gets
+    freed/how a struct is initialized) -- verified by code review plus the
+    standard full pipeline on both platforms: 54 unit tests green (0
+    warnings under `warnings = "deny"`); every payload byte-identical in
+    both directions including the `otfccdll` cdylib, with particular
+    attention to the CFF-heavy payloads (`KRName-Regular-O2.otf`
+    subroutinize, `cid-fdselect-test.otf` CID/FDSelect) that exercise
+    `cff_make_private_dict`; all 10 round-trip payloads stable; issue #1's
+    large-lookup regression test green; `compare-log-output.sh` green.
+
 - **`font/caryll_sfnt.rs`'s `Packet`/`PacketPiece` finally convert to `Vec`,
   and `Packet` drops `Copy` -- the one item the full-crate audit's Vec-
   conversion list left unfinished, split out of the twelve-item bundle above

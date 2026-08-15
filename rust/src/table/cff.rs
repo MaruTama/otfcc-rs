@@ -2264,11 +2264,11 @@ unsafe extern "C" fn cff_make_fd_dict(
     return dict;
 }
 unsafe extern "C" fn cff_make_private_dict(mut pd: *mut CffPrivateDict) -> *mut CffDict {
-    let mut dict: *mut CffDict = ::core::ptr::null_mut::<CffDict>();
-    dict = __caryll_allocate_clean(
-        ::core::mem::size_of::<CffDict>() as usize,
-        1057 as ::core::ffi::c_ulong,
-    ) as *mut CffDict;
+    // Was `__caryll_allocate_clean` (calloc) -- unsound now that `CffDict`
+    // owns `ents: Vec<CffDictEntry>`; an all-zero bit pattern is not a
+    // valid `Vec`. `cff_make_fd_dict` two functions above already gets
+    // this right via `CFF_I_DICT.create()`; this call site was missed.
+    let dict: *mut CffDict = (CFF_I_DICT.create.expect("non-null function pointer"))();
     if pd.is_null() {
         return dict;
     }
