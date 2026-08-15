@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
+use libc::{free, malloc, memset};
 
 
 
@@ -291,12 +291,17 @@ unsafe extern "C" fn otfcc_font_free(mut x: *mut Font) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otfcc_font_copy(mut dst: *mut Font, mut src: *const Font) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<Font>() as usize,
-    );
+unsafe extern "C" fn otfcc_font_copy(mut _dst: *mut Font, mut _src: *const Font) {
+    // Confirmed dead: `OTFCC_I_FONT.copy` has no call site anywhere in the
+    // crate. The old `memcpy`-based body was only safe by accident, back
+    // when `Font`'s ~25 table fields were raw pointers a bitwise copy
+    // could alias harmlessly; now that they're `Option<Box<_>>`/`Vec`-
+    // backed, a `memcpy` would give `dst` and `src` aliased ownership of
+    // the same heap allocations -- an immediate double-free/UAF hazard if
+    // this ever got wired up. Kept as a loud failure instead of silently
+    // reintroducing that risk, same treatment as `cff_index_copy`/
+    // `cff_dict_copy`/`subtable_gpos_pair_copy`.
+    unreachable!("Font::copy is dead code and unsound for owned Box/Vec data")
 }
 pub static OTFCC_I_FONT: FontElementInterface = {
     FontElementInterface {
