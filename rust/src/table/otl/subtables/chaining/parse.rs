@@ -12,9 +12,9 @@ use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::vendor::json::{JsonType};
 
-use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingType, ChainingSubtable, subtable_from_raw};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingSubtable, subtable_from_raw};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
+use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING, chaining_rule_mut};
 pub unsafe extern "C" fn otl_parse_chaining(
     mut _subtable: *const ParsedValue,
     mut _options: *const Options,
@@ -37,21 +37,13 @@ pub unsafe extern "C" fn otl_parse_chaining(
             I_SUBTABLE_CHAINING
                 .create
                 .expect("non-null function pointer"))();
-    (*subtable).type_0 = ChainingType::Canonical;
-    let mut rule: *mut ChainingRule =
-        &raw mut (*subtable).c2rust_unnamed.rule as *mut ChainingRule;
+    // `create()` already hands back a valid `Canonical(ChainingRule::
+    // default())` -- no separate tag assignment or placement-construct
+    // needed, unlike the pre-enum version.
+    let mut rule: *mut ChainingRule = chaining_rule_mut(subtable);
     (*rule).match_count = json_arr_len(_match) as TableId;
-    // Placement-construct both: `rule` sits inside the zeroed memory
-    // `create()` hands back (via `otl_init_chaining`'s `memset`), not a
-    // valid `Vec` bit pattern, so there is nothing to drop first.
-    ::core::ptr::write(
-        &raw mut (*rule).match_0,
-        Vec::with_capacity((*rule).match_count as usize),
-    );
-    ::core::ptr::write(
-        &raw mut (*rule).apply,
-        Vec::with_capacity(json_arr_len(_apply) as usize),
-    );
+    (*rule).match_0 = Vec::with_capacity((*rule).match_count as usize);
+    (*rule).apply = Vec::with_capacity(json_arr_len(_apply) as usize);
     (*rule).input_begins = json_obj_getnum_fallback(
         _subtable,
         b"inputBegins\0" as *const u8 as *const ::core::ffi::c_char,

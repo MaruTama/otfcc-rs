@@ -13,8 +13,8 @@ use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 
 use crate::support::{NULL};
-use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Subtable, ChainingType, ChainingSubtable, subtable_from_raw};
-use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING};
+use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Subtable, ChainingSubtable, subtable_from_raw};
+use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING, chaining_ruleset_mut};
 pub type CoverageReaderHandler = Option<
     unsafe extern "C" fn(
         FontFilePointer,
@@ -350,10 +350,7 @@ unsafe extern "C" fn read_contextual_format1(
                 match current_block {
                     10321976752019472029 => {}
                     _ => {
-                        let ruleset: *mut ChainingRuleSet = &raw mut (*subtable)
-                            .c2rust_unnamed
-                            .c2rust_unnamed
-                            as *mut ChainingRuleSet;
+                        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
                         (*ruleset).rules = Vec::with_capacity(total_rules as usize);
                         let mut j_0: TableId = 0 as TableId;
                         while (j_0 as ::core::ffi::c_int)
@@ -472,8 +469,7 @@ unsafe extern "C" fn read_contextual_format2(
                 }
                 j = j.wrapping_add(1);
             }
-            let ruleset: *mut ChainingRuleSet =
-                &raw mut (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
+            let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
             (*ruleset).rules = Vec::with_capacity(total_rules as usize);
             let mut j_0: TableId = 0 as TableId;
             while (j_0 as ::core::ffi::c_int) < chain_sub_class_set_cnt as ::core::ffi::c_int {
@@ -560,15 +556,13 @@ pub unsafe extern "C" fn otl_read_contextual(
             I_SUBTABLE_CHAINING
                 .create
                 .expect("non-null function pointer"))();
-    (*subtable).type_0 = ChainingType::Poly;
-    let ruleset: *mut ChainingRuleSet =
-        &raw mut (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
-    // Placement-construct: `subtable` is fresh from `create()`'s `memset`
-    // (zeroed, not a valid `Vec` bit pattern), so there is nothing to drop
-    // first. Every downstream construction path (format1/format2/format3,
-    // and the error paths that dispose the subtable without ever reaching
-    // one) now sees a valid, possibly-still-empty `Vec` from this point on.
-    ::core::ptr::write(&raw mut (*ruleset).rules, Vec::new());
+    // `subtable` is fresh from `create()` (a valid, empty `Canonical`
+    // value) -- replace it wholesale with a valid, empty `Poly` ruleset.
+    // Every downstream construction path (format1/format2/format3, and the
+    // error paths that dispose the subtable without ever reaching one) now
+    // sees a valid, possibly-still-empty ruleset from this point on.
+    *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
+    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
     if !(table_length < offset.wrapping_add(2 as u32)) {
         format = read_16u(data.offset(offset as isize) as *const u8);
         if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
@@ -944,10 +938,7 @@ unsafe extern "C" fn read_chaining_format1(
                 match current_block {
                     17398460390698728049 => {}
                     _ => {
-                        let ruleset: *mut ChainingRuleSet = &raw mut (*subtable)
-                            .c2rust_unnamed
-                            .c2rust_unnamed
-                            as *mut ChainingRuleSet;
+                        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
                         (*ruleset).rules = Vec::with_capacity(total_rules as usize);
                         let mut j_0: TableId = 0 as TableId;
                         while (j_0 as ::core::ffi::c_int)
@@ -1080,8 +1071,7 @@ unsafe extern "C" fn read_chaining_format2(
                 }
                 j = j.wrapping_add(1);
             }
-            let ruleset: *mut ChainingRuleSet =
-                &raw mut (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
+            let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
             (*ruleset).rules = Vec::with_capacity(total_rules as usize);
             let mut j_0: TableId = 0 as TableId;
             while (j_0 as ::core::ffi::c_int) < chain_sub_class_set_cnt as ::core::ffi::c_int {
@@ -1167,11 +1157,9 @@ pub unsafe extern "C" fn otl_read_chaining(
             I_SUBTABLE_CHAINING
                 .create
                 .expect("non-null function pointer"))();
-    (*subtable).type_0 = ChainingType::Poly;
-    let ruleset: *mut ChainingRuleSet =
-        &raw mut (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
-    // Placement-construct: see the identical comment in `otl_read_contextual`.
-    ::core::ptr::write(&raw mut (*ruleset).rules, Vec::new());
+    // See the identical comment in `otl_read_contextual`.
+    *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
+    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
     if !(table_length < offset.wrapping_add(2 as u32)) {
         format = read_16u(data.offset(offset as isize) as *const u8);
         if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {

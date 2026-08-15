@@ -894,6 +894,76 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`ChainingSubtable`/`ChainingBody` become a real enum -- the one place the
+  `Subtable` union-to-enum migration (B-1/B-2/B-3) left a nested C-shaped
+  union in place.** The full-crate audit that turned up the two cmap/COLR
+  leaks also flagged this: `ChainingSubtable { type_0: ChainingType,
+  c2rust_unnamed: union { rule: ManuallyDrop<ChainingRule>, c2rust_unnamed:
+  ManuallyDrop<ChainingRuleSet> } }` is exactly the "tag fully determines the
+  live union arm" shape already converted for `CffEncoding`/`CffCharset`/
+  `CffFdSelect`/`Subtable` itself -- just one level deeper, inside
+  `Subtable::Chaining`'s own payload. `Poly` and `Classified` both carry a
+  `ChainingRuleSet` (they shared a union arm before too), so the new shape is
+  `enum ChainingSubtable { Canonical(ChainingRule), Poly(ChainingRuleSet),
+  Classified(ChainingRuleSet) }`; `ChainingType` itself is gone, replaced by
+  the enum's own discriminant, with `chaining_is_classified`/
+  `chaining_is_canonical` (`subtables/chaining/common.rs`) covering the two
+  places that used to compare it directly.
+  - `ChainingRuleSet.bc`/`.ic`/`.fc: *mut ClassDef` become `Option<Box<
+    ClassDef>>`, matching `GposPairSubtable.first`/`.second` exactly -- both
+    are populated only by `classifier.rs`'s later classification pass (the
+    raw binary read always leaves a `Poly` ruleset's class defs `None`), and
+    now self-drop with the rest of the struct.
+  - This is a large, cross-file change (`table/otl.rs`'s type definitions,
+    all of `table/otl/subtables/chaining/{common,parse,dump,build,
+    classifier,read}.rs`, plus three call sites the initial grep survey
+    missed and the compiler caught instead: `consolidate/otl/chaining.rs`,
+    `otf_writer/stat.rs`, and `otf_reader/unconsolidate.rs`) but a
+    mechanical one: every function keeps its existing `*mut`/`*const
+    ChainingSubtable` signature and control flow untouched, with small
+    shared accessors (`chaining_rule_mut`/`_const`, `chaining_ruleset_mut`/
+    `_const`, `chaining_rule_mut_from_const` for `build.rs`'s const-to-mut
+    cast sites) replacing the raw `&raw mut/const (*subtable).c2rust_unnamed
+    .{rule,c2rust_unnamed}` field access one-for-one.
+  - `otl_init_chaining`/`otl_dispose_chaining` (the vtable's `.init`/
+    `.dispose`) shrink to a single `ptr::write`/`drop_in_place` each --
+    no all-zero bit pattern is a valid `ChainingSubtable` (it owns `Vec`
+    fields through every variant), so `.init` places a valid empty
+    `Canonical` value directly instead of `memset`; `.dispose` just runs
+    the enum's own `Drop`, which now correctly tears down whichever variant
+    is live without the old tag-gated free logic (removed, along with the
+    `close_rule` helper it needed). The vtable's `.copy` slot
+    (`subtable_chaining_copy`) was already confirmed dead before this
+    change (never called outside its own static initializer); its `memcpy`
+    body is now `unreachable!()` instead of something that would be
+    actively unsound over owned `Vec`/`Box` data if it were ever wired up.
+  - `otf_reader/unconsolidate.rs`'s `unconsolidate_chaining` -- which
+    explodes a `Poly` ruleset read from binary into one `Canonical`
+    subtable per rule for JSON dump -- got simpler and lost a real,
+    previously-flagged leak as a side effect: the pre-enum version's
+    `Canonical` branch deliberately left the original subtable's outer
+    allocation leaked (documented in its own comment) because working
+    around `Subtable`'s `Drop` impl to move a union-embedded rule out
+    safely wasn't practical with a union in the way. With a real enum,
+    `Subtable::drop`'s move restriction still applies (can't pattern-match
+    a value out of a `Drop` type), but `ChainingRule`/`ChainingRuleSet`
+    themselves have no custom `Drop`, so `mem::take` through a `&mut`
+    borrow moves the payload out cleanly, and the emptied original just
+    drops normally at the end of the loop iteration -- no leak, no raw
+    pointer surgery.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib. This exercises the change
+    unusually thoroughly -- `NotoNastaliqUrdu-Regular.ttf` alone carries 41
+    `gsub_chaining` and 1 `gpos_chaining` lookups round-tripped
+    byte-identically, and all 10 `run-cycles.sh` payloads survive a
+    dump-build-dump-build cycle stable, which exercises
+    `classifier.rs`'s `Poly`-to-`Classified` promotion (the one path that
+    constructs a brand-new `ChainingSubtable` value from scratch rather
+    than just mutating an existing one) on every one of them; issue #1's
+    large-lookup regression test green; `compare-log-output.sh` green.
+
 - **Full audit of the `unsafe_op_in_unsafe_fn` burn-down, and two real memory
   leaks it turned up.** After fifteen units of converting specific dangerous
   ownership/union patterns, we asked whether anything had been missed --

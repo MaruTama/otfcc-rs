@@ -12,6 +12,7 @@ use crate::font::caryll_font::{Font};
 
 
 use crate::table::otl::{ChainingRule, Subtable, ChainingSubtable, OtlTable};
+use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_mut};
 use crate::consolidate::otl::common::{fontop_consolidate_coverage};
 
 pub unsafe extern "C" fn consolidate_chaining(
@@ -22,7 +23,7 @@ pub unsafe extern "C" fn consolidate_chaining(
 ) -> bool {
     let Subtable::Chaining(mut_subtable) = &mut *_subtable else { unreachable!() };
     let subtable: *mut ChainingSubtable = mut_subtable;
-    if (*subtable).type_0 as u64 != 0 {
+    if !chaining_is_canonical(subtable) {
         (*(*options).logger)
             .log_sds
             .expect("non-null function pointer")(
@@ -33,7 +34,7 @@ pub unsafe extern "C" fn consolidate_chaining(
         );
         return false;
     }
-    let mut rule: *mut ChainingRule = &raw mut (*subtable).c2rust_unnamed.rule as *mut ChainingRule;
+    let mut rule: *mut ChainingRule = chaining_rule_mut(subtable);
     let mut possible: bool = true;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {

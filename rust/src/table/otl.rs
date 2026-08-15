@@ -15,7 +15,6 @@ use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{GlyphHandle, LookupHandle};
 
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
-use crate::table::otl::subtables::chaining::common::{otl_dispose_chaining};
 use crate::table::otl::subtables::gpos_cursive::{dispose_gpos_cursive_subtable};
 use crate::table::otl::subtables::gpos_single::{dispose_gpos_single_subtable};
 use crate::table::otl::subtables::gsub_ligature::{dispose_gsub_ligature_subtable};
@@ -182,7 +181,12 @@ impl Drop for Subtable {
                 Subtable::GsubSingle(x) => dispose_gsub_single_subtable(x as *mut GsubSingleSubtable),
                 Subtable::GsubMulti(x) => dispose_gsub_multi_subtable(x as *mut GsubMultiSubtable),
                 Subtable::GsubLigature(x) => dispose_gsub_ligature_subtable(x as *mut GsubLigatureSubtable),
-                Subtable::Chaining(x) => otl_dispose_chaining(x as *mut ChainingSubtable),
+                // `ChainingRule`'s and `ChainingRuleSet`'s fields (including
+                // `bc`/`ic`/`fc: Option<Box<ClassDef>>`, converted alongside
+                // this enum) all self-drop now -- no manual dispose left to
+                // call, same reasoning as `GposPair`/`GposMarkToSingle`
+                // above.
+                Subtable::Chaining(_) => {}
                 // `match_0: Vec<Coverage>` and `to: Coverage` both self-drop
                 // -- no manual dispose left to call, same reasoning as the
                 // `GposMarkTo*` arms above. `dispose_gsub_reverse` still
@@ -359,28 +363,30 @@ pub struct GsubReverseSubtable {
     pub match_0: Vec<Coverage>,
     pub to: Coverage,
 }
-// Embedded by value in `Subtable::Chaining`. Derives neither `Copy` nor
-// `Clone`, since `ChainingBody.rule` -- and therefore this struct -- no
-// longer stays `Copy` (see `ChainingRule`): a union can't hold a non-`Copy`
-// field any other way than `ManuallyDrop` (below), and a union can't know
-// which variant is active, so an automatic `Clone` impl would be unsound.
-// This matches the other non-`Copy`, non-`Clone` host structs
-// (`GposMarkToSingleSubtable`/`GposMarkToLigatureSubtable`). Nothing calls
-// `.clone()` on this type -- the vtable's `.copy` slot
-// (`subtable_chaining_copy`) is a raw `memcpy`, not `Clone::clone`, and is
-// confirmed dead (never called outside its own static initializer).
-#[repr(C)]
-pub struct ChainingSubtable {
-    pub type_0: ChainingType,
-    pub c2rust_unnamed: ChainingBody,
-}
-// Both variants now own a `Vec` (`rule.apply`, `c2rust_unnamed.rules`), so
-// both need `ManuallyDrop` -- a union can't hold a non-`Copy` field any
-// other way, regardless of which variant it is.
-#[repr(C)]
-pub union ChainingBody {
-    pub rule: ::core::mem::ManuallyDrop<ChainingRule>,
-    pub c2rust_unnamed: ::core::mem::ManuallyDrop<ChainingRuleSet>,
+// Was a C-shaped `struct { type_0: ChainingType, c2rust_unnamed: union {
+// rule: ManuallyDrop<ChainingRule>, c2rust_unnamed: ManuallyDrop<
+// ChainingRuleSet> } }` -- the same "tag fully determines the live union
+// arm" shape already converted for `CffEncoding`/`CffCharset`/`CffFdSelect`/
+// `Subtable` itself, just one level deeper (the outer `Subtable` enum's own
+// conversion left this nested union in place). `Poly` and `Classified` both
+// carry a `ChainingRuleSet` -- they shared the same union arm before, and
+// still share the same payload type now; only their outer discriminant
+// differs, which build.rs's `type_0 == ChainingType::Classified` checks
+// still need to distinguish (see `chaining_is_classified`, common.rs).
+// `ChainingType` itself is gone -- the enum's own discriminant replaces it,
+// and nothing else in the crate read a bare `ChainingType` value.
+//
+// Derives neither `Copy` nor `Clone`: `ChainingRuleSet.bc`/`.ic`/`.fc` are
+// `Option<Box<ClassDef>>` (converted alongside this enum, matching
+// `GposPairSubtable.first`/`.second`), so an automatic bitwise `Clone`
+// would double-free. Nothing calls `.clone()` on this type -- the vtable's
+// `.copy` slot (`subtable_chaining_copy`) is confirmed dead (never called
+// outside its own static initializer) and is now a loud `unreachable!()`
+// instead of a `memcpy` that would be unsound over owned `Vec`/`Box` data.
+pub enum ChainingSubtable {
+    Canonical(ChainingRule),
+    Poly(ChainingRuleSet),
+    Classified(ChainingRuleSet),
 }
 /// `rules: *mut *mut ChainingRule` (the `Poly`/`Classified` shape) becomes
 /// `Vec<Option<Box<ChainingRule>>>` -- joining the `LangSystemList`/
@@ -393,12 +399,20 @@ pub union ChainingBody {
 /// (`.expect(...)`, which panics instead of the old null-pointer-deref UB
 /// if that latent path is ever actually hit). `rules_count` is gone;
 /// every read site now uses `rules.len()`.
-#[repr(C)]
+///
+/// `bc`/`ic`/`fc: *mut ClassDef` become `Option<Box<ClassDef>>`, matching
+/// `GposPairSubtable.first`/`.second` exactly -- both are populated only
+/// by `classifier.rs`'s later classification pass (never by the raw binary
+/// read, which always leaves a `Poly` ruleset's class defs as `None`/null),
+/// consumed the same way (`.as_deref()`/`.as_deref_mut()` at the `OTL_I_
+/// CLASS_DEF.build`/`.parse` call sites), and now self-drop with the rest
+/// of the struct.
+#[derive(Default)]
 pub struct ChainingRuleSet {
     pub rules: Vec<Option<Box<ChainingRule>>>,
-    pub bc: *mut ClassDef,
-    pub ic: *mut ClassDef,
-    pub fc: *mut ClassDef,
+    pub bc: Option<Box<ClassDef>>,
+    pub ic: Option<Box<ClassDef>>,
+    pub fc: Option<Box<ClassDef>>,
 }
 /// Replaces the calloc'd raw array `apply: *mut ChainLookupApplication` +
 /// `apply_count: TableId` -- the last remaining "leaf type owns a `Handle`
@@ -409,9 +423,10 @@ pub struct ChainingRuleSet {
 /// needing a custom teardown, so no manual `Drop` impl remains: both fields
 /// now self-drop, and the compiler-generated glue tears down a
 /// `ChainingRule` correctly whether it's reached via `.rules: Vec<Option<
-/// Box<ChainingRule>>>` or via `close_rule`'s `ptr::drop_in_place` on the
-/// `Canonical` variant's `ManuallyDrop<ChainingRule>` (`close_rule` needed
-/// no change: `drop_in_place` already ran whatever `Drop` glue exists).
+/// Box<ChainingRule>>>` or via the `ChainingSubtable::Canonical` variant
+/// directly (an ordinary enum payload, no longer a `ManuallyDrop` union
+/// field needing a separate explicit drop step).
+#[derive(Default)]
 #[repr(C)]
 pub struct ChainingRule {
     pub match_count: TableId,
@@ -428,13 +443,6 @@ pub struct ChainingRule {
 pub struct ChainLookupApplication {
     pub index: TableId,
     pub lookup: LookupHandle,
-}
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[repr(u32)]
-pub enum ChainingType {
-    Canonical = 0,
-    Poly = 1,
-    Classified = 2,
 }
 pub type GsubLigatureSubtable = Vec<GsubLigatureEntry>;
 #[derive(Clone)]

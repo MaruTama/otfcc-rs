@@ -5,15 +5,16 @@
 use crate::support::primitives::{TableId};
 use crate::table::otl::{ChainingRule, Subtable, ChainingSubtable};
 use crate::table::otl::coverage::{Coverage, OTL_I_COVERAGE};
+use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_const};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new_from_bytes, preserialize};
 
 pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut BuiltValue {
     let Subtable::Chaining(mut_subtable) = &*_subtable else { unreachable!() };
     let subtable: *const ChainingSubtable = mut_subtable;
-    if (*subtable).type_0 as u64 != 0 {
+    if !chaining_is_canonical(subtable) {
         return json_null_new();
     }
-    let mut rule: *const ChainingRule = &raw const (*subtable).c2rust_unnamed.rule as *const ChainingRule;
+    let mut rule: *const ChainingRule = chaining_rule_const(subtable);
     let mut _st: *mut BuiltValue = json_object_new(4 as usize);
     let mut _match: *mut BuiltValue = json_array_new((*rule).match_count as usize);
     let mut j: TableId = 0 as TableId;

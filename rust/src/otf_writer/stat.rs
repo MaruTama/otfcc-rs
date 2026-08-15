@@ -44,6 +44,7 @@ use crate::table::vhea::{VheaTable};
 
 
 use crate::table::otl::{GsubLigatureEntry, Lookup, Subtable, SubtablePtr, subtable_at, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_REVERSE, ChainingSubtable, GsubLigatureSubtable, GsubReverseSubtable, OtlTable};
+use crate::table::otl::subtables::chaining::common::{chaining_rule_mut};
 
 
 
@@ -1078,10 +1079,11 @@ unsafe extern "C" fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                     let elem_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, si);
                     let Subtable::Chaining(mut_subtable) = &mut *elem_ptr else { unreachable!() };
                     let subtable: *mut ChainingSubtable = mut_subtable;
+                    let rule = chaining_rule_mut(subtable);
                     if (maxc as ::core::ffi::c_int)
-                        < (&(*subtable).c2rust_unnamed.rule).match_count as ::core::ffi::c_int
+                        < (*rule).match_count as ::core::ffi::c_int
                     {
-                        maxc = (&(*subtable).c2rust_unnamed.rule).match_count as u16;
+                        maxc = (*rule).match_count as u16;
                     }
                 }
             }
