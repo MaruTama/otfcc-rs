@@ -1,6 +1,12 @@
-<p align="center"><img src="https://raw.githubusercontent.com/caryll/design/master/caryll-logo-libs-githubreadme.png" width=200></p><h1 align="center">otfcc</h1><p align="center"><a target="_blank" href="https://travis-ci.org/caryll/otfcc"><img src="https://travis-ci.org/caryll/otfcc.svg?branch=master" alt=""></a> <a target="_blank" href="https://ci.appveyor.com/project/be5invis/otfcc"><img src="https://ci.appveyor.com/api/projects/status/github/caryll/otfcc?branch=master&amp;svg=true" alt=""></a> <a href="https://github.com/caryll/otfcc/releases"><img src="https://img.shields.io/github/release/caryll/otfcc.svg" alt="Version"></a> <a target="_blank" href="https://gitter.im/caryll/otfcc"><img src="https://img.shields.io/gitter/room/caryll/otfcc.svg" alt=""></a></p>
+<p align="center"><img src="https://raw.githubusercontent.com/caryll/design/master/caryll-logo-libs-githubreadme.png" width=200></p><h1 align="center">otfcc-rs</h1><p align="center"><a target="_blank" href="https://github.com/MaruTama/otfcc-rs/actions/workflows/rust.yml"><img src="https://github.com/MaruTama/otfcc-rs/actions/workflows/rust.yml/badge.svg" alt=""></a> <a href="https://github.com/caryll/otfcc/releases"><img src="https://img.shields.io/github/release/caryll/otfcc.svg" alt="Version"></a> <a target="_blank" href="https://gitter.im/caryll/otfcc"><img src="https://img.shields.io/gitter/room/caryll/otfcc.svg" alt=""></a></p>
 
-The `otfcc` is a C library and utility used for parsing and writing OpenType font files.
+`otfcc-rs` is a fork of [otfcc](https://github.com/caryll/otfcc), a library and
+utility for parsing and writing OpenType font files. It's undergoing an
+in-progress migration from C to Rust — see [`rust/README.md`](rust/README.md)
+for the migration's status, design decisions, and full history. Until that
+migration retires the C implementation, the sections below (installation,
+usage, building) describe the original C build; `rust/README.md` covers
+building and testing the Rust port instead.
 
 ## Key features
 
