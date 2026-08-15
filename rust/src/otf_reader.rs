@@ -64,9 +64,10 @@ unsafe extern "C" fn decide_font_subtype_otf(
     // single-iteration inner scope purely to give the original C a labeled
     // break/continue target. Traced by hand: the whole thing reduces to
     // "return FontSubtype::Cff at the first 'cff ' tag, else FontSubtype::Ttf".
-    let packet: Packet = *(*sfnt).packets.offset(index as isize);
+    let sfnt_packets = &(*sfnt).packets;
+    let packet: &Packet = &sfnt_packets[index as usize];
     for i in 0..packet.num_tables as ::core::ffi::c_int {
-        let table: PacketPiece = *packet.pieces.offset(i as isize);
+        let table: &PacketPiece = &packet.pieces[i as usize];
         if table.tag == crate::tag::TAG_CFF {
             return FontSubtype::Cff;
         }
@@ -100,7 +101,8 @@ impl FontBuilder for OtfReader {
     } else {
         let font: *mut Font = (
             OTFCC_I_FONT.create.expect("non-null function pointer"))();
-        let packet: Packet = *(*sfnt).packets.offset(index as isize);
+        let sfnt_packets = &(*sfnt).packets;
+        let packet: &Packet = &sfnt_packets[index as usize];
         (*font).subtype = decide_font_subtype_otf(sfnt, index);
         (*font).fvar = otfcc_read_fvar(packet, options);
         (*font).head = otfcc_read_head(packet, options);

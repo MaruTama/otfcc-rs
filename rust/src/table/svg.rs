@@ -63,7 +63,7 @@ unsafe fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_read_svg(
-    packet: Packet,
+    packet: &Packet,
     mut _options: *const Options,
 ) -> Option<SvgTable> {
     let mut offset_to_svg_doc_index: u32 = 0;
@@ -75,16 +75,16 @@ pub unsafe extern "C" fn otfcc_read_svg(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_SVG {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     if !(table.length < 10 as u32) {
                         offset_to_svg_doc_index =
-                            read_32u(table.data.offset(2 as ::core::ffi::c_int as isize));
+                            read_32u(table.data.as_ptr().offset(2 as ::core::ffi::c_int as isize));
                         if !(table.length < offset_to_svg_doc_index.wrapping_add(2 as u32)) {
-                            num_entries = read_16u(table.data.offset(offset_to_svg_doc_index as isize));
+                            num_entries = read_16u(table.data.as_ptr().offset(offset_to_svg_doc_index as isize));
                             if !(table.length
                                 < offset_to_svg_doc_index
                                     .wrapping_add(2 as u32)
@@ -98,13 +98,13 @@ pub unsafe extern "C" fn otfcc_read_svg(
                                 let mut j: GlyphId = 0 as GlyphId;
                                 while (j as ::core::ffi::c_int) < num_entries as ::core::ffi::c_int {
                                     let mut record: FontFilePointer = table
-                                        .data
+                                        .data.as_ptr()
                                         .offset(offset_to_svg_doc_index as isize)
                                         .offset(2 as ::core::ffi::c_int as isize)
                                         .offset(
                                             (12 as ::core::ffi::c_int * j as ::core::ffi::c_int)
                                                 as isize,
-                                        );
+                                        ) as *mut u8;
                                     let mut asg: SvgAssignment = svg_assignment_empty();
                                     asg.start = read_16u(record as *const u8) as GlyphId;
                                     asg.end =
@@ -127,7 +127,7 @@ pub unsafe extern "C" fn otfcc_read_svg(
                                             asg.document,
                                             doclen as usize,
                                             table
-                                                .data
+                                                .data.as_ptr()
                                                 .offset(offset_to_svg_doc_index as isize)
                                                 .offset(docstart as isize),
                                         );

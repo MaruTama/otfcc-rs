@@ -1057,7 +1057,7 @@ unsafe extern "C" fn polymorphize_glyph(
 }
 #[inline]
 unsafe extern "C" fn polymorphize(
-    packet: Packet,
+    packet: &Packet,
     mut options: *const Options,
     mut glyf: *mut GlyfTable,
     mut ctx: *const GlyfIOContext,
@@ -1072,12 +1072,12 @@ unsafe extern "C" fn polymorphize(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_GVAR {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data as FontFilePointer;
+                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     if (table.length as usize) < ::core::mem::size_of::<GVARHeader>() {
                         return;
                     }
@@ -1149,7 +1149,7 @@ unsafe extern "C" fn polymorphize(
     }
 }
 pub unsafe extern "C" fn otfcc_read_glyf(
-    packet: Packet,
+    packet: &Packet,
     mut options: *const Options,
     mut ctx: *const GlyfIOContext,
 ) -> Option<GlyfTable> {
@@ -1171,12 +1171,12 @@ pub unsafe extern "C" fn otfcc_read_glyf(
             && __fortable_keep != 0
             && __fortable_count < packet.num_tables as ::core::ffi::c_int
         {
-            let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+            let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
             while __fortable_keep != 0 {
                 if table.tag == crate::tag::TAG_LOCA {
                     let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                     while __fortable_k2 != 0 {
-                        let mut data: FontFilePointer = table.data as FontFilePointer;
+                        let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                         let mut length: u32 = table.length;
                         if !(length
                             < (2 as ::core::ffi::c_int * (*ctx).num_glyphs as ::core::ffi::c_int
@@ -1252,13 +1252,13 @@ pub unsafe extern "C" fn otfcc_read_glyf(
                     current_block = 4135528745514935090;
                     break;
                 }
-                let mut table_0: PacketPiece =
-                    *packet.pieces.offset(__fortable_count_0 as isize);
+                let table_0: &PacketPiece =
+                    &packet.pieces[__fortable_count_0 as usize];
                 while __fortable_keep_0 != 0 {
                     if table_0.tag == crate::tag::TAG_GLYF {
                         let mut __fortable_k2_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                         while __fortable_k2_0 != 0 {
-                            let mut data_0: FontFilePointer = table_0.data as FontFilePointer;
+                            let mut data_0: FontFilePointer = table_0.data.as_ptr() as FontFilePointer;
                             let mut length_0: u32 = table_0.length;
                             if length_0 < offsets[(*ctx).num_glyphs as usize] {
                                 (*(*options).logger)

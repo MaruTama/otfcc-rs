@@ -54,7 +54,7 @@ static BASE_GLYPH_REC_LENGTH: usize = 6 as usize;
 static LAYER_REC_LENGTH: usize = 4 as usize;
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_read_colr(
-    packet: Packet,
+    packet: &Packet,
     mut options: *const Options,
 ) -> Option<ColrTable> {
     let mut num_base_glyph_records: u16 = 0;
@@ -70,20 +70,20 @@ pub unsafe extern "C" fn otfcc_read_colr(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_COLR {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     if !(table.length < 14 as u32) {
                         num_base_glyph_records =
-                            read_16u(table.data.offset(2 as ::core::ffi::c_int as isize));
+                            read_16u(table.data.as_ptr().offset(2 as ::core::ffi::c_int as isize));
                         num_layer_records =
-                            read_16u(table.data.offset(12 as ::core::ffi::c_int as isize));
+                            read_16u(table.data.as_ptr().offset(12 as ::core::ffi::c_int as isize));
                         offset_base_glyph_record =
-                            read_32u(table.data.offset(4 as ::core::ffi::c_int as isize));
+                            read_32u(table.data.as_ptr().offset(4 as ::core::ffi::c_int as isize));
                         offset_layer_record =
-                            read_32u(table.data.offset(8 as ::core::ffi::c_int as isize));
+                            read_32u(table.data.as_ptr().offset(8 as ::core::ffi::c_int as isize));
                         if !((table.length as usize)
                             < (offset_base_glyph_record as usize).wrapping_add(
                                 BASE_GLYPH_REC_LENGTH.wrapping_mul(num_base_glyph_records as usize),
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                     < num_layer_records as ::core::ffi::c_int
                                 {
                                     gids.push(read_16u(
-                                        table.data.offset(offset_layer_record as isize).offset(
+                                        table.data.as_ptr().offset(offset_layer_record as isize).offset(
                                             LAYER_REC_LENGTH.wrapping_mul(j as usize) as isize,
                                         ),
                                     )
@@ -109,7 +109,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                     colors.push(
                                         read_16u(
                                             table
-                                                .data
+                                                .data.as_ptr()
                                                 .offset(offset_layer_record as isize)
                                                 .offset(LAYER_REC_LENGTH.wrapping_mul(j as usize)
                                                     as isize)
@@ -133,14 +133,14 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                     };
                                     let mut gid: u16 = read_16u(
                                         table
-                                            .data
+                                            .data.as_ptr()
                                             .offset(offset_base_glyph_record as isize)
                                             .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
                                                 as isize),
                                     );
                                     let mut first_layer_index: u16 = read_16u(
                                         table
-                                            .data
+                                            .data.as_ptr()
                                             .offset(offset_base_glyph_record as isize)
                                             .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
                                                 as isize)
@@ -148,7 +148,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                     );
                                     let mut num_layers: u16 = read_16u(
                                         table
-                                            .data
+                                            .data.as_ptr()
                                             .offset(offset_base_glyph_record as isize)
                                             .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
                                                 as isize)

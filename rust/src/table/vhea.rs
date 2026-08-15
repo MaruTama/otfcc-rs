@@ -39,7 +39,7 @@ pub struct VheaTable {
 // confirmed only `.create`/`.free` were ever called, both internal to
 // this crate.
 pub unsafe extern "C" fn otfcc_read_vhea(
-    packet: Packet,
+    packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<VheaTable>> {
     let mut vhea_box: Option<Box<VheaTable>> = None;
@@ -51,12 +51,12 @@ pub unsafe extern "C" fn otfcc_read_vhea(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_VHEA {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data as FontFilePointer;
+                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     let mut length: usize = table.length as usize;
                     if length >= 36 as usize {
                         vhea_box = Some(Box::new(::core::mem::zeroed()));

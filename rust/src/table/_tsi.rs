@@ -65,27 +65,20 @@ unsafe extern "C" fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe extern "C" fn otfcc_read_tsi(
-    packet: Packet,
+    packet: &Packet,
     mut _options: *const Options,
     mut tag_index: u32,
     mut tag_text: u32,
 ) -> Option<TsiTable> {
-    let mut text_part: PacketPiece = PacketPiece {
-        tag: 0,
-        check_sum: 0,
-        offset: 0,
-        length: 0,
-        data: ::core::ptr::null_mut::<u8>(),
-    };
-    text_part.tag = 0 as u32;
-    let mut index_part: PacketPiece = PacketPiece {
-        tag: 0,
-        check_sum: 0,
-        offset: 0,
-        length: 0,
-        data: ::core::ptr::null_mut::<u8>(),
-    };
-    index_part.tag = 0 as u32;
+    // `text_part`/`index_part` were plain `PacketPiece` values with a
+    // tag-0 sentinel standing in for "not found yet" (assigned by value
+    // once a matching tag turned up while scanning `packet.pieces`).
+    // `PacketPiece` no longer derives `Copy` (it owns `data: Vec<u8>`), so
+    // this becomes `Option<&PacketPiece>` -- `None` is the same "not found"
+    // signal the tag-0 sentinel used to carry, and borrowing a matched
+    // element out of `packet.pieces` needs no copy at all.
+    let mut text_part: Option<&PacketPiece> = None;
+    let mut index_part: Option<&PacketPiece> = None;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -93,12 +86,12 @@ pub unsafe extern "C" fn otfcc_read_tsi(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table_ix: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table_ix: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table_ix.tag == tag_index {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    index_part = table_ix;
+                    index_part = Some(table_ix);
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -115,12 +108,12 @@ pub unsafe extern "C" fn otfcc_read_tsi(
         && __fortable_keep_0 != 0
         && __fortable_count_0 < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table_tx: PacketPiece = *packet.pieces.offset(__fortable_count_0 as isize);
+        let table_tx: &PacketPiece = &packet.pieces[__fortable_count_0 as usize];
         while __fortable_keep_0 != 0 {
             if table_tx.tag == tag_text {
                 let mut __fortable_k2_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2_0 != 0 {
-                    text_part = table_tx;
+                    text_part = Some(table_tx);
                     __fortable_k2_0 = 0 as ::core::ffi::c_int;
                     __notfound_0 = 0 as ::core::ffi::c_int;
                 }
@@ -130,26 +123,28 @@ pub unsafe extern "C" fn otfcc_read_tsi(
         __fortable_keep_0 = (__fortable_keep_0 == 0) as ::core::ffi::c_int;
         __fortable_count_0 += 1;
     }
-    if text_part.tag == 0 || index_part.tag == 0 {
+    if text_part.is_none() || index_part.is_none() {
         return None;
     }
+    let text_part = text_part.unwrap();
+    let index_part = index_part.unwrap();
     let mut tsi: TsiTable = Vec::new();
     let mut j: u32 = 0 as u32;
     while j.wrapping_mul(8 as u32) < index_part.length {
         let mut gid: u16 = read_16u(
             index_part
-                .data
+                .data.as_ptr()
                 .offset(j.wrapping_mul(8 as u32) as isize),
         );
         let mut text_length: u32 = read_16u(
             index_part
-                .data
+                .data.as_ptr()
                 .offset(j.wrapping_mul(8 as u32) as isize)
                 .offset(2 as ::core::ffi::c_int as isize),
         ) as u32;
         let mut text_offset: u32 = read_32u(
             index_part
-                .data
+                .data.as_ptr()
                 .offset(j.wrapping_mul(8 as u32) as isize)
                 .offset(4 as ::core::ffi::c_int as isize),
         );
@@ -161,12 +156,12 @@ pub unsafe extern "C" fn otfcc_read_tsi(
             {
                 let mut gid_k: u16 = read_16u(
                     index_part
-                        .data
+                        .data.as_ptr()
                         .offset((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as isize),
                 );
                 let mut text_offset_k: u32 = read_32u(
                     index_part
-                        .data
+                        .data.as_ptr()
                         .offset((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as isize)
                         .offset(4 as ::core::ffi::c_int as isize),
                 );
@@ -213,7 +208,7 @@ pub unsafe extern "C" fn otfcc_read_tsi(
                 }
             }
             entry.content = ::core::slice::from_raw_parts(
-                text_part.data.offset(text_offset as isize),
+                text_part.data.as_ptr().offset(text_offset as isize),
                 text_length as usize,
             )
             .to_vec();

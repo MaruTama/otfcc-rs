@@ -6,7 +6,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 pub unsafe extern "C" fn otfcc_read_meta(
-    packet: Packet,
+    packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<MetaTable>> {
     let mut version: u32 = 0;
@@ -20,16 +20,16 @@ pub unsafe extern "C" fn otfcc_read_meta(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_META {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     if !(table.length < 16 as u32) {
-                        version = read_32u(table.data.offset(0 as ::core::ffi::c_int as isize));
-                        flags = read_32u(table.data.offset(4 as ::core::ffi::c_int as isize));
+                        version = read_32u(table.data.as_ptr().offset(0 as ::core::ffi::c_int as isize));
+                        flags = read_32u(table.data.as_ptr().offset(4 as ::core::ffi::c_int as isize));
                         data_maps_count =
-                            read_32u(table.data.offset(12 as ::core::ffi::c_int as isize));
+                            read_32u(table.data.as_ptr().offset(12 as ::core::ffi::c_int as isize));
                         if !(table.length
                             < (16 as u32)
                                 .wrapping_add((12 as u32).wrapping_mul(data_maps_count)))
@@ -39,21 +39,21 @@ pub unsafe extern "C" fn otfcc_read_meta(
                             while j < data_maps_count {
                                 let mut tag: u32 = read_32u(
                                     table
-                                        .data
+                                        .data.as_ptr()
                                         .offset(16 as ::core::ffi::c_int as isize)
                                         .offset((12 as u32).wrapping_mul(j) as isize)
                                         .offset(0 as ::core::ffi::c_int as isize),
                                 );
                                 let mut offset: u32 = read_32u(
                                     table
-                                        .data
+                                        .data.as_ptr()
                                         .offset(16 as ::core::ffi::c_int as isize)
                                         .offset((12 as u32).wrapping_mul(j) as isize)
                                         .offset(4 as ::core::ffi::c_int as isize),
                                 );
                                 let mut length: u32 = read_32u(
                                     table
-                                        .data
+                                        .data.as_ptr()
                                         .offset(16 as ::core::ffi::c_int as isize)
                                         .offset((12 as u32).wrapping_mul(j) as isize)
                                         .offset(8 as ::core::ffi::c_int as isize),
@@ -62,7 +62,7 @@ pub unsafe extern "C" fn otfcc_read_meta(
                                     meta.as_mut().unwrap().entries.push(MetaEntry {
                                         tag: tag,
                                         data: ::core::slice::from_raw_parts(
-                                            table.data.offset(offset as isize),
+                                            table.data.as_ptr().offset(offset as isize),
                                             length as usize,
                                         )
                                         .to_vec(),

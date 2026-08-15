@@ -309,7 +309,7 @@ static STANDARD_MAC_NAMES: [&::core::ffi::CStr; 258] = [
     c"dcroat",
 ];
 pub unsafe extern "C" fn otfcc_read_post(
-    packet: Packet,
+    packet: &Packet,
     mut _options: *const Options,
 ) -> Option<Box<PostTable>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -319,12 +319,12 @@ pub unsafe extern "C" fn otfcc_read_post(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_POST {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 if __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data as FontFilePointer;
+                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     // Every field below is unconditionally overwritten by
                     // this function's own body, so `mem::zeroed()`'s default
                     // is never observed -- unlike `otfcc_parse_post`, where

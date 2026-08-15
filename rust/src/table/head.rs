@@ -38,7 +38,7 @@ pub struct HeadTable {
 // identifier confirmed only `.create`/`.free` were ever called, both
 // internal to this crate.
 pub unsafe extern "C" fn otfcc_read_head(
-    packet: Packet,
+    packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<HeadTable>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -48,12 +48,12 @@ pub unsafe extern "C" fn otfcc_read_head(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_HEAD {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data as FontFilePointer;
+                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     let mut length: u32 = table.length;
                     if length < 54 as u32 {
                         (*(*options).logger)

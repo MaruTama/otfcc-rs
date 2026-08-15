@@ -52,7 +52,7 @@ impl Drop for HdmxTable {
     }
 }
 pub unsafe extern "C" fn otfcc_read_hdmx(
-    mut packet: Packet,
+    mut packet: &Packet,
     mut _options: *const Options,
     mut maxp: *mut MaxpTable,
 ) -> Option<Box<HdmxTable>> {
@@ -63,12 +63,12 @@ pub unsafe extern "C" fn otfcc_read_hdmx(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_HDMX {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 if __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data as FontFilePointer;
+                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     let version = read_16u(data as *const u8);
                     let num_records =
                         read_16u(data.offset(2 as ::core::ffi::c_int as isize) as *const u8);
