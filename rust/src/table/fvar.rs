@@ -539,31 +539,29 @@ pub unsafe extern "C" fn json_new_vq_segment(
     mut s: *const VqSegment,
     mut fvar: *const FvarTable,
 ) -> *mut BuiltValue {
-    let mut d: *mut BuiltValue = ::core::ptr::null_mut::<BuiltValue>();
-    match (*s).type_0 as ::core::ffi::c_uint {
-        0 => return json_new_position((*s).val.still),
-        1 => {
-            d = json_object_new(3 as usize);
+    match *s {
+        VqSegment::Still(still) => return json_new_position(still),
+        VqSegment::Delta(delta) => {
+            let d: *mut BuiltValue = json_object_new(3 as usize);
             json_object_push(
                 d,
                 b"delta\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_position((*s).val.delta.quantity),
+                json_new_position(delta.quantity),
             );
-            if !(*s).val.delta.touched {
+            if !delta.touched {
                 json_object_push(
                     d,
                     b"implicit\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_boolean_new(!(*s).val.delta.touched as ::core::ffi::c_int),
+                    json_boolean_new(!delta.touched as ::core::ffi::c_int),
                 );
             }
             json_object_push(
                 d,
                 b"on\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_vq_region((*s).val.delta.region, fvar),
+                json_new_vq_region(delta.region, fvar),
             );
             return d;
         }
-        _ => return json_integer_new(0 as i64),
     };
 }
 pub unsafe extern "C" fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *mut BuiltValue {

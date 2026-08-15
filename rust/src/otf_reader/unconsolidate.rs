@@ -42,7 +42,7 @@ use crate::table::otl::{ChainingRule, ChainingSubtable, Lookup, Subtable, Subtab
 
 
 use crate::vf::region::{VqAxisSpan};
-use crate::vf::vq::{VQ, VQSegType, VqSegment};
+use crate::vf::vq::{VQ, VqSegment};
 use crate::support::aglfn::{aglfn_setup_names};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
@@ -56,23 +56,23 @@ pub struct GlyphHash {
     pub hash: [u8; 20],
 }
 unsafe extern "C" fn hash_vqs(buf: *mut Buffer, s: VqSegment) {
-    bufwrite8(buf, s.type_0 as u8);
-    match s.type_0 {
-        VQSegType::Still => {
+    bufwrite8(buf, s.discriminant_byte());
+    match s {
+        VqSegment::Still(still) => {
             bufwrite32b(
                 buf,
-                otfcc_to_fixed(s.val.still as ::core::ffi::c_double) as u32,
+                otfcc_to_fixed(still as ::core::ffi::c_double) as u32,
             );
         }
-        VQSegType::Delta => {
+        VqSegment::Delta(delta) => {
             bufwrite32b(
                 buf,
-                otfcc_to_fixed(s.val.delta.quantity as ::core::ffi::c_double) as u32,
+                otfcc_to_fixed(delta.quantity as ::core::ffi::c_double) as u32,
             );
-            bufwrite32b(buf, (*s.val.delta.region).dimensions as u32);
-            for j in 0..(*s.val.delta.region).dimensions as usize {
+            bufwrite32b(buf, (*delta.region).dimensions as u32);
+            for j in 0..(*delta.region).dimensions as usize {
                 let span: *const VqAxisSpan =
-                    (&raw const (*s.val.delta.region).spans as *const VqAxisSpan)
+                    (&raw const (*delta.region).spans as *const VqAxisSpan)
                         .offset(j as isize);
                 bufwrite32b(
                     buf,

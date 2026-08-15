@@ -30,18 +30,56 @@ pub enum CffInstructionType {
     PhantomOperator = 3,
     PhantomOperand = 4,
 }
+// Was a C-shaped `struct { type_0: CffInstructionType, arity: Arity,
+// c2rust_unnamed: union { d: f64, i: i32 } }`. `type_0`'s five values don't
+// map 1:1 onto the union's two arms -- `Operand`/`PhantomOperand` share
+// `.d`, `Operator`/`Special`/`PhantomOperator` share `.i` -- so `type_0`
+// stays a separate field (its own value still matters beyond "which arm is
+// live": it distinguishes a real operator from a `Special` non-operator
+// byte occupying the same `.i` storage, and the "Phantom" variants from
+// their non-phantom counterparts, both invisible to `CffCharstringArgument`
+// alone). Both arms are `Copy` (no owned heap data), so this enum stays
+// `Copy` too, and every element of `CffCharstringIl.instr`'s raw array
+// (a separate, larger conversion left for later, per the audit) keeps
+// working exactly as before.
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffCharstringInstruction {
     pub type_0: CffInstructionType,
     pub arity: Arity,
-    pub c2rust_unnamed: CffCharstringArgument,
+    pub arg: CffCharstringArgument,
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
-pub union CffCharstringArgument {
-    pub d: ::core::ffi::c_double,
-    pub i: i32,
+pub enum CffCharstringArgument {
+    D(::core::ffi::c_double),
+    I(i32),
+}
+impl CffCharstringInstruction {
+    /// Panics instead of reading union garbage if this instruction's
+    /// `type_0` didn't actually imply the `D` arm -- every call site
+    /// already established that via `type_0` before reaching here.
+    pub fn d(&self) -> ::core::ffi::c_double {
+        match self.arg {
+            CffCharstringArgument::D(d) => d,
+            CffCharstringArgument::I(_) => {
+                panic!("CffCharstringInstruction::d called on an integer instruction")
+            }
+        }
+    }
+    pub fn i(&self) -> i32 {
+        match self.arg {
+            CffCharstringArgument::I(i) => i,
+            CffCharstringArgument::D(_) => {
+                panic!("CffCharstringInstruction::i called on a double instruction")
+            }
+        }
+    }
+    pub fn set_d(&mut self, v: ::core::ffi::c_double) {
+        self.arg = CffCharstringArgument::D(v);
+    }
+    pub fn set_i(&mut self, v: i32) {
+        self.arg = CffCharstringArgument::I(v);
+    }
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -68,9 +106,7 @@ pub unsafe extern "C" fn il_push_operand(
 ) {
     ensure_there_is_space(il);
     (*(*il).instr.offset((*il).length as isize)).type_0 = CffInstructionType::Operand;
-    (*(*il).instr.offset((*il).length as isize))
-        .c2rust_unnamed
-        .d = x;
+    (*(*il).instr.offset((*il).length as isize)).set_d(x);
     (*(*il).instr.offset((*il).length as isize)).arity = 0 as Arity;
     (*il).length = (*il).length.wrapping_add(1);
     (*il).free = (*il).free.wrapping_sub(1);
@@ -84,9 +120,7 @@ pub unsafe extern "C" fn il_push_vq(mut il: *mut CffCharstringIl, mut x: VQ) {
 pub unsafe extern "C" fn il_push_special(mut il: *mut CffCharstringIl, mut s: i32) {
     ensure_there_is_space(il);
     (*(*il).instr.offset((*il).length as isize)).type_0 = CffInstructionType::Special;
-    (*(*il).instr.offset((*il).length as isize))
-        .c2rust_unnamed
-        .i = s;
+    (*(*il).instr.offset((*il).length as isize)).set_i(s);
     (*(*il).instr.offset((*il).length as isize)).arity = 0 as Arity;
     (*il).length = (*il).length.wrapping_add(1);
     (*il).free = (*il).free.wrapping_sub(1);
@@ -100,9 +134,7 @@ pub unsafe extern "C" fn il_push_op(
     // The `.i` arm stays a bare `i32`: `CffInstructionType::Special` stores
     // non-operator bytes in the very same field, so the type lives on the way
     // in, not in the storage.
-    (*(*il).instr.offset((*il).length as isize))
-        .c2rust_unnamed
-        .i = op.0;
+    (*(*il).instr.offset((*il).length as isize)).set_i(op.0);
     (*(*il).instr.offset((*il).length as isize)).arity =
         cff_get_standard_arity(op) as Arity;
     (*il).length = (*il).length.wrapping_add(1);
@@ -531,7 +563,7 @@ unsafe extern "C" fn il_matchop(
     {
         return false;
     }
-    if (*(*il).instr.offset(j as isize)).c2rust_unnamed.i != op.0 {
+    if (*(*il).instr.offset(j as isize)).i() != op.0 {
         return false;
     }
     return true;
@@ -578,9 +610,7 @@ unsafe fn zroll(
                 result_arity =
                     (result_arity as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u8;
                 check = (check as ::core::ffi::c_int != 0
-                    && (*(*il).instr.offset(j.wrapping_add(m) as isize))
-                        .c2rust_unnamed
-                        .d
+                    && (*(*il).instr.offset(j.wrapping_add(m) as isize)).d()
                         == 0 as ::core::ffi::c_int as ::core::ffi::c_double)
                     as ::core::ffi::c_int as u8;
             }
@@ -598,8 +628,7 @@ unsafe fn zroll(
             (*(*il)
                 .instr
                 .offset(j.wrapping_add(arity as u32) as isize))
-            .c2rust_unnamed
-            .i = op2.0;
+            .set_i(op2.0);
             (*(*il)
                 .instr
                 .offset(j.wrapping_add(arity as u32) as isize))
@@ -652,7 +681,7 @@ unsafe extern "C" fn opop_roll(
             <= TYPE2_ARGUMENT_STACK
     {
         (*current).type_0 = CffInstructionType::PhantomOperator;
-        (*nextop).c2rust_unnamed.i = resultop.0;
+        (*nextop).set_i(resultop.0);
         (*nextop).arity = (*nextop).arity.wrapping_add((*current).arity);
         return (arity + 1 as i32) as u8;
     } else {
@@ -665,8 +694,20 @@ unsafe extern "C" fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> 
     }
     let mut current: *mut CffCharstringInstruction =
         (*il).instr.offset(j as isize) as *mut CffCharstringInstruction;
+    // `checkdelta`'s computation reads `current.i()`, which is only valid
+    // once `current`'s `type_0` is confirmed `Operator` -- moved below the
+    // `il_matchop(HLINETO)/(VLINETO)` check that establishes that (the
+    // original C-shaped union could read this before the check with no ill
+    // effect beyond a discarded garbage value; a real enum panics instead,
+    // so the check now runs first, preserving the exact same behavior --
+    // `checkdelta` was always discarded whenever that check failed).
+    if !(il_matchop(il, j, OP_HLINETO) as ::core::ffi::c_int != 0
+        || il_matchop(il, j, OP_VLINETO) as ::core::ffi::c_int != 0)
+    {
+        return 0 as u8;
+    }
     let mut checkdelta: u32 = (if ((*current).arity & 1 as Arity != 0) as ::core::ffi::c_int
-        ^ ((*current).c2rust_unnamed.i == OP_VLINETO.0)
+        ^ ((*current).i() == OP_VLINETO.0)
             as ::core::ffi::c_int
         != 0
     {
@@ -674,10 +715,7 @@ unsafe extern "C" fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> 
     } else {
         2 as ::core::ffi::c_int
     }) as u32;
-    if (il_matchop(il, j, OP_HLINETO) as ::core::ffi::c_int != 0
-        || il_matchop(il, j, OP_VLINETO) as ::core::ffi::c_int
-            != 0)
-        && il_matchop(
+    if il_matchop(
             il,
             j.wrapping_add(3 as u32),
             OP_RLINETO,
@@ -690,18 +728,15 @@ unsafe extern "C" fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> 
             CffInstructionType::Operand,
         ) as ::core::ffi::c_int
             != 0
-        && (*(*il).instr.offset(j.wrapping_add(checkdelta) as isize))
-            .c2rust_unnamed
-            .d
+        && (*(*il).instr.offset(j.wrapping_add(checkdelta) as isize)).d()
             == 0 as ::core::ffi::c_int as ::core::ffi::c_double
         && (*current).arity.wrapping_add(1 as Arity)
             <= TYPE2_ARGUMENT_STACK
     {
         (*(*il).instr.offset(j.wrapping_add(checkdelta) as isize)).type_0 = CffInstructionType::PhantomOperand;
         (*(*il).instr.offset(j as isize)).type_0 = CffInstructionType::PhantomOperator;
-        (*(*il).instr.offset(j.wrapping_add(3 as u32) as isize))
-            .c2rust_unnamed
-            .i = (*current).c2rust_unnamed.i;
+        let current_i = (*current).i();
+        (*(*il).instr.offset(j.wrapping_add(3 as u32) as isize)).set_i(current_i);
         (*(*il).instr.offset(j.wrapping_add(3 as u32) as isize)).arity =
             (*current).arity.wrapping_add(1 as Arity);
         return 3 as u8;
@@ -722,7 +757,7 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
     }
     let mut hvcase: bool = ((*current).arity >> 2 as ::core::ffi::c_int & 1 as Arity != 0)
         as ::core::ffi::c_int
-        ^ ((*current).c2rust_unnamed.i == OP_HVCURVETO.0)
+        ^ ((*current).i() == OP_HVCURVETO.0)
             as ::core::ffi::c_int
         != 0;
     let mut checkdelta1: u32 = (if hvcase as ::core::ffi::c_int != 0 {
@@ -748,14 +783,10 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
             CffInstructionType::Operand,
         ) as ::core::ffi::c_int
             != 0
-        && (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize))
-            .c2rust_unnamed
-            .d
+        && (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).d()
             == 0 as ::core::ffi::c_int as ::core::ffi::c_double
     {
-        if (*(*il).instr.offset(j.wrapping_add(checkdelta2) as isize))
-            .c2rust_unnamed
-            .d
+        if (*(*il).instr.offset(j.wrapping_add(checkdelta2) as isize)).d()
             == 0 as ::core::ffi::c_int as ::core::ffi::c_double
             && (*current).arity.wrapping_add(4 as Arity)
                 <= TYPE2_ARGUMENT_STACK
@@ -765,9 +796,8 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
             (*(*il).instr.offset(j.wrapping_add(checkdelta2) as isize)).type_0 =
                 CffInstructionType::PhantomOperand;
             (*(*il).instr.offset(j as isize)).type_0 = CffInstructionType::PhantomOperator;
-            (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize))
-                .c2rust_unnamed
-                .i = (*current).c2rust_unnamed.i;
+            let current_i = (*current).i();
+            (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize)).set_i(current_i);
             (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize)).arity =
                 (*current).arity.wrapping_add(4 as Arity);
             return 7 as u8;
@@ -777,24 +807,16 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
             (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).type_0 =
                 CffInstructionType::PhantomOperand;
             (*(*il).instr.offset(j as isize)).type_0 = CffInstructionType::PhantomOperator;
-            (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize))
-                .c2rust_unnamed
-                .i = (*current).c2rust_unnamed.i;
+            let current_i = (*current).i();
+            (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize)).set_i(current_i);
             (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize)).arity =
                 (*current).arity.wrapping_add(5 as Arity);
             if hvcase {
                 let mut t: ::core::ffi::c_double =
-                    (*(*il).instr.offset(j.wrapping_add(5 as u32) as isize))
-                        .c2rust_unnamed
-                        .d;
-                (*(*il).instr.offset(j.wrapping_add(5 as u32) as isize))
-                    .c2rust_unnamed
-                    .d = (*(*il).instr.offset(j.wrapping_add(6 as u32) as isize))
-                    .c2rust_unnamed
-                    .d;
-                (*(*il).instr.offset(j.wrapping_add(6 as u32) as isize))
-                    .c2rust_unnamed
-                    .d = t;
+                    (*(*il).instr.offset(j.wrapping_add(5 as u32) as isize)).d();
+                let swap_val = (*(*il).instr.offset(j.wrapping_add(6 as u32) as isize)).d();
+                (*(*il).instr.offset(j.wrapping_add(5 as u32) as isize)).set_d(swap_val);
+                (*(*il).instr.offset(j.wrapping_add(6 as u32) as isize)).set_d(t);
             }
             return 7 as u8;
         } else {
@@ -815,7 +837,7 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
     if j.wrapping_add(7 as u32) >= (*il).length {
         return 0 as u8;
     }
-    let mut hh: bool = (*current).c2rust_unnamed.i == OP_HHCURVETO.0;
+    let mut hh: bool = (*current).i() == OP_HHCURVETO.0;
     let mut checkdelta1: u32 = (if hh as ::core::ffi::c_int != 0 {
         2 as ::core::ffi::c_int
     } else {
@@ -839,13 +861,9 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
             CffInstructionType::Operand,
         ) as ::core::ffi::c_int
             != 0
-        && (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize))
-            .c2rust_unnamed
-            .d
+        && (*(*il).instr.offset(j.wrapping_add(checkdelta1) as isize)).d()
             == 0 as ::core::ffi::c_int as ::core::ffi::c_double
-        && (*(*il).instr.offset(j.wrapping_add(checkdelta2) as isize))
-            .c2rust_unnamed
-            .d
+        && (*(*il).instr.offset(j.wrapping_add(checkdelta2) as isize)).d()
             == 0 as ::core::ffi::c_int as ::core::ffi::c_double
         && (*current).arity.wrapping_add(4 as Arity)
             <= TYPE2_ARGUMENT_STACK
@@ -855,9 +873,8 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
         (*(*il).instr.offset(j.wrapping_add(checkdelta2) as isize)).type_0 =
             CffInstructionType::PhantomOperand;
         (*(*il).instr.offset(j as isize)).type_0 = CffInstructionType::PhantomOperator;
-        (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize))
-            .c2rust_unnamed
-            .i = (*current).c2rust_unnamed.i;
+        let current_i = (*current).i();
+        (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize)).set_i(current_i);
         (*(*il).instr.offset(j.wrapping_add(7 as u32) as isize)).arity =
             (*current).arity.wrapping_add(4 as Arity);
         return 7 as u8;
@@ -1038,18 +1055,18 @@ pub unsafe extern "C" fn cff_build_il(mut il: *mut CffCharstringIl) -> *mut Buff
     while (j as u32) < (*il).length {
         match (*(*il).instr.offset(j as isize)).type_0 as ::core::ffi::c_uint {
             0 => {
-                cff_merge_cs2_operand(blob, (*(*il).instr.offset(j as isize)).c2rust_unnamed.d);
+                cff_merge_cs2_operand(blob, (*(*il).instr.offset(j as isize)).d());
             }
             1 => {
                 cff_merge_cs2_operator(
                     blob,
-                    CffCharstringOperator((*(*il).instr.offset(j as isize)).c2rust_unnamed.i),
+                    CffCharstringOperator((*(*il).instr.offset(j as isize)).i()),
                 );
             }
             2 => {
                 cff_merge_cs2_special(
                     blob,
-                    (*(*il).instr.offset(j as isize)).c2rust_unnamed.i as u8,
+                    (*(*il).instr.offset(j as isize)).i() as u8,
                 );
             }
             _ => {}
@@ -1068,16 +1085,16 @@ pub unsafe extern "C" fn cff_shrink_il(mut il: *mut CffCharstringIl) -> *mut Cff
     while (j as u32) < (*il).length {
         match (*(*il).instr.offset(j as isize)).type_0 as ::core::ffi::c_uint {
             0 => {
-                il_push_operand(out, (*(*il).instr.offset(j as isize)).c2rust_unnamed.d);
+                il_push_operand(out, (*(*il).instr.offset(j as isize)).d());
             }
             1 => {
                 il_push_op(
                     out,
-                    CffCharstringOperator((*(*il).instr.offset(j as isize)).c2rust_unnamed.i),
+                    CffCharstringOperator((*(*il).instr.offset(j as isize)).i()),
                 );
             }
             2 => {
-                il_push_special(out, (*(*il).instr.offset(j as isize)).c2rust_unnamed.i);
+                il_push_special(out, (*(*il).instr.offset(j as isize)).i());
             }
             _ => {}
         }
@@ -1093,16 +1110,16 @@ pub unsafe extern "C" fn cff_i_lmerge_il(
     while (j as u32) < (*il).length {
         match (*(*il).instr.offset(j as isize)).type_0 as ::core::ffi::c_uint {
             0 => {
-                il_push_operand(self_0, (*(*il).instr.offset(j as isize)).c2rust_unnamed.d);
+                il_push_operand(self_0, (*(*il).instr.offset(j as isize)).d());
             }
             1 => {
                 il_push_op(
                     self_0,
-                    CffCharstringOperator((*(*il).instr.offset(j as isize)).c2rust_unnamed.i),
+                    CffCharstringOperator((*(*il).instr.offset(j as isize)).i()),
                 );
             }
             2 => {
-                il_push_special(self_0, (*(*il).instr.offset(j as isize)).c2rust_unnamed.i);
+                il_push_special(self_0, (*(*il).instr.offset(j as isize)).i());
             }
             _ => {}
         }
@@ -1117,9 +1134,9 @@ pub unsafe extern "C" fn instruction_eq(
         if (*z1).type_0 == CffInstructionType::Operand
             || (*z1).type_0 == CffInstructionType::PhantomOperand
         {
-            return (*z1).c2rust_unnamed.d == (*z2).c2rust_unnamed.d;
+            return (*z1).d() == (*z2).d();
         } else {
-            return (*z1).c2rust_unnamed.i == (*z2).c2rust_unnamed.i;
+            return (*z1).i() == (*z2).i();
         }
     } else {
         return false;

@@ -499,14 +499,14 @@ pub unsafe extern "C" fn cff_insert_il_to_graph(
                     blob = bufnew();
                     flush = false;
                 }
-                cff_merge_cs2_operand(blob, (*(*il).instr.offset(j as isize)).c2rust_unnamed.d);
+                cff_merge_cs2_operand(blob, (*(*il).instr.offset(j as isize)).d());
             }
             1 => {
                 cff_merge_cs2_operator(
                     blob,
-                    CffCharstringOperator((*(*il).instr.offset(j as isize)).c2rust_unnamed.i),
+                    CffCharstringOperator((*(*il).instr.offset(j as isize)).i()),
                 );
-                if (*(*il).instr.offset(j as isize)).c2rust_unnamed.i
+                if (*(*il).instr.offset(j as isize)).i()
                     == OP_ENDCHAR.0
                 {
                     last = true;
@@ -516,7 +516,7 @@ pub unsafe extern "C" fn cff_insert_il_to_graph(
             2 => {
                 cff_merge_cs2_special(
                     blob,
-                    (*(*il).instr.offset(j as isize)).c2rust_unnamed.i as u8,
+                    (*(*il).instr.offset(j as isize)).i() as u8,
                 );
                 flush = true;
             }

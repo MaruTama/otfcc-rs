@@ -10,23 +10,52 @@ use crate::support::primitives::{Pos, Scale};
 
 use crate::vf::region::{VqRegion};
 use crate::vf::region::{vq_compare_region, vq_show_region};
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[repr(u32)]
-pub enum VQSegType {
-    Still = 0,
-    Delta = 1,
-}
+// Was a C-shaped `struct { type_0: VQSegType, val: union { still: Pos,
+// delta: VqSegmentDelta } }` -- the same "tag fully determines the live
+// union arm" shape already converted elsewhere in the crate (`CffEncoding`,
+// `ChainingSubtable`, etc.). Unlike those, every field here is `Copy` (no
+// owned heap data -- `region: *const VqRegion` is a borrowed pointer), so
+// the new enum stays `Copy` too, with none of the `Drop`/ownership
+// bookkeeping those other conversions needed.
 #[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VqSegment {
-    pub type_0: VQSegType,
-    pub val: VqSegmentValue,
+pub enum VqSegment {
+    Still(Pos),
+    Delta(VqSegmentDelta),
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union VqSegmentValue {
-    pub still: Pos,
-    pub delta: VqSegmentDelta,
+impl VqSegment {
+    // The byte `hash_vqs` (`otf_reader/unconsolidate.rs`) writes into the
+    // glyph hash, byte-for-byte -- 0 for `Still`, 1 for `Delta`, matching
+    // the old `VQSegType` discriminant values exactly. Renumbering would
+    // silently change which glyphs get treated as duplicates. A plain `as`
+    // cast can't do this any more now that the variants carry data, so
+    // this stays an explicit, exhaustively-matched method instead.
+    pub fn discriminant_byte(&self) -> u8 {
+        match self {
+            VqSegment::Still(_) => 0,
+            VqSegment::Delta(_) => 1,
+        }
+    }
+    // `table/glyf/read.rs`'s IUP-style gap-filling (`fill_the_gaps`)
+    // constructs every element of its `nudges` array as `Delta` up front
+    // (see `apply_coords`) and only ever reads/writes it as such -- these
+    // three accessors replace the old unconditional `.val.delta.*` field
+    // access, panicking instead of reading union garbage if that invariant
+    // is ever violated.
+    pub fn is_touched(&self) -> bool {
+        matches!(self, VqSegment::Delta(VqSegmentDelta { touched: true, .. }))
+    }
+    pub fn unwrap_delta(&self) -> VqSegmentDelta {
+        match self {
+            VqSegment::Delta(d) => *d,
+            VqSegment::Still(_) => panic!("VqSegment::unwrap_delta called on a Still segment"),
+        }
+    }
+    pub fn delta_mut(&mut self) -> &mut VqSegmentDelta {
+        match self {
+            VqSegment::Delta(d) => d,
+            VqSegment::Still(_) => panic!("VqSegment::delta_mut called on a Still segment"),
+        }
+    }
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -94,36 +123,41 @@ pub struct VqVectorInterface {
 // crate全体で一度も呼ばれておらず削除。
 #[inline]
 unsafe extern "C" fn init_vq_segment(mut vqs: *mut VqSegment) {
-    (*vqs).type_0 = VQSegType::Still;
-    (*vqs).val.still = 0 as ::core::ffi::c_int as Pos;
+    *vqs = VqSegment::Still(0 as ::core::ffi::c_int as Pos);
 }
 #[inline]
 unsafe extern "C" fn copy_vq_segment(mut dst: *mut VqSegment, mut src: *const VqSegment) {
-    (*dst).type_0 = (*src).type_0;
-    match (*dst).type_0 as ::core::ffi::c_uint {
-        0 => {
-            (*dst).val.still = (*src).val.still;
+    match *src {
+        VqSegment::Still(v) => {
+            *dst = VqSegment::Still(v);
         }
-        1 => {
-            (*dst).val.delta.quantity = (*src).val.delta.quantity;
-            (*dst).val.delta.region = (*src).val.delta.region;
+        VqSegment::Delta(sd) => {
+            // The original only copied `.quantity`/`.region`, leaving
+            // `.touched` at whatever bits already sat in `dst`'s memory --
+            // meaningful when `dst` was already a `Delta` (preserved here
+            // the same way), undefined when it wasn't (every call site in
+            // this crate passes a freshly-`Still`-initialized `dst`, so
+            // this is the only case that actually occurs; `false` replaces
+            // the old uninitialized read with a defined, safe value).
+            let touched = match *dst {
+                VqSegment::Delta(dd) => dd.touched,
+                VqSegment::Still(_) => false,
+            };
+            *dst = VqSegment::Delta(VqSegmentDelta {
+                quantity: sd.quantity,
+                touched,
+                region: sd.region,
+            });
         }
-        _ => {}
-    };
+    }
 }
 #[inline]
 unsafe extern "C" fn dispose_vq_segment(mut vqs: *mut VqSegment) {
-    match (*vqs).type_0 as ::core::ffi::c_uint {
-        1 | _ => {}
-    }
     init_vq_segment(vqs);
 }
 #[inline]
 unsafe extern "C" fn vq_segment_empty() -> VqSegment {
-    let mut x: VqSegment = VqSegment {
-        type_0: VQSegType::Still,
-        val: VqSegmentValue { still: 0. },
-    };
+    let mut x: VqSegment = VqSegment::Still(0.);
     vq_segment_init(&raw mut x);
     return x;
 }
@@ -133,10 +167,7 @@ unsafe extern "C" fn vq_segment_copy(mut dst: *mut VqSegment, mut src: *const Vq
 }
 #[inline]
 unsafe extern "C" fn vq_segment_dup(src: VqSegment) -> VqSegment {
-    let mut dst: VqSegment = VqSegment {
-        type_0: VQSegType::Still,
-        val: VqSegmentValue { still: 0. },
-    };
+    let mut dst: VqSegment = VqSegment::Still(0.);
     vq_segment_copy(&raw mut dst, &raw const src);
     return dst;
 }
@@ -149,59 +180,52 @@ unsafe extern "C" fn vq_segment_dispose(mut x: *mut VqSegment) {
     dispose_vq_segment(x);
 }
 unsafe extern "C" fn vqs_create_still(mut x: Pos) -> VqSegment {
-    let mut vqs: VqSegment = VqSegment {
-        type_0: VQSegType::Still,
-        val: VqSegmentValue { still: 0. },
-    };
+    let mut vqs: VqSegment = VqSegment::Still(0.);
     VQ_I_SEGMENT.init.expect("non-null function pointer")(&raw mut vqs);
-    vqs.val.still = x;
+    vqs = VqSegment::Still(x);
     return vqs;
 }
 unsafe extern "C" fn vqs_create_delta(mut delta: Pos, mut region: *mut VqRegion) -> VqSegment {
-    let mut vqs: VqSegment = VqSegment {
-        type_0: VQSegType::Still,
-        val: VqSegmentValue { still: 0. },
-    };
+    let mut vqs: VqSegment = VqSegment::Still(0.);
     VQ_I_SEGMENT.init.expect("non-null function pointer")(&raw mut vqs);
-    vqs.type_0 = VQSegType::Delta;
-    vqs.val.delta.quantity = delta;
-    vqs.val.delta.region = region;
+    // `.touched` was never set here in the original either (confirmed dead
+    // code: `vqs_create_delta`/`VQ_I_SEGMENT.create_delta` is assigned into
+    // the vtable but never actually called anywhere in the crate) -- `false`
+    // replaces the old uninitialized read.
+    vqs = VqSegment::Delta(VqSegmentDelta {
+        quantity: delta,
+        touched: false,
+        region,
+    });
     return vqs;
 }
 unsafe extern "C" fn vqs_compare(a: VqSegment, b: VqSegment) -> ::core::ffi::c_int {
-    if (a.type_0 as ::core::ffi::c_uint) < b.type_0 as ::core::ffi::c_uint {
-        return -(1 as ::core::ffi::c_int);
-    }
-    if a.type_0 as ::core::ffi::c_uint > b.type_0 as ::core::ffi::c_uint {
-        return 1 as ::core::ffi::c_int;
-    }
-    match a.type_0 as ::core::ffi::c_uint {
-        0 => {
-            if a.val.still < b.val.still {
+    match (a, b) {
+        (VqSegment::Still(_), VqSegment::Delta(_)) => -(1 as ::core::ffi::c_int),
+        (VqSegment::Delta(_), VqSegment::Still(_)) => 1 as ::core::ffi::c_int,
+        (VqSegment::Still(av), VqSegment::Still(bv)) => {
+            if av < bv {
                 return -(1 as ::core::ffi::c_int);
             }
-            if a.val.still > b.val.still {
+            if av > bv {
                 return 1 as ::core::ffi::c_int;
             }
-            return 0 as ::core::ffi::c_int;
+            0 as ::core::ffi::c_int
         }
-        1 => {
-            let mut vqrc: ::core::ffi::c_int =
-                vq_compare_region(a.val.delta.region, b.val.delta.region);
+        (VqSegment::Delta(ad), VqSegment::Delta(bd)) => {
+            let vqrc: ::core::ffi::c_int = vq_compare_region(ad.region, bd.region);
             if vqrc != 0 {
                 return vqrc;
             }
-            if a.val.delta.quantity < b.val.delta.quantity {
+            if ad.quantity < bd.quantity {
                 return -(1 as ::core::ffi::c_int);
             }
-            if a.val.delta.quantity > b.val.delta.quantity {
+            if ad.quantity > bd.quantity {
                 return 1 as ::core::ffi::c_int;
             }
-            return 0 as ::core::ffi::c_int;
+            0 as ::core::ffi::c_int
         }
-        _ => {}
     }
-    panic!("Reached end of non-void function without returning");
 }
 #[inline]
 unsafe extern "C" fn vq_segment_compare(a: VqSegment, b: VqSegment) -> ::core::ffi::c_int {
@@ -219,31 +243,28 @@ unsafe extern "C" fn vq_segment_equal(a: VqSegment, b: VqSegment) -> bool {
     return vqs_compare(a, b) == 0;
 }
 unsafe extern "C" fn show_vqs(x: VqSegment) {
-    match x.type_0 as ::core::ffi::c_uint {
-        0 => {
+    match x {
+        VqSegment::Still(still) => {
             fprintf(
                 stderr,
                 b"%g\0" as *const u8 as *const ::core::ffi::c_char,
-                x.val.still,
+                still,
             );
-            return;
         }
-        1 => {
+        VqSegment::Delta(delta) => {
             fprintf(
                 stderr,
                 b"{%g%s\0" as *const u8 as *const ::core::ffi::c_char,
-                x.val.delta.quantity,
-                if x.val.delta.touched as ::core::ffi::c_int != 0 {
+                delta.quantity,
+                if delta.touched as ::core::ffi::c_int != 0 {
                     b" \0" as *const u8 as *const ::core::ffi::c_char
                 } else {
                     b"* \0" as *const u8 as *const ::core::ffi::c_char
                 },
             );
-            vq_show_region(x.val.delta.region);
+            vq_show_region(delta.region);
             fprintf(stderr, b"}\n\0" as *const u8 as *const ::core::ffi::c_char);
-            return;
         }
-        _ => {}
     };
 }
 #[inline]
@@ -322,18 +343,13 @@ unsafe extern "C" fn vq_neutral() -> VQ {
     return I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
 }
 unsafe extern "C" fn vqs_compatible(a: VqSegment, b: VqSegment) -> bool {
-    if a.type_0 as ::core::ffi::c_uint != b.type_0 as ::core::ffi::c_uint {
-        return false;
-    }
-    match a.type_0 as ::core::ffi::c_uint {
-        0 => return true,
-        1 => {
-            return 0 as ::core::ffi::c_int
-                == vq_compare_region(a.val.delta.region, b.val.delta.region);
+    match (a, b) {
+        (VqSegment::Still(_), VqSegment::Still(_)) => true,
+        (VqSegment::Delta(ad), VqSegment::Delta(bd)) => {
+            0 as ::core::ffi::c_int == vq_compare_region(ad.region, bd.region)
         }
-        _ => {}
+        _ => false,
     }
-    panic!("Reached end of non-void function without returning");
 }
 unsafe extern "C" fn simplify_vq(mut x: *mut VQ) {
     if (*x).shift.is_empty() {
@@ -345,14 +361,18 @@ unsafe extern "C" fn simplify_vq(mut x: *mut VQ) {
     let mut j: usize = 1 as usize;
     while j < shift.len() {
         if vqs_compatible(shift[k], shift[j]) {
-            match shift[k].type_0 as ::core::ffi::c_uint {
-                0 => {
-                    shift[k].val.still += shift[j].val.still;
+            let other = shift[j];
+            match &mut shift[k] {
+                VqSegment::Still(sv) => {
+                    if let VqSegment::Still(ov) = other {
+                        *sv += ov;
+                    }
                 }
-                1 => {
-                    shift[k].val.delta.quantity += shift[j].val.delta.quantity;
+                VqSegment::Delta(sd) => {
+                    if let VqSegment::Delta(od) = other {
+                        sd.quantity += od.quantity;
+                    }
                 }
-                _ => {}
             }
             VQ_I_SEGMENT.dispose.expect("non-null function pointer")(&raw mut shift[j]);
         } else {
@@ -368,14 +388,11 @@ unsafe extern "C" fn vq_inplace_plus(mut a: *mut VQ, b: VQ) {
     let mut p: usize = 0 as usize;
     while p < b.shift.len() {
         let k: VqSegment = b.shift[p];
-        if k.type_0 == VQSegType::Still
+        if let VqSegment::Still(still) = k
         {
-            (*a).kernel += k.val.still;
+            (*a).kernel += still;
         } else {
-            let mut s: VqSegment = VqSegment {
-                type_0: VQSegType::Still,
-                val: VqSegmentValue { still: 0. },
-            };
+            let mut s: VqSegment = VqSegment::Still(0.);
             VQ_I_SEGMENT.copy.expect("non-null function pointer")(&raw mut s, &raw const k);
             (*a).shift.push(s);
         }
@@ -396,14 +413,13 @@ unsafe extern "C" fn vq_inplace_scale(mut a: *mut VQ, mut b: Pos) {
     let mut j: usize = 0 as usize;
     while j < shift.len() {
         let s: &mut VqSegment = &mut shift[j];
-        match s.type_0 as ::core::ffi::c_uint {
-            0 => {
-                s.val.still *= b;
+        match s {
+            VqSegment::Still(sv) => {
+                *sv *= b;
             }
-            1 => {
-                s.val.delta.quantity *= b;
+            VqSegment::Delta(sd) => {
+                sd.quantity *= b;
             }
-            _ => {}
         }
         j = j.wrapping_add(1);
     }
@@ -499,11 +515,8 @@ unsafe extern "C" fn vq_get_still(v: VQ) -> Pos {
     let mut result: Pos = v.kernel;
     let mut j: usize = 0 as usize;
     while j < v.shift.len() {
-        match v.shift[j].type_0 as ::core::ffi::c_uint {
-            0 => {
-                result += v.shift[j].val.still;
-            }
-            _ => {}
+        if let VqSegment::Still(still) = v.shift[j] {
+            result += still;
         }
         j = j.wrapping_add(1);
     }
@@ -521,9 +534,8 @@ unsafe extern "C" fn vq_create_still(mut x: Pos) -> VQ {
 unsafe extern "C" fn vq_is_still(v: VQ) -> bool {
     let mut j: usize = 0 as usize;
     while j < v.shift.len() {
-        match v.shift[j].type_0 as ::core::ffi::c_uint {
-            0 => {}
-            _ => return false,
+        if !matches!(v.shift[j], VqSegment::Still(_)) {
+            return false;
         }
         j = j.wrapping_add(1);
     }
@@ -542,14 +554,11 @@ unsafe extern "C" fn vq_add_delta(
     if quantity == 0. {
         return;
     }
-    let mut nudge: VqSegment = VqSegment {
-        type_0: VQSegType::Still,
-        val: VqSegmentValue { still: 0. },
-    };
-    nudge.type_0 = VQSegType::Delta;
-    nudge.val.delta.region = r;
-    nudge.val.delta.touched = touched;
-    nudge.val.delta.quantity = quantity;
+    let nudge = VqSegment::Delta(VqSegmentDelta {
+        quantity,
+        touched,
+        region: r,
+    });
     (*v).shift.push(nudge);
 }
 unsafe extern "C" fn vq_point_linear_tfm(ax: VQ, mut a: Pos, x: VQ, mut b: Pos, y: VQ) -> VQ {
@@ -608,8 +617,15 @@ mod tests {
     // Renumbering the variants would silently change which glyphs get merged.
     #[test]
     fn vqsegtype_discriminants_are_the_hashed_values() {
-        assert_eq!(VQSegType::Still as u8, 0);
-        assert_eq!(VQSegType::Delta as u8, 1);
-        assert_eq!(::core::mem::size_of::<VQSegType>(), 4);
+        assert_eq!(VqSegment::Still(0.).discriminant_byte(), 0);
+        assert_eq!(
+            VqSegment::Delta(VqSegmentDelta {
+                quantity: 0.,
+                touched: false,
+                region: ::core::ptr::null(),
+            })
+            .discriminant_byte(),
+            1
+        );
     }
 }

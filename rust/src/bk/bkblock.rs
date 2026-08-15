@@ -12,17 +12,44 @@ pub struct BkBlock {
     pub free: u32,
     pub cells: *mut BkCell,
 }
+// Was a C-shaped `struct { t: BkCellType, c2rust_unnamed: union { z: u32,
+// p: *mut BkBlock } } }`. Unlike the crate's other tag+union conversions,
+// `t`'s ten values don't map 1:1 onto the union's two arms -- `B8`/`B16`/
+// `B32` share `.z`, `P16`/`P32`/`Sp16`/`Sp32`/`Copy`/`Embed` share `.p`, and
+// `Over` uses neither (see `bkpushitems`/`otfcc_build_bkblock`'s catch-all
+// `_ => {}` arms) -- so `t` stays a separate field carrying the width/kind
+// distinctions the two-variant `BkCellValue` enum below can't express on
+// its own; `bk_cell_is_pointer`'s `t >= BkCellType::P16` still decides
+// which variant a given `t` implies. Every field here is `Copy` (no owned
+// heap data -- `p` is a borrowed pointer into the same `BkGraph` that owns
+// it), so the new enum stays `Copy` too.
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct BkCell {
     pub t: BkCellType,
-    pub c2rust_unnamed: BkCellValue,
+    pub value: BkCellValue,
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
-pub union BkCellValue {
-    pub z: u32,
-    pub p: *mut BkBlock,
+pub enum BkCellValue {
+    Int(u32),
+    Ptr(*mut BkBlock),
+}
+impl BkCell {
+    /// Panics instead of reading union garbage if `t` didn't actually
+    /// imply a pointer cell -- every call site already established this via
+    /// `bk_cell_is_pointer` or a `t`-keyed match arm before reaching here.
+    pub fn as_ptr(&self) -> *mut BkBlock {
+        match self.value {
+            BkCellValue::Ptr(p) => p,
+            BkCellValue::Int(_) => panic!("BkCell::as_ptr called on an integer cell"),
+        }
+    }
+    pub fn as_int(&self) -> u32 {
+        match self.value {
+            BkCellValue::Int(z) => z,
+            BkCellValue::Ptr(_) => panic!("BkCell::as_int called on a pointer cell"),
+        }
+    }
 }
 /// What a [`BkCell`] holds, and -- because the values are ordered, not just
 /// distinct -- how wide it is and whether it is a pointer.
@@ -98,7 +125,7 @@ pub unsafe extern "C" fn bkblock_pushint(
 ) {
     let mut cell: *mut BkCell = bkblock_grow(b, 1 as u32);
     (*cell).t = type_0;
-    (*cell).c2rust_unnamed.z = x;
+    (*cell).value = BkCellValue::Int(x);
 }
 pub unsafe extern "C" fn bkblock_pushptr(
     mut b: *mut BkBlock,
@@ -107,7 +134,7 @@ pub unsafe extern "C" fn bkblock_pushptr(
 ) {
     let mut cell: *mut BkCell = bkblock_grow(b, 1 as u32);
     (*cell).t = type_0;
-    (*cell).c2rust_unnamed.p = p as *mut BkBlock;
+    (*cell).value = BkCellValue::Ptr(p);
 }
 /// One (type, value) pair for [`bk_push`] / [`bk_new_block`].
 ///
@@ -124,7 +151,7 @@ pub unsafe extern "C" fn bkblock_pushptr(
 /// A cell holding an integer. `t` must be `BkCellType::B8`, `BkCellType::B16` or `BkCellType::B32`.
 #[inline]
 pub fn bk_int(t: BkCellType, z: u32) -> BkCell {
-    BkCell { t, c2rust_unnamed: BkCellValue { z } }
+    BkCell { t, value: BkCellValue::Int(z) }
 }
 
 /// A cell holding a block pointer -- `BkCellType::P16`/`BkCellType::P32`/`BkCellType::Sp16`/`BkCellType::Sp32` for an offset, or
@@ -133,7 +160,7 @@ pub fn bk_int(t: BkCellType, z: u32) -> BkCell {
 pub fn bk_ptr(t: BkCellType, p: *mut BkBlock) -> BkCell {
     BkCell {
         t,
-        c2rust_unnamed: BkCellValue { p: p as *mut BkBlock },
+        value: BkCellValue::Ptr(p),
     }
 }
 
@@ -142,14 +169,14 @@ unsafe fn bkpushitems(b: *mut BkBlock, items: &[BkCell]) {
         let curtype = item.t;
         match curtype {
             BkCellType::Copy | BkCellType::Embed => {
-                let par: *mut BkBlock = item.c2rust_unnamed.p as *mut BkBlock;
+                let par: *mut BkBlock = item.as_ptr();
                 if !par.is_null() && !(*par).cells.is_null() {
                     for j in 0..(*par).length {
                         let cell = (*par).cells.offset(j as isize);
                         if bk_cell_is_pointer(cell) {
-                            bkblock_pushptr(b, (*cell).t, (*cell).c2rust_unnamed.p as *mut BkBlock);
+                            bkblock_pushptr(b, (*cell).t, (*cell).as_ptr());
                         } else {
-                            bkblock_pushint(b, (*cell).t, (*cell).c2rust_unnamed.z);
+                            bkblock_pushint(b, (*cell).t, (*cell).as_int());
                         }
                     }
                 }
@@ -159,8 +186,8 @@ unsafe fn bkpushitems(b: *mut BkBlock, items: &[BkCell]) {
                     free(par as *mut ::core::ffi::c_void);
                 }
             }
-            t if t < BkCellType::P16 => bkblock_pushint(b, curtype, item.c2rust_unnamed.z),
-            _ => bkblock_pushptr(b, curtype, item.c2rust_unnamed.p as *mut BkBlock),
+            t if t < BkCellType::P16 => bkblock_pushint(b, curtype, item.as_int()),
+            _ => bkblock_pushptr(b, curtype, item.as_ptr()),
         }
     }
 }
@@ -224,13 +251,14 @@ pub unsafe extern "C" fn bk_print_block(b: *mut BkBlock) {
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
         if bk_cell_is_pointer(cell) {
-            if !(*cell).c2rust_unnamed.p.is_null() {
+            let p = (*cell).as_ptr();
+            if !p.is_null() {
                 fprintf(
                     stderr,
                     b"  %3d %p[%d]\n\0" as *const u8 as *const ::core::ffi::c_char,
                     (*cell).t as ::core::ffi::c_uint,
-                    (*cell).c2rust_unnamed.p,
-                    (*(*cell).c2rust_unnamed.p)._index,
+                    p,
+                    (*p)._index,
                 );
             } else {
                 fprintf(
@@ -244,7 +272,7 @@ pub unsafe extern "C" fn bk_print_block(b: *mut BkBlock) {
                 stderr,
                 b"  %3d %d\n\0" as *const u8 as *const ::core::ffi::c_char,
                 (*cell).t as ::core::ffi::c_uint,
-                (*cell).c2rust_unnamed.z,
+                (*cell).as_int(),
             );
         }
     }

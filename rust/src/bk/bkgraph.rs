@@ -24,7 +24,7 @@ pub struct BkGraph {
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
-use crate::bk::bkblock::{BkCellVisitState, BkBlock, BkCellType, bk_new_block, bk_ptr};
+use crate::bk::bkblock::{BkCellVisitState, BkBlock, BkCellType, BkCellValue, bk_new_block, bk_ptr};
 use crate::bk::bkblock::{bk_cell_is_pointer};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8};
 
@@ -44,8 +44,8 @@ unsafe fn dfs_insert_cells(
     let mut height: u32 = 0;
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
-        if bk_cell_is_pointer(cell) && !(*cell).c2rust_unnamed.p.is_null() {
-            let that_height = dfs_insert_cells((*cell).c2rust_unnamed.p as *mut BkBlock, f, order);
+        if bk_cell_is_pointer(cell) && !(*cell).as_ptr().is_null() {
+            let that_height = dfs_insert_cells((*cell).as_ptr(), f, order);
             if that_height.wrapping_add(1) > height {
                 height = that_height.wrapping_add(1);
             }
@@ -109,11 +109,12 @@ unsafe fn gethash(b: *mut BkBlock) -> u32 {
         h = (h << 5).wrapping_add(h);
         match (*cell).t {
             BkCellType::B8 | BkCellType::B16 | BkCellType::B32 => {
-                h = h.wrapping_add((*cell).c2rust_unnamed.z);
+                h = h.wrapping_add((*cell).as_int());
             }
             BkCellType::P16 | BkCellType::P32 | BkCellType::Sp16 | BkCellType::Sp32 => {
-                if !(*cell).c2rust_unnamed.p.is_null() {
-                    h = h.wrapping_add((*(*cell).c2rust_unnamed.p)._index);
+                let p = (*cell).as_ptr();
+                if !p.is_null() {
+                    h = h.wrapping_add((*p)._index);
                 }
             }
             _ => {}
@@ -139,12 +140,12 @@ unsafe fn compareblock(a: *mut BkBlock, b: *mut BkBlock) -> bool {
         }
         match (*ca).t {
             BkCellType::B8 | BkCellType::B16 | BkCellType::B32 => {
-                if (*ca).c2rust_unnamed.z != (*cb).c2rust_unnamed.z {
+                if (*ca).as_int() != (*cb).as_int() {
                     return false;
                 }
             }
             BkCellType::P16 | BkCellType::P32 | BkCellType::Sp16 | BkCellType::Sp32 => {
-                if (*ca).c2rust_unnamed.p != (*cb).c2rust_unnamed.p {
+                if (*ca).as_ptr() != (*cb).as_ptr() {
                     return false;
                 }
             }
@@ -164,12 +165,14 @@ unsafe fn replaceptr(f: *mut BkGraph, b: *mut BkBlock) {
         let cell = (*b).cells.offset(j as isize);
         match (*cell).t {
             BkCellType::P16 | BkCellType::P32 | BkCellType::Sp16 | BkCellType::Sp32 => {
-                if !(*cell).c2rust_unnamed.p.is_null() {
-                    let mut index: u32 = (*(*cell).c2rust_unnamed.p)._index;
+                let p = (*cell).as_ptr();
+                if !p.is_null() {
+                    let mut index: u32 = (*p)._index;
                     while (&(*f).entries)[index as usize].alias != index {
                         index = (&(*f).entries)[index as usize].alias;
                     }
-                    (*cell).c2rust_unnamed.p = (&(*f).entries)[index as usize].block as *mut BkBlock;
+                    (*cell).value =
+                        BkCellValue::Ptr((&(*f).entries)[index as usize].block as *mut BkBlock);
                 }
             }
             _ => {}
@@ -271,8 +274,8 @@ unsafe fn escalate_sppointers(
     }
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
-        if bk_cell_is_pointer(cell) && !(*cell).c2rust_unnamed.p.is_null() && (*cell).t >= BkCellType::Sp16 {
-            escalate_sppointers((*cell).c2rust_unnamed.p as *mut BkBlock, f, order, depth);
+        if bk_cell_is_pointer(cell) && !(*cell).as_ptr().is_null() && (*cell).t >= BkCellType::Sp16 {
+            escalate_sppointers((*cell).as_ptr(), f, order, depth);
         }
     }
     (*b)._depth = depth;
@@ -300,9 +303,9 @@ unsafe fn dfs_attract_cells(
     // break } ... use fresh-1 ... }` underflow-sentinel trick.
     for j in (0..(*b).length).rev() {
         let cell = (*b).cells.offset(j as isize);
-        if bk_cell_is_pointer(cell) && !(*cell).c2rust_unnamed.p.is_null() {
+        if bk_cell_is_pointer(cell) && !(*cell).as_ptr().is_null() {
             dfs_attract_cells(
-                (*cell).c2rust_unnamed.p as *mut BkBlock,
+                (*cell).as_ptr(),
                 f,
                 order,
                 depth.wrapping_add(1),
@@ -342,12 +345,11 @@ unsafe fn try_untabgle_block(
         let cell = (*b).cells.offset(j as isize);
         match (*cell).t {
             BkCellType::P16 | BkCellType::Sp16 => {
-                if !(*cell).c2rust_unnamed.p.is_null() {
-                    let offset: i64 =
-                        getoffset_untangle(offsets, b, (*cell).c2rust_unnamed.p as *mut BkBlock);
+                let p = (*cell).as_ptr();
+                if !p.is_null() {
+                    let offset: i64 = getoffset_untangle(offsets, b, p);
                     if !(0..=0xffff).contains(&offset) {
-                        let new_block =
-                            bk_new_block(&[bk_ptr(BkCellType::Copy, (*cell).c2rust_unnamed.p)]);
+                        let new_block = bk_new_block(&[bk_ptr(BkCellType::Copy, p)]);
                         (*f).entries.push(BkGraphNode {
                             alias: 0,
                             order: 0,
@@ -356,7 +358,7 @@ unsafe fn try_untabgle_block(
                             block: new_block,
                         });
                         (*cell).t = BkCellType::Sp16;
-                        (*cell).c2rust_unnamed.p = new_block;
+                        (*cell).value = BkCellValue::Ptr(new_block);
                         did_copy = true;
                     }
                 }
@@ -408,30 +410,26 @@ unsafe fn otfcc_build_bkblock(buf: *mut Buffer, b: *mut BkBlock, offsets: *mut u
         let cell = (*b).cells.offset(j as isize);
         match (*cell).t {
             BkCellType::B8 => {
-                bufwrite8(buf, (*cell).c2rust_unnamed.z as u8);
+                bufwrite8(buf, (*cell).as_int() as u8);
             }
             BkCellType::B16 => {
-                bufwrite16b(buf, (*cell).c2rust_unnamed.z as u16);
+                bufwrite16b(buf, (*cell).as_int() as u16);
             }
             BkCellType::B32 => {
-                bufwrite32b(buf, (*cell).c2rust_unnamed.z);
+                bufwrite32b(buf, (*cell).as_int());
             }
             BkCellType::P16 | BkCellType::Sp16 => {
-                if !(*cell).c2rust_unnamed.p.is_null() {
-                    bufwrite16b(
-                        buf,
-                        getoffset(offsets, b, (*cell).c2rust_unnamed.p as *mut BkBlock, 16) as u16,
-                    );
+                let p = (*cell).as_ptr();
+                if !p.is_null() {
+                    bufwrite16b(buf, getoffset(offsets, b, p, 16) as u16);
                 } else {
                     bufwrite16b(buf, 0);
                 }
             }
             BkCellType::P32 | BkCellType::Sp32 => {
-                if !(*cell).c2rust_unnamed.p.is_null() {
-                    bufwrite32b(
-                        buf,
-                        getoffset(offsets, b, (*cell).c2rust_unnamed.p as *mut BkBlock, 32),
-                    );
+                let p = (*cell).as_ptr();
+                if !p.is_null() {
+                    bufwrite32b(buf, getoffset(offsets, b, p, 32));
                 } else {
                     bufwrite32b(buf, 0);
                 }
