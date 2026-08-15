@@ -894,6 +894,47 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Full audit of the `unsafe_op_in_unsafe_fn` burn-down, and two real memory
+  leaks it turned up.** After fifteen units of converting specific dangerous
+  ownership/union patterns, we asked whether anything had been missed --
+  three parallel audits covered all 114 files still carrying the allow
+  attribute (`table/`+`table/otl/`, `libcff/`, and everything else). The
+  answer was yes, and not just style: `table/cmap.rs`'s
+  `otfcc_build_cmap_format14` allocated a `0x110001`-entry `valid_selectors`
+  array with `__caryll_allocate_clean` and never freed it on any path (~1.1MB
+  per call); `table/colr.rs`'s `otfcc_read_colr` allocated `gids`/`colors`
+  arrays sized to `num_layer_records`, used them to build the returned
+  `ColrTable`, and likewise never freed them. Both are real leaks in code
+  paths that run on every `cmap` format-14 build and every `COLR`-table
+  parse, not just readability debt.
+  - Both were converted to plain `Vec`s at the same call sites that used to
+    hold the raw allocation -- `valid_selectors: Vec<bool> = vec![false;
+    MAX_UNICODE as usize]`, `gids`/`colors` built with `Vec::with_capacity`
+    + `.push()` in the same loop that used to write via `.offset(j)`. No
+    `free()` call needed removing because there wasn't one to begin with;
+    that absence was the bug. `table/colr.rs`'s now-unused
+    `__caryll_allocate_clean` import was dropped.
+  - The audit's other findings (a `ChainingSubtable`/`ChainingBody` tag+union
+    that the `Subtable` enum conversion left one level too shallow, three
+    more untouched tag+union pairs in `libcff/charstring_il.rs`,
+    `bk/bkblock.rs`, and `vf/vq.rs`, and roughly a dozen mechanical
+    "malloc+indexed-write array, never quite converted" sites of varying
+    priority) are recorded for follow-up units; none of those are known bugs
+    the way these two leaks were, so they're being picked off individually
+    rather than bundled into this fix.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- `BungeeColor-
+    Regular_colr_Windows.ttf` exercises `otfcc_read_colr` directly, and
+    every payload with a `cmap` table exercises `otfcc_build_cmap_format14`;
+    all 10 round-trip payloads stable; issue #1's large-lookup regression
+    test green; `compare-log-output.sh` green. The existing byte-comparison
+    pipeline can't detect a leak directly (output is unchanged either way),
+    so the leak fix itself was verified by code inspection rather than by
+    the automated pipeline -- noting this limitation explicitly rather than
+    overstating what the byte-identical result proves here.
+
 - **Fifteenth unit of the `unsafe_op_in_unsafe_fn` burn-down: `CffStack`'s
   operand array becomes a `Vec`.** `CffStack` is the Type 2 CharString
   interpreter's operand stack -- the structure `cff_parse_outline`

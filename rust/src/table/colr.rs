@@ -3,7 +3,6 @@
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint_fallback, json_str_bytes, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_move, Handle, GlyphHandle, HandleState};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u, read_32u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -62,8 +61,8 @@ pub unsafe extern "C" fn otfcc_read_colr(
     let mut num_layer_records: u16 = 0;
     let mut offset_base_glyph_record: u32 = 0;
     let mut offset_layer_record: u32 = 0;
-    let mut gids: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
-    let mut colors: *mut ColorId = ::core::ptr::null_mut::<ColorId>();
+    let mut gids: Vec<GlyphId> = Vec::new();
+    let mut colors: Vec<ColorId> = Vec::new();
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -95,29 +94,19 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                     LAYER_REC_LENGTH.wrapping_mul(num_layer_records as usize),
                                 ))
                             {
-                                gids = ::core::ptr::null_mut::<GlyphId>();
-                                colors = ::core::ptr::null_mut::<ColorId>();
-                                gids = __caryll_allocate_clean(
-                                    (::core::mem::size_of::<GlyphId>() as usize)
-                                        .wrapping_mul(num_layer_records as usize),
-                                    52 as ::core::ffi::c_ulong,
-                                ) as *mut GlyphId;
-                                colors = __caryll_allocate_clean(
-                                    (::core::mem::size_of::<ColorId>() as usize)
-                                        .wrapping_mul(num_layer_records as usize),
-                                    53 as ::core::ffi::c_ulong,
-                                ) as *mut ColorId;
+                                gids = Vec::with_capacity(num_layer_records as usize);
+                                colors = Vec::with_capacity(num_layer_records as usize);
                                 let mut j: GlyphId = 0 as GlyphId;
                                 while (j as ::core::ffi::c_int)
                                     < num_layer_records as ::core::ffi::c_int
                                 {
-                                    *gids.offset(j as isize) = read_16u(
+                                    gids.push(read_16u(
                                         table.data.offset(offset_layer_record as isize).offset(
                                             LAYER_REC_LENGTH.wrapping_mul(j as usize) as isize,
                                         ),
                                     )
-                                        as GlyphId;
-                                    *colors.offset(j as isize) =
+                                        as GlyphId);
+                                    colors.push(
                                         read_16u(
                                             table
                                                 .data
@@ -125,7 +114,8 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                                 .offset(LAYER_REC_LENGTH.wrapping_mul(j as usize)
                                                     as isize)
                                                 .offset(2 as ::core::ffi::c_int as isize),
-                                        ) as ColorId;
+                                        ) as ColorId,
+                                    );
                                     j = j.wrapping_add(1);
                                 }
                                 let mut colr: ColrTable = Vec::new();
@@ -182,19 +172,14 @@ pub unsafe extern "C" fn otfcc_read_colr(
                                         {
                                             mapping.layers.push(ColrLayer {
                                                 glyph: handle_from_index(
-                                                    *gids.offset(
-                                                        (k as ::core::ffi::c_int
-                                                            + first_layer_index
-                                                                as ::core::ffi::c_int)
-                                                            as isize,
-                                                    ),
+                                                    gids[(k as ::core::ffi::c_int
+                                                        + first_layer_index as ::core::ffi::c_int)
+                                                        as usize],
                                                 )
                                                     as GlyphHandle,
-                                                palette_index: *colors.offset(
-                                                    (k as ::core::ffi::c_int
-                                                        + first_layer_index as ::core::ffi::c_int)
-                                                        as isize,
-                                                ),
+                                                palette_index: colors[(k as ::core::ffi::c_int
+                                                    + first_layer_index as ::core::ffi::c_int)
+                                                    as usize],
                                             });
                                         }
                                         k = k.wrapping_add(1);
