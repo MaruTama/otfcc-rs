@@ -894,6 +894,48 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **The three lower-priority items the same final audit found -- two
+  confirmed-dead-but-armed spots and one pre-existing-in-C leak -- closed
+  out too, at the user's request, rather than left as accepted debt.**
+  - **`font/caryll_font.rs`'s `otfcc_font_copy`** (`OTFCC_I_FONT.copy`, zero
+    call sites anywhere in the crate) becomes `unreachable!()` instead of
+    its old `memcpy`-of-the-whole-`Font`-struct body -- the same "confirmed
+    dead, loud failure instead of silently reintroducing the risk if it
+    ever gets wired up" treatment already given to `cff_index_copy`/
+    `cff_dict_copy`/`subtable_gpos_pair_copy`, just missed when `Font`'s
+    ~25 table fields were converted to `Option<Box<_>>`/`Vec`.
+  - **`table/hdmx.rs`'s `HdmxTable.records`/`DeviceRecord.widths`** convert
+    to `Vec<DeviceRecord>`/`Vec<u8>`, and `DeviceRecord` drops `Copy` --
+    the exact "`Copy` struct owning heap data behind a raw pointer" smell
+    the audit was built to catch, matching `Packet`/`PacketPiece`'s shape
+    even though `HdmxTable` itself is confirmed entirely dead code (no
+    wired build/dump path in this crate at all). The manual `Drop for
+    HdmxTable` impl this replaces is deleted outright -- `Vec`'s own drop
+    glue reaches every level now, nothing left to write by hand.
+  - **`table/otl/subtables/chaining/read.rs`'s `read_contextual_format2`/
+    `read_chaining_format2`** leaked their `cds: *mut ClassDefs` (and its
+    populated `ClassDef`s, each owning `Vec`-backed glyph data) whenever a
+    malformed Format-2 chaining-context lookup passed the first length
+    check but failed the second: control fell through to the shared
+    failure return without running the same cleanup the success path just
+    above it already does. This exact leak exists in the original C too
+    (its `goto FAIL` skips the equivalent free), so it was left alone in
+    every earlier pass out of C-parity caution -- but a leak has no
+    observable effect on this crate's byte-for-byte output comparisons,
+    so fixing it doesn't risk that parity. Both functions gained the same
+    cleanup block, duplicated verbatim, right before their fallback
+    `I_SUBTABLE_CHAINING.free`/return.
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`); every payload byte-identical in both directions
+    including the `otfccdll` cdylib; all 10 round-trip payloads stable;
+    issue #1's large-lookup regression test green; `compare-log-output.sh`
+    green. (None of the three payloads exercise a malformed Format-2
+    chaining table or `HdmxTable`/`otfcc_font_copy` at all -- these three
+    fixes are unreachable on every payload in the standard suite, verified
+    by code review rather than by the comparison pipeline, same caveat as
+    the two bugs fixed in the previous unit.)
+
 - **Two real bugs, found by a final full-crate audit for anything still
   not memory-safe or not idiomatic, fixed in one small PR.** With every
   item from the original full-crate audit's Vec-conversion list now

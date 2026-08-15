@@ -540,6 +540,24 @@ unsafe extern "C" fn read_contextual_format2(
             return subtable;
         }
     }
+    // `cds` (and its populated `.ic`, from the first length check passing
+    // above) leaked here on this malformed-input path: falling through to
+    // the failure return below skipped the same cleanup the success path
+    // just above already does. Same fix as `read_chaining_format2`'s
+    // sibling leak.
+    if !cds.is_null() {
+        if !(*cds).bc.is_null() {
+            otl_class_def_free((*cds).bc);
+        }
+        if !(*cds).ic.is_null() {
+            otl_class_def_free((*cds).ic);
+        }
+        if !(*cds).fc.is_null() {
+            otl_class_def_free((*cds).fc);
+        }
+        free(cds as *mut ::core::ffi::c_void);
+        cds = ::core::ptr::null_mut::<ClassDefs>();
+    }
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
@@ -1140,6 +1158,22 @@ unsafe extern "C" fn read_chaining_format2(
             }
             return subtable;
         }
+    }
+    // Same fallthrough leak `read_contextual_format2` had: `cds` (and its
+    // populated `.bc`/`.ic`/`.fc`, from the first length check passing
+    // above) was never freed on this malformed-input path.
+    if !cds.is_null() {
+        if !(*cds).bc.is_null() {
+            otl_class_def_free((*cds).bc);
+        }
+        if !(*cds).ic.is_null() {
+            otl_class_def_free((*cds).ic);
+        }
+        if !(*cds).fc.is_null() {
+            otl_class_def_free((*cds).fc);
+        }
+        free(cds as *mut ::core::ffi::c_void);
+        cds = ::core::ptr::null_mut::<ClassDefs>();
     }
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
