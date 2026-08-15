@@ -322,13 +322,19 @@ pub enum CffEncoding {
     Unspecified,
 }
 
-#[derive(Copy, Clone)]
+// `Copy`/`Clone` dropped: `stack` now owns a `Vec` (the Type 2 CharString
+// interpreter's operand stack, fixed at `0x10000` entries -- the same
+// generous capacity `__caryll_allocate_clean` used to allocate up front,
+// matching the spec's operand stack never actually approaching that size).
+// Confirmed by grep: `CffStack` is only ever reached through `*mut
+// CffStack`, constructed once in `table/cff.rs`'s `build_outline`, never
+// copied. `max` is gone -- write-only (set once at construction, never read
+// anywhere in the interpreter), and exactly duplicated `stack.capacity()`.
 #[repr(C)]
 pub struct CffStack {
-    pub stack: *mut CffValue,
+    pub stack: Vec<CffValue>,
     pub transient: [CffValue; TYPE2_TRANSIENT_ARRAY],
     pub index: Arity,
-    pub max: Arity,
     pub stem: u8,
 }
 

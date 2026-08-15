@@ -524,8 +524,8 @@ unsafe extern "C" fn reverse_stack(
     mut left: u8,
     mut right: u8,
 ) {
-    let mut p1: *mut CffValue = (*stack).stack.offset(left as ::core::ffi::c_int as isize);
-    let mut p2: *mut CffValue = (*stack).stack.offset(right as ::core::ffi::c_int as isize);
+    let mut p1: *mut CffValue = (*stack).stack.as_mut_ptr().offset(left as ::core::ffi::c_int as isize);
+    let mut p2: *mut CffValue = (*stack).stack.as_mut_ptr().offset(right as ::core::ffi::c_int as isize);
     while p1 < p2 {
         let mut temp: CffValue = *p1;
         *p1 = *p2;
@@ -729,7 +729,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                         if (*stack).index.wrapping_rem(2 as Arity) != 0 {
                             set_width.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                             );
@@ -741,8 +741,8 @@ pub unsafe extern "C" fn cff_parse_outline(
                         let mut j: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j as Arity) < (*stack).index {
                             let mut pos: ::core::ffi::c_double =
-                                (*(*stack).stack.offset(j as isize)).c2rust_unnamed.d;
-                            let mut width: ::core::ffi::c_double = (*(*stack).stack.offset(
+                                (*(*stack).stack.as_mut_ptr().offset(j as isize)).c2rust_unnamed.d;
+                            let mut width: ::core::ffi::c_double = (*(*stack).stack.as_mut_ptr().offset(
                                 (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
                             ))
                             .c2rust_unnamed
@@ -764,7 +764,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                         if (*stack).index.wrapping_rem(2 as Arity) != 0 {
                             set_width.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                             );
@@ -780,8 +780,8 @@ pub unsafe extern "C" fn cff_parse_outline(
                             (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j_0 as Arity) < (*stack).index {
                             let mut pos_0: ::core::ffi::c_double =
-                                (*(*stack).stack.offset(j_0 as isize)).c2rust_unnamed.d;
-                            let mut width_0: ::core::ffi::c_double = (*(*stack).stack.offset(
+                                (*(*stack).stack.as_mut_ptr().offset(j_0 as isize)).c2rust_unnamed.d;
+                            let mut width_0: ::core::ffi::c_double = (*(*stack).stack.as_mut_ptr().offset(
                                 (j_0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
                             ))
                             .c2rust_unnamed
@@ -893,7 +893,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     )(
                                     outline,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                         .c2rust_unnamed
                                         .d,
@@ -904,7 +904,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 outline,
                                 0.0f64,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -937,7 +937,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     )(
                                     outline,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                         .c2rust_unnamed
                                         .d,
@@ -947,12 +947,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                             line_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -985,7 +985,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     )(
                                     outline,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                         .c2rust_unnamed
                                         .d,
@@ -995,7 +995,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             line_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1009,7 +1009,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             set_width.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1021,9 +1021,9 @@ pub unsafe extern "C" fn cff_parse_outline(
                         while i < (*stack).index {
                             line_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(1 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1037,7 +1037,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                             line_to.expect("non-null function pointer")(
                                 outline,
                                 0.0f64,
-                                (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                             );
@@ -1045,14 +1045,14 @@ pub unsafe extern "C" fn cff_parse_outline(
                             while i < (*stack).index {
                                 line_to.expect("non-null function pointer")(
                                     outline,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
                                 );
                                 line_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1065,12 +1065,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 line_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                 );
                                 line_to.expect("non-null function pointer")(
                                     outline,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1085,7 +1085,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                         if (*stack).index.wrapping_rem(2 as Arity) == 1 as Arity {
                             line_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                                 0.0f64,
@@ -1095,12 +1095,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 line_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                 );
                                 line_to.expect("non-null function pointer")(
                                     outline,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1113,14 +1113,14 @@ pub unsafe extern "C" fn cff_parse_outline(
                             while i < (*stack).index {
                                 line_to.expect("non-null function pointer")(
                                     outline,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
                                 );
                                 line_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1135,29 +1135,29 @@ pub unsafe extern "C" fn cff_parse_outline(
                         while i < (*stack).index {
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(1 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(2 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(3 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(4 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(5 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1171,29 +1171,29 @@ pub unsafe extern "C" fn cff_parse_outline(
                         while i < (*stack).index.wrapping_sub(2 as Arity) {
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(1 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(2 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(3 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(4 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(5 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1203,12 +1203,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                         line_to.expect("non-null function pointer")(
                             outline,
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
@@ -1220,9 +1220,9 @@ pub unsafe extern "C" fn cff_parse_outline(
                         while i < (*stack).index.wrapping_sub(6 as Arity) {
                             line_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset(i.wrapping_add(1 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1232,32 +1232,32 @@ pub unsafe extern "C" fn cff_parse_outline(
                         curve_to.expect("non-null function pointer")(
                             outline,
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(6 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
@@ -1268,20 +1268,20 @@ pub unsafe extern "C" fn cff_parse_outline(
                         if (*stack).index.wrapping_rem(4 as Arity) == 1 as Arity {
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(1 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(2 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(3 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                                 0.0f64,
-                                (*(*stack).stack.offset(4 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                             );
@@ -1290,20 +1290,20 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 curve_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1316,20 +1316,20 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 curve_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1343,19 +1343,19 @@ pub unsafe extern "C" fn cff_parse_outline(
                         if (*stack).index.wrapping_rem(4 as Arity) == 1 as Arity {
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(1 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(2 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(3 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(4 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                                 0.0f64,
@@ -1364,20 +1364,20 @@ pub unsafe extern "C" fn cff_parse_outline(
                             while i < (*stack).index {
                                 curve_to.expect("non-null function pointer")(
                                     outline,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1390,20 +1390,20 @@ pub unsafe extern "C" fn cff_parse_outline(
                             while i < (*stack).index {
                                 curve_to.expect("non-null function pointer")(
                                     outline,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1432,19 +1432,19 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 curve_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1453,21 +1453,21 @@ pub unsafe extern "C" fn cff_parse_outline(
                             } else {
                                 curve_to.expect("non-null function pointer")(
                                     outline,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1480,27 +1480,27 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 outline,
                                 0.0f64,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1510,28 +1510,28 @@ pub unsafe extern "C" fn cff_parse_outline(
                             curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 0.0f64,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1556,21 +1556,21 @@ pub unsafe extern "C" fn cff_parse_outline(
                             {
                                 curve_to.expect("non-null function pointer")(
                                     outline,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1579,19 +1579,19 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 curve_to.expect("non-null function pointer")(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack
+                                        .stack.as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1604,28 +1604,28 @@ pub unsafe extern "C" fn cff_parse_outline(
                             curve_to.expect("non-null function pointer")(
                                 outline,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 0.0f64,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1636,27 +1636,27 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 outline,
                                 0.0f64,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack
+                                    .stack.as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1684,34 +1684,34 @@ pub unsafe extern "C" fn cff_parse_outline(
                         } else {
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                                 0.0f64,
-                                (*(*stack).stack.offset(1 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(2 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(3 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                                 0.0f64,
                             );
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(4 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                                 0.0f64,
-                                (*(*stack).stack.offset(5 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(5 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                -(*(*stack).stack.offset(2 as ::core::ffi::c_int as isize))
+                                -(*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(6 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(6 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                                 0.0f64,
@@ -1739,43 +1739,43 @@ pub unsafe extern "C" fn cff_parse_outline(
                         } else {
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(1 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(2 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(3 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(4 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(5 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(5 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                             );
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(6 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(6 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(7 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(7 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(8 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(8 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(9 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(9 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(10 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(10 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(11 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(11 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                             );
@@ -1802,45 +1802,45 @@ pub unsafe extern "C" fn cff_parse_outline(
                         } else {
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(1 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(2 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(3 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(4 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                                 0.0f64,
                             );
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(5 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(5 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                                 0.0f64,
-                                (*(*stack).stack.offset(6 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(6 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(7 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(7 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(8 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(8 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                -((*(*stack).stack.offset(1 as ::core::ffi::c_int as isize))
+                                -((*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d
-                                    + (*(*stack).stack.offset(3 as ::core::ffi::c_int as isize))
+                                    + (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
                                         .c2rust_unnamed
                                         .d
-                                    + (*(*stack).stack.offset(7 as ::core::ffi::c_int as isize))
+                                    + (*(*stack).stack.as_mut_ptr().offset(7 as ::core::ffi::c_int as isize))
                                         .c2rust_unnamed
                                         .d),
                             );
@@ -1866,81 +1866,81 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut dx: ::core::ffi::c_double =
-                                (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d
-                                    + (*(*stack).stack.offset(2 as ::core::ffi::c_int as isize))
+                                    + (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
                                         .c2rust_unnamed
                                         .d
-                                    + (*(*stack).stack.offset(4 as ::core::ffi::c_int as isize))
+                                    + (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
                                         .c2rust_unnamed
                                         .d
-                                    + (*(*stack).stack.offset(6 as ::core::ffi::c_int as isize))
+                                    + (*(*stack).stack.as_mut_ptr().offset(6 as ::core::ffi::c_int as isize))
                                         .c2rust_unnamed
                                         .d
-                                    + (*(*stack).stack.offset(8 as ::core::ffi::c_int as isize))
+                                    + (*(*stack).stack.as_mut_ptr().offset(8 as ::core::ffi::c_int as isize))
                                         .c2rust_unnamed
                                         .d;
                             let mut dy: ::core::ffi::c_double =
-                                (*(*stack).stack.offset(1 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d
-                                    + (*(*stack).stack.offset(3 as ::core::ffi::c_int as isize))
+                                    + (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
                                         .c2rust_unnamed
                                         .d
-                                    + (*(*stack).stack.offset(5 as ::core::ffi::c_int as isize))
+                                    + (*(*stack).stack.as_mut_ptr().offset(5 as ::core::ffi::c_int as isize))
                                         .c2rust_unnamed
                                         .d
-                                    + (*(*stack).stack.offset(7 as ::core::ffi::c_int as isize))
+                                    + (*(*stack).stack.as_mut_ptr().offset(7 as ::core::ffi::c_int as isize))
                                         .c2rust_unnamed
                                         .d
-                                    + (*(*stack).stack.offset(9 as ::core::ffi::c_int as isize))
+                                    + (*(*stack).stack.as_mut_ptr().offset(9 as ::core::ffi::c_int as isize))
                                         .c2rust_unnamed
                                         .d;
                             if fabs(dx) > fabs(dy) {
-                                dx = (*(*stack).stack.offset(10 as ::core::ffi::c_int as isize))
+                                dx = (*(*stack).stack.as_mut_ptr().offset(10 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d;
                                 dy = -dy;
                             } else {
                                 dx = -dx;
-                                dy = (*(*stack).stack.offset(10 as ::core::ffi::c_int as isize))
+                                dy = (*(*stack).stack.as_mut_ptr().offset(10 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d;
                             }
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(0 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(1 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(2 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(3 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(4 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(5 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(5 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                             );
                             curve_to.expect("non-null function pointer")(
                                 outline,
-                                (*(*stack).stack.offset(6 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(6 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(7 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(7 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(8 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(8 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
-                                (*(*stack).stack.offset(9 as ::core::ffi::c_int as isize))
+                                (*(*stack).stack.as_mut_ptr().offset(9 as ::core::ffi::c_int as isize))
                                     .c2rust_unnamed
                                     .d,
                                 dx,
@@ -1968,17 +1968,17 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num1: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num1 != 0. && num2 != 0. {
@@ -2008,17 +2008,17 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_0: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_0: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num1_0 != 0. || num2_0 != 0. {
@@ -2048,12 +2048,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num != 0. { 0.0f64 } else { 1.0f64 };
@@ -2078,12 +2078,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num_0: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num_0 < 0.0f64 { -num_0 } else { num_0 };
@@ -2108,17 +2108,17 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_1: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_1: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_1 + num2_1;
@@ -2144,17 +2144,17 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_2: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_2: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_2 - num2_2;
@@ -2180,17 +2180,17 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_3: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_3: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_3 / num2_3;
@@ -2216,12 +2216,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num_1: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = -num_1;
@@ -2246,17 +2246,17 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_4: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_4: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num1_4 == num2_4 { 1.0f64 } else { 0.0f64 };
@@ -2303,12 +2303,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut val_0: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut i_0: i32 = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d as i32;
@@ -2339,12 +2339,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut i_1: i32 = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d as i32;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = (*stack).transient[(i_1
@@ -2373,27 +2373,27 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut v2: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut v1: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut s2: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut s1: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if v1 <= v2 { s1 } else { s2 };
@@ -2401,8 +2401,8 @@ pub unsafe extern "C" fn cff_parse_outline(
                         }
                     }
                     3095 => {
-                        (*(*stack).stack.offset((*stack).index as isize)).t = CffValueType::Double;
-                        (*(*stack).stack.offset((*stack).index as isize))
+                        (*(*stack).stack.as_mut_ptr().offset((*stack).index as isize)).t = CffValueType::Double;
+                        (*(*stack).stack.as_mut_ptr().offset((*stack).index as isize))
                             .c2rust_unnamed
                             .d = getrand.expect("non-null function pointer")(outline);
                         (*stack).index = (*stack).index.wrapping_add(1 as Arity);
@@ -2426,17 +2426,17 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_5: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_5: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_5 * num2_5;
@@ -2462,12 +2462,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num_2: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = sqrt(num_2);
@@ -2491,8 +2491,8 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            *(*stack).stack.offset((*stack).index as isize) = *(*stack)
-                                .stack
+                            *(*stack).stack.as_mut_ptr().offset((*stack).index as isize) = *(*stack)
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize);
                             (*stack).index = (*stack).index.wrapping_add(1 as Arity);
                         }
@@ -2516,22 +2516,22 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_6: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_6: ::core::ffi::c_double = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num2_6;
                             (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_6;
@@ -2559,12 +2559,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                                 (*stack).index.wrapping_sub(1 as Arity) as u8;
                             let mut j_1: u8 = (n as ::core::ffi::c_int
                                 - 1 as ::core::ffi::c_int
-                                - (*(*stack).stack.offset(n as isize)).c2rust_unnamed.d as u8
+                                - (*(*stack).stack.as_mut_ptr().offset(n as isize)).c2rust_unnamed.d as u8
                                     as ::core::ffi::c_int
                                     % n as ::core::ffi::c_int)
                                 as u8;
-                            *(*stack).stack.offset(n as isize) =
-                                *(*stack).stack.offset(j_1 as isize);
+                            *(*stack).stack.as_mut_ptr().offset(n as isize) =
+                                *(*stack).stack.as_mut_ptr().offset(j_1 as isize);
                         }
                     }
                     3102 => {
@@ -2586,12 +2586,12 @@ pub unsafe extern "C" fn cff_parse_outline(
                             );
                         } else {
                             let mut j_2: i32 = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d as i32;
                             let mut n_0: u32 = (*(*stack)
-                                .stack
+                                .stack.as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d as u32;
@@ -2657,7 +2657,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                         } else {
                             (*stack).index = (*stack).index.wrapping_sub(1);
                             let mut subr: u32 =
-                                (*(*stack).stack.offset((*stack).index as isize))
+                                (*(*stack).stack.as_mut_ptr().offset((*stack).index as isize))
                                     .c2rust_unnamed
                                     .d as u32;
                             cff_parse_outline(
@@ -2711,7 +2711,7 @@ pub unsafe extern "C" fn cff_parse_outline(
                         } else {
                             (*stack).index = (*stack).index.wrapping_sub(1);
                             let mut subr_0: u32 =
-                                (*(*stack).stack.offset((*stack).index as isize))
+                                (*(*stack).stack.as_mut_ptr().offset((*stack).index as isize))
                                     .c2rust_unnamed
                                     .d as u32;
                             cff_parse_outline(
@@ -2762,7 +2762,7 @@ pub unsafe extern "C" fn cff_parse_outline(
             CffValueType::Integer | CffValueType::Double => {
                 let fresh0 = (*stack).index;
                 (*stack).index = (*stack).index.wrapping_add(1);
-                *(*stack).stack.offset(fresh0 as isize) = val;
+                *(*stack).stack.as_mut_ptr().offset(fresh0 as isize) = val;
             }
             _ => {}
         }
