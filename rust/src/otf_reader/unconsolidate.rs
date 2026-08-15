@@ -1,11 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 #![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
-use libc::{free};
-
-
-
-
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos};
@@ -531,21 +525,16 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let count_a: u32 = (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics as u32;
     let vmtx = (*font).vmtx.take().unwrap();
-    let mut vorgs: *mut Pos = ::core::ptr::null_mut::<Pos>();
+    let mut vorgs: Option<Vec<Pos>> = None;
     if let Some(vorg) = (*font).vorg.take() {
-        vorgs = __caryll_allocate_clean(
-            (::core::mem::size_of::<Pos>() as usize).wrapping_mul((*glyf).len()),
-            351 as ::core::ffi::c_ulong,
-        ) as *mut Pos;
-        for j in 0..(*glyf).len() as GlyphId {
-            *vorgs.offset(j as isize) = vorg.default_vertical_origin;
-        }
+        let mut v: Vec<Pos> = vec![vorg.default_vertical_origin; (*glyf).len()];
         for j_0 in 0..vorg.num_vert_origin_y_metrics as GlyphId {
             if ((*vorg.entries.offset(j_0 as isize)).gid as usize) < (*glyf).len() {
-                *vorgs.offset((*vorg.entries.offset(j_0 as isize)).gid as isize) =
+                v[(*vorg.entries.offset(j_0 as isize)).gid as usize] =
                     (*vorg.entries.offset(j_0 as isize)).vertical_origin as Pos;
             }
         }
+        vorgs = Some(v);
     }
     for j_1 in 0..(*glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*glyf))[j_1 as usize].as_mut().unwrap();
@@ -566,16 +555,12 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
         );
         I_VQ.inplace_plus.expect("non-null function pointer")(
             &raw mut (*g).vertical_origin,
-            I_VQ.create_still.expect("non-null function pointer")(if !vorgs.is_null() {
-                *vorgs.offset(j_1 as isize)
+            I_VQ.create_still.expect("non-null function pointer")(if let Some(v) = &vorgs {
+                v[j_1 as usize]
             } else {
                 tsb + (*g).stat.y_max
             }) as VQ,
         );
-    }
-    if !vorgs.is_null() {
-        free(vorgs as *mut ::core::ffi::c_void);
-        vorgs = ::core::ptr::null_mut::<Pos>();
     }
 }
 unsafe extern "C" fn merge_ltsh(font: *mut Font) {

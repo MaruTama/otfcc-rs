@@ -1,10 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
-
 use crate::table::otl::coverage::Coverage;
 
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphClass, TableId};
 
@@ -127,21 +124,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
             (*ruleset).fc.as_deref().unwrap(),
         ))), bk_int(BkCellType::B16, ((*ic).maxclass as ::core::ffi::c_int
             + 1 as ::core::ffi::c_int) as u32)]);
-    let mut rcpg: *mut GlyphClass = ::core::ptr::null_mut::<GlyphClass>();
-    rcpg = __caryll_allocate_clean(
-        (::core::mem::size_of::<GlyphClass>() as usize).wrapping_mul(
-            ((*ic).maxclass as ::core::ffi::c_int
-                + 1 as ::core::ffi::c_int) as usize,
-        ),
-        81 as ::core::ffi::c_ulong,
-    ) as *mut GlyphClass;
-    let mut j: GlyphClass = 0 as GlyphClass;
-    while j as ::core::ffi::c_int
-        <= (*ic).maxclass as ::core::ffi::c_int
-    {
-        *rcpg.offset(j as isize) = 0 as GlyphClass;
-        j = j.wrapping_add(1);
-    }
+    let mut rcpg: Vec<GlyphClass> = vec![0; ((*ic).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize];
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < (*ruleset).rules.len() {
         let rule_j0: *mut ChainingRule = (&(*ruleset).rules)[j_0 as usize]
@@ -154,7 +137,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
         if start_class as ::core::ffi::c_int
             <= (*ic).maxclass as ::core::ffi::c_int
         {
-            let ref mut fresh2 = *rcpg.offset(start_class as isize);
+            let fresh2 = &mut rcpg[start_class as usize];
             *fresh2 = (*fresh2 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
         }
         j_0 = j_0.wrapping_add(1);
@@ -163,8 +146,8 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
     while j_1 as ::core::ffi::c_int
         <= (*ic).maxclass as ::core::ffi::c_int
     {
-        if *rcpg.offset(j_1 as isize) != 0 {
-            let mut cset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
+        if rcpg[j_1 as usize] != 0 {
+            let mut cset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (rcpg[j_1 as usize] as ::core::ffi::c_int) as u32)]);
             let mut k: TableId = 0 as TableId;
             while (k as usize) < (*ruleset).rules.len() {
                 let mut rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize]
@@ -226,8 +209,6 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
         }
         j_1 = j_1.wrapping_add(1);
     }
-    free(rcpg as *mut ::core::ffi::c_void);
-    rcpg = ::core::ptr::null_mut::<GlyphClass>();
     return bk_build_block(root);
 }
 pub unsafe extern "C" fn otfcc_build_chaining(
@@ -279,21 +260,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
             ic,
         ))), bk_int(BkCellType::B16, ((*ic).maxclass as ::core::ffi::c_int
             + 1 as ::core::ffi::c_int) as u32)]);
-    let mut rcpg: *mut GlyphClass = ::core::ptr::null_mut::<GlyphClass>();
-    rcpg = __caryll_allocate_clean(
-        (::core::mem::size_of::<GlyphClass>() as usize).wrapping_mul(
-            ((*ic).maxclass as ::core::ffi::c_int
-                + 1 as ::core::ffi::c_int) as usize,
-        ),
-        186 as ::core::ffi::c_ulong,
-    ) as *mut GlyphClass;
-    let mut j: GlyphClass = 0 as GlyphClass;
-    while j as ::core::ffi::c_int
-        <= (*ic).maxclass as ::core::ffi::c_int
-    {
-        *rcpg.offset(j as isize) = 0 as GlyphClass;
-        j = j.wrapping_add(1);
-    }
+    let mut rcpg: Vec<GlyphClass> = vec![0; ((*ic).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize];
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < (*ruleset).rules.len() {
         let rule_j0: *mut ChainingRule = (&(*ruleset).rules)[j_0 as usize]
@@ -306,7 +273,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
         if start_class as ::core::ffi::c_int
             <= (*ic).maxclass as ::core::ffi::c_int
         {
-            let ref mut fresh3 = *rcpg.offset(start_class as isize);
+            let fresh3 = &mut rcpg[start_class as usize];
             *fresh3 = (*fresh3 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
         }
         j_0 = j_0.wrapping_add(1);
@@ -315,8 +282,8 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
     while j_1 as ::core::ffi::c_int
         <= (*ic).maxclass as ::core::ffi::c_int
     {
-        if *rcpg.offset(j_1 as isize) != 0 {
-            let mut cset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (*rcpg.offset(j_1 as isize) as ::core::ffi::c_int) as u32)]);
+        if rcpg[j_1 as usize] != 0 {
+            let mut cset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (rcpg[j_1 as usize] as ::core::ffi::c_int) as u32)]);
             let mut k: TableId = 0 as TableId;
             while (k as usize) < (*ruleset).rules.len() {
                 let mut rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize]
@@ -359,8 +326,6 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
         }
         j_1 = j_1.wrapping_add(1);
     }
-    free(rcpg as *mut ::core::ffi::c_void);
-    rcpg = ::core::ptr::null_mut::<GlyphClass>();
     return bk_build_block(root);
 }
 pub unsafe extern "C" fn otfcc_build_contextual(

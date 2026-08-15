@@ -468,11 +468,8 @@ pub unsafe extern "C" fn otfcc_build_name(
         bufwrite16b(buf, (*record).name_id);
         let mut cbefore: usize = (*strings).cursor;
         if should_decode_as_utf16(record) {
-            let mut words: usize = 0;
-            let mut u16: *mut u8 = utf8toutf16be(&(*record).name_string, &raw mut words);
-            bufwrite_bytes(strings, words, u16);
-            free(u16 as *mut ::core::ffi::c_void);
-            u16 = ::core::ptr::null_mut::<u8>();
+            let u16: Vec<u8> = utf8toutf16be(&(*record).name_string);
+            bufwrite_bytes(strings, u16.len(), u16.as_ptr() as *mut u8);
         } else if should_decode_as_bytes(record) {
             bufwrite_bytes(
                 strings,

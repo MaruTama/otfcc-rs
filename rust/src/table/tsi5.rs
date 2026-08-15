@@ -1,12 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::free;
-
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type};
 use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
 
 use crate::support::handle::{handle_from_index, GlyphHandle};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 
 use crate::support::buffer::{Buffer};
@@ -122,16 +119,12 @@ pub unsafe extern "C" fn otfcc_build_tsi5(
         Some(t) => t as *const Tsi5Table,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut tsi5cls: *mut u16 = ::core::ptr::null_mut::<u16>();
-    tsi5cls = __caryll_allocate_clean(
-        (::core::mem::size_of::<u16>() as usize).wrapping_mul(num_glyphs as usize),
-        27 as ::core::ffi::c_ulong,
-    ) as *mut u16;
+    let mut tsi5cls: Vec<u16> = vec![0; num_glyphs as usize];
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*tsi5).glyphs.len() {
         if ((&(*tsi5).glyphs)[j as usize].index as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int
         {
-            *tsi5cls.offset((&(*tsi5).glyphs)[j as usize].index as isize) =
+            tsi5cls[(&(*tsi5).glyphs)[j as usize].index as usize] =
                 (&(*tsi5).classes)[j as usize] as u16;
         }
         j = j.wrapping_add(1);
@@ -139,10 +132,8 @@ pub unsafe extern "C" fn otfcc_build_tsi5(
     let mut buf: *mut Buffer = bufnew();
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int {
-        bufwrite16b(buf, *tsi5cls.offset(j_0 as isize));
+        bufwrite16b(buf, tsi5cls[j_0 as usize]);
         j_0 = j_0.wrapping_add(1);
     }
-    free(tsi5cls as *mut ::core::ffi::c_void);
-    tsi5cls = ::core::ptr::null_mut::<u16>();
     return buf;
 }

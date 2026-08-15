@@ -22,7 +22,6 @@ pub struct BkGraph {
     pub entries: Vec<BkGraphNode>,
 }
 use crate::support::stdio::{stderr};
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
 use crate::bk::bkblock::{BkCellVisitState, BkBlock, BkCellType, BkCellValue, bk_new_block, bk_ptr};
 use crate::bk::bkblock::{bk_cell_is_pointer};
@@ -234,13 +233,13 @@ unsafe fn otfcc_bkblock_size(b: *mut BkBlock) -> usize {
     return size;
 }
 unsafe fn getoffset(
-    mut offsets: *mut usize,
+    offsets: &[usize],
     mut ref_0: *mut BkBlock,
     mut target: *mut BkBlock,
     mut bits: u8,
 ) -> u32 {
-    let mut offref: usize = *offsets.offset((*ref_0)._index as isize);
-    let mut offtgt: usize = *offsets.offset((*target)._index as isize);
+    let mut offref: usize = offsets[(*ref_0)._index as usize];
+    let mut offtgt: usize = offsets[(*target)._index as usize];
     if (bits as ::core::ffi::c_int) < 32 as ::core::ffi::c_int
         && (offtgt < offref || offtgt.wrapping_sub(offref) >> bits as ::core::ffi::c_int != 0)
     {
@@ -255,12 +254,12 @@ unsafe fn getoffset(
     return offtgt.wrapping_sub(offref) as u32;
 }
 unsafe fn getoffset_untangle(
-    mut offsets: *mut usize,
+    offsets: &[usize],
     mut ref_0: *mut BkBlock,
     mut target: *mut BkBlock,
 ) -> i64 {
-    let mut offref: usize = *offsets.offset((*ref_0)._index as isize);
-    let mut offtgt: usize = *offsets.offset((*target)._index as isize);
+    let mut offref: usize = offsets[(*ref_0)._index as usize];
+    let mut offtgt: usize = offsets[(*target)._index as usize];
     return offtgt.wrapping_sub(offref) as i64;
 }
 unsafe fn escalate_sppointers(
@@ -337,7 +336,7 @@ unsafe fn attract_bkgraph(f: *mut BkGraph) {
 unsafe fn try_untabgle_block(
     f: *mut BkGraph,
     b: *mut BkBlock,
-    offsets: *mut usize,
+    offsets: &[usize],
     _passes: u16,
 ) -> bool {
     let mut did_copy: bool = false;
@@ -373,19 +372,16 @@ unsafe fn try_untabgle_block(
 // BkCellVisitState::Black) for every entry, i.e. the running byte offset each surviving
 // block will land at once serialized in order. Shared by try_untangle,
 // bk_build_graph, and bk_estimate_size_of_graph, which each need this table
-// before their own pass over the graph. `line` is forwarded to
-// __caryll_allocate_clean only to keep its OOM message's [line] tag matching
-// what each original call site reported.
-unsafe fn compute_block_offsets(f: *mut BkGraph, line: ::core::ffi::c_ulong) -> *mut usize {
-    let offsets: *mut usize = __caryll_allocate_clean(
-        (::core::mem::size_of::<usize>() as usize).wrapping_mul((*f).entries.len() + 1),
-        line,
-    ) as *mut usize;
-    *offsets = 0;
+// before their own pass over the graph. `_line` is a vestige of the old
+// `__caryll_allocate_clean` call (each original call site passed its own
+// source line for the OOM message); kept as a parameter so callers don't
+// need touching, unused now that the allocation is a plain `Vec`.
+unsafe fn compute_block_offsets(f: *mut BkGraph, _line: ::core::ffi::c_ulong) -> Vec<usize> {
+    let mut offsets: Vec<usize> = vec![0; (*f).entries.len() + 1];
     for (j, entry) in (*f).entries.iter().enumerate() {
         let block = entry.block;
-        let running = *offsets.offset(j as isize);
-        *offsets.offset(j as isize + 1) = if (*block)._visitstate == BkCellVisitState::Black {
+        let running = offsets[j];
+        offsets[j + 1] = if (*block)._visitstate == BkCellVisitState::Black {
             running.wrapping_add(otfcc_bkblock_size(block))
         } else {
             running
@@ -394,18 +390,17 @@ unsafe fn compute_block_offsets(f: *mut BkGraph, line: ::core::ffi::c_ulong) -> 
     offsets
 }
 unsafe fn try_untangle(f: *mut BkGraph, passes: u16) -> bool {
-    let offsets: *mut usize = compute_block_offsets(f, 294);
+    let offsets: Vec<usize> = compute_block_offsets(f, 294);
     let mut did_untangle: bool = false;
     for j in 0..(*f).entries.len() {
         let block = (&(*f).entries)[j].block;
         if (*block)._visitstate == BkCellVisitState::Black {
-            did_untangle |= try_untabgle_block(f, block, offsets, passes);
+            did_untangle |= try_untabgle_block(f, block, &offsets, passes);
         }
     }
-    free(offsets as *mut ::core::ffi::c_void);
     return did_untangle;
 }
-unsafe fn otfcc_build_bkblock(buf: *mut Buffer, b: *mut BkBlock, offsets: *mut usize) {
+unsafe fn otfcc_build_bkblock(buf: *mut Buffer, b: *mut BkBlock, offsets: &[usize]) {
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
         match (*cell).t {
@@ -440,20 +435,18 @@ unsafe fn otfcc_build_bkblock(buf: *mut Buffer, b: *mut BkBlock, offsets: *mut u
 }
 pub unsafe extern "C" fn bk_build_graph(f: *mut BkGraph) -> *mut Buffer {
     let buf: *mut Buffer = bufnew();
-    let offsets: *mut usize = compute_block_offsets(f, 352);
+    let offsets: Vec<usize> = compute_block_offsets(f, 352);
     for j in 0..(*f).entries.len() {
         let block = (&(*f).entries)[j].block;
         if (*block)._visitstate == BkCellVisitState::Black {
-            otfcc_build_bkblock(buf, block, offsets);
+            otfcc_build_bkblock(buf, block, &offsets);
         }
     }
-    free(offsets as *mut ::core::ffi::c_void);
     return buf;
 }
 pub unsafe extern "C" fn bk_estimate_size_of_graph(f: *mut BkGraph) -> usize {
-    let offsets: *mut usize = compute_block_offsets(f, 373);
-    let estimated_size: usize = *offsets.offset((*f).entries.len() as isize);
-    free(offsets as *mut ::core::ffi::c_void);
+    let offsets: Vec<usize> = compute_block_offsets(f, 373);
+    let estimated_size: usize = offsets[(*f).entries.len()];
     return estimated_size;
 }
 pub unsafe extern "C" fn bk_untangle_graph(f: *mut BkGraph) {

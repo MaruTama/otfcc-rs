@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, printf, sprintf, strcat, strlen, strtod};
+use libc::{printf, sprintf, strcat, strlen, strtod};
 
 
 use crate::libcff::CffDictOperator;
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn cff_encode_cff_float(mut val: ::core::ffi::c_double) ->
         *(*blob).data.offset(1 as ::core::ffi::c_int as isize) = 0xf as u8;
     } else {
         let mut niblen: u32 = 0 as u32;
-        let mut array: *mut u8 = ::core::ptr::null_mut::<u8>();
+        let mut array: Vec<u8>;
         sprintf(
             &raw mut temp as *mut u8 as *mut ::core::ffi::c_char,
             b"%.13g\0" as *const u8 as *const ::core::ffi::c_char,
@@ -123,34 +123,26 @@ pub unsafe extern "C" fn cff_encode_cff_float(mut val: ::core::ffi::c_double) ->
         ) as *mut u8;
         *(*blob).data.offset(0 as ::core::ffi::c_int as isize) = 30 as u8;
         if niblen.wrapping_rem(2 as u32) != 0 as u32 {
-            array = __caryll_allocate_clean(
-                (::core::mem::size_of::<u8>() as usize)
-                    .wrapping_mul(niblen.wrapping_add(1 as u32) as usize),
-                82 as ::core::ffi::c_ulong,
-            ) as *mut u8;
-            *array.offset(niblen as isize) = 0xf as u8;
+            array = vec![0u8; niblen.wrapping_add(1 as u32) as usize];
+            array[niblen as usize] = 0xf as u8;
         } else {
-            array = __caryll_allocate_clean(
-                (::core::mem::size_of::<u8>() as usize)
-                    .wrapping_mul(niblen.wrapping_add(2 as u32) as usize),
-                85 as ::core::ffi::c_ulong,
-            ) as *mut u8;
-            *array.offset(niblen.wrapping_add(1 as u32) as isize) = 0xf as u8;
-            *array.offset(niblen as isize) = 0xf as u8;
+            array = vec![0u8; niblen.wrapping_add(2 as u32) as usize];
+            array[niblen.wrapping_add(1 as u32) as usize] = 0xf as u8;
+            array[niblen as usize] = 0xf as u8;
         }
         i = 0 as u32;
         while (i as usize) < strlen(&raw mut temp as *mut u8 as *mut ::core::ffi::c_char) {
             if temp[i as usize] as ::core::ffi::c_int == '.' as i32 {
                 let fresh0 = j;
                 j = j.wrapping_add(1);
-                *array.offset(fresh0 as isize) = 0xa as u8;
+                array[fresh0 as usize] = 0xa as u8;
                 i = i.wrapping_add(1);
             } else if temp[i as usize] as ::core::ffi::c_int >= '0' as i32
                 && temp[i as usize] as ::core::ffi::c_int <= '9' as i32
             {
                 let fresh1 = j;
                 j = j.wrapping_add(1);
-                *array.offset(fresh1 as isize) =
+                array[fresh1 as usize] =
                     (temp[i as usize] as ::core::ffi::c_int - '0' as i32) as u8;
                 i = i.wrapping_add(1);
             } else if temp[i as usize] as ::core::ffi::c_int == 'e' as i32
@@ -158,37 +150,33 @@ pub unsafe extern "C" fn cff_encode_cff_float(mut val: ::core::ffi::c_double) ->
             {
                 let fresh2 = j;
                 j = j.wrapping_add(1);
-                *array.offset(fresh2 as isize) = 0xc as u8;
+                array[fresh2 as usize] = 0xc as u8;
                 i = i.wrapping_add(2 as u32);
             } else if temp[i as usize] as ::core::ffi::c_int == 'e' as i32
                 && temp[i.wrapping_add(1 as u32) as usize] as ::core::ffi::c_int == '+' as i32
             {
                 let fresh3 = j;
                 j = j.wrapping_add(1);
-                *array.offset(fresh3 as isize) = 0xb as u8;
+                array[fresh3 as usize] = 0xb as u8;
                 i = i.wrapping_add(2 as u32);
             } else if temp[i as usize] as ::core::ffi::c_int == '-' as i32 {
                 let fresh4 = j;
                 j = j.wrapping_add(1);
-                *array.offset(fresh4 as isize) = 0xe as u8;
+                array[fresh4 as usize] = 0xe as u8;
                 i = i.wrapping_add(1);
             }
         }
         i = 1 as u32;
         while (i as usize) < (*blob).size {
-            *(*blob).data.offset(i as isize) = (*array
-                .offset(i.wrapping_sub(1 as u32).wrapping_mul(2 as u32) as isize)
+            *(*blob).data.offset(i as isize) = (array
+                [i.wrapping_sub(1 as u32).wrapping_mul(2 as u32) as usize]
                 as ::core::ffi::c_int
                 * 16 as ::core::ffi::c_int
-                + *array.offset(
-                    i.wrapping_sub(1 as u32)
+                + array[i.wrapping_sub(1 as u32)
                         .wrapping_mul(2 as u32)
-                        .wrapping_add(1 as u32) as isize,
-                ) as ::core::ffi::c_int) as u8;
+                        .wrapping_add(1 as u32) as usize] as ::core::ffi::c_int) as u8;
             i = i.wrapping_add(1);
         }
-        free(array as *mut ::core::ffi::c_void);
-        array = ::core::ptr::null_mut::<u8>();
     }
     return blob;
 }
