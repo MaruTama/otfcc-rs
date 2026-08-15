@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
 unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
@@ -8,7 +7,6 @@ unsafe extern "C" {
 
 
 use crate::support::binio::{pos_to_u16};
-use crate::support::alloc::{__caryll_allocate_clean};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
@@ -287,15 +285,10 @@ pub unsafe extern "C" fn otfcc_build_glyf(
     let mut bufloca: *mut Buffer = bufnew();
     if !table.is_null() && !head.is_null() {
         let mut gbuf: *mut Buffer = bufnew();
-        let mut loca: *mut u32 = ::core::ptr::null_mut::<u32>();
-        loca = __caryll_allocate_clean(
-            (::core::mem::size_of::<u32>() as usize)
-                .wrapping_mul((*table).len().wrapping_add(1 as usize)),
-            189 as ::core::ffi::c_ulong,
-        ) as *mut u32;
+        let mut loca: Vec<u32> = vec![0; (*table).len().wrapping_add(1 as usize)];
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*table).len() {
-            *loca.offset(j as isize) = (*bufglyf).cursor as u32;
+            loca[j as usize] = (*bufglyf).cursor as u32;
             let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
             bufclear(gbuf);
             if !(*g).contours.is_empty() {
@@ -307,7 +300,7 @@ pub unsafe extern "C" fn otfcc_build_glyf(
             bufwrite_buf(bufglyf, gbuf);
             j = j.wrapping_add(1);
         }
-        *loca.offset((*table).len() as isize) = (*bufglyf).cursor as u32;
+        loca[(*table).len()] = (*bufglyf).cursor as u32;
         if (*bufglyf).cursor >= 0x20000 as ::core::ffi::c_int as usize {
             (*head).index_to_loc_format = 1 as i16;
         } else {
@@ -316,18 +309,16 @@ pub unsafe extern "C" fn otfcc_build_glyf(
         let mut j_0: u32 = 0 as u32;
         while j_0 as usize <= (*table).len() {
             if (*head).index_to_loc_format != 0 {
-                bufwrite32b(bufloca, *loca.offset(j_0 as isize));
+                bufwrite32b(bufloca, loca[j_0 as usize]);
             } else {
                 bufwrite16b(
                     bufloca,
-                    (*loca.offset(j_0 as isize) >> 1 as ::core::ffi::c_int) as u16,
+                    (loca[j_0 as usize] >> 1 as ::core::ffi::c_int) as u16,
                 );
             }
             j_0 = j_0.wrapping_add(1);
         }
         buffree(gbuf);
-        free(loca as *mut ::core::ffi::c_void);
-        loca = ::core::ptr::null_mut::<u32>();
     }
     let mut pair: GlyfAndLocaBuffers = GlyfAndLocaBuffers {
         glyf: bufglyf,

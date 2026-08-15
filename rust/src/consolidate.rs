@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 pub mod otl;
 
-use libc::{free};
 unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
@@ -9,7 +8,6 @@ unsafe extern "C" {
 
 use crate::support::handle::{HandleState, handle_from_index, handle_name_eq_bytes, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 
 use crate::support::options::{Options};
@@ -189,26 +187,18 @@ unsafe extern "C" fn consolidate_glyph_hints(
             by_stem_pos(a as *const PostscriptStemDef, b as *const PostscriptStemDef).cmp(&0)
         });
     }
-    let mut hmap: *mut ShapeId = ::core::ptr::null_mut::<ShapeId>();
-    hmap = __caryll_allocate_clean(
-        (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul((*g).stem_h.len()),
-        80 as ::core::ffi::c_ulong,
-    ) as *mut ShapeId;
-    let mut vmap: *mut ShapeId = ::core::ptr::null_mut::<ShapeId>();
-    vmap = __caryll_allocate_clean(
-        (::core::mem::size_of::<ShapeId>() as usize).wrapping_mul((*g).stem_v.len()),
-        82 as ::core::ffi::c_ulong,
-    ) as *mut ShapeId;
+    let mut hmap: Vec<ShapeId> = vec![0; (*g).stem_h.len()];
+    let mut vmap: Vec<ShapeId> = vec![0; (*g).stem_v.len()];
     let stem_h: &Vec<PostscriptStemDef> = &(*g).stem_h;
     let mut j_1: ShapeId = 0 as ShapeId;
     while (j_1 as usize) < stem_h.len() {
-        *hmap.offset(stem_h[j_1 as usize].map as isize) = j_1;
+        hmap[stem_h[j_1 as usize].map as usize] = j_1;
         j_1 = j_1.wrapping_add(1);
     }
     let stem_v: &Vec<PostscriptStemDef> = &(*g).stem_v;
     let mut j_2: ShapeId = 0 as ShapeId;
     while (j_2 as usize) < stem_v.len() {
-        *vmap.offset(stem_v[j_2 as usize].map as isize) = j_2;
+        vmap[stem_v[j_2 as usize].map as usize] = j_2;
         j_2 = j_2.wrapping_add(1);
     }
     if !(*g).hint_masks.is_empty() {
@@ -225,13 +215,13 @@ unsafe extern "C" fn consolidate_glyph_hints(
             let mut k: ShapeId = 0 as ShapeId;
             while (k as usize) < stem_h_len {
                 hint_masks[j_3 as usize].mask_h[k as usize] =
-                    oldmask.mask_h[*hmap.offset(k as isize) as usize];
+                    oldmask.mask_h[hmap[k as usize] as usize];
                 k = k.wrapping_add(1);
             }
             let mut k_0: ShapeId = 0 as ShapeId;
             while (k_0 as usize) < stem_v_len {
                 hint_masks[j_3 as usize].mask_v[k_0 as usize] =
-                    oldmask.mask_v[*vmap.offset(k_0 as isize) as usize];
+                    oldmask.mask_v[vmap[k_0 as usize] as usize];
                 k_0 = k_0.wrapping_add(1);
             }
             j_3 = j_3.wrapping_add(1);
@@ -251,22 +241,18 @@ unsafe extern "C" fn consolidate_glyph_hints(
             let mut k_1: ShapeId = 0 as ShapeId;
             while (k_1 as usize) < stem_h_len {
                 contour_masks[j_4 as usize].mask_h[k_1 as usize] =
-                    oldmask_0.mask_h[*hmap.offset(k_1 as isize) as usize];
+                    oldmask_0.mask_h[hmap[k_1 as usize] as usize];
                 k_1 = k_1.wrapping_add(1);
             }
             let mut k_2: ShapeId = 0 as ShapeId;
             while (k_2 as usize) < stem_v_len {
                 contour_masks[j_4 as usize].mask_v[k_2 as usize] =
-                    oldmask_0.mask_v[*vmap.offset(k_2 as isize) as usize];
+                    oldmask_0.mask_v[vmap[k_2 as usize] as usize];
                 k_2 = k_2.wrapping_add(1);
             }
             j_4 = j_4.wrapping_add(1);
         }
     }
-    free(hmap as *mut ::core::ffi::c_void);
-    hmap = ::core::ptr::null_mut::<ShapeId>();
-    free(vmap as *mut ::core::ffi::c_void);
-    vmap = ::core::ptr::null_mut::<ShapeId>();
 }
 unsafe extern "C" fn consolidate_fd_select(
     mut h: *mut FdHandle,

@@ -20,7 +20,7 @@ use crate::libcff::cff_dict::{CffDict, CffDictEntry};
 use crate::libcff::cff_fdselect::{CffFdSelect, CffFdSelectRangeFormat3};
 use crate::libcff::cff_index::{CffIndexCountType, CffIndex};
 use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
-use crate::libcff::charstring_il::{CffCharstringIl, CffCharstringInstruction};
+use crate::libcff::charstring_il::{CffCharstringIl};
 use crate::libcff::subr::{CffSubrGraph, CffSubrRule};
 use crate::support::{FALSE_0, TRUE_0};
 use crate::table::fvar::{FvarTable};
@@ -2084,9 +2084,7 @@ unsafe extern "C" fn cff_make_charstrings(
         );
         cff_optimize_il(il, (*context).options);
         cff_insert_il_to_graph(&raw mut (*context).graph, il);
-        free((*il).instr as *mut ::core::ffi::c_void);
-        (*il).instr = ::core::ptr::null_mut::<CffCharstringInstruction>();
-        free(il as *mut ::core::ffi::c_void);
+        drop(Box::from_raw(il));
         il = ::core::ptr::null_mut::<CffCharstringIl>();
         j = j.wrapping_add(1);
     }
@@ -2332,31 +2330,29 @@ unsafe extern "C" fn callback_makestringindex(
 }
 unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> *mut Buffer {
     let n: u32 = (*h).len() as u32;
-    let mut blobs: *mut *mut Buffer = __caryll_allocate_clean(
-        (::core::mem::size_of::<*mut Buffer>() as usize).wrapping_mul(n as usize),
-        1097 as ::core::ffi::c_ulong,
-    ) as *mut *mut Buffer;
+    // `blobs` was `__caryll_allocate_clean`'d/`free`'d, holding just the
+    // pointer array `callback_makestringindex` indexes into through its
+    // `*mut c_void` context -- freeing it (now: dropping the `Vec`) never
+    // touches the `Buffer`s it points to, which `from_callback`/`build`
+    // below consume on their own.
+    let mut blobs: Vec<*mut Buffer> = Vec::with_capacity(n as usize);
     // `IndexMap`'s iteration order is insertion order, which is SID
     // order by construction (`sidof` assigns each new string the next
     // sequential SID), so no separate sort step is needed here the way
     // the original's `HASH_SORT` (via `by_sid`) was.
-    let mut j: u32 = 0 as u32;
     for (_, value) in ::core::mem::take(&mut *h) {
         let blob: *mut Buffer = bufnew();
         bufnwrite8(blob, &value);
-        *blobs.offset(j as isize) = blob;
-        j = j.wrapping_add(1);
+        blobs.push(blob);
     }
     let mut strings: *mut CffIndex = CFF_I_INDEX.from_callback.expect("non-null function pointer")(
-        blobs as *mut ::core::ffi::c_void,
+        blobs.as_mut_ptr() as *mut ::core::ffi::c_void,
         n,
         Some(
             callback_makestringindex
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
         ),
     );
-    free(blobs as *mut ::core::ffi::c_void);
-    blobs = ::core::ptr::null_mut::<*mut Buffer>();
     let mut final_blob: *mut Buffer =
         CFF_I_INDEX.build.expect("non-null function pointer")(strings);
     CFF_I_INDEX.free.expect("non-null function pointer")(strings);
@@ -2641,32 +2637,14 @@ unsafe extern "C" fn writecff_cid_keyed(
     bufwrite_bufdel(blob, c);
     bufwrite_bufdel(blob, e);
     bufwrite_bufdel(blob, s);
-    let mut starting_position_of_privates: *mut usize = ::core::ptr::null_mut::<usize>();
-    starting_position_of_privates = __caryll_allocate_clean(
-        (::core::mem::size_of::<usize>() as usize).wrapping_mul(
-            1 + (*cff).fd_array.len(),
-        ),
-        1350 as ::core::ffi::c_ulong,
-    ) as *mut usize;
-    *starting_position_of_privates.offset(0 as ::core::ffi::c_int as isize) = (*blob).cursor;
+    let mut starting_position_of_privates: Vec<usize> = vec![0; 1 + (*cff).fd_array.len()];
+    starting_position_of_privates[0] = (*blob).cursor;
     bufwrite_bufdel(blob, p);
-    let mut ending_position_of_privates: *mut usize = ::core::ptr::null_mut::<usize>();
-    ending_position_of_privates = __caryll_allocate_clean(
-        (::core::mem::size_of::<usize>() as usize).wrapping_mul(
-            1 + (*cff).fd_array.len(),
-        ),
-        1354 as ::core::ffi::c_ulong,
-    ) as *mut usize;
-    *ending_position_of_privates.offset(0 as ::core::ffi::c_int as isize) = (*blob).cursor;
+    let mut ending_position_of_privates: Vec<usize> = vec![0; 1 + (*cff).fd_array.len()];
+    ending_position_of_privates[0] = (*blob).cursor;
     if (*cff).is_cid {
         let mut fd_array_privates_start_offset: u32 = off;
-        let mut fd_array_privates: *mut *mut Buffer =
-            ::core::ptr::null_mut::<*mut Buffer>();
-        fd_array_privates = __caryll_allocate_clean(
-            (::core::mem::size_of::<*mut Buffer>() as usize)
-                .wrapping_mul((*cff).fd_array.len()),
-            1359 as ::core::ffi::c_ulong,
-        ) as *mut *mut Buffer;
+        let mut fd_array_privates: Vec<*mut Buffer> = vec![::core::ptr::null_mut::<Buffer>(); (*cff).fd_array.len()];
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*cff).fd_array.len() {
             let mut pd: *mut CffDict =
@@ -2682,8 +2660,7 @@ unsafe extern "C" fn writecff_cid_keyed(
                 cff_encode_cff_operator(OP_SUBRS),
             );
             CFF_I_DICT.free.expect("non-null function pointer")(pd);
-            let ref mut fresh14 = *fd_array_privates.offset(j as isize);
-            *fresh14 = p_0;
+            fd_array_privates[j as usize] = p_0;
             let mut private_length_ptr: *mut u8 = {
                 let fd_array_offset = &(*fd_array_index).offset;
                 let off = (fd_array_offset
@@ -2729,17 +2706,11 @@ unsafe extern "C" fn writecff_cid_keyed(
         bufwrite_bufdel(blob, r);
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*cff).fd_array.len() {
-            *starting_position_of_privates
-                .offset((j_0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize) =
-                (*blob).cursor;
-            bufwrite_bufdel(blob, *fd_array_privates.offset(j_0 as isize));
-            *ending_position_of_privates
-                .offset((j_0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize) =
-                (*blob).cursor;
+            starting_position_of_privates[(j_0 as usize) + 1] = (*blob).cursor;
+            bufwrite_bufdel(blob, fd_array_privates[j_0 as usize]);
+            ending_position_of_privates[(j_0 as usize) + 1] = (*blob).cursor;
             j_0 = j_0.wrapping_add(1);
         }
-        free(fd_array_privates as *mut ::core::ffi::c_void);
-        fd_array_privates = ::core::ptr::null_mut::<*mut Buffer>();
     } else {
         bufwrite_bufdel(blob, r);
     }
@@ -2750,9 +2721,9 @@ unsafe extern "C" fn writecff_cid_keyed(
         < (*cff).fd_array.len() as ::core::ffi::c_int + 1 as ::core::ffi::c_int
     {
         let mut ls_offset: usize = position_of_local_subroutines
-            .wrapping_sub(*starting_position_of_privates.offset(j_1 as isize));
+            .wrapping_sub(starting_position_of_privates[j_1 as usize]);
         let mut ptr: *mut u8 = (*blob).data.offset(
-            (*ending_position_of_privates.offset(j_1 as isize)).wrapping_sub(5 as usize) as isize,
+            (ending_position_of_privates[j_1 as usize]).wrapping_sub(5 as usize) as isize,
         ) as *mut u8;
         *ptr.offset(0 as ::core::ffi::c_int as isize) =
             (ls_offset >> 24 as ::core::ffi::c_int & 0xff as usize) as u8;
@@ -2764,10 +2735,6 @@ unsafe extern "C" fn writecff_cid_keyed(
             (ls_offset >> 0 as ::core::ffi::c_int & 0xff as usize) as u8;
         j_1 = j_1.wrapping_add(1);
     }
-    free(starting_position_of_privates as *mut ::core::ffi::c_void);
-    starting_position_of_privates = ::core::ptr::null_mut::<usize>();
-    free(ending_position_of_privates as *mut ::core::ffi::c_void);
-    ending_position_of_privates = ::core::ptr::null_mut::<usize>();
     return blob;
 }
 pub unsafe extern "C" fn otfcc_build_cff(

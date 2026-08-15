@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, memcpy, memset, snprintf, strlen, strtol};
+use libc::{memcpy, snprintf, strlen, strtol};
 
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_int_val, json_str_len, json_str_ptr, json_type_of};
 
@@ -25,7 +25,14 @@ pub const TTF_NPUSHB: u8 = 64;
 pub const TTF_NPUSHW: u8 = 65;
 pub const TTF_PUSHB: u8 = 176;
 pub const TTF_PUSHW: u8 = 184;
-#[derive(Copy, Clone)]
+// `instrs` stays a borrowed raw pointer -- every `InstrData.instrs` value is
+// an alias into a caller-owned buffer (`Glyph.instructions`/`FpgmPrepTable.
+// bytes`), never allocated here, and those two fields are themselves a
+// deliberate Stage 6-4 "outer struct Box'd, inner array stays a manually
+// freed raw pointer" case, per rust/README.md -- left untouched this round.
+// `bts`, in contrast, is allocated, filled, and freed entirely within this
+// file (`instr_typify` builds it, `dump_ttinstr` reads it and drops it), so
+// it converts cleanly to `Vec` with no boundary to preserve.
 #[repr(C)]
 pub struct InstrData {
     pub instrs: *mut u8,
@@ -33,7 +40,7 @@ pub struct InstrData {
     /// What each byte of `instrs` *is*, one entry per byte, filled in by
     /// [`instr_typify`]. Not part of the instruction stream: the two arrays run
     /// in parallel, which is why this one is typed and `instrs` stays `u8`.
-    pub bts: *mut ByteType,
+    pub bts: Vec<ByteType>,
 }
 
 /// The role of one byte in a TrueType instruction stream: the opcode itself, or
@@ -729,15 +736,10 @@ unsafe extern "C" fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int 
     let mut j: ::core::ffi::c_int = 0;
     let mut lh: ::core::ffi::c_int = 0;
     let mut instrs: *mut u8 = (*id).instrs;
-    let mut bts: *mut ByteType = ::core::ptr::null_mut::<ByteType>();
-    if (*id).bts.is_null() {
-        (*id).bts = __caryll_allocate_clean(
-            (::core::mem::size_of::<ByteType>() as usize)
-                .wrapping_mul((len + 1 as ::core::ffi::c_int) as usize),
-            582 as ::core::ffi::c_ulong,
-        ) as *mut ByteType;
+    if (*id).bts.is_empty() {
+        (*id).bts = vec![ByteType::Instr; (len + 1 as ::core::ffi::c_int) as usize];
     }
-    bts = (*id).bts;
+    let bts: *mut ByteType = (*id).bts.as_mut_ptr();
     lh = 0 as ::core::ffi::c_int;
     i = lh;
     while i < len {
@@ -813,20 +815,15 @@ pub unsafe extern "C" fn dump_ttinstr(
         let mut id: InstrData = InstrData {
             instrs: ::core::ptr::null_mut::<u8>(),
             instr_cnt: 0,
-            bts: ::core::ptr::null_mut::<ByteType>(),
+            bts: Vec::new(),
         };
-        memset(
-            &raw mut id as *mut ::core::ffi::c_void,
-            0 as ::core::ffi::c_int,
-            ::core::mem::size_of::<InstrData>() as usize,
-        );
         id.instr_cnt = length;
         id.instrs = instructions;
         instr_typify(&raw mut id);
         let mut ret: *mut BuiltValue = json_array_new(id.instr_cnt as usize);
         let mut i: u32 = 0 as u32;
         while i < id.instr_cnt {
-            if *id.bts.offset(i as isize) == ByteType::WordHi {
+            if id.bts[i as usize] == ByteType::WordHi {
                 json_array_push(
                     ret,
                     json_integer_new(
@@ -838,8 +835,8 @@ pub unsafe extern "C" fn dump_ttinstr(
                     ),
                 );
                 i = i.wrapping_add(1);
-            } else if *id.bts.offset(i as isize) == ByteType::Cnt
-                || *id.bts.offset(i as isize) == ByteType::Byte
+            } else if id.bts[i as usize] == ByteType::Cnt
+                || id.bts[i as usize] == ByteType::Byte
             {
                 json_array_push(
                     ret,
@@ -853,8 +850,6 @@ pub unsafe extern "C" fn dump_ttinstr(
             }
             i = i.wrapping_add(1);
         }
-        free(id.bts as *mut ::core::ffi::c_void);
-        id.bts = ::core::ptr::null_mut::<ByteType>();
         return preserialize(ret);
     };
 }

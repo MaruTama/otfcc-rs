@@ -894,6 +894,98 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Twelve more malloc'd scratch/output arrays convert to `Vec`, bundled into
+  one PR -- the medium-priority half of the full-crate audit's Vec-conversion
+  list, everything left except `CffIndex`/`CffDict` (PR #180, the highest-
+  priority item, shipped separately) and `caryll_sfnt.rs`'s `Packet`/
+  `PacketPiece` (investigated and split out into its own future PR -- see
+  below).** Every item is a self-contained local scratch buffer or an
+  output array with no external touch points beyond its own file (confirmed
+  by grep before converting each one), so this is a wide but shallow sweep:
+  same "calloc a fixed-size buffer up front, fill it, free it at the end"
+  shape throughout, all converting to the same `Vec::with_capacity`/`vec![]`
+  + indexing (or `.push()`) pattern already established by every prior unit.
+  - `libcff/charstring_il.rs`: `CffCharstringIl.instr`/`.length`/`.free`
+    collapse into a single `Vec<CffCharstringInstruction>` field -- the
+    hand-rolled 256-instruction-block growth (`ensure_there_is_space`) is
+    exactly what `Vec::push` already does, so the three `il_push_*` helpers
+    shrink to one push call each. The ~50 `.offset()` read/mutate sites
+    across `zroll`/`opop_roll`/`hvlineto_roll`/`hvvhcurve_roll`/
+    `hhvvcurve_roll`/`il_matchtype`/`il_matchop`/`nextstop` (plus `subr.rs`'s
+    `cff_insert_il_to_graph`) keep their exact shape via `.as_mut_ptr()`,
+    same idiom as `CffStack`/`cff_parser.rs`. `cff_build_il`/`cff_shrink_il`/
+    `cff_i_lmerge_il`/`cff_il_equal`/`instruction_eq` are converted too even
+    though grep confirms zero call sites for any of them (dead since before
+    this migration) -- kept compiling rather than deleted, since removing
+    live-looking code is out of scope for a mechanical Vec sweep.
+  - `bk/bkgraph.rs`: `compute_block_offsets`'s return value becomes
+    `Vec<usize>`, with `getoffset`/`getoffset_untangle`/`otfcc_build_bkblock`/
+    `try_untabgle_block` taking `&[usize]` instead of `*mut usize` -- all
+    four only ever read it.
+  - `support/unicodeconv.rs`: `utf8toutf16be` returns `Vec<u8>` instead of a
+    `malloc`'d `*mut u8` plus an `out_bytes` out-param, matching its sibling
+    `utf16be_to_utf8`'s shape (converted several units ago); its one caller
+    (`table/name.rs`) drops the matching `free`.
+  - `consolidate.rs`: `consolidate_glyph_hints`'s `hmap`/`vmap` permutation
+    scratch arrays.
+  - `otf_reader/unconsolidate.rs`: `merge_vmtx`'s `vorgs` becomes
+    `Option<Vec<Pos>>` (the `Option` replacing the old null-pointer-as-
+    "vorg table absent" signal), same shape as the already-converted
+    `stat_glyf` frequency array.
+  - `support/ttinstr.rs`: only `InstrData.bts` converts, *not* `.instrs` --
+    `.bts` is allocated, filled (`instr_typify`), and freed entirely within
+    this file, but `.instrs` is always a borrowed alias into a caller-owned
+    buffer (`Glyph.instructions`/`FpgmPrepTable.bytes`), and those two
+    fields are themselves a deliberate Stage 6-4 "outer struct Box'd, inner
+    array stays a manually freed raw pointer" case (documented above,
+    "Post-transpile fixups"). Converting `.instrs` would mean changing what
+    `Glyph.instructions` is, which is out of scope here. Also deleted a
+    `memset`-then-immediately-overwrite-with-a-real-literal dead line in
+    `dump_ttinstr` that would have been unsound once `InstrData` owns a
+    `Vec` (zeroing over a live `Vec`'s pointer/len/cap is UB, even though
+    the values it zeroed were already about to be set to the same thing by
+    the surrounding struct literal).
+  - `table/glyf/build.rs`: `otfcc_build_glyf`'s `loca` offset table.
+  - `table/otl/subtables/chaining/build.rs`: `otfcc_build_chaining_classes`'s
+    `rcpg` class-population-count scratch, converted identically in both of
+    its two near-duplicate copies (`otfcc_build_chaining_classes` proper and
+    the equivalent block in `otfcc_build_contextual`'s classified branch).
+  - `table/base.rs`: `axis_to_bk`'s `BaseTagList.items` -- was a hand-rolled
+    "linear-search for an existing tag, grow-by-one-and-append if not
+    found" loop, now `Vec::contains`/`Vec::push`; the `qsort`+`by_tag`
+    comparator (now with zero remaining callers, deleted) becomes
+    `Vec::sort` since ordinary integer ordering needs no custom comparator.
+  - `libcff/cff_codecs.rs`: `cff_encode_cff_float`'s BCD nibble-array
+    scratch.
+  - `table/cff.rs`: `cffstrings_to_indexblob`'s `blobs` pointer array (now
+    `Vec<*mut Buffer>` -- dropping it still only deallocates the pointer
+    array itself, never the `Buffer`s it points to, matching the original
+    `free`'s exact scope) and `writecff_cid_keyed`'s three CID-FDArray
+    bookkeeping arrays (`starting_position_of_privates`,
+    `ending_position_of_privates`, `fd_array_privates`). (`cffdict_input_
+    doubles`/`_ints`/`_array` were already converted in the `CffDict` PR
+    above.)
+  - `table/tsi5.rs`: `otfcc_build_tsi5`'s `tsi5cls` per-glyph class table.
+  - **Investigated but split out, not included here: `font/caryll_sfnt.rs`'s
+    `SplineFontContainer.offsets`/`.packets`/`Packet.pieces`/`PacketPiece.
+    data`.** This one is a different shape from the twelve above: `Packet`
+    is passed *by value* to all ~33 `table/*.rs` parse functions (relying on
+    its `Copy` derive), reused across ~20 sequential calls in
+    `otf_reader.rs`'s `otfcc_read_sfnt`. Converting `Packet.pieces`/
+    `PacketPiece.data` to `Vec` loses `Copy`, which would require changing
+    every one of those ~33 function signatures to `&Packet` and every call
+    site to match, plus a more involved rewrite of `table/_tsi.rs`'s
+    found/not-found placeholder pattern (`text_part`/`index_part` currently
+    reassigned by value, would need `Option<&PacketPiece>` instead). Scope
+    comparable to or larger than `CffIndex`/`CffDict`, so left for its own
+    dedicated PR rather than folded into this bundle.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib; all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green;
+    `compare-log-output.sh` green.
+
 - **`CffIndex`/`CffDict` convert their malloc'd arrays to `Vec` -- the two
   remaining "counted array sized from untrusted CFF bytes" structures the
   full-crate audit flagged, same risk class `CffStack` closed for the

@@ -487,8 +487,8 @@ pub unsafe extern "C" fn cff_insert_il_to_graph(
     let mut flush: bool = false;
     let mut last: bool = false;
     let mut j: u32 = 0 as u32;
-    while j < (*il).length {
-        match (*(*il).instr.offset(j as isize)).type_0 as ::core::ffi::c_uint {
+    while j < (*il).instr.len() as u32 {
+        match (*(*il).instr.as_mut_ptr().offset(j as isize)).type_0 as ::core::ffi::c_uint {
             0 => {
                 if flush {
                     let mut n: *mut CffSubrNode = cff_new_node();
@@ -499,14 +499,14 @@ pub unsafe extern "C" fn cff_insert_il_to_graph(
                     blob = bufnew();
                     flush = false;
                 }
-                cff_merge_cs2_operand(blob, (*(*il).instr.offset(j as isize)).d());
+                cff_merge_cs2_operand(blob, (*(*il).instr.as_mut_ptr().offset(j as isize)).d());
             }
             1 => {
                 cff_merge_cs2_operator(
                     blob,
-                    CffCharstringOperator((*(*il).instr.offset(j as isize)).i()),
+                    CffCharstringOperator((*(*il).instr.as_mut_ptr().offset(j as isize)).i()),
                 );
-                if (*(*il).instr.offset(j as isize)).i()
+                if (*(*il).instr.as_mut_ptr().offset(j as isize)).i()
                     == OP_ENDCHAR.0
                 {
                     last = true;
@@ -516,7 +516,7 @@ pub unsafe extern "C" fn cff_insert_il_to_graph(
             2 => {
                 cff_merge_cs2_special(
                     blob,
-                    (*(*il).instr.offset(j as isize)).i() as u8,
+                    (*(*il).instr.as_mut_ptr().offset(j as isize)).i() as u8,
                 );
                 flush = true;
             }

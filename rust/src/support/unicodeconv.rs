@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{malloc};
 
 // `utf16be_to_utf8` returns `Vec<u8>` now instead of `SdsRaw`, its only
 // caller (`table/name.rs`) a direct Rust call site (never a real FFI
@@ -117,8 +116,12 @@ pub unsafe extern "C" fn utf16be_to_utf8(
 //
 // Never a real FFI boundary -- internal call site only, same rationale
 // as every other instance of this allow in the crate.
-#[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn utf8toutf16be(_in: &[u8], mut out_bytes: *mut usize) -> *mut u8 {
+//
+// Returns `Vec<u8>` now instead of a `malloc`'d `*mut u8` plus an
+// `out_bytes` out-param -- matches `utf16be_to_utf8`'s sibling shape,
+// its size no longer duplicated in a separate counter the caller had to
+// remember to `free`.
+pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
     let mut in_0: *const ::core::ffi::c_char = _in.as_ptr() as *const ::core::ffi::c_char;
     let inlen: usize = _in.len();
     let mut inend: *const ::core::ffi::c_char = in_0.offset(inlen as isize);
@@ -172,11 +175,7 @@ pub unsafe extern "C" fn utf8toutf16be(_in: &[u8], mut out_bytes: *mut usize) ->
             words_needed = words_needed.wrapping_add(2 as u32);
         }
     }
-    let mut _out: *mut u8 = malloc(
-        ((2 as u32).wrapping_mul(words_needed) as usize)
-            .wrapping_mul(::core::mem::size_of::<u8>() as usize),
-    ) as *mut u8;
-    let mut out: *mut u8 = _out;
+    let mut out: Vec<u8> = Vec::with_capacity((2 as u32).wrapping_mul(words_needed) as usize);
     in_0 = _in.as_ptr() as *const ::core::ffi::c_char;
     while in_0 < inend {
         let fresh20 = in_0;
@@ -220,32 +219,19 @@ pub unsafe extern "C" fn utf8toutf16be(_in: &[u8], mut out_bytes: *mut usize) ->
             trailing = trailing.wrapping_sub(1);
         }
         if c < 0x10000 as u32 {
-            let fresh22 = out;
-            out = out.offset(1);
-            *fresh22 = (c >> 8 as ::core::ffi::c_int & 0xff as u32) as u8;
-            let fresh23 = out;
-            out = out.offset(1);
-            *fresh23 = (c & 0xff as u32) as u8;
+            out.push((c >> 8 as ::core::ffi::c_int & 0xff as u32) as u8);
+            out.push((c & 0xff as u32) as u8);
         } else if c < 0x110000 as u32 {
             let mut tmp1: u16 =
                 (0xd800 as u32 | c >> 10 as ::core::ffi::c_int) as u16;
-            let fresh24 = out;
-            out = out.offset(1);
-            *fresh24 = (tmp1 as ::core::ffi::c_int >> 8 as ::core::ffi::c_int
-                & 0xff as ::core::ffi::c_int) as u8;
-            let fresh25 = out;
-            out = out.offset(1);
-            *fresh25 = (tmp1 as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8;
+            out.push((tmp1 as ::core::ffi::c_int >> 8 as ::core::ffi::c_int
+                & 0xff as ::core::ffi::c_int) as u8);
+            out.push((tmp1 as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8);
             let mut tmp2: u16 = (0xdc00 as u32 | c & 0x3ff as u32) as u16;
-            let fresh26 = out;
-            out = out.offset(1);
-            *fresh26 = (tmp2 as ::core::ffi::c_int >> 8 as ::core::ffi::c_int
-                & 0xff as ::core::ffi::c_int) as u8;
-            let fresh27 = out;
-            out = out.offset(1);
-            *fresh27 = (tmp2 as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8;
+            out.push((tmp2 as ::core::ffi::c_int >> 8 as ::core::ffi::c_int
+                & 0xff as ::core::ffi::c_int) as u8);
+            out.push((tmp2 as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8);
         }
     }
-    *out_bytes = words_needed.wrapping_mul(2 as u32) as usize;
-    return _out;
+    return out;
 }

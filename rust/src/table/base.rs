@@ -1,8 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, qsort};
-
 use crate::support::parsed_json::{ParsedValue, json_numof, json_obj_get_type, json_obj_getstr_share, json_obj_key_at, json_obj_len, json_obj_val_at, json_type_of};
-use crate::support::alloc::{__caryll_reallocate};
 use crate::support::binio::{read_16u, read_16s, read_32u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
 use crate::support::buffer::{Buffer};
@@ -62,11 +59,12 @@ pub struct BaseTable {
 // entry point's use-after-free earlier in this migration: converting the
 // ownership model made a bug stop being expressible, without this PR
 // needing to hunt it down and patch it as a separate step.
-#[derive(Copy, Clone)]
+// `items` was `__caryll_reallocate`'d one tag at a time by a hand-written
+// "search, then grow-by-one-and-append" loop in `axis_to_bk` -- exactly
+// `Vec::contains`/`Vec::push`. `size` duplicated `.len()` and is dropped.
 #[repr(C)]
 pub struct BaseTagList {
-    pub size: TableId,
-    pub items: *mut u32,
+    pub items: Vec<u32>,
 }
 unsafe extern "C" fn read_base_value(
     mut data: FontFilePointer,
@@ -502,96 +500,36 @@ pub unsafe extern "C" fn otfcc_parse_base(
     }
     return base;
 }
-unsafe extern "C" fn by_tag(
-    mut a: *const ::core::ffi::c_void,
-    mut b: *const ::core::ffi::c_void,
-) -> ::core::ffi::c_int {
-    return (*(a as *mut u32)).wrapping_sub(*(b as *mut u32)) as ::core::ffi::c_int;
-}
 pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
     if axis.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
     let mut taglist: BaseTagList = BaseTagList {
-        size: 0,
-        items: ::core::ptr::null_mut::<u32>(),
+        items: Vec::new(),
     };
-    taglist.size = 0 as TableId;
-    taglist.items = ::core::ptr::null_mut::<u32>();
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*axis).entries.len() {
         let entry: &BaseScriptEntry = &(&(*axis).entries)[j as usize];
         if entry.default_baseline_tag != 0 {
-            let mut found: bool = false;
-            let mut jk: TableId = 0 as TableId;
-            while (jk as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
-                if *taglist.items.offset(jk as isize) == entry.default_baseline_tag {
-                    found = true;
-                    break;
-                } else {
-                    jk = jk.wrapping_add(1);
-                }
-            }
-            if !found {
-                taglist.size =
-                    (taglist.size as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
-                taglist.items = __caryll_reallocate(
-                    taglist.items as *mut ::core::ffi::c_void,
-                    (::core::mem::size_of::<u32>() as usize)
-                        .wrapping_mul(taglist.size as usize),
-                    241 as ::core::ffi::c_ulong,
-                ) as *mut u32;
-                *taglist.items.offset(
-                    (taglist.size as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize,
-                ) = entry.default_baseline_tag;
+            if !taglist.items.contains(&entry.default_baseline_tag) {
+                taglist.items.push(entry.default_baseline_tag);
             }
         }
         let mut k: TableId = 0 as TableId;
         while (k as usize) < entry.base_values.len() {
             let tag: u32 = (&entry.base_values)[k as usize].tag;
-            let mut found_0: bool = false;
-            let mut jk_0: TableId = 0 as TableId;
-            while (jk_0 as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
-                if *taglist.items.offset(jk_0 as isize) == tag {
-                    found_0 = true;
-                    break;
-                } else {
-                    jk_0 = jk_0.wrapping_add(1);
-                }
-            }
-            if !found_0 {
-                taglist.size =
-                    (taglist.size as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
-                taglist.items = __caryll_reallocate(
-                    taglist.items as *mut ::core::ffi::c_void,
-                    (::core::mem::size_of::<u32>() as usize)
-                        .wrapping_mul(taglist.size as usize),
-                    256 as ::core::ffi::c_ulong,
-                ) as *mut u32;
-                *taglist.items.offset(
-                    (taglist.size as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize,
-                ) = tag;
+            if !taglist.items.contains(&tag) {
+                taglist.items.push(tag);
             }
             k = k.wrapping_add(1);
         }
         j = j.wrapping_add(1);
     }
-    qsort(
-        taglist.items as *mut ::core::ffi::c_void,
-        taglist.size as usize,
-        ::core::mem::size_of::<u32>() as usize,
-        Some(
-            by_tag
-                as unsafe extern "C" fn(
-                    *const ::core::ffi::c_void,
-                    *const ::core::ffi::c_void,
-                ) -> ::core::ffi::c_int,
-        ),
-    );
-    let mut base_tag_list: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (taglist.size as ::core::ffi::c_int) as u32)]);
+    taglist.items.sort();
+    let mut base_tag_list: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (taglist.items.len() as ::core::ffi::c_int) as u32)]);
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
-        bk_push(base_tag_list, &[bk_int(BkCellType::B32, (*taglist.items.offset(j_0 as isize)) as u32)]);
+    while (j_0 as usize) < taglist.items.len() {
+        bk_push(base_tag_list, &[bk_int(BkCellType::B32, taglist.items[j_0 as usize] as u32)]);
         j_0 = j_0.wrapping_add(1);
     }
     let mut base_script_list: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*axis).entries.len() as ::core::ffi::c_int) as u32)]);
@@ -601,8 +539,8 @@ pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
         let mut base_values: *mut BkBlock = bk_new_block(&[]);
         let mut default_index: TableId = 0 as TableId;
         let mut m: TableId = 0 as TableId;
-        while (m as ::core::ffi::c_int) < taglist.size as ::core::ffi::c_int {
-            if *taglist.items.offset(m as isize) == entry_0.default_baseline_tag {
+        while (m as usize) < taglist.items.len() {
+            if taglist.items[m as usize] == entry_0.default_baseline_tag {
                 default_index = m;
                 break;
             } else {
@@ -610,14 +548,14 @@ pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
             }
         }
         bk_push(base_values, &[bk_int(BkCellType::B16, (default_index as ::core::ffi::c_int) as u32)]);
-        bk_push(base_values, &[bk_int(BkCellType::B16, (taglist.size as ::core::ffi::c_int) as u32)]);
+        bk_push(base_values, &[bk_int(BkCellType::B16, (taglist.items.len() as ::core::ffi::c_int) as u32)]);
         let mut m_0: usize = 0 as usize;
-        while m_0 < taglist.size as usize {
+        while m_0 < taglist.items.len() {
             let mut found_1: bool = false;
             let mut found_index: TableId = 0 as TableId;
             let mut k_0: TableId = 0 as TableId;
             while (k_0 as usize) < entry_0.base_values.len() {
-                if (&entry_0.base_values)[k_0 as usize].tag == *taglist.items.offset(m_0 as isize)
+                if (&entry_0.base_values)[k_0 as usize].tag == taglist.items[m_0 as usize]
                 {
                     found_1 = true;
                     found_index = k_0;
@@ -638,8 +576,6 @@ pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
         bk_push(base_script_list, &[bk_int(BkCellType::B32, (entry_0.tag) as u32), bk_ptr(BkCellType::P16, script_record)]);
         j_1 = j_1.wrapping_add(1);
     }
-    free(taglist.items as *mut ::core::ffi::c_void);
-    taglist.items = ::core::ptr::null_mut::<u32>();
     return bk_new_block(&[bk_ptr(BkCellType::P16, base_tag_list), bk_ptr(BkCellType::P16, base_script_list)]);
 }
 #[allow(improper_ctypes_definitions)]
