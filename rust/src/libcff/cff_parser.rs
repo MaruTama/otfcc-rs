@@ -170,18 +170,18 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         pos,
         &raw mut (*cff).global_subr,
     );
-    if !(*cff).top_dict.data.is_null() {
+    if !(*cff).top_dict.data.is_empty() {
         let mut offset_0: i32 = 0;
         offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
-            (*cff).top_dict.data,
+            (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset
+                .offset.as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset
+                    .offset.as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_CHAR_STRINGS,
@@ -208,15 +208,15 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
             );
         }
         offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
-            (*cff).top_dict.data,
+            (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset
+                .offset.as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset
+                    .offset.as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_ENCODING,
@@ -230,15 +230,15 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
             (*cff).encodings = CffEncoding::Unspecified;
         }
         offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
-            (*cff).top_dict.data,
+            (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset
+                .offset.as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset
+                    .offset.as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_CHARSET,
@@ -256,15 +256,15 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
             (*cff).charsets = CffCharset::IsoAdobe;
         }
         offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
-            (*cff).top_dict.data,
+            (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset
+                .offset.as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset
+                    .offset.as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_FD_SELECT,
@@ -282,15 +282,15 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
             (*cff).fdselect = CffFdSelect::Unspecified;
         }
         offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
-            (*cff).top_dict.data,
+            (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset
+                .offset.as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset
+                    .offset.as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_FD_ARRAY,
@@ -310,17 +310,17 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
     }
     let mut private_len: i32 = -(1 as i32);
     let mut private_off: i32 = -(1 as i32);
-    if !(*cff).top_dict.data.is_null() {
+    if !(*cff).top_dict.data.is_empty() {
         private_len = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
-            (*cff).top_dict.data,
+            (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset
+                .offset.as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset
+                    .offset.as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_PRIVATE,
@@ -329,15 +329,15 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         .c2rust_unnamed
         .i;
         private_off = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
-            (*cff).top_dict.data,
+            (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset
+                .offset.as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset
+                    .offset.as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_PRIVATE,
@@ -424,7 +424,7 @@ pub unsafe extern "C" fn cff_close(mut file: *mut CffFile) {
 pub unsafe fn cff_parse_subr(
     idx: u16,
     raw: *mut u8,
-    fdarray: CffIndex,
+    fdarray: &CffIndex,
     select: &CffFdSelect,
     subr: *mut CffIndex,
 ) -> u8 {
@@ -460,13 +460,13 @@ pub unsafe fn cff_parse_subr(
     }
     off_private = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
         fdarray
-            .data
-            .offset(*fdarray.offset.offset(fd as isize) as isize)
+            .data.as_ptr()
+            .offset(*fdarray.offset.as_ptr().offset(fd as isize) as isize)
             .offset(-(1 as ::core::ffi::c_int as isize)),
         (*fdarray
-            .offset
+            .offset.as_ptr()
             .offset((fd as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
-        .wrapping_sub(*fdarray.offset.offset(fd as isize)),
+        .wrapping_sub(*fdarray.offset.as_ptr().offset(fd as isize)),
         OP_PRIVATE,
         1 as u32,
     )
@@ -474,13 +474,13 @@ pub unsafe fn cff_parse_subr(
     .i;
     len_private = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
         fdarray
-            .data
-            .offset(*fdarray.offset.offset(fd as isize) as isize)
+            .data.as_ptr()
+            .offset(*fdarray.offset.as_ptr().offset(fd as isize) as isize)
             .offset(-(1 as ::core::ffi::c_int as isize)),
         (*fdarray
-            .offset
+            .offset.as_ptr()
             .offset((fd as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
-        .wrapping_sub(*fdarray.offset.offset(fd as isize)),
+        .wrapping_sub(*fdarray.offset.as_ptr().offset(fd as isize)),
         OP_PRIVATE,
         0 as u32,
     )
@@ -579,8 +579,8 @@ unsafe extern "C" fn callback_nopgetrand(
 pub unsafe extern "C" fn cff_parse_outline(
     mut data: *mut u8,
     mut len: u32,
-    mut gsubr: CffIndex,
-    mut lsubr: CffIndex,
+    gsubr: &CffIndex,
+    lsubr: &CffIndex,
     mut stack: *mut CffStack,
     mut outline: *mut ::core::ffi::c_void,
     mut methods: CffIOutlineBuilder,
@@ -2661,24 +2661,24 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     .c2rust_unnamed
                                     .d as u32;
                             cff_parse_outline(
-                                lsubr
-                                    .data
+                                (lsubr
+                                    .data.as_ptr() as *mut u8)
                                     .offset(
                                         *lsubr
-                                            .offset
+                                            .offset.as_ptr()
                                             .offset((lsubr_bias as u32).wrapping_add(subr)
                                                 as isize)
                                             as isize,
                                     )
                                     .offset(-(1 as ::core::ffi::c_int as isize)),
-                                (*lsubr.offset.offset(
+                                (*lsubr.offset.as_ptr().offset(
                                     (lsubr_bias as u32)
                                         .wrapping_add(subr)
                                         .wrapping_add(1 as u32)
                                         as isize,
                                 ))
                                 .wrapping_sub(
-                                    *lsubr.offset.offset(
+                                    *lsubr.offset.as_ptr().offset(
                                         (lsubr_bias as u32).wrapping_add(subr) as isize,
                                     ),
                                 ),
@@ -2715,20 +2715,20 @@ pub unsafe extern "C" fn cff_parse_outline(
                                     .c2rust_unnamed
                                     .d as u32;
                             cff_parse_outline(
-                                gsubr
-                                    .data
-                                    .offset(*gsubr.offset.offset(
+                                (gsubr
+                                    .data.as_ptr() as *mut u8)
+                                    .offset(*gsubr.offset.as_ptr().offset(
                                         (gsubr_bias as u32).wrapping_add(subr_0) as isize,
                                     ) as isize)
                                     .offset(-(1 as ::core::ffi::c_int as isize)),
-                                (*gsubr.offset.offset(
+                                (*gsubr.offset.as_ptr().offset(
                                     (gsubr_bias as u32)
                                         .wrapping_add(subr_0)
                                         .wrapping_add(1 as u32)
                                         as isize,
                                 ))
                                 .wrapping_sub(
-                                    *gsubr.offset.offset(
+                                    *gsubr.offset.as_ptr().offset(
                                         (gsubr_bias as u32).wrapping_add(subr_0) as isize,
                                     ),
                                 ),

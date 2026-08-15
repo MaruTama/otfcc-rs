@@ -1,26 +1,26 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, memcpy, memset};
-
-
-use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{Buffer};
 use crate::libcff::CffDictOperator;
 use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
 use crate::libcff::cff_codecs::{cff_decode_cff_token, cff_encode_cff_float, cff_encode_cff_integer, cff_encode_cff_operator};
 use crate::support::buffer::{bufnew, bufwrite_bufdel};
 
-#[derive(Copy, Clone)]
+// `vals` was `__caryll_allocate_clean`'d/`free`'d, sized from `cnt` -- an
+// operand count read out of untrusted CFF DICT bytes in `parse_dict`, the
+// same class of risk `CffIndex.offset`/`.data` had. `Vec` removes the
+// manual free pair and the OOB-write risk a counting mistake there would
+// have caused.
 #[repr(C)]
 pub struct CffDictEntry {
     pub op: CffDictOperator,
-    pub cnt: u32,
-    pub vals: *mut CffValue,
+    pub vals: Vec<CffValue>,
 }
-#[derive(Copy, Clone)]
+// `ents` was similarly `__caryll_reallocate`'d one entry at a time while
+// parsing untrusted DICT bytes (`parse_dict`'s `count`), and in the write
+// (build) path (`table/cff.rs`'s `cffdict_givemeablank`).
 #[repr(C)]
 pub struct CffDict {
-    pub count: u32,
-    pub ents: *mut CffDictEntry,
+    pub ents: Vec<CffDictEntry>,
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -60,15 +60,7 @@ pub struct CffGetKeyContext {
 }
 #[inline]
 unsafe extern "C" fn dispose_dict(mut dict: *mut CffDict) {
-    let mut j: u32 = 0 as u32;
-    while j < (*dict).count {
-        free((*(*dict).ents.offset(j as isize)).vals as *mut ::core::ffi::c_void);
-        let ref mut fresh3 = (*(*dict).ents.offset(j as isize)).vals;
-        *fresh3 = ::core::ptr::null_mut::<CffValue>();
-        j = j.wrapping_add(1);
-    }
-    free((*dict).ents as *mut ::core::ffi::c_void);
-    (*dict).ents = ::core::ptr::null_mut::<CffDictEntry>();
+    (*dict).ents = Vec::new();
 }
 #[inline]
 unsafe extern "C" fn cff_dict_create() -> *mut CffDict {
@@ -78,8 +70,7 @@ unsafe extern "C" fn cff_dict_create() -> *mut CffDict {
     // slot with no call site anywhere in the crate, same "present but
     // unreachable" shape as `subtable_gpos_pair_copy`).
     Box::into_raw(Box::new(CffDict {
-        count: 0,
-        ents: ::core::ptr::null_mut(),
+        ents: Vec::new(),
     }))
 }
 #[inline]
@@ -102,26 +93,23 @@ unsafe extern "C" fn cff_dict_dispose(mut x: *mut CffDict) {
 }
 #[inline]
 unsafe extern "C" fn cff_dict_init(mut x: *mut CffDict) {
-    memset(
-        x as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<CffDict>() as usize,
-    );
+    // No all-zero bit pattern is a valid `CffDict` any more (it owns a
+    // `Vec`), so place a valid empty value directly instead of the old
+    // `memset`.
+    ::core::ptr::write(x, CffDict { ents: Vec::new() });
 }
 #[inline]
-unsafe extern "C" fn cff_dict_copy(mut dst: *mut CffDict, mut src: *const CffDict) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<CffDict>() as usize,
-    );
+unsafe extern "C" fn cff_dict_copy(mut _dst: *mut CffDict, mut _src: *const CffDict) {
+    // Confirmed dead: `CFF_I_DICT.copy` has no call site anywhere in the
+    // crate. The old `memcpy`-based body was only safe by accident, back
+    // when both fields were raw pointers a bitwise copy could alias
+    // harmlessly; now that `ents` (and each entry's `vals`) are `Vec`s, a
+    // `memcpy` would double-free. Kept as a loud failure instead of
+    // silently reintroducing that risk if this ever gets wired up.
+    unreachable!("CffDict::copy is dead code and unsound for owned Vec data")
 }
 unsafe extern "C" fn parse_dict(mut data: *const u8, len: u32) -> *mut CffDict {
-    let mut dict: *mut CffDict = ::core::ptr::null_mut::<CffDict>();
-    dict = __caryll_allocate_clean(
-        ::core::mem::size_of::<CffDict>() as usize,
-        14 as ::core::ffi::c_ulong,
-    ) as *mut CffDict;
+    let dict: *mut CffDict = Box::into_raw(Box::new(CffDict { ents: Vec::new() }));
     let mut index: u32 = 0 as u32;
     let mut advance: u32 = 0;
     let mut val: CffValue = CffValue {
@@ -137,26 +125,10 @@ unsafe extern "C" fn parse_dict(mut data: *const u8, len: u32) -> *mut CffDict {
         advance = cff_decode_cff_token(temp, &raw mut val);
         match val.t {
             CffValueType::Operator => {
-                (*dict).ents = __caryll_reallocate(
-                    (*dict).ents as *mut ::core::ffi::c_void,
-                    (::core::mem::size_of::<CffDictEntry>() as usize)
-                        .wrapping_mul((*dict).count.wrapping_add(1 as u32) as usize),
-                    24 as ::core::ffi::c_ulong,
-                ) as *mut CffDictEntry;
-                (*(*dict).ents.offset((*dict).count as isize)).op =
-                    CffDictOperator(val.c2rust_unnamed.i as u32);
-                (*(*dict).ents.offset((*dict).count as isize)).cnt = index;
-                let ref mut fresh1 = (*(*dict).ents.offset((*dict).count as isize)).vals;
-                *fresh1 = __caryll_allocate_clean(
-                    (::core::mem::size_of::<CffValue>() as usize).wrapping_mul(index as usize),
-                    27 as ::core::ffi::c_ulong,
-                ) as *mut CffValue;
-                memcpy(
-                    (*(*dict).ents.offset((*dict).count as isize)).vals as *mut ::core::ffi::c_void,
-                    &raw mut stack as *mut CffValue as *const ::core::ffi::c_void,
-                    (::core::mem::size_of::<CffValue>() as usize).wrapping_mul(index as usize),
-                );
-                (*dict).count = (*dict).count.wrapping_add(1);
+                (*dict).ents.push(CffDictEntry {
+                    op: CffDictOperator(val.c2rust_unnamed.i as u32),
+                    vals: stack[..index as usize].to_vec(),
+                });
                 index = 0 as u32;
             }
             CffValueType::Integer | CffValueType::Double => {
@@ -266,39 +238,28 @@ unsafe extern "C" fn parse_dict_key(
 }
 unsafe extern "C" fn build_dict(mut dict: *const CffDict) -> *mut Buffer {
     let mut blob: *mut Buffer = bufnew();
-    let mut i: u32 = 0 as u32;
-    while i < (*dict).count {
-        let mut j: u32 = 0 as u32;
-        while j < (*(*dict).ents.offset(i as isize)).cnt {
+    let ents = &(*dict).ents;
+    let mut i: usize = 0;
+    while i < ents.len() {
+        let vals = &ents[i].vals;
+        let mut j: usize = 0;
+        while j < vals.len() {
             let mut blob_val: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-            if (*(*(*dict).ents.offset(i as isize)).vals.offset(j as isize)).t
-                as ::core::ffi::c_uint
+            if vals[j].t as ::core::ffi::c_uint
                 == CffValueType::Integer as ::core::ffi::c_int as ::core::ffi::c_uint
             {
-                blob_val = cff_encode_cff_integer(
-                    (*(*(*dict).ents.offset(i as isize)).vals.offset(j as isize))
-                        .c2rust_unnamed
-                        .i,
-                );
-            } else if (*(*(*dict).ents.offset(i as isize)).vals.offset(j as isize)).t
-                as ::core::ffi::c_uint
+                blob_val = cff_encode_cff_integer(vals[j].c2rust_unnamed.i);
+            } else if vals[j].t as ::core::ffi::c_uint
                 == CffValueType::Double as ::core::ffi::c_int as ::core::ffi::c_uint
             {
-                blob_val = cff_encode_cff_float(
-                    (*(*(*dict).ents.offset(i as isize)).vals.offset(j as isize))
-                        .c2rust_unnamed
-                        .d,
-                );
+                blob_val = cff_encode_cff_float(vals[j].c2rust_unnamed.d);
             } else {
                 blob_val = cff_encode_cff_integer(0 as i32);
             }
             bufwrite_bufdel(blob, blob_val);
             j = j.wrapping_add(1);
         }
-        bufwrite_bufdel(
-            blob,
-            cff_encode_cff_operator((*(*dict).ents.offset(i as isize)).op),
-        );
+        bufwrite_bufdel(blob, cff_encode_cff_operator(ents[i].op));
         i = i.wrapping_add(1);
     }
     return blob;
