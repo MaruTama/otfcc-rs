@@ -894,6 +894,69 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Three more tag+union pairs become enums, bundled into one PR:
+  `VqSegment`/`VqSegmentValue`, `BkCell`/`BkCellValue`, and
+  `CffCharstringInstruction`/`CffCharstringArgument`.** The last of the
+  union→enum candidates the full-crate audit turned up, closing out that
+  theme. Unlike `ChainingSubtable`, none of these three own heap data --
+  every union arm is `Copy` (`Pos`/`f64`, `i32`, `u32`, a borrowed raw
+  pointer) -- so all three new enums stay `Copy` too, with no `Drop`/
+  ownership bookkeeping at all.
+  - `VqSegment` (`vf/vq.rs`, ~20 call sites plus 3 in `table/fvar.rs`/
+    `table/glyf/read.rs`/`otf_reader/unconsolidate.rs`) becomes `enum
+    VqSegment { Still(Pos), Delta(VqSegmentDelta) }`. `hash_vqs`
+    (`unconsolidate.rs`) writes the variant as a byte into the glyph hash,
+    byte-for-byte -- now via an explicit `discriminant_byte()` method (a
+    plain `as` cast can't extract a discriminant from a data-carrying
+    variant), pinned 0/1 by the existing `vqsegtype_discriminants_are_the_
+    hashed_values` test, rewritten to match. `copy_vq_segment` needed the
+    most care: the original only copied `.quantity`/`.region` into an
+    existing `Delta` slot, leaving `.touched`'s bits whatever they already
+    were -- meaningful when overwriting an existing `Delta` (preserved
+    exactly), undefined when the destination was fresh-`Still` (every real
+    call site), where `false` now replaces the old uninitialized read with
+    a defined, safe value. Traced every `.touched` reader to confirm this
+    is safe: it does affect real output (`table/fvar.rs`'s `json_new_vq_
+    segment` reads it for gvar's `"implicit"` JSON field), but only the
+    values `table/glyf/read.rs`'s `apply_coords` sets explicitly -- the
+    values flowing through `copy_vq_segment`'s "fresh `Still` dst" case
+    never reach that dump path in practice, confirmed by the full pipeline
+    (`gvar-test.ttf` byte-identical both directions on both platforms).
+  - `BkCell` (`bk/bkblock.rs` + `bk/bkgraph.rs`, ~25 call sites) becomes
+    `struct BkCell { t: BkCellType, value: BkCellValue }` with `enum
+    BkCellValue { Int(u32), Ptr(*mut BkBlock) }`. Unlike the other two,
+    `BkCellType`'s ten values don't map 1:1 onto the union's two arms
+    (`B8`/`B16`/`B32` all share `.z`, six more variants all share `.p`), so
+    `t` stays a separate field -- `bk_cell_is_pointer`'s existing `t >=
+    BkCellType::P16` still decides which one a given `t` implies. This is
+    the crate's central binary-serialization primitive (every table's
+    build path funnels through it), so its exercise by the standard
+    verification suite is about as thorough as this crate gets.
+  - `CffCharstringInstruction` (`libcff/charstring_il.rs`, 39 call sites,
+    plus 4 in `libcff/subr.rs`) becomes `struct { type_0: CffInstructionType,
+    arity: Arity, arg: CffCharstringArgument }` with `enum
+    CffCharstringArgument { D(f64), I(i32) }` -- `type_0`'s five values
+    similarly don't map 1:1 (`Operand`/`PhantomOperand` share `.d`,
+    the other three share `.i`), so it also stays separate. Found one real
+    ordering bug while converting, not just a mechanical rename:
+    `hvlineto_roll` computed its `checkdelta` value (reading `.i()`)
+    *before* confirming the instruction at that position was actually an
+    operator -- harmless under the old union (a stray read of the wrong
+    arm's bits, discarded moments later since the surrounding condition
+    never used it if the check failed) but a real panic under the new
+    enum. Fixed by moving the read after the operator check that already
+    guarded every other read in this function -- the value was always
+    discarded on the failing path anyway, so this changes nothing
+    observable, confirmed by both platforms' full pipelines (the panic
+    reproduced on `cid-fdselect-test.otf` before the fix, and disappeared
+    after with byte-identical output).
+  - Verified with the standard full pipeline on both platforms (macOS
+    arm64 and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib; all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green;
+    `compare-log-output.sh` green.
+
 - **`ChainingSubtable`/`ChainingBody` become a real enum -- the one place the
   `Subtable` union-to-enum migration (B-1/B-2/B-3) left a nested C-shaped
   union in place.** The full-crate audit that turned up the two cmap/COLR

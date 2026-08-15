@@ -15,7 +15,7 @@ use crate::table::glyf::{GlyfIOContext, RefAnchorStatus, ComponentFlags, PointFl
 
 
 use crate::vf::region::{VqAxisSpan, VqRegion};
-use crate::vf::vq::{VQ, VQSegType, VqSegment, VqSegmentValue, VqSegmentDelta};
+use crate::vf::vq::{VQ, VqSegment, VqSegmentDelta};
 use crate::support::primitives::{otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{TABLE_I_FVAR};
 use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, glyf_contour_fill, otfcc_new_glyf_glyph};
@@ -637,9 +637,9 @@ unsafe extern "C" fn fill_the_gaps(
 ) {
     let mut j: ShapeId = j_min;
     while (j as ::core::ffi::c_int) < j_max as ::core::ffi::c_int {
-        if !nudges[j as usize].val.delta.touched {
+        if !nudges[j as usize].is_touched() {
             let mut j_next: ShapeId = j;
-            while !nudges[j_next as usize].val.delta.touched {
+            while !nudges[j_next as usize].is_touched() {
                 if j_next as ::core::ffi::c_int
                     == j_max as ::core::ffi::c_int - 1 as ::core::ffi::c_int
                 {
@@ -652,7 +652,7 @@ unsafe extern "C" fn fill_the_gaps(
                 }
             }
             let mut j_prev: ShapeId = j;
-            while !nudges[j_prev as usize].val.delta.touched {
+            while !nudges[j_prev as usize].is_touched() {
                 if j_prev as ::core::ffi::c_int == j_min as ::core::ffi::c_int {
                     j_prev = (j_max as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as ShapeId;
                 } else {
@@ -662,9 +662,7 @@ unsafe extern "C" fn fill_the_gaps(
                     break;
                 }
             }
-            if nudges[j_next as usize].val.delta.touched as ::core::ffi::c_int != 0
-                && nudges[j_prev as usize].val.delta.touched as ::core::ffi::c_int != 0
-            {
+            if nudges[j_next as usize].is_touched() && nudges[j_prev as usize].is_touched() {
                 let mut untouch_j: F16Dot16 = otfcc_to_fixed(
                     (*getter.expect("non-null function pointer")(glyph_refs[j as usize]))
                         .kernel as ::core::ffi::c_double,
@@ -678,10 +676,10 @@ unsafe extern "C" fn fill_the_gaps(
                         .kernel as ::core::ffi::c_double,
                 );
                 let mut delta_prev: F16Dot16 = otfcc_to_fixed(
-                    nudges[j_prev as usize].val.delta.quantity as ::core::ffi::c_double,
+                    nudges[j_prev as usize].unwrap_delta().quantity as ::core::ffi::c_double,
                 );
                 let mut delta_next: F16Dot16 = otfcc_to_fixed(
-                    nudges[j_next as usize].val.delta.quantity as ::core::ffi::c_double,
+                    nudges[j_next as usize].unwrap_delta().quantity as ::core::ffi::c_double,
                 );
                 let mut u_min: F16Dot16 = untouch_prev;
                 let mut u_max: F16Dot16 = untouch_next;
@@ -694,11 +692,11 @@ unsafe extern "C" fn fill_the_gaps(
                     d_max = delta_prev;
                 }
                 if untouch_j <= u_min {
-                    nudges[j as usize].val.delta.quantity = otfcc_from_fixed(d_min) as Pos;
+                    nudges[j as usize].delta_mut().quantity = otfcc_from_fixed(d_min) as Pos;
                 } else if untouch_j >= u_max {
-                    nudges[j as usize].val.delta.quantity = otfcc_from_fixed(d_max) as Pos;
+                    nudges[j as usize].delta_mut().quantity = otfcc_from_fixed(d_max) as Pos;
                 } else {
-                    nudges[j as usize].val.delta.quantity = otfcc_from_fixed(
+                    nudges[j as usize].delta_mut().quantity = otfcc_from_fixed(
                         otfcc_f1616_muldiv(d_max - d_min, untouch_j - u_min, u_max - u_min),
                     )
                         as Pos;
@@ -732,16 +730,11 @@ unsafe extern "C" fn apply_coords(
     let mut nudges: Vec<VqSegment> = Vec::with_capacity(total_points as usize);
     let mut j: ShapeId = 0 as ShapeId;
     while (j as ::core::ffi::c_int) < total_points as ::core::ffi::c_int {
-        nudges.push(VqSegment {
-            type_0: VQSegType::Delta,
-            val: VqSegmentValue {
-                delta: VqSegmentDelta {
-                    quantity: 0 as ::core::ffi::c_int as Pos,
-                    touched: false,
-                    region: r,
-                },
-            },
-        });
+        nudges.push(VqSegment::Delta(VqSegmentDelta {
+            quantity: 0 as ::core::ffi::c_int as Pos,
+            touched: false,
+            region: r,
+        }));
         j = j.wrapping_add(1);
     }
     let mut j_0: ShapeId = 0 as ShapeId;
@@ -750,8 +743,9 @@ unsafe extern "C" fn apply_coords(
             >= total_points as ::core::ffi::c_int)
         {
             let idx = *points.offset(j_0 as isize) as usize;
-            nudges[idx].val.delta.touched = true;
-            nudges[idx].val.delta.quantity += *tuple_delta.offset(j_0 as isize);
+            let d = nudges[idx].delta_mut();
+            d.touched = true;
+            d.quantity += *tuple_delta.offset(j_0 as isize);
         }
         j_0 = j_0.wrapping_add(1);
     }
@@ -776,8 +770,8 @@ unsafe extern "C" fn apply_coords(
     }
     let mut j_1: ShapeId = 0 as ShapeId;
     while (j_1 as ::core::ffi::c_int) < total_points as ::core::ffi::c_int {
-        if !(nudges[j_1 as usize].val.delta.quantity == 0.
-            && nudges[j_1 as usize].val.delta.touched as ::core::ffi::c_int != 0)
+        if !(nudges[j_1 as usize].unwrap_delta().quantity == 0.
+            && nudges[j_1 as usize].is_touched())
         {
             let mut coordinate_part: *mut VQ =
                 getter.expect("non-null function pointer")(glyph_refs[j_1 as usize]);
