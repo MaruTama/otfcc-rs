@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{memcpy, snprintf, strlen, strtol};
+use libc::{free, memcpy, snprintf, strlen, strtol};
 
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_int_val, json_str_len, json_str_ptr, json_type_of};
 
@@ -809,8 +809,14 @@ pub unsafe extern "C" fn dump_ttinstr(
 ) -> *mut BuiltValue {
     if (*options).instr_as_bytes {
         let mut len: usize = 0 as usize;
-        let mut buf: *mut u8 = base64_encode(instructions, length as usize, &raw mut len);
-        return json_string_new_length(len as ::core::ffi::c_uint, buf as *mut ::core::ffi::c_char);
+        let buf: *mut u8 = base64_encode(instructions, length as usize, &raw mut len);
+        // `json_string_new_length` copies `buf`'s bytes into a fresh `Vec`
+        // rather than taking ownership of it (see its own definition) --
+        // `buf` itself was never freed on this path, unlike `table/name.rs`'s
+        // three sibling `base64_encode`/`base64_decode` call sites, which do.
+        let result = json_string_new_length(len as ::core::ffi::c_uint, buf as *mut ::core::ffi::c_char);
+        free(buf as *mut ::core::ffi::c_void);
+        return result;
     } else {
         let mut id: InstrData = InstrData {
             instrs: ::core::ptr::null_mut::<u8>(),
