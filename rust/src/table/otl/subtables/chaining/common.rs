@@ -1,42 +1,79 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy, memset};
-use crate::table::otl::classdef::otl_class_def_free;
+use libc::{free, malloc};
 
 use crate::table::otl::{ChainingSubtableElementInterface, ChainingRule, ChainingRuleSet, ChainingSubtable};
 
 pub unsafe extern "C" fn otl_init_chaining(mut subtable: *mut ChainingSubtable) {
-    memset(
-        subtable as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<ChainingSubtable>() as usize,
-    );
+    // No all-zero bit pattern is a valid `ChainingSubtable` (it owns `Vec`
+    // fields through every variant), so place a valid empty `Canonical`
+    // value directly instead of the old `memset`.
+    ::core::ptr::write(subtable, ChainingSubtable::Canonical(ChainingRule::default()));
 }
 pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut ChainingSubtable) {
-    if (*subtable).type_0 as u64 != 0 {
-        // Every creation site that sets `type_0` to `Poly`/`Classified`
-        // placement-constructs `.rules` (a valid, possibly-empty `Vec`) in
-        // the same breath -- see `read.rs`/`classifier.rs` -- so by the
-        // time `type_0 != Canonical` is observable here, `.rules` is
-        // always a valid `Vec`, never the raw zeroed bytes `create()`'s
-        // `memset` leaves behind. No `is_null()`-style guard needed.
-        let ruleset: *mut ChainingRuleSet =
-            &raw mut (*subtable).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
-        // Each element's `Box<ChainingRule>` (where `Some`) already has a
-        // real `Drop` (see `table/otl.rs`), so dropping the `Vec` disposes
-        // every rule correctly -- no manual per-element walk needed.
-        (*ruleset).rules = Vec::new();
-        if !(*ruleset).bc.is_null() {
-            otl_class_def_free((*ruleset).bc);
+    // `ChainingRule`/`ChainingRuleSet` fully self-drop now (see
+    // `table/otl.rs`), so running the enum's own `Drop` here does exactly
+    // what the old tag-gated free logic did, for whichever variant is live,
+    // with no need to inspect the tag first.
+    ::core::ptr::drop_in_place(subtable);
+}
+/// Returns a mutable pointer into the `Canonical` variant's payload.
+/// Panics (rather than reading union garbage, the old failure mode) if
+/// called on a `Poly`/`Classified` subtable -- every call site already
+/// assumed `Canonical` at that point, matching the original C code's own
+/// (unchecked) assumption.
+pub(crate) unsafe fn chaining_rule_mut(subtable: *mut ChainingSubtable) -> *mut ChainingRule {
+    match &mut *subtable {
+        ChainingSubtable::Canonical(rule) => rule as *mut ChainingRule,
+        _ => unreachable!("chaining_rule_mut: subtable is not Canonical"),
+    }
+}
+pub(crate) unsafe fn chaining_rule_const(subtable: *const ChainingSubtable) -> *const ChainingRule {
+    match &*subtable {
+        ChainingSubtable::Canonical(rule) => rule as *const ChainingRule,
+        _ => unreachable!("chaining_rule_const: subtable is not Canonical"),
+    }
+}
+/// Same idea as `chaining_rule_const`, but returns `*mut`: several call
+/// sites in `build.rs` reach a `ChainingRule` through a `*const
+/// ChainingSubtable` and then mutate it in place (e.g. `reverse_backtracks`)
+/// -- the same const-to-mut pointer cast the original C-shaped code already
+/// did, preserved verbatim rather than "fixed" here.
+pub(crate) unsafe fn chaining_rule_mut_from_const(
+    subtable: *const ChainingSubtable,
+) -> *mut ChainingRule {
+    chaining_rule_const(subtable) as *mut ChainingRule
+}
+/// Returns a mutable pointer into the `Poly`/`Classified` payload -- both
+/// variants carry the same `ChainingRuleSet` shape, so callers that don't
+/// care which one it is (most of them) can use this without matching twice.
+pub(crate) unsafe fn chaining_ruleset_mut(subtable: *mut ChainingSubtable) -> *mut ChainingRuleSet {
+    match &mut *subtable {
+        ChainingSubtable::Poly(rs) | ChainingSubtable::Classified(rs) => rs as *mut ChainingRuleSet,
+        ChainingSubtable::Canonical(_) => unreachable!("chaining_ruleset_mut: subtable is Canonical"),
+    }
+}
+pub(crate) unsafe fn chaining_ruleset_const(
+    subtable: *const ChainingSubtable,
+) -> *const ChainingRuleSet {
+    match &*subtable {
+        ChainingSubtable::Poly(rs) | ChainingSubtable::Classified(rs) => rs as *const ChainingRuleSet,
+        ChainingSubtable::Canonical(_) => {
+            unreachable!("chaining_ruleset_const: subtable is Canonical")
         }
-        if !(*ruleset).ic.is_null() {
-            otl_class_def_free((*ruleset).ic);
-        }
-        if !(*ruleset).fc.is_null() {
-            otl_class_def_free((*ruleset).fc);
-        }
-    } else {
-        close_rule(&raw mut (*subtable).c2rust_unnamed.rule as *mut ChainingRule);
-    };
+    }
+}
+/// Replaces the old `(*subtable).type_0 == ChainingType::Classified` reads
+/// -- `build.rs`'s binary-format choice (class-list vs coverage-list
+/// encoding) is the one place `Poly` and `Classified` still need
+/// distinguishing, even though they share the same `ChainingRuleSet` shape.
+pub(crate) unsafe fn chaining_is_classified(subtable: *const ChainingSubtable) -> bool {
+    matches!(&*subtable, ChainingSubtable::Classified(_))
+}
+/// Replaces the old `(*subtable).type_0 as u64 != 0` ("not Canonical")
+/// reads -- `dump.rs`/`classifier.rs` use this to mean "still a ruleset,
+/// not yet reduced to one rule per subtable".
+pub(crate) unsafe fn chaining_is_canonical(subtable: *const ChainingSubtable) -> bool {
+    matches!(&*subtable, ChainingSubtable::Canonical(_))
 }
 pub static I_SUBTABLE_CHAINING: ChainingSubtableElementInterface = {
     ChainingSubtableElementInterface {
@@ -77,22 +114,16 @@ unsafe extern "C" fn subtable_chaining_create() -> *mut ChainingSubtable {
 }
 #[inline]
 unsafe extern "C" fn subtable_chaining_copy(
-    mut dst: *mut ChainingSubtable,
-    mut src: *const ChainingSubtable,
+    mut _dst: *mut ChainingSubtable,
+    mut _src: *const ChainingSubtable,
 ) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<ChainingSubtable>() as usize,
-    );
-}
-/// The `Canonical` variant (`ChainingBody.rule: ManuallyDrop<ChainingRule>`)
-/// is never `Box`-owned, so `ManuallyDrop` suppresses its automatic `Drop` --
-/// this runs `ChainingRule`'s `Drop` impl explicitly through the raw
-/// pointer instead, exactly like disposing any other `ManuallyDrop` field.
-#[inline]
-unsafe extern "C" fn close_rule(mut rule: *mut ChainingRule) {
-    if !rule.is_null() {
-        ::core::ptr::drop_in_place(rule);
-    }
+    // Confirmed dead: never called outside this vtable's own static
+    // initializer (see `table/otl.rs`'s doc comment on `ChainingSubtable`).
+    // The old `memcpy`-based body was only safe by accident, back when the
+    // union's `ManuallyDrop` fields were bitwise-copyable; now that
+    // `ChainingRuleSet.bc`/`.ic`/`.fc` are `Option<Box<ClassDef>>`, a raw
+    // `memcpy` would alias and eventually double-free. Kept as a loud
+    // failure instead of silently reintroducing that risk if this ever
+    // gets wired up.
+    unreachable!("ChainingSubtable::copy is dead code and unsound for owned Vec/Box data")
 }

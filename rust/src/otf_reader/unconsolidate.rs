@@ -34,7 +34,7 @@ use crate::table::glyf::{ComponentReference, Contour, Glyph, GlyfTable};
 
 
 
-use crate::table::otl::{ChainingBody, ChainingRule, ChainingRuleSet, ChainingSubtable, Lookup, Subtable, SubtableList, SubtablePtr, ChainingType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, OtlTable};
+use crate::table::otl::{ChainingRule, ChainingSubtable, Lookup, Subtable, SubtableList, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, OtlTable};
 
 
 
@@ -411,81 +411,56 @@ unsafe extern "C" fn unconsolidate_chaining(
     // accumulator with no other side effects. Omitted here.
     let mut newsts: SubtableList = Vec::new();
     for j in 0..(*lookup).subtables.len() {
-        // `.take()` moves the `Box` out of the slot (leaving `None` behind)
-        // and `Box::into_raw` hands back exactly the `SubtablePtr` the rest
-        // of this function's body already operates on unchanged.
-        let Some(sub_box) = (&mut (*lookup).subtables)[j].take() else {
+        // `.take()` moves the `Box` out of the slot, leaving `None` behind.
+        // `Subtable` implements `Drop`, so its payload can't be moved out
+        // by value through a pattern match (even via `*sub_box`) -- only
+        // mutated through a `&mut` borrow, which is all the branches below
+        // need. `sub_box` itself drops normally at the end of each
+        // iteration, cleaning up whatever's left behind (empty after the
+        // `mem::take`s below).
+        let Some(mut sub_box) = (&mut (*lookup).subtables)[j].take() else {
             continue;
         };
-        let sub: SubtablePtr = Box::into_raw(sub_box);
-        let Subtable::Chaining(mut_sub_chaining) = &mut *sub else { unreachable!() };
-        let sub_chaining: *mut ChainingSubtable = mut_sub_chaining;
-        if (*sub_chaining).type_0 == ChainingType::Poly {
-            let ruleset: *mut ChainingRuleSet =
-                &raw mut (*sub_chaining).c2rust_unnamed.c2rust_unnamed as *mut ChainingRuleSet;
-            // `mem::take` both hands us the rule list by value (an owned
-            // `Vec<Option<Box<ChainingRule>>>` to iterate) and leaves an
-            // empty one behind in `*ruleset` -- so there's nothing left to
-            // double-free when `sub`'s raw block is freed below. `None`
-            // would only appear here if the original binary read failed
-            // partway through this same lookup and pushed a placeholder;
-            // provably never the case for any payload this crate builds
-            // successfully, so `.expect` turns that into a clean panic
-            // instead of reproducing the old null-pointer-deref UB.
-            for rule_slot in ::core::mem::take(&mut (*ruleset).rules) {
-                let boxed_rule: Box<ChainingRule> =
-                    rule_slot.expect("chaining rule slot should never be None here");
-                // Was: allocate a whole `Subtable`-sized block directly and
-                // write `.chaining` in place -- sound only while `Subtable`
-                // was a union. Build the `ChainingSubtable` value locally
-                // instead (its own inner `ChainingBody` union is unaffected
-                // by this) and hand it to `Box::new(Subtable::Chaining(..))`.
-                let chaining = ChainingSubtable {
-                    type_0: ChainingType::Canonical,
-                    // Move the rule's contents out of the `Box` (deallocating
-                    // just the box's own heap slot through the same allocator
-                    // that made it) into the `Canonical` variant's
-                    // `ManuallyDrop` slot -- simpler than the old raw-pointer
-                    // `ptr::read`, since `Box` supports moving its pointee out
-                    // directly.
-                    c2rust_unnamed: ChainingBody { rule: ::core::mem::ManuallyDrop::new(*boxed_rule) },
-                };
-                newsts.push(Some(Box::new(Subtable::Chaining(chaining))));
+        let Subtable::Chaining(sub_chaining) = &mut *sub_box else { unreachable!() };
+        match sub_chaining {
+            ChainingSubtable::Poly(ruleset) => {
+                // `None` would only appear here if the original binary read
+                // failed partway through this same lookup and pushed a
+                // placeholder; provably never the case for any payload this
+                // crate builds successfully, so `.expect` turns that into a
+                // clean panic instead of reproducing the old
+                // null-pointer-deref UB.
+                for rule_slot in ::core::mem::take(&mut ruleset.rules) {
+                    let boxed_rule: Box<ChainingRule> =
+                        rule_slot.expect("chaining rule slot should never be None here");
+                    newsts.push(Some(Box::new(Subtable::Chaining(
+                        ChainingSubtable::Canonical(*boxed_rule),
+                    ))));
+                }
+                // `sub_box` drops at the end of this iteration -- its
+                // `ruleset.rules` is already empty (taken above) and
+                // `bc`/`ic`/`fc` (never populated by the binary-read path)
+                // are `None`, so this is a cheap no-op, not a leak.
             }
-            // Was `free(sub as *mut c_void)`: a raw block deallocation that
-            // skipped `sub`'s own dispose entirely, leaking its
-            // `ChainingRuleSet`'s `bc`/`ic`/`fc` classdefs (`.rules` was
-            // already emptied above by `mem::take`, but those three fields
-            // were not, and nothing else in this function frees them).
-            // `Box::from_raw` here runs `Subtable::Chaining`'s `Drop` --
-            // `otl_dispose_chaining` -- which does free them. Output-invisible
-            // (freed memory cannot appear in what otfccdump prints), so
-            // untouched by the byte-comparison tests either way; a genuine
-            // (small) leak fix, not a behavior change worth preserving.
-            // (Slot `j` is already `None` from `.take()` above.)
-            drop(Box::from_raw(sub));
-        } else if (*sub_chaining).type_0 == ChainingType::Canonical {
-            // Same disguised move as the `Poly` branch above, but note: `sub`
-            // (the whole outer `Subtable` value) is never freed on this
-            // branch, either -- an existing, intentional-looking leak that
-            // predates this conversion. `ptr::read` here preserves it
-            // exactly: the source bytes (including the moved-from `rule`)
-            // are left untouched in `sub`'s leaked allocation, never dropped
-            // -- so `sub_chaining`'s `ManuallyDrop<ChainingRule>` must not
-            // run its own `Drop` either, which is exactly what
-            // `ManuallyDrop` (still the inner `ChainingBody` union's shape)
-            // already guarantees.
-            let chaining = ChainingSubtable {
-                type_0: ChainingType::Canonical,
-                c2rust_unnamed: ChainingBody {
-                    rule: ::core::mem::ManuallyDrop::new(::core::ptr::read(
-                        &raw const (*sub_chaining).c2rust_unnamed.rule as *const ChainingRule,
-                    )),
-                },
-            };
-            newsts.push(Some(Box::new(Subtable::Chaining(chaining))));
-            // `sub` itself is deliberately left leaked, per the comment
-            // above; slot `j` is already `None` from `.take()`.
+            ChainingSubtable::Canonical(rule) => {
+                // `ChainingRule` has no custom `Drop`, so swapping its value
+                // out through the `&mut` borrow (leaving a cheap empty
+                // default behind for `sub_box` to drop normally) is a plain
+                // safe move -- no raw-pointer surgery needed, unlike the
+                // pre-enum version.
+                let taken_rule = ::core::mem::take(rule);
+                newsts.push(Some(Box::new(Subtable::Chaining(
+                    ChainingSubtable::Canonical(taken_rule),
+                ))));
+            }
+            // Never actually produced by the binary-read path this function
+            // consumes from (only `classifier.rs`'s build-time pass creates
+            // `Classified` subtables, and those are consumed and freed
+            // within that same build call, never stored back into a
+            // `SubtableList`) -- kept as a safe no-op rather than
+            // `unreachable!()` since nothing upstream enforces that
+            // invariant structurally.
+            ChainingSubtable::Classified(_) => {}
         }
     }
     // Was `otl_subtable_list_dispose_dependent(..); (*lookup).subtables =
