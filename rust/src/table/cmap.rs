@@ -1179,21 +1179,16 @@ unsafe extern "C" fn build_format14_for_selector(
     })) as u8;
 }
 unsafe extern "C" fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
-    let mut valid_selectors: *mut bool = ::core::ptr::null_mut::<bool>();
-    valid_selectors = __caryll_allocate_clean(
-        (::core::mem::size_of::<bool>() as usize)
-            .wrapping_mul(0x110001 as ::core::ffi::c_int as usize),
-        681 as ::core::ffi::c_ulong,
-    ) as *mut bool;
+    let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];
     for (key, _) in (*cmap).uvs.iter() {
         if key.selector < MAX_UNICODE as u32 {
-            *valid_selectors.offset(key.selector as isize) = true;
+            valid_selectors[key.selector as usize] = true;
         }
     }
     let mut n_selectors: u32 = 0 as u32;
     let mut selector: Unicode = 0 as Unicode;
     while selector < MAX_UNICODE as Unicode {
-        if *valid_selectors.offset(selector as isize) {
+        if valid_selectors[selector as usize] {
             n_selectors = n_selectors.wrapping_add(1);
         }
         selector = selector.wrapping_add(1);
@@ -1201,7 +1196,7 @@ unsafe extern "C" fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *m
     let mut st: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 14 as u32), bk_int(BkCellType::B32, 0 as u32), bk_int(BkCellType::B32, n_selectors as u32)]);
     let mut selector_0: Unicode = 0 as Unicode;
     while selector_0 < MAX_UNICODE as Unicode {
-        if *valid_selectors.offset(selector_0 as isize) {
+        if valid_selectors[selector_0 as usize] {
             let mut dflt: *mut Buffer = bufnew();
             let mut nondflt: *mut Buffer = bufnew();
             let mut results: u8 = build_format14_for_selector(cmap, selector_0, dflt, nondflt);
