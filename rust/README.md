@@ -894,6 +894,58 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`CffIndex`/`CffDict` convert their malloc'd arrays to `Vec` -- the two
+  remaining "counted array sized from untrusted CFF bytes" structures the
+  full-crate audit flagged, same risk class `CffStack` closed for the
+  Type 2 CharString interpreter's operand stack.** `CffIndex.offset`/`.data`
+  are sized from a font-byte-derived `count` in `extract_index` (the parse
+  path, hit by every CFF-flavored font); `CffDictEntry.vals`/`CffDict.ents`
+  are sized from operand/entry counts read out of untrusted DICT bytes in
+  `parse_dict`. Both were correctly paired malloc/free before, but a
+  counting mistake anywhere in the parse logic would have been an immediate
+  OOB write -- `Vec` removes that risk class structurally, the same
+  motivation as every prior "untrusted-input malloc array" conversion this
+  crate has made. `CffIndexCountType`'s implicit off-count and
+  `CffDictEntry.cnt`/`CffDict.count` are dropped entirely as write-only
+  duplicates of `.len()`, matching the `CffStack.max` precedent.
+  - `cff_index_copy`/`cff_dict_copy` (both `memcpy`-based, confirmed by grep
+    to have zero call sites beyond their own vtable static initializer)
+    become `unreachable!()` -- a bitwise copy of owned `Vec` fields would be
+    an immediate double-free, same treatment as `subtable_gpos_pair_copy`
+    and the other confirmed-dead vtable copy slots.
+  - `cff_index_init`/`cff_dict_init` (zero-init vtable slots for a stack-
+    local scratch `CffIndex`/`CffDict`) become `ptr::write` of an explicit
+    empty value -- no all-zero bit pattern is a valid `Vec`-owning struct
+    any more, same shape as `otl_init_chaining`.
+  - `CffIndex`/`CffDict` lose their `Copy` derive along with the raw
+    pointers, so `cff_parse_outline`, `cff_parse_subr`, and
+    `sdsget_cff_sid` -- all previously taking a `CffIndex` by value purely
+    to read from it recursively (subroutine calls) or repeatedly (charstring
+    interpretation) -- switch to `&CffIndex`/`&CffDict` parameters, with
+    call sites updated to pass a reference instead of a copy.
+  - `libcff/cff_parser.rs`'s many `.offset.offset(N)`/`.data.offset(N)` raw-
+    pointer-arithmetic chains keep their exact existing shape, just reading
+    through `.offset.as_ptr()`/`.data.as_ptr()` first -- the same "leave the
+    body untouched, convert only the allocation site" idiom `CffStack` used,
+    applied here with a verified perl multi-line substitution instead of
+    line-by-line editing (26 and 4 sites respectively, match count checked
+    against plain `grep` before applying).
+  - `new_index_by_callback` (the compile/build-side `CffIndex` constructor,
+    growth-with-slack) keeps `offset`/`data` as local `Vec`s for the entire
+    loop, `.resize()`-ing in place of `__caryll_reallocate` and
+    `.truncate()`-ing unused slack at the end, only moving them into the
+    struct once fully built -- avoiding the `dangerous_implicit_autorefs`
+    lint by construction rather than patching around it, same as
+    `extract_index`'s parse-side counterpart.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib, with extra attention to the
+    CFF-heaviest payloads (`KRName-Regular-O2.otf` subroutinize,
+    `cid-fdselect-test.otf` CID/FDSelect); all 10 round-trip payloads
+    stable; issue #1's large-lookup regression test green;
+    `compare-log-output.sh` green.
+
 - **Three more tag+union pairs become enums, bundled into one PR:
   `VqSegment`/`VqSegmentValue`, `BkCell`/`BkCellValue`, and
   `CffCharstringInstruction`/`CffCharstringArgument`.** The last of the

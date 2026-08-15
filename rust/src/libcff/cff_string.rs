@@ -399,25 +399,25 @@ static STRING_STANDARD: [&::core::ffi::CStr; 391] = [
     c"Roman",
     c"Semibold",
 ];
-pub unsafe extern "C" fn sdsget_cff_sid(mut idx: u16, mut str: CffIndex) -> Option<Vec<u8>> {
+pub unsafe extern "C" fn sdsget_cff_sid(mut idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
     if idx as ::core::ffi::c_int <= 390 as ::core::ffi::c_int {
         return Some(STRING_STANDARD[idx as usize].to_bytes().to_vec());
     } else if str.count > 0 as Arity
         && ((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as Arity) < str.count
     {
         let ptr = str.data
+            .as_ptr()
             .offset(
-                *str.offset
-                    .offset((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as isize)
-                    as isize,
+                str.offset
+                    [(idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as usize] as isize,
             )
             .offset(-(1 as ::core::ffi::c_int as isize)) as *const u8;
-        let len = (*str
+        let len = (str
             .offset
-            .offset((idx as ::core::ffi::c_int - 390 as ::core::ffi::c_int) as isize))
+            [(idx as ::core::ffi::c_int - 390 as ::core::ffi::c_int) as usize])
         .wrapping_sub(
-            *str.offset
-                .offset((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as isize),
+            str.offset
+                [(idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as usize],
         ) as usize;
         return Some(::core::slice::from_raw_parts(ptr, len).to_vec());
     } else {
