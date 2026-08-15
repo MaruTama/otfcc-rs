@@ -936,22 +936,20 @@ unsafe extern "C" fn build_outline(
     };
     CFF_I_INDEX.init.expect("non-null function pointer")(&raw mut local_subrs);
     let mut stack: CffStack = CffStack {
-        stack: ::core::ptr::null_mut::<CffValue>(),
+        stack: vec![
+            CffValue {
+                t: CffValueType::Unset,
+                c2rust_unnamed: CffValueBody { i: 0 },
+            };
+            0x10000
+        ],
         transient: [CffValue {
             t: CffValueType::Unset,
             c2rust_unnamed: CffValueBody { i: 0 },
         }; 32],
         index: 0,
-        max: 0,
         stem: 0,
     };
-    stack.max = 0x10000 as Arity;
-    stack.stack = __caryll_allocate_clean(
-        (::core::mem::size_of::<CffValue>() as usize).wrapping_mul(stack.max as usize),
-        407 as ::core::ffi::c_ulong,
-    ) as *mut CffValue;
-    stack.index = 0 as Arity;
-    stack.stem = 0 as u8;
     let mut bc: OutlineBuilderContext = OutlineBuilderContext {
         g: g,
         j_contour: 0 as ShapeId,
@@ -1066,8 +1064,6 @@ unsafe extern "C" fn build_outline(
     // `cx`/`cy` are plain owned locals, never moved out, so they auto-drop
     // when this function returns -- no explicit dispose call is needed.
     CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut local_subrs);
-    free(stack.stack as *mut ::core::ffi::c_void);
-    stack.stack = ::core::ptr::null_mut::<CffValue>();
     (*context).seed = bc.randx;
 }
 // Returns `Vec<u8>`, its only callers direct Rust call sites (never a real

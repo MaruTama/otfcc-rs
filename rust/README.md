@@ -894,6 +894,55 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Fifteenth unit of the `unsafe_op_in_unsafe_fn` burn-down: `CffStack`'s
+  operand array becomes a `Vec`.** `CffStack` is the Type 2 CharString
+  interpreter's operand stack -- the structure `cff_parse_outline`
+  (`libcff/cff_parser.rs`'s ~1000-line CharString bytecode interpreter,
+  covering every arithmetic/stack operator plus all the curve and flex
+  variants) reads and writes on nearly every operator. Unlike the recent
+  small, self-contained units, this one is a large *mechanical* sweep: 220
+  call sites across a single file, converted with the same "leave the body
+  untouched, convert only the allocation site" idiom used for
+  `stat_single_glyph`'s recursion and `subr.rs`'s `serialize_node_to_
+  buffer` -- every `.stack.offset(N)` site became `.stack.as_mut_ptr()
+  .offset(N)` verbatim, with no restructuring of the interpreter's control
+  flow. The risk this posed was pure volume, not design difficulty; a
+  smaller, more surgical diff wasn't available because every operator
+  branch in `cff_parse_outline` touches the operand array somewhere.
+  - The sweep was applied with `perl -0777 -pi -e 's/\.stack(\s*)\.offset\(/
+    .stack.as_mut_ptr()$1.offset(/g'` (slurp mode, so `.stack` and
+    `.offset(` split across lines -- common in this c2rust-generated file --
+    are matched too), after confirming with `grep -c` that the substitution
+    pattern and the plain `.stack` occurrence count matched exactly (220
+    both ways), i.e. every `.stack` reference in the file is followed by
+    `.offset(` with no other usage shape to miss.
+  - `CffStack.max` -- a field set once at construction (`0x10000`, the
+    same generous fixed capacity `__caryll_allocate_clean` used to
+    pre-allocate) and never read anywhere in the interpreter -- is dropped
+    entirely, exactly duplicating `stack.capacity()`.
+  - Construction in `table/cff.rs`'s `build_outline` becomes a single
+    `vec![CffValue { .. }; 0x10000]` in place of `__caryll_allocate_clean` +
+    a separate `.max`/`.stack` assignment; disposal drops the matching
+    `free(stack.stack ...)` call, since `Vec` self-drops.
+  - `reverse_stack` (the `roll` operator's small helper) picks up the same
+    `.as_mut_ptr()` treatment at its two sites; the `p1 < p2` pointer
+    comparison between the two resulting `*mut CffValue`s is unaffected --
+    `.as_mut_ptr()` still yields a raw pointer of the same type.
+  - `CffValue`'s own internal union (`CffValueBody`) is untouched by this
+    change -- only the *container* around `CffValue` moved from a raw
+    allocation to `Vec`; the tagged-union-of-value-types representation
+    inside each element is a separate, much larger concern out of scope
+    here.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib -- every CFF-containing
+    payload (`KRName-Regular.otf`, `KRName-Regular-O2.otf`'s subroutinize
+    path, `cid-fdselect-test.otf`'s CID/FDSelect path) exercises
+    `cff_parse_outline` directly, giving this specific change unusually
+    high verification signal; all 10 round-trip payloads stable; issue #1's
+    large-lookup regression test green; `compare-log-output.sh` green.
+
 - **Fourteenth unit of the `unsafe_op_in_unsafe_fn` burn-down: `HmtxTable`/
   `VmtxTable`'s inner arrays become `Vec`s.** The cross-file theme the
   thirteenth unit (`otf_writer/stat.rs`'s local scratch buffers)
