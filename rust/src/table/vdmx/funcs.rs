@@ -13,7 +13,7 @@ use crate::table::vdmx::types::{VdmxTable, VdmxRatioRange, VdmxRecord};
 use crate::bk::bkgraph::{bk_build_block_no_minimize};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 pub unsafe extern "C" fn otfcc_read_vdmx(
-    packet: Packet,
+    packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<VdmxTable>> {
     let mut version: u16 = 0;
@@ -26,14 +26,14 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_VDMX {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
                     if !(table.length < 6 as u32) {
-                        version = read_16u(table.data.offset(0 as ::core::ffi::c_int as isize));
-                        num_ratios = read_16u(table.data.offset(4 as ::core::ffi::c_int as isize));
+                        version = read_16u(table.data.as_ptr().offset(0 as ::core::ffi::c_int as isize));
+                        num_ratios = read_16u(table.data.as_ptr().offset(4 as ::core::ffi::c_int as isize));
                         if !(table.length
                             < (6 as ::core::ffi::c_int
                                 + 6 as ::core::ffi::c_int * num_ratios as ::core::ffi::c_int)
@@ -58,33 +58,33 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                 };
                                 r.b_charset = read_8u(
                                     table
-                                        .data
+                                        .data.as_ptr()
                                         .offset(ratio_range_offset as isize)
                                         .offset(0 as ::core::ffi::c_int as isize),
                                 );
                                 r.x_ratio = read_8u(
                                     table
-                                        .data
+                                        .data.as_ptr()
                                         .offset(ratio_range_offset as isize)
                                         .offset(1 as ::core::ffi::c_int as isize),
                                 );
                                 r.y_start_ratio = read_8u(
                                     table
-                                        .data
+                                        .data.as_ptr()
                                         .offset(ratio_range_offset as isize)
                                         .offset(2 as ::core::ffi::c_int as isize),
                                 );
                                 r.y_end_ratio = read_8u(
                                     table
-                                        .data
+                                        .data.as_ptr()
                                         .offset(ratio_range_offset as isize)
                                         .offset(3 as ::core::ffi::c_int as isize),
                                 );
                                 let mut group_offset: u16 =
-                                    read_16u(table.data.offset(offset_offset as isize));
+                                    read_16u(table.data.as_ptr().offset(offset_offset as isize));
                                 let mut recs: u16 = read_16u(
                                     table
-                                        .data
+                                        .data.as_ptr()
                                         .offset(group_offset as ::core::ffi::c_int as isize)
                                         .offset(0 as ::core::ffi::c_int as isize),
                                 );
@@ -92,7 +92,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                 while (j as ::core::ffi::c_int) < recs as ::core::ffi::c_int {
                                     let mut y_pel_height: u16 = read_16u(
                                         table
-                                            .data
+                                            .data.as_ptr()
                                             .offset(group_offset as ::core::ffi::c_int as isize)
                                             .offset(4 as ::core::ffi::c_int as isize)
                                             .offset(
@@ -103,7 +103,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                     );
                                     let mut y_max: i16 = read_16s(
                                         table
-                                            .data
+                                            .data.as_ptr()
                                             .offset(group_offset as ::core::ffi::c_int as isize)
                                             .offset(4 as ::core::ffi::c_int as isize)
                                             .offset(
@@ -114,7 +114,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
                                     );
                                     let mut y_min: i16 = read_16s(
                                         table
-                                            .data
+                                            .data.as_ptr()
                                             .offset(group_offset as ::core::ffi::c_int as isize)
                                             .offset(4 as ::core::ffi::c_int as isize)
                                             .offset(

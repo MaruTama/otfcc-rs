@@ -894,6 +894,76 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`font/caryll_sfnt.rs`'s `Packet`/`PacketPiece` finally convert to `Vec`,
+  and `Packet` drops `Copy` -- the one item the full-crate audit's Vec-
+  conversion list left unfinished, split out of the twelve-item bundle above
+  because of its size.** `SplineFontContainer.offsets`/`.packets`,
+  `Packet.pieces`, and `PacketPiece.data` were all still `__caryll_allocate_
+  clean`'d/`free`'d raw arrays; `PacketPiece.data` in particular is sized
+  straight from the SFNT table directory's per-table `length` field --
+  untrusted font bytes, the same risk class `CffIndex`/`CffDict` closed.
+  `Packet` used to derive `Copy` purely so it could be passed by value
+  through borrow-checker friction it didn't actually need: every one of the
+  ~30 `table/*.rs` parsers, and `otf_reader.rs`'s `otfcc_read_sfnt` (which
+  reuses one `packet` across ~20 sequential calls), only ever *read* it.
+  Every one of those call sites now takes `&Packet` instead -- a `Copy`
+  struct standing in for shared, uncounted, manually-freed heap data was
+  the tell that the ownership model didn't match what the code actually
+  did with it.
+  - `SplineFontContainer.offsets: Vec<u32>`, `.packets: Vec<Packet>`;
+    `Packet.pieces: Vec<PacketPiece>`; `PacketPiece.data: Vec<u8>`. None of
+    the four still derive `Copy` (`PacketPiece`/`Packet` drop the derive
+    outright; `SplineFontContainer` was never copied as a whole).
+  - `otfcc_read_sfnt` becomes `Box::into_raw(Box::new(SplineFontContainer
+    { .. }))` instead of `__caryll_allocate_clean`; `otfcc_delete_sfnt`
+    collapses to a single `Box::from_raw` drop -- no per-packet, per-piece
+    manual free loop needed any more, `Vec`'s own drop glue reaches every
+    level.
+  - `otfcc_read_packets` (the SFNT-table-directory parse loop, the one
+    building `PacketPiece.data` from untrusted `length` values) preserves
+    one exact quirk from the original C rather than "fixing" it: the
+    per-table byte-reading pass is bounded by `packets[0].num_tables`, not
+    the current packet's own `num_tables` -- harmless for ordinary single-
+    SFNT files (where packet 0 is the only packet) but a real difference
+    for TTC collections with differently-sized packets. This is a
+    mechanical ownership conversion, not a behavior change, so the quirk
+    ships unchanged (called out with an inline comment at the site).
+  - Every `table/*.rs` parser's signature changes `packet: Packet` to
+    `packet: &Packet`; the internal copy-out `let mut table: PacketPiece =
+    *packet.pieces.offset(N as isize);` becomes a borrow, `let table:
+    &PacketPiece = &packet.pieces[N as usize];`; every subsequent
+    `table.data as FontFilePointer` (and any further `.data.offset(...)`
+    chain) gains a `.as_ptr()` first, same shape as every other `Vec`-
+    reading conversion this crate has made. `table/glyf/read.rs`'s and
+    `otf_reader.rs`'s inline copies of the same pattern (not behind a named
+    parser function) convert identically.
+  - `table/_tsi.rs`'s `otfcc_read_tsi` needed a real restructure, not just
+    field-type mechanics: `text_part`/`index_part` were plain `PacketPiece`
+    values with a tag-0 sentinel standing in for "no matching table found
+    yet," reassigned by value once a scan turned up a match. With
+    `PacketPiece` no longer `Copy`, these become `Option<&PacketPiece>` --
+    `None` is the same "not found" signal the tag-0 sentinel used to carry,
+    and a found match is a borrow, not a copy.
+  - `Packet.pieces.offset()`'s only two remaining raw-pointer-arithmetic
+    consumers -- `otfcc_read_sfnt`'s allocation-shape parity comment and the
+    `packet_0_num_tables` quirk above -- route through the established
+    `let field = &(*ptr).field;` local-binding idiom to dodge the
+    `dangerous_implicit_autorefs` lint on indexing through a raw-pointer
+    dereference, same as every other struct-behind-a-raw-pointer conversion
+    this crate has made.
+  - `bin/otfccdump.rs` needed no changes at all: it only ever holds
+    `*mut SplineFontContainer` as an opaque handle across the
+    `otfcc_read_sfnt`/`otfcc_delete_sfnt` boundary, never touching `Packet`/
+    `PacketPiece` directly.
+  - Verified with the standard full pipeline on both platforms (macOS arm64
+    and the Linux container): 54 unit tests green (0 warnings under
+    `warnings = "deny"`); every standard payload byte-identical in both
+    directions including the `otfccdll` cdylib, with particular attention to
+    `meta-test.ttf`/`vdmx-test.ttf` (the two payloads whose parsers needed
+    the extra `.data.offset()` fixups beyond the mechanical sweep); all 10
+    round-trip payloads stable; issue #1's large-lookup regression test
+    green; `compare-log-output.sh` green.
+
 - **Twelve more malloc'd scratch/output arrays convert to `Vec`, bundled into
   one PR -- the medium-priority half of the full-crate audit's Vec-conversion
   list, everything left except `CffIndex`/`CffDict` (PR #180, the highest-

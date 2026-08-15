@@ -25,7 +25,7 @@ pub struct VmtxTable {
     pub top_side_bearing: Vec<Pos>,
 }
 pub unsafe extern "C" fn otfcc_read_vmtx(
-    packet: Packet,
+    packet: &Packet,
     mut options: *const Options,
     mut vhea: *mut VheaTable,
     mut maxp: *mut MaxpTable,
@@ -45,12 +45,12 @@ pub unsafe extern "C" fn otfcc_read_vmtx(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_VMTX {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data as FontFilePointer;
+                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     let mut length: u32 = table.length;
                     let mut count_a: GlyphId = (*vhea).num_of_long_ver_metrics as GlyphId;
                     let mut count_k: GlyphId = ((*maxp).num_glyphs as ::core::ffi::c_int

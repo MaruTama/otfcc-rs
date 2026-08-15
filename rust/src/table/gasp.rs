@@ -34,7 +34,7 @@ pub const GASP_GRIDFIT: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
 pub const GASP_SYMMETRIC_GRIDFIT: ::core::ffi::c_int = 0x4 as ::core::ffi::c_int;
 pub const GASP_SYMMETRIC_SMOOTHING: ::core::ffi::c_int = 0x8 as ::core::ffi::c_int;
 pub unsafe extern "C" fn otfcc_read_gasp(
-    packet: Packet,
+    packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<GaspTable>> {
     let mut num_ranges: TableId = 0;
@@ -46,12 +46,12 @@ pub unsafe extern "C" fn otfcc_read_gasp(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_GASP {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data as FontFilePointer;
+                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     let mut length: u32 = table.length;
                     if !(length < 4 as u32) {
                         let version = read_16u(data as *const u8);

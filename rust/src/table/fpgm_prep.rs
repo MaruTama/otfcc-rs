@@ -47,7 +47,7 @@ impl Drop for FpgmPrepTable {
     }
 }
 pub unsafe extern "C" fn otfcc_read_fpgm_prep(
-    packet: Packet,
+    packet: &Packet,
     mut _options: *const Options,
     mut tag: u32,
 ) -> Option<Box<FpgmPrepTable>> {
@@ -58,12 +58,12 @@ pub unsafe extern "C" fn otfcc_read_fpgm_prep(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == tag {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data as FontFilePointer;
+                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     let mut length: u32 = table.length;
                     let bytes = __caryll_allocate_clean(
                         (::core::mem::size_of::<u8>() as usize)

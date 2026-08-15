@@ -463,7 +463,7 @@ pub static FORMAT_PRIORITIES: [TableId; 3] = [
     0 as ::core::ffi::c_int as TableId,
 ];
 pub unsafe extern "C" fn otfcc_read_cmap(
-    packet: Packet,
+    packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<CmapTable>> {
     let mut num_tables: u16 = 0;
@@ -476,12 +476,12 @@ pub unsafe extern "C" fn otfcc_read_cmap(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_CMAP {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data as FontFilePointer;
+                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     let mut length: u32 = table.length;
                     if !(length < 4 as u32) {
                         cmap_box = Some(Box::new(CmapTable {

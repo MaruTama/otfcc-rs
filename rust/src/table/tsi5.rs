@@ -33,7 +33,7 @@ unsafe fn unwrap_class_def(raw: *mut ClassDef) -> Box<ClassDef> {
     Box::from_raw(raw)
 }
 pub unsafe extern "C" fn otfcc_read_tsi5(
-    packet: Packet,
+    packet: &Packet,
     mut _options: *const Options,
 ) -> Option<Box<Tsi5Table>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -43,7 +43,7 @@ pub unsafe extern "C" fn otfcc_read_tsi5(
         && __fortable_keep != 0
         && __fortable_count < packet.num_tables as ::core::ffi::c_int
     {
-        let mut table: PacketPiece = *packet.pieces.offset(__fortable_count as isize);
+        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
         while __fortable_keep != 0 {
             if table.tag == crate::tag::TAG_TSI5 {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -58,7 +58,7 @@ pub unsafe extern "C" fn otfcc_read_tsi5(
                             tsi5 as *mut ClassDef,
                             handle_from_index(j)
                                 as GlyphHandle,
-                            read_16u(table.data.offset(
+                            read_16u(table.data.as_ptr().offset(
                                 (j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
                             )) as GlyphClass,
                         );
