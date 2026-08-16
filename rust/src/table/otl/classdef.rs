@@ -24,20 +24,11 @@ pub struct ClassDef {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct IClassDef {
-    pub free: Option<unsafe extern "C" fn(*mut ClassDef) -> ()>,
-    pub dump: Option<unsafe extern "C" fn(*const ClassDef) -> *mut BuiltValue>,
-    pub parse: Option<unsafe extern "C" fn(*const ParsedValue) -> *mut ClassDef>,
-    pub build: Option<unsafe extern "C" fn(*const ClassDef) -> *mut Buffer>,
-    pub shrink: Option<unsafe extern "C" fn(*mut ClassDef) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct ClassDefSortRecord {
     pub gid: GlyphId,
     pub cid: GlyphClass,
 }
-pub(crate) unsafe extern "C" fn otl_class_def_free(mut x: *mut ClassDef) {
+pub(crate) unsafe fn otl_class_def_free(mut x: *mut ClassDef) {
     if x.is_null() {
         return;
     }
@@ -217,7 +208,7 @@ pub(crate) unsafe fn expand_class_def(
     otl_class_def_free(ocd);
     return cd;
 }
-pub(crate) unsafe extern "C" fn dump_class_def(cd: *const ClassDef) -> *mut BuiltValue {
+pub(crate) unsafe fn dump_class_def(cd: *const ClassDef) -> *mut BuiltValue {
     let mut a: *mut BuiltValue = json_object_new((*cd).glyphs.len());
     for j in 0..(*cd).glyphs.len() {
         json_object_push_bytes_key(
@@ -228,7 +219,7 @@ pub(crate) unsafe extern "C" fn dump_class_def(cd: *const ClassDef) -> *mut Buil
     }
     return preserialize(a);
 }
-pub(crate) unsafe extern "C" fn parse_class_def(mut _cd: *const ParsedValue) -> *mut ClassDef {
+pub(crate) unsafe fn parse_class_def(mut _cd: *const ParsedValue) -> *mut ClassDef {
     if _cd.is_null()
         || json_type_of(_cd) != JsonType::Object
     {
@@ -254,7 +245,7 @@ pub(crate) unsafe extern "C" fn parse_class_def(mut _cd: *const ParsedValue) -> 
     }
     return cd;
 }
-pub(crate) unsafe extern "C" fn build_class_def(mut cd: *const ClassDef) -> *mut Buffer {
+pub(crate) unsafe fn build_class_def(mut cd: *const ClassDef) -> *mut Buffer {
     let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 2 as u16);
     if (*cd).glyphs.is_empty() {
@@ -316,7 +307,7 @@ pub(crate) unsafe extern "C" fn build_class_def(mut cd: *const ClassDef) -> *mut
     bufwrite_bufdel(buf, ranges);
     return buf;
 }
-pub(crate) unsafe extern "C" fn shrink_class_def(cd: *mut ClassDef) {
+pub(crate) unsafe fn shrink_class_def(cd: *mut ClassDef) {
     // Single `truncate` at the end lets `Vec`'s drop glue free any handle
     // this loop's own `otfcc_handle_dispose` calls didn't reach -- same
     // reasoning as `shrink_coverage`.
@@ -335,14 +326,3 @@ pub(crate) unsafe extern "C" fn shrink_class_def(cd: *mut ClassDef) {
     (*cd).glyphs.truncate(k);
     (*cd).classes.truncate(k);
 }
-pub static OTL_I_CLASS_DEF: IClassDef = {
-    IClassDef {
-        free: Some(otl_class_def_free as unsafe extern "C" fn(*mut ClassDef) -> ()),
-        dump: Some(dump_class_def as unsafe extern "C" fn(*const ClassDef) -> *mut BuiltValue),
-        parse: Some(parse_class_def as unsafe extern "C" fn(*const ParsedValue) -> *mut ClassDef),
-        build: Some(
-            build_class_def as unsafe extern "C" fn(*const ClassDef) -> *mut Buffer,
-        ),
-        shrink: Some(shrink_class_def as unsafe extern "C" fn(*mut ClassDef) -> ()),
-    }
-};

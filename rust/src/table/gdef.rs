@@ -14,7 +14,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
+use crate::table::otl::classdef::{dump_class_def, parse_class_def, build_class_def};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, preserialize};
 #[derive(Copy, Clone)]
@@ -358,14 +358,14 @@ pub unsafe fn otfcc_dump_gdef(
             json_object_push(
                 _gdef,
                 b"glyphClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                OTL_I_CLASS_DEF.dump.expect("non-null function pointer")((*gdef).glyph_class_def),
+                dump_class_def((*gdef).glyph_class_def),
             );
         }
         if !(*gdef).mark_attach_class_def.is_null() {
             json_object_push(
                 _gdef,
                 b"markAttachClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                OTL_I_CLASS_DEF.dump.expect("non-null function pointer")((*gdef).mark_attach_class_def),
+                dump_class_def((*gdef).mark_attach_class_def),
             );
         }
         if !(*gdef).lig_carets.is_empty() {
@@ -478,12 +478,12 @@ pub unsafe fn otfcc_parse_gdef(
                 lig_carets: Vec::new(),
             }));
             gdef.as_mut().unwrap().glyph_class_def =
-                OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(json_obj_get(
+                parse_class_def(json_obj_get(
                     table,
                     b"glyphClassDef\0" as *const u8 as *const ::core::ffi::c_char,
                 ));
             gdef.as_mut().unwrap().mark_attach_class_def =
-                OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(json_obj_get(
+                parse_class_def(json_obj_get(
                     table,
                     b"markAttachClassDef\0" as *const u8 as *const ::core::ffi::c_char,
                 ));
@@ -557,7 +557,7 @@ pub unsafe fn otfcc_build_gdef(
     let mut b_mark_attach_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     if !(*gdef).glyph_class_def.is_null() {
         b_glyph_class_def =
-            bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+            bk_new_block_from_buffer(build_class_def(
                 (*gdef).glyph_class_def,
             ));
     }
@@ -566,7 +566,7 @@ pub unsafe fn otfcc_build_gdef(
     }
     if !(*gdef).mark_attach_class_def.is_null() {
         b_mark_attach_class_def =
-            bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+            bk_new_block_from_buffer(build_class_def(
                 (*gdef).mark_attach_class_def,
             ));
     }

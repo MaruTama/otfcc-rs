@@ -894,6 +894,34 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 3 batch 2: `CffTableElementInterface`/
+  `TABLE_I_CFF` (5 fields), `GposPairSubtableElementInterface`/
+  `I_SUBTABLE_GPOS_PAIR` (5), and `IClassDef`/`OTL_I_CLASS_DEF` (5).**
+  Same collapse pattern as batch 1, but two of these three arrived
+  pre-thinned by earlier work: `TABLE_I_CFF` already had `.copy`/
+  `.dispose`/`.free` set to `None` (deleted in a prior pass once their
+  targets went fully dead), and `I_SUBTABLE_GPOS_PAIR.copy`'s target
+  (`subtable_gpos_pair_copy`) was already flagged dead in a code comment
+  referencing the `otfcc-stage6-vtable-copy-move-mostly-dead` memory --
+  this PR is what finally deletes it, along with the two now-unreachable
+  `None` fields' comments and the vtable shells around all three. Only
+  `OTL_I_CLASS_DEF` had every field genuinely in use (`.free`/`.dump`/
+  `.parse`/`.build`/`.shrink`, all real) -- its 24 call sites span 6 files
+  (`consolidate/otl/gdef.rs`, `consolidate/otl/gpos_pair.rs`,
+  `table/tsi5.rs`, `table/gdef.rs`, `table/otl/subtables/gpos_pair.rs`,
+  `table/otl/subtables/chaining/build.rs`), the widest spread of any
+  vtable collapsed so far. Its five backing functions were already
+  `pub(crate)`, so no visibility widening was needed there, just updating
+  each file's `use` import to name the specific functions it calls instead
+  of the vtable. Purely mechanical beyond that -- no behavior change;
+  verified with the standard full pipeline on both platforms (macOS arm64
+  and the Linux container): 54 unit tests green (0 warnings under
+  `warnings = "deny"`), every payload byte-identical in both directions
+  including the `otfccdll` cdylib, all 10 round-trip payloads stable,
+  issue #1's large-lookup regression test green, `compare-log-output.sh`
+  green. 9 of the 17 vtables from the original inventory remain, including
+  `I_VQ` (27 fields, planned last).
+
 - **`unsafe extern "C"` removal, Phase 3 begins: the first 5 vtable
   collapses, batched into one PR.** `CffSubrGraphElementInterface`/
   `CFF_I_SUBR_GRAPH` (2 fields), `FvarTableElementInterface`/

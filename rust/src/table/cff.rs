@@ -144,15 +144,6 @@ pub struct CffTable {
 // `unwrap_cff_table`, exactly as `Font.cff` itself already works.
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct CffTableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut CffTable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut CffTable, *const CffTable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut CffTable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut CffTable>,
-    pub free: Option<unsafe extern "C" fn(*mut CffTable) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffAndGlyf {
     pub meta: *mut CffTable,
     pub glyphs: *mut GlyfTable,
@@ -237,33 +228,15 @@ unsafe fn init_fd(mut fd: *mut CffTable) {
     (*fd).underline_position = -(100 as ::core::ffi::c_int) as ::core::ffi::c_double;
     (*fd).underline_thickness = 50 as ::core::ffi::c_int as ::core::ffi::c_double;
 }
-// `dispose`/`.free` slots below are `None`: `dispose_fd`/`table_cff_dispose`/
-// `table_cff_free` all became fully dead once `fd_array`'s recursive
-// raw-pointer free loop (their one remaining caller) went away -- deleted
-// outright, matching `.copy`'s already-established precedent below.
-pub static TABLE_I_CFF: CffTableElementInterface = {
-    CffTableElementInterface {
-        init: Some(table_cff_init as unsafe extern "C" fn(*mut CffTable) -> ()),
-        // `.copy` (`table_cff_copy`, a raw `memcpy`) was already unreachable
-        // from any live call site before this field's type change, and
-        // would become unsound after it (a `memcpy`'d `Vec<u8>` aliases its
-        // heap buffer) -- deleted rather than left as a landmine, matching
-        // this migration's established pattern for confirmed-dead slots.
-        copy: None,
-        dispose: None,
-        create: Some(table_cff_create),
-        free: None,
-    }
-};
 #[inline]
-unsafe extern "C" fn table_cff_create() -> *mut CffTable {
+unsafe fn table_cff_create() -> *mut CffTable {
     let mut x: *mut CffTable =
         malloc(::core::mem::size_of::<CffTable>() as usize) as *mut CffTable;
     table_cff_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn table_cff_init(mut x: *mut CffTable) {
+unsafe fn table_cff_init(mut x: *mut CffTable) {
     init_fd(x);
 }
 // `table_cff_create`/`fd_from_json` are shared between the top-level table
@@ -1312,7 +1285,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                         cff_open_stream(data as *mut u8, length, options);
                     context.cff_file = cff_file;
                     context.meta = (
-                        TABLE_I_CFF.create.expect("non-null function pointer"))();
+                        table_cff_create)();
                     CFF_I_DICT
                         .parse_to_callback
                         .expect("non-null function pointer")(
@@ -1352,7 +1325,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                             // own backing buffer of `Box` pointers.
                             (*context.meta).fd_array.push(
                                 unwrap_cff_table(
-                                    (TABLE_I_CFF.create.expect("non-null function pointer"))(),
+                                    (table_cff_create)(),
                                 )
                                 .unwrap(),
                             );
@@ -1876,7 +1849,7 @@ unsafe fn fd_from_json(
     mut top_level: bool,
 ) -> *mut CffTable {
     let mut table: *mut CffTable = (
-        TABLE_I_CFF.create.expect("non-null function pointer"))();
+        table_cff_create)();
     if dump.is_null()
         || json_type_of(dump) != JsonType::Object
     {
@@ -2015,7 +1988,7 @@ unsafe fn fd_from_json(
         && (*table).fd_array.is_empty()
     {
         let mut fd0_box: Box<CffTable> = unwrap_cff_table(
-            (TABLE_I_CFF.create.expect("non-null function pointer"))(),
+            (table_cff_create)(),
         )
         .unwrap();
         fd0_box.private_dict = (*table).private_dict.take();

@@ -12,17 +12,17 @@ use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::buffer::{bufnew, bufwrite16b};
-use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
+use crate::table::otl::classdef::{dump_class_def, parse_class_def};
 use crate::support::built_json::{BuiltValue, json_object_push};
 
 
 pub type Tsi5Table = ClassDef;
 // Stage 6-4 "Box化": `Font.tsi5` becomes `Option<Box<Tsi5Table>>`.
 // `ClassDef` itself stays a raw-pointer-constructible type everywhere else
-// in the crate (`GdefTable.glyph_class_def`/`.mark_attach_class_def`, the
-// `OTL_I_CLASS_DEF` package used throughout `otl`/`gdef` consolidation) --
-// widening `otl_class_def_create`/`OTL_I_CLASS_DEF.parse` themselves to
-// return `Box<ClassDef>` would ripple across all of those, well beyond this
+// in the crate (`GdefTable.glyph_class_def`/`.mark_attach_class_def`, and
+// `otl_class_def_create`/`parse_class_def` used throughout `otl`/`gdef`
+// consolidation) -- widening those constructors themselves to return
+// `Box<ClassDef>` would ripple across all of those, well beyond this
 // field's own scope. Instead, `unwrap_class_def` "adopts" the value into a
 // genuine `Box`: since `otl_class_def_create` itself allocates via
 // `Box::into_raw` now, `Box::from_raw` reclaims that exact allocation
@@ -87,7 +87,7 @@ pub unsafe fn otfcc_dump_tsi5(
     json_object_push(
         root,
         b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,
-        OTL_I_CLASS_DEF.dump.expect("non-null function pointer")(table as *const ClassDef),
+        dump_class_def(table as *const ClassDef),
     );
 }
 pub unsafe fn otfcc_parse_tsi5(
@@ -103,7 +103,7 @@ pub unsafe fn otfcc_parse_tsi5(
     if _tsi.is_null() {
         return None;
     }
-    let raw = OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(_tsi);
+    let raw = parse_class_def(_tsi);
     if raw.is_null() {
         return None;
     }
