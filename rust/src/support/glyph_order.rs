@@ -95,26 +95,11 @@ pub struct GlyphOrder {
 // This type is still constructed and freed as a bare `*mut GlyphOrder` in
 // many places that are *not* `Font.glyph_order` (`PostTable.post_name_map`,
 // the `aglfn`/`gord` locals in `otf_reader/unconsolidate.rs`) -- those keep
-// going through `OTFCC_PKG_GLYPH_ORDER.create`/`.free` unchanged:
+// going through `otfcc_glyph_order_create`/`otfcc_glyph_order_free` unchanged:
 // `dispose_glyph_order` resets `entries`/`by_gid`/`by_name` by field
 // reassignment (which drops each old value in place, same idiom it
 // already used for `by_gid`/`by_name` before this PR) before the malloc'd
 // shell itself is freed.
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GlyphOrderPackage {
-    pub init: Option<unsafe extern "C" fn(*mut GlyphOrder) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut GlyphOrder) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GlyphOrder>,
-    pub free: Option<unsafe extern "C" fn(*mut GlyphOrder) -> ()>,
-    pub set_by_gid: Option<unsafe extern "C" fn(*mut GlyphOrder, GlyphId, Vec<u8>) -> Vec<u8>>,
-    pub set_by_name: Option<unsafe extern "C" fn(*mut GlyphOrder, Vec<u8>, GlyphId) -> bool>,
-    pub name_a_field_shared:
-        Option<unsafe extern "C" fn(*mut GlyphOrder, GlyphId, *mut Vec<u8>) -> bool>,
-    pub consolidate_handle:
-        Option<unsafe extern "C" fn(*mut GlyphOrder, *mut GlyphHandle) -> bool>,
-    pub lookup_name: Option<unsafe extern "C" fn(*mut GlyphOrder, Vec<u8>) -> bool>,
-}
 #[inline]
 unsafe fn init_glyph_order(mut go: *mut GlyphOrder) {
     // Placement-construct, not a field assignment: the one live caller
@@ -134,15 +119,15 @@ unsafe fn dispose_glyph_order(mut go: *mut GlyphOrder) {
     (*go).by_name = std::collections::HashMap::new();
 }
 #[inline]
-unsafe extern "C" fn otfcc_glyph_order_init(mut x: *mut GlyphOrder) {
+unsafe fn otfcc_glyph_order_init(mut x: *mut GlyphOrder) {
     init_glyph_order(x);
 }
 #[inline]
-unsafe extern "C" fn otfcc_glyph_order_dispose(mut x: *mut GlyphOrder) {
+unsafe fn otfcc_glyph_order_dispose(mut x: *mut GlyphOrder) {
     dispose_glyph_order(x);
 }
 #[inline]
-unsafe extern "C" fn otfcc_glyph_order_free(mut x: *mut GlyphOrder) {
+pub(crate) unsafe fn otfcc_glyph_order_free(mut x: *mut GlyphOrder) {
     if x.is_null() {
         return;
     }
@@ -150,7 +135,7 @@ unsafe extern "C" fn otfcc_glyph_order_free(mut x: *mut GlyphOrder) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn otfcc_glyph_order_create() -> *mut GlyphOrder {
+pub(crate) unsafe fn otfcc_glyph_order_create() -> *mut GlyphOrder {
     let mut x: *mut GlyphOrder =
         malloc(::core::mem::size_of::<GlyphOrder>() as usize) as *mut GlyphOrder;
     otfcc_glyph_order_init(x);
@@ -162,7 +147,7 @@ unsafe extern "C" fn otfcc_glyph_order_create() -> *mut GlyphOrder {
 // no code change needed there. `name` is `Vec<u8>` now instead of `SdsRaw`,
 // so it drops on its own wherever this returns -- no explicit free needed
 // in any branch.
-unsafe extern "C" fn otfcc_set_glyph_order_by_gid(
+pub(crate) unsafe fn otfcc_set_glyph_order_by_gid(
     mut go: *mut GlyphOrder,
     mut gid: GlyphId,
     mut name: Vec<u8>,
@@ -191,7 +176,7 @@ unsafe extern "C" fn otfcc_set_glyph_order_by_gid(
 // matching the original's "deliberately left un-freed" contract without
 // needing a comment to explain why -- the caller's own copy was never
 // touched, so there is nothing for it to double-free or leak.
-unsafe extern "C" fn otfcc_set_glyph_order_by_name(
+pub(crate) unsafe fn otfcc_set_glyph_order_by_name(
     mut go: *mut GlyphOrder,
     mut name: Vec<u8>,
     mut gid: GlyphId,
@@ -210,7 +195,7 @@ unsafe extern "C" fn otfcc_set_glyph_order_by_name(
     (*go).by_name.insert(name, idx);
     return true;
 }
-unsafe extern "C" fn otfcc_gord_name_a_field_shared(
+pub(crate) unsafe fn otfcc_gord_name_a_field_shared(
     mut go: *mut GlyphOrder,
     mut gid: GlyphId,
     mut field: *mut Vec<u8>,
@@ -231,7 +216,7 @@ unsafe extern "C" fn otfcc_gord_name_a_field_shared(
 // the `sds` sweep reached it) -- same simplification already used
 // throughout the `consolidate/otl/*.rs` sweep, since the name is already
 // the exact `Vec<u8>` a `Handle` wants.
-unsafe extern "C" fn otfcc_gord_consolidate_handle(
+pub(crate) unsafe fn otfcc_gord_consolidate_handle(
     mut go: *mut GlyphOrder,
     mut h: *mut GlyphHandle,
 ) -> bool {
@@ -274,39 +259,9 @@ unsafe extern "C" fn otfcc_gord_consolidate_handle(
     }
     return false;
 }
-unsafe extern "C" fn gord_lookup_name(mut go: *mut GlyphOrder, mut name: Vec<u8>) -> bool {
+pub(crate) unsafe fn gord_lookup_name(mut go: *mut GlyphOrder, mut name: Vec<u8>) -> bool {
     (*go).by_name.contains_key(&name)
 }
-pub static OTFCC_PKG_GLYPH_ORDER: GlyphOrderPackage = {
-    GlyphOrderPackage {
-        init: Some(otfcc_glyph_order_init as unsafe extern "C" fn(*mut GlyphOrder) -> ()),
-        dispose: Some(
-            otfcc_glyph_order_dispose as unsafe extern "C" fn(*mut GlyphOrder) -> (),
-        ),
-        create: Some(otfcc_glyph_order_create),
-        free: Some(otfcc_glyph_order_free as unsafe extern "C" fn(*mut GlyphOrder) -> ()),
-        set_by_gid: Some(
-            otfcc_set_glyph_order_by_gid
-                as unsafe extern "C" fn(*mut GlyphOrder, GlyphId, Vec<u8>) -> Vec<u8>,
-        ),
-        set_by_name: Some(
-            otfcc_set_glyph_order_by_name
-                as unsafe extern "C" fn(*mut GlyphOrder, Vec<u8>, GlyphId) -> bool,
-        ),
-        name_a_field_shared: Some(
-            otfcc_gord_name_a_field_shared
-                as unsafe extern "C" fn(*mut GlyphOrder, GlyphId, *mut Vec<u8>) -> bool,
-        ),
-        consolidate_handle: Some(
-            otfcc_gord_consolidate_handle
-                as unsafe extern "C" fn(*mut GlyphOrder, *mut GlyphHandle) -> bool,
-        ),
-        lookup_name: Some(
-            gord_lookup_name as unsafe extern "C" fn(*mut GlyphOrder, Vec<u8>) -> bool,
-        ),
-    }
-};
-
 #[cfg(test)]
 mod tests {
     use super::*;

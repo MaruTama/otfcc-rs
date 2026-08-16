@@ -39,7 +39,7 @@ use crate::table::otl::classdef::ClassDef;
 
 
 use crate::consolidate::otl::common::{fontop_consolidate_class_def};
-use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{otfcc_gord_consolidate_handle, GlyphOrder};
 use crate::table::otl::classdef::{shrink_class_def, otl_class_def_free};
 
 pub unsafe fn consolidate_gdef(
@@ -99,9 +99,7 @@ pub unsafe fn consolidate_gdef(
             std::collections::BTreeMap::new();
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < lig_carets.len() {
-            if OTFCC_PKG_GLYPH_ORDER
-                .consolidate_handle
-                .expect("non-null function pointer")(
+            if otfcc_gord_consolidate_handle(
                 glyph_order,
                 &raw mut lig_carets[j as usize].glyph,
             ) {

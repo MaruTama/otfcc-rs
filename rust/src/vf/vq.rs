@@ -64,22 +64,6 @@ pub struct VqSegmentDelta {
     pub touched: bool,
     pub region: *const VqRegion,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct VqSegmentElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut VqSegment) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut VqSegment, *const VqSegment) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut VqSegment) -> ()>,
-    pub empty: Option<unsafe extern "C" fn() -> VqSegment>,
-    pub dup: Option<unsafe extern "C" fn(VqSegment) -> VqSegment>,
-    pub show: Option<unsafe extern "C" fn(VqSegment) -> ()>,
-    pub equal: Option<unsafe extern "C" fn(VqSegment, VqSegment) -> bool>,
-    pub compare: Option<unsafe extern "C" fn(VqSegment, VqSegment) -> ::core::ffi::c_int>,
-    pub compare_ref:
-        Option<unsafe extern "C" fn(*const VqSegment, *const VqSegment) -> ::core::ffi::c_int>,
-    pub create_still: Option<unsafe extern "C" fn(Pos) -> VqSegment>,
-    pub create_delta: Option<unsafe extern "C" fn(Pos, *mut VqRegion) -> VqSegment>,
-}
 #[derive(Clone)]
 pub struct VQ {
     pub kernel: Pos,
@@ -156,48 +140,12 @@ unsafe fn dispose_vq_segment(mut vqs: *mut VqSegment) {
     init_vq_segment(vqs);
 }
 #[inline]
-unsafe extern "C" fn vq_segment_empty() -> VqSegment {
-    let mut x: VqSegment = VqSegment::Still(0.);
-    vq_segment_init(&raw mut x);
-    return x;
-}
-#[inline]
-unsafe extern "C" fn vq_segment_copy(mut dst: *mut VqSegment, mut src: *const VqSegment) {
+unsafe fn vq_segment_copy(mut dst: *mut VqSegment, mut src: *const VqSegment) {
     copy_vq_segment(dst, src);
 }
 #[inline]
-unsafe extern "C" fn vq_segment_dup(src: VqSegment) -> VqSegment {
-    let mut dst: VqSegment = VqSegment::Still(0.);
-    vq_segment_copy(&raw mut dst, &raw const src);
-    return dst;
-}
-#[inline]
-unsafe extern "C" fn vq_segment_init(mut x: *mut VqSegment) {
-    init_vq_segment(x);
-}
-#[inline]
-unsafe extern "C" fn vq_segment_dispose(mut x: *mut VqSegment) {
+unsafe fn vq_segment_dispose(mut x: *mut VqSegment) {
     dispose_vq_segment(x);
-}
-unsafe extern "C" fn vqs_create_still(mut x: Pos) -> VqSegment {
-    let mut vqs: VqSegment = VqSegment::Still(0.);
-    VQ_I_SEGMENT.init.expect("non-null function pointer")(&raw mut vqs);
-    vqs = VqSegment::Still(x);
-    return vqs;
-}
-unsafe extern "C" fn vqs_create_delta(mut delta: Pos, mut region: *mut VqRegion) -> VqSegment {
-    let mut vqs: VqSegment = VqSegment::Still(0.);
-    VQ_I_SEGMENT.init.expect("non-null function pointer")(&raw mut vqs);
-    // `.touched` was never set here in the original either (confirmed dead
-    // code: `vqs_create_delta`/`VQ_I_SEGMENT.create_delta` is assigned into
-    // the vtable but never actually called anywhere in the crate) -- `false`
-    // replaces the old uninitialized read.
-    vqs = VqSegment::Delta(VqSegmentDelta {
-        quantity: delta,
-        touched: false,
-        region,
-    });
-    return vqs;
 }
 unsafe fn vqs_compare(a: VqSegment, b: VqSegment) -> ::core::ffi::c_int {
     match (a, b) {
@@ -227,21 +175,6 @@ unsafe fn vqs_compare(a: VqSegment, b: VqSegment) -> ::core::ffi::c_int {
         }
     }
 }
-#[inline]
-unsafe extern "C" fn vq_segment_compare(a: VqSegment, b: VqSegment) -> ::core::ffi::c_int {
-    return vqs_compare(a, b);
-}
-#[inline]
-unsafe extern "C" fn vq_segment_compare_ref(
-    mut a: *const VqSegment,
-    mut b: *const VqSegment,
-) -> ::core::ffi::c_int {
-    return vqs_compare(*a, *b);
-}
-#[inline]
-unsafe extern "C" fn vq_segment_equal(a: VqSegment, b: VqSegment) -> bool {
-    return vqs_compare(a, b) == 0;
-}
 unsafe fn show_vqs(x: VqSegment) {
     match x {
         VqSegment::Still(still) => {
@@ -268,34 +201,9 @@ unsafe fn show_vqs(x: VqSegment) {
     };
 }
 #[inline]
-unsafe extern "C" fn vq_segment_show(a: VqSegment) {
+unsafe fn vq_segment_show(a: VqSegment) {
     return show_vqs(a);
 }
-pub static VQ_I_SEGMENT: VqSegmentElementInterface = {
-    VqSegmentElementInterface {
-        init: Some(vq_segment_init as unsafe extern "C" fn(*mut VqSegment) -> ()),
-        copy: Some(
-            vq_segment_copy as unsafe extern "C" fn(*mut VqSegment, *const VqSegment) -> (),
-        ),
-        dispose: Some(vq_segment_dispose as unsafe extern "C" fn(*mut VqSegment) -> ()),
-        empty: Some(vq_segment_empty),
-        dup: Some(vq_segment_dup as unsafe extern "C" fn(VqSegment) -> VqSegment),
-        show: Some(vq_segment_show as unsafe extern "C" fn(VqSegment) -> ()),
-        equal: Some(vq_segment_equal as unsafe extern "C" fn(VqSegment, VqSegment) -> bool),
-        compare: Some(
-            vq_segment_compare
-                as unsafe extern "C" fn(VqSegment, VqSegment) -> ::core::ffi::c_int,
-        ),
-        compare_ref: Some(
-            vq_segment_compare_ref
-                as unsafe extern "C" fn(*const VqSegment, *const VqSegment) -> ::core::ffi::c_int,
-        ),
-        create_still: Some(vqs_create_still as unsafe extern "C" fn(Pos) -> VqSegment),
-        create_delta: Some(
-            vqs_create_delta as unsafe extern "C" fn(Pos, *mut VqRegion) -> VqSegment,
-        ),
-    }
-};
 #[inline]
 unsafe extern "C" fn vq_init(mut x: *mut VQ) {
     (*x).kernel = 0 as ::core::ffi::c_int as Pos;
@@ -374,7 +282,7 @@ unsafe fn simplify_vq(mut x: *mut VQ) {
                     }
                 }
             }
-            VQ_I_SEGMENT.dispose.expect("non-null function pointer")(&raw mut shift[j]);
+            vq_segment_dispose(&raw mut shift[j]);
         } else {
             shift[k] = shift[j];
             k = k.wrapping_add(1);
@@ -393,7 +301,7 @@ unsafe extern "C" fn vq_inplace_plus(mut a: *mut VQ, b: VQ) {
             (*a).kernel += still;
         } else {
             let mut s: VqSegment = VqSegment::Still(0.);
-            VQ_I_SEGMENT.copy.expect("non-null function pointer")(&raw mut s, &raw const k);
+            vq_segment_copy(&raw mut s, &raw const k);
             (*a).shift.push(s);
         }
         p = p.wrapping_add(1);
@@ -502,7 +410,7 @@ unsafe fn show_vq(x: VQ) {
         if j != 0 {
             fprintf(stderr, b" \0" as *const u8 as *const ::core::ffi::c_char);
         }
-        VQ_I_SEGMENT.show.expect("non-null function pointer")(x.shift[j]);
+        vq_segment_show(x.shift[j]);
         j = j.wrapping_add(1);
     }
     fprintf(stderr, b"}\n\0" as *const u8 as *const ::core::ffi::c_char);

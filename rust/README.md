@@ -894,6 +894,40 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 3 batch 6: `VqSegmentElementInterface`/
+  `VQ_I_SEGMENT` (11 fields) and `GlyphOrderPackage`/`OTFCC_PKG_GLYPH_ORDER`
+  (9 fields), bundled into one PR.** `VQ_I_SEGMENT` turned out to be mostly
+  dead: only 3 of its 11 fields (`.dispose`, `.copy`, `.show`) have any real
+  caller anywhere in the crate; the other 8 (`vqs_create_still`,
+  `vqs_create_delta`, `vq_segment_empty`, `vq_segment_dup`,
+  `vq_segment_compare`, `vq_segment_compare_ref`, `vq_segment_equal`,
+  `vq_segment_init`) are reachable only through the vtable's own static
+  initializer or through each other, so they went away with it -- one of
+  the eight (`vqs_create_delta`) already carried a comment from an earlier
+  migration pass confirming it was dead. The 3 survivors
+  (`vq_segment_dispose`/`vq_segment_copy`/`vq_segment_show`) stayed
+  module-private, since every real call site lives in `vf/vq.rs` itself.
+  `OTFCC_PKG_GLYPH_ORDER` was the opposite shape: 7 of its 9 non-dead
+  fields are genuinely called from 13 other files (`.set_by_gid` alone
+  accounts for ~594 of the ~628 call sites, almost all the repetitive
+  `aglfn.rs` pattern the plan flagged), so collapsing it meant widening
+  7 functions from module-private to `pub(crate)` in `support/glyph_order.rs`
+  and rewriting each caller file's `use` import to name the concrete
+  functions instead of the vtable. `.init`/`.dispose` had no external
+  callers (already called by name internally) and stayed private. Both
+  vtables' call sites were rewritten mechanically with the same
+  `collapse_vtable_calls.pl` script used since Phase 3 batch 1 -- extended
+  this round to also tolerate a trailing comma inside
+  `.expect("non-null function pointer",\n)`, a shape the script had missed
+  once before (Phase 3 batch 4) and that showed up again here. Verified
+  with the standard full pipeline on both platforms: 54 unit tests green
+  (0 warnings under `warnings = "deny"`), every payload byte-identical in
+  both directions including the `otfccdll` cdylib, all 10 round-trip
+  payloads stable, issue #1's large-lookup regression test green,
+  `compare-log-output.sh` green. Only `VqVectorInterface`/`I_VQ` (27
+  fields, ~178 call sites) remains from the original 17-vtable inventory --
+  the largest, planned last, as its own PR per the original plan.
+
 - **`unsafe extern "C"` removal, Phase 3 batch 5: `CffIOutlineBuilder`/
   `DRAW_PASS`, the value-passed outlier the plan flagged as needing a
   different collapse mechanism than the other 16 vtables.** Every other

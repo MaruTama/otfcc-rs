@@ -10,7 +10,9 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::support::glyph_order::{GlyphOrder};
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getbool, json_obj_getnum};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
-use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{
+    otfcc_glyph_order_create, otfcc_glyph_order_free, otfcc_set_glyph_order_by_gid,
+};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::support::built_json::{BuiltValue, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push};
 
@@ -43,7 +45,7 @@ impl Drop for PostTable {
     fn drop(&mut self) {
         unsafe {
             if !self.post_name_map.is_null() {
-                OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")(self.post_name_map);
+                otfcc_glyph_order_free(self.post_name_map);
             }
         }
     }
@@ -354,9 +356,7 @@ pub unsafe fn otfcc_read_post(
                     if post_val.version == 0x20000 as F16Dot16 {
                         let mut map: *mut GlyphOrder =
                             (
-                                OTFCC_PKG_GLYPH_ORDER
-                                    .create
-                                    .expect("non-null function pointer"))();
+                                otfcc_glyph_order_create)();
                         let mut pending_names: Vec<Vec<u8>> = Vec::new();
                         let mut number_glyphs: u16 = read_16u(
                             data.offset(32 as ::core::ffi::c_int as isize) as *const u8,
@@ -394,9 +394,7 @@ pub unsafe fn otfcc_read_post(
                                     (2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize,
                                 ) as *const u8);
                             if name_map as ::core::ffi::c_int >= 258 as ::core::ffi::c_int {
-                                OTFCC_PKG_GLYPH_ORDER
-                                    .set_by_gid
-                                    .expect("non-null function pointer")(
+                                otfcc_set_glyph_order_by_gid(
                                     map,
                                     j as GlyphId,
                                     pending_names[(name_map as ::core::ffi::c_int
@@ -405,9 +403,7 @@ pub unsafe fn otfcc_read_post(
                                         .clone(),
                                 );
                             } else {
-                                OTFCC_PKG_GLYPH_ORDER
-                                    .set_by_gid
-                                    .expect("non-null function pointer")(
+                                otfcc_set_glyph_order_by_gid(
                                     map,
                                     j as GlyphId,
                                     STANDARD_MAC_NAMES[name_map as usize].to_bytes().to_vec(),

@@ -33,7 +33,7 @@ use crate::support::glyph_order::{GlyphOrder};
 
 
 use crate::table::otl::classdef::{ClassDef};
-use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{otfcc_gord_consolidate_handle};
 
 
 
@@ -54,9 +54,7 @@ pub unsafe fn fontop_consolidate_coverage(
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*coverage).len() {
         let mut h: *mut GlyphHandle = &raw mut (&mut (*coverage))[j as usize];
-        if !OTFCC_PKG_GLYPH_ORDER
-            .consolidate_handle
-            .expect("non-null function pointer")(
+        if !otfcc_gord_consolidate_handle(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder), h as *mut GlyphHandle
         ) {
             (*(*options).logger)
@@ -86,9 +84,7 @@ pub unsafe fn fontop_consolidate_class_def(
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*cd).glyphs.len() {
         let mut h: *mut GlyphHandle = &raw mut (&mut (*cd).glyphs)[j as usize];
-        if !OTFCC_PKG_GLYPH_ORDER
-            .consolidate_handle
-            .expect("non-null function pointer")(
+        if !otfcc_gord_consolidate_handle(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder), h as *mut GlyphHandle
         ) {
             (*(*options).logger)
