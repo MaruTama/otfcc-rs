@@ -62,7 +62,7 @@ use crate::consolidate::otl::gsub_single::{consolidate_gsub_single};
 use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 use crate::table::_tsi::{tsi_entry_dup};
-use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, otfcc_new_glyf_glyph};
+use crate::table::glyf::{glyf_component_reference_empty, otfcc_new_glyf_glyph};
 use crate::table::otl::{otl_feature_list_filter_env, otl_feature_ref_list_filter_env, otl_lookup_list_filter_env, otl_lookup_ref_list_filter_env};
 use crate::vf::vq::{I_VQ};
 
@@ -374,9 +374,7 @@ pub unsafe fn get_point_coordinates(
         consolidate_anchor_ref(table, gr, rr, options);
         let mut ref_0: ComponentReference =
             (
-                GLYF_I_COMPONENT_REFERENCE
-                    .empty
-                    .expect("non-null function pointer"))();
+                glyf_component_reference_empty)();
         ref_0.glyph = handle_from_index(
             (&(*g).references)[r as usize].glyph.index,
         ) as GlyphHandle;
@@ -460,9 +458,7 @@ pub unsafe fn consolidate_anchor_ref(
     let mut outer_counter: ShapeId = 0 as ShapeId;
     let mut rr1: ComponentReference =
         (
-            GLYF_I_COMPONENT_REFERENCE
-                .empty
-                .expect("non-null function pointer"))();
+            glyf_component_reference_empty)();
     rr1.glyph = handle_from_index((*rr).glyph.index)
         as GlyphHandle;
     let mut s1: bool = get_point_coordinates(
@@ -595,9 +591,7 @@ pub unsafe fn consolidate_glyf(
         while ___loggedstep_v {
             let mut gr: ComponentReference =
                 (
-                    GLYF_I_COMPONENT_REFERENCE
-                        .empty
-                        .expect("non-null function pointer"))();
+                    glyf_component_reference_empty)();
             gr.glyph = handle_from_index(j_0)
                 as GlyphHandle;
             let mut r: ShapeId = 0 as ShapeId;

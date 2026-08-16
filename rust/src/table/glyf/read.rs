@@ -17,8 +17,8 @@ use crate::table::glyf::{GlyfIOContext, RefAnchorStatus, ComponentFlags, PointFl
 use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::vq::{VQ, VqSegment, VqSegmentDelta};
 use crate::support::primitives::{otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed};
-use crate::table::fvar::{TABLE_I_FVAR};
-use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE, glyf_contour_fill, otfcc_new_glyf_glyph};
+use crate::table::fvar::{fvar_register_region};
+use crate::table::glyf::{glyf_component_reference_empty, glyf_contour_fill, otfcc_new_glyf_glyph};
 use crate::vf::region::{vq_create_region};
 use crate::vf::vq::{I_VQ};
 
@@ -296,9 +296,7 @@ unsafe fn otfcc_read_composite_glyph(
         ) as GlyphId;
         let mut ref_0: ComponentReference =
             (
-                GLYF_I_COMPONENT_REFERENCE
-                    .empty
-                    .expect("non-null function pointer"))();
+                glyf_component_reference_empty)();
         ref_0.glyph =
             handle_from_index(index) as GlyphHandle;
         offset = offset.wrapping_add(4 as u32);
@@ -1008,9 +1006,7 @@ unsafe fn polymorphize_glyph(
                         * (*ctx).dimensions as ::core::ffi::c_int) as isize,
                 ) as *mut F2Dot14;
         }
-        let mut r: *const VqRegion = TABLE_I_FVAR
-            .register_region
-            .expect("non-null function pointer")(
+        let mut r: *const VqRegion = fvar_register_region(
             (*ctx).fvar,
             create_region_from_tuples((*ctx).dimensions, peak, start, end),
         );

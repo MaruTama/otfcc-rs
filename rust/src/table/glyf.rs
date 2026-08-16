@@ -35,12 +35,6 @@ pub struct Point {
     pub y: VQ,
     pub on_curve: i8,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct PointElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut Point) -> ()>,
-    pub dup: Option<unsafe extern "C" fn(Point) -> Point>,
-}
 /// A single outline contour, owned point-by-point. Plain `Vec<Point>`: every
 /// point's `VQ` fields are themselves `Vec`s, so dropping a `Contour` already
 /// recursively frees everything it owns -- no element embeds a `Handle`, so
@@ -90,12 +84,6 @@ pub struct ComponentReference {
     pub is_anchored: RefAnchorStatus,
     pub inner: ShapeId,
     pub outer: ShapeId,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ComponentReferenceElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut ComponentReference) -> ()>,
-    pub empty: Option<unsafe extern "C" fn() -> ComponentReference>,
 }
 /// A glyph's component references. Each [`ComponentReference`] embeds two
 /// `VQ`s and a `GlyphHandle`, all of which now own their allocations for
@@ -199,17 +187,11 @@ unsafe fn copy_point(mut dst: *mut Point, mut src: *const Point) {
     (*dst).on_curve = (*src).on_curve;
 }
 #[inline]
-unsafe extern "C" fn glyf_point_init(mut x: *mut Point) {
+pub unsafe fn glyf_point_init(mut x: *mut Point) {
     create_point(x);
 }
-pub static GLYF_I_POINT: PointElementInterface = {
-    PointElementInterface {
-        init: Some(glyf_point_init as unsafe extern "C" fn(*mut Point) -> ()),
-        dup: Some(glyf_point_dup as unsafe extern "C" fn(Point) -> Point),
-    }
-};
 #[inline]
-unsafe extern "C" fn glyf_point_dup(src: Point) -> Point {
+pub unsafe fn glyf_point_dup(src: Point) -> Point {
     let mut dst: Point = Point {
         x: VQ {
             kernel: 0.,
@@ -229,9 +211,9 @@ unsafe fn glyf_point_copy(mut dst: *mut Point, mut src: *const Point) {
     copy_point(dst, src);
 }
 /// Grows `arr` to `n` points, default-constructing each new one via
-/// [`GLYF_I_POINT`] -- the element-level vtable stays untouched (it also
-/// serves `libcff/charstring_il.rs` and `table/cff.rs`), only the container
-/// this used to dispatch through (`ContourVectorInterface`) is gone.
+/// [`glyf_point_init`] -- also called directly from `libcff/charstring_il.rs`
+/// and `table/cff.rs`, since the `PointElementInterface` vtable this used to
+/// dispatch through is gone (single static, no real polymorphism).
 #[inline]
 unsafe fn glyf_contour_fill(arr: *mut Contour, n: usize) {
     while (*arr).len() < n {
@@ -246,7 +228,7 @@ unsafe fn glyf_contour_fill(arr: *mut Contour, n: usize) {
             },
             on_curve: 0,
         };
-        GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut x);
+        glyf_point_init(&raw mut x);
         (*arr).push(x);
     }
 }
@@ -268,7 +250,7 @@ unsafe fn init_glyf_reference(mut ref_0: *mut ComponentReference) {
     (*ref_0).use_my_metrics = false;
 }
 #[inline]
-unsafe extern "C" fn glyf_component_reference_empty() -> ComponentReference {
+pub unsafe fn glyf_component_reference_empty() -> ComponentReference {
     let mut x: ComponentReference = ComponentReference {
         x: VQ {
             kernel: 0.,
@@ -297,18 +279,9 @@ unsafe extern "C" fn glyf_component_reference_empty() -> ComponentReference {
     return x;
 }
 #[inline]
-unsafe extern "C" fn glyf_component_reference_init(mut x: *mut ComponentReference) {
+pub unsafe fn glyf_component_reference_init(mut x: *mut ComponentReference) {
     init_glyf_reference(x);
 }
-pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
-    ComponentReferenceElementInterface {
-        init: Some(
-            glyf_component_reference_init
-                as unsafe extern "C" fn(*mut ComponentReference) -> (),
-        ),
-        empty: Some(glyf_component_reference_empty),
-    }
-};
 /// `Box::new` is the allocation and the struct literal is the zero-init
 /// `__caryll_allocate_clean` (calloc) used to provide -- same shape as
 /// `new_lookup`/`new_feature`/`new_language`. Kept the `otfcc_`-prefixed C
@@ -775,7 +748,7 @@ unsafe fn glyf_parse_point(mut pointdump: *const ParsedValue) -> Point {
         },
         on_curve: 0,
     };
-    GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut point);
+    glyf_point_init(&raw mut point);
     if pointdump.is_null()
         || json_type_of(pointdump) != JsonType::Object
     {
@@ -847,9 +820,7 @@ unsafe fn glyf_parse_reference(mut refdump: *const ParsedValue) -> ComponentRefe
     );
     let mut ref_0: ComponentReference =
         (
-            GLYF_I_COMPONENT_REFERENCE
-                .empty
-                .expect("non-null function pointer"))();
+            glyf_component_reference_empty)();
     if !_gname.is_null() {
         ref_0.glyph = handle_from_name(Some(json_str_bytes(_gname))) as GlyphHandle;
         I_VQ.replace.expect("non-null function pointer")(

@@ -108,14 +108,6 @@ impl Drop for FvarTable {
     }
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FvarTableElementInterface {
-    pub register_region:
-        Option<unsafe extern "C" fn(*mut FvarTable, *mut VqRegion) -> *const VqRegion>,
-    pub find_master_by_region:
-        Option<unsafe extern "C" fn(*const FvarTable, *const VqRegion) -> *const FvarMaster>,
-}
-#[derive(Copy, Clone)]
 #[repr(C, packed)]
 pub struct InstanceRecord {
     pub subfamily_name_id: u16,
@@ -157,7 +149,7 @@ unsafe fn dispose_fvar_master(m: &FvarMaster) {
 // share the same region. First registration wins the name "m1", "m2", ...
 // in registration order (`(*fvar).masters.len() + 1` at insert time,
 // exactly reproducing the original's `HASH_COUNT`-at-insert-time scheme).
-unsafe extern "C" fn fvar_register_region(
+pub unsafe fn fvar_register_region(
     mut fvar: *mut FvarTable,
     mut region: *mut VqRegion,
 ) -> *const VqRegion {
@@ -171,7 +163,7 @@ unsafe extern "C" fn fvar_register_region(
     (*fvar).masters.insert(key, FvarMaster { name, region });
     region as *const VqRegion
 }
-unsafe extern "C" fn fvar_find_master_by_region(
+unsafe fn fvar_find_master_by_region(
     mut fvar: *const FvarTable,
     mut region: *const VqRegion,
 ) -> *const FvarMaster {
@@ -180,18 +172,6 @@ unsafe extern "C" fn fvar_find_master_by_region(
         None => ::core::ptr::null::<FvarMaster>(),
     }
 }
-pub static TABLE_I_FVAR: FvarTableElementInterface = {
-    FvarTableElementInterface {
-        register_region: Some(
-            fvar_register_region
-                as unsafe extern "C" fn(*mut FvarTable, *mut VqRegion) -> *const VqRegion,
-        ),
-        find_master_by_region: Some(
-            fvar_find_master_by_region
-                as unsafe extern "C" fn(*const FvarTable, *const VqRegion) -> *const FvarMaster,
-        ),
-    }
-};
 pub unsafe fn otfcc_read_fvar(
     packet: &Packet,
     mut options: *const Options,
@@ -695,9 +675,7 @@ pub unsafe fn json_new_vq_region(
     mut rs: *const VqRegion,
     mut fvar: *const FvarTable,
 ) -> *mut BuiltValue {
-    let mut m: *const FvarMaster = TABLE_I_FVAR
-        .find_master_by_region
-        .expect("non-null function pointer")(fvar, rs);
+    let mut m: *const FvarMaster = fvar_find_master_by_region(fvar, rs);
     if !m.is_null() && !(*m).name.is_empty() {
         return json_string_new_from_bytes(&(*m).name);
     } else {
