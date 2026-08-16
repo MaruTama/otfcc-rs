@@ -11,7 +11,7 @@ use crate::libcff::CffCharstringOperator;
 use crate::libcff::{OP_CALLGSUBR, OP_CALLSUBR, OP_ENDCHAR, OP_RETURN, TYPE2_MAX_SUBRS, TYPE2_SUBR_NESTING};
 use crate::libcff::cff_index::CffIndex;
 use crate::libcff::charstring_il::{CffCharstringIl};
-use crate::libcff::cff_index::{CFF_I_INDEX};
+use crate::libcff::cff_index::{new_index_by_callback, build_index, cff_index_free};
 use crate::libcff::cff_writer::{cff_merge_cs2_int, cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite_buf};
 #[derive(Copy, Clone)]
@@ -725,7 +725,7 @@ pub unsafe fn cff_il_graph_to_buffers(
         }
         e = (*e).next;
     }
-    let mut is: *mut CffIndex = CFF_I_INDEX.from_callback.expect("non-null function pointer")(
+    let mut is: *mut CffIndex = new_index_by_callback(
         char_strings.as_mut_ptr() as *mut ::core::ffi::c_void,
         (*g).total_char_strings,
         Some(
@@ -733,7 +733,7 @@ pub unsafe fn cff_il_graph_to_buffers(
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
         ),
     );
-    let mut igs: *mut CffIndex = CFF_I_INDEX.from_callback.expect("non-null function pointer")(
+    let mut igs: *mut CffIndex = new_index_by_callback(
         gsubrs.as_mut_ptr() as *mut ::core::ffi::c_void,
         max_g_subrs,
         Some(
@@ -741,7 +741,7 @@ pub unsafe fn cff_il_graph_to_buffers(
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
         ),
     );
-    let mut ils: *mut CffIndex = CFF_I_INDEX.from_callback.expect("non-null function pointer")(
+    let mut ils: *mut CffIndex = new_index_by_callback(
         lsubrs.as_mut_ptr() as *mut ::core::ffi::c_void,
         max_l_subrs,
         Some(
@@ -761,10 +761,10 @@ pub unsafe fn cff_il_graph_to_buffers(
         free(entry.data as *mut ::core::ffi::c_void);
         entry.data = ::core::ptr::null_mut::<u8>();
     }
-    *s = CFF_I_INDEX.build.expect("non-null function pointer")(is);
-    *gs = CFF_I_INDEX.build.expect("non-null function pointer")(igs);
-    *ls = CFF_I_INDEX.build.expect("non-null function pointer")(ils);
-    CFF_I_INDEX.free.expect("non-null function pointer")(is);
-    CFF_I_INDEX.free.expect("non-null function pointer")(igs);
-    CFF_I_INDEX.free.expect("non-null function pointer")(ils);
+    *s = build_index(is);
+    *gs = build_index(igs);
+    *ls = build_index(ils);
+    cff_index_free(is);
+    cff_index_free(igs);
+    cff_index_free(ils);
 }

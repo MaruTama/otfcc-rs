@@ -29,26 +29,6 @@ pub struct CffIndex {
     pub offset: Vec<u32>,
     pub data: Vec<u8>,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CffIndexElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut CffIndex) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut CffIndex, *const CffIndex) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut CffIndex) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut CffIndex>,
-    pub free: Option<unsafe extern "C" fn(*mut CffIndex) -> ()>,
-    pub empty: Option<unsafe extern "C" fn(*mut CffIndex) -> ()>,
-    pub get_length: Option<unsafe extern "C" fn(*const CffIndex) -> u32>,
-    pub parse: Option<unsafe extern "C" fn(*mut u8, u32, *mut CffIndex) -> ()>,
-    pub from_callback: Option<
-        unsafe extern "C" fn(
-            *mut ::core::ffi::c_void,
-            u32,
-            Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer>,
-        ) -> *mut CffIndex,
-    >,
-    pub build: Option<unsafe extern "C" fn(*const CffIndex) -> *mut Buffer>,
-}
 #[inline]
 unsafe fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 = *s.offset(p as isize) as u32;
@@ -99,43 +79,32 @@ unsafe fn dispose_cff_index(mut in_0: *mut CffIndex) {
     (*in_0).data = Vec::new();
 }
 #[inline]
-unsafe extern "C" fn cff_index_dispose(mut x: *mut CffIndex) {
+pub(crate) unsafe fn cff_index_dispose(mut x: *mut CffIndex) {
     dispose_cff_index(x);
 }
 #[inline]
-unsafe extern "C" fn cff_index_copy(mut _dst: *mut CffIndex, mut _src: *const CffIndex) {
-    // Confirmed dead: `CFF_I_INDEX.copy` has no call site anywhere in the
-    // crate. The old `memcpy`-based body was only safe by accident, back
-    // when both fields were raw pointers a bitwise copy could alias
-    // harmlessly (nothing ever exercised the aliasing); now that `offset`/
-    // `data` are `Vec`s, a `memcpy` would double-free. Kept as a loud
-    // failure instead of silently reintroducing that risk if this ever
-    // gets wired up.
-    unreachable!("CffIndex::copy is dead code and unsound for owned Vec data")
-}
-#[inline]
-unsafe extern "C" fn cff_index_free(mut x: *mut CffIndex) {
+pub(crate) unsafe fn cff_index_free(mut x: *mut CffIndex) {
     if x.is_null() {
         return;
     }
     // `offset`/`data` are still freed here exactly as before -- only the
     // outer shell's own allocator changed, from a bare `malloc`/`free`
-    // pair to `Box::into_raw`/`Box::from_raw`. Every `CFF_I_INDEX.create`/
-    // `.free` call site pairs consistently (confirmed by grep: no generic
-    // adapter reclaims a `*mut CffIndex` any other way, unlike
+    // pair to `Box::into_raw`/`Box::from_raw`. Every `cff_index_create`/
+    // `cff_index_free` call site pairs consistently (confirmed by grep: no
+    // generic adapter reclaims a `*mut CffIndex` any other way, unlike
     // `GposPairSubtable`'s `subtable_from_raw`), so this is self-contained.
     cff_index_dispose(x);
     drop(Box::from_raw(x));
 }
 #[inline]
-unsafe extern "C" fn cff_index_create() -> *mut CffIndex {
+pub(crate) unsafe fn cff_index_create() -> *mut CffIndex {
     // `Box::new` of an explicit all-zero literal, not `malloc` + `cff_index_
     // init`'s `memset`: same fields, same zero values, but a real Rust
     // allocation from here on -- see `cff_index_free`'s matching `Box::
     // from_raw`. `cff_index_init` itself stays (and keeps using `memset`):
-    // `CFF_I_INDEX.init` also zero-initializes a stack-local `CffIndex` at
-    // its one other call site (`table/cff.rs`), which was never a `malloc`/
-    // `Box` allocation to begin with.
+    // it also zero-initializes a stack-local `CffIndex` at its one other
+    // call site (`table/cff.rs`), which was never a `malloc`/`Box`
+    // allocation to begin with.
     Box::into_raw(Box::new(CffIndex {
         count_type: CffIndexCountType::U16,
         count: 0 as Arity,
@@ -145,7 +114,7 @@ unsafe extern "C" fn cff_index_create() -> *mut CffIndex {
     }))
 }
 #[inline]
-unsafe extern "C" fn cff_index_init(mut x: *mut CffIndex) {
+pub(crate) unsafe fn cff_index_init(mut x: *mut CffIndex) {
     // No all-zero bit pattern is a valid `CffIndex` any more (it owns two
     // `Vec` fields), so place a valid empty value directly instead of the
     // old `memset`.
@@ -160,7 +129,7 @@ unsafe extern "C" fn cff_index_init(mut x: *mut CffIndex) {
         },
     );
 }
-unsafe extern "C" fn get_index_length(mut i: *const CffIndex) -> u32 {
+pub(crate) unsafe fn get_index_length(mut i: *const CffIndex) -> u32 {
     if (*i).count != 0 as Arity {
         let offset = &(*i).offset;
         return (3 as u32)
@@ -174,13 +143,13 @@ unsafe extern "C" fn get_index_length(mut i: *const CffIndex) -> u32 {
         return 3 as u32;
     };
 }
-unsafe extern "C" fn empty_index(mut i: *mut CffIndex) {
-    CFF_I_INDEX.dispose.expect("non-null function pointer")(i);
+pub(crate) unsafe fn empty_index(mut i: *mut CffIndex) {
+    cff_index_dispose(i);
     (*i).count_type = CffIndexCountType::U16;
     (*i).count = 0 as Arity;
     (*i).off_size = 0;
 }
-unsafe extern "C" fn extract_index(
+pub(crate) unsafe fn extract_index(
     mut data: *mut u8,
     mut pos: u32,
     mut in_0: *mut CffIndex,
@@ -239,7 +208,7 @@ unsafe extern "C" fn extract_index(
         (*in_0).data = Vec::new();
     };
 }
-unsafe extern "C" fn new_index_by_callback(
+pub(crate) unsafe fn new_index_by_callback(
     mut context: *mut ::core::ffi::c_void,
     mut length: u32,
     mut fn_0: Option<
@@ -247,7 +216,7 @@ unsafe extern "C" fn new_index_by_callback(
     >,
 ) -> *mut CffIndex {
     let mut idx: *mut CffIndex = (
-        CFF_I_INDEX.create.expect("non-null function pointer"))();
+        cff_index_create)();
     (*idx).count = length as Arity;
     let mut offset: Vec<u32> = vec![0 as u32; (*idx).count.wrapping_add(1 as Arity) as usize];
     offset[0 as usize] = 1 as u32;
@@ -281,7 +250,7 @@ unsafe extern "C" fn new_index_by_callback(
     (*idx).off_size = 4 as u8;
     return idx;
 }
-unsafe extern "C" fn build_index(mut index: *const CffIndex) -> *mut Buffer {
+pub(crate) unsafe fn build_index(mut index: *const CffIndex) -> *mut Buffer {
     let mut blob: *mut Buffer = bufnew();
     if (*index).count == 0 {
         bufwrite8(blob, 0 as u8);
@@ -404,31 +373,3 @@ unsafe extern "C" fn build_index(mut index: *const CffIndex) -> *mut Buffer {
     (*blob).cursor = (*blob).size;
     return blob;
 }
-pub static CFF_I_INDEX: CffIndexElementInterface = {
-    CffIndexElementInterface {
-        init: Some(cff_index_init as unsafe extern "C" fn(*mut CffIndex) -> ()),
-        copy: Some(cff_index_copy as unsafe extern "C" fn(*mut CffIndex, *const CffIndex) -> ()),
-        dispose: Some(cff_index_dispose as unsafe extern "C" fn(*mut CffIndex) -> ()),
-        create: Some(cff_index_create),
-        free: Some(cff_index_free as unsafe extern "C" fn(*mut CffIndex) -> ()),
-        empty: Some(empty_index as unsafe extern "C" fn(*mut CffIndex) -> ()),
-        get_length: Some(get_index_length as unsafe extern "C" fn(*const CffIndex) -> u32),
-        parse: Some(
-            extract_index as unsafe extern "C" fn(*mut u8, u32, *mut CffIndex) -> (),
-        ),
-        from_callback: Some(
-            new_index_by_callback
-                as unsafe extern "C" fn(
-                    *mut ::core::ffi::c_void,
-                    u32,
-                    Option<
-                        unsafe extern "C" fn(
-                            *mut ::core::ffi::c_void,
-                            u32,
-                        ) -> *mut Buffer,
-                    >,
-                ) -> *mut CffIndex,
-        ),
-        build: Some(build_index as unsafe extern "C" fn(*const CffIndex) -> *mut Buffer),
-    }
-};
