@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-#![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos};
@@ -45,7 +44,7 @@ use crate::support::glyph_order::{
 };
 use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
 use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
-use crate::vf::vq::{I_VQ};
+use crate::vf::vq::{vq_create_still, vq_inplace_plus};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -487,13 +486,13 @@ unsafe fn merge_hmtx(font: *mut Font) {
         } else {
             hmtx.left_side_bearing[(j as u32).wrapping_sub(count_a) as usize]
         };
-        I_VQ.inplace_plus.expect("non-null function pointer")(
+        vq_inplace_plus(
             &raw mut (*g).advance_width,
-            I_VQ.create_still.expect("non-null function pointer")(adw) as VQ,
+            vq_create_still(adw) as VQ,
         );
-        I_VQ.inplace_plus.expect("non-null function pointer")(
+        vq_inplace_plus(
             &raw mut (*g).horizontal_origin,
-            I_VQ.create_still.expect("non-null function pointer")(-lsb + (*g).stat.x_min) as VQ,
+            vq_create_still(-lsb + (*g).stat.x_min) as VQ,
         );
     }
 }
@@ -528,13 +527,13 @@ unsafe fn merge_vmtx(font: *mut Font) {
         } else {
             vmtx.top_side_bearing[(j_1 as u32).wrapping_sub(count_a) as usize]
         };
-        I_VQ.inplace_plus.expect("non-null function pointer")(
+        vq_inplace_plus(
             &raw mut (*g).advance_height,
-            I_VQ.create_still.expect("non-null function pointer")(adh) as VQ,
+            vq_create_still(adh) as VQ,
         );
-        I_VQ.inplace_plus.expect("non-null function pointer")(
+        vq_inplace_plus(
             &raw mut (*g).vertical_origin,
-            I_VQ.create_still.expect("non-null function pointer")(if let Some(v) = &vorgs {
+            vq_create_still(if let Some(v) = &vorgs {
                 v[j_1 as usize]
             } else {
                 tsb + (*g).stat.y_max

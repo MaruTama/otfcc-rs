@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-#![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
 
 use crate::support::built_json::{json_new_position, json_object_push_tag, preserialize};
 use crate::support::parsed_json::{ParsedValue, json_numof};
@@ -15,7 +14,7 @@ use crate::vf::vv::VV;
 use crate::support::primitives::{otfcc_from_fixed};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_object_push_length, json_string_new, json_string_new_from_bytes};
 use crate::vf::region::{vq_axis_span_is_one, vq_delete_region};
-use crate::vf::vq::{I_VQ};
+use crate::vf::vq::{vq_create_still, vq_get_still};
 pub struct FvarInstance {
     pub subfamily_name_id: u16,
     pub flags: u16,
@@ -546,9 +545,7 @@ pub unsafe fn json_new_vq_segment(
 }
 pub unsafe fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *mut BuiltValue {
     if z.shift.is_empty() {
-        return preserialize(json_new_position(I_VQ
-            .get_still
-            .expect("non-null function pointer")(
+        return preserialize(json_new_position(vq_get_still(
             z
         )));
     } else {
@@ -610,7 +607,7 @@ pub unsafe fn json_new_v_vp(
     };
 }
 pub unsafe fn json_vq_of(mut cv: *const ParsedValue, mut _fvar: *const FvarTable) -> VQ {
-    return I_VQ.create_still.expect("non-null function pointer")(json_numof(cv) as Pos);
+    return vq_create_still(json_numof(cv) as Pos);
 }
 pub unsafe fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut BuiltValue {
     if vq_axis_span_is_one(s) {

@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-#![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
 use libc::{free};
 
 
@@ -20,7 +19,9 @@ use crate::libcff::cff_opmean::{cff_get_standard_arity};
 use crate::libcff::cff_writer::{cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special};
 use crate::support::buffer::{bufnew};
 use crate::table::glyf::{glyf_point_dup};
-use crate::vf::vq::{I_VQ};
+use crate::vf::vq::{
+    vq_copy_replace, vq_get_still, vq_minus, vq_neutral, vq_replace,
+};
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum CffInstructionType {
@@ -102,7 +103,7 @@ pub unsafe fn il_push_operand(
 pub unsafe fn il_push_vq(mut il: *mut CffCharstringIl, mut x: VQ) {
     il_push_operand(
         il,
-        I_VQ.get_still.expect("non-null function pointer")(x) as ::core::ffi::c_double,
+        vq_get_still(x) as ::core::ffi::c_double,
     );
 }
 pub unsafe fn il_push_special(mut il: *mut CffCharstringIl, mut s: i32) {
@@ -329,9 +330,9 @@ pub unsafe fn cff_compile_glyph_to_il(
     let mut il: *mut CffCharstringIl = Box::into_raw(Box::new(CffCharstringIl { instr: Vec::new() }));
     let mut temp_contours: *mut Contour = ::core::ptr::null_mut::<Contour>();
     let mut x: VQ =
-        (I_VQ.neutral.expect("non-null function pointer"))();
+        (vq_neutral)();
     let mut y: VQ =
-        (I_VQ.neutral.expect("non-null function pointer"))();
+        (vq_neutral)();
     temp_contours = __caryll_allocate_clean(
         (::core::mem::size_of::<Contour>() as usize).wrapping_mul((*g).contours.len()),
         149 as ::core::ffi::c_ulong,
@@ -364,27 +365,27 @@ pub unsafe fn cff_compile_glyph_to_il(
         }
         let mut j_0: ShapeId = 0 as ShapeId;
         while (j_0 as usize) < (*newcontour).len() {
-            let mut dx: VQ = I_VQ.minus.expect("non-null function pointer")(
+            let mut dx: VQ = vq_minus(
                 (&(*newcontour))[j_0 as usize].x.clone(),
                 x.clone(),
             );
-            let mut dy: VQ = I_VQ.minus.expect("non-null function pointer")(
+            let mut dy: VQ = vq_minus(
                 (&(*newcontour))[j_0 as usize].y.clone(),
                 y.clone(),
             );
-            I_VQ.copy_replace.expect("non-null function pointer")(
+            vq_copy_replace(
                 &raw mut x,
                 (&(*newcontour))[j_0 as usize].x.clone(),
             );
-            I_VQ.copy_replace.expect("non-null function pointer")(
+            vq_copy_replace(
                 &raw mut y,
                 (&(*newcontour))[j_0 as usize].y.clone(),
             );
-            I_VQ.replace.expect("non-null function pointer")(
+            vq_replace(
                 &raw mut (&mut (*newcontour))[j_0 as usize].x,
                 dx,
             );
-            I_VQ.replace.expect("non-null function pointer")(
+            vq_replace(
                 &raw mut (&mut (*newcontour))[j_0 as usize].y,
                 dy,
             );
@@ -396,7 +397,7 @@ pub unsafe fn cff_compile_glyph_to_il(
     // when this function returns -- no explicit dispose call is needed.
     let mut hasmask: bool = !(*g).hint_masks.is_empty() || !(*g).contour_masks.is_empty();
     let glyph_adw_const: Pos =
-        I_VQ.get_still.expect("non-null function pointer")((*g).advance_width.clone()) as Pos;
+        vq_get_still((*g).advance_width.clone()) as Pos;
     let mut haswidth: bool = glyph_adw_const != default_width as ::core::ffi::c_int as Pos;
     if haswidth {
         il_push_operand(

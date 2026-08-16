@@ -56,7 +56,7 @@ use crate::table::vmtx::{VmtxTable, VerticalMetric};
 use crate::vf::vq::{VQ};
 use crate::font::caryll_font::{delete_font_table};
 use crate::table::glyf::{glyf_component_reference_init};
-use crate::vf::vq::{I_VQ};
+use crate::vf::vq::{vq_create_still, vq_get_still, vq_is_zero, vq_neutral, vq_replace};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -123,21 +123,21 @@ pub unsafe fn stat_single_glyph(
         for pj in 0..(*contour).len() as ShapeId {
             let p: *const Point = &(&(*contour))[pj as usize];
             let x: Pos = round(
-                I_VQ.get_still.expect("non-null function pointer")((*gr).x.clone()) as ::core::ffi::c_double
+                vq_get_still((*gr).x.clone()) as ::core::ffi::c_double
                     + (*gr).a as ::core::ffi::c_double
-                        * I_VQ.get_still.expect("non-null function pointer")((*p).x.clone())
+                        * vq_get_still((*p).x.clone())
                             as ::core::ffi::c_double
                     + (*gr).b as ::core::ffi::c_double
-                        * I_VQ.get_still.expect("non-null function pointer")((*p).y.clone())
+                        * vq_get_still((*p).y.clone())
                             as ::core::ffi::c_double,
             ) as Pos;
             let mut y: Pos = round(
-                I_VQ.get_still.expect("non-null function pointer")((*gr).y.clone()) as ::core::ffi::c_double
+                vq_get_still((*gr).y.clone()) as ::core::ffi::c_double
                     + (*gr).c as ::core::ffi::c_double
-                        * I_VQ.get_still.expect("non-null function pointer")((*p).x.clone())
+                        * vq_get_still((*p).x.clone())
                             as ::core::ffi::c_double
                     + (*gr).d as ::core::ffi::c_double
-                        * I_VQ.get_still.expect("non-null function pointer")((*p).y.clone())
+                        * vq_get_still((*p).y.clone())
                             as ::core::ffi::c_double,
             ) as Pos;
             if x < xmin {
@@ -193,20 +193,20 @@ pub unsafe fn stat_single_glyph(
         ref_0.b = (*rr).a * (*gr).b + (*rr).b * (*gr).d;
         ref_0.c = (*gr).a * (*rr).c + (*gr).c * (*rr).d;
         ref_0.d = (*gr).b * (*rr).c + (*rr).d * (*gr).d;
-        I_VQ.replace.expect("non-null function pointer")(
+        vq_replace(
             &raw mut ref_0.x,
-            I_VQ.create_still.expect("non-null function pointer")(
-                I_VQ.get_still.expect("non-null function pointer")((*rr).x.clone())
-                    + (*rr).a as Pos * I_VQ.get_still.expect("non-null function pointer")((*gr).x.clone())
-                    + (*rr).b as Pos * I_VQ.get_still.expect("non-null function pointer")((*gr).y.clone()),
+            vq_create_still(
+                vq_get_still((*rr).x.clone())
+                    + (*rr).a as Pos * vq_get_still((*gr).x.clone())
+                    + (*rr).b as Pos * vq_get_still((*gr).y.clone()),
             ) as VQ,
         );
-        I_VQ.replace.expect("non-null function pointer")(
+        vq_replace(
             &raw mut ref_0.y,
-            I_VQ.create_still.expect("non-null function pointer")(
-                I_VQ.get_still.expect("non-null function pointer")((*rr).y.clone())
-                    + (*rr).c as Pos * I_VQ.get_still.expect("non-null function pointer")((*gr).x.clone())
-                    + (*rr).d as Pos * I_VQ.get_still.expect("non-null function pointer")((*gr).y.clone()),
+            vq_create_still(
+                vq_get_still((*rr).y.clone())
+                    + (*rr).c as Pos * vq_get_still((*gr).x.clone())
+                    + (*rr).d as Pos * vq_get_still((*gr).y.clone()),
             ) as VQ,
         );
         let mut thatstat: GlyphStat = stat_single_glyph(
@@ -306,9 +306,9 @@ pub unsafe fn stat_glyf(mut font: *mut Font, mut options: *const Options) {
         gr.glyph =
             handle_from_index(j) as GlyphHandle;
         gr.x =
-            I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+            vq_create_still(0 as ::core::ffi::c_int as Pos);
         gr.y =
-            I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+            vq_create_still(0 as ::core::ffi::c_int as Pos);
         gr.a = 1 as ::core::ffi::c_int as Scale;
         gr.b = 0 as ::core::ffi::c_int as Scale;
         gr.c = 0 as ::core::ffi::c_int as Scale;
@@ -402,11 +402,11 @@ unsafe fn stat_hmtx(mut font: *mut Font, mut _options: *const Options) {
     let mut lsb_at_x_0: bool = true;
     if (*font).subtype != FontSubtype::Cff {
         while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
-            && I_VQ.get_still.expect("non-null function pointer")(
+            && vq_get_still(
                 (&(*glyf))
                     [(count_a as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize].as_deref().unwrap()
                 .advance_width.clone(),
-            ) == I_VQ.get_still.expect("non-null function pointer")(
+            ) == vq_get_still(
                 (&(*glyf))
                     [(count_a as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as usize].as_deref().unwrap()
                 .advance_width.clone(),
@@ -428,20 +428,20 @@ unsafe fn stat_hmtx(mut font: *mut Font, mut _options: *const Options) {
     let mut max_width: Length = 0 as ::core::ffi::c_int as Length;
     for j in 0..(*glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
-        if I_VQ.is_zero.expect("non-null function pointer")((*g).horizontal_origin.clone(), 1.0f64 / 1000.0f64)
+        if vq_is_zero((*g).horizontal_origin.clone(), 1.0f64 / 1000.0f64)
         {
-            I_VQ.replace.expect("non-null function pointer")(
+            vq_replace(
                 &raw mut (*g).horizontal_origin,
                 (
-                    I_VQ.neutral.expect("non-null function pointer"))() as VQ,
+                    vq_neutral)() as VQ,
             );
         } else {
             lsb_at_x_0 = false;
         }
         let hori: Pos =
-            I_VQ.get_still.expect("non-null function pointer")((*g).horizontal_origin.clone()) as Pos;
+            vq_get_still((*g).horizontal_origin.clone()) as Pos;
         let advw: Pos =
-            I_VQ.get_still.expect("non-null function pointer")((*g).advance_width.clone()) as Pos;
+            vq_get_still((*g).advance_width.clone()) as Pos;
         let lsb: Pos = (*g).stat.x_min - hori;
         let rsb: Pos = advw + hori - (*g).stat.x_max;
         if (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
@@ -485,11 +485,11 @@ unsafe fn stat_vmtx(mut font: *mut Font, mut options: *const Options) {
     let mut count_k: GlyphId = 0 as GlyphId;
     if !((*font).subtype == FontSubtype::Cff && !(*options).cff_short_vmtx) {
         while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
-            && I_VQ.get_still.expect("non-null function pointer")(
+            && vq_get_still(
                 (&(*glyf))
                     [(count_a as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize].as_deref().unwrap()
                 .advance_height.clone(),
-            ) == I_VQ.get_still.expect("non-null function pointer")(
+            ) == vq_get_still(
                 (&(*glyf))
                     [(count_a as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as usize].as_deref().unwrap()
                 .advance_height.clone(),
@@ -510,9 +510,9 @@ unsafe fn stat_vmtx(mut font: *mut Font, mut options: *const Options) {
     for j in 0..(*glyf).len() as GlyphId {
         let g: *const Glyph = (&(*glyf))[j as usize].as_deref().unwrap() as *const Glyph;
         let vori: Pos =
-            I_VQ.get_still.expect("non-null function pointer")((*g).vertical_origin.clone()) as Pos;
+            vq_get_still((*g).vertical_origin.clone()) as Pos;
         let advh: Pos =
-            I_VQ.get_still.expect("non-null function pointer")((*g).advance_height.clone()) as Pos;
+            vq_get_still((*g).advance_height.clone()) as Pos;
         let tsb: Pos = vori - (*g).stat.y_max;
         let bsb: Pos = (*g).stat.y_min - vori + advh;
         if (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
@@ -1032,7 +1032,7 @@ unsafe fn stat_os_2_average_width(
     let glyf: *const GlyfTable = (*font).glyf.as_ref().unwrap() as *const GlyfTable;
     let mut total_width: u32 = 0 as u32;
     for j in 0..(*glyf).len() as GlyphId {
-        let adw: Pos = I_VQ.get_still.expect("non-null function pointer")(
+        let adw: Pos = vq_get_still(
             (&(*glyf))[j as usize].as_deref().unwrap().advance_width.clone(),
         ) as Pos;
         if adw > 0 as ::core::ffi::c_int as Pos {
@@ -1133,7 +1133,7 @@ unsafe fn stat_cff_widths(mut font: *mut Font) {
     // `free`.
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for j in 0..(*glyf).len() as GlyphId {
-        let int_width: u16 = I_VQ.get_still.expect("non-null function pointer")(
+        let int_width: u16 = vq_get_still(
             (&(*glyf))[j as usize].as_deref().unwrap().advance_width.clone(),
         ) as u16;
         if (int_width as ::core::ffi::c_int) < MAX_STAT_METRIC {
@@ -1151,7 +1151,7 @@ unsafe fn stat_cff_widths(mut font: *mut Font) {
     let mut nn: u16 = 0 as u16;
     let mut nnsum: u32 = 0 as u32;
     for j_1 in 0..(*glyf).len() as GlyphId {
-        let adw: Pos = I_VQ.get_still.expect("non-null function pointer")(
+        let adw: Pos = vq_get_still(
             (&(*glyf))[j_1 as usize].as_deref().unwrap().advance_width.clone(),
         ) as Pos;
         if adw != maxj as ::core::ffi::c_int as Pos {
@@ -1188,7 +1188,7 @@ unsafe fn stat_vorg(mut font: *mut Font) {
     // `free`.
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
     for j in 0..(*glyf).len() as GlyphId {
-        let vori: Pos = I_VQ.get_still.expect("non-null function pointer")(
+        let vori: Pos = vq_get_still(
             (&(*glyf))[j as usize].as_deref().unwrap().vertical_origin.clone(),
         ) as Pos;
         if vori >= 0 as ::core::ffi::c_int as Pos && vori < MAX_STAT_METRIC as Pos {
@@ -1206,7 +1206,7 @@ unsafe fn stat_vorg(mut font: *mut Font) {
     let default_vertical_origin = maxj as Pos;
     let mut n_vert_origs: GlyphId = 0 as GlyphId;
     for j_1 in 0..(*glyf).len() as GlyphId {
-        let vori_0: Pos = I_VQ.get_still.expect("non-null function pointer")(
+        let vori_0: Pos = vq_get_still(
             (&(*glyf))[j_1 as usize].as_deref().unwrap().vertical_origin.clone(),
         ) as Pos;
         if vori_0 != maxj as ::core::ffi::c_int as Pos {
@@ -1219,7 +1219,7 @@ unsafe fn stat_vorg(mut font: *mut Font) {
     ) as *mut VorgEntry;
     let mut jj: GlyphId = 0 as GlyphId;
     for j_2 in 0..(*glyf).len() as GlyphId {
-        let vori_1: Pos = I_VQ.get_still.expect("non-null function pointer")(
+        let vori_1: Pos = vq_get_still(
             (&(*glyf))[j_2 as usize].as_deref().unwrap().vertical_origin.clone(),
         ) as Pos;
         if vori_1 != maxj as ::core::ffi::c_int as Pos {
@@ -1309,7 +1309,7 @@ pub unsafe fn otfcc_stat_font(
         if (*cff).is_cid {
             // `font_matrix` is `Option<Box<CffFontMatrix>>` now: dropping
             // the old value (reassignment to `None`) recurses through its
-            // own field-drop glue for free -- no manual `I_VQ.dispose`
+            // own field-drop glue for free -- no manual `vq_dispose`
             // calls needed anymore (`VQ`'s `Vec<VqSegment>` shift field
             // already self-drops).
             (*cff).font_matrix = None;
@@ -1327,8 +1327,8 @@ pub unsafe fn otfcc_stat_font(
                         d: (1.0f64
                             / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
                             as Scale,
-                        x: (I_VQ.neutral.expect("non-null function pointer"))(),
-                        y: (I_VQ.neutral.expect("non-null function pointer"))(),
+                        x: (vq_neutral)(),
+                        y: (vq_neutral)(),
                     }));
                 }
             }
@@ -1344,8 +1344,8 @@ pub unsafe fn otfcc_stat_font(
                 d: (1.0f64
                     / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
                     as Scale,
-                x: (I_VQ.neutral.expect("non-null function pointer"))(),
-                y: (I_VQ.neutral.expect("non-null function pointer"))(),
+                x: (vq_neutral)(),
+                y: (vq_neutral)(),
             }));
         }
         stat_cff_widths(font);

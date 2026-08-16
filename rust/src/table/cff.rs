@@ -47,7 +47,10 @@ use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{json_new_vq};
 use crate::table::glyf::{glyf_point_init, otfcc_new_glyf_glyph, table_glyf_create_n};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
-use crate::vf::vq::{I_VQ};
+use crate::vf::vq::{
+    vq_compare, vq_copy_replace, vq_create_still, vq_dup, vq_get_still, vq_inplace_plus,
+    vq_neutral, vq_point_linear_tfm, vq_replace, vq_scale,
+};
 
 #[derive(Clone)]
 #[repr(C)]
@@ -483,8 +486,8 @@ unsafe extern "C" fn callback_extract_fd(
                     b: 0.,
                     c: 0.,
                     d: 0.,
-                    x: I_VQ.neutral.expect("non-null function pointer")(),
-                    y: I_VQ.neutral.expect("non-null function pointer")(),
+                    x: vq_neutral(),
+                    y: vq_neutral(),
                 }));
                 let fm: *mut CffFontMatrix = (*meta).font_matrix.as_deref_mut().unwrap() as *mut CffFontMatrix;
                 (*fm).a = cffnum(
@@ -499,13 +502,13 @@ unsafe extern "C" fn callback_extract_fd(
                 (*fm).d = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 3 as ::core::ffi::c_int) as isize),
                 ) as Scale;
-                (*fm).x = I_VQ.create_still.expect("non-null function pointer")(
+                (*fm).x = vq_create_still(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize),
                     ) as Pos,
                 );
-                (*fm).y = I_VQ.create_still.expect("non-null function pointer")(
+                (*fm).y = vq_create_still(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
@@ -601,9 +604,9 @@ pub(crate) unsafe fn callback_draw_setwidth(
     mut width: ::core::ffi::c_double,
 ) {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    I_VQ.replace.expect("non-null function pointer")(
+    vq_replace(
         &raw mut (*(*context).g).advance_width,
-        I_VQ.create_still.expect("non-null function pointer")(
+        vq_create_still(
             width as Pos + (*context).nominal_width_x as Pos,
         ) as VQ,
     );
@@ -636,13 +639,13 @@ pub(crate) unsafe fn callback_draw_lineto(
         };
         glyf_point_init(&raw mut z);
         z.on_curve = TRUE_0 as i8;
-        I_VQ.copy_replace.expect("non-null function pointer")(
+        vq_copy_replace(
             &raw mut z.x,
-            I_VQ.create_still.expect("non-null function pointer")(x1 as Pos) as VQ,
+            vq_create_still(x1 as Pos) as VQ,
         );
-        I_VQ.copy_replace.expect("non-null function pointer")(
+        vq_copy_replace(
             &raw mut z.y,
-            I_VQ.create_still.expect("non-null function pointer")(y1 as Pos) as VQ,
+            vq_create_still(y1 as Pos) as VQ,
         );
         (*contour).push(z);
         (*context).j_point =
@@ -675,13 +678,13 @@ pub(crate) unsafe fn callback_draw_curveto(
         };
         glyf_point_init(&raw mut z);
         z.on_curve = FALSE_0 as i8;
-        I_VQ.copy_replace.expect("non-null function pointer")(
+        vq_copy_replace(
             &raw mut z.x,
-            I_VQ.create_still.expect("non-null function pointer")(x1 as Pos) as VQ,
+            vq_create_still(x1 as Pos) as VQ,
         );
-        I_VQ.copy_replace.expect("non-null function pointer")(
+        vq_copy_replace(
             &raw mut z.y,
-            I_VQ.create_still.expect("non-null function pointer")(y1 as Pos) as VQ,
+            vq_create_still(y1 as Pos) as VQ,
         );
         (*contour).push(z);
         let mut z_0: Point = Point {
@@ -697,13 +700,13 @@ pub(crate) unsafe fn callback_draw_curveto(
         };
         glyf_point_init(&raw mut z_0);
         z_0.on_curve = FALSE_0 as i8;
-        I_VQ.copy_replace.expect("non-null function pointer")(
+        vq_copy_replace(
             &raw mut z_0.x,
-            I_VQ.create_still.expect("non-null function pointer")(x2 as Pos) as VQ,
+            vq_create_still(x2 as Pos) as VQ,
         );
-        I_VQ.copy_replace.expect("non-null function pointer")(
+        vq_copy_replace(
             &raw mut z_0.y,
-            I_VQ.create_still.expect("non-null function pointer")(y2 as Pos) as VQ,
+            vq_create_still(y2 as Pos) as VQ,
         );
         (*contour).push(z_0);
         let mut z_1: Point = Point {
@@ -719,13 +722,13 @@ pub(crate) unsafe fn callback_draw_curveto(
         };
         glyf_point_init(&raw mut z_1);
         z_1.on_curve = TRUE_0 as i8;
-        I_VQ.copy_replace.expect("non-null function pointer")(
+        vq_copy_replace(
             &raw mut z_1.x,
-            I_VQ.create_still.expect("non-null function pointer")(x3 as Pos) as VQ,
+            vq_create_still(x3 as Pos) as VQ,
         );
-        I_VQ.copy_replace.expect("non-null function pointer")(
+        vq_copy_replace(
             &raw mut z_1.y,
-            I_VQ.create_still.expect("non-null function pointer")(y3 as Pos) as VQ,
+            vq_create_still(y3 as Pos) as VQ,
         );
         (*contour).push(z_1);
         (*context).j_point =
@@ -918,9 +921,9 @@ unsafe fn build_outline(
         bc.default_width_x = pd.default_width_x;
         bc.nominal_width_x = pd.nominal_width_x;
     }
-    I_VQ.replace.expect("non-null function pointer")(
+    vq_replace(
         &raw mut (*g).advance_width,
-        I_VQ.create_still.expect("non-null function pointer")(bc.default_width_x as Pos) as VQ,
+        vq_create_still(bc.default_width_x as Pos) as VQ,
     );
     let char_strings_offset = &(*f).char_strings.offset;
     let mut char_string_ptr: *mut u8 = ((*f)
@@ -947,26 +950,26 @@ unsafe fn build_outline(
         options,
     );
     let mut cx: VQ =
-        (I_VQ.neutral.expect("non-null function pointer"))();
+        (vq_neutral)();
     let mut cy: VQ =
-        (I_VQ.neutral.expect("non-null function pointer"))();
+        (vq_neutral)();
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < (*g).contours.len() {
         let contour: *mut Contour = &raw mut (&mut (*g).contours)[j as usize];
         let mut k: ShapeId = 0 as ShapeId;
         while (k as usize) < (*contour).len() {
             let z: *mut Point = &raw mut (&mut (*contour))[k as usize];
-            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cx, (*z).x.clone());
-            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cy, (*z).y.clone());
-            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).x, cx.clone());
-            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).y, cy.clone());
+            vq_inplace_plus(&raw mut cx, (*z).x.clone());
+            vq_inplace_plus(&raw mut cy, (*z).y.clone());
+            vq_copy_replace(&raw mut (*z).x, cx.clone());
+            vq_copy_replace(&raw mut (*z).y, cy.clone());
             k = k.wrapping_add(1);
         }
-        if I_VQ.compare.expect("non-null function pointer")(
+        if vq_compare(
             (&(*contour))[0 as usize].x.clone(),
             (&(*contour))[(*contour).len().wrapping_sub(1 as usize)].x.clone(),
         ) == 0
-            && I_VQ.compare.expect("non-null function pointer")(
+            && vq_compare(
                 (&(*contour))[0 as usize].y.clone(),
                 (&(*contour))[(*contour).len().wrapping_sub(1 as usize)].y.clone(),
             ) == 0
@@ -1147,12 +1150,12 @@ unsafe fn apply_cff_matrix(
                 (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
                     * fm.d as ::core::ffi::c_double,
             ) as Scale;
-            let mut x: VQ = I_VQ.scale.expect("non-null function pointer")(
+            let mut x: VQ = vq_scale(
                 fm.x.clone(),
                 (*head).units_per_em as Scale,
             );
             x.kernel = qround(x.kernel as ::core::ffi::c_double) as Pos;
-            let mut y: VQ = I_VQ.scale.expect("non-null function pointer")(
+            let mut y: VQ = vq_scale(
                 fm.y.clone(),
                 (*head).units_per_em as Scale,
             );
@@ -1162,21 +1165,21 @@ unsafe fn apply_cff_matrix(
                 let contour: *mut Contour = &raw mut (&mut (*g).contours)[j as usize];
                 let mut k: ShapeId = 0 as ShapeId;
                 while (k as usize) < (*contour).len() {
-                    let mut zx: VQ = I_VQ.dup.expect("non-null function pointer")(
+                    let mut zx: VQ = vq_dup(
                         (&(*contour))[k as usize].x.clone(),
                     );
-                    let mut zy: VQ = I_VQ.dup.expect("non-null function pointer")(
+                    let mut zy: VQ = vq_dup(
                         (&(*contour))[k as usize].y.clone(),
                     );
-                    I_VQ.replace.expect("non-null function pointer")(
+                    vq_replace(
                         &raw mut (&mut (*contour))[k as usize].x,
-                        I_VQ.point_linear_tfm.expect("non-null function pointer")(
+                        vq_point_linear_tfm(
                             x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone(),
                         ) as VQ,
                     );
-                    I_VQ.replace.expect("non-null function pointer")(
+                    vq_replace(
                         &raw mut (&mut (*contour))[k as usize].y,
-                        I_VQ.point_linear_tfm.expect("non-null function pointer")(
+                        vq_point_linear_tfm(
                             y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone(),
                         ) as VQ,
                     );
@@ -2160,7 +2163,7 @@ unsafe fn cff_make_fd_dict(
     cffdict_input_doubles(dict, OP_UNDERLINE_THICKNESS, &[((*fd).underline_thickness) as f64]);
     cffdict_input_doubles(dict, OP_STROKE_WIDTH, &[((*fd).stroke_width) as f64]);
     if let Some(fm) = (*fd).font_matrix.as_deref() {
-        cffdict_input_doubles(dict, OP_FONT_MATRIX, &[fm.a as f64, fm.b as f64, fm.c as f64, fm.d as f64, (I_VQ.get_still.expect("non-null function pointer")(fm.x.clone())) as f64, (I_VQ.get_still.expect("non-null function pointer")(fm.y.clone())) as f64]);
+        cffdict_input_doubles(dict, OP_FONT_MATRIX, &[fm.a as f64, fm.b as f64, fm.c as f64, fm.d as f64, (vq_get_still(fm.x.clone())) as f64, (vq_get_still(fm.y.clone())) as f64]);
     }
     if !(*fd).font_name.is_empty() {
         cffdict_input_ints(dict, OP_FONT_NAME, &[(sidof(h, &(*fd).font_name)) as i32]);
