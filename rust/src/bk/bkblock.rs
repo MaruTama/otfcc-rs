@@ -86,7 +86,7 @@ use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::buffer::{Buffer};
 use crate::support::buffer::{buffree};
 
-unsafe extern "C" fn bkblock_acells(mut b: *mut BkBlock, mut len: u32) {
+unsafe fn bkblock_acells(mut b: *mut BkBlock, mut len: u32) {
     if len <= (*b).length.wrapping_add((*b).free) {
         (*b).free = (*b).free.wrapping_sub(len.wrapping_sub((*b).length));
         (*b).length = len;
@@ -101,15 +101,15 @@ unsafe extern "C" fn bkblock_acells(mut b: *mut BkBlock, mut len: u32) {
         ) as *mut BkCell;
     };
 }
-pub unsafe extern "C" fn bk_cell_is_pointer(mut cell: *mut BkCell) -> bool {
+pub unsafe fn bk_cell_is_pointer(mut cell: *mut BkCell) -> bool {
     return (*cell).t >= BkCellType::P16;
 }
-unsafe extern "C" fn bkblock_grow(mut b: *mut BkBlock, mut len: u32) -> *mut BkCell {
+unsafe fn bkblock_grow(mut b: *mut BkBlock, mut len: u32) -> *mut BkCell {
     let mut olen: u32 = (*b).length;
     bkblock_acells(b, olen.wrapping_add(len));
     return (*b).cells.offset(olen as isize) as *mut BkCell;
 }
-pub unsafe extern "C" fn _bkblock_init() -> *mut BkBlock {
+pub unsafe fn _bkblock_init() -> *mut BkBlock {
     let mut b: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     b = __caryll_allocate_clean(
         ::core::mem::size_of::<BkBlock>() as usize,
@@ -118,7 +118,7 @@ pub unsafe extern "C" fn _bkblock_init() -> *mut BkBlock {
     bkblock_acells(b, 0 as u32);
     return b;
 }
-pub unsafe extern "C" fn bkblock_pushint(
+pub unsafe fn bkblock_pushint(
     mut b: *mut BkBlock,
     mut type_0: BkCellType,
     mut x: u32,
@@ -127,7 +127,7 @@ pub unsafe extern "C" fn bkblock_pushint(
     (*cell).t = type_0;
     (*cell).value = BkCellValue::Int(x);
 }
-pub unsafe extern "C" fn bkblock_pushptr(
+pub unsafe fn bkblock_pushptr(
     mut b: *mut BkBlock,
     mut type_0: BkCellType,
     mut p: *mut BkBlock,
@@ -204,7 +204,7 @@ pub unsafe fn bk_push(b: *mut BkBlock, items: &[BkCell]) -> *mut BkBlock {
     bkpushitems(b, items);
     return b;
 }
-pub unsafe extern "C" fn bk_new_block_from_string_len(
+pub unsafe fn bk_new_block_from_string_len(
     len: usize,
     str: *const ::core::ffi::c_char,
 ) -> *mut BkBlock {
@@ -217,7 +217,7 @@ pub unsafe extern "C" fn bk_new_block_from_string_len(
     }
     return b;
 }
-pub unsafe extern "C" fn bk_new_block_from_buffer(buf: *mut Buffer) -> *mut BkBlock {
+pub unsafe fn bk_new_block_from_buffer(buf: *mut Buffer) -> *mut BkBlock {
     if buf.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
@@ -228,7 +228,7 @@ pub unsafe extern "C" fn bk_new_block_from_buffer(buf: *mut Buffer) -> *mut BkBl
     buffree(buf);
     return b;
 }
-pub unsafe extern "C" fn bk_new_block_from_buffer_copy(buf: *const Buffer) -> *mut BkBlock {
+pub unsafe fn bk_new_block_from_buffer_copy(buf: *const Buffer) -> *mut BkBlock {
     if buf.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
@@ -238,7 +238,7 @@ pub unsafe extern "C" fn bk_new_block_from_buffer_copy(buf: *const Buffer) -> *m
     }
     return b;
 }
-pub unsafe extern "C" fn bk_print_block(b: *mut BkBlock) {
+pub unsafe fn bk_print_block(b: *mut BkBlock) {
     fprintf(
         stderr,
         b"Block size %08x\n\0" as *const u8 as *const ::core::ffi::c_char,
