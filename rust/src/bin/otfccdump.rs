@@ -89,7 +89,7 @@ use otfcc_rust::support::built_json::json_serialize_ex;
 
 
 #[inline]
-unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
+unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
     return strtol(
         __nptr,
         NULL as *mut *mut ::core::ffi::c_char,
@@ -100,7 +100,7 @@ unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi
 unsafe extern "C" fn getchar() -> ::core::ffi::c_int {
     return fgetc(stdin);
 }
-pub unsafe extern "C" fn printInfo() {
+pub unsafe fn printInfo() {
     fprintf(
         stdout,
         b"This is Polymorphic otfccdump, version %d.%d.%d.\n\0" as *const u8
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn printInfo() {
         PATCH_VER,
     );
 }
-pub unsafe extern "C" fn printHelp() {
+pub unsafe fn printHelp() {
     fprintf(
         stdout,
         b"\nUsage : otfccdump [OPTIONS] input.[otf|ttf|ttc]\n\n -h, --help              : Display this help message and exit.\n -v, --version           : Display version information and exit.\n -o <file>               : Set output file path to <file>. When absent the dump\n                           will be written to STDOUT.\n -n <n>, --ttc-index <n> : Use the <n>th subfont within the input font.\n --pretty                : Prettify the output JSON.\n --ugly                  : Force uglify the output JSON.\n --verbose               : Show more information when building.\n -q, --quiet             : Be silent when building.\n\n --ignore-glyph-order    : Do not export glyph order information.\n --glyph-name-prefix pfx : Add a prefix to the glyph names.\n --ignore-hints          : Do not export hinting information.\n --decimal-cmap          : Export 'cmap' keys as decimal number.\n --hex-cmap              : Export 'cmap' keys as hex number (U+FFFF).\n --name-by-hash          : Name glyphs using its hash value.\n --name-by-gid           : Name glyphs using its glyph id.\n --add-bom               : Add BOM mark in the output. (It is default on Windows\n                           when redirecting to another program. Use --no-bom to\n                           turn it off.)\n\n\0"

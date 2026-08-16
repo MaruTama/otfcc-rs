@@ -894,6 +894,39 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 1 of a new multi-phase cleanup: the
+  8 spurious `extern "C"` internal helpers in `bin/`.** A fresh audit (three
+  parallel agents plus a planning pass) found that of the crate's 889
+  `unsafe extern "C" fn` declarations left over from the c2rust transpile,
+  the real public FFI boundary is exactly 4 functions in `rust/src/ffi/dll.rs`
+  (the only ones both `#[unsafe(no_mangle)]` and reachable through the
+  `cdylib` crate-type -- `extern "C"` alone exports nothing). The other 885
+  are internal-only artifacts of the transpiler always attaching `extern "C"`
+  regardless of whether a function's address is ever taken: ~734 are called
+  by plain name and can drop `extern "C"` with zero call-site changes (Rust's
+  call syntax doesn't encode calling convention), ~155 have their address
+  taken and stored in one of 17 single-static "vtable" structs that are a
+  pure C habit of grouping related functions rather than genuine runtime
+  polymorphism, and a handful of individual address-taken cases (callback
+  parameters, dispatch-table type aliases, and one real 256-entry CFF
+  Type-2-opcode jump table) need atomic per-case handling. This first unit
+  tackles the safest slice: `otfccdump.rs`/`otfccbuild.rs`'s internal
+  `atoi`/`printInfo`/`printHelp` (both files) and `readEntireFile`/
+  `readEntireStdin` (`otfccbuild.rs` only) -- none `#[no_mangle]`, and
+  binaries aren't part of the `cdylib` ABI at all, so there's no exposure
+  here regardless. Purely a calling-convention annotation removed, no
+  behavior change; verified with the standard full pipeline on both
+  platforms (macOS arm64 and the Linux container): 54 unit tests green (0
+  warnings under `warnings = "deny"`), every payload byte-identical in both
+  directions including the `otfccdll` cdylib, all 10 round-trip payloads
+  stable, issue #1's large-lookup regression test green, `compare-log-output.sh`
+  green. Later phases will work through the ~734 directly-called functions
+  (grouped by directory, ~6 PRs) and then the 17 vtable structs one at a
+  time (smallest first, `I_VQ`'s 27 fields last); three genuinely
+  runtime-dispatched exceptions (`ILogger`/`ILoggerTarget`,
+  `IFontBuilder`/`IFontSerializer`) are out of scope for this cleanup and
+  deferred to a separate future redesign.
+
 - **The three lower-priority items the same final audit found -- two
   confirmed-dead-but-armed spots and one pre-existing-in-C leak -- closed
   out too, at the user's request, rather than left as accepted debt.**
