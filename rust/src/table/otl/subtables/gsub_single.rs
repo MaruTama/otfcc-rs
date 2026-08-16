@@ -18,7 +18,7 @@ use crate::table::otl::{GsubSingleEntry, Subtable, GsubSingleSubtable, subtable_
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::coverage::{build_coverage_format};
 use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_bytes_key, json_string_new_from_bytes};
 // `GsubSingleEntry` holds only two `GlyphHandle`s, so dropping the `Vec`
 // runs `Handle`'s own `Drop` for every entry -- no per-element dtor needed
@@ -212,9 +212,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut coverage_buf: *mut Buffer = OTL_I_COVERAGE
-        .build_format
-        .expect("non-null function pointer")(
+    let mut coverage_buf: *mut Buffer = build_coverage_format(
         cov,
         heuristics.contains(BuildHeuristics::GSUB_VERT) as u16,
     );

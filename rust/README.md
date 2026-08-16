@@ -894,6 +894,48 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 3 batch 3: `ChainingSubtableElementInterface`/
+  `I_SUBTABLE_CHAINING` (5 fields), `ICoverage`/`OTL_I_COVERAGE` (4), and
+  `FontElementInterface`/`OTFCC_I_FONT` (7) -- the last one handled with the
+  extra care the plan called for, since it's the vtable closest to the
+  crate's real FFI boundary.** Same collapse pattern as the prior two
+  batches. `I_SUBTABLE_CHAINING.copy`'s target (`subtable_chaining_copy`)
+  was the third instance of the by-now-familiar shape: a comment already
+  declared it dead (`ChainingSubtable::copy is dead code and unsound for
+  owned Vec/Box data`), confirmed by grep before deleting it alongside the
+  vtable. `OTFCC_I_FONT.copy`'s target (`otfcc_font_copy`) was the fourth --
+  same `unreachable!()` treatment from the low-priority-bundle PR, same
+  confirmation, same deletion.
+  `OTFCC_I_FONT` needed the most care of any collapse so far because three
+  of its four real calls happen inside `ffi/dll.rs` itself
+  (`.consolidate`/`.free`), the one file whose `#[unsafe(no_mangle)] pub
+  unsafe extern "C" fn` signatures must never change. The fix only ever
+  touched call sites *inside* those functions' bodies -- their own
+  signatures were untouched -- confirmed directly: `check-abi.sh` still
+  reports exactly the same 4 exported symbols, and a hash of `ffi/dll.rs`
+  taken before the mechanical rewrite matched after it ran (the script only
+  found `OTFCC_I_FONT.field.expect(...)` patterns, which don't appear
+  anywhere near those signatures). This also surfaced a real crate-boundary
+  wrinkle the earlier batches hadn't hit: `otfcc_font_create`/
+  `otfcc_font_free` are called from `bin/otfccdump.rs`/`bin/otfccbuild.rs`,
+  which are *separate crates* that depend on the library crate by name
+  (Cargo auto-discovers `src/bin/*.rs` as independent binary targets) --
+  `pub(crate)` visibility, which sufficed for every other collapsed
+  function so far, doesn't reach across that boundary, so those two needed
+  full `pub` instead. `delete_font_table` and `otfcc_consolidate_font`
+  stayed at their narrower visibility (`pub(crate)` and `pub` respectively,
+  matching what each one's actual callers needed). Purely mechanical
+  beyond that -- no behavior change; verified with the standard full
+  pipeline on both platforms (macOS arm64 and the Linux container): 54
+  unit tests green (0 warnings under `warnings = "deny"`), `check-abi.sh`
+  green (4/4 exports unchanged), every payload byte-identical in both
+  directions including the `otfccdll` cdylib, all 10 round-trip payloads
+  stable, issue #1's large-lookup regression test green,
+  `compare-log-output.sh` green. 6 of the 17 vtables from the original
+  inventory remain: `CffIOutlineBuilder`/`DRAW_PASS` (8, the value-passed
+  outlier), `VQ_I_SEGMENT` (11), `CFF_I_INDEX` (10), `CFF_I_DICT` (8),
+  `OTFCC_PKG_GLYPH_ORDER` (10), and `I_VQ` (27, planned last).
+
 - **`unsafe extern "C"` removal, Phase 3 batch 2: `CffTableElementInterface`/
   `TABLE_I_CFF` (5 fields), `GposPairSubtableElementInterface`/
   `I_SUBTABLE_GPOS_PAIR` (5), and `IClassDef`/`OTL_I_CLASS_DEF` (5).**

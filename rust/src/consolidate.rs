@@ -1349,7 +1349,7 @@ unsafe fn consolidate_tsi(
     // assignment overwrites it -- no explicit `table_tsi_free` needed.
     *_tsi = Some(consolidated);
 }
-pub unsafe extern "C" fn otfcc_consolidate_font(
+pub unsafe fn otfcc_consolidate_font(
     mut font: *mut Font,
     mut options: *const Options,
 ) {

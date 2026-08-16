@@ -16,7 +16,7 @@ use crate::table::otl::{GposSingleEntry, PositionValue, Subtable, GposSingleSubt
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::coverage::{build_coverage};
 use crate::table::otl::subtables::gpos_common::{bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, read_gpos_value, required_position_format};
 use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_bytes_key};
 // `GposSingleEntry` holds only a `GlyphHandle` plus a plain `PositionValue`,
@@ -226,7 +226,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
         j_0 = j_0.wrapping_add(1);
     }
     let mut coverage_buf: *mut Buffer =
-        OTL_I_COVERAGE.build.expect("non-null function pointer")(cov);
+        build_coverage(cov);
     if is_const {
         let mut b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value(
                 (&(*subtable))[0].value,

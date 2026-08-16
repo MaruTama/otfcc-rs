@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc};
 
-use crate::table::otl::{ChainingSubtableElementInterface, ChainingRule, ChainingRuleSet, ChainingSubtable};
+use crate::table::otl::{ChainingRule, ChainingRuleSet, ChainingSubtable};
 
 pub unsafe fn otl_init_chaining(mut subtable: *mut ChainingSubtable) {
     // No all-zero bit pattern is a valid `ChainingSubtable` (it owns `Vec`
@@ -75,22 +75,8 @@ pub(crate) unsafe fn chaining_is_classified(subtable: *const ChainingSubtable) -
 pub(crate) unsafe fn chaining_is_canonical(subtable: *const ChainingSubtable) -> bool {
     matches!(&*subtable, ChainingSubtable::Canonical(_))
 }
-pub static I_SUBTABLE_CHAINING: ChainingSubtableElementInterface = {
-    ChainingSubtableElementInterface {
-        init: Some(subtable_chaining_init as unsafe extern "C" fn(*mut ChainingSubtable) -> ()),
-        copy: Some(
-            subtable_chaining_copy
-                as unsafe extern "C" fn(*mut ChainingSubtable, *const ChainingSubtable) -> (),
-        ),
-        dispose: Some(
-            subtable_chaining_dispose as unsafe extern "C" fn(*mut ChainingSubtable) -> (),
-        ),
-        create: Some(subtable_chaining_create),
-        free: Some(subtable_chaining_free as unsafe extern "C" fn(*mut ChainingSubtable) -> ()),
-    }
-};
 #[inline]
-unsafe extern "C" fn subtable_chaining_free(mut x: *mut ChainingSubtable) {
+pub(crate) unsafe fn subtable_chaining_free(mut x: *mut ChainingSubtable) {
     if x.is_null() {
         return;
     }
@@ -98,32 +84,17 @@ unsafe extern "C" fn subtable_chaining_free(mut x: *mut ChainingSubtable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe extern "C" fn subtable_chaining_dispose(mut x: *mut ChainingSubtable) {
+unsafe fn subtable_chaining_dispose(mut x: *mut ChainingSubtable) {
     otl_dispose_chaining(x);
 }
 #[inline]
-unsafe extern "C" fn subtable_chaining_init(mut x: *mut ChainingSubtable) {
+unsafe fn subtable_chaining_init(mut x: *mut ChainingSubtable) {
     otl_init_chaining(x);
 }
 #[inline]
-unsafe extern "C" fn subtable_chaining_create() -> *mut ChainingSubtable {
+pub(crate) unsafe fn subtable_chaining_create() -> *mut ChainingSubtable {
     let mut x: *mut ChainingSubtable =
         malloc(::core::mem::size_of::<ChainingSubtable>() as usize) as *mut ChainingSubtable;
     subtable_chaining_init(x);
     return x;
-}
-#[inline]
-unsafe extern "C" fn subtable_chaining_copy(
-    mut _dst: *mut ChainingSubtable,
-    mut _src: *const ChainingSubtable,
-) {
-    // Confirmed dead: never called outside this vtable's own static
-    // initializer (see `table/otl.rs`'s doc comment on `ChainingSubtable`).
-    // The old `memcpy`-based body was only safe by accident, back when the
-    // union's `ManuallyDrop` fields were bitwise-copyable; now that
-    // `ChainingRuleSet.bc`/`.ic`/`.fc` are `Option<Box<ClassDef>>`, a raw
-    // `memcpy` would alias and eventually double-free. Kept as a loud
-    // failure instead of silently reintroducing that risk if this ever
-    // gets wired up.
-    unreachable!("ChainingSubtable::copy is dead code and unsound for owned Vec/Box data")
 }

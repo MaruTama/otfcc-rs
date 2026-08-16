@@ -18,7 +18,7 @@ use crate::table::otl::{Subtable, GsubReverseSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::coverage::{dump_coverage, parse_coverage, build_coverage};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 
 #[inline]
@@ -237,7 +237,7 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(
     while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
         json_array_push(
             _match,
-            OTL_I_COVERAGE.dump.expect("non-null function pointer")(
+            dump_coverage(
                 &(&(*subtable).match_0)[j as usize] as *const Coverage,
             ),
         );
@@ -251,7 +251,7 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(
     json_object_push(
         _st,
         b"to\0" as *const u8 as *const ::core::ffi::c_char,
-        OTL_I_COVERAGE.dump.expect("non-null function pointer")(&(*subtable).to as *const Coverage),
+        dump_coverage(&(*subtable).to as *const Coverage),
     );
     json_object_push(
         _st,
@@ -290,14 +290,14 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
         (*subtable).match_0.push(coverage_from_raw(
-            OTL_I_COVERAGE.parse.expect("non-null function pointer")(
+            parse_coverage(
                 json_arr_at(_match, j as u32),
             ),
         ));
         j = j.wrapping_add(1);
     }
     (*subtable).to = coverage_from_raw(
-        OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to),
+        parse_coverage(_to),
     );
     return subtable_from_raw(subtable, Subtable::GsubReverse);
 }
@@ -316,13 +316,13 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
         &mut (*(subtable as *mut GsubReverseSubtable)).match_0,
         (*subtable).input_index,
     );
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
             &(&(*subtable).match_0)[(*subtable).input_index as usize] as *const Coverage,
         )))]);
     bk_push(root, &[bk_int(BkCellType::B16, ((*subtable).input_index as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).input_index as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
                 &(&(*subtable).match_0)[j as usize] as *const Coverage,
             )))]);
         j = j.wrapping_add(1);
@@ -333,7 +333,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
     let mut j_0: TableId =
         ((*subtable).input_index as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
     while (j_0 as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
                 &(&(*subtable).match_0)[j_0 as usize] as *const Coverage,
             )))]);
         j_0 = j_0.wrapping_add(1);

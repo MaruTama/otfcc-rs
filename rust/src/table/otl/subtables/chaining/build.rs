@@ -12,7 +12,7 @@ use crate::table::otl::{ChainingRule, ChainingRuleSet, Lookup, Subtable, Subtabl
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::classdef::{ClassDef, build_class_def};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::coverage::{build_coverage};
 use crate::table::otl::subtables::chaining::common::{chaining_is_classified, chaining_ruleset_const, chaining_rule_mut_from_const};
 pub unsafe fn otfcc_chaining_lookup_is_contextual_lookup(
     mut lookup: *const Lookup,
@@ -74,7 +74,7 @@ pub unsafe fn otfcc_build_chaining_coverage(
     bk_push(root, &[bk_int(BkCellType::B16, (n_backtrack as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).input_begins as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
                 &(&(*rule).match_0)[j as usize] as *const Coverage,
             )))]);
         j = j.wrapping_add(1);
@@ -82,7 +82,7 @@ pub unsafe fn otfcc_build_chaining_coverage(
     bk_push(root, &[bk_int(BkCellType::B16, (n_input as ::core::ffi::c_int) as u32)]);
     let mut j_0: TableId = (*rule).input_begins;
     while (j_0 as ::core::ffi::c_int) < (*rule).input_ends as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
                 &(&(*rule).match_0)[j_0 as usize] as *const Coverage,
             )))]);
         j_0 = j_0.wrapping_add(1);
@@ -90,7 +90,7 @@ pub unsafe fn otfcc_build_chaining_coverage(
     bk_push(root, &[bk_int(BkCellType::B16, (n_lookahead as ::core::ffi::c_int) as u32)]);
     let mut j_1: TableId = (*rule).input_ends;
     while (j_1 as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
                 &(&(*rule).match_0)[j_1 as usize] as *const Coverage,
             )))]);
         j_1 = j_1.wrapping_add(1);
@@ -114,7 +114,7 @@ pub unsafe fn otfcc_build_chaining_classes(
     // same const-to-mut cast the original C-shaped code already did.
     let ic: *mut ClassDef = (*ruleset).ic.as_deref().unwrap() as *const ClassDef as *mut ClassDef;
     let coverage: *mut Coverage = &raw mut (*ic).glyphs;
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
             coverage,
         ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_class_def(
             (*ruleset).bc.as_deref().unwrap(),
@@ -235,7 +235,7 @@ pub unsafe fn otfcc_build_contextual_coverage(
     bk_push(root, &[bk_int(BkCellType::B16, (n_subst as ::core::ffi::c_int) as u32)]);
     let mut j: TableId = (*rule).input_begins;
     while (j as ::core::ffi::c_int) < (*rule).input_ends as ::core::ffi::c_int {
-        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        bk_push(root, &[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
                 &(&(*rule).match_0)[j as usize] as *const Coverage,
             )))]);
         j = j.wrapping_add(1);
@@ -254,7 +254,7 @@ pub unsafe fn otfcc_build_contextual_classes(
     let ruleset: *const ChainingRuleSet = chaining_ruleset_const(subtable);
     let ic: *mut ClassDef = (*ruleset).ic.as_deref().unwrap() as *const ClassDef as *mut ClassDef;
     let coverage: *mut Coverage = &raw mut (*ic).glyphs;
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
             coverage,
         ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_class_def(
             ic,

@@ -22,7 +22,7 @@ use crate::support::glyph_order::{GlyphOrderPass, GlyphOrder, GlyphOrderEntry};
 
 
 
-use crate::font::caryll_font::{OTFCC_I_FONT};
+use crate::font::caryll_font::{otfcc_font_create};
 use crate::table::base::{otfcc_parse_base};
 use crate::table::cff::{otfcc_parse_cff};
 use crate::table::colr::{otfcc_parse_colr};
@@ -316,7 +316,7 @@ impl FontBuilder for JsonReader {
     let options = options as *const Options;
     let mut root: *const ParsedValue = _root as *const ParsedValue;
     let mut font: *mut Font = (
-        OTFCC_I_FONT.create.expect("non-null function pointer"))();
+        otfcc_font_create)();
     if font.is_null() {
         return ::core::ptr::null_mut::<::core::ffi::c_void>();
     }

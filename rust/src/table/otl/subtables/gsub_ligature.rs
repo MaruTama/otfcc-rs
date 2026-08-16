@@ -17,7 +17,7 @@ use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable, subta
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::coverage::{dump_coverage, parse_coverage, build_coverage};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_object_new, json_object_push, json_string_new_from_bytes, preserialize};
 // `from: Coverage` and `to: GlyphHandle` both self-drop now, so a
 // `GsubLigatureSubtable` (`Vec<GsubLigatureEntry>`) fully self-drops -- no
@@ -252,7 +252,7 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(
         json_object_push(
             entry,
             b"from\0" as *const u8 as *const ::core::ffi::c_char,
-            OTL_I_COVERAGE.dump.expect("non-null function pointer")(
+            dump_coverage(
                 &(&(*subtable))[j as usize].from as *const Coverage,
             ),
         );
@@ -306,7 +306,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             if !(_from.is_null() || _to.is_null()) {
                 (*st).push(GsubLigatureEntry {
                     from: coverage_from_raw(
-                        OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from),
+                        parse_coverage(_from),
                     ),
                     to: handle_from_name(Some(json_str_bytes(_to))) as GlyphHandle,
                 });
@@ -325,7 +325,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             {
                 (*st_0).push(GsubLigatureEntry {
                     from: coverage_from_raw(
-                        OTL_I_COVERAGE.parse.expect("non-null function pointer")(_from_0),
+                        parse_coverage(_from_0),
                     ),
                     to: handle_from_name(Some(json_obj_key_bytes_at(_subtable, k_0 as u32))) as GlyphHandle,
                 });
@@ -366,7 +366,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
             handle_from_index(gid as GlyphId) as GlyphHandle,
         );
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
             startcov,
         ))), bk_int(BkCellType::B16, ((*startcov).len() as ::core::ffi::c_int) as u32)]);
     for &gid in start_gids.iter() {

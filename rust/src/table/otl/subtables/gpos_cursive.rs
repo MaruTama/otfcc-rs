@@ -16,7 +16,7 @@ use crate::table::otl::{Anchor, GposCursiveEntry, Subtable, GposCursiveSubtable,
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::coverage::{build_coverage};
 use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_dump_anchor, otl_parse_anchor, otl_read_anchor};
 use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key, preserialize};
 // `GposCursiveEntry` holds only a `GlyphHandle` plus two plain `Anchor`
@@ -200,7 +200,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_cursive(
         );
         j = j.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, ((*subtable).len()) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(cov))), bk_int(BkCellType::B16, ((*subtable).len()) as u32)]);
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).len() {
         bk_push(root, &[bk_ptr(BkCellType::P16, bk_from_anchor((&(*subtable))[j_0 as usize].enter)), bk_ptr(BkCellType::P16, bk_from_anchor((&(*subtable))[j_0 as usize].exit))]);

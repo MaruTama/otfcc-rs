@@ -19,7 +19,7 @@ use crate::table::otl::{GsubMultiEntry, Subtable, GsubMultiSubtable, subtable_fr
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::coverage::{dump_coverage, parse_coverage, build_coverage};
 use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_bytes_key};
 // `to: Coverage` and `from: GlyphHandle` both self-drop now, so a
 // `GsubMultiSubtable` (`Vec<GsubMultiEntry>`) fully self-drops -- no
@@ -122,7 +122,7 @@ pub unsafe extern "C" fn otl_gsub_dump_multi(
         json_object_push_bytes_key(
             st,
             &(*entry).from.name,
-            OTL_I_COVERAGE.dump.expect("non-null function pointer")(&(*entry).to as *const Coverage),
+            dump_coverage(&(*entry).to as *const Coverage),
         );
     }
     return st;
@@ -138,7 +138,7 @@ pub unsafe extern "C" fn otl_gsub_parse_multi(
             (*st).push(GsubMultiEntry {
                 from: handle_from_name(Some(json_obj_key_bytes_at(_subtable, k as u32))) as GlyphHandle,
                 to: coverage_from_raw(
-                    OTL_I_COVERAGE.parse.expect("non-null function pointer")(_to),
+                    parse_coverage(_to),
                 ),
             });
         }
@@ -159,7 +159,7 @@ unsafe fn build_gsub_multi_subtable_range(
             ) as GlyphHandle,
         );
     }
-    let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
+    let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(cov))), bk_int(BkCellType::B16, (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32)]);
     for j_0 in start..end {
         let to: *const Coverage = &(&(*subtable))[j_0 as usize].to;
         let b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*to).len() as ::core::ffi::c_int) as u32)]);
