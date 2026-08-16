@@ -13,11 +13,11 @@ use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos, Tabl
 use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::{BkGraph};
-use crate::table::otl::{GposPairSubtableElementInterface, PositionValue, Subtable, GposPairSubtable, subtable_from_raw};
+use crate::table::otl::{PositionValue, Subtable, GposPairSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_graph, bk_delete_graph, bk_estimate_size_of_graph, bk_minimize_graph, bk_new_graph_from_root_block, bk_untangle_graph};
-use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
+use crate::table::otl::classdef::{dump_class_def, parse_class_def, build_class_def};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::gpos_common::{FORMAT_DWIDTH, bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, position_zero, read_gpos_value, required_position_format};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_object_new, json_object_push, json_new_position, preserialize};
@@ -51,53 +51,22 @@ pub(crate) unsafe fn dispose_gpos_pair(mut subtable: *mut GposPairSubtable) {
     (*subtable).second_values = Vec::new();
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_pair_dispose(mut x: *mut GposPairSubtable) {
+unsafe fn subtable_gpos_pair_dispose(mut x: *mut GposPairSubtable) {
     dispose_gpos_pair(x);
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_pair_copy(
-    mut dst: *mut GposPairSubtable,
-    mut src: *const GposPairSubtable,
-) {
-    // Was a whole-struct `memcpy` -- unsound once any field owns a `Vec`/
-    // `Box` (aliases two owners onto one allocation, a double-free once
-    // either is dropped). This vtable slot is never invoked crate-wide
-    // (`I_SUBTABLE_GPOS_PAIR.copy` has no callers, matching the
-    // `otfcc-stage6-vtable-copy-move-mostly-dead` finding for every other
-    // `XxxSubtableElementInterface.copy`), so a field-wise `Clone` is the
-    // simplest correct body rather than a behavior-preserving concern.
-    (*dst).first = (*src).first.clone();
-    (*dst).second = (*src).second.clone();
-    (*dst).first_values = (*src).first_values.clone();
-    (*dst).second_values = (*src).second_values.clone();
-}
-#[inline]
-unsafe extern "C" fn subtable_gpos_pair_create() -> *mut GposPairSubtable {
+unsafe fn subtable_gpos_pair_create() -> *mut GposPairSubtable {
     let mut x: *mut GposPairSubtable =
         malloc(::core::mem::size_of::<GposPairSubtable>() as usize) as *mut GposPairSubtable;
     subtable_gpos_pair_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn subtable_gpos_pair_init(mut x: *mut GposPairSubtable) {
+unsafe fn subtable_gpos_pair_init(mut x: *mut GposPairSubtable) {
     init_gpos_pair(x);
 }
-pub static I_SUBTABLE_GPOS_PAIR: GposPairSubtableElementInterface = {
-    GposPairSubtableElementInterface {
-        init: Some(subtable_gpos_pair_init as unsafe extern "C" fn(*mut GposPairSubtable) -> ()),
-        copy: Some(
-            subtable_gpos_pair_copy
-                as unsafe extern "C" fn(*mut GposPairSubtable, *const GposPairSubtable) -> (),
-        ),
-        dispose: Some(
-            subtable_gpos_pair_dispose as unsafe extern "C" fn(*mut GposPairSubtable) -> (),
-        ),
-        create: Some(subtable_gpos_pair_create),
-        free: Some(subtable_gpos_pair_free as unsafe extern "C" fn(*mut GposPairSubtable) -> ()),
-    }
-};
 #[inline]
-unsafe extern "C" fn subtable_gpos_pair_free(mut x: *mut GposPairSubtable) {
+unsafe fn subtable_gpos_pair_free(mut x: *mut GposPairSubtable) {
     if x.is_null() {
         return;
     }
@@ -115,9 +84,7 @@ pub unsafe fn otl_read_gpos_pair(
     let mut current_block: u64;
     let mut subtable: *mut GposPairSubtable =
         (
-            I_SUBTABLE_GPOS_PAIR
-                .create
-                .expect("non-null function pointer"))();
+            subtable_gpos_pair_create)();
     if !(table_length < offset.wrapping_add(2 as u32)) {
         subtable_format = read_16u(data.offset(offset as isize) as *const u8);
         if subtable_format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
@@ -135,7 +102,7 @@ pub unsafe fn otl_read_gpos_pair(
             // into `(*subtable).first` as soon as it's fully constructed --
             // same timing as the original's immediate field assignment, so
             // every exit path below (including the length-check failures
-            // that fall through to the bottom `I_SUBTABLE_GPOS_PAIR.free`)
+            // that fall through to the bottom `subtable_gpos_pair_free`)
             // still disposes it correctly.
             let first_raw: *mut ClassDef = otl_class_def_create();
             (*first_raw).glyphs = ::core::mem::take(&mut *cov);
@@ -528,7 +495,7 @@ pub unsafe fn otl_read_gpos_pair(
             }
         }
     }
-    I_SUBTABLE_GPOS_PAIR.free.expect("non-null function pointer")(subtable);
+    subtable_gpos_pair_free(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltValue {
@@ -540,12 +507,12 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *
     json_object_push(
         st,
         b"first\0" as *const u8 as *const ::core::ffi::c_char,
-        OTL_I_CLASS_DEF.dump.expect("non-null function pointer")(first_cd),
+        dump_class_def(first_cd),
     );
     json_object_push(
         st,
         b"second\0" as *const u8 as *const ::core::ffi::c_char,
-        OTL_I_CLASS_DEF.dump.expect("non-null function pointer")(second_cd),
+        dump_class_def(second_cd),
     );
     let mut mat: *mut BuiltValue = json_array_new(
         ((*first_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
@@ -619,27 +586,25 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
     let mut class2_count: GlyphClass = 0;
     let mut subtable: *mut GposPairSubtable =
         (
-            I_SUBTABLE_GPOS_PAIR
-                .create
-                .expect("non-null function pointer"))();
+            subtable_gpos_pair_create)();
     let mut _mat: *const ParsedValue = json_obj_get_type(
         _subtable,
         b"matrix\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Array,
     );
-    (*subtable).first = classdef_from_raw(OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(json_obj_get_type(
+    (*subtable).first = classdef_from_raw(parse_class_def(json_obj_get_type(
         _subtable,
         b"first\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,
     )));
     (*subtable).second =
-        classdef_from_raw(OTL_I_CLASS_DEF.parse.expect("non-null function pointer")(json_obj_get_type(
+        classdef_from_raw(parse_class_def(json_obj_get_type(
             _subtable,
             b"second\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::Object,
         )));
     if _mat.is_null() || (*subtable).first.is_none() || (*subtable).second.is_none() {
-        I_SUBTABLE_GPOS_PAIR.free.expect("non-null function pointer")(subtable);
+        subtable_gpos_pair_free(subtable);
         return ::core::ptr::null_mut::<Subtable>();
     } else {
         let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
@@ -850,9 +815,9 @@ pub unsafe fn otfcc_build_gpos_pair_classes(
         j = j.wrapping_add(1);
     }
     let mut cov: *mut Coverage = cov_from_cd(first_cd);
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_class_def(
             first_cd,
-        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_class_def(
             second_cd,
         ))), bk_int(BkCellType::B16, (class1_count as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (class2_count as ::core::ffi::c_int) as u32)]);
     let mut j_0: GlyphClass = 0 as GlyphClass;

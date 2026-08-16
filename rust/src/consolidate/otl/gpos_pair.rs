@@ -35,7 +35,7 @@ use crate::font::caryll_font::{Font};
 
 use crate::table::otl::{Subtable, GposPairSubtable, OtlTable};
 use crate::consolidate::otl::common::{fontop_consolidate_class_def};
-use crate::table::otl::classdef::{ClassDef, OTL_I_CLASS_DEF};
+use crate::table::otl::classdef::{ClassDef, shrink_class_def};
 
 
 
@@ -57,7 +57,7 @@ pub unsafe extern "C" fn consolidate_gpos_pair(
     let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
     fontop_consolidate_class_def(font, first_cd, options);
     fontop_consolidate_class_def(font, second_cd, options);
-    OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")(first_cd);
-    OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")(second_cd);
+    shrink_class_def(first_cd);
+    shrink_class_def(second_cd);
     return (*first_cd).glyphs.is_empty();
 }

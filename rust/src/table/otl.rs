@@ -513,16 +513,6 @@ pub struct ChainingSubtableElementInterface {
     pub create: Option<unsafe extern "C" fn() -> *mut ChainingSubtable>,
     pub free: Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct GposPairSubtableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
-    pub copy:
-        Option<unsafe extern "C" fn(*mut GposPairSubtable, *const GposPairSubtable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GposPairSubtable>,
-    pub free: Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
-}
 pub type LookupPtr = *mut Lookup;
 // Stage 6-4, third of the group -- see `LangSystemList`/`FeatureList` for
 // the shape. `Lookup`'s own `Drop` (above) now does the type-dispatched

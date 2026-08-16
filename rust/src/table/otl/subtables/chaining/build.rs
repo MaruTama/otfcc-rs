@@ -11,7 +11,7 @@ use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_p
 use crate::table::otl::{ChainingRule, ChainingRuleSet, Lookup, Subtable, SubtablePtr, subtable_at, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, ChainingSubtable};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::classdef::{ClassDef, OTL_I_CLASS_DEF};
+use crate::table::otl::classdef::{ClassDef, build_class_def};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::chaining::common::{chaining_is_classified, chaining_ruleset_const, chaining_rule_mut_from_const};
 pub unsafe fn otfcc_chaining_lookup_is_contextual_lookup(
@@ -116,11 +116,11 @@ pub unsafe fn otfcc_build_chaining_classes(
     let coverage: *mut Coverage = &raw mut (*ic).glyphs;
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             coverage,
-        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_class_def(
             (*ruleset).bc.as_deref().unwrap(),
-        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_class_def(
             ic,
-        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_class_def(
             (*ruleset).fc.as_deref().unwrap(),
         ))), bk_int(BkCellType::B16, ((*ic).maxclass as ::core::ffi::c_int
             + 1 as ::core::ffi::c_int) as u32)]);
@@ -256,7 +256,7 @@ pub unsafe fn otfcc_build_contextual_classes(
     let coverage: *mut Coverage = &raw mut (*ic).glyphs;
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
             coverage,
-        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_CLASS_DEF.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_class_def(
             ic,
         ))), bk_int(BkCellType::B16, ((*ic).maxclass as ::core::ffi::c_int
             + 1 as ::core::ffi::c_int) as u32)]);

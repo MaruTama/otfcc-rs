@@ -40,7 +40,7 @@ use crate::table::otl::classdef::ClassDef;
 
 use crate::consolidate::otl::common::{fontop_consolidate_class_def};
 use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
-use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
+use crate::table::otl::classdef::{shrink_class_def, otl_class_def_free};
 
 pub unsafe fn consolidate_gdef(
     mut font: *mut Font,
@@ -56,17 +56,17 @@ pub unsafe fn consolidate_gdef(
         .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
     if !(*gdef).glyph_class_def.is_null() {
         fontop_consolidate_class_def(font, (*gdef).glyph_class_def, options);
-        OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*gdef).glyph_class_def);
+        shrink_class_def((*gdef).glyph_class_def);
         if (*(*gdef).glyph_class_def).glyphs.is_empty() {
-            OTL_I_CLASS_DEF.free.expect("non-null function pointer")((*gdef).glyph_class_def);
+            otl_class_def_free((*gdef).glyph_class_def);
             (*gdef).glyph_class_def = ::core::ptr::null_mut::<ClassDef>();
         }
     }
     if !(*gdef).mark_attach_class_def.is_null() {
         fontop_consolidate_class_def(font, (*gdef).mark_attach_class_def, options);
-        OTL_I_CLASS_DEF.shrink.expect("non-null function pointer")((*gdef).mark_attach_class_def);
+        shrink_class_def((*gdef).mark_attach_class_def);
         if (*(*gdef).mark_attach_class_def).glyphs.is_empty() {
-            OTL_I_CLASS_DEF.free.expect("non-null function pointer")((*gdef).mark_attach_class_def);
+            otl_class_def_free((*gdef).mark_attach_class_def);
             (*gdef).mark_attach_class_def = ::core::ptr::null_mut::<ClassDef>();
         }
     }
