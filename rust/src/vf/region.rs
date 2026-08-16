@@ -113,4 +113,3 @@ pub unsafe fn vq_region_get_weight(mut r: *const VqRegion, v: *const VV) -> Pos 
     }
     return w;
 }
-pub unsafe fn vq_show_region(mut _r: *const VqRegion) {}

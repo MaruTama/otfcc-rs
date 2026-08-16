@@ -894,6 +894,55 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 3 batch 7 (final): `VqVectorInterface`/
+  `I_VQ` (27 fields, `vf/vq.rs`) -- the largest vtable in the original
+  17-vtable inventory, and the last one. 18 of the 27 fields turned out to
+  have a real caller somewhere in the crate (`get_still`/`create_still`/
+  `replace` alone account for the bulk of the ~170 call sites, across 9
+  files: `consolidate.rs`, `libcff/charstring_il.rs`,
+  `otf_reader/unconsolidate.rs`, `table/cff.rs`, `table/fvar.rs`,
+  `table/glyf/build.rs`, `table/glyf/read.rs`, `table/glyf.rs`,
+  `otf_writer/stat.rs`); those 18 functions were widened from
+  module-private to `pub(crate)` and every caller's `use` import rewritten
+  to name them directly. The remaining 9 fields (`empty`, `plus`,
+  `inplace_negate`, `negate`, `inplace_minus`, `equal`, `compare_ref`,
+  `show`) needed a closer look than a flat "only-in-the-static" check:
+  `vq_inplace_negate`/`vq_negate`/`vq_inplace_minus` looked dead by that
+  test alone, but `vq_minus` (alive, real caller) calls `vq_inplace_minus`
+  directly by name, which calls `vq_negate` directly, which calls
+  `vq_inplace_negate` directly -- a direct-call chain entirely separate
+  from the vtable, so all three survive and stayed module-private. The
+  other 5 (`vq_empty`, `vq_plus`, `vq_equal`, `vq_compare_ref`, `vq_show`)
+  really were only ever reachable through the vtable's own static
+  initializer, so they were deleted; deleting `vq_show` cascaded further,
+  since its only caller was `show_vq`, which drops out too, and that in
+  turn was the only caller of `vq_segment_show`/`show_vqs` in the same
+  file (left behind, unconverted, from the `VQ_I_SEGMENT` collapse in
+  batch 6 -- that batch's `.show` field had a real caller at the time,
+  `show_vq`, so `vq_segment_show` correctly survived that pass; it only
+  went dead once `show_vq` itself did, here) and `vq_show_region` in
+  `vf/region.rs` (an already-stubbed-out no-op, `pub` and thus invisible to
+  the usual unused-function lint, whose only call site was inside
+  `show_vqs`). Also extended `collapse_vtable_calls.pl`'s regex once more
+  to tolerate the trailing-comma `.expect(...)`-with-comma shape (now
+  three sightings of this pattern: batch 4, batch 6, and here). With every
+  `vq_*` function's `extern "C"` gone, the crate-level
+  `#![allow(improper_ctypes_definitions)]` in `vf/vq.rs` and the four
+  files that had copied the same allow alongside their own `VqVectorInterface`
+  call sites (`libcff/charstring_il.rs`, `otf_reader/unconsolidate.rs`,
+  `table/fvar.rs`, `table/glyf.rs`) all turned out to be safely removable --
+  confirmed by a clean rebuild under `warnings = "deny"` after deleting
+  each one. Verified with the standard full pipeline on both platforms: 54
+  unit tests green, every payload byte-identical in both directions
+  including the `otfccdll` cdylib, all 10 round-trip payloads stable,
+  issue #1's large-lookup regression test green, `compare-log-output.sh`
+  green. **This closes out the entire 17-vtable Phase 3 inventory from the
+  original `unsafe extern "C"` removal plan.** What remains from the
+  broader plan is Phase 4 (`ILoggerTarget`/`ILogger`/`IFontBuilder`/
+  `IFontSerializer`), explicitly scoped out as real runtime dispatch
+  needing a bigger redesign (`FontFormat` enum, etc.), to be picked up as
+  its own separate thread only if asked.
+
 - **`unsafe extern "C"` removal, Phase 3 batch 6: `VqSegmentElementInterface`/
   `VQ_I_SEGMENT` (11 fields) and `GlyphOrderPackage`/`OTFCC_PKG_GLYPH_ORDER`
   (9 fields), bundled into one PR.** `VQ_I_SEGMENT` turned out to be mostly

@@ -64,7 +64,7 @@ use crate::support::glyph_order::{otfcc_gord_consolidate_handle, otfcc_set_glyph
 use crate::table::_tsi::{tsi_entry_dup};
 use crate::table::glyf::{glyf_component_reference_empty, otfcc_new_glyf_glyph};
 use crate::table::otl::{otl_feature_list_filter_env, otl_feature_ref_list_filter_env, otl_lookup_list_filter_env, otl_lookup_ref_list_filter_env};
-use crate::vf::vq::{I_VQ};
+use crate::vf::vq::{vq_get_still, vq_neutral, vq_point_linear_tfm, vq_replace};
 
 pub type OtlConsolidationFunction = Option<
     unsafe extern "C" fn(
@@ -339,9 +339,9 @@ pub unsafe fn get_point_coordinates(
         while (pj as usize) < (&(*g).contours)[c as usize].len() {
             if *stated as ::core::ffi::c_int == n as ::core::ffi::c_int {
                 let p: *mut Point = &raw mut (&mut (*g).contours)[c as usize][pj as usize];
-                I_VQ.replace.expect("non-null function pointer")(
+                vq_replace(
                     x,
-                    I_VQ.point_linear_tfm.expect("non-null function pointer")(
+                    vq_point_linear_tfm(
                         (*gr).x.clone(),
                         (*gr).a as Pos,
                         (*p).x.clone(),
@@ -349,9 +349,9 @@ pub unsafe fn get_point_coordinates(
                         (*p).y.clone(),
                     ) as VQ,
                 );
-                I_VQ.replace.expect("non-null function pointer")(
+                vq_replace(
                     y,
-                    I_VQ.point_linear_tfm.expect("non-null function pointer")(
+                    vq_point_linear_tfm(
                         (*gr).y.clone(),
                         (*gr).c as Pos,
                         (*p).x.clone(),
@@ -380,9 +380,9 @@ pub unsafe fn get_point_coordinates(
         ref_0.b = (*rr).a * (*gr).b + (*rr).b * (*gr).d;
         ref_0.c = (*gr).a * (*rr).c + (*gr).c * (*rr).d;
         ref_0.d = (*gr).b * (*rr).c + (*rr).d * (*gr).d;
-        I_VQ.replace.expect("non-null function pointer")(
+        vq_replace(
             &raw mut ref_0.x,
-            I_VQ.point_linear_tfm.expect("non-null function pointer")(
+            vq_point_linear_tfm(
                 (*rr).x.clone(),
                 (*rr).a as Pos,
                 (*gr).x.clone(),
@@ -390,9 +390,9 @@ pub unsafe fn get_point_coordinates(
                 (*gr).y.clone(),
             ) as VQ,
         );
-        I_VQ.replace.expect("non-null function pointer")(
+        vq_replace(
             &raw mut ref_0.y,
-            I_VQ.point_linear_tfm.expect("non-null function pointer")(
+            vq_point_linear_tfm(
                 (*rr).y.clone(),
                 (*rr).c as Pos,
                 (*gr).x.clone(),
@@ -445,13 +445,13 @@ pub unsafe fn consolidate_anchor_ref(
         (*rr).is_anchored = RefAnchorStatus::AnchorConsolidatingXy;
     }
     let mut inner_x: VQ =
-        (I_VQ.neutral.expect("non-null function pointer"))();
+        (vq_neutral)();
     let mut outer_x: VQ =
-        (I_VQ.neutral.expect("non-null function pointer"))();
+        (vq_neutral)();
     let mut inner_y: VQ =
-        (I_VQ.neutral.expect("non-null function pointer"))();
+        (vq_neutral)();
     let mut outer_y: VQ =
-        (I_VQ.neutral.expect("non-null function pointer"))();
+        (vq_neutral)();
     let mut inner_counter: ShapeId = 0 as ShapeId;
     let mut outer_counter: ShapeId = 0 as ShapeId;
     let mut rr1: ComponentReference =
@@ -505,14 +505,14 @@ pub unsafe fn consolidate_anchor_ref(
             ),
         );
     }
-    let mut rrx: VQ = I_VQ.point_linear_tfm.expect("non-null function pointer")(
+    let mut rrx: VQ = vq_point_linear_tfm(
         outer_x.clone(),
         -((*rr).a as Pos),
         inner_x.clone(),
         -((*rr).b as Pos),
         inner_y.clone(),
     );
-    let mut rry: VQ = I_VQ.point_linear_tfm.expect("non-null function pointer")(
+    let mut rry: VQ = vq_point_linear_tfm(
         outer_y.clone(),
         -((*rr).c as Pos),
         inner_x.clone(),
@@ -521,17 +521,17 @@ pub unsafe fn consolidate_anchor_ref(
     );
     if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingAnchor
     {
-        I_VQ.replace.expect("non-null function pointer")(&raw mut (*rr).x, rrx);
-        I_VQ.replace.expect("non-null function pointer")(&raw mut (*rr).y, rry);
+        vq_replace(&raw mut (*rr).x, rrx);
+        vq_replace(&raw mut (*rr).y, rry);
         (*rr).is_anchored = RefAnchorStatus::AnchorConsolidated;
     } else {
         if fabs(
-            I_VQ.get_still.expect("non-null function pointer")((*rr).x.clone()) as ::core::ffi::c_double
-                - I_VQ.get_still.expect("non-null function pointer")(rrx.clone()) as ::core::ffi::c_double,
+            vq_get_still((*rr).x.clone()) as ::core::ffi::c_double
+                - vq_get_still(rrx.clone()) as ::core::ffi::c_double,
         ) > 0.5f64
             && fabs(
-                I_VQ.get_still.expect("non-null function pointer")((*rr).y.clone()) as ::core::ffi::c_double
-                    - I_VQ.get_still.expect("non-null function pointer")(rry.clone())
+                vq_get_still((*rr).y.clone()) as ::core::ffi::c_double
+                    - vq_get_still(rry.clone())
                         as ::core::ffi::c_double,
             ) > 0.5f64
         {

@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-#![allow(improper_ctypes_definitions)] // VQ now owns a Vec; these extern "C" fns are internal-only (vtable dispatch, no real FFI boundary) -- goes away with the vtable/extern "C" cleanup, see rust/README.md
 pub mod build;
 pub mod read;
 
@@ -26,7 +25,7 @@ use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_b
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes, json_new_position, preserialize};
-use crate::vf::vq::{I_VQ};
+use crate::vf::vq::{vq_copy, vq_create_still, vq_get_still, vq_is_still, vq_replace};
 
 #[derive(Clone)]
 #[repr(C)]
@@ -130,7 +129,7 @@ pub struct Glyph {
 /// (`stat`, `cid`, ...) or is already a real Rust owner that auto-drops
 /// correctly on its own: `horizontal_origin`/`advance_width`/
 /// `vertical_origin`/`advance_height` (`VQ`, a plain `struct { kernel: Pos,
-/// shift: Vec<VqSegment> }` with no `Drop` impl of its own -- `I_VQ.dispose`
+/// shift: Vec<VqSegment> }` with no `Drop` impl of its own -- `vq_dispose`
 /// is just `shift = Vec::new()`, which is exactly what happens for free
 /// when a `VQ` field is dropped), `contours`/`references`/`stem_h`/
 /// `stem_v`/`hint_masks`/`contour_masks` (plain `Vec`s per the comments on
@@ -177,13 +176,13 @@ pub struct GlyfIOContext {
 /// applied to, which is what lets the two sites drop their casts.
 pub const MASK_ON_CURVE: i8 = 1;
 unsafe fn create_point(mut p: *mut Point) {
-    (*p).x = I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
-    (*p).y = I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+    (*p).x = vq_create_still(0 as ::core::ffi::c_int as Pos);
+    (*p).y = vq_create_still(0 as ::core::ffi::c_int as Pos);
     (*p).on_curve = TRUE_0 as i8;
 }
 unsafe fn copy_point(mut dst: *mut Point, mut src: *const Point) {
-    I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).x, &raw const (*src).x);
-    I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).y, &raw const (*src).y);
+    vq_copy(&raw mut (*dst).x, &raw const (*src).x);
+    vq_copy(&raw mut (*dst).y, &raw const (*src).y);
     (*dst).on_curve = (*src).on_curve;
 }
 #[inline]
@@ -236,9 +235,9 @@ unsafe fn glyf_contour_fill(arr: *mut Contour, n: usize) {
 unsafe fn init_glyf_reference(mut ref_0: *mut ComponentReference) {
     (*ref_0).glyph = otfcc_handle_empty() as GlyphHandle;
     (*ref_0).x =
-        I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+        vq_create_still(0 as ::core::ffi::c_int as Pos);
     (*ref_0).y =
-        I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
+        vq_create_still(0 as ::core::ffi::c_int as Pos);
     (*ref_0).a = 1 as ::core::ffi::c_int as Scale;
     (*ref_0).b = 0 as ::core::ffi::c_int as Scale;
     (*ref_0).c = 0 as ::core::ffi::c_int as Scale;
@@ -572,10 +571,10 @@ unsafe fn glyf_dump_glyph(
         b"advanceWidth\0" as *const u8 as *const ::core::ffi::c_char,
         json_new_vq((*g).advance_width.clone(), (*ctx).fvar),
     );
-    if I_VQ.is_still.expect("non-null function pointer")((*g).horizontal_origin.clone()) as ::core::ffi::c_int
+    if vq_is_still((*g).horizontal_origin.clone()) as ::core::ffi::c_int
         != 0
         && fabs(
-            I_VQ.get_still.expect("non-null function pointer")((*g).horizontal_origin.clone())
+            vq_get_still((*g).horizontal_origin.clone())
                 as ::core::ffi::c_double,
         ) > 1.0f64 / 1000.0f64
     {
@@ -760,14 +759,14 @@ unsafe fn glyf_parse_point(mut pointdump: *const ParsedValue) -> Point {
         let mut cv: *const ParsedValue = json_obj_val_at(pointdump, _k as u32);
         if strcmp(ck, b"x\0" as *const u8 as *const ::core::ffi::c_char) == 0 as ::core::ffi::c_int
         {
-            I_VQ.replace.expect("non-null function pointer")(
+            vq_replace(
                 &raw mut point.x,
                 json_vq_of(cv, ::core::ptr::null::<FvarTable>()) as VQ,
             );
         } else if strcmp(ck, b"y\0" as *const u8 as *const ::core::ffi::c_char)
             == 0 as ::core::ffi::c_int
         {
-            I_VQ.replace.expect("non-null function pointer")(
+            vq_replace(
                 &raw mut point.y,
                 json_vq_of(cv, ::core::ptr::null::<FvarTable>()) as VQ,
             );
@@ -823,14 +822,14 @@ unsafe fn glyf_parse_reference(mut refdump: *const ParsedValue) -> ComponentRefe
             glyf_component_reference_empty)();
     if !_gname.is_null() {
         ref_0.glyph = handle_from_name(Some(json_str_bytes(_gname))) as GlyphHandle;
-        I_VQ.replace.expect("non-null function pointer")(
+        vq_replace(
             &raw mut ref_0.x,
             json_vq_of(
                 json_obj_get(refdump, b"x\0" as *const u8 as *const ::core::ffi::c_char),
                 ::core::ptr::null::<FvarTable>(),
             ) as VQ,
         );
-        I_VQ.replace.expect("non-null function pointer")(
+        vq_replace(
             &raw mut ref_0.y,
             json_vq_of(
                 json_obj_get(refdump, b"y\0" as *const u8 as *const ::core::ffi::c_char),
@@ -881,14 +880,14 @@ unsafe fn glyf_parse_reference(mut refdump: *const ParsedValue) -> ComponentRefe
         }
     } else {
         ref_0.glyph.name = Vec::new();
-        I_VQ.replace.expect("non-null function pointer")(
+        vq_replace(
             &raw mut ref_0.x,
-            I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos)
+            vq_create_still(0 as ::core::ffi::c_int as Pos)
                 as VQ,
         );
-        I_VQ.replace.expect("non-null function pointer")(
+        vq_replace(
             &raw mut ref_0.y,
-            I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos)
+            vq_create_still(0 as ::core::ffi::c_int as Pos)
                 as VQ,
         );
         ref_0.a = 1.0f64 as Scale;
@@ -1052,7 +1051,7 @@ unsafe fn otfcc_glyf_parse_glyph(
 ) -> Box<Glyph> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     (*g).name = order_entry.name.clone();
-    I_VQ.replace.expect("non-null function pointer")(
+    vq_replace(
         &raw mut (*g).advance_width,
         json_vq_of(
             json_obj_get(
@@ -1062,7 +1061,7 @@ unsafe fn otfcc_glyf_parse_glyph(
             ::core::ptr::null::<FvarTable>(),
         ) as VQ,
     );
-    I_VQ.replace.expect("non-null function pointer")(
+    vq_replace(
         &raw mut (*g).horizontal_origin,
         json_vq_of(
             json_obj_get(
@@ -1072,7 +1071,7 @@ unsafe fn otfcc_glyf_parse_glyph(
             ::core::ptr::null::<FvarTable>(),
         ) as VQ,
     );
-    I_VQ.replace.expect("non-null function pointer")(
+    vq_replace(
         &raw mut (*g).advance_height,
         json_vq_of(
             json_obj_get(
@@ -1082,7 +1081,7 @@ unsafe fn otfcc_glyf_parse_glyph(
             ::core::ptr::null::<FvarTable>(),
         ) as VQ,
     );
-    I_VQ.replace.expect("non-null function pointer")(
+    vq_replace(
         &raw mut (*g).vertical_origin,
         json_vq_of(
             json_obj_get(

@@ -20,7 +20,9 @@ use crate::support::primitives::{otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_f
 use crate::table::fvar::{fvar_register_region};
 use crate::table::glyf::{glyf_component_reference_empty, glyf_contour_fill, otfcc_new_glyf_glyph};
 use crate::vf::region::{vq_create_region};
-use crate::vf::vq::{I_VQ};
+use crate::vf::vq::{
+    vq_add_delta, vq_copy_replace, vq_create_still, vq_inplace_plus, vq_neutral, vq_replace,
+};
 
 #[derive(Copy, Clone)]
 #[repr(C, packed)]
@@ -199,7 +201,7 @@ unsafe fn otfcc_read_simple_glyph(
             x = read_16s(coordinates_start.offset(coordinates_offset as isize) as *const u8);
             coordinates_offset = coordinates_offset.wrapping_add(2 as u32);
         }
-        I_VQ.replace.expect("non-null function pointer")(
+        vq_replace(
             &raw mut (*(next_point
                 as unsafe extern "C" fn(
                     *mut ContourList,
@@ -211,7 +213,7 @@ unsafe fn otfcc_read_simple_glyph(
                 &raw mut current_contour_point_index,
             ))
             .x,
-            I_VQ.create_still.expect("non-null function pointer")(x as Pos) as VQ,
+            vq_create_still(x as Pos) as VQ,
         );
         coordinates_read =
             (coordinates_read as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
@@ -237,7 +239,7 @@ unsafe fn otfcc_read_simple_glyph(
             y = read_16s(coordinates_start.offset(coordinates_offset as isize) as *const u8);
             coordinates_offset = coordinates_offset.wrapping_add(2 as u32);
         }
-        I_VQ.replace.expect("non-null function pointer")(
+        vq_replace(
             &raw mut (*(next_point
                 as unsafe extern "C" fn(
                     *mut ContourList,
@@ -249,24 +251,24 @@ unsafe fn otfcc_read_simple_glyph(
                 &raw mut current_contour_point_index,
             ))
             .y,
-            I_VQ.create_still.expect("non-null function pointer")(y as Pos) as VQ,
+            vq_create_still(y as Pos) as VQ,
         );
         coordinates_read =
             (coordinates_read as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
     }
     let mut cx: VQ =
-        (I_VQ.neutral.expect("non-null function pointer"))();
+        (vq_neutral)();
     let mut cy: VQ =
-        (I_VQ.neutral.expect("non-null function pointer"))();
+        (vq_neutral)();
     let mut j_1: ShapeId = 0 as ShapeId;
     while (j_1 as ::core::ffi::c_int) < number_of_contours as ::core::ffi::c_int {
         let mut k: ShapeId = 0 as ShapeId;
         while (k as usize) < (&(*contours))[j_1 as usize].len() {
             let z: *mut Point = &raw mut (&mut (*contours))[j_1 as usize][k as usize];
-            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cx, (*z).x.clone());
-            I_VQ.inplace_plus.expect("non-null function pointer")(&raw mut cy, (*z).y.clone());
-            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).x, cx.clone());
-            I_VQ.copy_replace.expect("non-null function pointer")(&raw mut (*z).y, cy.clone());
+            vq_inplace_plus(&raw mut cx, (*z).x.clone());
+            vq_inplace_plus(&raw mut cy, (*z).y.clone());
+            vq_copy_replace(&raw mut (*z).x, cx.clone());
+            vq_copy_replace(&raw mut (*z).y, cy.clone());
             k = k.wrapping_add(1);
         }
         (&mut (*contours))[j_1 as usize].shrink_to_fit();
@@ -303,11 +305,11 @@ unsafe fn otfcc_read_composite_glyph(
         if flags.contains(ComponentFlags::ARGS_ARE_XY_VALUES) {
             ref_0.is_anchored = RefAnchorStatus::Xy;
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
-                ref_0.x = I_VQ.create_still.expect("non-null function pointer")(read_16s(
+                ref_0.x = vq_create_still(read_16s(
                     start.offset(offset as isize) as *const u8,
                 )
                     as Pos);
-                ref_0.y = I_VQ.create_still.expect("non-null function pointer")(read_16s(
+                ref_0.y = vq_create_still(read_16s(
                     start
                         .offset(offset as isize)
                         .offset(2 as ::core::ffi::c_int as isize)
@@ -316,11 +318,11 @@ unsafe fn otfcc_read_composite_glyph(
                     as Pos);
                 offset = offset.wrapping_add(4 as u32);
             } else {
-                ref_0.x = I_VQ.create_still.expect("non-null function pointer")(read_8s(
+                ref_0.x = vq_create_still(read_8s(
                     start.offset(offset as isize) as *const u8,
                 )
                     as Pos);
-                ref_0.y = I_VQ.create_still.expect("non-null function pointer")(read_8s(
+                ref_0.y = vq_create_still(read_8s(
                     start
                         .offset(offset as isize)
                         .offset(1 as ::core::ffi::c_int as isize)
@@ -849,13 +851,13 @@ unsafe fn apply_polymorphism(
     if (total_points as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
         < n_touched_points as ::core::ffi::c_int
     {
-        I_VQ.add_delta.expect("non-null function pointer")(
+        vq_add_delta(
             &raw mut (*glyph).horizontal_origin,
             true,
             r,
             *delta_x.offset(total_points as isize),
         );
-        I_VQ.add_delta.expect("non-null function pointer")(
+        vq_add_delta(
             &raw mut (*glyph).advance_width,
             true,
             r,
@@ -866,13 +868,13 @@ unsafe fn apply_polymorphism(
     if (total_points as ::core::ffi::c_int + 3 as ::core::ffi::c_int)
         < n_touched_points as ::core::ffi::c_int
     {
-        I_VQ.add_delta.expect("non-null function pointer")(
+        vq_add_delta(
             &raw mut (*glyph).vertical_origin,
             true,
             r,
             *delta_y.offset((total_points as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize),
         );
-        I_VQ.add_delta.expect("non-null function pointer")(
+        vq_add_delta(
             &raw mut (*glyph).advance_height,
             true,
             r,
