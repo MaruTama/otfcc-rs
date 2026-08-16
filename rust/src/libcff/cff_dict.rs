@@ -59,7 +59,7 @@ pub struct CffGetKeyContext {
     pub idx: u32,
 }
 #[inline]
-unsafe extern "C" fn dispose_dict(mut dict: *mut CffDict) {
+unsafe fn dispose_dict(mut dict: *mut CffDict) {
     (*dict).ents = Vec::new();
 }
 #[inline]

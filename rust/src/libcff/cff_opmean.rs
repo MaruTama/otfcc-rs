@@ -5,7 +5,7 @@ use crate::libcff::{CffCharstringOperator, CffDictOperator};
 /// libcff's own API, kept because it is the DICT half of the pair whose
 /// halves this newtype exists to keep apart. Matching on `op.0` rather than
 /// rewriting 56 arms into `CffDictOperator(n) =>` keeps the table readable.
-pub unsafe extern "C" fn op_cff_name(mut op: CffDictOperator) -> *mut ::core::ffi::c_char {
+pub unsafe fn op_cff_name(mut op: CffDictOperator) -> *mut ::core::ffi::c_char {
     match op.0 {
         0 => {
             return b"Version\0" as *const u8 as *const ::core::ffi::c_char
@@ -221,7 +221,7 @@ pub unsafe extern "C" fn op_cff_name(mut op: CffDictOperator) -> *mut ::core::ff
     };
 }
 /// The CharString operator names -- the other half; see [`op_cff_name`].
-pub unsafe extern "C" fn op_cs2_name(
+pub unsafe fn op_cs2_name(
     mut op: CffCharstringOperator,
 ) -> *mut ::core::ffi::c_char {
     match op.0 {
@@ -406,7 +406,7 @@ pub unsafe extern "C" fn op_cs2_name(
         }
     };
 }
-pub unsafe extern "C" fn cff_get_standard_arity(mut op: CffCharstringOperator) -> u8 {
+pub unsafe fn cff_get_standard_arity(mut op: CffCharstringOperator) -> u8 {
     match op.0 {
         5 | 21 => return 2 as u8,
         6 | 7 => return 1 as u8,

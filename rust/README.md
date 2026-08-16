@@ -894,6 +894,39 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 2 (first slice): `libcff/`'s ~92
+  directly-called functions.** The mechanical sweep continues into the
+  ~734-function batch, directory by directory, starting with `libcff/`. This
+  slice was more involved than Phase 1's `bin/` sweep: `libcff/` also holds
+  four of the vtable structs Phase 3 will collapse (`CffSubrGraphElementInterface`/
+  `CFF_I_SUBR_GRAPH`, `CffIndexElementInterface`/`CFF_I_INDEX`,
+  `CffDictElementInterface`/`CFF_I_DICT`, and `CffIOutlineBuilder`, whose
+  single static `DRAW_PASS` instance lives in `table/cff.rs`) plus a handful
+  of individually address-taken callback functions, so a per-function
+  exclusion list was required rather than a blanket per-file skip. Built the
+  list by grepping the *entire* crate (not just `libcff/`) for every
+  identifier immediately preceding `as unsafe extern "C" fn` or wrapped in a
+  bare `Some(...)` that resolves to a real function -- this caught one thing
+  the original planning pass missed: `cff_parser.rs`'s six `callback_nop_*`
+  functions, which back-fill missing fields on a caller-supplied
+  `CffIOutlineBuilder` and are address-taken the same way `DRAW_PASS`'s
+  fields are, even though `cff_parser.rs` itself holds no vtable. 34 of the
+  122 `unsafe extern "C" fn` declarations in `libcff/` matched this
+  crate-wide address-taken set and stayed untouched (deferred to Phase 3 or
+  the individual-case cleanup); the other 88 dropped `extern "C"` with zero
+  call-site changes. Also handled `cff_codecs.rs`'s `DE_T2`, the 256-entry
+  CFF Type-2-opcode jump table flagged in the plan as a real dispatch
+  mechanism rather than a fake-polymorphism vtable: stripped `extern "C"`
+  from the array's element type and from the four functions
+  (`cff_dec_e`/`_i`/`_o`/`_r`) it references, while leaving the array and its
+  `DE_T2[opcode].expect(...)()` dispatch untouched. Purely calling-convention
+  annotation removal, no behavior change; verified with the standard full
+  pipeline on both platforms (macOS arm64 and the Linux container): 54 unit
+  tests green (0 warnings under `warnings = "deny"`), every payload
+  byte-identical in both directions including the `otfccdll` cdylib, all 10
+  round-trip payloads stable, issue #1's large-lookup regression test green,
+  `compare-log-output.sh` green.
+
 - **`unsafe extern "C"` removal, Phase 1 of a new multi-phase cleanup: the
   8 spurious `extern "C"` internal helpers in `bin/`.** A fresh audit (three
   parallel agents plus a planning pass) found that of the crate's 889
