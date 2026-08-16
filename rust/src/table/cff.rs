@@ -41,11 +41,11 @@ use crate::libcff::cff_string::{sdsget_cff_sid};
 use crate::libcff::cff_value::{cffnum};
 use crate::libcff::cff_writer::{cff_build_header, cff_build_offset};
 use crate::libcff::charstring_il::{cff_compile_glyph_to_il, cff_optimize_il};
-use crate::libcff::subr::{CFF_I_SUBR_GRAPH, cff_il_graph_to_buffers, cff_insert_il_to_graph};
+use crate::libcff::subr::{cff_subr_graph_init, cff_subr_graph_dispose, cff_il_graph_to_buffers, cff_insert_il_to_graph};
 use crate::support::buffer::{buffree, bufnew, bufnwrite8, bufwrite_bufdel};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::{json_new_vq};
-use crate::table::glyf::{GLYF_I_POINT, otfcc_new_glyf_glyph, table_glyf_create_n};
+use crate::table::glyf::{glyf_point_init, otfcc_new_glyf_glyph, table_glyf_create_n};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
 use crate::vf::vq::{I_VQ};
 
@@ -663,7 +663,7 @@ unsafe extern "C" fn callback_draw_lineto(
             },
             on_curve: 0,
         };
-        GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut z);
+        glyf_point_init(&raw mut z);
         z.on_curve = TRUE_0 as i8;
         I_VQ.copy_replace.expect("non-null function pointer")(
             &raw mut z.x,
@@ -702,7 +702,7 @@ unsafe extern "C" fn callback_draw_curveto(
             },
             on_curve: 0,
         };
-        GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut z);
+        glyf_point_init(&raw mut z);
         z.on_curve = FALSE_0 as i8;
         I_VQ.copy_replace.expect("non-null function pointer")(
             &raw mut z.x,
@@ -724,7 +724,7 @@ unsafe extern "C" fn callback_draw_curveto(
             },
             on_curve: 0,
         };
-        GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut z_0);
+        glyf_point_init(&raw mut z_0);
         z_0.on_curve = FALSE_0 as i8;
         I_VQ.copy_replace.expect("non-null function pointer")(
             &raw mut z_0.x,
@@ -746,7 +746,7 @@ unsafe extern "C" fn callback_draw_curveto(
             },
             on_curve: 0,
         };
-        GLYF_I_POINT.init.expect("non-null function pointer")(&raw mut z_1);
+        glyf_point_init(&raw mut z_1);
         z_1.on_curve = TRUE_0 as i8;
         I_VQ.copy_replace.expect("non-null function pointer")(
             &raw mut z_1.x,
@@ -2550,10 +2550,10 @@ unsafe fn writecff_cid_keyed(
     g2c_context.default_width = (*cff).private_dict.as_deref().unwrap().default_width_x as u16;
     g2c_context.nominal_width_x = (*cff).private_dict.as_deref().unwrap().nominal_width_x as u16;
     g2c_context.options = options;
-    CFF_I_SUBR_GRAPH.init.expect("non-null function pointer")(&raw mut g2c_context.graph);
+    cff_subr_graph_init(&raw mut g2c_context.graph);
     g2c_context.graph.do_subroutinize = (*options).cff_do_subroutinize;
     cff_make_charstrings(&raw mut g2c_context, &raw mut s, &raw mut gs, &raw mut ls);
-    CFF_I_SUBR_GRAPH.dispose.expect("non-null function pointer")(&raw mut g2c_context.graph);
+    cff_subr_graph_dispose(&raw mut g2c_context.graph);
     let mut additional_top_dict_ops_size: u32 = 0 as u32;
     let mut off: u32 = (*h)
         .size

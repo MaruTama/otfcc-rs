@@ -55,7 +55,7 @@ use crate::table::vmtx::{VmtxTable, VerticalMetric};
 
 use crate::vf::vq::{VQ};
 use crate::font::caryll_font::{OTFCC_I_FONT};
-use crate::table::glyf::{GLYF_I_COMPONENT_REFERENCE};
+use crate::table::glyf::{glyf_component_reference_init};
 use crate::vf::vq::{I_VQ};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
@@ -182,9 +182,7 @@ pub unsafe fn stat_single_glyph(
             inner: 0,
             outer: 0,
         };
-        GLYF_I_COMPONENT_REFERENCE
-            .init
-            .expect("non-null function pointer")(&raw mut ref_0);
+        glyf_component_reference_init(&raw mut ref_0);
         let rr: *const ComponentReference = &raw const (&(*g).references)[r as usize];
         otfcc_handle_replace(
             &raw mut ref_0.glyph,

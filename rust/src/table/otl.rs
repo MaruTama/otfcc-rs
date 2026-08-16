@@ -515,17 +515,6 @@ pub struct ChainingSubtableElementInterface {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct GsubReverseSubtableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut GsubReverseSubtable) -> ()>,
-    pub copy: Option<
-        unsafe extern "C" fn(*mut GsubReverseSubtable, *const GsubReverseSubtable) -> (),
-    >,
-    pub dispose: Option<unsafe extern "C" fn(*mut GsubReverseSubtable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut GsubReverseSubtable>,
-    pub free: Option<unsafe extern "C" fn(*mut GsubReverseSubtable) -> ()>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct GposPairSubtableElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut GposPairSubtable) -> ()>,
     pub copy:

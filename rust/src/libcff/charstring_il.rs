@@ -19,7 +19,7 @@ use crate::vf::vq::VQ;
 use crate::libcff::cff_opmean::{cff_get_standard_arity};
 use crate::libcff::cff_writer::{cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special};
 use crate::support::buffer::{bufnew};
-use crate::table::glyf::{GLYF_I_POINT};
+use crate::table::glyf::{glyf_point_dup};
 use crate::vf::vq::{I_VQ};
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -350,7 +350,7 @@ pub unsafe fn cff_compile_glyph_to_il(
         let mut j: ShapeId = 0 as ShapeId;
         while (j as usize) < (*contour).len() {
             (*newcontour).push(
-                GLYF_I_POINT.dup.expect("non-null function pointer")((&(*contour))[j as usize].clone()),
+                glyf_point_dup((&(*contour))[j as usize].clone()),
             );
             j = j.wrapping_add(1);
         }
@@ -360,7 +360,7 @@ pub unsafe fn cff_compile_glyph_to_il(
                 == 0
         {
             let first = (&(*newcontour))[0 as usize].clone();
-            (*newcontour).push(GLYF_I_POINT.dup.expect("non-null function pointer")(first));
+            (*newcontour).push(glyf_point_dup(first));
         }
         let mut j_0: ShapeId = 0 as ShapeId;
         while (j_0 as usize) < (*newcontour).len() {

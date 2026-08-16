@@ -66,12 +66,6 @@ pub struct CffSubrGraph {
     pub total_char_strings: u32,
     pub do_subroutinize: bool,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CffSubrGraphElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut CffSubrGraph) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut CffSubrGraph) -> ()>,
-}
 unsafe fn cff_new_node() -> *mut CffSubrNode {
     let mut n: *mut CffSubrNode = ::core::ptr::null_mut::<CffSubrNode>();
     n = __caryll_allocate_clean(
@@ -156,18 +150,12 @@ unsafe fn dispose_subr_graph(mut g: *mut CffSubrGraph) {
     // needed.
     (*g).diagram_index = std::collections::HashMap::new();
 }
-pub static CFF_I_SUBR_GRAPH: CffSubrGraphElementInterface = {
-    CffSubrGraphElementInterface {
-        init: Some(cff_subr_graph_init as unsafe extern "C" fn(*mut CffSubrGraph) -> ()),
-        dispose: Some(cff_subr_graph_dispose as unsafe extern "C" fn(*mut CffSubrGraph) -> ()),
-    }
-};
 #[inline]
-unsafe extern "C" fn cff_subr_graph_init(mut x: *mut CffSubrGraph) {
+pub unsafe fn cff_subr_graph_init(mut x: *mut CffSubrGraph) {
     init_subr_graph(x);
 }
 #[inline]
-unsafe extern "C" fn cff_subr_graph_dispose(mut x: *mut CffSubrGraph) {
+pub unsafe fn cff_subr_graph_dispose(mut x: *mut CffSubrGraph) {
     dispose_subr_graph(x);
 }
 /// The byte layout (header bytes, payload, trailing NUL) matches the

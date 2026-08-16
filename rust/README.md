@@ -894,6 +894,37 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 3 begins: the first 5 vtable
+  collapses, batched into one PR.** `CffSubrGraphElementInterface`/
+  `CFF_I_SUBR_GRAPH` (2 fields), `FvarTableElementInterface`/
+  `TABLE_I_FVAR` (2), `PointElementInterface`/`GLYF_I_POINT` (2),
+  `ComponentReferenceElementInterface`/`GLYF_I_COMPONENT_REFERENCE` (2),
+  and `GsubReverseSubtableElementInterface`/`I_SUBTABLE_GSUB_REVERSE` (5)
+  are gone -- each was a single-static struct-of-function-pointers with no
+  real runtime dispatch (a C habit of grouping related functions, not
+  polymorphism), so every `VTABLE.field.expect("non-null function
+  pointer")(args)` call site became a direct `real_fn_name(args)` call,
+  the struct definition and its one static instance were deleted, and the
+  functions they used to dispatch through dropped `extern "C"` now that
+  nothing takes their address. One knock-on cleanup fell out along the
+  way: `I_SUBTABLE_GSUB_REVERSE.copy`'s target
+  (`subtable_gsub_reverse_copy`) had zero callers anywhere outside its own
+  vtable entry -- once the vtable was gone it was genuinely dead code, so
+  it (and the now-unused `memcpy` import) were deleted outright rather
+  than kept as an orphaned function nobody calls. `TABLE_I_FVAR.
+  register_region`'s target and both `GLYF_I_POINT`/
+  `GLYF_I_COMPONENT_REFERENCE` targets needed to go from module-private to
+  `pub` (the vtable's `pub static` used to be the only public path to
+  them) and their cross-file `use` imports updated accordingly. Purely
+  mechanical beyond that -- no behavior change; verified with the standard
+  full pipeline on both platforms (macOS arm64 and the Linux container):
+  54 unit tests green (0 warnings under `warnings = "deny"`), every
+  payload byte-identical in both directions including the `otfccdll`
+  cdylib, all 10 round-trip payloads stable, issue #1's large-lookup
+  regression test green, `compare-log-output.sh` green. 12 of the 17
+  vtables from the original inventory remain, including `I_VQ` (27
+  fields, the largest, planned last).
+
 - **`unsafe extern "C"` removal, Phase 2 complete: the remaining
   349 directly-called functions across 56 files, in one combined PR.**
   Covers everything the first three slices hadn't reached:

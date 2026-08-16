@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memcpy};
+use libc::{free, malloc};
 
 
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum_fallback};
@@ -14,7 +14,7 @@ use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::table::otl::{GsubReverseSubtableElementInterface, Subtable, GsubReverseSubtable, subtable_from_raw};
+use crate::table::otl::{Subtable, GsubReverseSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
@@ -40,40 +40,19 @@ pub(crate) unsafe fn dispose_gsub_reverse(mut subtable: *mut GsubReverseSubtable
     (*subtable).to = Vec::new();
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_reverse_dispose(mut x: *mut GsubReverseSubtable) {
+unsafe fn subtable_gsub_reverse_dispose(mut x: *mut GsubReverseSubtable) {
     dispose_gsub_reverse(x);
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_reverse_free(mut x: *mut GsubReverseSubtable) {
+unsafe fn subtable_gsub_reverse_free(mut x: *mut GsubReverseSubtable) {
     if x.is_null() {
         return;
     }
     subtable_gsub_reverse_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-pub static I_SUBTABLE_GSUB_REVERSE: GsubReverseSubtableElementInterface = {
-    GsubReverseSubtableElementInterface {
-        init: Some(
-            subtable_gsub_reverse_init as unsafe extern "C" fn(*mut GsubReverseSubtable) -> (),
-        ),
-        copy: Some(
-            subtable_gsub_reverse_copy
-                as unsafe extern "C" fn(
-                    *mut GsubReverseSubtable,
-                    *const GsubReverseSubtable,
-                ) -> (),
-        ),
-        dispose: Some(
-            subtable_gsub_reverse_dispose as unsafe extern "C" fn(*mut GsubReverseSubtable) -> (),
-        ),
-        create: Some(subtable_gsub_reverse_create),
-        free: Some(
-            subtable_gsub_reverse_free as unsafe extern "C" fn(*mut GsubReverseSubtable) -> (),
-        ),
-    }
-};
 #[inline]
-unsafe extern "C" fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
+unsafe fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
     let mut x: *mut GsubReverseSubtable =
         malloc(::core::mem::size_of::<GsubReverseSubtable>() as usize)
             as *mut GsubReverseSubtable;
@@ -81,19 +60,8 @@ unsafe extern "C" fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable 
     return x;
 }
 #[inline]
-unsafe extern "C" fn subtable_gsub_reverse_init(mut x: *mut GsubReverseSubtable) {
+unsafe fn subtable_gsub_reverse_init(mut x: *mut GsubReverseSubtable) {
     init_gsub_reverse(x);
-}
-#[inline]
-unsafe extern "C" fn subtable_gsub_reverse_copy(
-    mut dst: *mut GsubReverseSubtable,
-    mut src: *const GsubReverseSubtable,
-) {
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        src as *const ::core::ffi::c_void,
-        ::core::mem::size_of::<GsubReverseSubtable>() as usize,
-    );
 }
 // Was a manual index-swapping loop over `start..end`, meeting in the
 // middle -- exactly what `[T]::reverse` does, now that `match_0` is a real
@@ -115,9 +83,7 @@ pub unsafe fn otl_read_gsub_reverse(
     let mut n_replacement: TableId = 0;
     let mut subtable: *mut GsubReverseSubtable =
         (
-            I_SUBTABLE_GSUB_REVERSE
-                .create
-                .expect("non-null function pointer"))();
+            subtable_gsub_reverse_create)();
     if !(table_length < offset.wrapping_add(6 as u32)) {
         n_backtrack = read_16u(
             data.offset(offset as isize)
@@ -257,9 +223,7 @@ pub unsafe fn otl_read_gsub_reverse(
             }
         }
     }
-    I_SUBTABLE_GSUB_REVERSE
-        .free
-        .expect("non-null function pointer")(subtable);
+    subtable_gsub_reverse_free(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe extern "C" fn otl_gsub_dump_reverse(
@@ -315,9 +279,7 @@ pub unsafe extern "C" fn otl_gsub_parse_reverse(
     }
     let mut subtable: *mut GsubReverseSubtable =
         (
-            I_SUBTABLE_GSUB_REVERSE
-                .create
-                .expect("non-null function pointer"))();
+            subtable_gsub_reverse_create)();
     (*subtable).match_count = json_arr_len(_match) as TableId;
     (*subtable).match_0 = Vec::with_capacity((*subtable).match_count as usize);
     (*subtable).input_index = json_obj_getnum_fallback(
