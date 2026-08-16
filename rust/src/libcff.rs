@@ -360,42 +360,6 @@ pub struct CffFile {
     pub local_subr: CffIndex,
 }
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct CffIOutlineBuilder {
-    pub set_width:
-        Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, ::core::ffi::c_double) -> ()>,
-    pub new_contour: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ()>,
-    pub line_to: Option<
-        unsafe extern "C" fn(
-            *mut ::core::ffi::c_void,
-            ::core::ffi::c_double,
-            ::core::ffi::c_double,
-        ) -> (),
-    >,
-    pub curve_to: Option<
-        unsafe extern "C" fn(
-            *mut ::core::ffi::c_void,
-            ::core::ffi::c_double,
-            ::core::ffi::c_double,
-            ::core::ffi::c_double,
-            ::core::ffi::c_double,
-            ::core::ffi::c_double,
-            ::core::ffi::c_double,
-        ) -> (),
-    >,
-    pub set_hint: Option<
-        unsafe extern "C" fn(
-            *mut ::core::ffi::c_void,
-            bool,
-            ::core::ffi::c_double,
-            ::core::ffi::c_double,
-        ) -> (),
-    >,
-    pub set_mask: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, bool, *mut bool) -> ()>,
-    pub getrand: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ::core::ffi::c_double>,
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
