@@ -42,12 +42,12 @@ pub enum CffCharset {
     Format2(Vec<CffCharsetRangeFormat2>),
 }
 #[inline]
-unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
+unsafe fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 = *s.offset(p as isize) as u32;
     return b0;
 }
 #[inline]
-unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
+unsafe fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 =
         ((*s.offset(p as isize) as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
     let mut b1: u32 = *s

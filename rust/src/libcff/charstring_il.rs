@@ -89,7 +89,7 @@ impl CffCharstringInstruction {
 pub struct CffCharstringIl {
     pub instr: Vec<CffCharstringInstruction>,
 }
-pub unsafe extern "C" fn il_push_operand(
+pub unsafe fn il_push_operand(
     mut il: *mut CffCharstringIl,
     mut x: ::core::ffi::c_double,
 ) {
@@ -99,20 +99,20 @@ pub unsafe extern "C" fn il_push_operand(
         arg: CffCharstringArgument::D(x),
     });
 }
-pub unsafe extern "C" fn il_push_vq(mut il: *mut CffCharstringIl, mut x: VQ) {
+pub unsafe fn il_push_vq(mut il: *mut CffCharstringIl, mut x: VQ) {
     il_push_operand(
         il,
         I_VQ.get_still.expect("non-null function pointer")(x) as ::core::ffi::c_double,
     );
 }
-pub unsafe extern "C" fn il_push_special(mut il: *mut CffCharstringIl, mut s: i32) {
+pub unsafe fn il_push_special(mut il: *mut CffCharstringIl, mut s: i32) {
     (*il).instr.push(CffCharstringInstruction {
         type_0: CffInstructionType::Special,
         arity: 0 as Arity,
         arg: CffCharstringArgument::I(s),
     });
 }
-pub unsafe extern "C" fn il_push_op(
+pub unsafe fn il_push_op(
     mut il: *mut CffCharstringIl,
     mut op: CffCharstringOperator,
 ) {
@@ -125,17 +125,17 @@ pub unsafe extern "C" fn il_push_op(
         arg: CffCharstringArgument::I(op.0),
     });
 }
-unsafe extern "C" fn il_moveto(mut il: *mut CffCharstringIl, mut dx: VQ, mut dy: VQ) {
+unsafe fn il_moveto(mut il: *mut CffCharstringIl, mut dx: VQ, mut dy: VQ) {
     il_push_vq(il, dx);
     il_push_vq(il, dy);
     il_push_op(il, OP_RMOVETO);
 }
-unsafe extern "C" fn il_lineto(mut il: *mut CffCharstringIl, mut dx: VQ, mut dy: VQ) {
+unsafe fn il_lineto(mut il: *mut CffCharstringIl, mut dx: VQ, mut dy: VQ) {
     il_push_vq(il, dx);
     il_push_vq(il, dy);
     il_push_op(il, OP_RLINETO);
 }
-unsafe extern "C" fn il_curveto(
+unsafe fn il_curveto(
     mut il: *mut CffCharstringIl,
     mut dx1: VQ,
     mut dy1: VQ,
@@ -152,7 +152,7 @@ unsafe extern "C" fn il_curveto(
     il_push_vq(il, dy3);
     il_push_op(il, OP_RRCURVETO);
 }
-unsafe extern "C" fn _il_push_maskgroup(
+unsafe fn _il_push_maskgroup(
     mut il: *mut CffCharstringIl,
     mut masks: *const MaskList,
     mut contours: u16,
@@ -208,7 +208,7 @@ unsafe extern "C" fn _il_push_maskgroup(
         *jm = (*jm as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
     }
 }
-unsafe extern "C" fn il_push_masks(
+unsafe fn il_push_masks(
     mut il: *mut CffCharstringIl,
     mut g: *const Glyph,
     mut contours: u16,
@@ -242,7 +242,7 @@ unsafe extern "C" fn il_push_masks(
         OP_HINTMASK,
     );
 }
-unsafe extern "C" fn _il_push_stemgroup(
+unsafe fn _il_push_stemgroup(
     mut il: *mut CffCharstringIl,
     mut stems: *const StemDefList,
     mut hasmask: bool,
@@ -298,7 +298,7 @@ unsafe extern "C" fn _il_push_stemgroup(
         .offset(((*il).instr.len() as u32).wrapping_sub(1 as u32) as isize))
     .arity = nn as Arity;
 }
-unsafe extern "C" fn il_push_stems(
+unsafe fn il_push_stems(
     mut il: *mut CffCharstringIl,
     mut g: *const Glyph,
     mut hasmask: bool,
@@ -321,7 +321,7 @@ unsafe extern "C" fn il_push_stems(
         OP_VSTEM,
     );
 }
-pub unsafe extern "C" fn cff_compile_glyph_to_il(
+pub unsafe fn cff_compile_glyph_to_il(
     mut g: *const Glyph,
     mut default_width: u16,
     mut nominal_width: u16,
@@ -515,7 +515,7 @@ pub unsafe extern "C" fn cff_compile_glyph_to_il(
     temp_contours = ::core::ptr::null_mut::<Contour>();
     return il;
 }
-unsafe extern "C" fn il_matchtype(
+unsafe fn il_matchtype(
     mut il: *mut CffCharstringIl,
     mut j: u32,
     mut k: u32,
@@ -535,7 +535,7 @@ unsafe extern "C" fn il_matchtype(
     }
     return true;
 }
-unsafe extern "C" fn il_matchop(
+unsafe fn il_matchop(
     mut il: *mut CffCharstringIl,
     mut j: u32,
     mut op: CffCharstringOperator,
@@ -622,7 +622,7 @@ unsafe fn zroll(
         return 0 as u8;
     };
 }
-unsafe extern "C" fn opop_roll(
+unsafe fn opop_roll(
     mut il: *mut CffCharstringIl,
     mut j: u32,
     mut op1: CffCharstringOperator,
@@ -669,7 +669,7 @@ unsafe extern "C" fn opop_roll(
         return 0 as u8;
     };
 }
-unsafe extern "C" fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
+unsafe fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
     if j.wrapping_add(3 as u32) >= (*il).instr.len() as u32 {
         return 0 as u8;
     }
@@ -725,7 +725,7 @@ unsafe extern "C" fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> 
         return 0 as u8;
     };
 }
-unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
+unsafe fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
     if !il_matchop(il, j, OP_HVCURVETO)
         && !il_matchop(il, j, OP_VHCURVETO)
     {
@@ -807,7 +807,7 @@ unsafe extern "C" fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
         return 0 as u8;
     };
 }
-unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
+unsafe fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
     if !il_matchop(il, j, OP_HHCURVETO)
         && !il_matchop(il, j, OP_VVCURVETO)
     {
@@ -863,7 +863,7 @@ unsafe extern "C" fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) ->
         return 0 as u8;
     };
 }
-unsafe extern "C" fn nextstop(mut il: *mut CffCharstringIl, mut j: u32) -> u32 {
+unsafe fn nextstop(mut il: *mut CffCharstringIl, mut j: u32) -> u32 {
     let mut delta: u32 = 0 as u32;
     while j.wrapping_add(delta) < (*il).instr.len() as u32
         && (*(*il).instr.as_mut_ptr().offset(j.wrapping_add(delta) as isize)).type_0 == CffInstructionType::Operand
@@ -872,7 +872,7 @@ unsafe extern "C" fn nextstop(mut il: *mut CffCharstringIl, mut j: u32) -> u32 {
     }
     return delta;
 }
-unsafe extern "C" fn decide_advance(
+unsafe fn decide_advance(
     mut il: *mut CffCharstringIl,
     mut j: u32,
     mut _optimize_level: u8,
@@ -1016,7 +1016,7 @@ unsafe extern "C" fn decide_advance(
     }
     return 1 as u8;
 }
-pub unsafe extern "C" fn cff_optimize_il(
+pub unsafe fn cff_optimize_il(
     mut il: *mut CffCharstringIl,
     mut options: *const Options,
 ) {
@@ -1030,7 +1030,7 @@ pub unsafe extern "C" fn cff_optimize_il(
         );
     }
 }
-pub unsafe extern "C" fn cff_build_il(mut il: *mut CffCharstringIl) -> *mut Buffer {
+pub unsafe fn cff_build_il(mut il: *mut CffCharstringIl) -> *mut Buffer {
     let mut blob: *mut Buffer = bufnew();
     let mut j: u16 = 0 as u16;
     while (j as u32) < (*il).instr.len() as u32 {
@@ -1056,7 +1056,7 @@ pub unsafe extern "C" fn cff_build_il(mut il: *mut CffCharstringIl) -> *mut Buff
     }
     return blob;
 }
-pub unsafe extern "C" fn cff_shrink_il(mut il: *mut CffCharstringIl) -> *mut CffCharstringIl {
+pub unsafe fn cff_shrink_il(mut il: *mut CffCharstringIl) -> *mut CffCharstringIl {
     let mut out: *mut CffCharstringIl = Box::into_raw(Box::new(CffCharstringIl { instr: Vec::new() }));
     let mut j: u16 = 0 as u16;
     while (j as u32) < (*il).instr.len() as u32 {
@@ -1079,7 +1079,7 @@ pub unsafe extern "C" fn cff_shrink_il(mut il: *mut CffCharstringIl) -> *mut Cff
     }
     return out;
 }
-pub unsafe extern "C" fn cff_i_lmerge_il(
+pub unsafe fn cff_i_lmerge_il(
     mut self_0: *mut CffCharstringIl,
     mut il: *mut CffCharstringIl,
 ) {
@@ -1103,7 +1103,7 @@ pub unsafe extern "C" fn cff_i_lmerge_il(
         j = j.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn instruction_eq(
+pub unsafe fn instruction_eq(
     mut z1: *mut CffCharstringInstruction,
     mut z2: *mut CffCharstringInstruction,
 ) -> bool {
@@ -1119,7 +1119,7 @@ pub unsafe extern "C" fn instruction_eq(
         return false;
     };
 }
-pub unsafe extern "C" fn cff_il_equal(
+pub unsafe fn cff_il_equal(
     mut a: *mut CffCharstringIl,
     mut b: *mut CffCharstringIl,
 ) -> bool {

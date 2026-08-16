@@ -44,7 +44,7 @@ pub union CffValueBody {
     pub i: i32,
     pub d: ::core::ffi::c_double,
 }
-pub unsafe extern "C" fn cffnum(mut val: CffValue) -> ::core::ffi::c_double {
+pub unsafe fn cffnum(mut val: CffValue) -> ::core::ffi::c_double {
     if val.t as ::core::ffi::c_uint == CffValueType::Integer as ::core::ffi::c_int as ::core::ffi::c_uint {
         return val.c2rust_unnamed.i as ::core::ffi::c_double;
     }

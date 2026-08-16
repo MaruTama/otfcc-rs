@@ -72,7 +72,7 @@ pub struct CffSubrGraphElementInterface {
     pub init: Option<unsafe extern "C" fn(*mut CffSubrGraph) -> ()>,
     pub dispose: Option<unsafe extern "C" fn(*mut CffSubrGraph) -> ()>,
 }
-unsafe extern "C" fn cff_new_node() -> *mut CffSubrNode {
+unsafe fn cff_new_node() -> *mut CffSubrNode {
     let mut n: *mut CffSubrNode = ::core::ptr::null_mut::<CffSubrNode>();
     n = __caryll_allocate_clean(
         ::core::mem::size_of::<CffSubrNode>() as usize,
@@ -86,7 +86,7 @@ unsafe extern "C" fn cff_new_node() -> *mut CffSubrNode {
     (*n).next = ::core::ptr::null_mut::<CffSubrNode>();
     return n;
 }
-unsafe extern "C" fn cff_new_rule() -> *mut CffSubrRule {
+unsafe fn cff_new_rule() -> *mut CffSubrRule {
     let mut r: *mut CffSubrRule = ::core::ptr::null_mut::<CffSubrRule>();
     r = __caryll_allocate_clean(
         ::core::mem::size_of::<CffSubrRule>() as usize,
@@ -102,7 +102,7 @@ unsafe extern "C" fn cff_new_rule() -> *mut CffSubrRule {
     (*r).next = ::core::ptr::null_mut::<CffSubrRule>();
     return r;
 }
-unsafe extern "C" fn init_subr_graph(mut g: *mut CffSubrGraph) {
+unsafe fn init_subr_graph(mut g: *mut CffSubrGraph) {
     (*g).root = cff_new_rule();
     (*g).last = (*g).root;
     (*g).diagram_index = std::collections::HashMap::new();
@@ -110,7 +110,7 @@ unsafe extern "C" fn init_subr_graph(mut g: *mut CffSubrGraph) {
     (*g).total_char_strings = 0 as u32;
     (*g).do_subroutinize = false;
 }
-unsafe extern "C" fn clean_node(mut x: *mut CffSubrNode) {
+unsafe fn clean_node(mut x: *mut CffSubrNode) {
     if !(*x).rule.is_null() {
         (*(*x).rule).refcount = (*(*x).rule).refcount.wrapping_sub(1 as u32);
     }
@@ -118,7 +118,7 @@ unsafe extern "C" fn clean_node(mut x: *mut CffSubrNode) {
     buffree((*x).terminal);
     (*x).terminal = ::core::ptr::null_mut::<Buffer>();
 }
-unsafe extern "C" fn delete_node(mut x: *mut CffSubrNode) {
+unsafe fn delete_node(mut x: *mut CffSubrNode) {
     if x.is_null() {
         return;
     }
@@ -126,7 +126,7 @@ unsafe extern "C" fn delete_node(mut x: *mut CffSubrNode) {
     free(x as *mut ::core::ffi::c_void);
     x = ::core::ptr::null_mut::<CffSubrNode>();
 }
-unsafe extern "C" fn delete_full_rule(mut r: *mut CffSubrRule) {
+unsafe fn delete_full_rule(mut r: *mut CffSubrRule) {
     if !(*r).guard.is_null() {
         let mut e: *mut CffSubrNode = (*(*r).guard).next;
         while e != (*r).guard {
@@ -144,7 +144,7 @@ unsafe extern "C" fn delete_full_rule(mut r: *mut CffSubrRule) {
     free(r as *mut ::core::ffi::c_void);
     r = ::core::ptr::null_mut::<CffSubrRule>();
 }
-unsafe extern "C" fn dispose_subr_graph(mut g: *mut CffSubrGraph) {
+unsafe fn dispose_subr_graph(mut g: *mut CffSubrGraph) {
     let mut r: *mut CffSubrRule = (*g).root;
     while !r.is_null() {
         let mut next: *mut CffSubrRule = (*r).next;
@@ -214,10 +214,10 @@ unsafe fn get_doublet_hash_key(mut n: *mut CffSubrNode) -> Vec<u8> {
     key.push(0);
     key
 }
-unsafe extern "C" fn last_node_of(mut r: *mut CffSubrRule) -> *mut CffSubrNode {
+unsafe fn last_node_of(mut r: *mut CffSubrRule) -> *mut CffSubrNode {
     return (*(*r).guard).prev;
 }
-unsafe extern "C" fn copy_node(mut n: *mut CffSubrNode) -> *mut CffSubrNode {
+unsafe fn copy_node(mut n: *mut CffSubrNode) -> *mut CffSubrNode {
     let mut m: *mut CffSubrNode = cff_new_node();
     if !(*n).rule.is_null() {
         (*m).rule = (*n).rule;
@@ -229,7 +229,7 @@ unsafe extern "C" fn copy_node(mut n: *mut CffSubrNode) -> *mut CffSubrNode {
     (*m).last = (*n).last;
     return m;
 }
-unsafe extern "C" fn unlink_node(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNode) {
+unsafe fn unlink_node(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNode) {
     if (*a).hard || (*a).guard {
         return;
     }
@@ -245,7 +245,7 @@ unsafe extern "C" fn unlink_node(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNo
         (*g).diagram_index.remove(&singlet_key);
     }
 }
-unsafe extern "C" fn add_doublet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNode) {
+unsafe fn add_doublet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNode) {
     if n.is_null()
         || (*n).next.is_null()
         || (*n).guard
@@ -260,7 +260,7 @@ unsafe extern "C" fn add_doublet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNo
         .diagram_index
         .insert(key, CffSubrDiagramIndexEntry { arity: 2, start: n });
 }
-unsafe extern "C" fn add_singlet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNode) {
+unsafe fn add_singlet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNode) {
     if n.is_null() || (*n).guard || (*n).hard {
         return;
     }
@@ -269,7 +269,7 @@ unsafe extern "C" fn add_singlet(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNo
         .diagram_index
         .insert(key, CffSubrDiagramIndexEntry { arity: 1, start: n });
 }
-unsafe extern "C" fn ident_node(mut m: *mut CffSubrNode, mut n: *mut CffSubrNode) -> bool {
+unsafe fn ident_node(mut m: *mut CffSubrNode, mut n: *mut CffSubrNode) -> bool {
     if !(*m).rule.is_null() {
         return (*m).rule == (*n).rule;
     } else if !(*n).rule.is_null() {
@@ -283,7 +283,7 @@ unsafe extern "C" fn ident_node(mut m: *mut CffSubrNode, mut n: *mut CffSubrNode
             ) == 0 as ::core::ffi::c_int;
     };
 }
-unsafe extern "C" fn join_nodes(
+unsafe fn join_nodes(
     mut g: *mut CffSubrGraph,
     mut m: *mut CffSubrNode,
     mut n: *mut CffSubrNode,
@@ -308,7 +308,7 @@ unsafe extern "C" fn join_nodes(
     (*m).next = n;
     (*n).prev = m;
 }
-unsafe extern "C" fn x_insert_node_after(
+unsafe fn x_insert_node_after(
     mut g: *mut CffSubrGraph,
     mut m: *mut CffSubrNode,
     mut n: *mut CffSubrNode,
@@ -316,14 +316,14 @@ unsafe extern "C" fn x_insert_node_after(
     join_nodes(g, n, (*m).next);
     join_nodes(g, m, n);
 }
-unsafe extern "C" fn remove_node_from_graph(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNode) {
+unsafe fn remove_node_from_graph(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNode) {
     join_nodes(g, (*a).prev, (*a).next);
     if !(*a).guard {
         unlink_node(g, a);
         delete_node(a);
     }
 }
-unsafe extern "C" fn expand_call(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNode) {
+unsafe fn expand_call(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNode) {
     let mut aprev: *mut CffSubrNode = (*a).prev;
     let mut anext: *mut CffSubrNode = (*a).next;
     let mut r: *mut CffSubrRule = (*a).rule;
@@ -338,7 +338,7 @@ unsafe extern "C" fn expand_call(mut g: *mut CffSubrGraph, mut a: *mut CffSubrNo
     (*r).refcount = (*r).refcount.wrapping_sub(1 as u32);
     delete_node(a);
 }
-unsafe extern "C" fn substitute_doublet_with_rule(
+unsafe fn substitute_doublet_with_rule(
     mut g: *mut CffSubrGraph,
     mut m: *mut CffSubrNode,
     mut r: *mut CffSubrRule,
@@ -357,7 +357,7 @@ unsafe extern "C" fn substitute_doublet_with_rule(
         check_doublet_match(g, (*prev).next);
     }
 }
-unsafe extern "C" fn substitute_singlet_with_rule(
+unsafe fn substitute_singlet_with_rule(
     mut g: *mut CffSubrGraph,
     mut m: *mut CffSubrNode,
     mut r: *mut CffSubrRule,
@@ -372,7 +372,7 @@ unsafe extern "C" fn substitute_singlet_with_rule(
     add_doublet(g, invoke);
     add_singlet(g, invoke);
 }
-unsafe extern "C" fn process_match_doublet(
+unsafe fn process_match_doublet(
     mut g: *mut CffSubrGraph,
     mut m: *mut CffSubrNode,
     mut n: *mut CffSubrNode,
@@ -403,7 +403,7 @@ unsafe extern "C" fn process_match_doublet(
         expand_call(g, (*(*rule).guard).next);
     }
 }
-unsafe extern "C" fn process_match_singlet(
+unsafe fn process_match_singlet(
     mut g: *mut CffSubrGraph,
     mut m: *mut CffSubrNode,
     mut n: *mut CffSubrNode,
@@ -426,7 +426,7 @@ unsafe extern "C" fn process_match_singlet(
         add_singlet(g, (*(*rule).guard).next);
     };
 }
-unsafe extern "C" fn check_doublet_match(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNode) -> bool {
+unsafe fn check_doublet_match(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNode) -> bool {
     if (*n).guard || (*(*n).next).guard || (*n).hard || (*(*n).next).hard {
         return false;
     }
@@ -447,7 +447,7 @@ unsafe extern "C" fn check_doublet_match(mut g: *mut CffSubrGraph, mut n: *mut C
         }
     }
 }
-unsafe extern "C" fn check_singlet_match(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNode) -> bool {
+unsafe fn check_singlet_match(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNode) -> bool {
     if (*n).guard || (*n).hard {
         return false;
     }
@@ -468,7 +468,7 @@ unsafe extern "C" fn check_singlet_match(mut g: *mut CffSubrGraph, mut n: *mut C
         }
     }
 }
-unsafe extern "C" fn append_node_to_graph(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNode) {
+unsafe fn append_node_to_graph(mut g: *mut CffSubrGraph, mut n: *mut CffSubrNode) {
     let mut last: *mut CffSubrNode = last_node_of((*g).root);
     x_insert_node_after(g, last, n);
     if (*g).do_subroutinize {
@@ -479,7 +479,7 @@ unsafe extern "C" fn append_node_to_graph(mut g: *mut CffSubrGraph, mut n: *mut 
         }
     }
 }
-pub unsafe extern "C" fn cff_insert_il_to_graph(
+pub unsafe fn cff_insert_il_to_graph(
     mut g: *mut CffSubrGraph,
     mut il: *mut CffCharstringIl,
 ) {
@@ -539,7 +539,7 @@ pub unsafe extern "C" fn cff_insert_il_to_graph(
     append_node_to_graph(g, n_1);
     (*g).total_char_strings = (*g).total_char_strings.wrapping_add(1 as u32);
 }
-unsafe extern "C" fn cff_stat_height(mut r: *mut CffSubrRule, mut height: u32) {
+unsafe fn cff_stat_height(mut r: *mut CffSubrRule, mut height: u32) {
     if height > (*r).height {
         (*r).height = height;
     }
@@ -557,7 +557,7 @@ unsafe extern "C" fn cff_stat_height(mut r: *mut CffSubrRule, mut height: u32) {
     }
     (*r).effective_length = effective_length;
 }
-unsafe extern "C" fn number_a_subroutine(mut r: *mut CffSubrRule, mut current: *mut u32) {
+unsafe fn number_a_subroutine(mut r: *mut CffSubrRule, mut current: *mut u32) {
     if (*r).numbered {
         return;
     }
@@ -584,7 +584,7 @@ unsafe extern "C" fn number_a_subroutine(mut r: *mut CffSubrRule, mut current: *
         e = (*e).next;
     }
 }
-unsafe extern "C" fn cff_number_subroutines(mut g: *mut CffSubrGraph) -> u32 {
+unsafe fn cff_number_subroutines(mut g: *mut CffSubrGraph) -> u32 {
     let mut current: u32 = 0 as u32;
     let mut e: *mut CffSubrNode = (*(*(*g).root).guard).next;
     while e != (*(*g).root).guard {
@@ -596,7 +596,7 @@ unsafe extern "C" fn cff_number_subroutines(mut g: *mut CffSubrGraph) -> u32 {
     return current;
 }
 #[inline]
-unsafe extern "C" fn subroutine_bias(mut cnt: i32) -> i32 {
+unsafe fn subroutine_bias(mut cnt: i32) -> i32 {
     if cnt < 1240 as i32 {
         return 107 as i32;
     } else if cnt < 33900 as i32 {
@@ -605,7 +605,7 @@ unsafe extern "C" fn subroutine_bias(mut cnt: i32) -> i32 {
         return 32768 as i32;
     };
 }
-unsafe extern "C" fn ends_with_end_char(mut rule: *mut CffSubrRule) -> bool {
+unsafe fn ends_with_end_char(mut rule: *mut CffSubrRule) -> bool {
     let mut node: *mut CffSubrNode = last_node_of(rule);
     if !(*node).terminal.is_null() {
         return (*node).last;
@@ -613,7 +613,7 @@ unsafe extern "C" fn ends_with_end_char(mut rule: *mut CffSubrRule) -> bool {
         return ends_with_end_char((*node).rule);
     };
 }
-unsafe extern "C" fn serialize_node_to_buffer(
+unsafe fn serialize_node_to_buffer(
     mut node: *mut CffSubrNode,
     mut buf: *mut Buffer,
     mut gsubrs: *mut Buffer,
@@ -678,7 +678,7 @@ unsafe extern "C" fn from_array(
     bufwrite_buf(blob, context.offset(j as isize));
     return blob;
 }
-pub unsafe extern "C" fn cff_il_graph_to_buffers(
+pub unsafe fn cff_il_graph_to_buffers(
     mut g: *mut CffSubrGraph,
     mut s: *mut *mut Buffer,
     mut gs: *mut *mut Buffer,

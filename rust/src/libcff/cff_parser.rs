@@ -33,12 +33,12 @@ use crate::libcff::cff_index::{CFF_I_INDEX};
 const CFF_STANDARD_ENCODING_OFFSET: i32 = 0;
 const CFF_EXPERT_ENCODING_OFFSET: i32 = 1;
 #[inline]
-unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
+unsafe fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 = *s.offset(p as isize) as u32;
     return b0;
 }
 #[inline]
-unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
+unsafe fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 =
         ((*s.offset(p as isize) as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
     let mut b1: u32 = *s
@@ -107,7 +107,7 @@ unsafe fn parse_encoding(mut cff: *mut CffFile, mut offset: i32) -> CffEncoding 
         }
     }
 }
-unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options) {
+unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options) {
     let mut pos: u32 = 0;
     let mut offset: i32 = 0;
     (*cff).head.major = gu1((*cff).raw_data, 0 as u32) as u8;
@@ -368,7 +368,7 @@ unsafe extern "C" fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *con
         CFF_I_INDEX.empty.expect("non-null function pointer")(&raw mut (*cff).local_subr);
     };
 }
-pub unsafe extern "C" fn cff_open_stream(
+pub unsafe fn cff_open_stream(
     mut data: *mut u8,
     mut len: u32,
     mut options: *const Options,
@@ -392,7 +392,7 @@ pub unsafe extern "C" fn cff_open_stream(
     parse_cff_bytecode(file, options);
     return file;
 }
-pub unsafe extern "C" fn cff_close(mut file: *mut CffFile) {
+pub unsafe fn cff_close(mut file: *mut CffFile) {
     if !file.is_null() {
         if !(*file).raw_data.is_null() {
             free((*file).raw_data as *mut ::core::ffi::c_void);
@@ -510,7 +510,7 @@ pub unsafe fn cff_parse_subr(
     return fd;
 }
 #[inline]
-unsafe extern "C" fn compute_subr_bias(mut cnt: u16) -> u16 {
+unsafe fn compute_subr_bias(mut cnt: u16) -> u16 {
     if (cnt as ::core::ffi::c_int) < 1240 as ::core::ffi::c_int {
         return 107 as u16;
     } else if (cnt as ::core::ffi::c_int) < 33900 as ::core::ffi::c_int {
@@ -519,7 +519,7 @@ unsafe extern "C" fn compute_subr_bias(mut cnt: u16) -> u16 {
         return 32768 as u16;
     };
 }
-unsafe extern "C" fn reverse_stack(
+unsafe fn reverse_stack(
     mut stack: *mut CffStack,
     mut left: u8,
     mut right: u8,
@@ -576,7 +576,7 @@ unsafe extern "C" fn callback_nopgetrand(
 ) -> ::core::ffi::c_double {
     return 0 as ::core::ffi::c_int as ::core::ffi::c_double;
 }
-pub unsafe extern "C" fn cff_parse_outline(
+pub unsafe fn cff_parse_outline(
     mut data: *mut u8,
     mut len: u32,
     gsubr: &CffIndex,

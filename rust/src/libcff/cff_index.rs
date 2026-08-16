@@ -50,12 +50,12 @@ pub struct CffIndexElementInterface {
     pub build: Option<unsafe extern "C" fn(*const CffIndex) -> *mut Buffer>,
 }
 #[inline]
-unsafe extern "C" fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
+unsafe fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 = *s.offset(p as isize) as u32;
     return b0;
 }
 #[inline]
-unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
+unsafe fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 =
         ((*s.offset(p as isize) as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
     let mut b1: u32 = *s
@@ -64,7 +64,7 @@ unsafe extern "C" fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
     return b0 | b1;
 }
 #[inline]
-unsafe extern "C" fn gu3(mut s: *mut u8, mut p: u32) -> u32 {
+unsafe fn gu3(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 =
         ((*s.offset(p as isize) as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
     let mut b1: u32 =
@@ -77,7 +77,7 @@ unsafe extern "C" fn gu3(mut s: *mut u8, mut p: u32) -> u32 {
     return b0 | b1 | b2;
 }
 #[inline]
-unsafe extern "C" fn gu4(mut s: *mut u8, mut p: u32) -> u32 {
+unsafe fn gu4(mut s: *mut u8, mut p: u32) -> u32 {
     let mut b0: u32 =
         ((*s.offset(p as isize) as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
     let mut b1: u32 =
@@ -94,7 +94,7 @@ unsafe extern "C" fn gu4(mut s: *mut u8, mut p: u32) -> u32 {
     return b0 | b1 | b2 | b3;
 }
 #[inline]
-unsafe extern "C" fn dispose_cff_index(mut in_0: *mut CffIndex) {
+unsafe fn dispose_cff_index(mut in_0: *mut CffIndex) {
     (*in_0).offset = Vec::new();
     (*in_0).data = Vec::new();
 }
