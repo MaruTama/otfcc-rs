@@ -14,7 +14,7 @@ use crate::support::primitives::{Arity, CffSid, FontFilePointer, GlyphId, Pos, S
 use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::libcff::CffDictOperator;
-use crate::libcff::{CffFile, CffIOutlineBuilder, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES, OP_CID_COUNT, OP_CID_FONT_REVISION, OP_CID_FONT_VERSION, OP_CHAR_STRINGS, OP_COPYRIGHT, OP_EXPANSION_FACTOR, OP_FD_ARRAY, OP_FD_SELECT, OP_FAMILY_BLUES, OP_FAMILY_NAME, OP_FAMILY_OTHER_BLUES, OP_FONT_BBOX, OP_FONT_MATRIX, OP_FONT_NAME, OP_FORCE_BOLD, OP_FULL_NAME, OP_ITALIC_ANGLE, OP_LANGUAGE_GROUP, OP_NOTICE, OP_OTHER_BLUES, OP_PRIVATE, OP_ROS, OP_STD_HW, OP_STD_VW, OP_STEM_SNAP_H, OP_STEM_SNAP_V, OP_STROKE_WIDTH, OP_SUBRS, OP_UID_BASE, OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS, OP_WEIGHT, OP_CHARSET, OP_DEFAULT_WIDTH_X, OP_INITIAL_RANDOM_SEED, OP_IS_FIXED_PITCH, OP_NOMINAL_WIDTH_X, OP_VERSION};
+use crate::libcff::{CffFile, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES, OP_CID_COUNT, OP_CID_FONT_REVISION, OP_CID_FONT_VERSION, OP_CHAR_STRINGS, OP_COPYRIGHT, OP_EXPANSION_FACTOR, OP_FD_ARRAY, OP_FD_SELECT, OP_FAMILY_BLUES, OP_FAMILY_NAME, OP_FAMILY_OTHER_BLUES, OP_FONT_BBOX, OP_FONT_MATRIX, OP_FONT_NAME, OP_FORCE_BOLD, OP_FULL_NAME, OP_ITALIC_ANGLE, OP_LANGUAGE_GROUP, OP_NOTICE, OP_OTHER_BLUES, OP_PRIVATE, OP_ROS, OP_STD_HW, OP_STD_VW, OP_STEM_SNAP_H, OP_STEM_SNAP_V, OP_STROKE_WIDTH, OP_SUBRS, OP_UID_BASE, OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS, OP_WEIGHT, OP_CHARSET, OP_DEFAULT_WIDTH_X, OP_INITIAL_RANDOM_SEED, OP_IS_FIXED_PITCH, OP_NOMINAL_WIDTH_X, OP_VERSION};
 use crate::libcff::cff_charset::{CffCharset, CffCharsetRangeFormat2};
 use crate::libcff::cff_dict::{CffDict, CffDictEntry};
 use crate::libcff::cff_fdselect::{CffFdSelect, CffFdSelectRangeFormat3};
@@ -596,7 +596,7 @@ unsafe extern "C" fn callback_extract_fd(
         _ => {}
     };
 }
-unsafe extern "C" fn callback_draw_setwidth(
+pub(crate) unsafe fn callback_draw_setwidth(
     mut _context: *mut ::core::ffi::c_void,
     mut width: ::core::ffi::c_double,
 ) {
@@ -608,13 +608,13 @@ unsafe extern "C" fn callback_draw_setwidth(
         ) as VQ,
     );
 }
-unsafe extern "C" fn callback_draw_next_contour(mut _context: *mut ::core::ffi::c_void) {
+pub(crate) unsafe fn callback_draw_next_contour(mut _context: *mut ::core::ffi::c_void) {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     (*(*context).g).contours.push(Vec::new());
     (*context).j_contour = (*(*context).g).contours.len() as ShapeId;
     (*context).j_point = 0 as ShapeId;
 }
-unsafe extern "C" fn callback_draw_lineto(
+pub(crate) unsafe fn callback_draw_lineto(
     mut _context: *mut ::core::ffi::c_void,
     mut x1: ::core::ffi::c_double,
     mut y1: ::core::ffi::c_double,
@@ -649,7 +649,7 @@ unsafe extern "C" fn callback_draw_lineto(
             ((*context).j_point as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
     }
 }
-unsafe extern "C" fn callback_draw_curveto(
+pub(crate) unsafe fn callback_draw_curveto(
     mut _context: *mut ::core::ffi::c_void,
     mut x1: ::core::ffi::c_double,
     mut y1: ::core::ffi::c_double,
@@ -732,7 +732,7 @@ unsafe extern "C" fn callback_draw_curveto(
             ((*context).j_point as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as ShapeId;
     }
 }
-unsafe extern "C" fn callback_draw_sethint(
+pub(crate) unsafe fn callback_draw_sethint(
     mut _context: *mut ::core::ffi::c_void,
     mut is_vertical: bool,
     mut position: ::core::ffi::c_double,
@@ -750,7 +750,7 @@ unsafe extern "C" fn callback_draw_sethint(
         map: 0,
     });
 }
-unsafe extern "C" fn callback_draw_setmask(
+pub(crate) unsafe fn callback_draw_setmask(
     mut _context: *mut ::core::ffi::c_void,
     mut is_contour_mask: bool,
     mut mask_array: *mut bool,
@@ -817,7 +817,7 @@ unsafe extern "C" fn callback_draw_setmask(
         }
     };
 }
-unsafe extern "C" fn callback_draw_getrand(
+pub(crate) unsafe fn callback_draw_getrand(
     mut _context: *mut ::core::ffi::c_void,
 ) -> ::core::ffi::c_double {
     let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
@@ -836,54 +836,6 @@ unsafe extern "C" fn callback_draw_getrand(
     };
     return a.d - q;
 }
-static DRAW_PASS: CffIOutlineBuilder = {
-    CffIOutlineBuilder {
-        set_width: Some(
-            callback_draw_setwidth
-                as unsafe extern "C" fn(*mut ::core::ffi::c_void, ::core::ffi::c_double) -> (),
-        ),
-        new_contour: Some(
-            callback_draw_next_contour as unsafe extern "C" fn(*mut ::core::ffi::c_void) -> (),
-        ),
-        line_to: Some(
-            callback_draw_lineto
-                as unsafe extern "C" fn(
-                    *mut ::core::ffi::c_void,
-                    ::core::ffi::c_double,
-                    ::core::ffi::c_double,
-                ) -> (),
-        ),
-        curve_to: Some(
-            callback_draw_curveto
-                as unsafe extern "C" fn(
-                    *mut ::core::ffi::c_void,
-                    ::core::ffi::c_double,
-                    ::core::ffi::c_double,
-                    ::core::ffi::c_double,
-                    ::core::ffi::c_double,
-                    ::core::ffi::c_double,
-                    ::core::ffi::c_double,
-                ) -> (),
-        ),
-        set_hint: Some(
-            callback_draw_sethint
-                as unsafe extern "C" fn(
-                    *mut ::core::ffi::c_void,
-                    bool,
-                    ::core::ffi::c_double,
-                    ::core::ffi::c_double,
-                ) -> (),
-        ),
-        set_mask: Some(
-            callback_draw_setmask
-                as unsafe extern "C" fn(*mut ::core::ffi::c_void, bool, *mut bool) -> (),
-        ),
-        getrand: Some(
-            callback_draw_getrand
-                as unsafe extern "C" fn(*mut ::core::ffi::c_void) -> ::core::ffi::c_double,
-        ),
-    }
-};
 unsafe fn build_outline(
     mut i: GlyphId,
     mut context: *mut CffExtractContext,
@@ -992,7 +944,6 @@ unsafe fn build_outline(
         &local_subrs,
         &raw mut stack,
         &raw mut bc as *mut ::core::ffi::c_void,
-        DRAW_PASS,
         options,
     );
     let mut cx: VQ =

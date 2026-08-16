@@ -894,6 +894,47 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 3 batch 5: `CffIOutlineBuilder`/
+  `DRAW_PASS`, the value-passed outlier the plan flagged as needing a
+  different collapse mechanism than the other 16 vtables.** Every other
+  vtable was a `pub static` referenced through a global field-access chain
+  (`VTABLE.field.expect(...)(args)`); `DRAW_PASS` was instead passed
+  *by value* as a whole-struct parameter (`methods: CffIOutlineBuilder`)
+  into `cff_parse_outline`, which then copied each field into a local
+  `Option<fn ptr>` and dispatched through those -- same degenerate
+  single-implementation shape, just structured as a function argument
+  instead of a static. Collapsing it meant: dropping the `methods`
+  parameter from `cff_parse_outline` entirely; replacing all ~51 scattered
+  `local_var.expect("non-null function pointer")(args)` call sites
+  throughout its ~1300-line body with direct calls to the corresponding
+  `callback_draw_*` function; deleting the per-field `.is_none()`
+  fallback-to-`callback_nop_*` blocks (dead the moment `methods` stopped
+  existing -- they were already unreachable in practice, since the crate's
+  one call site always passed fully-populated `DRAW_PASS`); and deleting
+  the now-fully-dead `callback_nop_*` functions and the `CffIOutlineBuilder`
+  struct itself. `cff_parse_outline` also recurses into itself for CFF
+  subroutine calls (`OP_CALLSUBR`/`OP_CALLGSUBR`), and both recursive call
+  sites were still passing `methods` forward -- easy to miss since they
+  don't match the vtable-field-access pattern the mechanical sweep looks
+  for, caught immediately by `cargo build`'s "cannot find value" once the
+  parameter was gone. The `callback_draw_*` functions live in
+  `table/cff.rs` but are now called directly from `cff_parse_outline` in
+  `libcff/cff_parser.rs`, so they became `pub(crate)` and gained a new
+  cross-module `use` -- the two files already had a dependency edge in the
+  other direction (`cff_parser.rs`'s `cff_parse_outline` was already
+  imported into `table/cff.rs`), so this closes the loop rather than
+  opening a new one. Verified with the standard full pipeline on both
+  platforms (macOS arm64 and the Linux container): 54 unit tests green (0
+  warnings under `warnings = "deny"`), every payload byte-identical in
+  both directions including the `otfccdll` cdylib (CFF charstring parsing
+  runs on every CFF payload in the suite, so this collapse's correctness
+  is exercised heavily, not just compiled), all 10 round-trip payloads
+  stable, issue #1's large-lookup regression test green,
+  `compare-log-output.sh` green. 3 of the 17 vtables from the original
+  inventory remain: `VqSegmentElementInterface`/`VQ_I_SEGMENT` (11),
+  `GlyphOrderPackage`/`OTFCC_PKG_GLYPH_ORDER` (10), and
+  `VqVectorInterface`/`I_VQ` (27, planned last).
+
 - **`unsafe extern "C"` removal, Phase 3 batch 4: `CffIndexElementInterface`/
   `CFF_I_INDEX` (10 fields) and `CffDictElementInterface`/`CFF_I_DICT` (8).**
   Same collapse pattern, but both vtables carry the individual-case
