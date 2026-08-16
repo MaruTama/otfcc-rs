@@ -15,7 +15,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::classdef::{dump_class_def, parse_class_def, build_class_def};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::coverage::{build_coverage};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, preserialize};
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -533,7 +533,7 @@ unsafe fn write_lig_carets(mut lc: *const LigCaretTable) -> *mut BkBlock {
         );
         j = j.wrapping_add(1);
     }
-    let mut lct: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (records.len()) as u32)]);
+    let mut lct: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(cov))), bk_int(BkCellType::B16, (records.len()) as u32)]);
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < records.len() {
         bk_push(lct, &[bk_ptr(BkCellType::P16, write_lig_caret_rec(&records[j_0 as usize] as *const CaretValueRecord as *mut CaretValueRecord))]);

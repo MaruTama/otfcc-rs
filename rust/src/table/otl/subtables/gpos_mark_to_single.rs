@@ -18,7 +18,7 @@ use crate::table::otl::{Anchor, BaseArray, BaseRecord, Subtable, GposMarkToSingl
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::coverage::{build_coverage};
 use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_parse_mark_array, otl_parse_anchor, otl_read_mark_array, otl_read_anchor};
 use crate::support::built_json::{BuiltValue, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes, preserialize};
 // `BaseRecord.anchors` is a plain `Vec<Anchor>` now and `glyph: GlyphHandle`
@@ -366,9 +366,9 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
             marks,
-        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(
+        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
             bases,
         ))), bk_int(BkCellType::B16, ((*subtable).class_count as ::core::ffi::c_int) as u32)]);
     let mut mark_array: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*subtable).mark_array.len()) as u32)]);

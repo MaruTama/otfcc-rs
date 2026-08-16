@@ -75,7 +75,8 @@ use otfcc_rust::support::built_json::{JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIAL
 use libc::timespec;
 use otfcc_rust::support::getopt::{NO_ARGUMENT, LongOption, REQUIRED_ARGUMENT};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
-use otfcc_rust::font::caryll_font::{OTFCC_I_FONT};
+use otfcc_rust::font::caryll_font::{otfcc_font_free};
+use otfcc_rust::consolidate::{otfcc_consolidate_font};
 use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt};
 use otfcc_rust::json_writer::{otfcc_new_json_writer};
 use otfcc_rust::logger::{otfcc_new_logger, otfcc_new_std_err_target};
@@ -567,7 +568,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
-        OTFCC_I_FONT.consolidate.expect("non-null function pointer")(font, options);
+        otfcc_consolidate_font(font, options);
         (*(*options).logger)
             .log_sds
             .expect("non-null function pointer")(
@@ -734,7 +735,7 @@ unsafe fn main_0(
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
         if !font.is_null() {
-            OTFCC_I_FONT.free.expect("non-null function pointer")(font);
+            otfcc_font_free(font);
         }
         if !root.is_null() {
             drop(Box::from_raw(root));

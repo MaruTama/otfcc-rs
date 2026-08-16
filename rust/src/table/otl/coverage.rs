@@ -15,15 +15,6 @@ use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, js
 /// wrapping one -- same "C-native vector shape becomes a bare `pub type`"
 /// call as `ColrTable`/`TsiTable` earlier in this migration.
 pub type Coverage = Vec<GlyphHandle>;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ICoverage {
-    pub dump: Option<unsafe extern "C" fn(*const Coverage) -> *mut BuiltValue>,
-    pub parse: Option<unsafe extern "C" fn(*const ParsedValue) -> *mut Coverage>,
-    pub build: Option<unsafe extern "C" fn(*const Coverage) -> *mut Buffer>,
-    pub build_format:
-        Option<unsafe extern "C" fn(*const Coverage, u16) -> *mut Buffer>,
-}
 pub(crate) unsafe fn otl_coverage_create() -> *mut Coverage {
     // A real Rust allocation now, not a `malloc`'d shell: `Box::into_raw`
     // gives back a pointer with the same shape (`*mut Coverage`) every
@@ -324,16 +315,3 @@ pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
         (*coverage).truncate(new_len);
     }
 }
-pub static OTL_I_COVERAGE: ICoverage = {
-    ICoverage {
-        dump: Some(dump_coverage as unsafe extern "C" fn(*const Coverage) -> *mut BuiltValue),
-        parse: Some(parse_coverage as unsafe extern "C" fn(*const ParsedValue) -> *mut Coverage),
-        build: Some(
-            build_coverage as unsafe extern "C" fn(*const Coverage) -> *mut Buffer,
-        ),
-        build_format: Some(
-            build_coverage_format
-                as unsafe extern "C" fn(*const Coverage, u16) -> *mut Buffer,
-        ),
-    }
-};

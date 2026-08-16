@@ -504,15 +504,6 @@ pub(crate) unsafe fn subtable_at(list: &SubtableList, idx: usize) -> SubtablePtr
         .expect("subtable slot should not be empty at this point") as *const Subtable
         as *mut Subtable
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ChainingSubtableElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut ChainingSubtable, *const ChainingSubtable) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut ChainingSubtable>,
-    pub free: Option<unsafe extern "C" fn(*mut ChainingSubtable) -> ()>,
-}
 pub type LookupPtr = *mut Lookup;
 // Stage 6-4, third of the group -- see `LangSystemList`/`FeatureList` for
 // the shape. `Lookup`'s own `Drop` (above) now does the type-dispatched

@@ -54,7 +54,7 @@ use crate::table::vmtx::{VmtxTable, VerticalMetric};
 
 
 use crate::vf::vq::{VQ};
-use crate::font::caryll_font::{OTFCC_I_FONT};
+use crate::font::caryll_font::{delete_font_table};
 use crate::table::glyf::{glyf_component_reference_init};
 use crate::vf::vq::{I_VQ};
 
@@ -1395,11 +1395,11 @@ pub unsafe fn otfcc_unstat_font(
     mut font: *mut Font,
     mut _options: *const Options,
 ) {
-    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, crate::tag::TAG_HDMX);
-    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, crate::tag::TAG_HMTX);
-    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, crate::tag::TAG_VORG);
-    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, crate::tag::TAG_VMTX);
-    OTFCC_I_FONT.delete_table.expect("non-null function pointer")(font, crate::tag::TAG_LTSH);
+    delete_font_table(font, crate::tag::TAG_HDMX);
+    delete_font_table(font, crate::tag::TAG_HMTX);
+    delete_font_table(font, crate::tag::TAG_VORG);
+    delete_font_table(font, crate::tag::TAG_VMTX);
+    delete_font_table(font, crate::tag::TAG_LTSH);
 }
 pub const FLT_MAX: ::core::ffi::c_float = __FLT_MAX__;
 pub const __FLT_MAX__: ::core::ffi::c_float = 3.40282347e+38f32;

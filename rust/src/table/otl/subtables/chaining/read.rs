@@ -14,7 +14,7 @@ use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 
 use crate::support::{NULL};
 use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Subtable, ChainingSubtable, subtable_from_raw};
-use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING, chaining_ruleset_mut};
+use crate::table::otl::subtables::chaining::common::{subtable_chaining_create, subtable_chaining_free, chaining_ruleset_mut};
 pub type CoverageReaderHandler = Option<
     unsafe extern "C" fn(
         FontFilePointer,
@@ -414,7 +414,7 @@ unsafe fn read_contextual_format1(
             }
         }
     }
-    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
+    subtable_chaining_free(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
 unsafe fn read_contextual_format2(
@@ -558,7 +558,7 @@ unsafe fn read_contextual_format2(
         free(cds as *mut ::core::ffi::c_void);
         cds = ::core::ptr::null_mut::<ClassDefs>();
     }
-    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
+    subtable_chaining_free(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
 pub unsafe fn otl_read_contextual(
@@ -571,9 +571,7 @@ pub unsafe fn otl_read_contextual(
     let mut format: u16 = 0 as u16;
     let mut subtable: *mut ChainingSubtable =
         (
-            I_SUBTABLE_CHAINING
-                .create
-                .expect("non-null function pointer"))();
+            subtable_chaining_create)();
     // `subtable` is fresh from `create()` (a valid, empty `Canonical`
     // value) -- replace it wholesale with a valid, empty `Poly` ruleset.
     // Every downstream construction path (format1/format2/format3, and the
@@ -627,7 +625,7 @@ pub unsafe fn otl_read_contextual(
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
-    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
+    subtable_chaining_free(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe fn general_read_chaining_rule(
@@ -1020,7 +1018,7 @@ unsafe fn read_chaining_format1(
             }
         }
     }
-    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
+    subtable_chaining_free(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
 unsafe fn read_chaining_format2(
@@ -1175,7 +1173,7 @@ unsafe fn read_chaining_format2(
         free(cds as *mut ::core::ffi::c_void);
         cds = ::core::ptr::null_mut::<ClassDefs>();
     }
-    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
+    subtable_chaining_free(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
 pub unsafe fn otl_read_chaining(
@@ -1188,9 +1186,7 @@ pub unsafe fn otl_read_chaining(
     let mut format: u16 = 0 as u16;
     let mut subtable: *mut ChainingSubtable =
         (
-            I_SUBTABLE_CHAINING
-                .create
-                .expect("non-null function pointer"))();
+            subtable_chaining_create)();
     // See the identical comment in `otl_read_contextual`.
     *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
     let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
@@ -1240,7 +1236,7 @@ pub unsafe fn otl_read_chaining(
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
-    I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
+    subtable_chaining_free(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
 #[inline]

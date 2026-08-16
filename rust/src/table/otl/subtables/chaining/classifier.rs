@@ -11,7 +11,7 @@ use crate::support::primitives::{GlyphClass, GlyphId, TableId};
 use crate::table::otl::classdef::{classdef_from_raw};
 use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Lookup, Subtable, SubtablePtr, subtable_at, ChainingSubtable};
 use crate::table::otl::subtables::chaining::build::{otfcc_build_chaining, otfcc_build_contextual, otfcc_chaining_lookup_is_contextual_lookup};
-use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING, chaining_rule_mut, chaining_ruleset_mut, chaining_is_canonical};
+use crate::table::otl::subtables::chaining::common::{subtable_chaining_free, chaining_rule_mut, chaining_ruleset_mut, chaining_is_canonical};
 #[derive(Clone)]
 pub struct ClassifierValue {
     pub gname: Vec<u8>,
@@ -352,7 +352,7 @@ pub unsafe fn otfcc_classified_build_chaining(
                 otfcc_build_chaining(st)
             };
             if st != st0 {
-                I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(st);
+                subtable_chaining_free(st);
             }
             subtable_buffers.push(buf);
             *last_offset = (*last_offset).wrapping_add((*buf).size);

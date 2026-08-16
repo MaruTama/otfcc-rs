@@ -4,7 +4,7 @@
 
 use crate::support::primitives::{TableId};
 use crate::table::otl::{ChainingRule, Subtable, ChainingSubtable};
-use crate::table::otl::coverage::{Coverage, OTL_I_COVERAGE};
+use crate::table::otl::coverage::{Coverage, dump_coverage};
 use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_const};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new_from_bytes, preserialize};
 
@@ -21,7 +21,7 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *m
     while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
         json_array_push(
             _match,
-            OTL_I_COVERAGE.dump.expect("non-null function pointer")(
+            dump_coverage(
                 &(&(*rule).match_0)[j as usize] as *const Coverage,
             ),
         );

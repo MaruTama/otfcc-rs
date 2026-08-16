@@ -39,7 +39,6 @@ use crate::table::post::PostTable;
 use crate::table::vdmx::types::{VdmxTable};
 use crate::table::vhea::VheaTable;
 use crate::table::vmtx::VmtxTable;
-use crate::consolidate::{otfcc_consolidate_font};
 
 
 
@@ -93,18 +92,7 @@ pub enum FontSubtype {
     Ttf = 0,
     Cff = 1,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct FontElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut Font) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut Font, *const Font) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut Font) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut Font>,
-    pub free: Option<unsafe extern "C" fn(*mut Font) -> ()>,
-    pub consolidate: Option<unsafe extern "C" fn(*mut Font, *const Options) -> ()>,
-    pub delete_table: Option<unsafe extern "C" fn(*mut Font, u32) -> ()>,
-}
-unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
+pub(crate) unsafe fn delete_font_table(mut font: *mut Font, tag: u32) {
     match tag {
         crate::tag::TAG_HEAD => {
             (*font).head = None;
@@ -268,57 +256,28 @@ unsafe fn dispose_font(mut font: *mut Font) {
     (*font).glyph_order = None;
 }
 #[inline]
-unsafe extern "C" fn otfcc_font_dispose(mut x: *mut Font) {
+unsafe fn otfcc_font_dispose(mut x: *mut Font) {
     dispose_font(x);
 }
 #[inline]
-unsafe extern "C" fn otfcc_font_create() -> *mut Font {
+pub unsafe fn otfcc_font_create() -> *mut Font {
     let mut x: *mut Font =
         malloc(::core::mem::size_of::<Font>() as usize) as *mut Font;
     otfcc_font_init(x);
     return x;
 }
 #[inline]
-unsafe extern "C" fn otfcc_font_init(mut x: *mut Font) {
+unsafe fn otfcc_font_init(mut x: *mut Font) {
     init_font(x);
 }
 #[inline]
-unsafe extern "C" fn otfcc_font_free(mut x: *mut Font) {
+pub unsafe fn otfcc_font_free(mut x: *mut Font) {
     if x.is_null() {
         return;
     }
     otfcc_font_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-#[inline]
-unsafe extern "C" fn otfcc_font_copy(mut _dst: *mut Font, mut _src: *const Font) {
-    // Confirmed dead: `OTFCC_I_FONT.copy` has no call site anywhere in the
-    // crate. The old `memcpy`-based body was only safe by accident, back
-    // when `Font`'s ~25 table fields were raw pointers a bitwise copy
-    // could alias harmlessly; now that they're `Option<Box<_>>`/`Vec`-
-    // backed, a `memcpy` would give `dst` and `src` aliased ownership of
-    // the same heap allocations -- an immediate double-free/UAF hazard if
-    // this ever got wired up. Kept as a loud failure instead of silently
-    // reintroducing that risk, same treatment as `cff_index_copy`/
-    // `cff_dict_copy`/`subtable_gpos_pair_copy`.
-    unreachable!("Font::copy is dead code and unsound for owned Box/Vec data")
-}
-pub static OTFCC_I_FONT: FontElementInterface = {
-    FontElementInterface {
-        init: Some(otfcc_font_init as unsafe extern "C" fn(*mut Font) -> ()),
-        copy: Some(
-            otfcc_font_copy as unsafe extern "C" fn(*mut Font, *const Font) -> (),
-        ),
-        dispose: Some(otfcc_font_dispose as unsafe extern "C" fn(*mut Font) -> ()),
-        create: Some(otfcc_font_create),
-        free: Some(otfcc_font_free as unsafe extern "C" fn(*mut Font) -> ()),
-        consolidate: Some(
-            otfcc_consolidate_font
-                as unsafe extern "C" fn(*mut Font, *const Options) -> (),
-        ),
-        delete_table: Some(delete_font_table as unsafe extern "C" fn(*mut Font, u32) -> ()),
-    }
-};
 
 #[derive(Copy, Clone)]
 #[repr(C)]

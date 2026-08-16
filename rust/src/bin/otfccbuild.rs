@@ -35,7 +35,8 @@ use otfcc_rust::support::{EXIT_FAILURE, NULL};
 use libc::timespec;
 use otfcc_rust::support::getopt::{NO_ARGUMENT, LongOption, REQUIRED_ARGUMENT};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
-use otfcc_rust::font::caryll_font::{OTFCC_I_FONT};
+use otfcc_rust::font::caryll_font::{otfcc_font_free};
+use otfcc_rust::consolidate::{otfcc_consolidate_font};
 use otfcc_rust::json_reader::{otfcc_new_json_reader};
 use otfcc_rust::logger::{otfcc_new_logger, otfcc_new_std_err_target};
 use otfcc_rust::otf_writer::{otfcc_new_otf_writer};
@@ -713,7 +714,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
-        OTFCC_I_FONT.consolidate.expect("non-null function pointer")(font, options);
+        otfcc_consolidate_font(font, options);
         (*(*options).logger)
             .log_sds
             .expect("non-null function pointer")(
@@ -792,7 +793,7 @@ unsafe fn main_0(
         );
         buffree(otf);
         (*writer).free.expect("non-null function pointer")(writer as *mut IFontSerializer);
-        OTFCC_I_FONT.free.expect("non-null function pointer")(font);
+        otfcc_font_free(font);
         // `inPath`/`outputPath` are `Option<CString>` now -- both drop on
         // their own at the end of this function's scope, no explicit
         // free needed.

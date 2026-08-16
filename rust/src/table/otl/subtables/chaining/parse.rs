@@ -13,8 +13,8 @@ use crate::support::primitives::{TableId};
 use crate::vendor::json::{JsonType};
 
 use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingSubtable, subtable_from_raw};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
-use crate::table::otl::subtables::chaining::common::{I_SUBTABLE_CHAINING, chaining_rule_mut};
+use crate::table::otl::coverage::{parse_coverage};
+use crate::table::otl::subtables::chaining::common::{subtable_chaining_create, chaining_rule_mut};
 pub unsafe extern "C" fn otl_parse_chaining(
     mut _subtable: *const ParsedValue,
     mut _options: *const Options,
@@ -34,9 +34,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
     }
     let mut subtable: *mut ChainingSubtable =
         (
-            I_SUBTABLE_CHAINING
-                .create
-                .expect("non-null function pointer"))();
+            subtable_chaining_create)();
     // `create()` already hands back a valid `Canonical(ChainingRule::
     // default())` -- no separate tag assignment or placement-construct
     // needed, unlike the pre-enum version.
@@ -57,7 +55,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
         (*rule).match_0.push(coverage_from_raw(
-            OTL_I_COVERAGE.parse.expect("non-null function pointer")(
+            parse_coverage(
                 json_arr_at(_match, j as u32),
             ),
         ));

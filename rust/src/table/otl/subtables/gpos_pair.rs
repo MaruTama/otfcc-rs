@@ -18,7 +18,7 @@ use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_graph, bk_delete_graph, bk_estimate_size_of_graph, bk_minimize_graph, bk_new_graph_from_root_block, bk_untangle_graph};
 use crate::table::otl::classdef::{dump_class_def, parse_class_def, build_class_def};
-use crate::table::otl::coverage::{OTL_I_COVERAGE};
+use crate::table::otl::coverage::{build_coverage};
 use crate::table::otl::subtables::gpos_common::{FORMAT_DWIDTH, bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, position_zero, read_gpos_value, required_position_format};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_object_new, json_object_push, json_new_position, preserialize};
 
@@ -730,7 +730,7 @@ pub unsafe fn otfcc_build_gpos_pair_individual(
     }
     let mut cov: *mut Coverage = cov_from_cd(first_cd);
     shrink_coverage(cov, true);
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*first_cd).glyphs.len() as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*first_cd).glyphs.len() as ::core::ffi::c_int) as u32)]);
     let mut j_1: GlyphId = 0 as GlyphId;
     while (j_1 as usize) < (*cov).len() {
         let mut current_pair_count: TableId = 0 as TableId;
@@ -815,7 +815,7 @@ pub unsafe fn otfcc_build_gpos_pair_classes(
         j = j.wrapping_add(1);
     }
     let mut cov: *mut Coverage = cov_from_cd(first_cd);
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(OTL_I_COVERAGE.build.expect("non-null function pointer")(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_class_def(
+    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(cov))), bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_class_def(
             first_cd,
         ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_class_def(
             second_cd,
