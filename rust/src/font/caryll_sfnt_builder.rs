@@ -22,7 +22,7 @@ pub struct SfntBuilder {
     pub options: *const Options,
 }
 #[inline]
-unsafe extern "C" fn otfcc_check_endian() -> bool {
+unsafe fn otfcc_check_endian() -> bool {
     let mut check_union: EndianProbe16 = EndianProbe16 {
         i2: 1 as ::core::ffi::c_int as u16,
     };
@@ -30,7 +30,7 @@ unsafe extern "C" fn otfcc_check_endian() -> bool {
         == 1 as ::core::ffi::c_int;
 }
 #[inline]
-unsafe extern "C" fn otfcc_endian_convert32(mut i: u32) -> u32 {
+unsafe fn otfcc_endian_convert32(mut i: u32) -> u32 {
     if otfcc_check_endian() {
         let mut src: EndianProbe32 = EndianProbe32 { i1: [0; 4] };
         let mut des: EndianProbe32 = EndianProbe32 { i1: [0; 4] };
@@ -44,7 +44,7 @@ unsafe extern "C" fn otfcc_endian_convert32(mut i: u32) -> u32 {
         return i;
     };
 }
-unsafe extern "C" fn buf_checksum(mut buffer: *mut Buffer) -> u32 {
+unsafe fn buf_checksum(mut buffer: *mut Buffer) -> u32 {
     let mut actual_length: u32 = buflen(buffer) as u32;
     buflongalign(buffer);
     let mut sum: u32 = 0 as u32;
@@ -82,7 +82,7 @@ unsafe fn create_segment(tag: u32, buffer: *mut Buffer) -> SfntTableEntry {
         buffer,
     }
 }
-pub unsafe extern "C" fn otfcc_new_sfnt_builder(
+pub unsafe fn otfcc_new_sfnt_builder(
     mut header: u32,
     mut options: *const Options,
 ) -> *mut SfntBuilder {
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn otfcc_new_sfnt_builder(
     (*builder).options = options;
     return builder;
 }
-pub unsafe extern "C" fn otfcc_delete_sfnt_builder(mut builder: *mut SfntBuilder) {
+pub unsafe fn otfcc_delete_sfnt_builder(mut builder: *mut SfntBuilder) {
     if builder.is_null() {
         return;
     }
@@ -122,7 +122,7 @@ pub unsafe extern "C" fn otfcc_delete_sfnt_builder(mut builder: *mut SfntBuilder
 // the same shape as the six `consolidate/otl/*.rs` instances earlier in
 // this migration and unlike `ScriptStatHash`/`FvarMaster`'s insertion
 // order.
-pub unsafe extern "C" fn otfcc_sfnt_builder_push_table(
+pub unsafe fn otfcc_sfnt_builder_push_table(
     mut builder: *mut SfntBuilder,
     mut tag: u32,
     mut buffer: *mut Buffer,
@@ -152,7 +152,7 @@ pub unsafe extern "C" fn otfcc_sfnt_builder_push_table(
         ),
     );
 }
-pub unsafe extern "C" fn otfcc_sfnt_builder_serialize(
+pub unsafe fn otfcc_sfnt_builder_serialize(
     mut builder: *mut SfntBuilder,
 ) -> *mut Buffer {
     let mut buffer: *mut Buffer = bufnew();

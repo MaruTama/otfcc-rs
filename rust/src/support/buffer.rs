@@ -12,7 +12,7 @@ pub struct Buffer {
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 
-pub unsafe extern "C" fn bufnew() -> *mut Buffer {
+pub unsafe fn bufnew() -> *mut Buffer {
     let mut buf: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     buf = __caryll_allocate_clean(
         ::core::mem::size_of::<Buffer>() as usize,
@@ -22,7 +22,7 @@ pub unsafe extern "C" fn bufnew() -> *mut Buffer {
     (*buf).size = (*buf).free;
     return buf;
 }
-pub unsafe extern "C" fn buffree(mut buf: *mut Buffer) {
+pub unsafe fn buffree(mut buf: *mut Buffer) {
     if buf.is_null() {
         return;
     }
@@ -33,21 +33,21 @@ pub unsafe extern "C" fn buffree(mut buf: *mut Buffer) {
     free(buf as *mut ::core::ffi::c_void);
     buf = ::core::ptr::null_mut::<Buffer>();
 }
-pub unsafe extern "C" fn buflen(mut buf: *mut Buffer) -> usize {
+pub unsafe fn buflen(mut buf: *mut Buffer) -> usize {
     return (*buf).size;
 }
-pub unsafe extern "C" fn bufpos(mut buf: *mut Buffer) -> usize {
+pub unsafe fn bufpos(mut buf: *mut Buffer) -> usize {
     return (*buf).cursor;
 }
-pub unsafe extern "C" fn bufseek(mut buf: *mut Buffer, mut pos: usize) {
+pub unsafe fn bufseek(mut buf: *mut Buffer, mut pos: usize) {
     (*buf).cursor = pos;
 }
-pub unsafe extern "C" fn bufclear(mut buf: *mut Buffer) {
+pub unsafe fn bufclear(mut buf: *mut Buffer) {
     (*buf).cursor = 0 as usize;
     (*buf).free = (*buf).size.wrapping_add((*buf).free);
     (*buf).size = 0 as usize;
 }
-unsafe extern "C" fn bufbeforewrite(mut buf: *mut Buffer, mut towrite: usize) {
+unsafe fn bufbeforewrite(mut buf: *mut Buffer, mut towrite: usize) {
     let mut current_size: usize = (*buf).size;
     let mut allocated: usize = (*buf).size.wrapping_add((*buf).free);
     let mut required: usize = (*buf).cursor.wrapping_add(towrite);
@@ -81,33 +81,33 @@ unsafe fn buf_push_bytes(buf: *mut Buffer, bytes: &[u8]) {
     ::core::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, bytes.len());
     (*buf).cursor = (*buf).cursor.wrapping_add(bytes.len());
 }
-pub unsafe extern "C" fn bufwrite8(buf: *mut Buffer, byte: u8) {
+pub unsafe fn bufwrite8(buf: *mut Buffer, byte: u8) {
     buf_push_bytes(buf, &[byte]);
 }
-pub unsafe extern "C" fn bufwrite16l(buf: *mut Buffer, x: u16) {
+pub unsafe fn bufwrite16l(buf: *mut Buffer, x: u16) {
     buf_push_bytes(buf, &x.to_le_bytes());
 }
-pub unsafe extern "C" fn bufwrite16b(buf: *mut Buffer, x: u16) {
+pub unsafe fn bufwrite16b(buf: *mut Buffer, x: u16) {
     buf_push_bytes(buf, &x.to_be_bytes());
 }
-pub unsafe extern "C" fn bufwrite24l(buf: *mut Buffer, x: u32) {
+pub unsafe fn bufwrite24l(buf: *mut Buffer, x: u32) {
     // Low 3 bytes only, matching the original's shift-mask expansion, which
     // never touched bits 24-31 either.
     buf_push_bytes(buf, &x.to_le_bytes()[..3]);
 }
-pub unsafe extern "C" fn bufwrite24b(buf: *mut Buffer, x: u32) {
+pub unsafe fn bufwrite24b(buf: *mut Buffer, x: u32) {
     buf_push_bytes(buf, &x.to_be_bytes()[1..]);
 }
-pub unsafe extern "C" fn bufwrite32l(buf: *mut Buffer, x: u32) {
+pub unsafe fn bufwrite32l(buf: *mut Buffer, x: u32) {
     buf_push_bytes(buf, &x.to_le_bytes());
 }
-pub unsafe extern "C" fn bufwrite32b(buf: *mut Buffer, x: u32) {
+pub unsafe fn bufwrite32b(buf: *mut Buffer, x: u32) {
     buf_push_bytes(buf, &x.to_be_bytes());
 }
-pub unsafe extern "C" fn bufwrite64l(buf: *mut Buffer, x: u64) {
+pub unsafe fn bufwrite64l(buf: *mut Buffer, x: u64) {
     buf_push_bytes(buf, &x.to_le_bytes());
 }
-pub unsafe extern "C" fn bufwrite64b(buf: *mut Buffer, x: u64) {
+pub unsafe fn bufwrite64b(buf: *mut Buffer, x: u64) {
     buf_push_bytes(buf, &x.to_be_bytes());
 }
 /// A fresh buffer holding `bytes`.
@@ -133,7 +133,7 @@ pub unsafe fn bufninit(bytes: &[u8]) -> *mut Buffer {
 pub unsafe fn bufnwrite8(buf: *mut Buffer, bytes: &[u8]) {
     buf_push_bytes(buf, bytes);
 }
-pub unsafe extern "C" fn bufwrite_str(buf: *mut Buffer, str: *const ::core::ffi::c_char) {
+pub unsafe fn bufwrite_str(buf: *mut Buffer, str: *const ::core::ffi::c_char) {
     if str.is_null() {
         return;
     }
@@ -143,19 +143,19 @@ pub unsafe extern "C" fn bufwrite_str(buf: *mut Buffer, str: *const ::core::ffi:
     }
     buf_push_bytes(buf, ::core::slice::from_raw_parts(str as *const u8, len));
 }
-pub unsafe extern "C" fn bufwrite_bytes(buf: *mut Buffer, len: usize, str: *const u8) {
+pub unsafe fn bufwrite_bytes(buf: *mut Buffer, len: usize, str: *const u8) {
     if str.is_null() || len == 0 {
         return;
     }
     buf_push_bytes(buf, ::core::slice::from_raw_parts(str, len));
 }
-pub unsafe extern "C" fn bufwrite_buf(buf: *mut Buffer, that: *mut Buffer) {
+pub unsafe fn bufwrite_buf(buf: *mut Buffer, that: *mut Buffer) {
     if that.is_null() || (*that).data.is_null() {
         return;
     }
     buf_push_bytes(buf, ::core::slice::from_raw_parts((*that).data, buflen(that)));
 }
-pub unsafe extern "C" fn bufwrite_bufdel(buf: *mut Buffer, that: *mut Buffer) {
+pub unsafe fn bufwrite_bufdel(buf: *mut Buffer, that: *mut Buffer) {
     if that.is_null() {
         return;
     }
@@ -166,7 +166,7 @@ pub unsafe extern "C" fn bufwrite_bufdel(buf: *mut Buffer, that: *mut Buffer) {
     buf_push_bytes(buf, ::core::slice::from_raw_parts((*that).data, buflen(that)));
     buffree(that);
 }
-pub unsafe extern "C" fn buflongalign(buf: *mut Buffer) {
+pub unsafe fn buflongalign(buf: *mut Buffer) {
     let cp: usize = (*buf).cursor;
     bufseek(buf, buflen(buf));
     let padding = buflen(buf).wrapping_rem(4);
@@ -177,12 +177,12 @@ pub unsafe extern "C" fn buflongalign(buf: *mut Buffer) {
     }
     bufseek(buf, cp);
 }
-pub unsafe extern "C" fn bufping16b(buf: *mut Buffer, offset: *mut usize, cp: *mut usize) {
+pub unsafe fn bufping16b(buf: *mut Buffer, offset: *mut usize, cp: *mut usize) {
     bufwrite16b(buf, *offset as u16);
     *cp = (*buf).cursor;
     bufseek(buf, *offset);
 }
-pub unsafe extern "C" fn bufping16bd(
+pub unsafe fn bufping16bd(
     buf: *mut Buffer,
     offset: *mut usize,
     shift: *mut usize,
@@ -192,11 +192,11 @@ pub unsafe extern "C" fn bufping16bd(
     *cp = (*buf).cursor;
     bufseek(buf, *offset);
 }
-pub unsafe extern "C" fn bufpong(buf: *mut Buffer, offset: *mut usize, cp: *mut usize) {
+pub unsafe fn bufpong(buf: *mut Buffer, offset: *mut usize, cp: *mut usize) {
     *offset = (*buf).cursor;
     bufseek(buf, *cp);
 }
-pub unsafe extern "C" fn bufpingpong16b(
+pub unsafe fn bufpingpong16b(
     buf: *mut Buffer,
     that: *mut Buffer,
     offset: *mut usize,
@@ -379,7 +379,7 @@ mod tests {
     }
 }
 
-pub unsafe extern "C" fn bufprint(buf: *mut Buffer) {
+pub unsafe fn bufprint(buf: *mut Buffer) {
     for j in 0..(*buf).size {
         if j % 16 != 0 {
             fprintf(stderr, b" \0" as *const u8 as *const ::core::ffi::c_char);

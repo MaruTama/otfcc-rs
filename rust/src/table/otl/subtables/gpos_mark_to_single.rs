@@ -29,11 +29,11 @@ use crate::support::built_json::{BuiltValue, json_integer_new, json_object_new, 
 pub(crate) unsafe fn dispose_base_array(arr: *mut BaseArray) {
     *arr = Vec::new();
 }
-unsafe extern "C" fn init_mark_to_single(subtable: *mut GposMarkToSingleSubtable) {
+unsafe fn init_mark_to_single(subtable: *mut GposMarkToSingleSubtable) {
     (*subtable).mark_array = Vec::new();
     (*subtable).base_array = Vec::new();
 }
-pub(crate) unsafe extern "C" fn subtable_gpos_mark_to_single_free(x: *mut GposMarkToSingleSubtable) {
+pub(crate) unsafe fn subtable_gpos_mark_to_single_free(x: *mut GposMarkToSingleSubtable) {
     if x.is_null() {
         return;
     }
@@ -45,7 +45,7 @@ pub(crate) unsafe extern "C" fn subtable_gpos_mark_to_single_free(x: *mut GposMa
     drop(::core::ptr::read(x));
     free(x as *mut ::core::ffi::c_void);
 }
-unsafe extern "C" fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSingleSubtable {
+unsafe fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSingleSubtable {
     let x: *mut GposMarkToSingleSubtable = __caryll_allocate_clean(
         ::core::mem::size_of::<GposMarkToSingleSubtable>() as usize,
         0,
@@ -53,7 +53,7 @@ unsafe extern "C" fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSin
     init_mark_to_single(x);
     x
 }
-pub unsafe extern "C" fn otl_read_gpos_mark_to_single(
+pub unsafe fn otl_read_gpos_mark_to_single(
     data: FontFilePointer,
     mut table_length: u32,
     mut subtable_offset: u32,
@@ -250,7 +250,7 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
     );
     return _subtable;
 }
-unsafe extern "C" fn parse_bases(
+unsafe fn parse_bases(
     mut _bases: *const ParsedValue,
     mut subtable: *mut GposMarkToSingleSubtable,
     mut h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,

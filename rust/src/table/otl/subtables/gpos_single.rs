@@ -25,21 +25,21 @@ use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_b
 pub(crate) unsafe fn dispose_gpos_single_subtable(arr: *mut GposSingleSubtable) {
     *arr = Vec::new();
 }
-pub(crate) unsafe extern "C" fn subtable_gpos_single_free(x: *mut GposSingleSubtable) {
+pub(crate) unsafe fn subtable_gpos_single_free(x: *mut GposSingleSubtable) {
     if x.is_null() {
         return;
     }
     dispose_gpos_single_subtable(x);
     free(x as *mut ::core::ffi::c_void);
 }
-unsafe extern "C" fn subtable_gpos_single_create() -> *mut GposSingleSubtable {
+unsafe fn subtable_gpos_single_create() -> *mut GposSingleSubtable {
     let x: *mut GposSingleSubtable =
         malloc(::core::mem::size_of::<GposSingleSubtable>() as usize)
             as *mut GposSingleSubtable;
     x.write(Vec::new());
     x
 }
-pub unsafe extern "C" fn otl_read_gpos_single(
+pub unsafe fn otl_read_gpos_single(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,

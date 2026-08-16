@@ -73,7 +73,7 @@ pub enum LookupOrderType {
     Force = 0,
     File = 1,
 }
-unsafe extern "C" fn _parse_lookup(
+unsafe fn _parse_lookup(
     mut lookup: *const ParsedValue,
     mut lookup_name: *mut ::core::ffi::c_char,
     mut options: *const Options,
@@ -290,7 +290,7 @@ unsafe extern "C" fn _parse_lookup(
     }
     return parsed;
 }
-unsafe extern "C" fn _declare_lookup_parser(
+unsafe fn _declare_lookup_parser(
     mut llt: LookupType,
     mut parser: Option<
         unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
@@ -479,7 +479,7 @@ unsafe fn figure_out_lookups_from_json(
     }
     return lh;
 }
-unsafe extern "C" fn feature_merger_activate(
+unsafe fn feature_merger_activate(
     mut d: *mut ParsedValue,
     sametag: bool,
     mut objtype: *const ::core::ffi::c_char,
@@ -652,7 +652,7 @@ unsafe fn figure_out_features_from_json(
     }
     return fh;
 }
-pub unsafe extern "C" fn is_valid_language_name(
+pub unsafe fn is_valid_language_name(
     mut name: *const ::core::ffi::c_char,
     length: usize,
 ) -> bool {
@@ -767,7 +767,7 @@ unsafe fn figure_out_languages_from_json(
     }
     return sh;
 }
-pub unsafe extern "C" fn otfcc_parse_otl(
+pub unsafe fn otfcc_parse_otl(
     mut root: *const ParsedValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,

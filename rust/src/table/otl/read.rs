@@ -22,7 +22,7 @@ use crate::table::otl::subtables::gsub_ligature::{otl_read_gsub_ligature};
 use crate::table::otl::subtables::gsub_multi::{otl_read_gsub_multi};
 use crate::table::otl::subtables::gsub_reverse::{otl_read_gsub_reverse};
 use crate::table::otl::subtables::gsub_single::{otl_read_gsub_single};
-pub unsafe extern "C" fn otfcc_read_otl_subtable(
+pub unsafe fn otfcc_read_otl_subtable(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut subtable_offset: u32,
@@ -115,7 +115,7 @@ pub unsafe extern "C" fn otfcc_read_otl_subtable(
         _ => return ::core::ptr::null_mut::<Subtable>(),
     };
 }
-unsafe extern "C" fn parse_language(
+unsafe fn parse_language(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut base: u32,
@@ -158,7 +158,7 @@ unsafe extern "C" fn parse_language(
         return;
     };
 }
-unsafe extern "C" fn otfcc_read_otl_common(
+unsafe fn otfcc_read_otl_common(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut lookup_type_base: LookupType,
@@ -634,7 +634,7 @@ unsafe extern "C" fn otfcc_read_otl_common(
     }
     return None;
 }
-unsafe extern "C" fn otfcc_read_otl_lookup(
+unsafe fn otfcc_read_otl_lookup(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut lookup: *mut Lookup,
@@ -748,7 +748,7 @@ unsafe extern "C" fn otfcc_read_otl_lookup(
         (*lookup).type_0 = OTL_TYPE_GPOS_CHAINING;
     }
 }
-pub unsafe extern "C" fn otfcc_read_otl(
+pub unsafe fn otfcc_read_otl(
     mut packet: &Packet,
     mut options: *const Options,
     mut tag: u32,

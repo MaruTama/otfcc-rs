@@ -303,7 +303,7 @@ unsafe extern "C" fn serialize_to_otf(
 unsafe extern "C" fn free_font_writer(mut self_0: *mut IFontSerializer) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otfcc_new_otf_writer() -> *mut IFontSerializer {
+pub unsafe fn otfcc_new_otf_writer() -> *mut IFontSerializer {
     let mut writer: *mut IFontSerializer = ::core::ptr::null_mut::<IFontSerializer>();
     writer = __caryll_allocate_clean(
         ::core::mem::size_of::<IFontSerializer>() as usize,

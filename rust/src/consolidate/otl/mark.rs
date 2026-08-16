@@ -37,7 +37,7 @@ struct LigHashValue {
     component_count: GlyphId,
     anchors: Vec<Vec<Anchor>>,
 }
-unsafe extern "C" fn consolidate_mark_array(
+unsafe fn consolidate_mark_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut options: *const Options,
@@ -116,7 +116,7 @@ unsafe extern "C" fn consolidate_mark_array(
         );
     }
 }
-unsafe extern "C" fn consolidate_base_array(
+unsafe fn consolidate_base_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut options: *const Options,
@@ -182,7 +182,7 @@ unsafe extern "C" fn consolidate_base_array(
         );
     }
 }
-unsafe extern "C" fn consolidate_lig_array(
+unsafe fn consolidate_lig_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut options: *const Options,

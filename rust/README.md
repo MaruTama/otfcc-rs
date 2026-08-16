@@ -894,6 +894,51 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 2 complete: the remaining
+  349 directly-called functions across 56 files, in one combined PR.**
+  Covers everything the first three slices hadn't reached:
+  `table/otl/` (including all of `table/otl/subtables/`, `chaining/`, and
+  `build.rs`'s `OtlBuilder`/`OtlSplitBuilder` dispatch machinery),
+  `table/glyf/build.rs`+`read.rs`, `table/meta/`, `table/vdmx/funcs.rs`,
+  `consolidate.rs`+`consolidate/otl/`, `otf_reader.rs`+`unconsolidate.rs`,
+  `otf_writer.rs`+`stat.rs`, `json_reader.rs`, `json_writer.rs`,
+  `font/caryll_sfnt.rs`+`caryll_sfnt_builder.rs`, all of `support/`,
+  `vendor/emyg_dtoa.rs`+`sds.rs`, and one function Phase 1 had missed in
+  `bin/otfccdump.rs` (`getchar`, a thin `fgetc(stdin)` wrapper, called only
+  by name). At this scale a single crate-wide exclusion-set computation was
+  used again (same address-taken grep as the second and third slices) and
+  applied across every file in one pass rather than one PR per directory,
+  since the finding from the third slice held: the same list protects
+  every vtable and individual case without per-file lookups. It also
+  deliberately swept `logger.rs` and `font/caryll_font.rs` -- both carry
+  vtables (`ILogger`/`ILoggerTarget`, `IFontBuilder`/`IFontSerializer`)
+  explicitly deferred to a future Phase 4 as genuine runtime dispatch, not
+  fake polymorphism -- but only their few non-vtable helper functions
+  (`otfcc_new_logger`, `otfcc_new_std_err_target`, `otfcc_new_empty_target`,
+  `dispose_font`, `init_font`) matched nothing address-taken and were
+  swept; every vtable-backed function in both files stayed untouched, so
+  the Phase 4 boundary was respected without needing a manual file
+  exclusion. One real gap surfaced by `cargo build` itself: three
+  functions (`subtable_chaining_create`, `subtable_gpos_pair_create`,
+  `subtable_gsub_reverse_create`) are address-taken via a bare
+  `Some(name)` with no `as` cast, and a stale intermediate file from an
+  earlier step in the exclusion-set computation had silently dropped them
+  from the address-taken set despite matching the same detection regex --
+  the build's three "expected \"C\" fn, found \"Rust\" fn" errors caught
+  it immediately, they were reverted by hand, and a clean rebuild afterward
+  confirmed nothing else had slipped through. This is exactly the safety
+  net the original plan described: the mechanical sweep doesn't need a
+  perfect exclusion list up front, because a wrong one fails to compile
+  rather than silently corrupting behavior. Verified with the standard
+  full pipeline on both platforms (macOS arm64 and the Linux container):
+  54 unit tests green (0 warnings under `warnings = "deny"`), every
+  payload byte-identical in both directions including the `otfccdll`
+  cdylib, all 10 round-trip payloads stable, issue #1's large-lookup
+  regression test green, `compare-log-output.sh` green. Phase 2 (the
+  ~734-function mechanical sweep) is now fully done; what remains is
+  Phase 3's 17 vtable collapses and Phase 4's three genuine-dispatch
+  exceptions.
+
 - **`unsafe extern "C"` removal, Phase 2 (third slice): `table/`'s top-level
   files, 192 directly-called functions across all 27 files directly under
   `table/` (excluding the `table/otl/` and `table/glyf/` subdirectories,

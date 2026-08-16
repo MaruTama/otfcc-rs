@@ -12,7 +12,7 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::table::vdmx::types::{VdmxTable, VdmxRatioRange, VdmxRecord};
 use crate::bk::bkgraph::{bk_build_block_no_minimize};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
-pub unsafe extern "C" fn otfcc_read_vdmx(
+pub unsafe fn otfcc_read_vdmx(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<VdmxTable>> {
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn otfcc_read_vdmx(
     return vdmx;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_vdmx(
+pub unsafe fn otfcc_dump_vdmx(
     vdmx: Option<&VdmxTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -263,7 +263,7 @@ pub unsafe extern "C" fn otfcc_dump_vdmx(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parse_vdmx(
+pub unsafe fn otfcc_parse_vdmx(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<VdmxTable>> {
@@ -364,7 +364,7 @@ pub unsafe extern "C" fn otfcc_parse_vdmx(
     return Some(vdmx);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_vdmx(
+pub unsafe fn otfcc_build_vdmx(
     vdmx: Option<&VdmxTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

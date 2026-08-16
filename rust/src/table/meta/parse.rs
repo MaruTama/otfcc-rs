@@ -12,7 +12,7 @@ use crate::support::base64::{base64_decode};
 // same reasoning as every other `#[allow(improper_ctypes_definitions)]`
 // in this migration.
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn parse_meta_data(mut v: *const ParsedValue) -> Option<Vec<u8>> {
+pub unsafe fn parse_meta_data(mut v: *const ParsedValue) -> Option<Vec<u8>> {
     if json_type_of(v) == JsonType::String
     {
         return Some(::core::slice::from_raw_parts(
@@ -52,7 +52,7 @@ pub unsafe extern "C" fn parse_meta_data(mut v: *const ParsedValue) -> Option<Ve
     }
     None
 }
-pub unsafe extern "C" fn otfcc_parse_meta(
+pub unsafe fn otfcc_parse_meta(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<MetaTable>> {
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn otfcc_parse_meta(
     return Some(meta);
 }
 #[inline]
-unsafe extern "C" fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
+unsafe fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
     if tags.is_null() {
         return 0 as u32;
     }

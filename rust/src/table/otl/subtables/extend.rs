@@ -21,7 +21,7 @@ use crate::table::otl::read::{otfcc_read_otl_subtable};
 // `subtable_from_raw`. `type_0` is still computed before `subtable` (the
 // recursive read needs it as the nested lookup's type), so the dependency
 // order is unchanged.
-unsafe extern "C" fn _caryll_read_otl_extend(
+unsafe fn _caryll_read_otl_extend(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut subtable_offset: u32,
@@ -52,7 +52,7 @@ unsafe extern "C" fn _caryll_read_otl_extend(
     );
     Box::into_raw(Box::new(Subtable::Extend(ExtendSubtable { type_0, subtable })))
 }
-pub unsafe extern "C" fn otfcc_read_otl_gsub_extend(
+pub unsafe fn otfcc_read_otl_gsub_extend(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut subtable_offset: u32,
@@ -68,7 +68,7 @@ pub unsafe extern "C" fn otfcc_read_otl_gsub_extend(
         options,
     );
 }
-pub unsafe extern "C" fn otfcc_read_otl_gpos_extend(
+pub unsafe fn otfcc_read_otl_gpos_extend(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut subtable_offset: u32,

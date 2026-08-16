@@ -29,11 +29,11 @@ use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, js
 pub(crate) unsafe fn dispose_lig_array(arr: *mut LigatureArray) {
     *arr = Vec::new();
 }
-unsafe extern "C" fn init_mark_to_ligature(subtable: *mut GposMarkToLigatureSubtable) {
+unsafe fn init_mark_to_ligature(subtable: *mut GposMarkToLigatureSubtable) {
     (*subtable).mark_array = Vec::new();
     (*subtable).lig_array = Vec::new();
 }
-pub(crate) unsafe extern "C" fn subtable_gpos_mark_to_ligature_free(x: *mut GposMarkToLigatureSubtable) {
+pub(crate) unsafe fn subtable_gpos_mark_to_ligature_free(x: *mut GposMarkToLigatureSubtable) {
     if x.is_null() {
         return;
     }
@@ -44,7 +44,7 @@ pub(crate) unsafe extern "C" fn subtable_gpos_mark_to_ligature_free(x: *mut Gpos
     drop(::core::ptr::read(x));
     free(x as *mut ::core::ffi::c_void);
 }
-unsafe extern "C" fn subtable_gpos_mark_to_ligature_create() -> *mut GposMarkToLigatureSubtable {
+unsafe fn subtable_gpos_mark_to_ligature_create() -> *mut GposMarkToLigatureSubtable {
     let x: *mut GposMarkToLigatureSubtable = __caryll_allocate_clean(
         ::core::mem::size_of::<GposMarkToLigatureSubtable>() as usize,
         0,
@@ -52,7 +52,7 @@ unsafe extern "C" fn subtable_gpos_mark_to_ligature_create() -> *mut GposMarkToL
     init_mark_to_ligature(x);
     x
 }
-pub unsafe extern "C" fn otl_read_gpos_mark_to_ligature(
+pub unsafe fn otl_read_gpos_mark_to_ligature(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -307,7 +307,7 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_ligature(
     );
     return _subtable;
 }
-unsafe extern "C" fn parse_bases(
+unsafe fn parse_bases(
     mut _bases: *const ParsedValue,
     mut subtable: *mut GposMarkToLigatureSubtable,
     mut h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,

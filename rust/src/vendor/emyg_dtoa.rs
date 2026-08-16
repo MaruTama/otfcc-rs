@@ -28,13 +28,13 @@ static K_DP_HIDDEN_BIT: u64 = (0x100000 as ::core::ffi::c_int as u64)
     << 32 as ::core::ffi::c_int
     | 0 as ::core::ffi::c_int as u64;
 #[inline]
-unsafe extern "C" fn diy_fp_from_parts(mut f: u64, mut e: ::core::ffi::c_int) -> DiyFp {
+unsafe fn diy_fp_from_parts(mut f: u64, mut e: ::core::ffi::c_int) -> DiyFp {
     let mut fp: DiyFp = DiyFp { f: 0, e: 0 };
     fp.f = f;
     fp.e = e;
     return fp;
 }
-pub unsafe extern "C" fn diy_fp_from_double(mut d: ::core::ffi::c_double) -> DiyFp {
+pub unsafe fn diy_fp_from_double(mut d: ::core::ffi::c_double) -> DiyFp {
     let mut u: DoubleBits = DoubleBits { d: d };
     let mut res: DiyFp = DiyFp { f: 0, e: 0 };
     let mut biased_e: ::core::ffi::c_int =
@@ -50,11 +50,11 @@ pub unsafe extern "C" fn diy_fp_from_double(mut d: ::core::ffi::c_double) -> Diy
     return res;
 }
 #[inline]
-unsafe extern "C" fn diy_fp_subtract(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
+unsafe fn diy_fp_subtract(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
     return diy_fp_from_parts(lhs.f.wrapping_sub(rhs.f), lhs.e);
 }
 #[inline]
-unsafe extern "C" fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
+unsafe fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
     let m32: u64 = 0xffffffff as u64;
     let a: u64 = lhs.f >> 32 as ::core::ffi::c_int;
     let b: u64 = lhs.f & m32;
@@ -76,12 +76,12 @@ unsafe extern "C" fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
     );
 }
 #[inline]
-unsafe extern "C" fn normalize(lhs: DiyFp) -> DiyFp {
+unsafe fn normalize(lhs: DiyFp) -> DiyFp {
     let mut s: ::core::ffi::c_int = (lhs.f as ::core::ffi::c_ulonglong).leading_zeros() as i32;
     return diy_fp_from_parts(lhs.f << s, lhs.e - s);
 }
 #[inline]
-unsafe extern "C" fn normalize_boundary(lhs: DiyFp) -> DiyFp {
+unsafe fn normalize_boundary(lhs: DiyFp) -> DiyFp {
     let mut res: DiyFp = lhs;
     while res.f & K_DP_HIDDEN_BIT << 1 as ::core::ffi::c_int == 0 {
         res.f <<= 1 as ::core::ffi::c_int;
@@ -92,7 +92,7 @@ unsafe extern "C" fn normalize_boundary(lhs: DiyFp) -> DiyFp {
     return res;
 }
 #[inline]
-unsafe extern "C" fn normalized_boundaries(
+unsafe fn normalized_boundaries(
     mut lhs: DiyFp,
     mut minus: *mut DiyFp,
     mut plus: *mut DiyFp,
@@ -118,7 +118,7 @@ unsafe extern "C" fn normalized_boundaries(
     *minus = mi;
 }
 #[inline]
-unsafe extern "C" fn get_cached_power(
+unsafe fn get_cached_power(
     mut e: ::core::ffi::c_int,
     mut k_out: *mut ::core::ffi::c_int,
 ) -> DiyFp {
@@ -403,7 +403,7 @@ unsafe extern "C" fn get_cached_power(
     );
 }
 #[inline]
-unsafe extern "C" fn grisu_round(
+unsafe fn grisu_round(
     mut buffer: *mut ::core::ffi::c_char,
     mut len: ::core::ffi::c_int,
     mut delta: u64,
@@ -422,7 +422,7 @@ unsafe extern "C" fn grisu_round(
     }
 }
 #[inline]
-unsafe extern "C" fn count_decimal_digit32(mut n: u32) -> ::core::ffi::c_uint {
+unsafe fn count_decimal_digit32(mut n: u32) -> ::core::ffi::c_uint {
     if n < 10 as u32 {
         return 1 as ::core::ffi::c_uint;
     }
@@ -453,7 +453,7 @@ unsafe extern "C" fn count_decimal_digit32(mut n: u32) -> ::core::ffi::c_uint {
     return 10 as ::core::ffi::c_uint;
 }
 #[inline]
-unsafe extern "C" fn digit_gen(
+unsafe fn digit_gen(
     w: DiyFp,
     mp: DiyFp,
     mut delta: u64,
@@ -576,7 +576,7 @@ unsafe extern "C" fn digit_gen(
     }
 }
 #[inline]
-unsafe extern "C" fn grisu2(
+unsafe fn grisu2(
     mut value: ::core::ffi::c_double,
     mut buffer: *mut ::core::ffi::c_char,
     mut length: *mut ::core::ffi::c_int,
@@ -595,7 +595,7 @@ unsafe extern "C" fn grisu2(
     digit_gen(w, wp, wp.f.wrapping_sub(wm.f), buffer, length, k_out);
 }
 #[inline]
-unsafe extern "C" fn get_digits_lut() -> *const ::core::ffi::c_char {
+unsafe fn get_digits_lut() -> *const ::core::ffi::c_char {
     static C_DIGITS_LUT: [::core::ffi::c_char; 200] = [
         '0' as i32 as ::core::ffi::c_char,
         '0' as i32 as ::core::ffi::c_char,
@@ -801,7 +801,7 @@ unsafe extern "C" fn get_digits_lut() -> *const ::core::ffi::c_char {
     return &raw const C_DIGITS_LUT as *const ::core::ffi::c_char;
 }
 #[inline]
-unsafe extern "C" fn write_exponent(
+unsafe fn write_exponent(
     mut k_out: ::core::ffi::c_int,
     mut buffer: *mut ::core::ffi::c_char,
 ) {
@@ -844,7 +844,7 @@ unsafe extern "C" fn write_exponent(
     *buffer = '\0' as i32 as ::core::ffi::c_char;
 }
 #[inline]
-unsafe extern "C" fn prettify(
+unsafe fn prettify(
     mut buffer: *mut ::core::ffi::c_char,
     mut length: ::core::ffi::c_int,
     mut k: ::core::ffi::c_int,
@@ -910,7 +910,7 @@ unsafe extern "C" fn prettify(
         );
     };
 }
-pub unsafe extern "C" fn emyg_dtoa(
+pub unsafe fn emyg_dtoa(
     mut value: ::core::ffi::c_double,
     mut buffer: *mut ::core::ffi::c_char,
 ) {

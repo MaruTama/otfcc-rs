@@ -23,7 +23,7 @@ use crate::support::built_json::{BuiltValue, json_null_new, json_object_new, jso
 pub(crate) unsafe fn dispose_mark_array(arr: *mut MarkArray) {
     *arr = Vec::new();
 }
-pub unsafe extern "C" fn otl_read_mark_array(
+pub unsafe fn otl_read_mark_array(
     mut array: *mut MarkArray,
     mut cov: *mut Coverage,
     mut data: FontFilePointer,
@@ -76,7 +76,7 @@ pub unsafe extern "C" fn otl_read_mark_array(
         }
     }
 }
-pub unsafe extern "C" fn otl_parse_mark_array(
+pub unsafe fn otl_parse_mark_array(
     mut _marks: *const ParsedValue,
     mut array: *mut MarkArray,
     mut h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
@@ -185,7 +185,7 @@ pub unsafe extern "C" fn otl_parse_mark_array(
         j_0 = j_0.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn otl_anchor_absent() -> Anchor {
+pub unsafe fn otl_anchor_absent() -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
         x: 0 as ::core::ffi::c_int as Pos,
@@ -193,7 +193,7 @@ pub unsafe extern "C" fn otl_anchor_absent() -> Anchor {
     };
     return anchor;
 }
-pub unsafe extern "C" fn otl_read_anchor(
+pub unsafe fn otl_read_anchor(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -221,7 +221,7 @@ pub unsafe extern "C" fn otl_read_anchor(
         return anchor;
     };
 }
-pub unsafe extern "C" fn otl_dump_anchor(mut a: Anchor) -> *mut BuiltValue {
+pub unsafe fn otl_dump_anchor(mut a: Anchor) -> *mut BuiltValue {
     if a.present {
         let mut v: *mut BuiltValue = json_object_new(2 as usize);
         json_object_push(
@@ -239,7 +239,7 @@ pub unsafe extern "C" fn otl_dump_anchor(mut a: Anchor) -> *mut BuiltValue {
         return json_null_new();
     };
 }
-pub unsafe extern "C" fn otl_parse_anchor(mut v: *const ParsedValue) -> Anchor {
+pub unsafe fn otl_parse_anchor(mut v: *const ParsedValue) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
         x: 0 as ::core::ffi::c_int as Pos,
@@ -263,7 +263,7 @@ pub unsafe extern "C" fn otl_parse_anchor(mut v: *const ParsedValue) -> Anchor {
     ) as Pos;
     return anchor;
 }
-pub unsafe extern "C" fn bk_from_anchor(mut a: Anchor) -> *mut BkBlock {
+pub unsafe fn bk_from_anchor(mut a: Anchor) -> *mut BkBlock {
     if !a.present {
         return ::core::ptr::null_mut::<BkBlock>();
     }
@@ -1555,12 +1555,12 @@ pub static BITS_IN: [u8; 256] = [
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int) as u8,
 ];
-pub unsafe extern "C" fn position_format_length(mut format: u16) -> u8 {
+pub unsafe fn position_format_length(mut format: u16) -> u8 {
     return ((BITS_IN[(format as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as usize]
         as ::core::ffi::c_int)
         << 1 as ::core::ffi::c_int) as u8;
 }
-pub unsafe extern "C" fn position_zero() -> PositionValue {
+pub unsafe fn position_zero() -> PositionValue {
     let mut v: PositionValue = PositionValue {
         dx: 0.0f64,
         dy: 0.0f64,
@@ -1569,7 +1569,7 @@ pub unsafe extern "C" fn position_zero() -> PositionValue {
     };
     return v;
 }
-pub unsafe extern "C" fn read_gpos_value(
+pub unsafe fn read_gpos_value(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -1602,7 +1602,7 @@ pub unsafe extern "C" fn read_gpos_value(
     }
     return v;
 }
-pub unsafe extern "C" fn gpos_dump_value(mut value: PositionValue) -> *mut BuiltValue {
+pub unsafe fn gpos_dump_value(mut value: PositionValue) -> *mut BuiltValue {
     let mut v: *mut BuiltValue = json_object_new(4 as usize);
     if value.dx != 0. {
         json_object_push(
@@ -1634,7 +1634,7 @@ pub unsafe extern "C" fn gpos_dump_value(mut value: PositionValue) -> *mut Built
     }
     return preserialize(v);
 }
-pub unsafe extern "C" fn gpos_parse_value(mut pos: *const ParsedValue) -> PositionValue {
+pub unsafe fn gpos_parse_value(mut pos: *const ParsedValue) -> PositionValue {
     let mut v: PositionValue = PositionValue {
         dx: 0.0f64,
         dy: 0.0f64,
@@ -1654,7 +1654,7 @@ pub unsafe extern "C" fn gpos_parse_value(mut pos: *const ParsedValue) -> Positi
         json_obj_getnum(pos, b"dHeight\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
     return v;
 }
-pub unsafe extern "C" fn required_position_format(mut v: PositionValue) -> u8 {
+pub unsafe fn required_position_format(mut v: PositionValue) -> u8 {
     return ((if v.dx != 0. {
         FORMAT_DX as ::core::ffi::c_int
     } else {
@@ -1673,7 +1673,7 @@ pub unsafe extern "C" fn required_position_format(mut v: PositionValue) -> u8 {
         0 as ::core::ffi::c_int
     })) as u8;
 }
-pub unsafe extern "C" fn write_gpos_value(
+pub unsafe fn write_gpos_value(
     mut buf: *mut Buffer,
     mut v: PositionValue,
     mut format: u16,
@@ -1691,7 +1691,7 @@ pub unsafe extern "C" fn write_gpos_value(
         bufwrite16b(buf, pos_to_u16(v.d_height));
     }
 }
-pub unsafe extern "C" fn bk_gpos_value(
+pub unsafe fn bk_gpos_value(
     mut v: PositionValue,
     mut format: u16,
 ) -> *mut BkBlock {

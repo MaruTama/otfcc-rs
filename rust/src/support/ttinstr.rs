@@ -316,7 +316,7 @@ pub static FF_TTF_INSTRNAMES: [&::core::ffi::CStr; 256] = [
     c"MIRP[rp0,min,rnd,white]",
     c"MIRP1f",
 ];
-unsafe extern "C" fn strnmatch(
+unsafe fn strnmatch(
     mut str1: *const ::core::ffi::c_char,
     mut str2: *const ::core::ffi::c_char,
     mut n: ::core::ffi::c_int,
@@ -343,7 +343,7 @@ unsafe extern "C" fn strnmatch(
     }
     return 0 as ::core::ffi::c_int;
 }
-unsafe extern "C" fn parse_instrs(
+unsafe fn parse_instrs(
     mut text: *mut ::core::ffi::c_char,
     mut len: *mut ::core::ffi::c_int,
     mut context: *mut ::core::ffi::c_void,
@@ -729,7 +729,7 @@ unsafe extern "C" fn parse_instrs(
     ) as *mut u8;
     return instrs;
 }
-unsafe extern "C" fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int {
+unsafe fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int {
     let mut i: ::core::ffi::c_int = 0;
     let mut len: ::core::ffi::c_int = (*id).instr_cnt as ::core::ffi::c_int;
     let mut cnt: ::core::ffi::c_int = 0;
@@ -802,7 +802,7 @@ unsafe extern "C" fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int 
     *bts.offset(i as isize) = ByteType::ImpliedReturn;
     return lh;
 }
-pub unsafe extern "C" fn dump_ttinstr(
+pub unsafe fn dump_ttinstr(
     mut instructions: *mut u8,
     mut length: u32,
     mut options: *const Options,
@@ -859,7 +859,7 @@ pub unsafe extern "C" fn dump_ttinstr(
         return preserialize(ret);
     };
 }
-pub unsafe extern "C" fn parse_ttinstr(
+pub unsafe fn parse_ttinstr(
     mut col: *const ParsedValue,
     mut context: *mut ::core::ffi::c_void,
     mut make: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut u8, u32) -> ()>,

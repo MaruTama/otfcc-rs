@@ -97,7 +97,7 @@ unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
     ) as ::core::ffi::c_int;
 }
 #[inline]
-unsafe extern "C" fn getchar() -> ::core::ffi::c_int {
+unsafe fn getchar() -> ::core::ffi::c_int {
     return fgetc(stdin);
 }
 pub unsafe fn printInfo() {

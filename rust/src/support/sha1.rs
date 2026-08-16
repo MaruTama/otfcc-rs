@@ -11,7 +11,7 @@ pub struct Sha1Ctx {
     pub state: [WORD; 5],
     pub k: [WORD; 4],
 }
-pub unsafe extern "C" fn sha1_transform(mut ctx: *mut Sha1Ctx, mut data: *const BYTE) {
+pub unsafe fn sha1_transform(mut ctx: *mut Sha1Ctx, mut data: *const BYTE) {
     let mut a: WORD = 0;
     let mut b: WORD = 0;
     let mut c: WORD = 0;
@@ -121,7 +121,7 @@ pub unsafe extern "C" fn sha1_transform(mut ctx: *mut Sha1Ctx, mut data: *const 
     (*ctx).state[4 as ::core::ffi::c_int as usize] =
         (*ctx).state[4 as ::core::ffi::c_int as usize].wrapping_add(e);
 }
-pub unsafe extern "C" fn sha1_init(mut ctx: *mut Sha1Ctx) {
+pub unsafe fn sha1_init(mut ctx: *mut Sha1Ctx) {
     (*ctx).datalen = 0 as WORD;
     (*ctx).bitlen = 0 as ::core::ffi::c_ulonglong;
     (*ctx).state[0 as ::core::ffi::c_int as usize] = 0x67452301 as ::core::ffi::c_int as WORD;
@@ -134,7 +134,7 @@ pub unsafe extern "C" fn sha1_init(mut ctx: *mut Sha1Ctx) {
     (*ctx).k[2 as ::core::ffi::c_int as usize] = 0x8f1bbcdc as ::core::ffi::c_uint as WORD;
     (*ctx).k[3 as ::core::ffi::c_int as usize] = 0xca62c1d6 as ::core::ffi::c_uint as WORD;
 }
-pub unsafe extern "C" fn sha1_update(
+pub unsafe fn sha1_update(
     mut ctx: *mut Sha1Ctx,
     mut data: *const BYTE,
     mut len: usize,
@@ -152,7 +152,7 @@ pub unsafe extern "C" fn sha1_update(
         i = i.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn sha1_final(mut ctx: *mut Sha1Ctx, mut hash: *mut BYTE) {
+pub unsafe fn sha1_final(mut ctx: *mut Sha1Ctx, mut hash: *mut BYTE) {
     let mut i: WORD = 0;
     i = (*ctx).datalen;
     if (*ctx).datalen < 56 as WORD {

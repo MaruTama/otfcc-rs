@@ -49,7 +49,7 @@ use crate::vf::vq::{I_VQ};
 pub struct GlyphHash {
     pub hash: [u8; 20],
 }
-unsafe extern "C" fn hash_vqs(buf: *mut Buffer, s: VqSegment) {
+unsafe fn hash_vqs(buf: *mut Buffer, s: VqSegment) {
     bufwrite8(buf, s.discriminant_byte());
     match s {
         VqSegment::Still(still) => {
@@ -84,7 +84,7 @@ unsafe extern "C" fn hash_vqs(buf: *mut Buffer, s: VqSegment) {
         }
     }
 }
-unsafe extern "C" fn hash_vq(buf: *mut Buffer, x: VQ) {
+unsafe fn hash_vq(buf: *mut Buffer, x: VQ) {
     bufwrite32b(
         buf,
         otfcc_to_fixed(x.kernel as ::core::ffi::c_double) as u32,
@@ -94,7 +94,7 @@ unsafe extern "C" fn hash_vq(buf: *mut Buffer, x: VQ) {
         hash_vqs(buf, x.shift[j]);
     }
 }
-pub unsafe extern "C" fn name_glyph_by_hash(
+pub unsafe fn name_glyph_by_hash(
     mut g: *const Glyph,
     mut glyf: *const GlyfTable,
 ) -> GlyphHash {
@@ -219,7 +219,7 @@ pub unsafe extern "C" fn name_glyph_by_hash(
     buffree(buf);
     return h_0;
 }
-unsafe extern "C" fn create_glyph_order(
+unsafe fn create_glyph_order(
     mut font: *mut Font,
     mut options: *const Options,
 ) -> *mut GlyphOrder {
@@ -376,7 +376,7 @@ unsafe extern "C" fn create_glyph_order(
     }
     return glyph_order;
 }
-unsafe extern "C" fn name_glyphs(mut font: *mut Font, mut gord: *mut GlyphOrder) {
+unsafe fn name_glyphs(mut font: *mut Font, mut gord: *mut GlyphOrder) {
     if gord.is_null() {
         return;
     }
@@ -392,7 +392,7 @@ unsafe extern "C" fn name_glyphs(mut font: *mut Font, mut gord: *mut GlyphOrder)
         (*g).name = glyph_name;
     }
 }
-unsafe extern "C" fn unconsolidate_chaining(
+unsafe fn unconsolidate_chaining(
     _font: *mut Font,
     lookup: *mut Lookup,
     _table: *mut OtlTable,
@@ -464,7 +464,7 @@ unsafe extern "C" fn unconsolidate_chaining(
     // subtable) before replacing it, so there is nothing left to do eagerly.
     (*lookup).subtables = newsts;
 }
-unsafe extern "C" fn expand_chain(font: *mut Font, lookup: *mut Lookup, table: *mut OtlTable) {
+unsafe fn expand_chain(font: *mut Font, lookup: *mut Lookup, table: *mut OtlTable) {
     match (*lookup).type_0 {
         OTL_TYPE_GSUB_CHAINING | OTL_TYPE_GPOS_CHAINING => {
             unconsolidate_chaining(font, lookup, table);
@@ -472,7 +472,7 @@ unsafe extern "C" fn expand_chain(font: *mut Font, lookup: *mut Lookup, table: *
         _ => {}
     };
 }
-unsafe extern "C" fn expand_chaining_lookups(font: *mut Font) {
+unsafe fn expand_chaining_lookups(font: *mut Font) {
     if let Some(gsub) = (*font).gsub.as_mut() {
         let gsub: *mut OtlTable = gsub.as_mut() as *mut OtlTable;
         for j in 0..(*gsub).lookups.len() {
@@ -488,7 +488,7 @@ unsafe extern "C" fn expand_chaining_lookups(font: *mut Font) {
         }
     }
 }
-unsafe extern "C" fn merge_hmtx(font: *mut Font) {
+unsafe fn merge_hmtx(font: *mut Font) {
     if !((*font).hhea.is_some() && (*font).hmtx.is_some() && (*font).glyf.is_some()) {
         return;
     }
@@ -518,7 +518,7 @@ unsafe extern "C" fn merge_hmtx(font: *mut Font) {
         );
     }
 }
-unsafe extern "C" fn merge_vmtx(font: *mut Font) {
+unsafe fn merge_vmtx(font: *mut Font) {
     if !((*font).vhea.is_some() && (*font).vmtx.is_some() && (*font).glyf.is_some()) {
         return;
     }
@@ -563,7 +563,7 @@ unsafe extern "C" fn merge_vmtx(font: *mut Font) {
         );
     }
 }
-unsafe extern "C" fn merge_ltsh(font: *mut Font) {
+unsafe fn merge_ltsh(font: *mut Font) {
     if let Some(glyf) = (*font).glyf.as_mut() {
         let glyf: *mut GlyfTable = glyf as *mut GlyfTable;
         if let Some(ltsh) = &(*font).ltsh {
@@ -575,7 +575,7 @@ unsafe extern "C" fn merge_ltsh(font: *mut Font) {
         }
     }
 }
-pub unsafe extern "C" fn otfcc_unconsolidate_font(
+pub unsafe fn otfcc_unconsolidate_font(
     mut font: *mut Font,
     mut options: *const Options,
 ) {

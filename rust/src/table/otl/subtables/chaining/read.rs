@@ -155,7 +155,7 @@ pub unsafe extern "C" fn format3_coverage(
             .wrapping_sub(2 as u32),
     );
 }
-pub unsafe extern "C" fn general_read_contextual_rule(
+pub unsafe fn general_read_contextual_rule(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -279,7 +279,7 @@ pub unsafe extern "C" fn general_read_contextual_rule(
     // both fields self-drop now, no manual `delete_rule` call needed.
     return None;
 }
-unsafe extern "C" fn read_contextual_format1(
+unsafe fn read_contextual_format1(
     mut subtable: *mut ChainingSubtable,
     data: FontFilePointer,
     mut table_length: u32,
@@ -417,7 +417,7 @@ unsafe extern "C" fn read_contextual_format1(
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
-unsafe extern "C" fn read_contextual_format2(
+unsafe fn read_contextual_format2(
     mut subtable: *mut ChainingSubtable,
     data: FontFilePointer,
     mut table_length: u32,
@@ -561,7 +561,7 @@ unsafe extern "C" fn read_contextual_format2(
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
-pub unsafe extern "C" fn otl_read_contextual(
+pub unsafe fn otl_read_contextual(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -630,7 +630,7 @@ pub unsafe extern "C" fn otl_read_contextual(
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<Subtable>();
 }
-pub unsafe extern "C" fn general_read_chaining_rule(
+pub unsafe fn general_read_chaining_rule(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -885,7 +885,7 @@ pub unsafe extern "C" fn general_read_chaining_rule(
     // `rule` drops here automatically -- see `general_read_contextual_rule`.
     return None;
 }
-unsafe extern "C" fn read_chaining_format1(
+unsafe fn read_chaining_format1(
     mut subtable: *mut ChainingSubtable,
     data: FontFilePointer,
     mut table_length: u32,
@@ -1023,7 +1023,7 @@ unsafe extern "C" fn read_chaining_format1(
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
-unsafe extern "C" fn read_chaining_format2(
+unsafe fn read_chaining_format2(
     mut subtable: *mut ChainingSubtable,
     data: FontFilePointer,
     mut table_length: u32,
@@ -1178,7 +1178,7 @@ unsafe extern "C" fn read_chaining_format2(
     I_SUBTABLE_CHAINING.free.expect("non-null function pointer")(subtable);
     return ::core::ptr::null_mut::<ChainingSubtable>();
 }
-pub unsafe extern "C" fn otl_read_chaining(
+pub unsafe fn otl_read_chaining(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -1248,7 +1248,7 @@ pub unsafe extern "C" fn otl_read_chaining(
 // `*mut *mut Coverage` -- exactly `[T]::reverse` on the backtrack
 // sub-slice, now that `match_0` is a real `Vec<Coverage>`. `input_begins
 // == 0` (nothing to reverse) falls out of slicing an empty range.
-unsafe extern "C" fn reverse_backtracks(mut rule: *mut ChainingRule) {
+unsafe fn reverse_backtracks(mut rule: *mut ChainingRule) {
     let input_begins = (*rule).input_begins as usize;
     (&mut (*rule).match_0)[..input_begins].reverse();
 }

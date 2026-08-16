@@ -42,7 +42,7 @@ use crate::consolidate::otl::common::{fontop_consolidate_class_def};
 use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
 use crate::table::otl::classdef::{OTL_I_CLASS_DEF};
 
-pub unsafe extern "C" fn consolidate_gdef(
+pub unsafe fn consolidate_gdef(
     mut font: *mut Font,
     mut gdef: *mut GdefTable,
     mut options: *const Options,

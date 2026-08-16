@@ -55,7 +55,7 @@ use crate::table::vmtx::{otfcc_read_vmtx};
 
 
 
-unsafe extern "C" fn decide_font_subtype_otf(
+unsafe fn decide_font_subtype_otf(
     sfnt: *mut SplineFontContainer,
     index: u32,
 ) -> FontSubtype {
@@ -214,7 +214,7 @@ unsafe extern "C" fn read_otf(
 unsafe extern "C" fn free_reader(mut self_0: *mut IFontBuilder) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otfcc_new_otf_reader() -> *mut IFontBuilder {
+pub unsafe fn otfcc_new_otf_reader() -> *mut IFontBuilder {
     let mut reader: *mut IFontBuilder = ::core::ptr::null_mut::<IFontBuilder>();
     reader = __caryll_allocate_clean(
         ::core::mem::size_of::<IFontBuilder>() as usize,

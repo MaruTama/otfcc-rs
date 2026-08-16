@@ -43,7 +43,7 @@ use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 
 
 
-pub unsafe extern "C" fn fontop_consolidate_coverage(
+pub unsafe fn fontop_consolidate_coverage(
     mut font: *mut Font,
     mut coverage: *mut Coverage,
     mut options: *const Options,
@@ -75,7 +75,7 @@ pub unsafe extern "C" fn fontop_consolidate_coverage(
         j = j.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn fontop_consolidate_class_def(
+pub unsafe fn fontop_consolidate_class_def(
     mut font: *mut Font,
     mut cd: *mut ClassDef,
     mut options: *const Options,
