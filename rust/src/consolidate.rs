@@ -60,7 +60,7 @@ use crate::consolidate::otl::gsub_multi::{consolidate_gsub_alternative, consolid
 use crate::consolidate::otl::gsub_reverse::{consolidate_gsub_reverse};
 use crate::consolidate::otl::gsub_single::{consolidate_gsub_single};
 use crate::consolidate::otl::mark::{consolidate_mark_to_ligature, consolidate_mark_to_single};
-use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{otfcc_gord_consolidate_handle, otfcc_set_glyph_order_by_name};
 use crate::table::_tsi::{tsi_entry_dup};
 use crate::table::glyf::{glyf_component_reference_empty, otfcc_new_glyf_glyph};
 use crate::table::otl::{otl_feature_list_filter_env, otl_feature_ref_list_filter_env, otl_lookup_list_filter_env, otl_lookup_ref_list_filter_env};
@@ -134,9 +134,7 @@ unsafe fn consolidate_glyph_references(
     mut options: *const Options,
 ) {
     (*g).references.retain_mut(|r| {
-        let ok = OTFCC_PKG_GLYPH_ORDER
-            .consolidate_handle
-            .expect("non-null function pointer")(
+        let ok = otfcc_gord_consolidate_handle(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut r.glyph,
         );
@@ -627,9 +625,7 @@ pub unsafe fn consolidate_cmap(
         // removing the entry -- `dump_cmap`'s "skip if name is null"
         // check is what actually hides it later.
         for (&unicode, glyph) in (*font).cmap.as_mut().unwrap().unicodes.iter_mut() {
-            if !OTFCC_PKG_GLYPH_ORDER
-                .consolidate_handle
-                .expect("non-null function pointer")(
+            if !otfcc_gord_consolidate_handle(
                 glyph_order, glyph as *mut GlyphHandle
             ) {
                 (*(*options).logger)
@@ -651,9 +647,7 @@ pub unsafe fn consolidate_cmap(
     }
     if !glyph_order.is_null() && (*font).cmap.is_some() {
         for (key, glyph) in (*font).cmap.as_mut().unwrap().uvs.iter_mut() {
-            if !OTFCC_PKG_GLYPH_ORDER
-                .consolidate_handle
-                .expect("non-null function pointer")(
+            if !otfcc_gord_consolidate_handle(
                 glyph_order, glyph as *mut GlyphHandle
             ) {
                 (*(*options).logger)
@@ -1177,9 +1171,7 @@ unsafe fn consolidate_colr(mut font: *mut Font, mut options: *const Options) {
     while keep != 0 && __caryll_index < source.len() {
         let mapping: &mut ColrMapping = &mut source[__caryll_index];
         while keep != 0 {
-            if !OTFCC_PKG_GLYPH_ORDER
-                .consolidate_handle
-                .expect("non-null function pointer")(
+            if !otfcc_gord_consolidate_handle(
                 glyph_order, &raw mut mapping.glyph
             ) {
                 (*(*options).logger)
@@ -1210,9 +1202,7 @@ unsafe fn consolidate_colr(mut font: *mut Font, mut options: *const Options) {
                 while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
                     let layer: &mut ColrLayer = &mut mapping.layers[__caryll_index_0];
                     while keep_0 != 0 {
-                        if !OTFCC_PKG_GLYPH_ORDER
-                            .consolidate_handle
-                            .expect("non-null function pointer")(
+                        if !otfcc_gord_consolidate_handle(
                             glyph_order,
                             &raw mut layer.glyph,
                         ) {
@@ -1290,9 +1280,7 @@ unsafe fn consolidate_tsi(
             if (*entry).type_0 as ::core::ffi::c_uint
                 == TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint
             {
-                if OTFCC_PKG_GLYPH_ORDER
-                    .consolidate_handle
-                    .expect("non-null function pointer")(
+                if otfcc_gord_consolidate_handle(
                     glyph_order,
                     &raw mut (*entry).glyph,
                 ) {
@@ -1333,9 +1321,7 @@ unsafe fn consolidate_tsi(
         e_0.type_0 = TsiEntryType::Glyph;
         e_0.glyph =
             handle_from_index(j) as GlyphHandle;
-        OTFCC_PKG_GLYPH_ORDER
-            .consolidate_handle
-            .expect("non-null function pointer")(glyph_order, &raw mut e_0.glyph);
+        otfcc_gord_consolidate_handle(glyph_order, &raw mut e_0.glyph);
         e_0.content = gid_entries[j as usize].take().unwrap_or_default();
         consolidated.push(e_0);
         j = j.wrapping_add(1);
@@ -1384,9 +1370,7 @@ pub unsafe fn otfcc_consolidate_font(
             // more -- see its doc comment), but `name` is still needed
             // below regardless of whether this call succeeds or fails, for
             // the log message and/or the retry loop.
-            if !OTFCC_PKG_GLYPH_ORDER
-                .set_by_name
-                .expect("non-null function pointer")(go, name.clone(), j)
+            if !otfcc_set_glyph_order_by_name(go, name.clone(), j)
             {
                 (*(*options).logger)
                     .log_sds
@@ -1403,9 +1387,7 @@ pub unsafe fn otfcc_consolidate_font(
                 let mut success: bool = false;
                 loop {
                     let newname: Vec<u8> = crate::bytesbuild!(&name, b"_", suffix);
-                    success = OTFCC_PKG_GLYPH_ORDER
-                        .set_by_name
-                        .expect("non-null function pointer")(
+                    success = otfcc_set_glyph_order_by_name(
                         go, newname.clone(), j
                     );
                     if !success {

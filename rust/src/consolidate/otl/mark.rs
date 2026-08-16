@@ -18,7 +18,7 @@ use crate::table::otl::{Anchor, BaseArray, BaseRecord, LigatureArray, LigatureBa
 
 
 
-use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{otfcc_gord_consolidate_handle, GlyphOrder};
 use crate::table::otl::subtables::gpos_common::{dispose_mark_array};
 use crate::table::otl::subtables::gpos_mark_to_ligature::{dispose_lig_array};
 use crate::table::otl::subtables::gpos_mark_to_single::{dispose_base_array};
@@ -47,9 +47,7 @@ unsafe fn consolidate_mark_array(
     let mut h: BTreeMap<GlyphId, MarkHashValue> = BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*mark_array).len() {
-        if !OTFCC_PKG_GLYPH_ORDER
-            .consolidate_handle
-            .expect("non-null function pointer")(
+        if !otfcc_gord_consolidate_handle(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*mark_array))[k as usize].glyph,
         ) {
@@ -125,9 +123,7 @@ unsafe fn consolidate_base_array(
     let mut h: BTreeMap<GlyphId, BaseHashValue> = BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*base_array).len() {
-        if !OTFCC_PKG_GLYPH_ORDER
-            .consolidate_handle
-            .expect("non-null function pointer")(
+        if !otfcc_gord_consolidate_handle(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*base_array))[k as usize].glyph,
         ) {
@@ -191,9 +187,7 @@ unsafe fn consolidate_lig_array(
     let mut h: BTreeMap<GlyphId, LigHashValue> = BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*lig_array).len() {
-        if !OTFCC_PKG_GLYPH_ORDER
-            .consolidate_handle
-            .expect("non-null function pointer")(
+        if !otfcc_gord_consolidate_handle(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*lig_array))[k as usize].glyph,
         ) {

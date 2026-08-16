@@ -39,7 +39,10 @@ use crate::vf::region::{VqAxisSpan};
 use crate::vf::vq::{VQ, VqSegment};
 use crate::support::aglfn::{aglfn_setup_names};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
-use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{
+    gord_lookup_name, otfcc_glyph_order_create, otfcc_glyph_order_free,
+    otfcc_gord_name_a_field_shared, otfcc_set_glyph_order_by_gid,
+};
 use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
 use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
 use crate::vf::vq::{I_VQ};
@@ -225,9 +228,7 @@ unsafe fn create_glyph_order(
 ) -> *mut GlyphOrder {
     let mut glyph_order: *mut GlyphOrder =
         (
-            OTFCC_PKG_GLYPH_ORDER
-                .create
-                .expect("non-null function pointer"))();
+            otfcc_glyph_order_create)();
     // Only ever called (from `otfcc_unconsolidate_font`) under a
     // `.glyf.is_some()` guard.
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
@@ -249,9 +250,7 @@ unsafe fn create_glyph_order(
                 Hex2Upper((h.hash[j_0 as usize] as ::core::ffi::c_int) as u32)
                     .append_to_vec(&mut gname);
             }
-            if OTFCC_PKG_GLYPH_ORDER
-                .lookup_name
-                .expect("non-null function pointer")(glyph_order, gname.clone())
+            if gord_lookup_name(glyph_order, gname.clone())
             {
                 let mut n: GlyphId = 2 as GlyphId;
                 let mut still_in: bool = false;
@@ -261,9 +260,7 @@ unsafe fn create_glyph_order(
                     }
                     let newname: Vec<u8> =
                         crate::bytesbuild!(&gname, b"-", &prefix, n as ::core::ffi::c_int);
-                    still_in = OTFCC_PKG_GLYPH_ORDER
-                        .lookup_name
-                        .expect("non-null function pointer")(
+                    still_in = gord_lookup_name(
                         glyph_order, newname
                     );
                     if !still_in {
@@ -272,16 +269,12 @@ unsafe fn create_glyph_order(
                 }
                 let newname_0: Vec<u8> =
                     crate::bytesbuild!(&gname, b"-", &prefix, n as ::core::ffi::c_int);
-                let shared_name: Vec<u8> = OTFCC_PKG_GLYPH_ORDER
-                    .set_by_gid
-                    .expect("non-null function pointer")(
+                let shared_name: Vec<u8> = otfcc_set_glyph_order_by_gid(
                     glyph_order, j, newname_0
                 );
                 (*g).name = shared_name;
             } else {
-                let shared_name_0: Vec<u8> = OTFCC_PKG_GLYPH_ORDER
-                    .set_by_gid
-                    .expect("non-null function pointer")(
+                let shared_name_0: Vec<u8> = otfcc_set_glyph_order_by_gid(
                     glyph_order, j, gname
                 );
                 (*g).name = shared_name_0;
@@ -289,9 +282,7 @@ unsafe fn create_glyph_order(
         } else if !((*options).ignore_glyph_order || (*options).name_glyphs_by_gid) {
             if !(*g).name.is_empty() {
                 let gname_0: Vec<u8> = crate::bytesbuild!(&prefix, &(*g).name);
-                let shared_name_1: Vec<u8> = OTFCC_PKG_GLYPH_ORDER
-                    .set_by_gid
-                    .expect("non-null function pointer")(
+                let shared_name_1: Vec<u8> = otfcc_set_glyph_order_by_gid(
                     glyph_order, j, gname_0
                 );
                 (*g).name = shared_name_1;
@@ -309,17 +300,13 @@ unsafe fn create_glyph_order(
         for (_, &idx) in (*post_name_map).by_gid.iter() {
             let entry = &(&(*post_name_map).entries)[idx];
             let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &entry.name);
-            OTFCC_PKG_GLYPH_ORDER
-                .set_by_gid
-                .expect("non-null function pointer")(glyph_order, entry.gid, gname_1);
+            otfcc_set_glyph_order_by_gid(glyph_order, entry.gid, gname_1);
         }
     }
     if (*font).cmap.is_some() && !(*options).name_glyphs_by_gid {
         let mut aglfn: *mut GlyphOrder =
             (
-                OTFCC_PKG_GLYPH_ORDER
-                    .create
-                    .expect("non-null function pointer"))();
+                otfcc_glyph_order_create)();
         aglfn_setup_names(aglfn);
         for (&unicode, glyph) in (*font).cmap.as_ref().unwrap().unicodes.iter() {
             if glyph.index as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
@@ -327,9 +314,7 @@ unsafe fn create_glyph_order(
                 if unicode > 0 as ::core::ffi::c_int
                     && unicode < 0xffff as ::core::ffi::c_int
                 {
-                    OTFCC_PKG_GLYPH_ORDER
-                        .name_a_field_shared
-                        .expect("non-null function pointer")(
+                    otfcc_gord_name_a_field_shared(
                         aglfn,
                         unicode as GlyphId,
                         &raw mut name_bytes,
@@ -341,14 +326,12 @@ unsafe fn create_glyph_order(
                 } else {
                     name = crate::bytesbuild!(&prefix, &name_bytes);
                 }
-                OTFCC_PKG_GLYPH_ORDER
-                    .set_by_gid
-                    .expect("non-null function pointer")(
+                otfcc_set_glyph_order_by_gid(
                     glyph_order, glyph.index, name
                 );
             }
         }
-        OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")(aglfn);
+        otfcc_glyph_order_free(aglfn);
     }
     for j_1 in 0..num_glyphs {
         let name_0: Vec<u8>;
@@ -370,9 +353,7 @@ unsafe fn create_glyph_order(
         } else {
             name_0 = crate::bytesbuild!(&prefix, b".notdef");
         }
-        OTFCC_PKG_GLYPH_ORDER
-            .set_by_gid
-            .expect("non-null function pointer")(glyph_order, j_1, name_0);
+        otfcc_set_glyph_order_by_gid(glyph_order, j_1, name_0);
     }
     return glyph_order;
 }
@@ -386,9 +367,7 @@ unsafe fn name_glyphs(mut font: *mut Font, mut gord: *mut GlyphOrder) {
     for j in 0..(*glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
         let mut glyph_name: Vec<u8> = Vec::new();
-        OTFCC_PKG_GLYPH_ORDER
-            .name_a_field_shared
-            .expect("non-null function pointer")(gord, j, &raw mut glyph_name);
+        otfcc_gord_name_a_field_shared(gord, j, &raw mut glyph_name);
         (*g).name = glyph_name;
     }
 }
@@ -586,7 +565,7 @@ pub unsafe fn otfcc_unconsolidate_font(
     if (*font).glyf.is_some() {
         let mut gord: *mut GlyphOrder = create_glyph_order(font, options);
         name_glyphs(font, gord);
-        OTFCC_PKG_GLYPH_ORDER.free.expect("non-null function pointer")(gord);
+        otfcc_glyph_order_free(gord);
     }
 }
 pub const SHA1_BLOCK_SIZE: ::core::ffi::c_int = 20 as ::core::ffi::c_int;

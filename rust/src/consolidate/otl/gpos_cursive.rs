@@ -37,7 +37,7 @@ use crate::table::otl::{Anchor, GposCursiveEntry, Subtable, GposCursiveSubtable,
 
 
 
-use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{otfcc_gord_consolidate_handle, GlyphOrder};
 use crate::table::otl::subtables::gpos_cursive::{dispose_gpos_cursive_subtable};
 
 
@@ -64,9 +64,7 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
         std::collections::BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).len() {
-        if !OTFCC_PKG_GLYPH_ORDER
-            .consolidate_handle
-            .expect("non-null function pointer")(
+        if !otfcc_gord_consolidate_handle(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*subtable))[k as usize].target,
         ) {

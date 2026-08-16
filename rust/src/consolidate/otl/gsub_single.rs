@@ -10,7 +10,7 @@ use crate::font::caryll_font::{Font};
 
 use crate::table::otl::{GsubSingleEntry, Subtable, GsubSingleSubtable, OtlTable};
 
-use crate::support::glyph_order::{GlyphOrder, OTFCC_PKG_GLYPH_ORDER};
+use crate::support::glyph_order::{otfcc_gord_consolidate_handle, GlyphOrder};
 use crate::table::otl::subtables::gsub_single::{dispose_gsub_single_subtable};
 
 pub unsafe extern "C" fn consolidate_gsub_single(
@@ -36,9 +36,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
         std::collections::BTreeMap::new();
     let mut k: usize = 0 as usize;
     while k < (*subtable).len() {
-        if !OTFCC_PKG_GLYPH_ORDER
-            .consolidate_handle
-            .expect("non-null function pointer")(
+        if !otfcc_gord_consolidate_handle(
             glyph_order,
             &raw mut (&mut (*subtable))[k as usize].from,
         ) {
@@ -53,9 +51,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                     b".\n",
                 ),
             );
-        } else if !OTFCC_PKG_GLYPH_ORDER
-            .consolidate_handle
-            .expect("non-null function pointer")(
+        } else if !otfcc_gord_consolidate_handle(
             glyph_order,
             &raw mut (&mut (*subtable))[k as usize].to,
         ) {
