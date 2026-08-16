@@ -308,7 +308,7 @@ static STANDARD_MAC_NAMES: [&::core::ffi::CStr; 258] = [
     c"ccaron",
     c"dcroat",
 ];
-pub unsafe extern "C" fn otfcc_read_post(
+pub unsafe fn otfcc_read_post(
     packet: &Packet,
     mut _options: *const Options,
 ) -> Option<Box<PostTable>> {
@@ -428,7 +428,7 @@ pub unsafe extern "C" fn otfcc_read_post(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_post(
+pub unsafe fn otfcc_dump_post(
     table: Option<&PostTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -502,7 +502,7 @@ pub unsafe extern "C" fn otfcc_dump_post(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parse_post(
+pub unsafe fn otfcc_parse_post(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<PostTable>> {
@@ -580,7 +580,7 @@ pub unsafe extern "C" fn otfcc_parse_post(
     return Some(post_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_post(
+pub unsafe fn otfcc_build_post(
     post: Option<&PostTable>,
     mut glyphorder: *mut GlyphOrder,
     mut _options: *const Options,

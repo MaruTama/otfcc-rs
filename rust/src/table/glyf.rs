@@ -188,12 +188,12 @@ pub struct GlyfIOContext {
 /// down to bit 0 rather than trusting it -- so this is typed as the `i8` it is
 /// applied to, which is what lets the two sites drop their casts.
 pub const MASK_ON_CURVE: i8 = 1;
-unsafe extern "C" fn create_point(mut p: *mut Point) {
+unsafe fn create_point(mut p: *mut Point) {
     (*p).x = I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
     (*p).y = I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
     (*p).on_curve = TRUE_0 as i8;
 }
-unsafe extern "C" fn copy_point(mut dst: *mut Point, mut src: *const Point) {
+unsafe fn copy_point(mut dst: *mut Point, mut src: *const Point) {
     I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).x, &raw const (*src).x);
     I_VQ.copy.expect("non-null function pointer")(&raw mut (*dst).y, &raw const (*src).y);
     (*dst).on_curve = (*src).on_curve;
@@ -225,7 +225,7 @@ unsafe extern "C" fn glyf_point_dup(src: Point) -> Point {
     return dst;
 }
 #[inline]
-unsafe extern "C" fn glyf_point_copy(mut dst: *mut Point, mut src: *const Point) {
+unsafe fn glyf_point_copy(mut dst: *mut Point, mut src: *const Point) {
     copy_point(dst, src);
 }
 /// Grows `arr` to `n` points, default-constructing each new one via
@@ -251,7 +251,7 @@ unsafe fn glyf_contour_fill(arr: *mut Contour, n: usize) {
     }
 }
 #[inline]
-unsafe extern "C" fn init_glyf_reference(mut ref_0: *mut ComponentReference) {
+unsafe fn init_glyf_reference(mut ref_0: *mut ComponentReference) {
     (*ref_0).glyph = otfcc_handle_empty() as GlyphHandle;
     (*ref_0).x =
         I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
@@ -314,7 +314,7 @@ pub static GLYF_I_COMPONENT_REFERENCE: ComponentReferenceElementInterface = {
 /// `new_lookup`/`new_feature`/`new_language`. Kept the `otfcc_`-prefixed C
 /// name (unlike those three) since this one is still called from outside
 /// this file (`consolidate.rs`, `table/cff.rs`, `table/glyf/read.rs`).
-pub unsafe extern "C" fn otfcc_new_glyf_glyph() -> Box<Glyph> {
+pub unsafe fn otfcc_new_glyf_glyph() -> Box<Glyph> {
     Box::new(Glyph {
         name: Vec::new(),
         horizontal_origin: VQ { kernel: 0., shift: Vec::new() },
@@ -366,14 +366,14 @@ pub(crate) unsafe fn unwrap_glyf_table(raw: *mut GlyfTable) -> Option<GlyfTable>
     free(raw as *mut ::core::ffi::c_void);
     Some(value)
 }
-pub(crate) unsafe extern "C" fn table_glyf_create_n(n: usize) -> *mut GlyfTable {
+pub(crate) unsafe fn table_glyf_create_n(n: usize) -> *mut GlyfTable {
     let x: *mut GlyfTable = malloc(::core::mem::size_of::<GlyfTable>() as usize) as *mut GlyfTable;
     let mut v: GlyfTable = Vec::with_capacity(n);
     v.resize_with(n, || None);
     x.write(v);
     x
 }
-unsafe extern "C" fn glyf_glyph_dump_contours(
+unsafe fn glyf_glyph_dump_contours(
     mut g: *const Glyph,
     mut target: *mut BuiltValue,
     mut ctx: *const GlyfIOContext,
@@ -419,7 +419,7 @@ unsafe extern "C" fn glyf_glyph_dump_contours(
         contours,
     );
 }
-unsafe extern "C" fn glyf_glyph_dump_references(
+unsafe fn glyf_glyph_dump_references(
     mut g: *const Glyph,
     mut target: *mut BuiltValue,
     mut ctx: *const GlyfIOContext,
@@ -508,7 +508,7 @@ unsafe extern "C" fn glyf_glyph_dump_references(
         references,
     );
 }
-unsafe extern "C" fn glyf_glyph_dump_stemdefs(mut stems: *const StemDefList) -> *mut BuiltValue {
+unsafe fn glyf_glyph_dump_stemdefs(mut stems: *const StemDefList) -> *mut BuiltValue {
     let stems: &Vec<PostscriptStemDef> = &*stems;
     let mut a: *mut BuiltValue = json_array_new(stems.len());
     let mut j: ShapeId = 0 as ShapeId;
@@ -529,7 +529,7 @@ unsafe extern "C" fn glyf_glyph_dump_stemdefs(mut stems: *const StemDefList) -> 
     }
     return a;
 }
-unsafe extern "C" fn glyf_glyph_dump_maskdefs(
+unsafe fn glyf_glyph_dump_maskdefs(
     mut masks: *const MaskList,
     mut hh: *const StemDefList,
     mut vv: *const StemDefList,
@@ -588,7 +588,7 @@ unsafe extern "C" fn glyf_glyph_dump_maskdefs(
     }
     return a;
 }
-unsafe extern "C" fn glyf_dump_glyph(
+unsafe fn glyf_dump_glyph(
     mut g: *const Glyph,
     mut options: *const Options,
     mut ctx: *const GlyfIOContext,
@@ -696,7 +696,7 @@ unsafe extern "C" fn glyf_dump_glyph(
     }
     return glyph;
 }
-pub unsafe extern "C" fn otfcc_dump_glyphorder(
+pub unsafe fn otfcc_dump_glyphorder(
     mut table: *const GlyfTable,
     mut root: *mut BuiltValue,
 ) {
@@ -720,7 +720,7 @@ pub unsafe extern "C" fn otfcc_dump_glyphorder(
     );
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_glyf(
+pub unsafe fn otfcc_dump_glyf(
     table: Option<&GlyfTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -763,7 +763,7 @@ pub unsafe extern "C" fn otfcc_dump_glyf(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-unsafe extern "C" fn glyf_parse_point(mut pointdump: *const ParsedValue) -> Point {
+unsafe fn glyf_parse_point(mut pointdump: *const ParsedValue) -> Point {
     let mut point: Point = Point {
         x: VQ {
             kernel: 0.,
@@ -807,7 +807,7 @@ unsafe extern "C" fn glyf_parse_point(mut pointdump: *const ParsedValue) -> Poin
     }
     return point;
 }
-unsafe extern "C" fn glyf_parse_contours(mut col: *const ParsedValue, mut g: *mut Glyph) {
+unsafe fn glyf_parse_contours(mut col: *const ParsedValue, mut g: *mut Glyph) {
     if col.is_null() {
         return;
     }
@@ -839,7 +839,7 @@ unsafe extern "C" fn glyf_parse_contours(mut col: *const ParsedValue, mut g: *mu
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn glyf_parse_reference(mut refdump: *const ParsedValue) -> ComponentReference {
+unsafe fn glyf_parse_reference(mut refdump: *const ParsedValue) -> ComponentReference {
     let mut _gname: *const ParsedValue = json_obj_get_type(
         refdump,
         b"glyph\0" as *const u8 as *const ::core::ffi::c_char,
@@ -929,7 +929,7 @@ unsafe extern "C" fn glyf_parse_reference(mut refdump: *const ParsedValue) -> Co
     }
     return ref_0;
 }
-unsafe extern "C" fn glyf_parse_references(mut col: *const ParsedValue, mut g: *mut Glyph) {
+unsafe fn glyf_parse_references(mut col: *const ParsedValue, mut g: *mut Glyph) {
     if col.is_null() {
         return;
     }
@@ -972,7 +972,7 @@ unsafe extern "C" fn wrong_instrs_for_glyph(
         name_cstr.as_ptr() as *const ::core::ffi::c_char,
     );
 }
-unsafe extern "C" fn parse_stems(mut sd: *const ParsedValue, mut stems: *mut StemDefList) {
+unsafe fn parse_stems(mut sd: *const ParsedValue, mut stems: *mut StemDefList) {
     if sd.is_null() {
         return;
     }
@@ -997,7 +997,7 @@ unsafe extern "C" fn parse_stems(mut sd: *const ParsedValue, mut stems: *mut Ste
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn parse_maskbits(mut arr: *mut bool, mut bits: *const ParsedValue) {
+unsafe fn parse_maskbits(mut arr: *mut bool, mut bits: *const ParsedValue) {
     if bits.is_null() {
         let mut j: ShapeId = 0 as ShapeId;
         while (j as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int {
@@ -1028,7 +1028,7 @@ unsafe extern "C" fn parse_maskbits(mut arr: *mut bool, mut bits: *const ParsedV
         }
     };
 }
-unsafe extern "C" fn parse_masks(mut md: *const ParsedValue, mut masks: *mut MaskList) {
+unsafe fn parse_masks(mut md: *const ParsedValue, mut masks: *mut MaskList) {
     if md.is_null() {
         return;
     }
@@ -1074,7 +1074,7 @@ unsafe extern "C" fn parse_masks(mut md: *const ParsedValue, mut masks: *mut Mas
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn otfcc_glyf_parse_glyph(
+unsafe fn otfcc_glyf_parse_glyph(
     mut glyphdump: *const ParsedValue,
     order_entry: &GlyphOrderEntry,
     mut options: *const Options,
@@ -1206,7 +1206,7 @@ unsafe extern "C" fn otfcc_glyf_parse_glyph(
     return g;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_parse_glyf(
+pub unsafe fn otfcc_parse_glyf(
     mut root: *const ParsedValue,
     mut glyph_order: *mut GlyphOrder,
     mut options: *const Options,

@@ -32,7 +32,7 @@ pub type Tsi5Table = ClassDef;
 unsafe fn unwrap_class_def(raw: *mut ClassDef) -> Box<ClassDef> {
     Box::from_raw(raw)
 }
-pub unsafe extern "C" fn otfcc_read_tsi5(
+pub unsafe fn otfcc_read_tsi5(
     packet: &Packet,
     mut _options: *const Options,
 ) -> Option<Box<Tsi5Table>> {
@@ -75,7 +75,7 @@ pub unsafe extern "C" fn otfcc_read_tsi5(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_tsi5(
+pub unsafe fn otfcc_dump_tsi5(
     table: Option<&Tsi5Table>,
     mut root: *mut BuiltValue,
     mut _options: *const Options,
@@ -90,7 +90,7 @@ pub unsafe extern "C" fn otfcc_dump_tsi5(
         OTL_I_CLASS_DEF.dump.expect("non-null function pointer")(table as *const ClassDef),
     );
 }
-pub unsafe extern "C" fn otfcc_parse_tsi5(
+pub unsafe fn otfcc_parse_tsi5(
     mut root: *const ParsedValue,
     mut _options: *const Options,
 ) -> Option<Box<Tsi5Table>> {
@@ -110,7 +110,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi5(
     return Some(unwrap_class_def(raw as *mut ClassDef));
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_tsi5(
+pub unsafe fn otfcc_build_tsi5(
     tsi5: Option<&Tsi5Table>,
     mut _options: *const Options,
     mut num_glyphs: GlyphId,

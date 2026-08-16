@@ -36,7 +36,7 @@ pub struct HdmxTable {
 // `DeviceRecord.widths`) is now a plain `Vec`, so the old manual
 // `dispose_hdmx`/vtable-`Drop`-impl pair this replaced is no longer
 // needed at all -- `Vec`'s own drop glue reaches every level.
-pub unsafe extern "C" fn otfcc_read_hdmx(
+pub unsafe fn otfcc_read_hdmx(
     mut packet: &Packet,
     mut _options: *const Options,
     mut maxp: *mut MaxpTable,

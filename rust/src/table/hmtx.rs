@@ -28,7 +28,7 @@ pub struct HmtxTable {
     pub metrics: Vec<HorizontalMetric>,
     pub left_side_bearing: Vec<Pos>,
 }
-pub unsafe extern "C" fn otfcc_read_hmtx(
+pub unsafe fn otfcc_read_hmtx(
     packet: &Packet,
     mut options: *const Options,
     mut hhea: *mut HheaTable,
@@ -117,7 +117,7 @@ pub unsafe extern "C" fn otfcc_read_hmtx(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_hmtx(
+pub unsafe fn otfcc_build_hmtx(
     hmtx: Option<&HmtxTable>,
     mut count_a: GlyphId,
     mut count_k: GlyphId,

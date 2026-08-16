@@ -45,7 +45,7 @@ impl Drop for VorgTable {
         }
     }
 }
-pub unsafe extern "C" fn otfcc_read_vorg(
+pub unsafe fn otfcc_read_vorg(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<VorgTable>> {
@@ -131,7 +131,7 @@ pub unsafe extern "C" fn otfcc_read_vorg(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_vorg(
+pub unsafe fn otfcc_build_vorg(
     table: Option<&VorgTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

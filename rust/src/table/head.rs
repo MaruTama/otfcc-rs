@@ -37,7 +37,7 @@ pub struct HeadTable {
 // The entire vtable is deleted: grepping the bare `TABLE_I_HEAD`
 // identifier confirmed only `.create`/`.free` were ever called, both
 // internal to this crate.
-pub unsafe extern "C" fn otfcc_read_head(
+pub unsafe fn otfcc_read_head(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<HeadTable>> {
@@ -156,7 +156,7 @@ static MAC_STYLE_LABELS: [&::core::ffi::CStr; 7] = [
     c"extended",
 ];
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_head(
+pub unsafe fn otfcc_dump_head(
     table: Option<&HeadTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -266,7 +266,7 @@ pub unsafe extern "C" fn otfcc_dump_head(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parse_head(
+pub unsafe fn otfcc_parse_head(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<HeadTable>> {
@@ -382,7 +382,7 @@ pub unsafe extern "C" fn otfcc_parse_head(
     return Some(head_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_head(
+pub unsafe fn otfcc_build_head(
     head: Option<&HeadTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

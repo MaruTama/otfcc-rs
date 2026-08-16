@@ -49,7 +49,7 @@ pub static WHITE: CpalColor = CpalColor {
     alpha: 0xff as u8,
     label: 0xffff as u16,
 };
-pub unsafe extern "C" fn otfcc_read_cpal(
+pub unsafe fn otfcc_read_cpal(
     packet: &Packet,
     mut _options: *const Options,
 ) -> Option<Box<CpalTable>> {
@@ -352,7 +352,7 @@ pub unsafe extern "C" fn otfcc_read_cpal(
     return None;
 }
 #[inline]
-unsafe extern "C" fn dump_color(mut color: *const CpalColor) -> *mut BuiltValue {
+unsafe fn dump_color(mut color: *const CpalColor) -> *mut BuiltValue {
     let mut _color: *mut BuiltValue = json_object_new(5 as usize);
     json_object_push(
         _color,
@@ -386,7 +386,7 @@ unsafe extern "C" fn dump_color(mut color: *const CpalColor) -> *mut BuiltValue 
     return preserialize(_color);
 }
 #[inline]
-unsafe extern "C" fn dump_palette(mut palette: *const CpalPalette) -> *mut BuiltValue {
+unsafe fn dump_palette(mut palette: *const CpalPalette) -> *mut BuiltValue {
     let mut _palette: *mut BuiltValue = json_object_new(3 as usize);
     if (*palette).type_0 != 0 {
         json_object_push(
@@ -417,7 +417,7 @@ unsafe extern "C" fn dump_palette(mut palette: *const CpalPalette) -> *mut Built
     return _palette;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_cpal(
+pub unsafe fn otfcc_dump_cpal(
     table: Option<&CpalTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -467,7 +467,7 @@ pub unsafe extern "C" fn otfcc_dump_cpal(
     }
 }
 #[inline]
-unsafe extern "C" fn parse_color(mut _color: *const ParsedValue) -> CpalColor {
+unsafe fn parse_color(mut _color: *const ParsedValue) -> CpalColor {
     let mut color: CpalColor = WHITE;
     if _color.is_null()
         || json_type_of(_color) != JsonType::Object
@@ -501,7 +501,7 @@ unsafe extern "C" fn parse_color(mut _color: *const ParsedValue) -> CpalColor {
     ) as u16;
     return color;
 }
-pub unsafe extern "C" fn otfcc_parse_cpal(
+pub unsafe fn otfcc_parse_cpal(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<CpalTable>> {
@@ -582,7 +582,7 @@ pub unsafe extern "C" fn otfcc_parse_cpal(
     return cpal;
 }
 #[inline]
-unsafe extern "C" fn build_palette_type(mut cpal: *const CpalTable) -> *mut BkBlock {
+unsafe fn build_palette_type(mut cpal: *const CpalTable) -> *mut BkBlock {
     let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     let mut needs_palette_type: bool = false;
     let mut j: TableId = 0 as TableId;
@@ -604,7 +604,7 @@ unsafe extern "C" fn build_palette_type(mut cpal: *const CpalTable) -> *mut BkBl
     return block;
 }
 #[inline]
-unsafe extern "C" fn build_palette_label(mut cpal: *const CpalTable) -> *mut BkBlock {
+unsafe fn build_palette_label(mut cpal: *const CpalTable) -> *mut BkBlock {
     let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     let mut needs_palette_label: bool = false;
     let mut j: TableId = 0 as TableId;
@@ -626,7 +626,7 @@ unsafe extern "C" fn build_palette_label(mut cpal: *const CpalTable) -> *mut BkB
     return block;
 }
 #[inline]
-unsafe extern "C" fn build_palette_entry_label(mut cpal: *const CpalTable) -> *mut BkBlock {
+unsafe fn build_palette_entry_label(mut cpal: *const CpalTable) -> *mut BkBlock {
     let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     let mut needs_palette_entry_label: bool = false;
     let palette: &CpalPalette = &palettes[0 as usize];
@@ -651,7 +651,7 @@ unsafe extern "C" fn build_palette_entry_label(mut cpal: *const CpalTable) -> *m
     return block;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_cpal(
+pub unsafe fn otfcc_build_cpal(
     cpal: Option<&CpalTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

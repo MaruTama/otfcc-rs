@@ -228,7 +228,7 @@ fn otfcc_new_cff_private() -> Box<CffPrivateDict> {
     })
 }
 #[inline]
-unsafe extern "C" fn init_fd(mut fd: *mut CffTable) {
+unsafe fn init_fd(mut fd: *mut CffTable) {
     memset(
         fd as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -913,7 +913,7 @@ static DRAW_PASS: CffIOutlineBuilder = {
         ),
     }
 };
-unsafe extern "C" fn build_outline(
+unsafe fn build_outline(
     mut i: GlyphId,
     mut context: *mut CffExtractContext,
     mut options: *const Options,
@@ -1070,10 +1070,10 @@ unsafe extern "C" fn build_outline(
 // FFI boundary) -- goes away with the vtable/extern "C" cleanup, same as
 // every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-unsafe extern "C" fn form_cid_string(mut cid: CffSid) -> Vec<u8> {
+unsafe fn form_cid_string(mut cid: CffSid) -> Vec<u8> {
     return crate::bytesbuild!(b"CID", cid as ::core::ffi::c_int);
 }
-unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractContext) {
+unsafe fn name_glyphs_according_to_cff(mut context: *mut CffExtractContext) {
     let mut cff_file: *mut CffFile = (*context).cff_file;
     let mut glyphs: *mut GlyfTable = (*context).glyphs;
     let charset: &CffCharset = &(*cff_file).charsets;
@@ -1193,10 +1193,10 @@ unsafe extern "C" fn name_glyphs_according_to_cff(mut context: *mut CffExtractCo
         }
     };
 }
-unsafe extern "C" fn qround(x: ::core::ffi::c_double) -> ::core::ffi::c_double {
+unsafe fn qround(x: ::core::ffi::c_double) -> ::core::ffi::c_double {
     return otfcc_from_fixed(otfcc_to_fixed(x));
 }
-unsafe extern "C" fn apply_cff_matrix(
+unsafe fn apply_cff_matrix(
     mut cff: *mut CffTable,
     mut glyf: *mut GlyfTable,
     mut head: *const HeadTable,
@@ -1272,7 +1272,7 @@ unsafe extern "C" fn apply_cff_matrix(
         jj = jj.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn otfcc_read_cff_and_glyf_tables(
+pub unsafe fn otfcc_read_cff_and_glyf_tables(
     packet: &Packet,
     mut options: *const Options,
     mut head: *const HeadTable,
@@ -1445,7 +1445,7 @@ unsafe fn pd_delta_to_json(
     }
     json_object_push(target, field, a);
 }
-unsafe extern "C" fn pd_to_json(mut pd: *const CffPrivateDict) -> *mut BuiltValue {
+unsafe fn pd_to_json(mut pd: *const CffPrivateDict) -> *mut BuiltValue {
     let mut _pd: *mut BuiltValue = json_object_new(24 as usize);
     pd_delta_to_json(
         _pd,
@@ -1556,7 +1556,7 @@ unsafe extern "C" fn pd_to_json(mut pd: *const CffPrivateDict) -> *mut BuiltValu
     }
     return _pd;
 }
-unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut BuiltValue {
+unsafe fn fd_to_json(mut table: *const CffTable) -> *mut BuiltValue {
     let mut _cff: *mut BuiltValue = json_object_new(24 as usize);
     if (*table).is_cid {
         json_object_push(
@@ -1768,7 +1768,7 @@ unsafe extern "C" fn fd_to_json(mut table: *const CffTable) -> *mut BuiltValue {
     }
     return _cff;
 }
-pub unsafe extern "C" fn otfcc_dump_cff(
+pub unsafe fn otfcc_dump_cff(
     mut table: Option<&CffTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -1802,7 +1802,7 @@ unsafe fn pd_delta_from_json(dump: *const ParsedValue) -> Vec<::core::ffi::c_dou
     }
     (0..json_arr_len(dump)).map(|j| json_numof(json_arr_at(dump, j))).collect()
 }
-unsafe extern "C" fn pd_from_json(mut dump: *const ParsedValue) -> Option<Box<CffPrivateDict>> {
+unsafe fn pd_from_json(mut dump: *const ParsedValue) -> Option<Box<CffPrivateDict>> {
     if dump.is_null()
         || json_type_of(dump) != JsonType::Object
     {
@@ -1870,7 +1870,7 @@ unsafe extern "C" fn pd_from_json(mut dump: *const ParsedValue) -> Option<Box<Cf
     );
     return Some(pd_box);
 }
-unsafe extern "C" fn fd_from_json(
+unsafe fn fd_from_json(
     mut dump: *const ParsedValue,
     mut options: *const Options,
     mut top_level: bool,
@@ -2034,7 +2034,7 @@ unsafe extern "C" fn fd_from_json(
     }
     return table;
 }
-pub unsafe extern "C" fn otfcc_parse_cff(
+pub unsafe fn otfcc_parse_cff(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<CffTable>> {
@@ -2066,7 +2066,7 @@ pub unsafe extern "C" fn otfcc_parse_cff(
         return unwrap_cff_table(cff);
     };
 }
-unsafe extern "C" fn cff_make_charstrings(
+unsafe fn cff_make_charstrings(
     mut context: *mut CffCharstringBuilderContext,
     mut s: *mut *mut Buffer,
     mut gs: *mut *mut Buffer,
@@ -2125,7 +2125,7 @@ unsafe fn sidof(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>, s: &[u8]) -> ::cor
     (*h).insert(key, s.to_vec());
     return 391 as ::core::ffi::c_int + idx as ::core::ffi::c_int;
 }
-unsafe extern "C" fn cffdict_givemeablank(mut dict: *mut CffDict) -> *mut CffDictEntry {
+unsafe fn cffdict_givemeablank(mut dict: *mut CffDict) -> *mut CffDictEntry {
     (*dict).ents.push(CffDictEntry {
         op: CffDictOperator(0),
         vals: Vec::new(),
@@ -2210,7 +2210,7 @@ unsafe fn cffdict_input_array(
     }
     (*last).vals = vals;
 }
-unsafe extern "C" fn cff_make_fd_dict(
+unsafe fn cff_make_fd_dict(
     mut fd: *mut CffTable,
     mut h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> *mut CffDict {
@@ -2263,7 +2263,7 @@ unsafe extern "C" fn cff_make_fd_dict(
     }
     return dict;
 }
-unsafe extern "C" fn cff_make_private_dict(mut pd: *mut CffPrivateDict) -> *mut CffDict {
+unsafe fn cff_make_private_dict(mut pd: *mut CffPrivateDict) -> *mut CffDict {
     // Was `__caryll_allocate_clean` (calloc) -- unsound now that `CffDict`
     // owns `ents: Vec<CffDictEntry>`; an all-zero bit pattern is not a
     // valid `Vec`. `cff_make_fd_dict` two functions above already gets
@@ -2359,7 +2359,7 @@ unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) 
     (*final_blob).cursor = (*final_blob).size;
     return final_blob;
 }
-unsafe extern "C" fn cff_compile_nameindex(mut cff: *mut CffTable) -> *mut Buffer {
+unsafe fn cff_compile_nameindex(mut cff: *mut CffTable) -> *mut Buffer {
     let mut name_index: *mut CffIndex = (
         CFF_I_INDEX.create.expect("non-null function pointer"))();
     (*name_index).count = 1 as Arity;
@@ -2383,7 +2383,7 @@ unsafe extern "C" fn cff_compile_nameindex(mut cff: *mut CffTable) -> *mut Buffe
     (*cff).font_name = Vec::new();
     return buf;
 }
-unsafe extern "C" fn cff_make_charset(
+unsafe fn cff_make_charset(
     mut cff: *mut CffTable,
     mut glyf: *mut GlyfTable,
     mut string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
@@ -2414,7 +2414,7 @@ unsafe extern "C" fn cff_make_charset(
 // own scratch-buffer conversions. `.s`'s old dual role (a running write
 // cursor through the loop, overwritten with the final range count right
 // after) collapses into a single sequential `.push()` per transition.
-unsafe extern "C" fn cff_make_fdselect(
+unsafe fn cff_make_fdselect(
     mut cff: *mut CffTable,
     mut glyf: *mut GlyfTable,
 ) -> *mut Buffer {
@@ -2473,7 +2473,7 @@ unsafe extern "C" fn callback_makefd(
     CFF_I_DICT.build.expect("non-null function pointer")(fd);
     return blob;
 }
-unsafe extern "C" fn cff_make_fdarray(
+unsafe fn cff_make_fdarray(
     mut fd_array: *const Vec<Box<CffTable>>,
     mut string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> *mut CffIndex {
@@ -2492,7 +2492,7 @@ unsafe extern "C" fn cff_make_fdarray(
         ),
     );
 }
-unsafe extern "C" fn writecff_cid_keyed(
+unsafe fn writecff_cid_keyed(
     mut cff: *mut CffTable,
     mut glyf: *mut GlyfTable,
     mut options: *const Options,
@@ -2737,7 +2737,7 @@ unsafe extern "C" fn writecff_cid_keyed(
     }
     return blob;
 }
-pub unsafe extern "C" fn otfcc_build_cff(
+pub unsafe fn otfcc_build_cff(
     cff_and_glyf: CffAndGlyf,
     mut options: *const Options,
 ) -> *mut Buffer {

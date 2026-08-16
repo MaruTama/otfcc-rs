@@ -71,14 +71,14 @@ pub struct CmapTable {
 }
 pub const UINT16_MAX: ::core::ffi::c_int = 65535 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
+unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
     return strtol(
         __nptr,
         NULL as *mut *mut ::core::ffi::c_char,
         10 as ::core::ffi::c_int,
     ) as ::core::ffi::c_int;
 }
-pub unsafe extern "C" fn otfcc_encode_cmap_by_index(
+pub unsafe fn otfcc_encode_cmap_by_index(
     mut cmap: *mut CmapTable,
     mut c: ::core::ffi::c_int,
     mut gid: u16,
@@ -101,7 +101,7 @@ pub unsafe extern "C" fn otfcc_encode_cmap_by_index(
 // Never a real FFI boundary -- internal call sites only, same rationale
 // as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_encode_cmap_by_name(
+pub unsafe fn otfcc_encode_cmap_by_name(
     mut cmap: *mut CmapTable,
     mut c: ::core::ffi::c_int,
     mut name: Vec<u8>,
@@ -114,7 +114,7 @@ pub unsafe extern "C" fn otfcc_encode_cmap_by_name(
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-pub unsafe extern "C" fn otfcc_unmap_cmap(
+pub unsafe fn otfcc_unmap_cmap(
     mut cmap: *mut CmapTable,
     mut c: ::core::ffi::c_int,
 ) -> bool {
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn otfcc_unmap_cmap(
     // node walk this walk used to do.
     (*cmap).unicodes.remove(&c).is_some()
 }
-pub unsafe extern "C" fn otfcc_cmap_lookup(
+pub unsafe fn otfcc_cmap_lookup(
     mut cmap: *const CmapTable,
     mut c: ::core::ffi::c_int,
 ) -> *mut GlyphHandle {
@@ -136,7 +136,7 @@ pub unsafe extern "C" fn otfcc_cmap_lookup(
         None => ::core::ptr::null_mut::<GlyphHandle>(),
     }
 }
-pub unsafe extern "C" fn otfcc_encode_cmap_uvs_by_index(
+pub unsafe fn otfcc_encode_cmap_uvs_by_index(
     mut cmap: *mut CmapTable,
     mut c: CmapUvsKey,
     mut gid: u16,
@@ -152,7 +152,7 @@ pub unsafe extern "C" fn otfcc_encode_cmap_uvs_by_index(
 // Same `Vec<u8>`-in shape as `otfcc_encode_cmap_by_name` above, same
 // reason.
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_encode_cmap_uvs_by_name(
+pub unsafe fn otfcc_encode_cmap_uvs_by_name(
     mut cmap: *mut CmapTable,
     mut c: CmapUvsKey,
     mut name: Vec<u8>,
@@ -165,13 +165,13 @@ pub unsafe extern "C" fn otfcc_encode_cmap_uvs_by_name(
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-pub unsafe extern "C" fn otfcc_unmap_cmap_uvs(
+pub unsafe fn otfcc_unmap_cmap_uvs(
     mut cmap: *mut CmapTable,
     mut c: CmapUvsKey,
 ) -> bool {
     (*cmap).uvs.remove(&c).is_some()
 }
-pub unsafe extern "C" fn otfcc_cmap_lookup_uvs(
+pub unsafe fn otfcc_cmap_lookup_uvs(
     mut cmap: *const CmapTable,
     mut c: CmapUvsKey,
 ) -> *mut GlyphHandle {
@@ -180,7 +180,7 @@ pub unsafe extern "C" fn otfcc_cmap_lookup_uvs(
         None => ::core::ptr::null_mut::<GlyphHandle>(),
     }
 }
-unsafe extern "C" fn read_format12(
+unsafe fn read_format12(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut cmap: *mut CmapTable,
@@ -224,7 +224,7 @@ unsafe extern "C" fn read_format12(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn read_format4(
+unsafe fn read_format4(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut cmap: *mut CmapTable,
@@ -304,7 +304,7 @@ unsafe extern "C" fn read_format4(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn read_uvs_default(
+unsafe fn read_uvs_default(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut selector: Unicode,
@@ -345,7 +345,7 @@ unsafe extern "C" fn read_uvs_default(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn read_uvs_non_default(
+unsafe fn read_uvs_non_default(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut selector: Unicode,
@@ -377,7 +377,7 @@ unsafe extern "C" fn read_uvs_non_default(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn read_format14(
+unsafe fn read_format14(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut cmap: *mut CmapTable,
@@ -419,7 +419,7 @@ unsafe extern "C" fn read_format14(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn read_cmap_mapping_table(
+unsafe fn read_cmap_mapping_table(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut cmap: *mut CmapTable,
@@ -434,7 +434,7 @@ unsafe extern "C" fn read_cmap_mapping_table(
         }
     }
 }
-unsafe extern "C" fn read_cmap_mapping_table_uvs(
+unsafe fn read_cmap_mapping_table_uvs(
     mut start: FontFilePointer,
     mut length_limit: u32,
     mut cmap: *mut CmapTable,
@@ -445,7 +445,7 @@ unsafe extern "C" fn read_cmap_mapping_table_uvs(
     }
 }
 #[inline]
-unsafe extern "C" fn is_valid_cmap_encoding(mut platform: u16, mut encoding: u16) -> bool {
+unsafe fn is_valid_cmap_encoding(mut platform: u16, mut encoding: u16) -> bool {
     return platform as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         && encoding as ::core::ffi::c_int == 3 as ::core::ffi::c_int
         || platform as ::core::ffi::c_int == 0 as ::core::ffi::c_int
@@ -462,7 +462,7 @@ pub static FORMAT_PRIORITIES: [TableId; 3] = [
     4 as ::core::ffi::c_int as TableId,
     0 as ::core::ffi::c_int as TableId,
 ];
-pub unsafe extern "C" fn otfcc_read_cmap(
+pub unsafe fn otfcc_read_cmap(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<CmapTable>> {
@@ -599,7 +599,7 @@ pub unsafe extern "C" fn otfcc_read_cmap(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_cmap(
+pub unsafe fn otfcc_dump_cmap(
     table: Option<&CmapTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -682,7 +682,7 @@ pub unsafe extern "C" fn otfcc_dump_cmap(
 // used to on the `sdsnewlen`-copied version -- no allocation or free
 // needed at either call site any more.
 #[inline]
-unsafe extern "C" fn parse_unicode(unicode_str: *const ::core::ffi::c_char) -> Unicode {
+unsafe fn parse_unicode(unicode_str: *const ::core::ffi::c_char) -> Unicode {
     if strlen(unicode_str) > 2 as usize
         && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int == 'U' as i32
         && *unicode_str.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int == '+' as i32
@@ -696,7 +696,7 @@ unsafe extern "C" fn parse_unicode(unicode_str: *const ::core::ffi::c_char) -> U
         return atoi(unicode_str as *const ::core::ffi::c_char) as Unicode;
     };
 }
-unsafe extern "C" fn parse_cmap_unicodes(
+unsafe fn parse_cmap_unicodes(
     mut cmap: *mut CmapTable,
     mut table: *const ParsedValue,
     mut options: *const Options,
@@ -740,7 +740,7 @@ unsafe extern "C" fn parse_cmap_unicodes(
 }
 // Same borrow-`json_obj_key_at`-directly reasoning as `parse_unicode`.
 #[inline]
-unsafe extern "C" fn parse_uvs_key(uvs_str: *const ::core::ffi::c_char) -> CmapUvsKey {
+unsafe fn parse_uvs_key(uvs_str: *const ::core::ffi::c_char) -> CmapUvsKey {
     let mut len: usize = strlen(uvs_str);
     let mut k: CmapUvsKey = CmapUvsKey {
         unicode: 0 as u32,
@@ -757,7 +757,7 @@ unsafe extern "C" fn parse_uvs_key(uvs_str: *const ::core::ffi::c_char) -> CmapU
     }
     return k;
 }
-unsafe extern "C" fn parse_cmap_uvs(
+unsafe fn parse_cmap_uvs(
     mut cmap: *mut CmapTable,
     mut table: *const ParsedValue,
     mut options: *const Options,
@@ -803,7 +803,7 @@ unsafe extern "C" fn parse_cmap_uvs(
         j = j.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn otfcc_parse_cmap(
+pub unsafe fn otfcc_parse_cmap(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<CmapTable>> {
@@ -862,7 +862,7 @@ pub unsafe extern "C" fn otfcc_parse_cmap(
     }
     return Some(cmap_box);
 }
-unsafe extern "C" fn otfcc_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
+unsafe fn otfcc_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
     let mut buf: *mut Buffer = bufnew();
     let mut end_count: *mut Buffer = bufnew();
     let mut start_count: *mut Buffer = bufnew();
@@ -1008,7 +1008,7 @@ unsafe extern "C" fn otfcc_build_cmap_format4(mut cmap: *const CmapTable) -> *mu
     buffree(glyph_id_array);
     return buf;
 }
-unsafe extern "C" fn otfcc_try_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
+unsafe fn otfcc_try_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
     let mut buf: *mut Buffer = otfcc_build_cmap_format4(cmap);
     if buflen(buf) > UINT16_MAX as usize {
         buffree(buf);
@@ -1017,7 +1017,7 @@ unsafe extern "C" fn otfcc_try_build_cmap_format4(mut cmap: *const CmapTable) ->
         return buf;
     };
 }
-unsafe extern "C" fn otfcc_build_cmap_format12(mut cmap: *const CmapTable) -> *mut Buffer {
+unsafe fn otfcc_build_cmap_format12(mut cmap: *const CmapTable) -> *mut Buffer {
     let mut buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 12 as u16);
     bufwrite16b(buf, 0 as u16);
@@ -1067,7 +1067,7 @@ pub const MAX_UNICODE: ::core::ffi::c_int = 0x110001 as ::core::ffi::c_int;
 pub const HAS_DEFAULT: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 pub const HAS_NON_DEFAULT: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn write_default_range(
+unsafe fn write_default_range(
     mut dflt: *mut Buffer,
     mut n_ranges: *mut u32,
     mut start: Unicode,
@@ -1083,7 +1083,7 @@ unsafe extern "C" fn write_default_range(
     bufwrite8(dflt, end.wrapping_sub(start) as u8);
     *n_ranges = (*n_ranges).wrapping_add(1 as u32);
 }
-unsafe extern "C" fn build_format14_for_selector(
+unsafe fn build_format14_for_selector(
     mut cmap: *const CmapTable,
     mut selector: Unicode,
     mut dflt: *mut Buffer,
@@ -1178,7 +1178,7 @@ unsafe extern "C" fn build_format14_for_selector(
         0 as ::core::ffi::c_int
     })) as u8;
 }
-unsafe extern "C" fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
+unsafe fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
     let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];
     for (key, _) in (*cmap).uvs.iter() {
         if key.selector < MAX_UNICODE as u32 {
@@ -1218,7 +1218,7 @@ unsafe extern "C" fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *m
     return buf;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_cmap(
+pub unsafe fn otfcc_build_cmap(
     cmap: Option<&CmapTable>,
     mut options: *const Options,
 ) -> *mut Buffer {

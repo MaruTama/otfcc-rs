@@ -192,7 +192,7 @@ pub static TABLE_I_FVAR: FvarTableElementInterface = {
         ),
     }
 };
-pub unsafe extern "C" fn otfcc_read_fvar(
+pub unsafe fn otfcc_read_fvar(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<FvarTable>> {
@@ -408,7 +408,7 @@ pub unsafe extern "C" fn otfcc_read_fvar(
     }
     return None;
 }
-pub unsafe extern "C" fn otfcc_dump_fvar(
+pub unsafe fn otfcc_dump_fvar(
     table: Option<&FvarTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -535,7 +535,7 @@ pub unsafe extern "C" fn otfcc_dump_fvar(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn json_new_vq_segment(
+pub unsafe fn json_new_vq_segment(
     mut s: *const VqSegment,
     mut fvar: *const FvarTable,
 ) -> *mut BuiltValue {
@@ -564,7 +564,7 @@ pub unsafe extern "C" fn json_new_vq_segment(
         }
     };
 }
-pub unsafe extern "C" fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *mut BuiltValue {
+pub unsafe fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *mut BuiltValue {
     if z.shift.is_empty() {
         return preserialize(json_new_position(I_VQ
             .get_still
@@ -590,7 +590,7 @@ pub unsafe extern "C" fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *
 // prior target's dead vtable-adjacent duplicate -- and deleted outright
 // rather than ported (it would need `x: VV` to become `x: Vec<Pos>`, moving
 // or cloning the caller's coordinates for no live caller).
-pub unsafe extern "C" fn json_new_v_vp(
+pub unsafe fn json_new_v_vp(
     x: *const VV,
     fvar: *const FvarTable,
 ) -> *mut BuiltValue {
@@ -629,10 +629,10 @@ pub unsafe extern "C" fn json_new_v_vp(
         return preserialize(_coord_0);
     };
 }
-pub unsafe extern "C" fn json_vq_of(mut cv: *const ParsedValue, mut _fvar: *const FvarTable) -> VQ {
+pub unsafe fn json_vq_of(mut cv: *const ParsedValue, mut _fvar: *const FvarTable) -> VQ {
     return I_VQ.create_still.expect("non-null function pointer")(json_numof(cv) as Pos);
 }
-pub unsafe extern "C" fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut BuiltValue {
+pub unsafe fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut BuiltValue {
     if vq_axis_span_is_one(s) {
         return json_string_new(b"*\0" as *const u8 as *const ::core::ffi::c_char);
     } else {
@@ -655,7 +655,7 @@ pub unsafe extern "C" fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut
         return a;
     };
 }
-pub unsafe extern "C" fn json_new_vq_region_explicit(
+pub unsafe fn json_new_vq_region_explicit(
     mut rs: *const VqRegion,
     fvar: *const FvarTable,
 ) -> *mut BuiltValue {
@@ -691,7 +691,7 @@ pub unsafe extern "C" fn json_new_vq_region_explicit(
         return r_0;
     };
 }
-pub unsafe extern "C" fn json_new_vq_region(
+pub unsafe fn json_new_vq_region(
     mut rs: *const VqRegion,
     mut fvar: *const FvarTable,
 ) -> *mut BuiltValue {
@@ -705,13 +705,13 @@ pub unsafe extern "C" fn json_new_vq_region(
     };
 }
 #[inline]
-unsafe extern "C" fn be16(mut x: u16) -> u16 {
+unsafe fn be16(mut x: u16) -> u16 {
     return ((x as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) << 8 as ::core::ffi::c_int
         | (x as ::core::ffi::c_int & 0xff00 as ::core::ffi::c_int) >> 8 as ::core::ffi::c_int)
         as u16;
 }
 #[inline]
-unsafe extern "C" fn be32(mut x: u32) -> u32 {
+unsafe fn be32(mut x: u32) -> u32 {
     return (x & 0xff as u32) << 24 as ::core::ffi::c_int
         | (x & 0xff00 as u32) << 8 as ::core::ffi::c_int
         | (x & 0xff0000 as u32) >> 8 as ::core::ffi::c_int
