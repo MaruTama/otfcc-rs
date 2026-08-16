@@ -39,7 +39,7 @@ impl Drop for LtshTable {
         }
     }
 }
-pub unsafe extern "C" fn otfcc_read_ltsh(
+pub unsafe fn otfcc_read_ltsh(
     packet: &Packet,
     mut _options: *const Options,
 ) -> Option<Box<LtshTable>> {
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn otfcc_read_ltsh(
 // only caller now hands `(*font).ltsh.as_deref()` from `Font.ltsh:
 // Option<Box<LtshTable>>`.
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_ltsh(
+pub unsafe fn otfcc_build_ltsh(
     ltsh: Option<&LtshTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

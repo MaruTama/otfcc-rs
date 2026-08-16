@@ -38,7 +38,7 @@ pub struct VheaTable {
 // vtable is deleted: grepping the bare `TABLE_I_VHEA` identifier
 // confirmed only `.create`/`.free` were ever called, both internal to
 // this crate.
-pub unsafe extern "C" fn otfcc_read_vhea(
+pub unsafe fn otfcc_read_vhea(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<VheaTable>> {
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn otfcc_read_vhea(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_vhea(
+pub unsafe fn otfcc_dump_vhea(
     table: Option<&VheaTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -207,7 +207,7 @@ pub unsafe extern "C" fn otfcc_dump_vhea(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parse_vhea(
+pub unsafe fn otfcc_parse_vhea(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<VheaTable>> {
@@ -295,7 +295,7 @@ pub unsafe extern "C" fn otfcc_parse_vhea(
     return vhea_box;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_vhea(
+pub unsafe fn otfcc_build_vhea(
     vhea: Option<&VheaTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

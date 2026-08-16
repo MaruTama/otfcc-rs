@@ -33,7 +33,7 @@ pub const GASP_DOGRAY: ::core::ffi::c_int = 0x2 as ::core::ffi::c_int;
 pub const GASP_GRIDFIT: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
 pub const GASP_SYMMETRIC_GRIDFIT: ::core::ffi::c_int = 0x4 as ::core::ffi::c_int;
 pub const GASP_SYMMETRIC_SMOOTHING: ::core::ffi::c_int = 0x8 as ::core::ffi::c_int;
-pub unsafe extern "C" fn otfcc_read_gasp(
+pub unsafe fn otfcc_read_gasp(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<GaspTable>> {
@@ -123,7 +123,7 @@ pub unsafe extern "C" fn otfcc_read_gasp(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_gasp(
+pub unsafe fn otfcc_dump_gasp(
     table: Option<&GaspTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -188,7 +188,7 @@ pub unsafe extern "C" fn otfcc_dump_gasp(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parse_gasp(
+pub unsafe fn otfcc_parse_gasp(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<GaspTable>> {
@@ -256,7 +256,7 @@ pub unsafe extern "C" fn otfcc_parse_gasp(
     return gasp;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_gasp(
+pub unsafe fn otfcc_build_gasp(
     gasp: Option<&GaspTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

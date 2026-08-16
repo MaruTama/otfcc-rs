@@ -34,7 +34,7 @@ impl Drop for CvtTable {
         }
     }
 }
-pub unsafe extern "C" fn otfcc_read_cvt(
+pub unsafe fn otfcc_read_cvt(
     packet: &Packet,
     mut _options: *const Options,
     mut tag: u32,
@@ -78,7 +78,7 @@ pub unsafe extern "C" fn otfcc_read_cvt(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_cvt(
+pub unsafe fn otfcc_dump_cvt(
     table: Option<&CvtTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -112,7 +112,7 @@ pub unsafe extern "C" fn otfcc_dump_cvt(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parse_cvt(
+pub unsafe fn otfcc_parse_cvt(
     mut root: *const ParsedValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
@@ -202,7 +202,7 @@ pub unsafe extern "C" fn otfcc_parse_cvt(
     return t;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_cvt(
+pub unsafe fn otfcc_build_cvt(
     table: Option<&CvtTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

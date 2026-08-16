@@ -60,7 +60,7 @@ pub struct Os2Table {
 // note on why that matters) confirmed only `.create`/`.free` were ever
 // called, both from within this crate (this file's own read/parse entry
 // points, and `caryll_font.rs`'s table disposal).
-pub unsafe extern "C" fn otfcc_read_os_2(
+pub unsafe fn otfcc_read_os_2(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<Os2Table>> {
@@ -493,7 +493,7 @@ pub static UNICODE_RANGE_LABELS4: [&::core::ffi::CStr; 27] = [
     c"Domino_and_Mahjong_Tiles",
 ];
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_os_2(
+pub unsafe fn otfcc_dump_os_2(
     table: Option<&Os2Table>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -750,7 +750,7 @@ pub unsafe extern "C" fn otfcc_dump_os_2(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parse_os_2(
+pub unsafe fn otfcc_parse_os_2(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<Os2Table>> {
@@ -1037,7 +1037,7 @@ pub unsafe extern "C" fn otfcc_parse_os_2(
     return Some(os_2_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_os_2(
+pub unsafe fn otfcc_build_os_2(
     os_2: Option<&Os2Table>,
     mut _options: *const Options,
 ) -> *mut Buffer {

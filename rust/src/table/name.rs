@@ -42,7 +42,7 @@ pub const COPYRIGHT_LEN: ::core::ffi::c_int = 32 as ::core::ffi::c_int;
 // `.create_table` itself is never read anywhere in the crate --
 // `create_font_table` and its other callee `table_otl_create` are dead
 // for the same reason, deleted alongside it.
-unsafe extern "C" fn should_decode_as_utf16(mut record: *const NameRecord) -> bool {
+unsafe fn should_decode_as_utf16(mut record: *const NameRecord) -> bool {
     return (*record).platform_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         || (*record).platform_id as ::core::ffi::c_int == 2 as ::core::ffi::c_int
             && (*record).encoding_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
@@ -51,13 +51,13 @@ unsafe extern "C" fn should_decode_as_utf16(mut record: *const NameRecord) -> bo
                 || (*record).encoding_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
                 || (*record).encoding_id as ::core::ffi::c_int == 10 as ::core::ffi::c_int);
 }
-unsafe extern "C" fn should_decode_as_bytes(mut record: *const NameRecord) -> bool {
+unsafe fn should_decode_as_bytes(mut record: *const NameRecord) -> bool {
     return (*record).platform_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
         && (*record).encoding_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         && (*record).language_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_read_name(
+pub unsafe fn otfcc_read_name(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<NameTable> {
@@ -207,7 +207,7 @@ pub unsafe extern "C" fn otfcc_read_name(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_name(
+pub unsafe fn otfcc_dump_name(
     name: Option<&NameTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -273,7 +273,7 @@ pub unsafe extern "C" fn otfcc_dump_name(
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_parse_name(
+pub unsafe fn otfcc_parse_name(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<NameTable> {
@@ -445,7 +445,7 @@ pub unsafe extern "C" fn otfcc_parse_name(
     return Some(name);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_name(
+pub unsafe fn otfcc_build_name(
     name: Option<&NameTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

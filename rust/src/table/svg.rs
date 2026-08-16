@@ -62,7 +62,7 @@ unsafe fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
     dst
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_read_svg(
+pub unsafe fn otfcc_read_svg(
     packet: &Packet,
     mut _options: *const Options,
 ) -> Option<SvgTable> {
@@ -156,7 +156,7 @@ pub unsafe extern "C" fn otfcc_read_svg(
     }
     return None;
 }
-unsafe extern "C" fn can_use_plain_format(mut buf: *const Buffer) -> bool {
+unsafe fn can_use_plain_format(mut buf: *const Buffer) -> bool {
     return (*buf).size > 4 as usize
         && *(*buf).data.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
             == '<' as i32
@@ -179,7 +179,7 @@ unsafe extern "C" fn can_use_plain_format(mut buf: *const Buffer) -> bool {
                 == 'l' as i32;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_svg(
+pub unsafe fn otfcc_dump_svg(
     svg: Option<&SvgTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -266,7 +266,7 @@ pub unsafe extern "C" fn otfcc_dump_svg(
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_parse_svg(
+pub unsafe fn otfcc_parse_svg(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<SvgTable> {
@@ -339,7 +339,7 @@ pub unsafe extern "C" fn otfcc_parse_svg(
     return Some(svg);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_svg(
+pub unsafe fn otfcc_build_svg(
     _svg: Option<&SvgTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

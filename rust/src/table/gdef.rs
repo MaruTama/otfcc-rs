@@ -75,7 +75,7 @@ impl Drop for GdefTable {
 // ever assigned into `GdefTableElementInterface.copy`, never called through
 // that field or by name -- confirmed by grep across the crate), and a bitwise
 // memcpy would double-free `lig_carets` now that it owns a `Vec`.
-unsafe extern "C" fn read_caret_value(
+unsafe fn read_caret_value(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -109,7 +109,7 @@ unsafe extern "C" fn read_caret_value(
 // non-`repr(C)` `CaretValueRecord` return (owns a `Vec`) is fine for an
 // internal call; nothing crosses the actual C ABI boundary through it.
 #[allow(improper_ctypes_definitions)]
-unsafe extern "C" fn read_lig_caret_record(
+unsafe fn read_lig_caret_record(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -151,7 +151,7 @@ unsafe extern "C" fn read_lig_caret_record(
     }
     return g;
 }
-pub unsafe extern "C" fn otfcc_read_gdef(
+pub unsafe fn otfcc_read_gdef(
     packet: &Packet,
     mut _options: *const Options,
 ) -> Option<Box<GdefTable>> {
@@ -303,7 +303,7 @@ pub unsafe extern "C" fn otfcc_read_gdef(
     }
     return gdef;
 }
-unsafe extern "C" fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut BuiltValue {
+unsafe fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut BuiltValue {
     let lig_carets: &Vec<CaretValueRecord> = &(*gdef).lig_carets;
     let mut _carets: *mut BuiltValue = json_object_new(lig_carets.len());
     let mut j: GlyphId = 0 as GlyphId;
@@ -336,7 +336,7 @@ unsafe extern "C" fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut Bu
     return _carets;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_gdef(
+pub unsafe fn otfcc_dump_gdef(
     gdef: Option<&GdefTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -386,7 +386,7 @@ pub unsafe extern "C" fn otfcc_dump_gdef(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-unsafe extern "C" fn lig_caret_from_json(
+unsafe fn lig_caret_from_json(
     mut _carets: *const ParsedValue,
     mut lc: *mut LigCaretTable,
 ) {
@@ -452,7 +452,7 @@ unsafe extern "C" fn lig_caret_from_json(
         j = j.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn otfcc_parse_gdef(
+pub unsafe fn otfcc_parse_gdef(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<GdefTable>> {
@@ -504,7 +504,7 @@ pub unsafe extern "C" fn otfcc_parse_gdef(
     }
     return gdef;
 }
-unsafe extern "C" fn write_lig_caret_rec(mut cr: *mut CaretValueRecord) -> *mut BkBlock {
+unsafe fn write_lig_caret_rec(mut cr: *mut CaretValueRecord) -> *mut BkBlock {
     let carets: &Vec<CaretValue> = &(*cr).carets;
     let mut bcr: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (carets.len()) as u32)]);
     let mut j: GlyphId = 0 as GlyphId;
@@ -522,7 +522,7 @@ unsafe extern "C" fn write_lig_caret_rec(mut cr: *mut CaretValueRecord) -> *mut 
     }
     return bcr;
 }
-unsafe extern "C" fn write_lig_carets(mut lc: *const LigCaretTable) -> *mut BkBlock {
+unsafe fn write_lig_carets(mut lc: *const LigCaretTable) -> *mut BkBlock {
     let records: &Vec<CaretValueRecord> = &*lc;
     let mut cov: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
@@ -543,7 +543,7 @@ unsafe extern "C" fn write_lig_carets(mut lc: *const LigCaretTable) -> *mut BkBl
     return lct;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_gdef(
+pub unsafe fn otfcc_build_gdef(
     gdef: Option<&GdefTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

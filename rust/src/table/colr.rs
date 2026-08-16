@@ -53,7 +53,7 @@ fn colr_mapping_dup(m: &ColrMapping) -> ColrMapping {
 static BASE_GLYPH_REC_LENGTH: usize = 6 as usize;
 static LAYER_REC_LENGTH: usize = 4 as usize;
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_read_colr(
+pub unsafe fn otfcc_read_colr(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<ColrTable> {
@@ -215,7 +215,7 @@ pub unsafe extern "C" fn otfcc_read_colr(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_colr(
+pub unsafe fn otfcc_dump_colr(
     colr: Option<&ColrTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -291,7 +291,7 @@ pub unsafe extern "C" fn otfcc_dump_colr(
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_parse_colr(
+pub unsafe fn otfcc_parse_colr(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<ColrTable> {
@@ -379,7 +379,7 @@ pub unsafe extern "C" fn otfcc_parse_colr(
     return Some(colr);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_colr(
+pub unsafe fn otfcc_build_colr(
     _colr: Option<&ColrTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

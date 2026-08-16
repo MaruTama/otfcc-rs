@@ -894,6 +894,37 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 2 (third slice): `table/`'s top-level
+  files, 192 directly-called functions across all 27 files directly under
+  `table/` (excluding the `table/otl/` and `table/glyf/` subdirectories,
+  saved for later batches).** This slice covers more vtables and individual
+  address-taken cases at once than any prior one: `table/fvar.rs`'s
+  `FvarTableElementInterface`/`TABLE_I_FVAR`, `table/glyf.rs`'s
+  `PointElementInterface`/`GLYF_I_POINT` and
+  `ComponentReferenceElementInterface`/`GLYF_I_COMPONENT_REFERENCE`,
+  `table/cff.rs`'s `CffTableElementInterface`/`TABLE_I_CFF` and the local
+  `CffIOutlineBuilder`/`DRAW_PASS` callback methods (`callback_draw_*`) and
+  the `CFF_I_INDEX.from_callback` individual-case callbacks
+  (`callback_makestringindex`/`callback_makefd`), and both real call sites
+  of `support/ttinstr.rs`'s `parse_ttinstr` callback pair
+  (`table/fpgm_prep.rs`'s `make_fpgm_prep_instr`/`wrong_fpgm_prep_instr` and
+  `table/glyf.rs`'s `make_instrs_for_glyph`/`wrong_instrs_for_glyph`).
+  Rather than hunt each of these down file by file, the exclusion set was
+  computed once, crate-wide (every identifier address-taken via
+  `as unsafe extern "C" fn` or a resolvable bare `Some(...)`, from the same
+  script used for the two prior slices), then applied unmodified across all
+  27 files -- the same list correctly protected every one of these cases
+  without a single per-file lookup, and a clean `cargo build` afterward
+  confirmed nothing address-taken had been missed. 34 declarations stayed
+  untouched this way; the other 192 dropped `extern "C"` with zero
+  call-site changes. Purely calling-convention annotation removal, no
+  behavior change; verified with the standard full pipeline on both
+  platforms (macOS arm64 and the Linux container): 54 unit tests green (0
+  warnings under `warnings = "deny"`), every payload byte-identical in both
+  directions including the `otfccdll` cdylib, all 10 round-trip payloads
+  stable, issue #1's large-lookup regression test green,
+  `compare-log-output.sh` green.
+
 - **`unsafe extern "C"` removal, Phase 2 (second slice): `vf/` + `bk/`'s 34
   directly-called functions.** `vf/vq.rs` alone holds 46 `unsafe extern "C"
   fn` declarations, but 38 of them back the two largest vtables in the whole

@@ -36,7 +36,7 @@ pub struct MaxpTable {
 // `HeadTable`). The entire vtable is deleted: grepping the bare
 // `TABLE_I_MAXP` identifier confirmed only `.create`/`.free` were ever
 // called, both internal to this crate.
-pub unsafe extern "C" fn otfcc_read_maxp(
+pub unsafe fn otfcc_read_maxp(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<MaxpTable>> {
@@ -139,7 +139,7 @@ pub unsafe extern "C" fn otfcc_read_maxp(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_maxp(
+pub unsafe fn otfcc_dump_maxp(
     table: Option<&MaxpTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -243,7 +243,7 @@ pub unsafe extern "C" fn otfcc_dump_maxp(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parse_maxp(
+pub unsafe fn otfcc_parse_maxp(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<MaxpTable>> {
@@ -315,7 +315,7 @@ pub unsafe extern "C" fn otfcc_parse_maxp(
     return Some(maxp_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_maxp(
+pub unsafe fn otfcc_build_maxp(
     maxp: Option<&MaxpTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

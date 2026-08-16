@@ -35,7 +35,7 @@ pub struct HheaTable {
 // entire vtable is deleted: grepping the bare `TABLE_I_HHEA` identifier
 // confirmed only `.create`/`.free` were ever called, both internal to
 // this crate.
-pub unsafe extern "C" fn otfcc_read_hhea(
+pub unsafe fn otfcc_read_hhea(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<HheaTable>> {
@@ -132,7 +132,7 @@ pub unsafe extern "C" fn otfcc_read_hhea(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_hhea(
+pub unsafe fn otfcc_dump_hhea(
     table: Option<&HheaTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -216,7 +216,7 @@ pub unsafe extern "C" fn otfcc_dump_hhea(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_parse_hhea(
+pub unsafe fn otfcc_parse_hhea(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<HheaTable>> {
@@ -305,7 +305,7 @@ pub unsafe extern "C" fn otfcc_parse_hhea(
     return Some(hhea_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_hhea(
+pub unsafe fn otfcc_build_hhea(
     hhea: Option<&HheaTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

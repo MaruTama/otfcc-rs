@@ -66,7 +66,7 @@ pub struct BaseTable {
 pub struct BaseTagList {
     pub items: Vec<u32>,
 }
-unsafe extern "C" fn read_base_value(
+unsafe fn read_base_value(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut offset: u16,
@@ -93,7 +93,7 @@ unsafe extern "C" fn read_base_value(
 /// Never a real FFI boundary -- internal call site only, same rationale
 /// as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-unsafe extern "C" fn read_base_script(
+unsafe fn read_base_script(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u16,
@@ -164,7 +164,7 @@ unsafe extern "C" fn read_base_script(
 /// immediately, so `delete_base_axis(axis)` at the bottom was always a
 /// no-op by the time it could run. `base_tag_list` is a local `Vec<u32>`
 /// now, so it needs no explicit free on any exit path either.
-unsafe extern "C" fn read_axis(
+unsafe fn read_axis(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut offset: u16,
@@ -260,7 +260,7 @@ unsafe extern "C" fn read_axis(
     }
     Some(Box::new(BaseAxis { entries }))
 }
-pub unsafe extern "C" fn otfcc_read_base(
+pub unsafe fn otfcc_read_base(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<BaseTable>> {
@@ -317,7 +317,7 @@ pub unsafe extern "C" fn otfcc_read_base(
     }
     return None;
 }
-unsafe extern "C" fn axis_to_json(mut axis: *const BaseAxis) -> *mut BuiltValue {
+unsafe fn axis_to_json(mut axis: *const BaseAxis) -> *mut BuiltValue {
     let mut _axis: *mut BuiltValue = json_object_new((*axis).entries.len());
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*axis).entries.len() {
@@ -360,7 +360,7 @@ unsafe extern "C" fn axis_to_json(mut axis: *const BaseAxis) -> *mut BuiltValue 
     return _axis;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_base(
+pub unsafe fn otfcc_dump_base(
     base: Option<&BaseTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -409,7 +409,7 @@ pub unsafe extern "C" fn otfcc_dump_base(
 /// Never a real FFI boundary -- internal call site only, same rationale
 /// as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-unsafe extern "C" fn base_script_from_json(mut _sr: *const ParsedValue) -> (u32, Vec<BaseValue>) {
+unsafe fn base_script_from_json(mut _sr: *const ParsedValue) -> (u32, Vec<BaseValue>) {
     let default_baseline_tag = str2tag(json_obj_getstr_share(
         _sr,
         b"defaultBaseline\0" as *const u8 as *const ::core::ffi::c_char,
@@ -440,7 +440,7 @@ unsafe extern "C" fn base_script_from_json(mut _sr: *const ParsedValue) -> (u32,
 /// by tag -- stable, not `sort_unstable_by_key`, the same deliberately
 /// conservative choice made for `Coverage`/`ClassDef`/`gpos_pair.rs`
 /// since `qsort` itself gives no stability guarantee.
-unsafe extern "C" fn axis_from_json(mut _axis: *const ParsedValue) -> Option<Box<BaseAxis>> {
+unsafe fn axis_from_json(mut _axis: *const ParsedValue) -> Option<Box<BaseAxis>> {
     if _axis.is_null() {
         return None;
     }
@@ -459,7 +459,7 @@ unsafe extern "C" fn axis_from_json(mut _axis: *const ParsedValue) -> Option<Box
     entries.sort_by_key(|e| e.tag);
     Some(Box::new(BaseAxis { entries }))
 }
-pub unsafe extern "C" fn otfcc_parse_base(
+pub unsafe fn otfcc_parse_base(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<BaseTable>> {
@@ -500,7 +500,7 @@ pub unsafe extern "C" fn otfcc_parse_base(
     }
     return base;
 }
-pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
+pub unsafe fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
     if axis.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
@@ -579,7 +579,7 @@ pub unsafe extern "C" fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
     return bk_new_block(&[bk_ptr(BkCellType::P16, base_tag_list), bk_ptr(BkCellType::P16, base_script_list)]);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_base(
+pub unsafe fn otfcc_build_base(
     base: Option<&BaseTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {
@@ -599,7 +599,7 @@ pub unsafe extern "C" fn otfcc_build_base(
     return bk_build_block(root);
 }
 #[inline]
-unsafe extern "C" fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {
+unsafe fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {
     *tags.offset(0 as ::core::ffi::c_int as isize) =
         (tag >> 24 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(1 as ::core::ffi::c_int as isize) =
@@ -610,7 +610,7 @@ unsafe extern "C" fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {
         (tag & 0xff as u32) as ::core::ffi::c_char;
 }
 #[inline]
-unsafe extern "C" fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
+unsafe fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
     if tags.is_null() {
         return 0 as u32;
     }

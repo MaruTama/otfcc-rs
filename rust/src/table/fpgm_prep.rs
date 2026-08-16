@@ -46,7 +46,7 @@ impl Drop for FpgmPrepTable {
         }
     }
 }
-pub unsafe extern "C" fn otfcc_read_fpgm_prep(
+pub unsafe fn otfcc_read_fpgm_prep(
     packet: &Packet,
     mut _options: *const Options,
     mut tag: u32,
@@ -90,7 +90,7 @@ pub unsafe extern "C" fn otfcc_read_fpgm_prep(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn table_dump_table_fpgm_prep(
+pub unsafe fn table_dump_table_fpgm_prep(
     table: Option<&FpgmPrepTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -134,7 +134,7 @@ pub unsafe extern "C" fn wrong_fpgm_prep_instr(
     mut _pos: ::core::ffi::c_int,
 ) {
 }
-pub unsafe extern "C" fn otfcc_parse_fpgm_prep(
+pub unsafe fn otfcc_parse_fpgm_prep(
     mut root: *const ParsedValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
@@ -188,7 +188,7 @@ pub unsafe extern "C" fn otfcc_parse_fpgm_prep(
     return t;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_fpgm_prep(
+pub unsafe fn otfcc_build_fpgm_prep(
     table: Option<&FpgmPrepTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

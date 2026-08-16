@@ -55,7 +55,7 @@ pub struct TsiBuildTarget {
 // glue on their own, so a `TsiEntry` (and therefore a `TsiTable`) tears
 // itself down correctly with no manual per-element walk needed.
 #[inline]
-unsafe extern "C" fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {
+unsafe fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {
     if tag_index == crate::tag::TAG_TSI0 {
         return gid as ::core::ffi::c_int != 0xfffe as ::core::ffi::c_int
             && gid as ::core::ffi::c_int != 0xfffc as ::core::ffi::c_int;
@@ -64,7 +64,7 @@ unsafe extern "C" fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {
     };
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_read_tsi(
+pub unsafe fn otfcc_read_tsi(
     packet: &Packet,
     mut _options: *const Options,
     mut tag_index: u32,
@@ -219,7 +219,7 @@ pub unsafe extern "C" fn otfcc_read_tsi(
     return Some(tsi);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_tsi(
+pub unsafe fn otfcc_dump_tsi(
     tsi: Option<&TsiTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -323,7 +323,7 @@ pub unsafe extern "C" fn otfcc_dump_tsi(
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_parse_tsi(
+pub unsafe fn otfcc_parse_tsi(
     mut root: *const ParsedValue,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
@@ -433,7 +433,7 @@ pub unsafe extern "C" fn otfcc_parse_tsi(
     }
     return Some(tsi);
 }
-unsafe extern "C" fn propergid(mut entry: *mut TsiEntry, type_0: TsiEntryType) -> GlyphId {
+unsafe fn propergid(mut entry: *mut TsiEntry, type_0: TsiEntryType) -> GlyphId {
     match type_0 as ::core::ffi::c_uint {
         3 => return 0xfffb as GlyphId,
         1 => return 0xfffd as GlyphId,
@@ -444,7 +444,7 @@ unsafe extern "C" fn propergid(mut entry: *mut TsiEntry, type_0: TsiEntryType) -
     }
     panic!("Reached end of non-void function without returning");
 }
-unsafe extern "C" fn push_tsi_entries(
+unsafe fn push_tsi_entries(
     mut target: *mut TsiBuildTarget,
     mut tsi: *const TsiTable,
     type_0: TsiEntryType,
@@ -493,7 +493,7 @@ unsafe extern "C" fn push_tsi_entries(
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_tsi(
+pub unsafe fn otfcc_build_tsi(
     tsi: Option<&TsiTable>,
     mut _options: *const Options,
 ) -> TsiBuildTarget {

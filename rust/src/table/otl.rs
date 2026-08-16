@@ -601,7 +601,7 @@ pub struct OtlTable {
 // parse}.rs`. Reclaims the `Box` `new_lookup`/`Box::into_raw` produced and
 // drops it, which now does the subtable teardown and `name` free that this
 // function's body used to spell out directly.
-pub unsafe extern "C" fn otfcc_delete_lookup(lookup: *mut Lookup) {
+pub unsafe fn otfcc_delete_lookup(lookup: *mut Lookup) {
     if lookup.is_null() {
         return;
     }

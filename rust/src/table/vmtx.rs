@@ -24,7 +24,7 @@ pub struct VmtxTable {
     pub metrics: Vec<VerticalMetric>,
     pub top_side_bearing: Vec<Pos>,
 }
-pub unsafe extern "C" fn otfcc_read_vmtx(
+pub unsafe fn otfcc_read_vmtx(
     packet: &Packet,
     mut options: *const Options,
     mut vhea: *mut VheaTable,
@@ -114,7 +114,7 @@ pub unsafe extern "C" fn otfcc_read_vmtx(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_vmtx(
+pub unsafe fn otfcc_build_vmtx(
     vmtx: Option<&VmtxTable>,
     mut count_a: GlyphId,
     mut count_k: GlyphId,
