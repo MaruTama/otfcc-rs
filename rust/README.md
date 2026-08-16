@@ -894,6 +894,23 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 2 (second slice): `vf/` + `bk/`'s 34
+  directly-called functions.** `vf/vq.rs` alone holds 46 `unsafe extern "C"
+  fn` declarations, but 38 of them back the two largest vtables in the whole
+  crate -- `VqVectorInterface`/`I_VQ` (27 fields) and
+  `VqSegmentElementInterface`/`VQ_I_SEGMENT` (11 fields), both single-static
+  and both deferred to Phase 3 -- leaving only 8 sweepable. Cross-checked by
+  computing the field counts against the crate-wide address-taken grep
+  (27 + 11 = 38, an exact match), rather than trusting either number alone.
+  `vf/region.rs` (8), `bk/bkblock.rs` (10), and `bk/bkgraph.rs` (8) had no
+  vtable involvement and swept in full. Purely calling-convention annotation
+  removal, no behavior change; verified with the standard full pipeline on
+  both platforms (macOS arm64 and the Linux container): 54 unit tests green
+  (0 warnings under `warnings = "deny"`), every payload byte-identical in
+  both directions including the `otfccdll` cdylib, all 10 round-trip
+  payloads stable, issue #1's large-lookup regression test green,
+  `compare-log-output.sh` green.
+
 - **`unsafe extern "C"` removal, Phase 2 (first slice): `libcff/`'s ~92
   directly-called functions.** The mechanical sweep continues into the
   ~734-function batch, directory by directory, starting with `libcff/`. This

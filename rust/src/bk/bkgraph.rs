@@ -71,7 +71,7 @@ unsafe fn by_order_cmp(a: &BkGraphNode, b: &BkGraphNode) -> ::core::cmp::Orderin
         b.order.cmp(&a.order)
     }
 }
-pub unsafe extern "C" fn bk_new_graph_from_root_block(b: *mut BkBlock) -> *mut BkGraph {
+pub unsafe fn bk_new_graph_from_root_block(b: *mut BkBlock) -> *mut BkGraph {
     let forest: *mut BkGraph = Box::into_raw(Box::new(BkGraph { entries: Vec::new() }));
     let mut ts_order: u32 = 0;
     dfs_insert_cells(b, forest, &raw mut ts_order);
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn bk_new_graph_from_root_block(b: *mut BkBlock) -> *mut B
     }
     return forest;
 }
-pub unsafe extern "C" fn bk_delete_graph(f: *mut BkGraph) {
+pub unsafe fn bk_delete_graph(f: *mut BkGraph) {
     if f.is_null() {
         return;
     }
@@ -178,7 +178,7 @@ unsafe fn replaceptr(f: *mut BkGraph, b: *mut BkBlock) {
         }
     }
 }
-pub unsafe extern "C" fn bk_minimize_graph(f: *mut BkGraph) {
+pub unsafe fn bk_minimize_graph(f: *mut BkGraph) {
     let mut rear: u32 = ((*f).entries.len() as u32).wrapping_sub(1);
     while rear > 0 {
         // front/rear bracket a run of same-height entries; the run's extent
@@ -433,7 +433,7 @@ unsafe fn otfcc_build_bkblock(buf: *mut Buffer, b: *mut BkBlock, offsets: &[usiz
         }
     }
 }
-pub unsafe extern "C" fn bk_build_graph(f: *mut BkGraph) -> *mut Buffer {
+pub unsafe fn bk_build_graph(f: *mut BkGraph) -> *mut Buffer {
     let buf: *mut Buffer = bufnew();
     let offsets: Vec<usize> = compute_block_offsets(f, 352);
     for j in 0..(*f).entries.len() {
@@ -444,12 +444,12 @@ pub unsafe extern "C" fn bk_build_graph(f: *mut BkGraph) -> *mut Buffer {
     }
     return buf;
 }
-pub unsafe extern "C" fn bk_estimate_size_of_graph(f: *mut BkGraph) -> usize {
+pub unsafe fn bk_estimate_size_of_graph(f: *mut BkGraph) -> usize {
     let offsets: Vec<usize> = compute_block_offsets(f, 373);
     let estimated_size: usize = offsets[(*f).entries.len()];
     return estimated_size;
 }
-pub unsafe extern "C" fn bk_untangle_graph(f: *mut BkGraph) {
+pub unsafe fn bk_untangle_graph(f: *mut BkGraph) {
     let mut passes: u16 = 0;
     attract_bkgraph(f);
     loop {
@@ -463,7 +463,7 @@ pub unsafe extern "C" fn bk_untangle_graph(f: *mut BkGraph) {
         }
     }
 }
-pub unsafe extern "C" fn bk_build_block(root: *mut BkBlock) -> *mut Buffer {
+pub unsafe fn bk_build_block(root: *mut BkBlock) -> *mut Buffer {
     let f: *mut BkGraph = bk_new_graph_from_root_block(root);
     bk_minimize_graph(f);
     bk_untangle_graph(f);
@@ -471,7 +471,7 @@ pub unsafe extern "C" fn bk_build_block(root: *mut BkBlock) -> *mut Buffer {
     bk_delete_graph(f);
     return buf;
 }
-pub unsafe extern "C" fn bk_build_block_no_minimize(root: *mut BkBlock) -> *mut Buffer {
+pub unsafe fn bk_build_block_no_minimize(root: *mut BkBlock) -> *mut Buffer {
     let f: *mut BkGraph = bk_new_graph_from_root_block(root);
     bk_untangle_graph(f);
     let buf: *mut Buffer = bk_build_graph(f);

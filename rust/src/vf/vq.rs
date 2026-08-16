@@ -122,11 +122,11 @@ pub struct VqVectorInterface {
 // `.copy`/`.create`/`.free`/`.init_n`/`.neutral`（`create_neutral_vv`)は
 // crate全体で一度も呼ばれておらず削除。
 #[inline]
-unsafe extern "C" fn init_vq_segment(mut vqs: *mut VqSegment) {
+unsafe fn init_vq_segment(mut vqs: *mut VqSegment) {
     *vqs = VqSegment::Still(0 as ::core::ffi::c_int as Pos);
 }
 #[inline]
-unsafe extern "C" fn copy_vq_segment(mut dst: *mut VqSegment, mut src: *const VqSegment) {
+unsafe fn copy_vq_segment(mut dst: *mut VqSegment, mut src: *const VqSegment) {
     match *src {
         VqSegment::Still(v) => {
             *dst = VqSegment::Still(v);
@@ -152,7 +152,7 @@ unsafe extern "C" fn copy_vq_segment(mut dst: *mut VqSegment, mut src: *const Vq
     }
 }
 #[inline]
-unsafe extern "C" fn dispose_vq_segment(mut vqs: *mut VqSegment) {
+unsafe fn dispose_vq_segment(mut vqs: *mut VqSegment) {
     init_vq_segment(vqs);
 }
 #[inline]
@@ -199,7 +199,7 @@ unsafe extern "C" fn vqs_create_delta(mut delta: Pos, mut region: *mut VqRegion)
     });
     return vqs;
 }
-unsafe extern "C" fn vqs_compare(a: VqSegment, b: VqSegment) -> ::core::ffi::c_int {
+unsafe fn vqs_compare(a: VqSegment, b: VqSegment) -> ::core::ffi::c_int {
     match (a, b) {
         (VqSegment::Still(_), VqSegment::Delta(_)) => -(1 as ::core::ffi::c_int),
         (VqSegment::Delta(_), VqSegment::Still(_)) => 1 as ::core::ffi::c_int,
@@ -242,7 +242,7 @@ unsafe extern "C" fn vq_segment_compare_ref(
 unsafe extern "C" fn vq_segment_equal(a: VqSegment, b: VqSegment) -> bool {
     return vqs_compare(a, b) == 0;
 }
-unsafe extern "C" fn show_vqs(x: VqSegment) {
+unsafe fn show_vqs(x: VqSegment) {
     match x {
         VqSegment::Still(still) => {
             fprintf(
@@ -342,7 +342,7 @@ unsafe extern "C" fn vq_replace(mut dst: *mut VQ, src: VQ) {
 unsafe extern "C" fn vq_neutral() -> VQ {
     return I_VQ.create_still.expect("non-null function pointer")(0 as ::core::ffi::c_int as Pos);
 }
-unsafe extern "C" fn vqs_compatible(a: VqSegment, b: VqSegment) -> bool {
+unsafe fn vqs_compatible(a: VqSegment, b: VqSegment) -> bool {
     match (a, b) {
         (VqSegment::Still(_), VqSegment::Still(_)) => true,
         (VqSegment::Delta(ad), VqSegment::Delta(bd)) => {
@@ -351,7 +351,7 @@ unsafe extern "C" fn vqs_compatible(a: VqSegment, b: VqSegment) -> bool {
         _ => false,
     }
 }
-unsafe extern "C" fn simplify_vq(mut x: *mut VQ) {
+unsafe fn simplify_vq(mut x: *mut VQ) {
     if (*x).shift.is_empty() {
         return;
     }
@@ -491,7 +491,7 @@ unsafe extern "C" fn vq_compare_ref(mut a: *const VQ, mut b: *const VQ) -> ::cor
 unsafe extern "C" fn vq_equal(a: VQ, b: VQ) -> bool {
     return vq_compare(a, b) == 0;
 }
-unsafe extern "C" fn show_vq(x: VQ) {
+unsafe fn show_vq(x: VQ) {
     fprintf(
         stderr,
         b"%g + {\0" as *const u8 as *const ::core::ffi::c_char,

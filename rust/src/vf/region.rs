@@ -19,7 +19,7 @@ pub struct VqRegion {
     pub dimensions: ShapeId,
     pub spans: [VqAxisSpan; 0],
 }
-pub unsafe extern "C" fn vq_create_region(mut dimensions: ShapeId) -> *mut VqRegion {
+pub unsafe fn vq_create_region(mut dimensions: ShapeId) -> *mut VqRegion {
     let mut r: *mut VqRegion = ::core::ptr::null_mut::<VqRegion>();
     r = __caryll_allocate_clean(
         (::core::mem::size_of::<VqRegion>() as usize).wrapping_add(
@@ -30,11 +30,11 @@ pub unsafe extern "C" fn vq_create_region(mut dimensions: ShapeId) -> *mut VqReg
     (*r).dimensions = dimensions;
     return r;
 }
-pub unsafe extern "C" fn vq_delete_region(mut region: *mut VqRegion) {
+pub unsafe fn vq_delete_region(mut region: *mut VqRegion) {
     free(region as *mut ::core::ffi::c_void);
     region = ::core::ptr::null_mut::<VqRegion>();
 }
-pub unsafe extern "C" fn vq_copy_region(mut region: *const VqRegion) -> *mut VqRegion {
+pub unsafe fn vq_copy_region(mut region: *const VqRegion) -> *mut VqRegion {
     let mut dst: *mut VqRegion = vq_create_region((*region).dimensions);
     memcpy(
         dst as *mut ::core::ffi::c_void,
@@ -46,7 +46,7 @@ pub unsafe extern "C" fn vq_copy_region(mut region: *const VqRegion) -> *mut VqR
     );
     return dst;
 }
-pub unsafe extern "C" fn vq_compare_region(
+pub unsafe fn vq_compare_region(
     mut a: *const VqRegion,
     mut b: *const VqRegion,
 ) -> ::core::ffi::c_int {
@@ -65,7 +65,7 @@ pub unsafe extern "C" fn vq_compare_region(
         ),
     );
 }
-pub unsafe extern "C" fn vq_axis_span_is_one(mut s: *const VqAxisSpan) -> bool {
+pub unsafe fn vq_axis_span_is_one(mut s: *const VqAxisSpan) -> bool {
     let a: Pos = (*s).start;
     let p: Pos = (*s).peak;
     let z: Pos = (*s).end;
@@ -77,7 +77,7 @@ pub unsafe extern "C" fn vq_axis_span_is_one(mut s: *const VqAxisSpan) -> bool {
         || p == 0 as ::core::ffi::c_int as Pos;
 }
 #[inline]
-unsafe extern "C" fn weight_axis_region(mut as_0: *const VqAxisSpan, x: Pos) -> Pos {
+unsafe fn weight_axis_region(mut as_0: *const VqAxisSpan, x: Pos) -> Pos {
     let a: Pos = (*as_0).start;
     let p: Pos = (*as_0).peak;
     let z: Pos = (*as_0).end;
@@ -100,7 +100,7 @@ unsafe extern "C" fn weight_axis_region(mut as_0: *const VqAxisSpan, x: Pos) -> 
         return (z - x) / (z - p);
     };
 }
-pub unsafe extern "C" fn vq_region_get_weight(mut r: *const VqRegion, v: *const VV) -> Pos {
+pub unsafe fn vq_region_get_weight(mut r: *const VqRegion, v: *const VV) -> Pos {
     let coords: &Vec<Pos> = &*v;
     let mut w: Pos = 1 as ::core::ffi::c_int as Pos;
     let mut j: usize = 0 as usize;
@@ -113,4 +113,4 @@ pub unsafe extern "C" fn vq_region_get_weight(mut r: *const VqRegion, v: *const 
     }
     return w;
 }
-pub unsafe extern "C" fn vq_show_region(mut _r: *const VqRegion) {}
+pub unsafe fn vq_show_region(mut _r: *const VqRegion) {}
