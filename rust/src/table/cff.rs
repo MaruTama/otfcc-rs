@@ -33,9 +33,9 @@ use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_n
 
 use crate::libcff::cff_charset::{cff_build_charset};
 use crate::libcff::cff_codecs::{cff_encode_cff_operator};
-use crate::libcff::cff_dict::{CFF_I_DICT};
+use crate::libcff::cff_dict::{cff_dict_create, build_dict, cff_dict_free, parse_to_callback};
 use crate::libcff::cff_fdselect::{cff_build_fd_select};
-use crate::libcff::cff_index::{CFF_I_INDEX};
+use crate::libcff::cff_index::{cff_index_init, cff_index_dispose, new_index_by_callback, build_index, cff_index_create, cff_index_free};
 use crate::libcff::cff_parser::{cff_close, cff_open_stream, cff_parse_outline, cff_parse_subr};
 use crate::libcff::cff_string::{sdsget_cff_sid};
 use crate::libcff::cff_value::{cffnum};
@@ -557,9 +557,7 @@ unsafe extern "C" fn callback_extract_fd(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 ) as u32;
                 (*meta).private_dict = Some(otfcc_new_cff_private());
-                CFF_I_DICT
-                    .parse_to_callback
-                    .expect("non-null function pointer")(
+                parse_to_callback(
                     (*file).raw_data.offset(private_offset as isize),
                     private_length,
                     context as *mut ::core::ffi::c_void,
@@ -907,7 +905,7 @@ unsafe fn build_outline(
         offset: Vec::new(),
         data: Vec::new(),
     };
-    CFF_I_INDEX.init.expect("non-null function pointer")(&raw mut local_subrs);
+    cff_index_init(&raw mut local_subrs);
     let mut stack: CffStack = CffStack {
         stack: vec![
             CffValue {
@@ -1036,7 +1034,7 @@ unsafe fn build_outline(
     (*g).contours.shrink_to_fit();
     // `cx`/`cy` are plain owned locals, never moved out, so they auto-drop
     // when this function returns -- no explicit dispose call is needed.
-    CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut local_subrs);
+    cff_index_dispose(&raw mut local_subrs);
     (*context).seed = bc.randx;
 }
 // Returns `Vec<u8>`, its only callers direct Rust call sites (never a real
@@ -1286,9 +1284,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                     context.cff_file = cff_file;
                     context.meta = (
                         table_cff_create)();
-                    CFF_I_DICT
-                        .parse_to_callback
-                        .expect("non-null function pointer")(
+                    parse_to_callback(
                         (*cff_file).top_dict.data.as_ptr(),
                         {
                             let top_dict_offset = &(*cff_file).top_dict.offset;
@@ -1330,11 +1326,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                                 .unwrap(),
                             );
                             context.fd_array_index = j as i32;
-                            CFF_I_DICT
-                                .parse_to_callback
-                                .expect(
-                                    "non-null function pointer",
-                                )(
+                            parse_to_callback(
                                 {
                                     let font_dict_offset = &(*cff_file).font_dict.offset;
                                     (*cff_file)
@@ -2188,7 +2180,7 @@ unsafe fn cff_make_fd_dict(
     mut h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> *mut CffDict {
     let mut dict: *mut CffDict = (
-        CFF_I_DICT.create.expect("non-null function pointer"))();
+        cff_dict_create)();
     if !(*fd).cid_registry.is_empty() && !(*fd).cid_ordering.is_empty() {
         cffdict_input_ints(dict, OP_ROS, &[(sidof(h, &(*fd).cid_registry)) as i32, (sidof(h, &(*fd).cid_ordering)) as i32, ((*fd).cid_supplement) as i32]);
     }
@@ -2240,8 +2232,8 @@ unsafe fn cff_make_private_dict(mut pd: *mut CffPrivateDict) -> *mut CffDict {
     // Was `__caryll_allocate_clean` (calloc) -- unsound now that `CffDict`
     // owns `ents: Vec<CffDictEntry>`; an all-zero bit pattern is not a
     // valid `Vec`. `cff_make_fd_dict` two functions above already gets
-    // this right via `CFF_I_DICT.create()`; this call site was missed.
-    let dict: *mut CffDict = (CFF_I_DICT.create.expect("non-null function pointer"))();
+    // this right via `cff_dict_create()`; this call site was missed.
+    let dict: *mut CffDict = (cff_dict_create)();
     if pd.is_null() {
         return dict;
     }
@@ -2318,7 +2310,7 @@ unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) 
         bufnwrite8(blob, &value);
         blobs.push(blob);
     }
-    let mut strings: *mut CffIndex = CFF_I_INDEX.from_callback.expect("non-null function pointer")(
+    let mut strings: *mut CffIndex = new_index_by_callback(
         blobs.as_mut_ptr() as *mut ::core::ffi::c_void,
         n,
         Some(
@@ -2327,14 +2319,14 @@ unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) 
         ),
     );
     let mut final_blob: *mut Buffer =
-        CFF_I_INDEX.build.expect("non-null function pointer")(strings);
-    CFF_I_INDEX.free.expect("non-null function pointer")(strings);
+        build_index(strings);
+    cff_index_free(strings);
     (*final_blob).cursor = (*final_blob).size;
     return final_blob;
 }
 unsafe fn cff_compile_nameindex(mut cff: *mut CffTable) -> *mut Buffer {
     let mut name_index: *mut CffIndex = (
-        CFF_I_INDEX.create.expect("non-null function pointer"))();
+        cff_index_create)();
     (*name_index).count = 1 as Arity;
     (*name_index).off_size = 4 as u8;
     if (*cff).font_name.is_empty() {
@@ -2351,8 +2343,8 @@ unsafe fn cff_compile_nameindex(mut cff: *mut CffTable) -> *mut Buffer {
     name_data.push(0 as u8);
     (*name_index).data = name_data;
     let mut buf: *mut Buffer =
-        CFF_I_INDEX.build.expect("non-null function pointer")(name_index);
-    CFF_I_INDEX.free.expect("non-null function pointer")(name_index);
+        build_index(name_index);
+    cff_index_free(name_index);
     (*cff).font_name = Vec::new();
     return buf;
 }
@@ -2430,7 +2422,7 @@ unsafe extern "C" fn callback_makefd(
         (&(*(*context).fd_array))[i as usize].as_ref() as *const CffTable as *mut CffTable,
         (*context).string_hash,
     );
-    let mut blob: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(fd);
+    let mut blob: *mut Buffer = build_dict(fd);
     bufwrite_bufdel(
         blob,
         cff_build_offset(0xeeeeeeee as ::core::ffi::c_uint as i32),
@@ -2443,7 +2435,7 @@ unsafe extern "C" fn callback_makefd(
         blob,
         cff_encode_cff_operator(OP_PRIVATE),
     );
-    CFF_I_DICT.build.expect("non-null function pointer")(fd);
+    build_dict(fd);
     return blob;
 }
 unsafe fn cff_make_fdarray(
@@ -2456,7 +2448,7 @@ unsafe fn cff_make_fdarray(
     };
     context.fd_array = fd_array;
     context.string_hash = string_hash;
-    return CFF_I_INDEX.from_callback.expect("non-null function pointer")(
+    return new_index_by_callback(
         &raw mut context as *mut ::core::ffi::c_void,
         (*fd_array).len() as u32,
         Some(
@@ -2475,10 +2467,10 @@ unsafe fn writecff_cid_keyed(
     let mut h: *mut Buffer = cff_build_header();
     let mut n: *mut Buffer = cff_compile_nameindex(cff);
     let mut top: *mut CffDict = cff_make_fd_dict(cff, &raw mut string_hash);
-    let mut t: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(top);
-    CFF_I_DICT.free.expect("non-null function pointer")(top);
+    let mut t: *mut Buffer = build_dict(top);
+    cff_dict_free(top);
     let mut top_pd: *mut CffDict = cff_make_private_dict((*cff).private_dict.as_deref_mut().map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict));
-    let mut p: *mut Buffer = CFF_I_DICT.build.expect("non-null function pointer")(top_pd);
+    let mut p: *mut Buffer = build_dict(top_pd);
     bufwrite_bufdel(
         p,
         cff_build_offset(0xffffffff as ::core::ffi::c_uint as i32),
@@ -2487,13 +2479,13 @@ unsafe fn writecff_cid_keyed(
         p,
         cff_encode_cff_operator(OP_SUBRS),
     );
-    CFF_I_DICT.free.expect("non-null function pointer")(top_pd);
+    cff_dict_free(top_pd);
     let mut e: *mut Buffer = cff_make_fdselect(cff, glyf);
     let mut fd_array_index: *mut CffIndex = ::core::ptr::null_mut::<CffIndex>();
     let mut r: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     if (*cff).is_cid {
         fd_array_index = cff_make_fdarray(&raw const (*cff).fd_array, &raw mut string_hash);
-        r = CFF_I_INDEX.build.expect("non-null function pointer")(fd_array_index);
+        r = build_index(fd_array_index);
     } else {
         r = __caryll_allocate_clean(
             ::core::mem::size_of::<Buffer>() as usize,
@@ -2623,7 +2615,7 @@ unsafe fn writecff_cid_keyed(
             let mut pd: *mut CffDict =
                 cff_make_private_dict((&mut (*cff).fd_array)[j as usize].private_dict.as_deref_mut().map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict));
             let mut p_0: *mut Buffer =
-                CFF_I_DICT.build.expect("non-null function pointer")(pd);
+                build_dict(pd);
             bufwrite_bufdel(
                 p_0,
                 cff_build_offset(0xffffffff as ::core::ffi::c_uint as i32),
@@ -2632,7 +2624,7 @@ unsafe fn writecff_cid_keyed(
                 p_0,
                 cff_encode_cff_operator(OP_SUBRS),
             );
-            CFF_I_DICT.free.expect("non-null function pointer")(pd);
+            cff_dict_free(pd);
             fd_array_privates[j as usize] = p_0;
             let mut private_length_ptr: *mut u8 = {
                 let fd_array_offset = &(*fd_array_index).offset;
@@ -2674,8 +2666,8 @@ unsafe fn writecff_cid_keyed(
             j = j.wrapping_add(1);
         }
         buffree(r);
-        r = CFF_I_INDEX.build.expect("non-null function pointer")(fd_array_index);
-        CFF_I_INDEX.free.expect("non-null function pointer")(fd_array_index);
+        r = build_index(fd_array_index);
+        cff_index_free(fd_array_index);
         bufwrite_bufdel(blob, r);
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*cff).fd_array.len() {

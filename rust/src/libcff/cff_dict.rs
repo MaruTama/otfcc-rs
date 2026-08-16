@@ -24,34 +24,6 @@ pub struct CffDict {
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
-pub struct CffDictElementInterface {
-    pub init: Option<unsafe extern "C" fn(*mut CffDict) -> ()>,
-    pub copy: Option<unsafe extern "C" fn(*mut CffDict, *const CffDict) -> ()>,
-    pub dispose: Option<unsafe extern "C" fn(*mut CffDict) -> ()>,
-    pub create: Option<unsafe extern "C" fn() -> *mut CffDict>,
-    pub free: Option<unsafe extern "C" fn(*mut CffDict) -> ()>,
-    pub parse: Option<unsafe extern "C" fn(*const u8, u32) -> *mut CffDict>,
-    pub parse_to_callback: Option<
-        unsafe extern "C" fn(
-            *const u8,
-            u32,
-            *mut ::core::ffi::c_void,
-            Option<
-                unsafe extern "C" fn(
-                    CffDictOperator,
-                    u8,
-                    *mut CffValue,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
-            >,
-        ) -> (),
-    >,
-    pub parse_dict_key:
-        Option<unsafe extern "C" fn(*const u8, u32, CffDictOperator, u32) -> CffValue>,
-    pub build: Option<unsafe extern "C" fn(*const CffDict) -> *mut Buffer>,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffGetKeyContext {
     pub found: bool,
     pub res: CffValue,
@@ -63,86 +35,33 @@ unsafe fn dispose_dict(mut dict: *mut CffDict) {
     (*dict).ents = Vec::new();
 }
 #[inline]
-unsafe extern "C" fn cff_dict_create() -> *mut CffDict {
-    // `Box::new` of an explicit all-zero literal, not `malloc` + `cff_dict_
-    // init`'s `memset` -- see `cff_dict_free`'s matching `Box::from_raw`.
-    // `cff_dict_init` itself stays defined for `CFF_I_DICT.init` (a vtable
-    // slot with no call site anywhere in the crate, same "present but
-    // unreachable" shape as `subtable_gpos_pair_copy`).
+pub(crate) unsafe fn cff_dict_create() -> *mut CffDict {
+    // `Box::new` of an explicit all-zero literal, not `malloc` + a `memset`
+    // init -- see `cff_dict_free`'s matching `Box::from_raw`.
     Box::into_raw(Box::new(CffDict {
         ents: Vec::new(),
     }))
 }
 #[inline]
-unsafe extern "C" fn cff_dict_free(mut x: *mut CffDict) {
+pub(crate) unsafe fn cff_dict_free(mut x: *mut CffDict) {
     if x.is_null() {
         return;
     }
     // `ents`/each entry's `vals` are still freed here exactly as before --
     // only the outer shell's own allocator changed, from a bare `malloc`/
-    // `free` pair to `Box::into_raw`/`Box::from_raw`. Every `CFF_I_DICT.
-    // create`/`.free` call site pairs consistently (confirmed by grep: no
-    // generic adapter reclaims a `*mut CffDict` any other way, unlike
-    // `GposPairSubtable`'s `subtable_from_raw`), so this is self-contained.
+    // `free` pair to `Box::into_raw`/`Box::from_raw`. Every `cff_dict_
+    // create`/`cff_dict_free` call site pairs consistently (confirmed by
+    // grep: no generic adapter reclaims a `*mut CffDict` any other way,
+    // unlike `GposPairSubtable`'s `subtable_from_raw`), so this is
+    // self-contained.
     cff_dict_dispose(x);
     drop(Box::from_raw(x));
 }
 #[inline]
-unsafe extern "C" fn cff_dict_dispose(mut x: *mut CffDict) {
+unsafe fn cff_dict_dispose(mut x: *mut CffDict) {
     dispose_dict(x);
 }
-#[inline]
-unsafe extern "C" fn cff_dict_init(mut x: *mut CffDict) {
-    // No all-zero bit pattern is a valid `CffDict` any more (it owns a
-    // `Vec`), so place a valid empty value directly instead of the old
-    // `memset`.
-    ::core::ptr::write(x, CffDict { ents: Vec::new() });
-}
-#[inline]
-unsafe extern "C" fn cff_dict_copy(mut _dst: *mut CffDict, mut _src: *const CffDict) {
-    // Confirmed dead: `CFF_I_DICT.copy` has no call site anywhere in the
-    // crate. The old `memcpy`-based body was only safe by accident, back
-    // when both fields were raw pointers a bitwise copy could alias
-    // harmlessly; now that `ents` (and each entry's `vals`) are `Vec`s, a
-    // `memcpy` would double-free. Kept as a loud failure instead of
-    // silently reintroducing that risk if this ever gets wired up.
-    unreachable!("CffDict::copy is dead code and unsound for owned Vec data")
-}
-unsafe extern "C" fn parse_dict(mut data: *const u8, len: u32) -> *mut CffDict {
-    let dict: *mut CffDict = Box::into_raw(Box::new(CffDict { ents: Vec::new() }));
-    let mut index: u32 = 0 as u32;
-    let mut advance: u32 = 0;
-    let mut val: CffValue = CffValue {
-        t: CffValueType::Unset,
-        c2rust_unnamed: CffValueBody { i: 0 },
-    };
-    let mut stack: [CffValue; 48] = [CffValue {
-        t: CffValueType::Unset,
-        c2rust_unnamed: CffValueBody { i: 0 },
-    }; 48];
-    let mut temp: *const u8 = data;
-    while temp < data.offset(len as isize) {
-        advance = cff_decode_cff_token(temp, &raw mut val);
-        match val.t {
-            CffValueType::Operator => {
-                (*dict).ents.push(CffDictEntry {
-                    op: CffDictOperator(val.c2rust_unnamed.i as u32),
-                    vals: stack[..index as usize].to_vec(),
-                });
-                index = 0 as u32;
-            }
-            CffValueType::Integer | CffValueType::Double => {
-                let fresh2 = index;
-                index = index.wrapping_add(1);
-                stack[fresh2 as usize] = val;
-            }
-            _ => {}
-        }
-        temp = temp.offset(advance as isize);
-    }
-    return dict;
-}
-unsafe extern "C" fn parse_to_callback(
+pub(crate) unsafe fn parse_to_callback(
     mut data: *const u8,
     len: u32,
     mut context: *mut ::core::ffi::c_void,
@@ -200,7 +119,7 @@ unsafe extern "C" fn callback_get_key(
         (*context).res = *stack.offset((*context).idx as isize);
     }
 }
-unsafe extern "C" fn parse_dict_key(
+pub(crate) unsafe fn parse_dict_key(
     mut data: *const u8,
     len: u32,
     op: CffDictOperator,
@@ -236,7 +155,7 @@ unsafe extern "C" fn parse_dict_key(
     );
     return context.res;
 }
-unsafe extern "C" fn build_dict(mut dict: *const CffDict) -> *mut Buffer {
+pub(crate) unsafe fn build_dict(mut dict: *const CffDict) -> *mut Buffer {
     let mut blob: *mut Buffer = bufnew();
     let ents = &(*dict).ents;
     let mut i: usize = 0;
@@ -264,34 +183,3 @@ unsafe extern "C" fn build_dict(mut dict: *const CffDict) -> *mut Buffer {
     }
     return blob;
 }
-pub static CFF_I_DICT: CffDictElementInterface = {
-    CffDictElementInterface {
-        init: Some(cff_dict_init as unsafe extern "C" fn(*mut CffDict) -> ()),
-        copy: Some(cff_dict_copy as unsafe extern "C" fn(*mut CffDict, *const CffDict) -> ()),
-        dispose: Some(cff_dict_dispose as unsafe extern "C" fn(*mut CffDict) -> ()),
-        create: Some(cff_dict_create),
-        free: Some(cff_dict_free as unsafe extern "C" fn(*mut CffDict) -> ()),
-        parse: Some(parse_dict as unsafe extern "C" fn(*const u8, u32) -> *mut CffDict),
-        parse_to_callback: Some(
-            parse_to_callback
-                as unsafe extern "C" fn(
-                    *const u8,
-                    u32,
-                    *mut ::core::ffi::c_void,
-                    Option<
-                        unsafe extern "C" fn(
-                            CffDictOperator,
-                            u8,
-                            *mut CffValue,
-                            *mut ::core::ffi::c_void,
-                        ) -> (),
-                    >,
-                ) -> (),
-        ),
-        parse_dict_key: Some(
-            parse_dict_key
-                as unsafe extern "C" fn(*const u8, u32, CffDictOperator, u32) -> CffValue,
-        ),
-        build: Some(build_dict as unsafe extern "C" fn(*const CffDict) -> *mut Buffer),
-    }
-};

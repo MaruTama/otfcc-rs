@@ -19,9 +19,9 @@ use crate::libcff::cff_index::CffIndex;
 use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
 use crate::libcff::cff_charset::{cff_extract_charset};
 use crate::libcff::cff_codecs::{cff_decode_cs2_token};
-use crate::libcff::cff_dict::{CFF_I_DICT};
+use crate::libcff::cff_dict::{parse_dict_key};
 use crate::libcff::cff_fdselect::{cff_extract_fd_select};
-use crate::libcff::cff_index::{CFF_I_INDEX};
+use crate::libcff::cff_index::{extract_index, get_index_length, empty_index, cff_index_dispose};
 
 /// The Top DICT's Encoding offset is overloaded by spec: values 0 and 1
 /// select the two predefined (Standard/Expert) encodings outright, and
@@ -115,15 +115,15 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
     (*cff).head.hdr_size = gu1((*cff).raw_data, 2 as u32) as u8;
     (*cff).head.off_size = gu1((*cff).raw_data, 3 as u32) as u8;
     pos = (*cff).head.hdr_size as u32;
-    CFF_I_INDEX.parse.expect("non-null function pointer")(
+    extract_index(
         (*cff).raw_data,
         pos,
         &raw mut (*cff).name,
     );
-    pos = (4 as u32).wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
+    pos = (4 as u32).wrapping_add(get_index_length(
         &raw mut (*cff).name,
     ));
-    CFF_I_INDEX.parse.expect("non-null function pointer")(
+    extract_index(
         (*cff).raw_data,
         pos,
         &raw mut (*cff).top_dict,
@@ -144,35 +144,35 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         );
     }
     pos = (4 as u32)
-        .wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
+        .wrapping_add(get_index_length(
             &raw mut (*cff).name,
         ))
-        .wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
+        .wrapping_add(get_index_length(
             &raw mut (*cff).top_dict,
         ));
-    CFF_I_INDEX.parse.expect("non-null function pointer")(
+    extract_index(
         (*cff).raw_data,
         pos,
         &raw mut (*cff).string,
     );
     pos = (4 as u32)
-        .wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
+        .wrapping_add(get_index_length(
             &raw mut (*cff).name,
         ))
-        .wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
+        .wrapping_add(get_index_length(
             &raw mut (*cff).top_dict,
         ))
-        .wrapping_add(CFF_I_INDEX.get_length.expect("non-null function pointer")(
+        .wrapping_add(get_index_length(
             &raw mut (*cff).string,
         ));
-    CFF_I_INDEX.parse.expect("non-null function pointer")(
+    extract_index(
         (*cff).raw_data,
         pos,
         &raw mut (*cff).global_subr,
     );
     if !(*cff).top_dict.data.is_empty() {
         let mut offset_0: i32 = 0;
-        offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
+        offset_0 = parse_dict_key(
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
@@ -190,14 +190,14 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         .c2rust_unnamed
         .i;
         if offset_0 != -(1 as i32) {
-            CFF_I_INDEX.parse.expect("non-null function pointer")(
+            extract_index(
                 (*cff).raw_data,
                 offset_0 as u32,
                 &raw mut (*cff).char_strings,
             );
             (*cff).cnt_glyph = (*cff).char_strings.count as u16;
         } else {
-            CFF_I_INDEX.empty.expect("non-null function pointer")(&raw mut (*cff).char_strings);
+            empty_index(&raw mut (*cff).char_strings);
             (*(*options).logger)
                 .log_sds
                 .expect("non-null function pointer")(
@@ -207,7 +207,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
                 crate::bytesbuild!(b"[libcff] Bad CFF font: no any glyph data.\n"),
             );
         }
-        offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
+        offset_0 = parse_dict_key(
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
@@ -229,7 +229,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         } else {
             (*cff).encodings = CffEncoding::Unspecified;
         }
-        offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
+        offset_0 = parse_dict_key(
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
@@ -255,7 +255,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         } else {
             (*cff).charsets = CffCharset::IsoAdobe;
         }
-        offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
+        offset_0 = parse_dict_key(
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
@@ -281,7 +281,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         } else {
             (*cff).fdselect = CffFdSelect::Unspecified;
         }
-        offset_0 = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
+        offset_0 = parse_dict_key(
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
@@ -299,19 +299,19 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         .c2rust_unnamed
         .i;
         if offset_0 != -(1 as i32) {
-            CFF_I_INDEX.parse.expect("non-null function pointer")(
+            extract_index(
                 (*cff).raw_data,
                 offset_0 as u32,
                 &raw mut (*cff).font_dict,
             );
         } else {
-            CFF_I_INDEX.empty.expect("non-null function pointer")(&raw mut (*cff).font_dict);
+            empty_index(&raw mut (*cff).font_dict);
         }
     }
     let mut private_len: i32 = -(1 as i32);
     let mut private_off: i32 = -(1 as i32);
     if !(*cff).top_dict.data.is_empty() {
-        private_len = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
+        private_len = parse_dict_key(
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
@@ -328,7 +328,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         )
         .c2rust_unnamed
         .i;
-        private_off = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
+        private_off = parse_dict_key(
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
@@ -347,7 +347,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         .i;
     }
     if private_off != -(1 as i32) && private_len != -(1 as i32) {
-        offset = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
+        offset = parse_dict_key(
             (*cff).raw_data.offset(private_off as isize),
             private_len as u32,
             OP_SUBRS,
@@ -356,16 +356,16 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         .c2rust_unnamed
         .i;
         if offset != -(1 as i32) {
-            CFF_I_INDEX.parse.expect("non-null function pointer")(
+            extract_index(
                 (*cff).raw_data,
                 (private_off + offset) as u32,
                 &raw mut (*cff).local_subr,
             );
         } else {
-            CFF_I_INDEX.empty.expect("non-null function pointer")(&raw mut (*cff).local_subr);
+            empty_index(&raw mut (*cff).local_subr);
         }
     } else {
-        CFF_I_INDEX.empty.expect("non-null function pointer")(&raw mut (*cff).local_subr);
+        empty_index(&raw mut (*cff).local_subr);
     };
 }
 pub unsafe fn cff_open_stream(
@@ -398,13 +398,13 @@ pub unsafe fn cff_close(mut file: *mut CffFile) {
             free((*file).raw_data as *mut ::core::ffi::c_void);
             (*file).raw_data = ::core::ptr::null_mut::<u8>();
         }
-        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).name);
-        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).top_dict);
-        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).string);
-        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).global_subr);
-        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).char_strings);
-        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).font_dict);
-        CFF_I_INDEX.dispose.expect("non-null function pointer")(&raw mut (*file).local_subr);
+        cff_index_dispose(&raw mut (*file).name);
+        cff_index_dispose(&raw mut (*file).top_dict);
+        cff_index_dispose(&raw mut (*file).string);
+        cff_index_dispose(&raw mut (*file).global_subr);
+        cff_index_dispose(&raw mut (*file).char_strings);
+        cff_index_dispose(&raw mut (*file).font_dict);
+        cff_index_dispose(&raw mut (*file).local_subr);
         // Reassigning drops whatever Vec the previous variant owned, before the
         // struct itself is freed via a bare `free()` below (which does not run
         // Drop glue) -- same pattern as `dispose_glyph_order`.
@@ -458,7 +458,7 @@ pub unsafe fn cff_parse_subr(
             fd = 0 as u8;
         }
     }
-    off_private = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
+    off_private = parse_dict_key(
         fdarray
             .data.as_ptr()
             .offset(*fdarray.offset.as_ptr().offset(fd as isize) as isize)
@@ -472,7 +472,7 @@ pub unsafe fn cff_parse_subr(
     )
     .c2rust_unnamed
     .i;
-    len_private = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
+    len_private = parse_dict_key(
         fdarray
             .data.as_ptr()
             .offset(*fdarray.offset.as_ptr().offset(fd as isize) as isize)
@@ -487,7 +487,7 @@ pub unsafe fn cff_parse_subr(
     .c2rust_unnamed
     .i;
     if off_private != -(1 as i32) && len_private != -(1 as i32) {
-        off_subr = CFF_I_DICT.parse_dict_key.expect("non-null function pointer")(
+        off_subr = parse_dict_key(
             raw.offset(off_private as isize),
             len_private as u32,
             OP_SUBRS,
@@ -496,16 +496,16 @@ pub unsafe fn cff_parse_subr(
         .c2rust_unnamed
         .i;
         if off_subr != -(1 as i32) {
-            CFF_I_INDEX.parse.expect("non-null function pointer")(
+            extract_index(
                 raw,
                 (off_private + off_subr) as u32,
                 subr,
             );
         } else {
-            CFF_I_INDEX.empty.expect("non-null function pointer")(subr);
+            empty_index(subr);
         }
     } else {
-        CFF_I_INDEX.empty.expect("non-null function pointer")(subr);
+        empty_index(subr);
     }
     return fd;
 }

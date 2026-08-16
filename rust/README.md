@@ -894,6 +894,45 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe extern "C"` removal, Phase 3 batch 4: `CffIndexElementInterface`/
+  `CFF_I_INDEX` (10 fields) and `CffDictElementInterface`/`CFF_I_DICT` (8).**
+  Same collapse pattern, but both vtables carry the individual-case
+  callback-parameter shape the plan flagged separately from the
+  fake-polymorphism vtables themselves: `CFF_I_INDEX.from_callback` and
+  `CFF_I_DICT.parse_to_callback` each take a nested
+  `Option<unsafe extern "C" fn(...)>` callback argument, and the concrete
+  functions callers pass there (`from_array`, `callback_makestringindex`,
+  `callback_makefd`, `callback_extract_private`, `callback_extract_fd`)
+  stay `extern "C"` -- only the two vtable wrapper functions themselves
+  (`new_index_by_callback`, `parse_to_callback`) lost the annotation, their
+  callback *parameter's* type didn't.
+  `cff_index_copy`/`cff_dict_copy` were both already-confirmed-dead
+  `unreachable!()` stubs (fifth and sixth instances of that shape) and got
+  deleted alongside their vtables. `CFF_I_DICT` had two more dead fields
+  `CFF_I_INDEX` didn't: `parse_dict` (the whole-buffer parser, superseded
+  everywhere by `parse_to_callback`) had zero callers anywhere, and
+  `cff_dict_init` had zero callers *even internally* -- unlike every other
+  `_init` companion, `cff_dict_create` builds its `CffDict` with a direct
+  `Box::new` literal rather than calling `cff_dict_init`, so the init
+  function was already fully inert before this PR, not just
+  vtable-unreachable. One mechanical-sweep gap surfaced by the build (not
+  the address-taken kind from Phase 2, a different regex miss): one
+  `.expect("non-null function pointer")` call in `table/cff.rs` had a
+  trailing comma after its multi-line string argument
+  (`.expect(\n    "...",\n)`), which the collapse script's pattern didn't
+  anticipate -- caught immediately by `cargo build`'s "cannot find value"
+  error and fixed by hand. Purely mechanical beyond that -- no behavior
+  change; verified with the standard full pipeline on both platforms
+  (macOS arm64 and the Linux container): 54 unit tests green (0 warnings
+  under `warnings = "deny"`), every payload byte-identical in both
+  directions including the `otfccdll` cdylib, all 10 round-trip payloads
+  stable, issue #1's large-lookup regression test green,
+  `compare-log-output.sh` green. 4 of the 17 vtables from the original
+  inventory remain: `CffIOutlineBuilder`/`DRAW_PASS` (8, value-passed),
+  `VqSegmentElementInterface`/`VQ_I_SEGMENT` (11),
+  `GlyphOrderPackage`/`OTFCC_PKG_GLYPH_ORDER` (10), and
+  `VqVectorInterface`/`I_VQ` (27, planned last).
+
 - **`unsafe extern "C"` removal, Phase 3 batch 3: `ChainingSubtableElementInterface`/
   `I_SUBTABLE_CHAINING` (5 fields), `ICoverage`/`OTL_I_COVERAGE` (4), and
   `FontElementInterface`/`OTFCC_I_FONT` (7) -- the last one handled with the
