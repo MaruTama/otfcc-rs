@@ -7,11 +7,11 @@ use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::support::base64::{base64_encode};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
 #[inline]
-unsafe extern "C" fn is_string_tag(mut tag: u32) -> bool {
+unsafe fn is_string_tag(mut tag: u32) -> bool {
     return tag == crate::tag::TAG_DLNG || tag == crate::tag::TAG_SLNG;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_dump_meta(
+pub unsafe fn otfcc_dump_meta(
     meta: Option<&MetaTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,
@@ -107,7 +107,7 @@ pub unsafe extern "C" fn otfcc_dump_meta(
     }
 }
 #[inline]
-unsafe extern "C" fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {
+unsafe fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {
     *tags.offset(0 as ::core::ffi::c_int as isize) =
         (tag >> 24 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(1 as ::core::ffi::c_int as isize) =

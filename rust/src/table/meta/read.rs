@@ -5,7 +5,7 @@ use crate::support::options::{Options};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
-pub unsafe extern "C" fn otfcc_read_meta(
+pub unsafe fn otfcc_read_meta(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<MetaTable>> {

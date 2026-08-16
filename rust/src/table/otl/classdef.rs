@@ -48,7 +48,7 @@ pub(crate) unsafe extern "C" fn otl_class_def_free(mut x: *mut ClassDef) {
     // the shell.
     drop(Box::from_raw(x));
 }
-pub(crate) unsafe extern "C" fn otl_class_def_create() -> *mut ClassDef {
+pub(crate) unsafe fn otl_class_def_create() -> *mut ClassDef {
     // A real Rust allocation now, not a `malloc`'d shell: `Box::into_raw`
     // gives back a pointer with the same shape (`*mut ClassDef`) every
     // caller already expects, but it must from here on only ever be
@@ -80,14 +80,14 @@ pub(crate) unsafe fn classdef_from_raw(raw: *mut ClassDef) -> Option<Box<ClassDe
 // by value trips `improper_ctypes_definitions`; this is never called across
 // a real FFI boundary (c2rust artifact, not `#[no_mangle]`).
 #[allow(improper_ctypes_definitions)]
-pub(crate) unsafe extern "C" fn push_class_def(cd: *mut ClassDef, h: GlyphHandle, cls: GlyphClass) {
+pub(crate) unsafe fn push_class_def(cd: *mut ClassDef, h: GlyphHandle, cls: GlyphClass) {
     (*cd).glyphs.push(h);
     (*cd).classes.push(cls);
     if cls as ::core::ffi::c_int > (*cd).maxclass as ::core::ffi::c_int {
         (*cd).maxclass = cls;
     }
 }
-pub(crate) unsafe extern "C" fn read_class_def(
+pub(crate) unsafe fn read_class_def(
     mut data: *const u8,
     mut table_length: u32,
     mut offset: u32,
@@ -185,7 +185,7 @@ pub(crate) unsafe extern "C" fn read_class_def(
     }
     return cd;
 }
-pub(crate) unsafe extern "C" fn expand_class_def(
+pub(crate) unsafe fn expand_class_def(
     mut cov: *mut Coverage,
     mut ocd: *mut ClassDef,
 ) -> *mut ClassDef {

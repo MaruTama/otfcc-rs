@@ -274,7 +274,7 @@ pub static VTABLE_LOGGER: ILogger = {
         ),
     }
 };
-pub unsafe extern "C" fn otfcc_new_logger(
+pub unsafe fn otfcc_new_logger(
     mut target: *mut ILoggerTarget,
 ) -> *mut ILogger {
     let mut logger: *mut Logger = ::core::ptr::null_mut::<Logger>();
@@ -333,7 +333,7 @@ pub static VTABLE_STDERR_TARGET: ILoggerTarget = {
         push: Some(stderr_target_push as unsafe extern "C" fn(*mut ILoggerTarget, Vec<u8>) -> ()),
     }
 };
-pub unsafe extern "C" fn otfcc_new_std_err_target() -> *mut ILoggerTarget {
+pub unsafe fn otfcc_new_std_err_target() -> *mut ILoggerTarget {
     let mut target: *mut StderrTarget = ::core::ptr::null_mut::<StderrTarget>();
     target = __caryll_allocate_clean(
         ::core::mem::size_of::<StderrTarget>() as usize,
@@ -368,7 +368,7 @@ pub static VTABLE_EMPTY_TARGET: ILoggerTarget = {
         push: Some(empty_target_push as unsafe extern "C" fn(*mut ILoggerTarget, Vec<u8>) -> ()),
     }
 };
-pub unsafe extern "C" fn otfcc_new_empty_target() -> *mut ILoggerTarget {
+pub unsafe fn otfcc_new_empty_target() -> *mut ILoggerTarget {
     let mut target: *mut StderrTarget = ::core::ptr::null_mut::<StderrTarget>();
     target = __caryll_allocate_clean(
         ::core::mem::size_of::<StderrTarget>() as usize,

@@ -27,20 +27,20 @@ use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_b
 pub(crate) unsafe fn dispose_gsub_multi_subtable(arr: *mut GsubMultiSubtable) {
     *arr = Vec::new();
 }
-pub(crate) unsafe extern "C" fn subtable_gsub_multi_free(x: *mut GsubMultiSubtable) {
+pub(crate) unsafe fn subtable_gsub_multi_free(x: *mut GsubMultiSubtable) {
     if x.is_null() {
         return;
     }
     dispose_gsub_multi_subtable(x);
     free(x as *mut ::core::ffi::c_void);
 }
-unsafe extern "C" fn subtable_gsub_multi_create() -> *mut GsubMultiSubtable {
+unsafe fn subtable_gsub_multi_create() -> *mut GsubMultiSubtable {
     let x: *mut GsubMultiSubtable =
         malloc(::core::mem::size_of::<GsubMultiSubtable>() as usize) as *mut GsubMultiSubtable;
     x.write(Vec::new());
     x
 }
-pub unsafe extern "C" fn otl_read_gsub_multi(
+pub unsafe fn otl_read_gsub_multi(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -145,7 +145,7 @@ pub unsafe extern "C" fn otl_gsub_parse_multi(
     }
     return subtable_from_raw(st, Subtable::GsubMulti);
 }
-unsafe extern "C" fn build_gsub_multi_subtable_range(
+unsafe fn build_gsub_multi_subtable_range(
     subtable: *const GsubMultiSubtable,
     start: GlyphId,
     end: GlyphId,
@@ -225,7 +225,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
     *count = n_parts;
     return parts;
 }
-pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable(
+pub unsafe fn otfcc_build_gsub_multi_subtable(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {

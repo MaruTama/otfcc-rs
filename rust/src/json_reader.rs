@@ -51,14 +51,14 @@ use crate::table::vhea::{otfcc_parse_vhea};
 
 
 #[inline]
-unsafe extern "C" fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
+unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
     return strtol(
         __nptr,
         NULL as *mut *mut ::core::ffi::c_char,
         10 as ::core::ffi::c_int,
     ) as ::core::ffi::c_int;
 }
-unsafe extern "C" fn otfcc_decide_font_subtype_from_json(
+unsafe fn otfcc_decide_font_subtype_from_json(
     mut root: *const ParsedValue,
 ) -> FontSubtype {
     if !json_obj_get_type(
@@ -82,7 +82,7 @@ unsafe extern "C" fn otfcc_decide_font_subtype_from_json(
 // Never a real FFI boundary -- internal call site only, same rationale
 // as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-unsafe extern "C" fn set_order_by_name(
+unsafe fn set_order_by_name(
     mut go: *mut GlyphOrder,
     mut name: Vec<u8>,
     mut order_type: GlyphOrderPass,
@@ -108,7 +108,7 @@ unsafe extern "C" fn set_order_by_name(
         }
     }
 }
-unsafe extern "C" fn order_glyphs(mut go: *mut GlyphOrder) {
+unsafe fn order_glyphs(mut go: *mut GlyphOrder) {
     let mut idxs: Vec<usize> = (*go).by_name.values().copied().collect();
     idxs.sort_by(|&a, &b| {
         let ea = &(&(*go).entries)[a];
@@ -129,7 +129,7 @@ unsafe extern "C" fn order_glyphs(mut go: *mut GlyphOrder) {
 // Never a real FFI boundary -- internal call sites only, same rationale
 // as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-unsafe extern "C" fn escalate_glyph_order_by_name(
+unsafe fn escalate_glyph_order_by_name(
     mut go: *mut GlyphOrder,
     name: &[u8],
     mut order_type: GlyphOrderPass,
@@ -143,7 +143,7 @@ unsafe extern "C" fn escalate_glyph_order_by_name(
         }
     }
 }
-unsafe extern "C" fn place_order_entries_from_glyf(
+unsafe fn place_order_entries_from_glyf(
     mut table: *const ParsedValue,
     mut go: *mut GlyphOrder,
 ) {
@@ -170,7 +170,7 @@ unsafe extern "C" fn place_order_entries_from_glyf(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn place_order_entries_from_cmap(
+unsafe fn place_order_entries_from_cmap(
     mut table: *const ParsedValue,
     mut go: *mut GlyphOrder,
 ) {
@@ -214,7 +214,7 @@ unsafe extern "C" fn place_order_entries_from_cmap(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn place_order_entries_from_subtable(
+unsafe fn place_order_entries_from_subtable(
     mut table: *const ParsedValue,
     mut go: *mut GlyphOrder,
     mut zero_only: bool,
@@ -239,7 +239,7 @@ unsafe extern "C" fn place_order_entries_from_subtable(
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn parse_glyph_order(
+unsafe fn parse_glyph_order(
     mut root: *const ParsedValue,
     mut options: *const Options,
 ) -> Option<Box<GlyphOrder>> {
@@ -399,7 +399,7 @@ unsafe extern "C" fn read_json(
 unsafe extern "C" fn free_reader(mut self_0: *mut IFontBuilder) {
     free(self_0 as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otfcc_new_json_reader() -> *mut IFontBuilder {
+pub unsafe fn otfcc_new_json_reader() -> *mut IFontBuilder {
     let mut reader: *mut IFontBuilder = ::core::ptr::null_mut::<IFontBuilder>();
     reader = __caryll_allocate_clean(
         ::core::mem::size_of::<IFontBuilder>() as usize,

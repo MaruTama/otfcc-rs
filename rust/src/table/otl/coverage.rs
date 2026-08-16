@@ -24,7 +24,7 @@ pub struct ICoverage {
     pub build_format:
         Option<unsafe extern "C" fn(*const Coverage, u16) -> *mut Buffer>,
 }
-pub(crate) unsafe extern "C" fn otl_coverage_create() -> *mut Coverage {
+pub(crate) unsafe fn otl_coverage_create() -> *mut Coverage {
     // A real Rust allocation now, not a `malloc`'d shell: `Box::into_raw`
     // gives back a pointer with the same shape (`*mut Coverage`) every
     // caller already expects, but it must from here on only ever be
@@ -33,7 +33,7 @@ pub(crate) unsafe extern "C" fn otl_coverage_create() -> *mut Coverage {
     // is exactly the hazard this conversion removes.
     Box::into_raw(Box::new(Vec::new()))
 }
-pub(crate) unsafe extern "C" fn otl_coverage_free(mut x: *mut Coverage) {
+pub(crate) unsafe fn otl_coverage_free(mut x: *mut Coverage) {
     if x.is_null() {
         return;
     }
@@ -58,10 +58,10 @@ pub(crate) unsafe fn coverage_from_raw(raw: *mut Coverage) -> Coverage {
 // by value trips `improper_ctypes_definitions`; this is never called across
 // a real FFI boundary (c2rust artifact, not `#[no_mangle]`).
 #[allow(improper_ctypes_definitions)]
-pub(crate) unsafe extern "C" fn push_to_coverage(coverage: *mut Coverage, h: GlyphHandle) {
+pub(crate) unsafe fn push_to_coverage(coverage: *mut Coverage, h: GlyphHandle) {
     (*coverage).push(h);
 }
-pub(crate) unsafe extern "C" fn read_coverage(
+pub(crate) unsafe fn read_coverage(
     mut data: *const u8,
     mut table_length: u32,
     mut offset: u32,
@@ -284,7 +284,7 @@ pub(crate) unsafe extern "C" fn build_coverage_format(
 pub(crate) unsafe extern "C" fn build_coverage(mut coverage: *const Coverage) -> *mut Buffer {
     return build_coverage_format(coverage, 0 as u16);
 }
-pub(crate) unsafe extern "C" fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
+pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
     if coverage.is_null() {
         return;
     }

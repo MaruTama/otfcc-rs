@@ -25,7 +25,7 @@ use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, js
 pub(crate) unsafe fn dispose_gsub_ligature_subtable(arr: *mut GsubLigatureSubtable) {
     *arr = Vec::new();
 }
-pub(crate) unsafe extern "C" fn subtable_gsub_ligature_free(x: *mut GsubLigatureSubtable) {
+pub(crate) unsafe fn subtable_gsub_ligature_free(x: *mut GsubLigatureSubtable) {
     if x.is_null() {
         return;
     }
@@ -39,21 +39,21 @@ pub(crate) unsafe extern "C" fn subtable_gsub_ligature_free(x: *mut GsubLigature
 /// the old `*dst` and move-assigning `src` in is equivalent to (and safer
 /// than) the original's dispose-then-`memcpy`.
 #[allow(improper_ctypes_definitions)]
-pub(crate) unsafe extern "C" fn subtable_gsub_ligature_replace(
+pub(crate) unsafe fn subtable_gsub_ligature_replace(
     dst: *mut GsubLigatureSubtable,
     src: GsubLigatureSubtable,
 ) {
     dispose_gsub_ligature_subtable(dst);
     *dst = src;
 }
-unsafe extern "C" fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
+unsafe fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
     let x: *mut GsubLigatureSubtable =
         malloc(::core::mem::size_of::<GsubLigatureSubtable>() as usize)
             as *mut GsubLigatureSubtable;
     x.write(Vec::new());
     x
 }
-pub unsafe extern "C" fn otl_read_gsub_ligature(
+pub unsafe fn otl_read_gsub_ligature(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,

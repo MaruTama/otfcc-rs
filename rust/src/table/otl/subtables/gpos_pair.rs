@@ -34,7 +34,7 @@ pub struct IndividualGposPair {
     pub sv: PositionValue,
 }
 #[inline]
-unsafe extern "C" fn init_gpos_pair(mut subtable: *mut GposPairSubtable) {
+unsafe fn init_gpos_pair(mut subtable: *mut GposPairSubtable) {
     // Placement-construct: `subtable` is fresh malloc'd (not calloc'd) by
     // `subtable_gpos_pair_create`, so there is nothing valid to drop first --
     // same reasoning as `otl_coverage_create`/`otl_class_def_create`.
@@ -44,7 +44,7 @@ unsafe extern "C" fn init_gpos_pair(mut subtable: *mut GposPairSubtable) {
     (&raw mut (*subtable).second_values).write(Vec::new());
 }
 #[inline]
-pub(crate) unsafe extern "C" fn dispose_gpos_pair(mut subtable: *mut GposPairSubtable) {
+pub(crate) unsafe fn dispose_gpos_pair(mut subtable: *mut GposPairSubtable) {
     (*subtable).first = None;
     (*subtable).second = None;
     (*subtable).first_values = Vec::new();
@@ -104,7 +104,7 @@ unsafe extern "C" fn subtable_gpos_pair_free(mut x: *mut GposPairSubtable) {
     subtable_gpos_pair_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn otl_read_gpos_pair(
+pub unsafe fn otl_read_gpos_pair(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,
@@ -696,7 +696,7 @@ pub unsafe extern "C" fn otl_gpos_parse_pair(
         return subtable_from_raw(subtable, Subtable::GposPair);
     };
 }
-unsafe extern "C" fn cov_from_cd(mut cd: *const ClassDef) -> *mut Coverage {
+unsafe fn cov_from_cd(mut cd: *const ClassDef) -> *mut Coverage {
     let cov: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*cd).glyphs.len() {
@@ -708,7 +708,7 @@ unsafe extern "C" fn cov_from_cd(mut cd: *const ClassDef) -> *mut Coverage {
     }
     return cov;
 }
-pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
+pub unsafe fn otfcc_build_gpos_pair_individual(
     mut _subtable: *const Subtable,
 ) -> *mut BkBlock {
     let Subtable::GposPair(mut_subtable) = &*_subtable else { unreachable!() };
@@ -820,7 +820,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair_individual(
     cov = ::core::ptr::null_mut::<Coverage>();
     return root;
 }
-pub unsafe extern "C" fn otfcc_build_gpos_pair_classes(
+pub unsafe fn otfcc_build_gpos_pair_classes(
     mut _subtable: *const Subtable,
 ) -> *mut BkBlock {
     let Subtable::GposPair(mut_subtable) = &*_subtable else { unreachable!() };

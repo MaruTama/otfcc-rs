@@ -116,7 +116,7 @@ pub struct GlyphOrderPackage {
     pub lookup_name: Option<unsafe extern "C" fn(*mut GlyphOrder, Vec<u8>) -> bool>,
 }
 #[inline]
-unsafe extern "C" fn init_glyph_order(mut go: *mut GlyphOrder) {
+unsafe fn init_glyph_order(mut go: *mut GlyphOrder) {
     // Placement-construct, not a field assignment: the one live caller
     // (`otfcc_glyph_order_create`) hands this fresh `malloc`'d
     // (uninitialized) memory, so there is nothing to read or drop first.
@@ -125,7 +125,7 @@ unsafe extern "C" fn init_glyph_order(mut go: *mut GlyphOrder) {
     ::core::ptr::write(&raw mut (*go).by_name, std::collections::HashMap::new());
 }
 #[inline]
-unsafe extern "C" fn dispose_glyph_order(mut go: *mut GlyphOrder) {
+unsafe fn dispose_glyph_order(mut go: *mut GlyphOrder) {
     // `entries`'s own `Vec` drop glue frees every entry's `name: Vec<u8>`
     // on the way out; `by_gid`/`by_name` hold non-owning indices, nothing
     // to walk or free separately.

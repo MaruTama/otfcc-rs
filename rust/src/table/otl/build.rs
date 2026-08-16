@@ -67,7 +67,7 @@ fn feature_name_to_tag(name: &[u8]) -> u32 {
     }
     return tag;
 }
-unsafe extern "C" fn _declare_lookup_writer(
+unsafe fn _declare_lookup_writer(
     mut type_0: LookupType,
     mut fn_0: OtlBuilder,
     mut lookup: *const Lookup,
@@ -103,7 +103,7 @@ unsafe extern "C" fn _declare_lookup_writer(
     }
     return 0 as TableId;
 }
-unsafe extern "C" fn _declare_lookup_writer_split(
+unsafe fn _declare_lookup_writer_split(
     mut type_0: LookupType,
     mut fn_0: OtlSplitBuilder,
     mut lookup: *const Lookup,
@@ -153,7 +153,7 @@ unsafe extern "C" fn _declare_lookup_writer_split(
     }
     return 0 as TableId;
 }
-unsafe extern "C" fn _build_lookup(
+unsafe fn _build_lookup(
     mut lookup: *const Lookup,
     subtables: &mut Vec<*mut Buffer>,
     mut last_offset: *mut usize,
@@ -357,7 +357,7 @@ unsafe extern "C" fn _build_lookup(
     }
     return written;
 }
-unsafe extern "C" fn get_lookup_heuristics(
+unsafe fn get_lookup_heuristics(
     mut table: *const OtlTable,
     mut lut: *const Lookup,
 ) -> BuildHeuristics {
@@ -381,7 +381,7 @@ unsafe extern "C" fn get_lookup_heuristics(
     }
     return heu;
 }
-unsafe extern "C" fn write_otl_lookups(
+unsafe fn write_otl_lookups(
     mut table: *const OtlTable,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,
@@ -514,7 +514,7 @@ unsafe extern "C" fn write_otl_lookups(
     }
     return root;
 }
-unsafe extern "C" fn write_otl_features(
+unsafe fn write_otl_features(
     mut table: *const OtlTable,
     mut _options: *const Options,
 ) -> *mut BkBlock {
@@ -549,7 +549,7 @@ unsafe extern "C" fn write_otl_features(
     }
     return root;
 }
-unsafe extern "C" fn feature_index(
+unsafe fn feature_index(
     mut feature: *const Feature,
     mut table: *const OtlTable,
 ) -> TableId {
@@ -562,7 +562,7 @@ unsafe extern "C" fn feature_index(
     }
     return 0xffff as TableId;
 }
-unsafe extern "C" fn write_language(
+unsafe fn write_language(
     mut lang: *const LanguageSystem,
     mut table: *const OtlTable,
 ) -> *mut BkBlock {
@@ -581,7 +581,7 @@ unsafe extern "C" fn write_language(
     return root;
 }
 #[allow(improper_ctypes_definitions)] // internal call only, never crosses FFI
-unsafe extern "C" fn write_script(
+unsafe fn write_script(
     mut dl: *const LanguageSystem,
     mut ll: &[*const LanguageSystem],
     mut table: *const OtlTable,
@@ -598,7 +598,7 @@ unsafe extern "C" fn write_script(
     }
     return root;
 }
-unsafe extern "C" fn write_otl_script_and_languages(
+unsafe fn write_otl_script_and_languages(
     mut table: *const OtlTable,
     mut _options: *const Options,
 ) -> *mut BkBlock {
@@ -681,7 +681,7 @@ unsafe extern "C" fn write_otl_script_and_languages(
     }
     return root;
 }
-pub unsafe extern "C" fn otfcc_build_otl(
+pub unsafe fn otfcc_build_otl(
     mut table: Option<&OtlTable>,
     mut options: *const Options,
     mut tag: *const ::core::ffi::c_char,

@@ -35,7 +35,7 @@ pub struct Options {
     pub glyph_name_prefix: *mut ::core::ffi::c_char,
     pub logger: *mut ILogger,
 }
-pub unsafe extern "C" fn otfcc_new_options() -> *mut Options {
+pub unsafe fn otfcc_new_options() -> *mut Options {
     let mut options: *mut Options = ::core::ptr::null_mut::<Options>();
     options = __caryll_allocate_clean(
         ::core::mem::size_of::<Options>() as usize,
@@ -43,7 +43,7 @@ pub unsafe extern "C" fn otfcc_new_options() -> *mut Options {
     ) as *mut Options;
     return options;
 }
-pub unsafe extern "C" fn otfcc_delete_options(mut options: *mut Options) {
+pub unsafe fn otfcc_delete_options(mut options: *mut Options) {
     if !options.is_null() {
         free((*options).glyph_name_prefix as *mut ::core::ffi::c_void);
         (*options).glyph_name_prefix = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -58,7 +58,7 @@ pub unsafe extern "C" fn otfcc_delete_options(mut options: *mut Options) {
     free(options as *mut ::core::ffi::c_void);
     options = ::core::ptr::null_mut::<Options>();
 }
-pub unsafe extern "C" fn otfcc_options_optimize_to(
+pub unsafe fn otfcc_options_optimize_to(
     mut options: *mut Options,
     mut level: u8,
 ) {

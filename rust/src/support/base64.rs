@@ -6,7 +6,7 @@ static BASE64_TABLE: [u8; 64] = unsafe {
         *b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/",
     )
 };
-pub unsafe extern "C" fn base64_encode(
+pub unsafe fn base64_encode(
     mut src: *const u8,
     mut len: usize,
     mut out_len: *mut usize,
@@ -100,7 +100,7 @@ pub unsafe extern "C" fn base64_encode(
     }
     return out;
 }
-pub unsafe extern "C" fn base64_decode(
+pub unsafe fn base64_decode(
     mut src: *const u8,
     mut len: usize,
     mut out_len: *mut usize,

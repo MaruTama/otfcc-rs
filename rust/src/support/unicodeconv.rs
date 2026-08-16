@@ -5,7 +5,7 @@
 // boundary) -- goes away with the vtable/extern "C" cleanup, same as
 // every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn utf16be_to_utf8(
+pub unsafe fn utf16be_to_utf8(
     mut inb: *const u8,
     mut inlenb: ::core::ffi::c_int,
 ) -> Vec<u8> {

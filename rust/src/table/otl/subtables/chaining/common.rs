@@ -3,13 +3,13 @@ use libc::{free, malloc};
 
 use crate::table::otl::{ChainingSubtableElementInterface, ChainingRule, ChainingRuleSet, ChainingSubtable};
 
-pub unsafe extern "C" fn otl_init_chaining(mut subtable: *mut ChainingSubtable) {
+pub unsafe fn otl_init_chaining(mut subtable: *mut ChainingSubtable) {
     // No all-zero bit pattern is a valid `ChainingSubtable` (it owns `Vec`
     // fields through every variant), so place a valid empty `Canonical`
     // value directly instead of the old `memset`.
     ::core::ptr::write(subtable, ChainingSubtable::Canonical(ChainingRule::default()));
 }
-pub unsafe extern "C" fn otl_dispose_chaining(mut subtable: *mut ChainingSubtable) {
+pub unsafe fn otl_dispose_chaining(mut subtable: *mut ChainingSubtable) {
     // `ChainingRule`/`ChainingRuleSet` fully self-drop now (see
     // `table/otl.rs`), so running the enum's own `Drop` here does exactly
     // what the old tag-gated free logic did, for whichever variant is live,

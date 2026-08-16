@@ -74,7 +74,7 @@ pub type OtlConsolidationFunction = Option<
         *const Options,
     ) -> bool,
 >;
-unsafe extern "C" fn by_stem_pos(
+unsafe fn by_stem_pos(
     mut a: *const PostscriptStemDef,
     mut b: *const PostscriptStemDef,
 ) -> ::core::ffi::c_int {
@@ -86,7 +86,7 @@ unsafe extern "C" fn by_stem_pos(
         return -(1 as ::core::ffi::c_int);
     };
 }
-unsafe extern "C" fn by_mask_pointindex(
+unsafe fn by_mask_pointindex(
     mut a: *const PostscriptHintMask,
     mut b: *const PostscriptHintMask,
 ) -> ::core::ffi::c_int {
@@ -97,7 +97,7 @@ unsafe extern "C" fn by_mask_pointindex(
         (*a).contours_before as ::core::ffi::c_int - (*b).contours_before as ::core::ffi::c_int
     };
 }
-unsafe extern "C" fn consolidate_glyph_contours(
+unsafe fn consolidate_glyph_contours(
     mut g: *mut Glyph,
     mut options: *const Options,
 ) {
@@ -128,7 +128,7 @@ unsafe extern "C" fn consolidate_glyph_contours(
         keep
     });
 }
-unsafe extern "C" fn consolidate_glyph_references(
+unsafe fn consolidate_glyph_references(
     mut g: *mut Glyph,
     mut font: *mut Font,
     mut options: *const Options,
@@ -161,7 +161,7 @@ unsafe extern "C" fn consolidate_glyph_references(
         ok
     });
 }
-unsafe extern "C" fn consolidate_glyph_hints(
+unsafe fn consolidate_glyph_hints(
     mut g: *mut Glyph,
     mut _options: *const Options,
 ) {
@@ -254,7 +254,7 @@ unsafe extern "C" fn consolidate_glyph_hints(
         }
     }
 }
-unsafe extern "C" fn consolidate_fd_select(
+unsafe fn consolidate_fd_select(
     mut h: *mut FdHandle,
     mut cff: *mut CffTable,
     mut options: *const Options,
@@ -314,7 +314,7 @@ unsafe extern "C" fn consolidate_fd_select(
         otfcc_handle_dispose(h as *mut Handle);
     }
 }
-pub unsafe extern "C" fn consolidate_glyph(
+pub unsafe fn consolidate_glyph(
     mut g: *mut Glyph,
     mut font: *mut Font,
     mut options: *const Options,
@@ -324,7 +324,7 @@ pub unsafe extern "C" fn consolidate_glyph(
     consolidate_glyph_hints(g, options);
     consolidate_fd_select(&raw mut (*g).fd_select, (*font).cff.as_deref_mut().map_or(::core::ptr::null_mut(), |c| c as *mut CffTable), options, &(*g).name);
 }
-pub unsafe extern "C" fn get_point_coordinates(
+pub unsafe fn get_point_coordinates(
     mut table: *mut GlyfTable,
     mut gr: *mut ComponentReference,
     mut n: ShapeId,
@@ -416,7 +416,7 @@ pub unsafe extern "C" fn get_point_coordinates(
     }
     return false;
 }
-pub unsafe extern "C" fn consolidate_anchor_ref(
+pub unsafe fn consolidate_anchor_ref(
     mut table: *mut GlyfTable,
     mut gr: *mut ComponentReference,
     mut rr: *mut ComponentReference,
@@ -561,7 +561,7 @@ pub unsafe extern "C" fn consolidate_anchor_ref(
     // calls are needed.
     return false;
 }
-pub unsafe extern "C" fn consolidate_glyf(
+pub unsafe fn consolidate_glyf(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
@@ -619,7 +619,7 @@ pub unsafe extern "C" fn consolidate_glyf(
         j_0 = j_0.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn consolidate_cmap(
+pub unsafe fn consolidate_cmap(
     mut font: *mut Font,
     mut options: *const Options,
 ) {
@@ -684,7 +684,7 @@ pub unsafe extern "C" fn consolidate_cmap(
         }
     }
 }
-unsafe extern "C" fn __declare_otl_consolidation(
+unsafe fn __declare_otl_consolidation(
     mut type_0: LookupType,
     mut fn_0: OtlConsolidationFunction,
     mut font: *mut Font,
@@ -800,7 +800,7 @@ unsafe extern "C" fn __declare_otl_consolidation(
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-pub unsafe extern "C" fn otfcc_consolidate_lookup(
+pub unsafe fn otfcc_consolidate_lookup(
     mut font: *mut Font,
     mut table: *mut OtlTable,
     mut lookup: *mut Lookup,
@@ -1039,7 +1039,7 @@ unsafe extern "C" fn feature_is_not_empty(
 ) -> bool {
     return !r_feat.is_null() && !(*r_feat).lookups.is_empty();
 }
-unsafe extern "C" fn consolidate_otl_table(
+unsafe fn consolidate_otl_table(
     mut font: *mut Font,
     mut table: *mut OtlTable,
     mut options: *const Options,
@@ -1120,7 +1120,7 @@ unsafe extern "C" fn consolidate_otl_table(
         }
     }
 }
-unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Options) {
+unsafe fn consolidate_otl(mut font: *mut Font, mut options: *const Options) {
     (*(*options).logger)
         .start_sds
         .expect("non-null function pointer")(
@@ -1168,7 +1168,7 @@ unsafe extern "C" fn consolidate_otl(mut font: *mut Font, mut options: *const Op
             .expect("non-null function pointer")((*options).logger as *mut ILogger);
     }
 }
-unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const Options) {
+unsafe fn consolidate_colr(mut font: *mut Font, mut options: *const Options) {
     if font.is_null() || (*font).colr.is_none() || (*font).glyph_order.is_none() {
         return;
     }
@@ -1266,7 +1266,7 @@ unsafe extern "C" fn consolidate_colr(mut font: *mut Font, mut options: *const O
     }
     (*font).colr = Some(consolidated);
 }
-unsafe extern "C" fn consolidate_tsi(
+unsafe fn consolidate_tsi(
     mut font: *mut Font,
     mut _tsi: *mut Option<TsiTable>,
     mut options: *const Options,

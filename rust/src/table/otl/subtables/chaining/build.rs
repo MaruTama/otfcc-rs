@@ -14,7 +14,7 @@ use crate::bk::bkgraph::{bk_build_block};
 use crate::table::otl::classdef::{ClassDef, OTL_I_CLASS_DEF};
 use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::table::otl::subtables::chaining::common::{chaining_is_classified, chaining_ruleset_const, chaining_rule_mut_from_const};
-pub unsafe extern "C" fn otfcc_chaining_lookup_is_contextual_lookup(
+pub unsafe fn otfcc_chaining_lookup_is_contextual_lookup(
     mut lookup: *const Lookup,
 ) -> bool {
     if !((*lookup).type_0 == OTL_TYPE_GPOS_CHAINING
@@ -58,7 +58,7 @@ pub unsafe extern "C" fn otfcc_chaining_lookup_is_contextual_lookup(
     }
     return is_contextual;
 }
-pub unsafe extern "C" fn otfcc_build_chaining_coverage(
+pub unsafe fn otfcc_build_chaining_coverage(
     mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
     let subtable: *const ChainingSubtable = _subtable;
@@ -104,7 +104,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_coverage(
     }
     return bk_build_block(root);
 }
-pub unsafe extern "C" fn otfcc_build_chaining_classes(
+pub unsafe fn otfcc_build_chaining_classes(
     mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
     let subtable: *const ChainingSubtable = _subtable;
@@ -211,7 +211,7 @@ pub unsafe extern "C" fn otfcc_build_chaining_classes(
     }
     return bk_build_block(root);
 }
-pub unsafe extern "C" fn otfcc_build_chaining(
+pub unsafe fn otfcc_build_chaining(
     mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
     if chaining_is_classified(_subtable)
@@ -221,7 +221,7 @@ pub unsafe extern "C" fn otfcc_build_chaining(
         return otfcc_build_chaining_coverage(_subtable);
     };
 }
-pub unsafe extern "C" fn otfcc_build_contextual_coverage(
+pub unsafe fn otfcc_build_contextual_coverage(
     mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
     let subtable: *const ChainingSubtable = _subtable;
@@ -247,7 +247,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_coverage(
     }
     return bk_build_block(root);
 }
-pub unsafe extern "C" fn otfcc_build_contextual_classes(
+pub unsafe fn otfcc_build_contextual_classes(
     mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
     let subtable: *const ChainingSubtable = _subtable;
@@ -328,7 +328,7 @@ pub unsafe extern "C" fn otfcc_build_contextual_classes(
     }
     return bk_build_block(root);
 }
-pub unsafe extern "C" fn otfcc_build_contextual(
+pub unsafe fn otfcc_build_contextual(
     mut _subtable: *const ChainingSubtable,
 ) -> *mut Buffer {
     if chaining_is_classified(_subtable)
@@ -339,7 +339,7 @@ pub unsafe extern "C" fn otfcc_build_contextual(
     };
 }
 #[inline]
-unsafe extern "C" fn reverse_backtracks(mut rule: *mut ChainingRule) {
+unsafe fn reverse_backtracks(mut rule: *mut ChainingRule) {
     let input_begins = (*rule).input_begins as usize;
     (&mut (*rule).match_0)[..input_begins].reverse();
 }

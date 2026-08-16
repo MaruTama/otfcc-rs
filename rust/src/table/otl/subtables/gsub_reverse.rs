@@ -22,7 +22,7 @@ use crate::table::otl::coverage::{OTL_I_COVERAGE};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 
 #[inline]
-unsafe extern "C" fn init_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
+unsafe fn init_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
     // `.write()`, not a field assignment: `subtable` is fresh from
     // `malloc` (uninitialized, not zeroed), so there is nothing valid to
     // drop first -- an `=` here would attempt to drop whatever garbage
@@ -31,7 +31,7 @@ unsafe extern "C" fn init_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
     (&raw mut (*subtable).to).write(Vec::new());
 }
 #[inline]
-pub(crate) unsafe extern "C" fn dispose_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
+pub(crate) unsafe fn dispose_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
     // Both fields are real `Vec`s by the time this runs (never called on
     // the freshly-`malloc`'d, not-yet-`init`'d state) -- assigning a fresh
     // empty one drops the old contents correctly, no manual per-element
@@ -103,7 +103,7 @@ unsafe extern "C" fn subtable_gsub_reverse_copy(
 unsafe fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
     match_0[..input_index as usize].reverse();
 }
-pub unsafe extern "C" fn otl_read_gsub_reverse(
+pub unsafe fn otl_read_gsub_reverse(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,

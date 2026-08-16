@@ -4,7 +4,7 @@ use crate::support::primitives::{GlyphId};
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::glyph_order::{OTFCC_PKG_GLYPH_ORDER};
 
-pub unsafe extern "C" fn aglfn_setup_names(mut map: *mut GlyphOrder) {
+pub unsafe fn aglfn_setup_names(mut map: *mut GlyphOrder) {
     OTFCC_PKG_GLYPH_ORDER
         .set_by_gid
         .expect("non-null function pointer")(

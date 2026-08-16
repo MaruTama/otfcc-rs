@@ -25,21 +25,21 @@ use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, 
 pub(crate) unsafe fn dispose_gpos_cursive_subtable(arr: *mut GposCursiveSubtable) {
     *arr = Vec::new();
 }
-pub(crate) unsafe extern "C" fn subtable_gpos_cursive_free(x: *mut GposCursiveSubtable) {
+pub(crate) unsafe fn subtable_gpos_cursive_free(x: *mut GposCursiveSubtable) {
     if x.is_null() {
         return;
     }
     dispose_gpos_cursive_subtable(x);
     free(x as *mut ::core::ffi::c_void);
 }
-unsafe extern "C" fn subtable_gpos_cursive_create() -> *mut GposCursiveSubtable {
+unsafe fn subtable_gpos_cursive_create() -> *mut GposCursiveSubtable {
     let x: *mut GposCursiveSubtable =
         malloc(::core::mem::size_of::<GposCursiveSubtable>() as usize)
             as *mut GposCursiveSubtable;
     x.write(Vec::new());
     x
 }
-pub unsafe extern "C" fn otl_read_gpos_cursive(
+pub unsafe fn otl_read_gpos_cursive(
     data: FontFilePointer,
     mut table_length: u32,
     mut offset: u32,

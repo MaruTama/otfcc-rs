@@ -18,7 +18,7 @@ use crate::table::otl::subtables::gsub_multi::{otl_gsub_dump_multi};
 use crate::table::otl::subtables::gsub_reverse::{otl_gsub_dump_reverse};
 use crate::table::otl::subtables::gsub_single::{otl_gsub_dump_single};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new, json_string_new_from_bytes, otfcc_dump_flags, preserialize};
-unsafe extern "C" fn _declare_lookup_dumper(
+unsafe fn _declare_lookup_dumper(
     mut llt: LookupType,
     mut dumper: Option<unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue>,
     mut lookup: *const Lookup,
@@ -67,7 +67,7 @@ unsafe extern "C" fn _declare_lookup_dumper(
         );
     }
 }
-unsafe extern "C" fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut BuiltValue) {
+unsafe fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut BuiltValue) {
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_SINGLE,
         Some(otl_gsub_dump_single as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
@@ -158,7 +158,7 @@ unsafe extern "C" fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut Buil
         dump,
     );
 }
-pub unsafe extern "C" fn otfcc_dump_otl(
+pub unsafe fn otfcc_dump_otl(
     mut table: Option<&OtlTable>,
     mut root: *mut BuiltValue,
     mut options: *const Options,

@@ -226,7 +226,7 @@ unsafe extern "C" fn delete_font_table(mut font: *mut Font, tag: u32) {
     };
 }
 #[inline]
-unsafe extern "C" fn init_font(mut font: *mut Font) {
+unsafe fn init_font(mut font: *mut Font) {
     memset(
         font as *mut ::core::ffi::c_void,
         0 as ::core::ffi::c_int,
@@ -234,7 +234,7 @@ unsafe extern "C" fn init_font(mut font: *mut Font) {
     );
 }
 #[inline]
-unsafe extern "C" fn dispose_font(mut font: *mut Font) {
+unsafe fn dispose_font(mut font: *mut Font) {
     delete_font_table(font, crate::tag::TAG_HEAD);
     delete_font_table(font, crate::tag::TAG_HHEA);
     delete_font_table(font, crate::tag::TAG_MAXP);

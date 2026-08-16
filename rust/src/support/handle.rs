@@ -55,38 +55,38 @@ impl Default for Handle {
     }
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_empty() -> Handle {
+pub(crate) unsafe fn otfcc_handle_empty() -> Handle {
     Handle::default()
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_copy(dst: *mut Handle, src: *const Handle) {
+pub(crate) unsafe fn otfcc_handle_copy(dst: *mut Handle, src: *const Handle) {
     *dst = (*src).clone();
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_copy_replace(dst: *mut Handle, src: Handle) {
+pub(crate) unsafe fn otfcc_handle_copy_replace(dst: *mut Handle, src: Handle) {
     *dst = src.clone();
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_dup(src: Handle) -> Handle {
+pub(crate) unsafe fn otfcc_handle_dup(src: Handle) -> Handle {
     src.clone()
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_init(x: *mut Handle) {
+pub(crate) unsafe fn otfcc_handle_init(x: *mut Handle) {
     *x = Handle::default();
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_dispose(x: *mut Handle) {
+pub(crate) unsafe fn otfcc_handle_dispose(x: *mut Handle) {
     *x = Handle::default();
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_replace(dst: *mut Handle, src: Handle) {
+pub(crate) unsafe fn otfcc_handle_replace(dst: *mut Handle, src: Handle) {
     *dst = src;
 }
 #[inline]
-pub(crate) unsafe extern "C" fn otfcc_handle_move(dst: *mut Handle, src: *mut Handle) {
+pub(crate) unsafe fn otfcc_handle_move(dst: *mut Handle, src: *mut Handle) {
     *dst = ::core::mem::take(&mut *src);
 }
-pub(crate) unsafe extern "C" fn handle_from_index(mut id: GlyphId) -> Handle {
+pub(crate) unsafe fn handle_from_index(mut id: GlyphId) -> Handle {
     let mut h: Handle = Handle {
         state: HandleState::Index,
         index: id,
@@ -131,7 +131,7 @@ pub(crate) fn handle_name_eq_bytes(a: &[u8], b: &[u8]) -> bool {
 // present name is a different state from no name at all, and collapsing
 // the two by testing `v.is_empty()` instead would be an observable (if
 // exotic -- an empty-string glyph name) behavior change.
-pub(crate) unsafe extern "C" fn handle_from_name(mut s: Option<Vec<u8>>) -> Handle {
+pub(crate) unsafe fn handle_from_name(mut s: Option<Vec<u8>>) -> Handle {
     let mut h: Handle = Handle {
         state: HandleState::Empty,
         index: 0 as GlyphId,

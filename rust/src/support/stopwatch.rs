@@ -10,11 +10,11 @@
 // shape on x86_64 Linux and says nothing about any other target.
 use libc::{clock_gettime, snprintf, time_t, timespec, CLOCK_REALTIME};
 
-pub unsafe extern "C" fn time_now(mut tv: *mut timespec) {
+pub unsafe fn time_now(mut tv: *mut timespec) {
     clock_gettime(CLOCK_REALTIME, tv);
 }
 pub const BILLION: ::core::ffi::c_int = 1000000000 as ::core::ffi::c_int;
-unsafe extern "C" fn timespec_diff(
+unsafe fn timespec_diff(
     mut start: *mut timespec,
     mut stop: *mut timespec,
     mut result: *mut timespec,
@@ -27,7 +27,7 @@ unsafe extern "C" fn timespec_diff(
         (*result).tv_nsec = (*stop).tv_nsec - (*start).tv_nsec;
     };
 }
-pub unsafe extern "C" fn push_stopwatch(mut sofar: *mut timespec) -> Vec<u8> {
+pub unsafe fn push_stopwatch(mut sofar: *mut timespec) -> Vec<u8> {
     let mut ends: timespec = timespec {
         tv_sec: 0,
         tv_nsec: 0,

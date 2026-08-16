@@ -39,7 +39,7 @@ pub struct SplineFontContainer {
     pub offsets: Vec<u32>,
     pub packets: Vec<Packet>,
 }
-unsafe extern "C" fn otfcc_read_packets(
+unsafe fn otfcc_read_packets(
     mut font: *mut SplineFontContainer,
     mut file: *mut FILE,
 ) {
@@ -110,7 +110,7 @@ unsafe extern "C" fn otfcc_read_packets(
         count = count.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn otfcc_read_sfnt(mut file: *mut FILE) -> *mut SplineFontContainer {
+pub unsafe fn otfcc_read_sfnt(mut file: *mut FILE) -> *mut SplineFontContainer {
     if file.is_null() {
         return ::core::ptr::null_mut::<SplineFontContainer>();
     }
@@ -172,14 +172,14 @@ pub unsafe extern "C" fn otfcc_read_sfnt(mut file: *mut FILE) -> *mut SplineFont
     fclose(file);
     return font;
 }
-pub unsafe extern "C" fn otfcc_delete_sfnt(mut font: *mut SplineFontContainer) {
+pub unsafe fn otfcc_delete_sfnt(mut font: *mut SplineFontContainer) {
     if font.is_null() {
         return;
     }
     drop(Box::from_raw(font));
 }
 #[inline]
-unsafe extern "C" fn otfcc_check_endian() -> bool {
+unsafe fn otfcc_check_endian() -> bool {
     let mut check_union: EndianProbe16 = EndianProbe16 {
         i2: 1 as ::core::ffi::c_int as u16,
     };
@@ -187,7 +187,7 @@ unsafe extern "C" fn otfcc_check_endian() -> bool {
         == 1 as ::core::ffi::c_int;
 }
 #[inline]
-unsafe extern "C" fn otfcc_endian_convert16(mut i: u16) -> u16 {
+unsafe fn otfcc_endian_convert16(mut i: u16) -> u16 {
     if otfcc_check_endian() {
         let mut src: EndianProbe16 = EndianProbe16 { i1: [0; 2] };
         let mut des: EndianProbe16 = EndianProbe16 { i1: [0; 2] };
@@ -200,7 +200,7 @@ unsafe extern "C" fn otfcc_endian_convert16(mut i: u16) -> u16 {
     };
 }
 #[inline]
-unsafe extern "C" fn otfcc_endian_convert32(mut i: u32) -> u32 {
+unsafe fn otfcc_endian_convert32(mut i: u32) -> u32 {
     if otfcc_check_endian() {
         let mut src: EndianProbe32 = EndianProbe32 { i1: [0; 4] };
         let mut des: EndianProbe32 = EndianProbe32 { i1: [0; 4] };
@@ -215,7 +215,7 @@ unsafe extern "C" fn otfcc_endian_convert32(mut i: u32) -> u32 {
     };
 }
 #[inline]
-unsafe extern "C" fn otfcc_get16u(mut file: *mut FILE) -> u16 {
+unsafe fn otfcc_get16u(mut file: *mut FILE) -> u16 {
     let mut tmp: u16 = 0;
     let mut size_read: usize = fread(
         &raw mut tmp as *mut ::core::ffi::c_void,
@@ -234,7 +234,7 @@ unsafe extern "C" fn otfcc_get16u(mut file: *mut FILE) -> u16 {
     return otfcc_endian_convert16(tmp);
 }
 #[inline]
-unsafe extern "C" fn otfcc_get32u(mut file: *mut FILE) -> u32 {
+unsafe fn otfcc_get32u(mut file: *mut FILE) -> u32 {
     let mut tmp: u32 = 0;
     let mut size_read: usize = fread(
         &raw mut tmp as *mut ::core::ffi::c_void,

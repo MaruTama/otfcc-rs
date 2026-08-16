@@ -17,7 +17,7 @@ pub struct ClassifierValue {
     pub gname: Vec<u8>,
     pub cls: ::core::ffi::c_int,
 }
-unsafe extern "C" fn class_compatible(
+unsafe fn class_compatible(
     h: &mut std::collections::BTreeMap<GlyphId, ClassifierValue>,
     mut cov: *mut Coverage,
     mut past: *mut ::core::ffi::c_int,
@@ -87,7 +87,7 @@ unsafe extern "C" fn class_compatible(
         }
     }
 }
-unsafe extern "C" fn build_rule(
+unsafe fn build_rule(
     mut rule: *mut ChainingRule,
     hb: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
     hi: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
@@ -152,7 +152,7 @@ unsafe extern "C" fn build_rule(
     }
     return new_rule;
 }
-unsafe extern "C" fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> *mut ClassDef {
+unsafe fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> *mut ClassDef {
     // The dedup key (gid) and the original's `HASH_SORT` key (also gid,
     // via `by_gid_clsh`) are the same, so `BTreeMap`'s natural `Ord`
     // reproduces the sorted walk with no separate sort step -- the
@@ -175,7 +175,7 @@ unsafe extern "C" fn to_class(h: &std::collections::BTreeMap<GlyphId, Classifier
     }
     return cd;
 }
-pub unsafe extern "C" fn try_classify_around(
+pub unsafe fn try_classify_around(
     mut lookup: *const Lookup,
     mut j: TableId,
     mut classified_st: *mut *mut ChainingSubtable,
@@ -327,7 +327,7 @@ pub unsafe extern "C" fn try_classify_around(
         return 0 as TableId;
     };
 }
-pub unsafe extern "C" fn otfcc_classified_build_chaining(
+pub unsafe fn otfcc_classified_build_chaining(
     mut lookup: *const Lookup,
     subtable_buffers: &mut Vec<*mut Buffer>,
     mut last_offset: *mut usize,

@@ -8,7 +8,7 @@ use crate::table::meta::types::{MetaEntry, MetaTable};
 use crate::bk::bkblock::{bk_new_block_from_string_len};
 use crate::bk::bkgraph::{bk_build_block};
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_meta(
+pub unsafe fn otfcc_build_meta(
     meta: Option<&MetaTable>,
     mut _options: *const Options,
 ) -> *mut Buffer {

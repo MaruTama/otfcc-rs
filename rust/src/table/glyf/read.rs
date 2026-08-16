@@ -85,7 +85,7 @@ unsafe extern "C" fn next_point(
     *cp = (*cp).wrapping_add(1);
     return &raw mut (&mut (*contours))[*cc as usize][fresh8 as usize];
 }
-unsafe extern "C" fn otfcc_read_simple_glyph(
+unsafe fn otfcc_read_simple_glyph(
     mut start: FontFilePointer,
     mut number_of_contours: ShapeId,
     mut _options: *const Options,
@@ -277,7 +277,7 @@ unsafe extern "C" fn otfcc_read_simple_glyph(
     // when this function returns -- no explicit dispose call is needed.
     return g;
 }
-unsafe extern "C" fn otfcc_read_composite_glyph(
+unsafe fn otfcc_read_composite_glyph(
     mut start: FontFilePointer,
     mut options: *const Options,
 ) -> Box<Glyph> {
@@ -445,7 +445,7 @@ unsafe extern "C" fn otfcc_read_composite_glyph(
     }
     return g;
 }
-unsafe extern "C" fn otfcc_read_glyph(
+unsafe fn otfcc_read_glyph(
     mut data: FontFilePointer,
     mut offset: u32,
     mut options: *const Options,
@@ -478,7 +478,7 @@ pub const INTERMEDIATE_REGION: ::core::ffi::c_int = 0x4000 as ::core::ffi::c_int
 pub const PRIVATE_POINT_NUMBERS: ::core::ffi::c_int = 0x2000 as ::core::ffi::c_int;
 pub const TUPLE_INDEX_MASK: ::core::ffi::c_int = 0xfff as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn next_tvh(
+unsafe fn next_tvh(
     mut current_header: *mut TupleVariationHeader,
     mut ctx: *const TuplePolymorphizerCtx,
 ) -> *mut TupleVariationHeader {
@@ -513,7 +513,7 @@ pub const POINTS_ARE_WORDS: ::core::ffi::c_int = 0x80 as ::core::ffi::c_int;
 /// as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
 #[inline]
-unsafe extern "C" fn parse_point_numbers(
+unsafe fn parse_point_numbers(
     mut data: FontFilePointer,
     mut total_points: ShapeId,
 ) -> (FontFilePointer, Vec<ShapeId>) {
@@ -576,7 +576,7 @@ pub const DELTAS_ARE_ZERO: ::core::ffi::c_int = 0x80 as ::core::ffi::c_int;
 pub const DELTAS_ARE_WORDS: ::core::ffi::c_int = 0x40 as ::core::ffi::c_int;
 pub const DELTA_RUN_COUNT_MASK: ::core::ffi::c_int = 0x3f as ::core::ffi::c_int;
 #[inline]
-unsafe extern "C" fn read_packed_delta(
+unsafe fn read_packed_delta(
     mut data: FontFilePointer,
     mut n_points: ShapeId,
     mut deltas: *mut Pos,
@@ -628,7 +628,7 @@ pub unsafe extern "C" fn get_y(mut z: *mut Point) -> *mut VQ {
 // Never a real FFI boundary -- internal call site only, same rationale
 // as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-unsafe extern "C" fn fill_the_gaps(
+unsafe fn fill_the_gaps(
     mut j_min: ShapeId,
     mut j_max: ShapeId,
     nudges: &mut [VqSegment],
@@ -717,7 +717,7 @@ unsafe extern "C" fn fill_the_gaps(
 // Never a real FFI boundary -- internal call site only, same rationale
 // as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-unsafe extern "C" fn apply_coords(
+unsafe fn apply_coords(
     total_points: ShapeId,
     mut glyph: *mut Glyph,
     glyph_refs: &[*mut Point],
@@ -781,7 +781,7 @@ unsafe extern "C" fn apply_coords(
     }
 }
 #[inline]
-unsafe extern "C" fn apply_polymorphism(
+unsafe fn apply_polymorphism(
     total_points: ShapeId,
     mut glyph: GlyphPtr,
     n_touched_points: ShapeId,
@@ -884,7 +884,7 @@ unsafe extern "C" fn apply_polymorphism(
         );
     }
 }
-unsafe extern "C" fn create_region_from_tuples(
+unsafe fn create_region_from_tuples(
     mut dimensions: u16,
     mut peak: *mut F2Dot14,
     mut start: *mut F2Dot14,
@@ -920,7 +920,7 @@ unsafe extern "C" fn create_region_from_tuples(
     return r;
 }
 #[inline]
-unsafe extern "C" fn polymorphize_glyph(
+unsafe fn polymorphize_glyph(
     mut _gid: GlyphId,
     mut glyph: GlyphPtr,
     mut ctx: *const TuplePolymorphizerCtx,
@@ -1056,7 +1056,7 @@ unsafe extern "C" fn polymorphize_glyph(
     }
 }
 #[inline]
-unsafe extern "C" fn polymorphize(
+unsafe fn polymorphize(
     packet: &Packet,
     mut options: *const Options,
     mut glyf: *mut GlyfTable,
@@ -1148,7 +1148,7 @@ unsafe extern "C" fn polymorphize(
         __fortable_count += 1;
     }
 }
-pub unsafe extern "C" fn otfcc_read_glyf(
+pub unsafe fn otfcc_read_glyf(
     packet: &Packet,
     mut options: *const Options,
     mut ctx: *const GlyfIOContext,
@@ -1323,13 +1323,13 @@ pub unsafe extern "C" fn otfcc_read_glyf(
     return None;
 }
 #[inline]
-unsafe extern "C" fn be16(mut x: u16) -> u16 {
+unsafe fn be16(mut x: u16) -> u16 {
     return ((x as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) << 8 as ::core::ffi::c_int
         | (x as ::core::ffi::c_int & 0xff00 as ::core::ffi::c_int) >> 8 as ::core::ffi::c_int)
         as u16;
 }
 #[inline]
-unsafe extern "C" fn be32(mut x: u32) -> u32 {
+unsafe fn be32(mut x: u32) -> u32 {
     return (x & 0xff as u32) << 24 as ::core::ffi::c_int
         | (x & 0xff00 as u32) << 8 as ::core::ffi::c_int
         | (x & 0xff0000 as u32) >> 8 as ::core::ffi::c_int

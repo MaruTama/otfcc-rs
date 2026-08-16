@@ -43,27 +43,27 @@ unsafe fn sds_header(s: SdsRaw) -> *mut SdsHeader {
 pub const SDS_MAX_PREALLOC: ::core::ffi::c_int =
     1024 as ::core::ffi::c_int * 1024 as ::core::ffi::c_int;
 #[inline]
-pub(crate) unsafe extern "C" fn sdslen(s: SdsRaw) -> usize {
+pub(crate) unsafe fn sdslen(s: SdsRaw) -> usize {
     (*sds_header(s)).len
 }
 #[inline]
-unsafe extern "C" fn sdsavail(s: SdsRaw) -> usize {
+unsafe fn sdsavail(s: SdsRaw) -> usize {
     let h = &*sds_header(s);
     h.cap - h.len
 }
 #[inline]
-unsafe extern "C" fn sdssetlen(s: SdsRaw, newlen: usize) {
+unsafe fn sdssetlen(s: SdsRaw, newlen: usize) {
     (*sds_header(s)).len = newlen;
 }
 #[inline]
-unsafe extern "C" fn sdsalloc(s: SdsRaw) -> usize {
+unsafe fn sdsalloc(s: SdsRaw) -> usize {
     (*sds_header(s)).cap
 }
 #[inline]
-unsafe extern "C" fn sdssetalloc(s: SdsRaw, newlen: usize) {
+unsafe fn sdssetalloc(s: SdsRaw, newlen: usize) {
     (*sds_header(s)).cap = newlen;
 }
-pub unsafe extern "C" fn sdsnewlen(
+pub unsafe fn sdsnewlen(
     init: *const ::core::ffi::c_void,
     initlen: usize,
 ) -> SdsRaw {
@@ -89,13 +89,13 @@ pub unsafe extern "C" fn sdsnewlen(
     }
     return s;
 }
-pub unsafe extern "C" fn sdsempty() -> SdsRaw {
+pub unsafe fn sdsempty() -> SdsRaw {
     return sdsnewlen(
         b"\0" as *const u8 as *const ::core::ffi::c_char as *const ::core::ffi::c_void,
         0 as usize,
     );
 }
-pub unsafe extern "C" fn sdsnew(mut init: *const ::core::ffi::c_char) -> SdsRaw {
+pub unsafe fn sdsnew(mut init: *const ::core::ffi::c_char) -> SdsRaw {
     let mut initlen: usize = if init.is_null() {
         0 as usize
     } else {
@@ -103,25 +103,25 @@ pub unsafe extern "C" fn sdsnew(mut init: *const ::core::ffi::c_char) -> SdsRaw 
     };
     return sdsnewlen(init as *const ::core::ffi::c_void, initlen);
 }
-pub unsafe extern "C" fn sdsdup(s: SdsRaw) -> SdsRaw {
+pub unsafe fn sdsdup(s: SdsRaw) -> SdsRaw {
     return sdsnewlen(s as *const ::core::ffi::c_void, sdslen(s));
 }
-pub unsafe extern "C" fn sdsfree(s: SdsRaw) {
+pub unsafe fn sdsfree(s: SdsRaw) {
     if s.is_null() {
         return;
     }
     free(sds_header(s) as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn sdsupdatelen(mut s: SdsRaw) {
+pub unsafe fn sdsupdatelen(mut s: SdsRaw) {
     let mut reallen: ::core::ffi::c_int =
         strlen(s as *const ::core::ffi::c_char) as ::core::ffi::c_int;
     sdssetlen(s, reallen as usize);
 }
-pub unsafe extern "C" fn sdsclear(mut s: SdsRaw) {
+pub unsafe fn sdsclear(mut s: SdsRaw) {
     sdssetlen(s, 0 as usize);
     *s.offset(0 as ::core::ffi::c_int as isize) = '\0' as i32 as ::core::ffi::c_char;
 }
-pub unsafe extern "C" fn sds_make_room_for(mut s: SdsRaw, mut addlen: usize) -> SdsRaw {
+pub unsafe fn sds_make_room_for(mut s: SdsRaw, mut addlen: usize) -> SdsRaw {
     let mut avail: usize = sdsavail(s);
     if avail >= addlen {
         return s;
@@ -144,7 +144,7 @@ pub unsafe extern "C" fn sds_make_room_for(mut s: SdsRaw, mut addlen: usize) -> 
     sdssetalloc(s, newlen);
     return s;
 }
-pub unsafe extern "C" fn sds_remove_free_space(mut s: SdsRaw) -> SdsRaw {
+pub unsafe fn sds_remove_free_space(mut s: SdsRaw) -> SdsRaw {
     let mut len: usize = sdslen(s);
     let newsh = realloc(
         sds_header(s) as *mut ::core::ffi::c_void,
@@ -157,7 +157,7 @@ pub unsafe extern "C" fn sds_remove_free_space(mut s: SdsRaw) -> SdsRaw {
     sdssetalloc(s, len);
     return s;
 }
-pub unsafe extern "C" fn sdsgrowzero(mut s: SdsRaw, mut len: usize) -> SdsRaw {
+pub unsafe fn sdsgrowzero(mut s: SdsRaw, mut len: usize) -> SdsRaw {
     let mut curlen: usize = sdslen(s);
     if len <= curlen {
         return s;
@@ -174,7 +174,7 @@ pub unsafe extern "C" fn sdsgrowzero(mut s: SdsRaw, mut len: usize) -> SdsRaw {
     sdssetlen(s, len);
     return s;
 }
-pub unsafe extern "C" fn sdscatlen(
+pub unsafe fn sdscatlen(
     mut s: SdsRaw,
     mut t: *const ::core::ffi::c_void,
     mut len: usize,
@@ -193,13 +193,13 @@ pub unsafe extern "C" fn sdscatlen(
     *s.offset(curlen.wrapping_add(len) as isize) = '\0' as i32 as ::core::ffi::c_char;
     return s;
 }
-pub unsafe extern "C" fn sdscat(mut s: SdsRaw, mut t: *const ::core::ffi::c_char) -> SdsRaw {
+pub unsafe fn sdscat(mut s: SdsRaw, mut t: *const ::core::ffi::c_char) -> SdsRaw {
     return sdscatlen(s, t as *const ::core::ffi::c_void, strlen(t));
 }
-pub unsafe extern "C" fn sdscatsds(mut s: SdsRaw, t: SdsRaw) -> SdsRaw {
+pub unsafe fn sdscatsds(mut s: SdsRaw, t: SdsRaw) -> SdsRaw {
     return sdscatlen(s, t as *const ::core::ffi::c_void, sdslen(t));
 }
-pub unsafe extern "C" fn sdscpylen(
+pub unsafe fn sdscpylen(
     mut s: SdsRaw,
     mut t: *const ::core::ffi::c_char,
     mut len: usize,
@@ -219,10 +219,10 @@ pub unsafe extern "C" fn sdscpylen(
     sdssetlen(s, len);
     return s;
 }
-pub unsafe extern "C" fn sdscpy(mut s: SdsRaw, mut t: *const ::core::ffi::c_char) -> SdsRaw {
+pub unsafe fn sdscpy(mut s: SdsRaw, mut t: *const ::core::ffi::c_char) -> SdsRaw {
     return sdscpylen(s, t, strlen(t));
 }
-pub unsafe extern "C" fn sdsll2str(
+pub unsafe fn sdsll2str(
     mut s: *mut ::core::ffi::c_char,
     mut value: ::core::ffi::c_longlong,
 ) -> ::core::ffi::c_int {
@@ -264,7 +264,7 @@ pub unsafe extern "C" fn sdsll2str(
     }
     return l as ::core::ffi::c_int;
 }
-pub unsafe extern "C" fn sdsull2str(
+pub unsafe fn sdsull2str(
     mut s: *mut ::core::ffi::c_char,
     mut v: ::core::ffi::c_ulonglong,
 ) -> ::core::ffi::c_int {
@@ -295,7 +295,7 @@ pub unsafe extern "C" fn sdsull2str(
     }
     return l as ::core::ffi::c_int;
 }
-pub unsafe extern "C" fn sdsfromlonglong(mut value: ::core::ffi::c_longlong) -> SdsRaw {
+pub unsafe fn sdsfromlonglong(mut value: ::core::ffi::c_longlong) -> SdsRaw {
     let mut buf: [::core::ffi::c_char; 21] = [0; 21];
     let mut len: ::core::ffi::c_int = sdsll2str(&raw mut buf as *mut ::core::ffi::c_char, value);
     return sdsnewlen(
@@ -600,7 +600,7 @@ macro_rules! bytesbuild {
     }};
 }
 
-pub unsafe extern "C" fn sdstrim(mut s: SdsRaw, mut cset: *const ::core::ffi::c_char) -> SdsRaw {
+pub unsafe fn sdstrim(mut s: SdsRaw, mut cset: *const ::core::ffi::c_char) -> SdsRaw {
     let mut start: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut end: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut sp: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -634,7 +634,7 @@ pub unsafe extern "C" fn sdstrim(mut s: SdsRaw, mut cset: *const ::core::ffi::c_
     sdssetlen(s, len);
     return s;
 }
-pub unsafe extern "C" fn sdsrange(
+pub unsafe fn sdsrange(
     mut s: SdsRaw,
     mut start: ::core::ffi::c_int,
     mut end: ::core::ffi::c_int,
@@ -685,7 +685,7 @@ pub unsafe extern "C" fn sdsrange(
     *s.offset(newlen as isize) = 0 as ::core::ffi::c_char;
     sdssetlen(s, newlen);
 }
-pub unsafe extern "C" fn sdstolower(mut s: SdsRaw) {
+pub unsafe fn sdstolower(mut s: SdsRaw) {
     let mut len: ::core::ffi::c_int = sdslen(s) as ::core::ffi::c_int;
     let mut j: ::core::ffi::c_int = 0;
     j = 0 as ::core::ffi::c_int;
@@ -694,7 +694,7 @@ pub unsafe extern "C" fn sdstolower(mut s: SdsRaw) {
         j += 1;
     }
 }
-pub unsafe extern "C" fn sdstoupper(mut s: SdsRaw) {
+pub unsafe fn sdstoupper(mut s: SdsRaw) {
     let mut len: ::core::ffi::c_int = sdslen(s) as ::core::ffi::c_int;
     let mut j: ::core::ffi::c_int = 0;
     j = 0 as ::core::ffi::c_int;
@@ -703,7 +703,7 @@ pub unsafe extern "C" fn sdstoupper(mut s: SdsRaw) {
         j += 1;
     }
 }
-pub unsafe extern "C" fn sdscmp(s1: SdsRaw, s2: SdsRaw) -> ::core::ffi::c_int {
+pub unsafe fn sdscmp(s1: SdsRaw, s2: SdsRaw) -> ::core::ffi::c_int {
     let mut l1: usize = 0;
     let mut l2: usize = 0;
     let mut minlen: usize = 0;
@@ -721,7 +721,7 @@ pub unsafe extern "C" fn sdscmp(s1: SdsRaw, s2: SdsRaw) -> ::core::ffi::c_int {
     }
     return cmp;
 }
-pub unsafe extern "C" fn sdssplitlen(
+pub unsafe fn sdssplitlen(
     mut s: *const ::core::ffi::c_char,
     mut len: ::core::ffi::c_int,
     mut sep: *const ::core::ffi::c_char,
@@ -814,7 +814,7 @@ pub unsafe extern "C" fn sdssplitlen(
     *count = 0 as ::core::ffi::c_int;
     return ::core::ptr::null_mut::<SdsRaw>();
 }
-pub unsafe extern "C" fn sdsfreesplitres(mut tokens: *mut SdsRaw, mut count: ::core::ffi::c_int) {
+pub unsafe fn sdsfreesplitres(mut tokens: *mut SdsRaw, mut count: ::core::ffi::c_int) {
     if tokens.is_null() {
         return;
     }
@@ -828,7 +828,7 @@ pub unsafe extern "C" fn sdsfreesplitres(mut tokens: *mut SdsRaw, mut count: ::c
     }
     free(tokens as *mut ::core::ffi::c_void);
 }
-pub unsafe extern "C" fn sdscatrepr(
+pub unsafe fn sdscatrepr(
     mut s: SdsRaw,
     mut p: *const ::core::ffi::c_char,
     mut len: usize,
@@ -909,13 +909,13 @@ pub unsafe extern "C" fn sdscatrepr(
         1 as usize,
     );
 }
-pub unsafe extern "C" fn is_hex_digit(mut c: ::core::ffi::c_char) -> ::core::ffi::c_int {
+pub unsafe fn is_hex_digit(mut c: ::core::ffi::c_char) -> ::core::ffi::c_int {
     return (c as ::core::ffi::c_int >= '0' as i32 && c as ::core::ffi::c_int <= '9' as i32
         || c as ::core::ffi::c_int >= 'a' as i32 && c as ::core::ffi::c_int <= 'f' as i32
         || c as ::core::ffi::c_int >= 'A' as i32 && c as ::core::ffi::c_int <= 'F' as i32)
         as ::core::ffi::c_int;
 }
-pub unsafe extern "C" fn hex_digit_to_int(mut c: ::core::ffi::c_char) -> ::core::ffi::c_int {
+pub unsafe fn hex_digit_to_int(mut c: ::core::ffi::c_char) -> ::core::ffi::c_int {
     match c as ::core::ffi::c_int {
         48 => return 0 as ::core::ffi::c_int,
         49 => return 1 as ::core::ffi::c_int,
@@ -936,7 +936,7 @@ pub unsafe extern "C" fn hex_digit_to_int(mut c: ::core::ffi::c_char) -> ::core:
         _ => return 0 as ::core::ffi::c_int,
     };
 }
-pub unsafe extern "C" fn sdssplitargs(
+pub unsafe fn sdssplitargs(
     mut line: *const ::core::ffi::c_char,
     mut argc: *mut ::core::ffi::c_int,
 ) -> *mut SdsRaw {
@@ -1104,7 +1104,7 @@ pub unsafe extern "C" fn sdssplitargs(
     *argc = 0 as ::core::ffi::c_int;
     return ::core::ptr::null_mut::<SdsRaw>();
 }
-pub unsafe extern "C" fn sdsmapchars(
+pub unsafe fn sdsmapchars(
     mut s: SdsRaw,
     mut from: *const ::core::ffi::c_char,
     mut to: *const ::core::ffi::c_char,
@@ -1130,7 +1130,7 @@ pub unsafe extern "C" fn sdsmapchars(
     }
     return s;
 }
-pub unsafe extern "C" fn sdsjoin(
+pub unsafe fn sdsjoin(
     mut argv: *mut *mut ::core::ffi::c_char,
     mut argc: ::core::ffi::c_int,
     mut sep: *mut ::core::ffi::c_char,
@@ -1147,7 +1147,7 @@ pub unsafe extern "C" fn sdsjoin(
     }
     return join;
 }
-pub unsafe extern "C" fn sdsjoinsds(
+pub unsafe fn sdsjoinsds(
     mut argv: *mut SdsRaw,
     mut argc: ::core::ffi::c_int,
     mut sep: *const ::core::ffi::c_char,

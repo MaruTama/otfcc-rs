@@ -25,7 +25,7 @@ pub union ComponentArg {
     pub pointid: u16,
     pub coord: i16,
 }
-pub unsafe extern "C" fn shrink_flags(mut flags: *mut Buffer) -> *mut Buffer {
+pub unsafe fn shrink_flags(mut flags: *mut Buffer) -> *mut Buffer {
     if buflen(flags) == 0 {
         return flags;
     }
@@ -67,7 +67,7 @@ pub unsafe extern "C" fn shrink_flags(mut flags: *mut Buffer) -> *mut Buffer {
     return shrunk;
 }
 pub const EPSILON: ::core::ffi::c_double = 1e-5f64;
-unsafe extern "C" fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffer) {
+unsafe fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffer) {
     let mut flags: *mut Buffer = bufnew();
     let mut xs: *mut Buffer = bufnew();
     let mut ys: *mut Buffer = bufnew();
@@ -159,7 +159,7 @@ unsafe extern "C" fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffe
     buffree(xs);
     buffree(ys);
 }
-unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
+unsafe fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
     bufwrite16b(gbuf, -(1 as ::core::ffi::c_int) as u16);
     bufwrite16b(gbuf, pos_to_u16((*g).stat.x_min));
     bufwrite16b(gbuf, pos_to_u16((*g).stat.y_min));
@@ -275,7 +275,7 @@ unsafe extern "C" fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Bu
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe extern "C" fn otfcc_build_glyf(
+pub unsafe fn otfcc_build_glyf(
     table: Option<&GlyfTable>,
     mut head: *mut HeadTable,
     mut _options: *const Options,
