@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 // `push_stopwatch` now returns `Vec<u8>`, its only caller a direct Rust
 // call site (never a real FFI boundary) -- goes away with the vtable/
 // extern "C" cleanup, same as every other instance of this allow.
@@ -11,7 +10,7 @@
 use libc::{clock_gettime, snprintf, time_t, timespec, CLOCK_REALTIME};
 
 pub unsafe fn time_now(mut tv: *mut timespec) {
-    clock_gettime(CLOCK_REALTIME, tv);
+    unsafe { clock_gettime(CLOCK_REALTIME, tv) };
 }
 pub const BILLION: ::core::ffi::c_int = 1000000000 as ::core::ffi::c_int;
 unsafe fn timespec_diff(
@@ -19,26 +18,28 @@ unsafe fn timespec_diff(
     mut stop: *mut timespec,
     mut result: *mut timespec,
 ) {
-    if (*stop).tv_nsec - (*start).tv_nsec < 0 as ::core::ffi::c_long {
-        (*result).tv_sec = (*stop).tv_sec - (*start).tv_sec - 1 as time_t;
-        (*result).tv_nsec = (*stop).tv_nsec - (*start).tv_nsec + BILLION as ::core::ffi::c_long;
-    } else {
-        (*result).tv_sec = (*stop).tv_sec - (*start).tv_sec;
-        (*result).tv_nsec = (*stop).tv_nsec - (*start).tv_nsec;
-    };
+    unsafe {
+        if (*stop).tv_nsec - (*start).tv_nsec < 0 as ::core::ffi::c_long {
+            (*result).tv_sec = (*stop).tv_sec - (*start).tv_sec - 1 as time_t;
+            (*result).tv_nsec = (*stop).tv_nsec - (*start).tv_nsec + BILLION as ::core::ffi::c_long;
+        } else {
+            (*result).tv_sec = (*stop).tv_sec - (*start).tv_sec;
+            (*result).tv_nsec = (*stop).tv_nsec - (*start).tv_nsec;
+        };
+    }
 }
 pub unsafe fn push_stopwatch(mut sofar: *mut timespec) -> Vec<u8> {
     let mut ends: timespec = timespec {
         tv_sec: 0,
         tv_nsec: 0,
     };
-    time_now(&raw mut ends);
+    unsafe { time_now(&raw mut ends) };
     let mut diff: timespec = timespec {
         tv_sec: 0,
         tv_nsec: 0,
     };
-    timespec_diff(sofar, &raw mut ends, &raw mut diff);
-    *sofar = ends;
+    unsafe { timespec_diff(sofar, &raw mut ends, &raw mut diff) };
+    unsafe { *sofar = ends };
     // The one `%g` that ever reached `sdscatprintf`, and the only reason libc's
     // formatting is still called here: Rust has no `%g`, and this crate does not
     // format floats itself on purpose -- JSON numbers go through the vendored
@@ -46,13 +47,15 @@ pub unsafe fn push_stopwatch(mut sofar: *mut timespec) -> Vec<u8> {
     // Calling a variadic C function is stable Rust; only *defining* one needs
     // `feature(c_variadic)`, which is what the rest of this change removes.
     let mut secs: [::core::ffi::c_char; 32] = [0; 32];
-    snprintf(
-        secs.as_mut_ptr(),
-        ::core::mem::size_of_val(&secs),
-        b"%g\0" as *const u8 as *const ::core::ffi::c_char,
-        diff.tv_sec as ::core::ffi::c_double
-            + diff.tv_nsec as ::core::ffi::c_double / BILLION as ::core::ffi::c_double,
-    );
+    unsafe {
+        snprintf(
+            secs.as_mut_ptr(),
+            ::core::mem::size_of_val(&secs),
+            b"%g\0" as *const u8 as *const ::core::ffi::c_char,
+            diff.tv_sec as ::core::ffi::c_double
+                + diff.tv_nsec as ::core::ffi::c_double / BILLION as ::core::ffi::c_double,
+        );
+    }
     return crate::bytesbuild!(
         b"Step time = ",
         secs.as_ptr() as *const ::core::ffi::c_char,

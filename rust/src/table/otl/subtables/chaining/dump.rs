@@ -1,7 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-
-
-
 use crate::support::primitives::{TableId};
 use crate::table::otl::{ChainingRule, Subtable, ChainingSubtable};
 use crate::table::otl::coverage::{Coverage, dump_coverage};
@@ -9,6 +5,7 @@ use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chai
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_null_new, json_object_new, json_object_push, json_string_new_from_bytes, preserialize};
 
 pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut BuiltValue {
+    unsafe {
     let Subtable::Chaining(mut_subtable) = &*_subtable else { unreachable!() };
     let subtable: *const ChainingSubtable = mut_subtable;
     if !chaining_is_canonical(subtable) {
@@ -65,4 +62,5 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *m
         json_integer_new((*rule).input_ends as i64),
     );
     return _st;
+    }
 }

@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-
 // `.data` holds either a UTF-8 string tag's bytes or raw (possibly
 // non-UTF-8) base64-decoded bytes, so `Vec<u8>`, not `String`.
 #[repr(C)]

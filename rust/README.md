@@ -894,6 +894,52 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`unsafe_op_in_unsafe_fn` burn-down, sixteenth batch: 8 files, 114 → 106.**
+  Resumed the burn-down after the `unsafe extern "C"` removal plan (Phase
+  0-4) took priority for a while -- picked off the smallest remaining
+  candidates first. Two shapes showed up:
+  - **Files that no longer needed the allow at all.** `table/meta/types.rs`
+    and `table/vdmx/types.rs` are pure struct definitions with zero
+    `unsafe fn` bodies -- the allow was stale weight left over from
+    whichever earlier pass first touched the file. Just deleted.
+  - **A genuinely root-cause fix, not just wrapping.** `table/meta/build.rs`'s
+    `otfcc_build_meta` only needed to be treated as unsafe because it cast a
+    perfectly good `&MetaEntry` reference to a raw pointer (`let mut e: *const
+    MetaEntry = &entries[...]`) purely to dereference it three lines later
+    -- keeping it as a reference and reading `e.tag`/`e.data.len()`/
+    `e.data.as_ptr()` directly removes the only unsafe operation in the
+    function's own body outright (the remaining `unsafe` blocks are for
+    calling into `bk_new_block`/`bk_push`/`bk_build_block`, which are
+    genuinely unsafe FFI-shaped functions, not something this function's
+    logic caused).
+  - **The rest were mechanical `unsafe {}` wrapping**, no redesign needed
+    since the operations really are irreducibly unsafe (`support/alloc.rs`'s
+    `calloc`/`realloc`/`free`/`exit`/`fprintf` calls, `support/stopwatch.rs`'s
+    `clock_gettime`/`snprintf`/raw `timespec` pointer arithmetic,
+    `consolidate/otl/gpos_pair.rs`'s subtable pointer walk -- kept its
+    `extern "C"` signature untouched, since it's one of the genuine
+    per-lookup-type dispatch functions `consolidate.rs`'s
+    `__declare_otl_consolidation` registers by address, the kind of case the
+    `unsafe extern "C"` removal plan explicitly carved out as real dispatch,
+    not vestigial -- and `libcff/cff_writer.rs`'s CFF Type-2 operand-encoding
+    arithmetic). Two of these (`table/otl/subtables/chaining/dump.rs`,
+    `libcff/cff_writer.rs`) have unsafe operations threaded through nearly
+    every line of the function body, so the whole body went in one `unsafe {
+    }` block rather than wrapping each call individually -- the lint only
+    requires *some* enclosing block, not the smallest possible one, and
+    fragmenting a function that's unsafe almost end-to-end into a dozen tiny
+    blocks would have made it harder to read, not safer.
+  - Verified with the standard full pipeline on both platforms: 54 unit
+    tests green (0 warnings under `warnings = "deny"`), every payload
+    byte-identical in both directions including the `otfccdll` cdylib
+    (`meta-test.ttf`/`vdmx-test.ttf` specifically exercise the two
+    now-allow-free type files), all 10 round-trip payloads stable, issue
+    #1's large-lookup regression test green, `compare-log-output.sh` green.
+    106 of 141 files still carry the allow -- most of the remaining ones are
+    substantially larger and will need the file-by-file, sometimes
+    data-structure-redesigning treatment the fifteen batches before this one
+    used, not this batch's quick wins.
+
 - **Delete the dead `ComparFn` type alias (`support.rs`).** Noted as a
   byproduct of the Phase 4 planning work but explicitly left out of that
   plan's scope: every `qsort` call site in the crate had already been

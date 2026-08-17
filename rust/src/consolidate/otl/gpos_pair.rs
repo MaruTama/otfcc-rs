@@ -1,7 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-
-
-
 
 use crate::support::options::{Options};
 
@@ -51,13 +47,15 @@ pub unsafe extern "C" fn consolidate_gpos_pair(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let Subtable::GposPair(mut_subtable) = &mut *_subtable else { unreachable!() };
-    let subtable: *mut GposPairSubtable = mut_subtable;
-    let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
-    let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
-    fontop_consolidate_class_def(font, first_cd, options);
-    fontop_consolidate_class_def(font, second_cd, options);
-    shrink_class_def(first_cd);
-    shrink_class_def(second_cd);
-    return (*first_cd).glyphs.is_empty();
+    unsafe {
+        let Subtable::GposPair(mut_subtable) = &mut *_subtable else { unreachable!() };
+        let subtable: *mut GposPairSubtable = mut_subtable;
+        let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
+        let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
+        fontop_consolidate_class_def(font, first_cd, options);
+        fontop_consolidate_class_def(font, second_cd, options);
+        shrink_class_def(first_cd);
+        shrink_class_def(second_cd);
+        return (*first_cd).glyphs.is_empty();
+    }
 }

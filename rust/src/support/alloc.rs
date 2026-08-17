@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 // Shared zero-initialized alloc/realloc helpers, factored out of the ~50
 // per-file private copies c2rust emitted (one per translation unit that
 // #included c/lib/support/mem.h's `NEW_CLEAN`/`RENEW_CLEAN` macros). These
@@ -21,15 +20,17 @@ pub(crate) unsafe fn __caryll_allocate_clean(
     if n == 0 {
         return ::core::ptr::null_mut();
     }
-    let p = calloc(n, 1);
+    let p = unsafe { calloc(n, 1) };
     if p.is_null() {
-        fprintf(
-            stderr,
-            b"[%ld]Out of memory(%ld bytes)\n\0" as *const u8 as *const ::core::ffi::c_char,
-            line,
-            n as ::core::ffi::c_ulong,
-        );
-        exit(EXIT_FAILURE);
+        unsafe {
+            fprintf(
+                stderr,
+                b"[%ld]Out of memory(%ld bytes)\n\0" as *const u8 as *const ::core::ffi::c_char,
+                line,
+                n as ::core::ffi::c_ulong,
+            );
+            exit(EXIT_FAILURE);
+        }
     }
     p
 }
@@ -41,21 +42,23 @@ pub(crate) unsafe fn __caryll_reallocate(
     line: ::core::ffi::c_ulong,
 ) -> *mut ::core::ffi::c_void {
     if n == 0 {
-        free(ptr);
+        unsafe { free(ptr) };
         return ::core::ptr::null_mut();
     }
     if ptr.is_null() {
-        return __caryll_allocate_clean(n, line);
+        return unsafe { __caryll_allocate_clean(n, line) };
     }
-    let p = realloc(ptr, n);
+    let p = unsafe { realloc(ptr, n) };
     if p.is_null() {
-        fprintf(
-            stderr,
-            b"[%ld]Out of memory(%ld bytes)\n\0" as *const u8 as *const ::core::ffi::c_char,
-            line,
-            n as ::core::ffi::c_ulong,
-        );
-        exit(EXIT_FAILURE);
+        unsafe {
+            fprintf(
+                stderr,
+                b"[%ld]Out of memory(%ld bytes)\n\0" as *const u8 as *const ::core::ffi::c_char,
+                line,
+                n as ::core::ffi::c_ulong,
+            );
+            exit(EXIT_FAILURE);
+        }
     }
     p
 }
