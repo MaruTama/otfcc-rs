@@ -894,7 +894,7 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
-- **`unsafe_op_in_unsafe_fn` burn-down, sixteenth batch: 8 files, 114 → 106.**
+- **`unsafe_op_in_unsafe_fn` burn-down, sixteenth batch: 12 files, 114 → 102.**
   Resumed the burn-down after the `unsafe extern "C"` removal plan (Phase
   0-4) took priority for a while -- picked off the smallest remaining
   candidates first. Two shapes showed up:
@@ -929,13 +929,69 @@ on the other platform before a commit is trusted.
     requires *some* enclosing block, not the smallest possible one, and
     fragmenting a function that's unsafe almost end-to-end into a dozen tiny
     blocks would have made it harder to read, not safer.
+  - **Four more picked off in a second pass**, same batch/branch/PR (kept
+    it one PR rather than stacking a second one on top of an unmerged
+    first):
+    - `support/options.rs` -- mechanical wrapping. `otfcc_new_options`'s
+      `__caryll_allocate_clean` call, `otfcc_delete_options`'s `free`/
+      `logger_dispose` calls, and `otfcc_options_optimize_to`'s field
+      writes through the raw `*mut Options` all wrapped in `unsafe {}`.
+      Left `Options` as a raw-pointer-accessed struct -- it's threaded
+      through the whole crate and four public FFI functions, well outside
+      this batch's scope.
+    - `table/otl/subtables/extend.rs` -- whole-body wrap of
+      `_caryll_read_otl_extend` (raw pointer offsets reading the subtable
+      header) plus its two public callers `otfcc_read_otl_gsub_extend`/
+      `otfcc_read_otl_gpos_extend`, which do nothing but forward into it.
+    - `libcff/cff_value.rs` -- **narrower fix than the file's shape
+      invites.** `CffValue`/`CffValueBody` is a C-style tagged union
+      (`CffValueType` discriminant + `{ i: i32, d: f64 }` union) that could
+      become a Rust enum the same way `CffEncoding`/`ChainingSubtable`/etc.
+      already did elsewhere in this crate -- but that conversion ripples
+      into `cff_dict.rs`, `cff_parser.rs`, `table/cff.rs`, `libcff.rs`, and
+      `cff_codecs.rs`, which is a separate, larger unit of work on its own.
+      For this batch, just wrapped the two actually-unsafe operations in
+      `cffnum()` (reading `val.c2rust_unnamed.i`/`.d` out of the union) in
+      individual `unsafe {}` blocks and dropped the file-level allow.
+      Confirmed *constructing* a union value (`CffValueBody { i: 0 }`,
+      used at ~8 other call sites in this file and elsewhere) is not
+      itself unsafe in Rust -- only reading a union field is -- so nothing
+      else in the file needed touching.
+    - `table/meta/read.rs` -- whole-body wrap of `otfcc_read_meta`, which
+      is almost entirely raw offset reads into the table's byte buffer
+      inside the c2rust "single-iteration fortable" `while`-loop idiom.
+    - **Found a real `unused_unsafe`/macro-nesting interaction while
+      doing this file.** Wrapping the whole function body in `unsafe {}`
+      made the `bytesbuild!(b"Table 'meta' corrupted.\n")` call inside it
+      fail to build: `bytesbuild!` has its own internal `unsafe { ...
+      SdsPart::append_to_vec(...) }`, and once that's nested inside an
+      *explicit* enclosing `unsafe {}` block (as opposed to the implicit
+      unsafety of an `unsafe fn` body under
+      `allow(unsafe_op_in_unsafe_fn)`, which doesn't trigger this), rustc's
+      `unused_unsafe` lint correctly calls the inner block redundant --
+      and `-D warnings` turns that into a hard error. Considered hoisting
+      the `bytesbuild!` call out of the (triply-nested-loop) error path to
+      dodge the nesting, but that risks Rust's "value moved here, in
+      previous iteration of loop" borrow-checker error, since the
+      checker's CFG-based analysis can't see that the loop only runs once
+      -- it doesn't reason about the actual runtime truth of the loop
+      condition. Fixed it at the source instead: added
+      `#[allow(unused_unsafe)]` directly to `bytesbuild!`'s internal
+      `unsafe {}` block in `vendor/sds.rs`, with a comment explaining why.
+      This is a one-time fix at the macro definition that pre-empts the
+      identical conflict at every future burn-down file that (a) wraps its
+      whole body in one `unsafe {}` and (b) calls `bytesbuild!` -- which,
+      per the macro's own doc comment, is used at ~50+ call sites
+      crate-wide, so this exact shape will keep coming up. Confirmed the
+      sibling `sdsbuild!` macro has no equivalent internal `unsafe {}` and
+      so isn't affected.
   - Verified with the standard full pipeline on both platforms: 54 unit
     tests green (0 warnings under `warnings = "deny"`), every payload
     byte-identical in both directions including the `otfccdll` cdylib
-    (`meta-test.ttf`/`vdmx-test.ttf` specifically exercise the two
-    now-allow-free type files), all 10 round-trip payloads stable, issue
-    #1's large-lookup regression test green, `compare-log-output.sh` green.
-    106 of 141 files still carry the allow -- most of the remaining ones are
+    (`meta-test.ttf`/`vdmx-test.ttf` specifically exercise the touched type
+    files), all 10 round-trip payloads stable, issue #1's large-lookup
+    regression test green, `compare-log-output.sh` green.
+    102 of 141 files still carry the allow -- most of the remaining ones are
     substantially larger and will need the file-by-file, sometimes
     data-structure-redesigning treatment the fifteen batches before this one
     used, not this batch's quick wins.

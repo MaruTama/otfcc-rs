@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 /// What a [`CffValue`] holds: an operator, or a number in one of the two forms
 /// cff encodes.
 ///
@@ -46,10 +45,10 @@ pub union CffValueBody {
 }
 pub unsafe fn cffnum(mut val: CffValue) -> ::core::ffi::c_double {
     if val.t as ::core::ffi::c_uint == CffValueType::Integer as ::core::ffi::c_int as ::core::ffi::c_uint {
-        return val.c2rust_unnamed.i as ::core::ffi::c_double;
+        return unsafe { val.c2rust_unnamed.i } as ::core::ffi::c_double;
     }
     if val.t as ::core::ffi::c_uint == CffValueType::Double as ::core::ffi::c_int as ::core::ffi::c_uint {
-        return val.c2rust_unnamed.d;
+        return unsafe { val.c2rust_unnamed.d };
     }
     return 0 as ::core::ffi::c_int as ::core::ffi::c_double;
 }

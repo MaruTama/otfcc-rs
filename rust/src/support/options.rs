@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
 
 
@@ -37,47 +36,53 @@ pub struct Options {
 }
 pub unsafe fn otfcc_new_options() -> *mut Options {
     let mut options: *mut Options = ::core::ptr::null_mut::<Options>();
-    options = __caryll_allocate_clean(
-        ::core::mem::size_of::<Options>() as usize,
-        6 as ::core::ffi::c_ulong,
-    ) as *mut Options;
+    options = unsafe {
+        __caryll_allocate_clean(
+            ::core::mem::size_of::<Options>() as usize,
+            6 as ::core::ffi::c_ulong,
+        )
+    } as *mut Options;
     return options;
 }
 pub unsafe fn otfcc_delete_options(mut options: *mut Options) {
-    if !options.is_null() {
-        free((*options).glyph_name_prefix as *mut ::core::ffi::c_void);
-        (*options).glyph_name_prefix = ::core::ptr::null_mut::<::core::ffi::c_char>();
-        if !(*options).logger.is_null() {
-            logger_dispose(
-                (*options).logger
-            );
+    unsafe {
+        if !options.is_null() {
+            free((*options).glyph_name_prefix as *mut ::core::ffi::c_void);
+            (*options).glyph_name_prefix = ::core::ptr::null_mut::<::core::ffi::c_char>();
+            if !(*options).logger.is_null() {
+                logger_dispose(
+                    (*options).logger
+                );
+            }
         }
+        free(options as *mut ::core::ffi::c_void);
     }
-    free(options as *mut ::core::ffi::c_void);
     options = ::core::ptr::null_mut::<Options>();
 }
 pub unsafe fn otfcc_options_optimize_to(
     mut options: *mut Options,
     mut level: u8,
 ) {
-    (*options).cff_roll_char_string = false;
-    (*options).short_post = false;
-    (*options).ignore_glyph_order = false;
-    (*options).cff_short_vmtx = false;
-    (*options).merge_features = false;
-    (*options).force_cid = false;
-    (*options).cff_do_subroutinize = false;
-    if level as ::core::ffi::c_int >= 1 as ::core::ffi::c_int {
-        (*options).cff_roll_char_string = true;
-        (*options).cff_short_vmtx = true;
-    }
-    if level as ::core::ffi::c_int >= 2 as ::core::ffi::c_int {
-        (*options).short_post = true;
-        (*options).cff_do_subroutinize = true;
-        (*options).merge_features = true;
-    }
-    if level as ::core::ffi::c_int >= 3 as ::core::ffi::c_int {
-        (*options).ignore_glyph_order = true;
-        (*options).force_cid = true;
+    unsafe {
+        (*options).cff_roll_char_string = false;
+        (*options).short_post = false;
+        (*options).ignore_glyph_order = false;
+        (*options).cff_short_vmtx = false;
+        (*options).merge_features = false;
+        (*options).force_cid = false;
+        (*options).cff_do_subroutinize = false;
+        if level as ::core::ffi::c_int >= 1 as ::core::ffi::c_int {
+            (*options).cff_roll_char_string = true;
+            (*options).cff_short_vmtx = true;
+        }
+        if level as ::core::ffi::c_int >= 2 as ::core::ffi::c_int {
+            (*options).short_post = true;
+            (*options).cff_do_subroutinize = true;
+            (*options).merge_features = true;
+        }
+        if level as ::core::ffi::c_int >= 3 as ::core::ffi::c_int {
+            (*options).ignore_glyph_order = true;
+            (*options).force_cid = true;
+        }
     }
 }

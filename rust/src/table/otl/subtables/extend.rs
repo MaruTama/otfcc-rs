@@ -1,8 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-
-
-
-
 use crate::support::binio::{read_16u, read_32u};
 
 use crate::support::options::{Options};
@@ -29,28 +24,30 @@ unsafe fn _caryll_read_otl_extend(
     max_glyphs: GlyphId,
     mut options: *const Options,
 ) -> *mut Subtable {
-    if table_length < subtable_offset.wrapping_add(8 as u32) {
-        return ::core::ptr::null_mut::<Subtable>();
+    unsafe {
+        if table_length < subtable_offset.wrapping_add(8 as u32) {
+            return ::core::ptr::null_mut::<Subtable>();
+        }
+        let type_0 = LookupType::from_file(
+            basis,
+            read_16u(
+                data.offset(subtable_offset as isize)
+                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
+            ),
+        );
+        let subtable = otfcc_read_otl_subtable(
+            data as *mut u8,
+            table_length,
+            subtable_offset.wrapping_add(read_32u(
+                data.offset(subtable_offset as isize)
+                    .offset(4 as ::core::ffi::c_int as isize) as *const u8,
+            )),
+            type_0,
+            max_glyphs,
+            options,
+        );
+        Box::into_raw(Box::new(Subtable::Extend(ExtendSubtable { type_0, subtable })))
     }
-    let type_0 = LookupType::from_file(
-        basis,
-        read_16u(
-            data.offset(subtable_offset as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-        ),
-    );
-    let subtable = otfcc_read_otl_subtable(
-        data as *mut u8,
-        table_length,
-        subtable_offset.wrapping_add(read_32u(
-            data.offset(subtable_offset as isize)
-                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-        )),
-        type_0,
-        max_glyphs,
-        options,
-    );
-    Box::into_raw(Box::new(Subtable::Extend(ExtendSubtable { type_0, subtable })))
 }
 pub unsafe fn otfcc_read_otl_gsub_extend(
     mut data: FontFilePointer,
@@ -59,14 +56,14 @@ pub unsafe fn otfcc_read_otl_gsub_extend(
     max_glyphs: GlyphId,
     mut options: *const Options,
 ) -> *mut Subtable {
-    return _caryll_read_otl_extend(
+    return unsafe { _caryll_read_otl_extend(
         data,
         table_length,
         subtable_offset,
         OTL_TYPE_GSUB_UNKNOWN,
         max_glyphs,
         options,
-    );
+    ) };
 }
 pub unsafe fn otfcc_read_otl_gpos_extend(
     mut data: FontFilePointer,
@@ -75,12 +72,12 @@ pub unsafe fn otfcc_read_otl_gpos_extend(
     max_glyphs: GlyphId,
     mut options: *const Options,
 ) -> *mut Subtable {
-    return _caryll_read_otl_extend(
+    return unsafe { _caryll_read_otl_extend(
         data,
         table_length,
         subtable_offset,
         OTL_TYPE_GPOS_UNKNOWN,
         max_glyphs,
         options,
-    );
+    ) };
 }
