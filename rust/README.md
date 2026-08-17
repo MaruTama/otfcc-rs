@@ -894,6 +894,19 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Delete the dead `ComparFn` type alias (`support.rs`).** Noted as a
+  byproduct of the Phase 4 planning work but explicitly left out of that
+  plan's scope: every `qsort` call site in the crate had already been
+  converted to `sort_by`/`sort_unstable_by` in earlier Vec-conversion
+  passes, so `ComparFn` (the named type those call sites used to
+  `transmute` a concrete comparator into) had zero remaining references
+  anywhere -- confirmed by a crate-wide grep for both `ComparFn` and
+  `qsort(` before deleting. One-line removal, no behavior change.
+  Verified with the standard full pipeline on both platforms: 54 unit
+  tests green, every payload byte-identical in both directions including
+  the `otfccdll` cdylib, all 10 round-trip payloads stable, issue #1's
+  large-lookup regression test green, `compare-log-output.sh` green.
+
 - **Phase 4 sub-phase C (final): collapse `ILogger`, closing out the
   `unsafe extern "C"` removal plan entirely.** `ILogger` (12 fields, one
   implementation, `VTABLE_LOGGER`) was structurally different from every

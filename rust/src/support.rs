@@ -29,15 +29,3 @@ pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 pub const TRUE_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 
 pub const FALSE_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-
-/// The type of `qsort`'s `compar` argument, as `stdlib.h` spells it.
-///
-/// `libc::qsort` writes this signature out inline rather than naming it, but
-/// otfcc's sort call sites `transmute` a concretely-typed comparator into it,
-/// and they need something to name as the target.
-pub type ComparFn = Option<
-    unsafe extern "C" fn(
-        *const ::core::ffi::c_void,
-        *const ::core::ffi::c_void,
-    ) -> ::core::ffi::c_int,
->;
