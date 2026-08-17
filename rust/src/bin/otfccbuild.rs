@@ -29,7 +29,7 @@ use otfcc_rust::support::buffer::{Buffer};
 use otfcc_rust::support::options::{Options};
 
 use otfcc_rust::support::parsed_json::{ParsedValue};
-use otfcc_rust::font::caryll_font::{Font, IFontBuilder, IFontSerializer};
+use otfcc_rust::font::caryll_font::{Font};
 use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::support::{EXIT_FAILURE, NULL};
 use libc::timespec;
@@ -37,9 +37,9 @@ use otfcc_rust::support::getopt::{NO_ARGUMENT, LongOption, REQUIRED_ARGUMENT};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use otfcc_rust::font::caryll_font::{otfcc_font_free};
 use otfcc_rust::consolidate::{otfcc_consolidate_font};
-use otfcc_rust::json_reader::{otfcc_new_json_reader};
+use otfcc_rust::json_reader::{read_json};
 use otfcc_rust::logger::{otfcc_new_logger, otfcc_new_std_err_target};
-use otfcc_rust::otf_writer::{otfcc_new_otf_writer};
+use otfcc_rust::otf_writer::{serialize_to_otf};
 use otfcc_rust::support::buffer::{buffree, buflen};
 use otfcc_rust::support::options::{otfcc_options_optimize_to, otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
@@ -671,12 +671,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
-        let mut parser: *mut IFontBuilder = otfcc_new_json_reader();
-        font = (*parser).read.expect("non-null function pointer")(
-            json_root as *mut ::core::ffi::c_void,
-            0 as u32,
-            options,
-        );
+        font = read_json(json_root as *mut ::core::ffi::c_void, 0 as u32, options);
         if font.is_null() {
             (*(*options).logger)
                 .log_sds
@@ -691,7 +686,6 @@ unsafe fn main_0(
             );
             exit(EXIT_FAILURE);
         }
-        (*parser).free.expect("non-null function pointer")(parser as *mut IFontBuilder);
         json_value_free(json_root);
         (*(*options).logger)
             .log_sds
@@ -736,10 +730,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
-        let mut writer: *mut IFontSerializer = otfcc_new_otf_writer();
-        let mut otf: *mut Buffer =
-            (*writer).serialize.expect("non-null function pointer")(font, options)
-                as *mut Buffer;
+        let mut otf: *mut Buffer = serialize_to_otf(font, options) as *mut Buffer;
         (*(*options).logger)
             .start_sds
             .expect("non-null function pointer")(
@@ -792,7 +783,6 @@ unsafe fn main_0(
             push_stopwatch(&raw mut begin),
         );
         buffree(otf);
-        (*writer).free.expect("non-null function pointer")(writer as *mut IFontSerializer);
         otfcc_font_free(font);
         // `inPath`/`outputPath` are `Option<CString>` now -- both drop on
         // their own at the end of this function's scope, no explicit

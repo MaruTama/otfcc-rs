@@ -7,12 +7,12 @@ use crate::support::options::{Options};
 
 
 use crate::support::parsed_json::{ParsedValue};
-use crate::font::caryll_font::{Font, IFontBuilder, IFontSerializer};
+use crate::font::caryll_font::{Font};
 use crate::font::caryll_font::{otfcc_font_free};
 use crate::consolidate::{otfcc_consolidate_font};
-use crate::json_reader::{otfcc_new_json_reader};
+use crate::json_reader::{read_json};
 use crate::logger::{otfcc_new_empty_target, otfcc_new_logger};
-use crate::otf_writer::{otfcc_new_otf_writer};
+use crate::otf_writer::{serialize_to_otf};
 use crate::support::buffer::{buffree};
 use crate::support::options::{otfcc_options_optimize_to, otfcc_new_options};
 use crate::support::parsed_json::{json_parse, json_value_free};
@@ -77,23 +77,13 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     if json_root.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut parser: *mut IFontBuilder = otfcc_new_json_reader();
-    let mut font: *mut Font = (*parser).read.expect("non-null function pointer")(
-        json_root as *mut ::core::ffi::c_void,
-        0 as u32,
-        options,
-    );
-    (*parser).free.expect("non-null function pointer")(parser as *mut IFontBuilder);
+    let mut font: *mut Font = read_json(json_root as *mut ::core::ffi::c_void, 0 as u32, options);
     json_value_free(json_root);
     if font.is_null() {
         return ::core::ptr::null_mut::<Buffer>();
     }
     otfcc_consolidate_font(font, options);
-    let mut writer: *mut IFontSerializer = otfcc_new_otf_writer();
-    let mut otf: *mut Buffer =
-        (*writer).serialize.expect("non-null function pointer")(font, options)
-            as *mut Buffer;
-    (*writer).free.expect("non-null function pointer")(writer as *mut IFontSerializer);
+    let mut otf: *mut Buffer = serialize_to_otf(font, options) as *mut Buffer;
     otfcc_font_free(font);
     return otf;
 }

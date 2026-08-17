@@ -1,19 +1,17 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 pub mod unconsolidate;
 
-use libc::{free};
 
 
 
 
 
-use crate::support::alloc::{__caryll_allocate_clean};
 
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, ShapeId};
 
-use crate::font::caryll_font::{FontSubtype, Font, IFontBuilder};
+use crate::font::caryll_font::{FontSubtype, Font};
 use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
 
 
@@ -202,40 +200,11 @@ impl FontBuilder for OtfReader {
     };
     }
 }
-unsafe extern "C" fn read_otf(
+pub unsafe fn read_otf(
     mut _sfnt: *mut ::core::ffi::c_void,
     mut index: u32,
     mut options: *const Options,
 ) -> *mut Font {
     <OtfReader as FontBuilder>::read(_sfnt, index, options as *const ::core::ffi::c_void)
         as *mut Font
-}
-#[inline]
-unsafe extern "C" fn free_reader(mut self_0: *mut IFontBuilder) {
-    free(self_0 as *mut ::core::ffi::c_void);
-}
-pub unsafe fn otfcc_new_otf_reader() -> *mut IFontBuilder {
-    let mut reader: *mut IFontBuilder = ::core::ptr::null_mut::<IFontBuilder>();
-    reader = __caryll_allocate_clean(
-        ::core::mem::size_of::<IFontBuilder>() as usize,
-        85 as ::core::ffi::c_ulong,
-    ) as *mut IFontBuilder;
-    (*reader).read = Some(
-        read_otf
-            as unsafe extern "C" fn(
-                *mut ::core::ffi::c_void,
-                u32,
-                *const Options,
-            ) -> *mut Font,
-    )
-        as Option<
-            unsafe extern "C" fn(
-                *mut ::core::ffi::c_void,
-                u32,
-                *const Options,
-            ) -> *mut Font,
-        >;
-    (*reader).free = Some(free_reader as unsafe extern "C" fn(*mut IFontBuilder) -> ())
-        as Option<unsafe extern "C" fn(*mut IFontBuilder) -> ()>;
-    return reader;
 }

@@ -894,6 +894,69 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Phase 4 sub-phases A+B, bundled into one PR: `IFontBuilder`/
+  `IFontSerializer` collapse, and `ILoggerTarget` → `LoggerTarget` enum.**
+  The original Phase 4 scoping (README, previously) assumed
+  `IFontBuilder`/`IFontSerializer` were genuine runtime dispatch needing a
+  `FontFormat` enum -- investigation found that was a misclassification.
+  All 3 call sites (`ffi/dll.rs`'s `otfccbuild_json_otf`,
+  `bin/otfccbuild.rs`, `bin/otfccdump.rs`) construct a *fixed* pair at
+  compile time (JSON reader → OTF writer, twice, and OTF reader → JSON
+  writer, once) -- no code path ever branches between the 4 possible
+  pairings at runtime. So this collapsed exactly like the 17 vestigial
+  vtables from Phase 3: `read_otf`/`read_json`/`serialize_to_otf`/
+  `serialize_to_json` (already plain functions one layer under the vtable
+  wrapper, each just forwarding to a `FontBuilder`/`FontSerializer` trait
+  method) went from module-private `unsafe extern "C" fn` to `pub unsafe
+  fn` (the `bin/` targets are separate crates, same visibility gotcha as
+  `OTFCC_I_FONT` in Phase 3 batch 3), the 3 call sites now call them
+  directly, and `IFontBuilder`/`IFontSerializer`, their 4
+  `__caryll_allocate_clean`-based constructors, and their 4 identical
+  `free(self as *mut c_void)` shells are gone.
+
+  `ILoggerTarget` (stderr output vs no-op) turned out to be the one
+  genuinely polymorphic case in the original Phase 4 trio -- two
+  implementations, chosen once per call path at `Logger` construction
+  (CLI binaries always get stderr, the `ffi/dll.rs` library path always
+  gets no-op) and never switched afterward. That shape doesn't fit the
+  "collapse to a direct call" mechanical pattern the other cleanups used;
+  it needed the crate's other recurring idiom instead -- converting a
+  small closed set of C-shaped implementations into a Rust `enum` +
+  `match` (same treatment `CffEncoding`/`VqSegment`/`Subtable`/
+  `ChainingSubtable`/`CffCharset`/`CffFdSelect` already got). `logger.rs`
+  gained `pub enum LoggerTarget { Stderr, Empty }` with a `push` method
+  matching on self; `Logger.target` changed from `*mut c_void` (a second,
+  separately `__caryll_allocate_clean`'d `StderrTarget` shell) to a plain
+  inline `LoggerTarget` field -- one fewer heap allocation per `Logger`.
+  `ILoggerTarget`, `StderrTarget`, `VTABLE_STDERR_TARGET`/
+  `VTABLE_EMPTY_TARGET`, and their `extern "C"` wrapper functions are
+  gone; `logger_get_target` (whose only purpose was fetching the vtable
+  pointer to dispatch through) is gone too, since `logger_log_sds` and
+  `logger_dispose` now just read `(*self_0).target` directly -- and
+  `logger_dispose` no longer needs to dispose the target at all, since an
+  inline enum with no heap payload has nothing to free beyond what
+  `free()`-ing the `Logger` struct itself already reclaims.
+  `otfcc_new_std_err_target`/`otfcc_new_empty_target` stayed as thin
+  functions returning `LoggerTarget::Stderr`/`LoggerTarget::Empty`, so the
+  3 existing call sites (`ffi/dll.rs`, `bin/otfccbuild.rs`,
+  `bin/otfccdump.rs`) needed no changes at all -- `otfcc_new_logger`'s
+  parameter type flowed through unchanged from their perspective.
+
+  `ILogger` itself (12 fields, single implementation `VTABLE_LOGGER`, but
+  dispatched through an *instance* pointer -- `Options.logger: *mut
+  ILogger` -- rather than a bare `pub static`, so the mechanical Phase 3
+  pattern didn't apply as-is) is deliberately **not** touched by this PR:
+  its ~321 call sites are next, as their own PR, once `Logger.target`'s
+  shape was settled here first.
+
+  Verified with the standard full pipeline on both platforms: 54 unit
+  tests green (0 warnings under `warnings = "deny"`), every payload
+  byte-identical in both directions including the `otfccdll` cdylib, all
+  10 round-trip payloads stable, issue #1's large-lookup regression test
+  green, and `compare-log-output.sh` green -- particularly load-bearing
+  here, since it is the pipeline's only check that actually exercises the
+  stderr-vs-no-op branch this PR rewrote.
+
 - **`unsafe extern "C"` removal, Phase 3 batch 7 (final): `VqVectorInterface`/
   `I_VQ` (27 fields, `vf/vq.rs`) -- the largest vtable in the original
   17-vtable inventory, and the last one. 18 of the 27 fields turned out to
