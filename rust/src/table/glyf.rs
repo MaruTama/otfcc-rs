@@ -9,7 +9,7 @@ unsafe extern "C" {
 
 use crate::support::handle::{HandleState, handle_from_name, FdHandle, GlyphHandle, Handle, otfcc_handle_empty};
 use crate::support::stdio::{stderr};
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
 use crate::vendor::json::{JsonType};
@@ -702,10 +702,8 @@ pub unsafe fn otfcc_dump_glyf(
         Some(t) => t as *const GlyfTable,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"glyf"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -730,9 +728,7 @@ pub unsafe fn otfcc_dump_glyf(
             otfcc_dump_glyphorder(table, root);
         }
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 unsafe fn glyf_parse_point(mut pointdump: *const ParsedValue) -> Point {
@@ -1194,10 +1190,8 @@ pub unsafe fn otfcc_parse_glyf(
         JsonType::Object,
     );
     if !table.is_null() {
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"glyf"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -1224,10 +1218,8 @@ pub unsafe fn otfcc_parse_glyf(
             }
             glyf = Some(glyf_val);
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
         return glyf;

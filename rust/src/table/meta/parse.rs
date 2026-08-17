@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::free;
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_str_len, json_str_ptr, json_type_of};
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::options::{Options};
 use crate::vendor::json::{JsonType};
 
@@ -75,10 +75,8 @@ pub unsafe fn otfcc_parse_meta(
         return None;
     }
     let mut meta: Box<MetaTable> = Box::new(MetaTable { version: 1, flags: 0, entries: Vec::new() });
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"meta"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -103,9 +101,7 @@ pub unsafe fn otfcc_parse_meta(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     return Some(meta);
 }

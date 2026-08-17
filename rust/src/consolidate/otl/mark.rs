@@ -4,7 +4,7 @@ use std::collections::BTreeMap;
 
 use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphClass, GlyphId};
@@ -51,10 +51,8 @@ unsafe fn consolidate_mark_array(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*mark_array))[k as usize].glyph,
         ) {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
@@ -75,12 +73,8 @@ unsafe fn consolidate_mark_array(
                     });
                 }
                 _ => {
-                    (*(*options).logger)
-                        .log_sds
-                        .expect(
-                            "non-null function pointer",
-                        )(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored invalid or double-mapping mark definition for /",
@@ -127,10 +121,8 @@ unsafe fn consolidate_base_array(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*base_array))[k as usize].glyph,
         ) {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
@@ -148,10 +140,8 @@ unsafe fn consolidate_base_array(
                     v.insert(BaseHashValue { name, anchors });
                 }
                 Entry::Occupied(_) => {
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored anchor double-definition for /",
@@ -191,10 +181,8 @@ unsafe fn consolidate_lig_array(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*lig_array))[k as usize].glyph,
         ) {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
@@ -213,10 +201,8 @@ unsafe fn consolidate_lig_array(
                     v.insert(LigHashValue { name, component_count, anchors });
                 }
                 Entry::Occupied(_) => {
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored anchor double-definition for /",

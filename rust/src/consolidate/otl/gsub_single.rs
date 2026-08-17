@@ -2,7 +2,7 @@
 
 use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -40,10 +40,8 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             glyph_order,
             &raw mut (&mut (*subtable))[k as usize].from,
         ) {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
@@ -55,10 +53,8 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             glyph_order,
             &raw mut (&mut (*subtable))[k as usize].to,
         ) {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
@@ -69,10 +65,8 @@ pub unsafe extern "C" fn consolidate_gsub_single(
         } else {
             let fromid: i32 = (&(*subtable))[k as usize].from.index as i32;
             if seen.contains_key(&fromid) {
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Double-mapping a glyph in a single substitution /",
@@ -90,10 +84,8 @@ pub unsafe extern "C" fn consolidate_gsub_single(
         k = k.wrapping_add(1);
     }
     if seen.len() != (*subtable).len() {
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Consolidate] In this lookup, some mappings are ignored.\n",

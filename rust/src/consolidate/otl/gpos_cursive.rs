@@ -2,7 +2,7 @@
 
 use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -68,10 +68,8 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*subtable))[k as usize].target,
         ) {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
@@ -82,10 +80,8 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
         } else {
             let fromid: i32 = (&(*subtable))[k as usize].target.index as i32;
             if seen.contains_key(&fromid) {
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Double-mapping a glyph in a cursive positioning /",

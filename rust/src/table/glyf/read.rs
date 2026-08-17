@@ -5,7 +5,7 @@ use crate::support::handle::{handle_from_index, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_8s, read_16u, read_16s, read_32u};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, F2Dot14, FontFilePointer, GlyphId, Pos, Scale, ShapeId};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
@@ -400,10 +400,8 @@ unsafe fn otfcc_read_composite_glyph(
             && (flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE)
                 || flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO))
         {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"glyf: SCALED_COMPONENT_OFFSET is not supported."),
@@ -1081,10 +1079,8 @@ unsafe fn polymorphize(
                     }
                     let mut header: *mut GVARHeader = data as *mut GVARHeader;
                     if be16((*header).axis_count) as usize != (*(*ctx).fvar).axes.len() {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Axes number in GVAR and FVAR are inequal",
@@ -1221,10 +1217,8 @@ pub unsafe fn otfcc_read_glyf(
                                 }
                             }
                         }
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"table 'loca' corrupted.\n"),
@@ -1259,10 +1253,8 @@ pub unsafe fn otfcc_read_glyf(
                             let mut data_0: FontFilePointer = table_0.data.as_ptr() as FontFilePointer;
                             let mut length_0: u32 = table_0.length;
                             if length_0 < offsets[(*ctx).num_glyphs as usize] {
-                                (*(*options).logger)
-                                    .log_sds
-                                    .expect("non-null function pointer")(
-                                    (*options).logger as *mut ILogger,
+                                logger_log_sds(
+                                    (*options).logger,
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::bytesbuild!(b"table 'glyf' corrupted.\n"),

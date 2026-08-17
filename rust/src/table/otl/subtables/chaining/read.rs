@@ -7,7 +7,7 @@ use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphH
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
@@ -617,10 +617,8 @@ pub unsafe fn otl_read_contextual(
             return subtable_from_raw(subtable, Subtable::Chaining);
         }
     }
-    (*(*options).logger)
-        .log_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_log_sds(
+        (*options).logger,
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
@@ -1228,10 +1226,8 @@ pub unsafe fn otl_read_chaining(
             return subtable_from_raw(subtable, Subtable::Chaining);
         }
     }
-    (*(*options).logger)
-        .log_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_log_sds(
+        (*options).logger,
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),

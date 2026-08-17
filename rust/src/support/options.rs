@@ -3,7 +3,7 @@ use libc::{free};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{ILogger};
+use crate::logger::{Logger, logger_dispose};
 
 
 #[derive(Copy, Clone)]
@@ -33,7 +33,7 @@ pub struct Options {
     pub name_glyphs_by_hash: bool,
     pub name_glyphs_by_gid: bool,
     pub glyph_name_prefix: *mut ::core::ffi::c_char,
-    pub logger: *mut ILogger,
+    pub logger: *mut Logger,
 }
 pub unsafe fn otfcc_new_options() -> *mut Options {
     let mut options: *mut Options = ::core::ptr::null_mut::<Options>();
@@ -48,10 +48,8 @@ pub unsafe fn otfcc_delete_options(mut options: *mut Options) {
         free((*options).glyph_name_prefix as *mut ::core::ffi::c_void);
         (*options).glyph_name_prefix = ::core::ptr::null_mut::<::core::ffi::c_char>();
         if !(*options).logger.is_null() {
-            (*(*options).logger)
-                .dispose
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_dispose(
+                (*options).logger
             );
         }
     }

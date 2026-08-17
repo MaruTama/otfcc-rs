@@ -24,7 +24,7 @@ unsafe extern "C" {
     ) -> ::core::ffi::c_int;
 }
 
-use otfcc_rust::logger::{LoggerType, ILogger};
+use otfcc_rust::logger::{LoggerType, logger_finish, logger_indent, logger_log_sds, logger_set_verbosity, logger_start_sds};
 use otfcc_rust::support::buffer::{Buffer};
 use otfcc_rust::support::options::{Options};
 
@@ -196,10 +196,8 @@ unsafe fn main_0(
     let mut c: ::core::ffi::c_int = 0;
     let mut options: *mut Options = otfcc_new_options();
     (*options).logger = otfcc_new_logger(otfcc_new_std_err_target());
-    (*(*options).logger)
-        .indent
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_indent(
+        (*options).logger,
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
     otfcc_options_optimize_to(options, 1 as u8);
@@ -515,10 +513,8 @@ unsafe fn main_0(
             _ => {}
         }
     }
-    (*(*options).logger)
-        .set_verbosity
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_set_verbosity(
+        (*options).logger,
         (if (*options).quiet as ::core::ffi::c_int != 0 {
             0 as ::core::ffi::c_int
         } else if (*options).verbose as ::core::ffi::c_int != 0 {
@@ -542,10 +538,8 @@ unsafe fn main_0(
         inPath = Some(::std::ffi::CStr::from_ptr(*argv.offset(optind as isize)).to_owned());
     }
     if outputPath.is_none() {
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_CRITICAL,
             LoggerType::Error,
             otfcc_rust::bytesbuild!(b"Unable to build OpenType font tile : output path not specified. Exit.\n",
@@ -556,19 +550,15 @@ unsafe fn main_0(
     }
     let mut buffer: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut length: ::core::ffi::c_long = 0;
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         otfcc_rust::bytesbuild!(b"Load file"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         if let Some(ref in_path) = inPath {
-            (*(*options).logger)
-                .start_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_start_sds(
+                (*options).logger,
                 otfcc_rust::bytesbuild!(b"Load from file ", in_path.as_bytes()),
             );
             let mut ___loggedstep_v_0: bool = true;
@@ -587,67 +577,51 @@ unsafe fn main_0(
                 // the end, which is exactly what those later reads
                 // needed all along.
                 ___loggedstep_v_0 = false;
-                (*(*options).logger)
-                    .finish
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger
+                logger_finish(
+                    (*options).logger
                 );
             }
         } else {
-            (*(*options).logger)
-                .start_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_start_sds(
+                (*options).logger,
                 otfcc_rust::bytesbuild!(b"Load from stdin"),
             );
             let mut ___loggedstep_v_1: bool = true;
             while ___loggedstep_v_1 {
                 readEntireStdin(&raw mut buffer, &raw mut length);
                 ___loggedstep_v_1 = false;
-                (*(*options).logger)
-                    .finish
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger
+                logger_finish(
+                    (*options).logger
                 );
             }
         }
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     let mut json_root: *mut ParsedValue = ::core::ptr::null_mut::<ParsedValue>();
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         otfcc_rust::bytesbuild!(b"Parse into JSON"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
         json_root = json_parse(buffer, length as usize);
         free(buffer as *mut ::core::ffi::c_void);
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         if json_root.is_null() {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Cannot parse JSON file \"",
@@ -658,25 +632,19 @@ unsafe fn main_0(
             exit(EXIT_FAILURE);
         }
         ___loggedstep_v_2 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     let mut font: *mut Font = ::core::ptr::null_mut::<Font>();
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         otfcc_rust::bytesbuild!(b"Parse"),
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
         font = read_json(json_root as *mut ::core::ffi::c_void, 0 as u32, options);
         if font.is_null() {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Cannot parse JSON file \"",
@@ -687,54 +655,40 @@ unsafe fn main_0(
             exit(EXIT_FAILURE);
         }
         json_value_free(json_root);
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_3 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         otfcc_rust::bytesbuild!(b"Consolidate"),
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
         otfcc_consolidate_font(font, options);
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_4 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         otfcc_rust::bytesbuild!(b"Build"),
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
         let mut otf: *mut Buffer = serialize_to_otf(font, options) as *mut Buffer;
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             otfcc_rust::bytesbuild!(b"Write to file"),
         );
         let mut ___loggedstep_v_6: bool = true;
@@ -747,10 +701,8 @@ unsafe fn main_0(
                 b"wb\0" as *const u8 as *const ::core::ffi::c_char,
             ) as *mut FILE;
             if outfile.is_null() {
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_CRITICAL,
                     LoggerType::Error,
                     otfcc_rust::bytesbuild!(b"Cannot write to file \"",
@@ -768,16 +720,12 @@ unsafe fn main_0(
             );
             fclose(outfile);
             ___loggedstep_v_6 = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
@@ -788,9 +736,7 @@ unsafe fn main_0(
         // their own at the end of this function's scope, no explicit
         // free needed.
         ___loggedstep_v_5 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     otfcc_delete_options(options);
     return 0 as ::core::ffi::c_int;

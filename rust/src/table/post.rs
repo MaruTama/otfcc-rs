@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::binio::{read_16u, read_32u, read_32s};
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, GlyphId};
@@ -433,10 +433,8 @@ pub unsafe fn otfcc_dump_post(
         Some(t) => t as *const PostTable,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"post"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -493,9 +491,7 @@ pub unsafe fn otfcc_dump_post(
             post,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 pub unsafe fn otfcc_parse_post(
@@ -517,10 +513,8 @@ pub unsafe fn otfcc_parse_post(
         JsonType::Object,
     );
     if !table.is_null() {
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"post"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -566,10 +560,8 @@ pub unsafe fn otfcc_parse_post(
                 b"maxMemType1\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u32;
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
     }

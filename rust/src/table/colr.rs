@@ -4,7 +4,7 @@ use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_o
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_move, Handle, GlyphHandle, HandleState};
 
 use crate::support::binio::{read_16u, read_32u};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ColorId, GlyphId};
@@ -191,10 +191,8 @@ pub unsafe fn otfcc_read_colr(
                             }
                         }
                     }
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"Table 'COLR' corrupted.\n"),
@@ -224,10 +222,8 @@ pub unsafe fn otfcc_dump_colr(
         Some(c) => c,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"COLR"),
     );
     let mappings: &Vec<ColrMapping> = colr;
@@ -285,9 +281,7 @@ pub unsafe fn otfcc_dump_colr(
             _colr,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 #[allow(improper_ctypes_definitions)]
@@ -305,10 +299,8 @@ pub unsafe fn otfcc_parse_colr(
         return None;
     }
     let mut colr: ColrTable = Vec::new();
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"COLR"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -372,9 +364,7 @@ pub unsafe fn otfcc_parse_colr(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     return Some(colr);
 }

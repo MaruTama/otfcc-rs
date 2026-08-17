@@ -4,7 +4,7 @@ use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u};
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, Pos, ShapeId};
@@ -345,10 +345,8 @@ pub unsafe fn otfcc_dump_gdef(
         Some(g) => g as *const GdefTable,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"GDEF"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -381,9 +379,7 @@ pub unsafe fn otfcc_dump_gdef(
             _gdef,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 unsafe fn lig_caret_from_json(
@@ -464,10 +460,8 @@ pub unsafe fn otfcc_parse_gdef(
         JsonType::Object,
     );
     if !table.is_null() {
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"GDEF"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -495,10 +489,8 @@ pub unsafe fn otfcc_parse_gdef(
                 &raw mut gdef.as_mut().unwrap().lig_carets,
             );
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
     }

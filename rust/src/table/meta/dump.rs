@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free};
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::options::{Options};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
@@ -20,10 +20,8 @@ pub unsafe fn otfcc_dump_meta(
         Some(m) => m,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"meta"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -101,9 +99,7 @@ pub unsafe fn otfcc_dump_meta(
             _meta,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 #[inline]

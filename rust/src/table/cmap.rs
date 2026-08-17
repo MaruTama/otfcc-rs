@@ -6,7 +6,7 @@ use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_16u, read_24u, read_32u};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId, Unicode};
@@ -577,10 +577,8 @@ pub unsafe fn otfcc_read_cmap(
                             return cmap_box;
                         }
                     }
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"table 'cmap' corrupted.\n"),
@@ -608,10 +606,8 @@ pub unsafe fn otfcc_dump_cmap(
         Some(t) => t as *const CmapTable,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -670,9 +666,7 @@ pub unsafe fn otfcc_dump_cmap(
             );
         }
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 // `unicode_str` borrows `json_obj_key_at`'s pointer directly rather than
@@ -718,10 +712,8 @@ unsafe fn parse_cmap_unicodes(
             if !otfcc_encode_cmap_by_name(cmap, unicode as ::core::ffi::c_int, gname.clone()) {
                 let mut current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup(cmap, unicode as ::core::ffi::c_int) as *mut GlyphHandle;
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"U+",
@@ -781,10 +773,8 @@ unsafe fn parse_cmap_uvs(
             if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname.clone()) {
                 let mut current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup_uvs(cmap, k) as *mut GlyphHandle;
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"UVS U+",
@@ -816,10 +806,8 @@ pub unsafe fn otfcc_parse_cmap(
         uvs: std::collections::BTreeMap::new(),
     });
     let cmap: *mut CmapTable = cmap_box.as_mut() as *mut CmapTable;
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -834,14 +822,10 @@ pub unsafe fn otfcc_parse_cmap(
             options,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"cmap_uvs"),
     );
     let mut ___loggedstep_v_0: bool = true;
@@ -856,9 +840,7 @@ pub unsafe fn otfcc_parse_cmap(
             options,
         );
         ___loggedstep_v_0 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     return Some(cmap_box);
 }

@@ -2,7 +2,7 @@
 
 use crate::support::built_json::{json_new_position, json_object_push_tag, preserialize};
 use crate::support::parsed_json::{ParsedValue, json_numof};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, Pos};
 
@@ -364,10 +364,8 @@ pub unsafe fn otfcc_read_fvar(
                             }
                         }
                     }
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"table 'fvar' corrupted.\n"),
@@ -396,10 +394,8 @@ pub unsafe fn otfcc_dump_fvar(
         Some(t) => t as *const FvarTable,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"fvar"),
     );
     let axes: &Vec<VfAxis> = &(*table).axes;
@@ -509,9 +505,7 @@ pub unsafe fn otfcc_dump_fvar(
             t,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 pub unsafe fn json_new_vq_segment(

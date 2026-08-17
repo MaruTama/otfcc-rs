@@ -4,7 +4,7 @@ use libc::{free, memcpy};
 
 use crate::support::parsed_json::{ParsedValue, json_obj_get};
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
@@ -100,10 +100,8 @@ pub unsafe fn table_dump_table_fpgm_prep(
         Some(t) => t,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
@@ -114,9 +112,7 @@ pub unsafe fn table_dump_table_fpgm_prep(
             dump_ttinstr((*table).bytes, (*table).length, options),
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 pub unsafe extern "C" fn make_fpgm_prep_instr(
@@ -143,10 +139,8 @@ pub unsafe fn otfcc_parse_fpgm_prep(
     let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     table = json_obj_get(root, tag);
     if !table.is_null() {
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(tag),
         );
         let mut ___loggedstep_v: bool = true;
@@ -178,10 +172,8 @@ pub unsafe fn otfcc_parse_fpgm_prep(
             );
             t = Some(boxed);
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
     }
