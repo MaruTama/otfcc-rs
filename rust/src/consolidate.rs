@@ -8,7 +8,7 @@ unsafe extern "C" {
 
 use crate::support::handle::{HandleState, handle_from_index, handle_name_eq_bytes, FdHandle, GlyphHandle, Handle, otfcc_handle_copy, otfcc_handle_dispose};
 
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, Pos, ShapeId, TableId};
@@ -110,10 +110,8 @@ unsafe fn consolidate_glyph_contours(
     (*g).contours.retain(|contour| {
         let keep = !contour.is_empty();
         if !keep {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Removed empty contour #",
@@ -139,10 +137,8 @@ unsafe fn consolidate_glyph_references(
             &raw mut r.glyph,
         );
         if !ok {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored absent glyph component reference /",
@@ -293,10 +289,8 @@ unsafe fn consolidate_fd_select(
             }
         }
         if !found {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] CID Subfont ",
@@ -426,10 +420,8 @@ pub unsafe fn consolidate_anchor_ref(
     if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingAnchor
         || (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingXy
     {
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Found circular reference of out-of-range point reference in anchored reference.",
@@ -478,10 +470,8 @@ pub unsafe fn consolidate_anchor_ref(
         options,
     );
     if !s1 {
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Failed to access point ",
@@ -491,10 +481,8 @@ pub unsafe fn consolidate_anchor_ref(
         );
     }
     if !s2 {
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Failed to access point ",
@@ -535,10 +523,8 @@ pub unsafe fn consolidate_anchor_ref(
                         as ::core::ffi::c_double,
             ) > 0.5f64
         {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Anchored reference to ",
@@ -579,10 +565,8 @@ pub unsafe fn consolidate_glyf(
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*glyf).len() {
         let g: *mut Glyph = &raw mut **(&mut (*glyf))[j_0 as usize].as_mut().unwrap();
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(&(*g).name),
         );
         let mut ___loggedstep_v: bool = true;
@@ -602,10 +586,8 @@ pub unsafe fn consolidate_glyf(
             // goes out of scope at the end of this block, so no explicit
             // dispose call is needed.
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
         j_0 = j_0.wrapping_add(1);
@@ -628,10 +610,8 @@ pub unsafe fn consolidate_cmap(
             if !otfcc_gord_consolidate_handle(
                 glyph_order, glyph as *mut GlyphHandle
             ) {
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignored mapping U+",
@@ -650,12 +630,8 @@ pub unsafe fn consolidate_cmap(
             if !otfcc_gord_consolidate_handle(
                 glyph_order, glyph as *mut GlyphHandle
             ) {
-                (*(*options).logger)
-                    .log_sds
-                    .expect(
-                        "non-null function pointer",
-                    )(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignored UVS mapping [U+",
@@ -686,10 +662,8 @@ unsafe fn __declare_otl_consolidation(
     {
         return;
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(&(*lookup).name),
     );
     let mut ___loggedstep_v: bool = true;
@@ -697,10 +671,8 @@ unsafe fn __declare_otl_consolidation(
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
             if (&(*lookup).subtables)[j as usize].is_none() {
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignored empty subtable ",
@@ -733,10 +705,8 @@ unsafe fn __declare_otl_consolidation(
                     // place) is all that is needed -- no per-type function
                     // pointer, no separate explicit `Box::from_raw`.
                     (&mut (*lookup).subtables)[j as usize] = None;
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored empty subtable ",
@@ -770,10 +740,8 @@ unsafe fn __declare_otl_consolidation(
         }
         (*lookup).subtables.truncate(k as usize);
         if k == 0 {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Lookup ",
@@ -783,9 +751,7 @@ unsafe fn __declare_otl_consolidation(
             );
         }
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 pub unsafe fn otfcc_consolidate_lookup(
@@ -1109,38 +1075,28 @@ unsafe fn consolidate_otl_table(
     }
 }
 unsafe fn consolidate_otl(mut font: *mut Font, mut options: *const Options) {
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"GSUB"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         consolidate_otl_table(font, (*font).gsub.as_deref_mut().map_or(::core::ptr::null_mut(), |t| t as *mut OtlTable), options);
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"GPOS"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
         consolidate_otl_table(font, (*font).gpos.as_deref_mut().map_or(::core::ptr::null_mut(), |t| t as *mut OtlTable), options);
         ___loggedstep_v_0 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"GDEF"),
     );
     let mut ___loggedstep_v_1: bool = true;
@@ -1151,9 +1107,7 @@ unsafe fn consolidate_otl(mut font: *mut Font, mut options: *const Options) {
             options,
         );
         ___loggedstep_v_1 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 unsafe fn consolidate_colr(mut font: *mut Font, mut options: *const Options) {
@@ -1174,10 +1128,8 @@ unsafe fn consolidate_colr(mut font: *mut Font, mut options: *const Options) {
             if !otfcc_gord_consolidate_handle(
                 glyph_order, &raw mut mapping.glyph
             ) {
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignored missing glyph of /",
@@ -1206,10 +1158,8 @@ unsafe fn consolidate_colr(mut font: *mut Font, mut options: *const Options) {
                             glyph_order,
                             &raw mut layer.glyph,
                         ) {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect("non-null function pointer")(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph of /",
@@ -1227,10 +1177,8 @@ unsafe fn consolidate_colr(mut font: *mut Font, mut options: *const Options) {
                 if mapping.layers.len() != 0 {
                     consolidated.push(m);
                 } else {
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] COLR decomposition for /",
@@ -1287,10 +1235,8 @@ unsafe fn consolidate_tsi(
                     gid_entries[(*entry).glyph.index as usize] =
                         Some(::core::mem::take(&mut (*entry).content));
                 } else {
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored missing glyph of /",
@@ -1372,10 +1318,8 @@ pub unsafe fn otfcc_consolidate_font(
             // the log message and/or the retry loop.
             if !otfcc_set_glyph_order_by_name(go, name.clone(), j)
             {
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Glyph name ",
@@ -1393,10 +1337,8 @@ pub unsafe fn otfcc_consolidate_font(
                     if !success {
                         suffix = suffix.wrapping_add(1 as u32);
                     } else {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"[Consolidate] Glyph ",
@@ -1418,83 +1360,61 @@ pub unsafe fn otfcc_consolidate_font(
         }
         (*font).glyph_order = Some(go_box);
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"glyf"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         consolidate_glyf(font, options);
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"cmap"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
         consolidate_cmap(font, options);
         ___loggedstep_v_0 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     if !glyf.is_null() {
         consolidate_otl(font, options);
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"COLR"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
         consolidate_colr(font, options);
         ___loggedstep_v_1 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"TSI_01"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
         consolidate_tsi(font, &raw mut (*font).tsi_01, options);
         ___loggedstep_v_2 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"TSI_23"),
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
         consolidate_tsi(font, &raw mut (*font).tsi_23, options);
         ___loggedstep_v_3 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"TSI5"),
     );
     let mut ___loggedstep_v_4: bool = true;
@@ -1505,8 +1425,6 @@ pub unsafe fn otfcc_consolidate_font(
             options,
         );
         ___loggedstep_v_4 = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }

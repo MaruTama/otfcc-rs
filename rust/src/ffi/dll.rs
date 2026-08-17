@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 
-use crate::logger::ILogger;
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 
@@ -11,7 +10,7 @@ use crate::font::caryll_font::{Font};
 use crate::font::caryll_font::{otfcc_font_free};
 use crate::consolidate::{otfcc_consolidate_font};
 use crate::json_reader::{read_json};
-use crate::logger::{otfcc_new_empty_target, otfcc_new_logger};
+use crate::logger::{otfcc_new_empty_target, otfcc_new_logger, logger_indent};
 use crate::otf_writer::{serialize_to_otf};
 use crate::support::buffer::{buffree};
 use crate::support::options::{otfcc_options_optimize_to, otfcc_new_options};
@@ -62,10 +61,8 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
 ) -> *mut Buffer {
     let mut options: *mut Options = otfcc_new_options();
     (*options).logger = otfcc_new_logger(otfcc_new_empty_target());
-    (*(*options).logger)
-        .indent
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_indent(
+        (*options).logger,
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
     otfcc_options_optimize_to(options, olevel);

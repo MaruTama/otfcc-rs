@@ -6,7 +6,7 @@ use libc::{strcmp, strncmp};
 
 
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint, json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_obj_set_val_at, json_str_ptr, json_type_of, otfcc_parse_flags};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, LOG_VL_NOTICE, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, LOG_VL_NOTICE, logger_dedent, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::vendor::json::{JsonType};
@@ -307,10 +307,8 @@ unsafe fn _declare_lookup_parser(
     );
     if type_0.is_null() || strcmp(json_str_ptr(type_0), llt.name().as_ptr()) != 0 {
         if type_0.is_null() {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Lookup ",
@@ -323,10 +321,8 @@ unsafe fn _declare_lookup_parser(
     }
     let name_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(lookup_name).to_bytes().to_vec();
     if lh.iter().any(|e| e.name == name_bytes) {
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Lookup ", lookup_name, b" already exists."),
@@ -339,10 +335,8 @@ unsafe fn _declare_lookup_parser(
         JsonType::Array,
     );
     if _subtables.is_null() {
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Lookup ",
@@ -375,10 +369,8 @@ unsafe fn _declare_lookup_parser(
             as u16;
     }
     let mut subtable_count: TableId = json_arr_len(_subtables) as TableId;
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(lookup_name),
     );
     let mut ___loggedstep_v: bool = true;
@@ -396,15 +388,11 @@ unsafe fn _declare_lookup_parser(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     if (*lookup).subtables.is_empty() {
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Lookup ", lookup_name, b" does not have any subtables."),
@@ -441,10 +429,8 @@ unsafe fn figure_out_lookups_from_json(
                 &mut lh,
             );
             if !parsed {
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[OTFCC-fea] Ignoring invalid or unsupported lookup ",
@@ -509,10 +495,8 @@ unsafe fn feature_merger_activate(
                     let mut alias_str: Vec<u8> = kthis_bytes[..nkthis as usize].to_vec();
                     alias_str.push(0);
                     json_obj_set_val_at(d, k, ParsedValue::Str(alias_str));
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_NOTICE,
                         LoggerType::Info,
                         crate::bytesbuild!(b"[OTFCC-fea] Merged duplicate ",
@@ -564,10 +548,8 @@ unsafe fn figure_out_features_from_json(
                     if let Some(item) = item {
                         al.push(item.lookup as LookupRef);
                     } else {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Lookup assignment ",
@@ -601,12 +583,8 @@ unsafe fn figure_out_features_from_json(
                         feature,
                     });
                 } else {
-                    (*(*options).logger)
-                        .log_sds
-                        .expect(
-                            "non-null function pointer",
-                        )(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[OTFCC-fea] Duplicate feature for [",
@@ -619,12 +597,8 @@ unsafe fn figure_out_features_from_json(
                     otl_lookup_ref_list_dispose(&raw mut al);
                 }
             } else {
-                (*(*options).logger)
-                    .log_sds
-                    .expect(
-                        "non-null function pointer",
-                    )(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[OTFCC-fea] There is no valid lookup assignments for [",
@@ -727,12 +701,8 @@ unsafe fn figure_out_languages_from_json(
                     otl_feature_ref_list_replace(&raw mut (*language).features, af);
                     sh.insert(language_name_bytes, language);
                 } else {
-                    (*(*options).logger)
-                        .log_sds
-                        .expect(
-                            "non-null function pointer",
-                        )(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[OTFCC-fea] Duplicate language item [",
@@ -745,12 +715,8 @@ unsafe fn figure_out_languages_from_json(
                     otl_feature_ref_list_dispose(&raw mut af);
                 }
             } else {
-                (*(*options).logger)
-                    .log_sds
-                    .expect(
-                        "non-null function pointer",
-                    )(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[OTFCC-fea] There is no valid feature assignments for [",
@@ -798,10 +764,8 @@ pub unsafe fn otfcc_parse_otl(
             JsonType::Object,
         );
         if !(languages.is_null() || features.is_null() || lookups.is_null()) {
-            (*(*options).logger)
-                .start_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_start_sds(
+                (*options).logger,
                 crate::bytesbuild!(tag),
             );
             let mut ___loggedstep_v: bool = true;
@@ -838,10 +802,8 @@ pub unsafe fn otfcc_parse_otl(
                 let mut sh: std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> =
                     figure_out_languages_from_json(languages, &fh, tag, options);
                 if lh.is_empty() || fh.is_empty() || sh.is_empty() {
-                    (*(*options).logger)
-                        .dedent
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_dedent(
+                        (*options).logger,
                     );
                     current_block = 12498981253432484999;
                     break;
@@ -894,10 +856,8 @@ pub unsafe fn otfcc_parse_otl(
                         (*otl).languages.push(Box::from_raw(language));
                     }
                     ___loggedstep_v = false;
-                    (*(*options).logger)
-                        .finish
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_finish(
+                        (*options).logger,
                     );
                 }
             }
@@ -908,10 +868,8 @@ pub unsafe fn otfcc_parse_otl(
         }
     }
     if otl_box.is_some() {
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[OTFCC-fea] Ignoring invalid or incomplete OTL table ",

@@ -2,7 +2,7 @@
 
 
 
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::options::{Options};
 use crate::support::primitives::{TableId};
 use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
@@ -172,19 +172,15 @@ pub unsafe fn otfcc_dump_otl(
     {
         return;
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut otl: *mut BuiltValue = json_object_new(3 as usize);
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"Languages"),
         );
         let mut ___loggedstep_v_0: bool = true;
@@ -226,16 +222,12 @@ pub unsafe fn otfcc_dump_otl(
                 languages,
             );
             ___loggedstep_v_0 = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"Features"),
         );
         let mut ___loggedstep_v_1: bool = true;
@@ -268,16 +260,12 @@ pub unsafe fn otfcc_dump_otl(
                 features_0,
             );
             ___loggedstep_v_1 = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"Lookups"),
         );
         let mut ___loggedstep_v_2: bool = true;
@@ -311,16 +299,12 @@ pub unsafe fn otfcc_dump_otl(
                 lookup_order,
             );
             ___loggedstep_v_2 = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
         json_object_push(root, tag, otl);
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }

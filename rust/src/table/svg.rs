@@ -2,7 +2,7 @@
 use libc::{free, strcmp};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getsds, json_obj_getstr_share, json_type_of};
 use crate::support::binio::{read_16u, read_32u};
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId};
@@ -188,10 +188,8 @@ pub unsafe fn otfcc_dump_svg(
         Some(s) => s,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"SVG "),
     );
     let entries: &Vec<SvgAssignment> = svg;
@@ -260,9 +258,7 @@ pub unsafe fn otfcc_dump_svg(
             _svg,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 #[allow(improper_ctypes_definitions)]
@@ -280,10 +276,8 @@ pub unsafe fn otfcc_parse_svg(
         return None;
     }
     let mut svg: SvgTable = Vec::new();
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"SVG "),
     );
     let mut ___loggedstep_v: bool = true;
@@ -332,9 +326,7 @@ pub unsafe fn otfcc_parse_svg(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     return Some(svg);
 }

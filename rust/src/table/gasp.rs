@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::binio::{read_16u};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphSize, TableId};
@@ -102,10 +102,8 @@ pub unsafe fn otfcc_read_gasp(
                             return gasp;
                         }
                     }
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"table 'gasp' corrupted.\n"),
@@ -132,10 +130,8 @@ pub unsafe fn otfcc_dump_gasp(
         Some(t) => t,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"gasp"),
     );
     let records: &Vec<GaspRecord> = &(*table).records;
@@ -183,9 +179,7 @@ pub unsafe fn otfcc_dump_gasp(
             t,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 pub unsafe fn otfcc_parse_gasp(
@@ -200,10 +194,8 @@ pub unsafe fn otfcc_parse_gasp(
         JsonType::Array,
     );
     if !table.is_null() {
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"gasp"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -246,10 +238,8 @@ pub unsafe fn otfcc_parse_gasp(
                 j = j.wrapping_add(1);
             }
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
     }

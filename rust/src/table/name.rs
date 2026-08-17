@@ -2,7 +2,7 @@
 use libc::{free};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_str_len, json_str_ptr, json_type_of};
 use crate::support::binio::{read_16u};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
@@ -183,10 +183,8 @@ pub unsafe fn otfcc_read_name(
                             return Some(name);
                         }
                     }
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"table 'name' corrupted.\n"),
@@ -216,10 +214,8 @@ pub unsafe fn otfcc_dump_name(
         Some(n) => n,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"name"),
     );
     let records: &Vec<NameRecord> = name;
@@ -267,9 +263,7 @@ pub unsafe fn otfcc_dump_name(
             _name,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 #[allow(improper_ctypes_definitions)]
@@ -285,10 +279,8 @@ pub unsafe fn otfcc_parse_name(
         JsonType::Array,
     );
     if !table.is_null() {
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"name"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -306,10 +298,8 @@ pub unsafe fn otfcc_parse_name(
                     )
                     .is_null()
                     {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid platformID for name entry ",
@@ -324,10 +314,8 @@ pub unsafe fn otfcc_parse_name(
                     )
                     .is_null()
                     {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid encodingID for name entry ",
@@ -342,10 +330,8 @@ pub unsafe fn otfcc_parse_name(
                     )
                     .is_null()
                     {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid languageID for name entry ",
@@ -360,10 +346,8 @@ pub unsafe fn otfcc_parse_name(
                     )
                     .is_null()
                     {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid nameID for name entry ",
@@ -378,10 +362,8 @@ pub unsafe fn otfcc_parse_name(
                     )
                     .is_null()
                     {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid name string for name entry ",
@@ -435,10 +417,8 @@ pub unsafe fn otfcc_parse_name(
                     .then(a.name_id.cmp(&b.name_id))
             });
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
     }

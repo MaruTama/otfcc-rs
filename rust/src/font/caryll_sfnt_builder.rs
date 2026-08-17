@@ -3,7 +3,7 @@ use libc::{free};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, LOG_VL_PROGRESS, ILogger};
+use crate::logger::{LoggerType, LOG_VL_PROGRESS, logger_log_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::vendor::sds::Byte;
@@ -137,10 +137,8 @@ pub unsafe fn otfcc_sfnt_builder_push_table(
     }
     let entry = create_segment(tag, buffer);
     (*builder).tables.insert(tag as ::core::ffi::c_int, entry);
-    (*(*options).logger)
-        .log_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_log_sds(
+        (*options).logger,
         LOG_VL_PROGRESS,
         LoggerType::Progress,
         crate::bytesbuild!(b"OpenType table ",

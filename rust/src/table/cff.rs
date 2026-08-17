@@ -7,7 +7,7 @@ unsafe extern "C" {
 use crate::support::handle::{handle_from_index, FdHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{bufninit, Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{Arity, CffSid, FontFilePointer, GlyphId, Pos, Scale, ShapeId, TableId};
@@ -1696,10 +1696,8 @@ pub unsafe fn otfcc_dump_cff(
     if table.is_null() {
         return;
     }
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"CFF"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -1710,9 +1708,7 @@ pub unsafe fn otfcc_dump_cff(
             fd_to_json(table),
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 unsafe fn pd_delta_from_json(dump: *const ParsedValue) -> Vec<::core::ffi::c_double> {
@@ -1966,20 +1962,16 @@ pub unsafe fn otfcc_parse_cff(
         return None;
     } else {
         let mut cff: *mut CffTable = ::core::ptr::null_mut::<CffTable>();
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"CFF"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             cff = fd_from_json(dump, options, true);
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
         return unwrap_cff_table(cff);

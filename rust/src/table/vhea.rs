@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
 use crate::support::binio::{read_16u, read_16s, read_32s};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer};
@@ -102,10 +102,8 @@ pub unsafe fn otfcc_read_vhea(
                         );
                         return vhea_box;
                     } else {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Table 'vhea' corrupted."),
@@ -133,10 +131,8 @@ pub unsafe fn otfcc_dump_vhea(
         None => return,
     };
     let mut vhea: *mut BuiltValue = json_object_new(11 as usize);
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"vhea"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -202,9 +198,7 @@ pub unsafe fn otfcc_dump_vhea(
             vhea,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 pub unsafe fn otfcc_parse_vhea(
@@ -222,10 +216,8 @@ pub unsafe fn otfcc_parse_vhea(
     if !table.is_null() {
         vhea_box = Some(Box::new(::core::mem::zeroed()));
         vhea = vhea_box.as_deref_mut().unwrap() as *mut VheaTable;
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"vhea"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -285,10 +277,8 @@ pub unsafe fn otfcc_parse_vhea(
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
     }

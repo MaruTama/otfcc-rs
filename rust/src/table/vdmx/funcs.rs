@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum, json_type_of};
 use crate::support::binio::{read_8u, read_16u, read_16s};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ShapeId};
@@ -136,10 +136,8 @@ pub unsafe fn otfcc_read_vdmx(
                             return vdmx;
                         }
                     }
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"Table 'VDMX' corrupted.\n"),
@@ -166,10 +164,8 @@ pub unsafe fn otfcc_dump_vdmx(
         Some(v) => v,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"VDMX"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -258,9 +254,7 @@ pub unsafe fn otfcc_dump_vdmx(
             _vdmx,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 pub unsafe fn otfcc_parse_vdmx(
@@ -277,10 +271,8 @@ pub unsafe fn otfcc_parse_vdmx(
         return None;
     }
     let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable { version: 0, ratios: Vec::new() });
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"VDMX"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -357,9 +349,7 @@ pub unsafe fn otfcc_parse_vdmx(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     return Some(vdmx);
 }

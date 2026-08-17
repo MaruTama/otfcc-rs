@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::binio::{read_32u};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 use crate::support::options::{Options};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
 
@@ -73,10 +73,8 @@ pub unsafe fn otfcc_read_meta(
                             return meta;
                         }
                     }
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"Table 'meta' corrupted.\n"),

@@ -8,7 +8,7 @@ use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHa
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
@@ -287,10 +287,8 @@ unsafe fn parse_bases(
                     ::core::ffi::CStr::from_ptr(name_ptr).to_bytes().to_vec();
                 match (*h).get(&class_name) {
                     None => {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"[OTFCC-fea] Invalid anchor class name <",

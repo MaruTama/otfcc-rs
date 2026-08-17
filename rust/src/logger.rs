@@ -1,10 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-// `ILogger`/`ILoggerTarget` now pass `Vec<u8>` through their `extern "C"`
-// vtable slots -- internal-only (vtable dispatch within this crate, no
-// real FFI boundary; see rust/README.md's Stage 6-2 sds sweep) -- goes
-// away with the vtable/extern "C" cleanup, same as every other instance
-// of this allow in the crate.
-#![allow(improper_ctypes_definitions)]
 use libc::{fprintf, free, fwrite};
 
 use crate::support::stdio::{stderr};
@@ -66,32 +60,8 @@ pub const LOG_VL_IMPORTANT: u8 = 1;
 pub const LOG_VL_NOTICE: u8 = 2;
 pub const LOG_VL_INFO: u8 = 5;
 pub const LOG_VL_PROGRESS: u8 = 10;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ILogger {
-    pub dispose: Option<unsafe extern "C" fn(*mut ILogger) -> ()>,
-    pub indent: Option<unsafe extern "C" fn(*mut ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub indent_sds: Option<unsafe extern "C" fn(*mut ILogger, Vec<u8>) -> ()>,
-    pub start: Option<unsafe extern "C" fn(*mut ILogger, *const ::core::ffi::c_char) -> ()>,
-    pub start_sds: Option<unsafe extern "C" fn(*mut ILogger, Vec<u8>) -> ()>,
-    pub log: Option<
-        unsafe extern "C" fn(
-            *mut ILogger,
-            u8,
-            LoggerType,
-            *const ::core::ffi::c_char,
-        ) -> (),
-    >,
-    pub log_sds:
-        Option<unsafe extern "C" fn(*mut ILogger, u8, LoggerType, Vec<u8>) -> ()>,
-    pub dedent: Option<unsafe extern "C" fn(*mut ILogger) -> ()>,
-    pub finish: Option<unsafe extern "C" fn(*mut ILogger) -> ()>,
-    pub end: Option<unsafe extern "C" fn(*mut ILogger) -> ()>,
-    pub set_verbosity: Option<unsafe extern "C" fn(*mut ILogger, u8) -> ()>,
-}
 #[repr(C)]
 pub struct Logger {
-    pub vtable: ILogger,
     pub target: LoggerTarget,
     pub level: u16,
     pub last_logged_level: u16,
@@ -110,22 +80,17 @@ pub static OTFCC_LOGGER_TYPE_NAMES: [&::core::ffi::CStr; 3] = [
     c"[WARNING]",
     c"[NOTE]",
 ];
-unsafe extern "C" fn logger_indent(
-    mut _self: *mut ILogger,
+pub unsafe fn logger_indent(
+    mut _self: *mut Logger,
     mut segment: *const ::core::ffi::c_char,
 ) {
-    (*_self).indent_sds.expect("non-null function pointer")(
-        _self as *mut ILogger,
-        crate::bytesbuild!(segment),
-    );
+    logger_indent_sds(_self, crate::bytesbuild!(segment));
 }
-unsafe extern "C" fn logger_indent_sds(mut _self: *mut ILogger, mut segment: Vec<u8>) {
-    let mut self_0: *mut Logger = _self as *mut Logger;
+pub unsafe fn logger_indent_sds(mut self_0: *mut Logger, mut segment: Vec<u8>) {
     (*self_0).indents.push(segment);
     (*self_0).level = (*self_0).indents.len() as u16;
 }
-unsafe extern "C" fn logger_dedent(mut _self: *mut ILogger) {
-    let mut self_0: *mut Logger = _self as *mut Logger;
+pub unsafe fn logger_dedent(mut self_0: *mut Logger) {
     if (*self_0).level == 0 {
         return;
     }
@@ -135,62 +100,32 @@ unsafe extern "C" fn logger_dedent(mut _self: *mut ILogger) {
         (*self_0).last_logged_level = (*self_0).level;
     }
 }
-unsafe extern "C" fn logger_finish(mut self_0: *mut ILogger) {
-    (*self_0).log_sds.expect("non-null function pointer")(
-        self_0 as *mut ILogger,
+pub unsafe fn logger_finish(mut self_0: *mut Logger) {
+    logger_log_sds(
+        self_0,
         (LOG_VL_PROGRESS as ::core::ffi::c_int
-            + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
+            + (*self_0).level as ::core::ffi::c_int) as u8,
         LoggerType::Progress,
         crate::bytesbuild!(b"Finish"),
     );
-    (*self_0).dedent.expect("non-null function pointer")(self_0 as *mut ILogger);
+    logger_dedent(self_0);
 }
-unsafe extern "C" fn logger_start(
-    mut self_0: *mut ILogger,
-    mut segment: *const ::core::ffi::c_char,
-) {
-    (*self_0).indent_sds.expect("non-null function pointer")(
-        self_0 as *mut ILogger,
-        crate::bytesbuild!(segment),
-    );
-    (*self_0).log_sds.expect("non-null function pointer")(
-        self_0 as *mut ILogger,
+pub unsafe fn logger_start_sds(mut self_0: *mut Logger, mut segment: Vec<u8>) {
+    logger_indent_sds(self_0, segment);
+    logger_log_sds(
+        self_0,
         (LOG_VL_PROGRESS as ::core::ffi::c_int
-            + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
+            + (*self_0).level as ::core::ffi::c_int) as u8,
         LoggerType::Progress,
         crate::bytesbuild!(b"Begin"),
     );
 }
-unsafe extern "C" fn logger_start_sds(mut self_0: *mut ILogger, mut segment: Vec<u8>) {
-    (*self_0).indent_sds.expect("non-null function pointer")(self_0 as *mut ILogger, segment);
-    (*self_0).log_sds.expect("non-null function pointer")(
-        self_0 as *mut ILogger,
-        (LOG_VL_PROGRESS as ::core::ffi::c_int
-            + (*(self_0 as *mut Logger)).level as ::core::ffi::c_int) as u8,
-        LoggerType::Progress,
-        crate::bytesbuild!(b"Begin"),
-    );
-}
-unsafe extern "C" fn logger_log(
-    mut self_0: *mut ILogger,
-    mut verbosity: u8,
-    mut type_0: LoggerType,
-    mut data: *const ::core::ffi::c_char,
-) {
-    (*self_0).log_sds.expect("non-null function pointer")(
-        self_0 as *mut ILogger,
-        verbosity,
-        type_0,
-        crate::bytesbuild!(data),
-    );
-}
-unsafe extern "C" fn logger_log_sds(
-    mut _self: *mut ILogger,
+pub unsafe fn logger_log_sds(
+    mut self_0: *mut Logger,
     mut verbosity: u8,
     mut type_0: LoggerType,
     mut data: Vec<u8>,
 ) {
-    let mut self_0: *mut Logger = _self as *mut Logger;
     let mut demand: Vec<u8> = Vec::new();
     let mut level: u16 = 0 as u16;
     while (level as ::core::ffi::c_int) < (*self_0).level as ::core::ffi::c_int {
@@ -231,13 +166,11 @@ unsafe extern "C" fn logger_log_sds(
     }
     // else `demand` just drops.
 }
-unsafe extern "C" fn logger_set_verbosity(mut _self: *mut ILogger, mut verbosity: u8) {
-    let mut self_0: *mut Logger = _self as *mut Logger;
+pub unsafe fn logger_set_verbosity(mut self_0: *mut Logger, mut verbosity: u8) {
     (*self_0).verbosity_limit = verbosity;
 }
 #[inline]
-unsafe extern "C" fn logger_dispose(mut _self: *mut ILogger) {
-    let mut self_0: *mut Logger = _self as *mut Logger;
+pub unsafe fn logger_dispose(mut self_0: *mut Logger) {
     if self_0.is_null() {
         return;
     }
@@ -250,57 +183,22 @@ unsafe extern "C" fn logger_dispose(mut _self: *mut ILogger) {
     free(self_0 as *mut ::core::ffi::c_void);
     self_0 = ::core::ptr::null_mut::<Logger>();
 }
-pub static VTABLE_LOGGER: ILogger = {
-    ILogger {
-        dispose: Some(logger_dispose as unsafe extern "C" fn(*mut ILogger) -> ()),
-        indent: Some(
-            logger_indent
-                as unsafe extern "C" fn(*mut ILogger, *const ::core::ffi::c_char) -> (),
-        ),
-        indent_sds: Some(logger_indent_sds as unsafe extern "C" fn(*mut ILogger, Vec<u8>) -> ()),
-        start: Some(
-            logger_start
-                as unsafe extern "C" fn(*mut ILogger, *const ::core::ffi::c_char) -> (),
-        ),
-        start_sds: Some(logger_start_sds as unsafe extern "C" fn(*mut ILogger, Vec<u8>) -> ()),
-        log: Some(
-            logger_log
-                as unsafe extern "C" fn(
-                    *mut ILogger,
-                    u8,
-                    LoggerType,
-                    *const ::core::ffi::c_char,
-                ) -> (),
-        ),
-        log_sds: Some(
-            logger_log_sds
-                as unsafe extern "C" fn(*mut ILogger, u8, LoggerType, Vec<u8>) -> (),
-        ),
-        dedent: Some(logger_dedent as unsafe extern "C" fn(*mut ILogger) -> ()),
-        finish: Some(logger_finish as unsafe extern "C" fn(*mut ILogger) -> ()),
-        end: None,
-        set_verbosity: Some(
-            logger_set_verbosity as unsafe extern "C" fn(*mut ILogger, u8) -> (),
-        ),
-    }
-};
 pub unsafe fn otfcc_new_logger(
     mut target: LoggerTarget,
-) -> *mut ILogger {
+) -> *mut Logger {
     let mut logger: *mut Logger = ::core::ptr::null_mut::<Logger>();
     logger = __caryll_allocate_clean(
         ::core::mem::size_of::<Logger>() as usize,
         120 as ::core::ffi::c_ulong,
     ) as *mut Logger;
     (*logger).target = target;
-    (*logger).vtable = VTABLE_LOGGER;
     // `__caryll_allocate_clean` calloc's the struct, which is not a valid
     // `Vec<Vec<u8>>` bit pattern (a zero-capacity `Vec` uses a dangling
     // *non-null* sentinel pointer, not a null one) -- must be assigned for
     // real, matching every other malloc'd-struct-plus-`Vec`-field
     // conversion in this migration.
     (*logger).indents = Vec::new();
-    return logger as *mut ILogger;
+    return logger;
 }
 pub unsafe fn otfcc_new_std_err_target() -> LoggerTarget {
     LoggerTarget::Stderr

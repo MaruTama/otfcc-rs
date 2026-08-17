@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum};
 use crate::support::binio::{read_16u, read_32s};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer};
@@ -55,10 +55,8 @@ pub unsafe fn otfcc_read_maxp(
                     let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     let mut length: u32 = table.length;
                     if length != 32 as u32 && length != 6 as u32 {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"table 'maxp' corrupted.\n"),
@@ -148,10 +146,8 @@ pub unsafe fn otfcc_dump_maxp(
         Some(t) => t as *const MaxpTable,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"maxp"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -238,9 +234,7 @@ pub unsafe fn otfcc_dump_maxp(
             maxp,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 pub unsafe fn otfcc_parse_maxp(
@@ -264,10 +258,8 @@ pub unsafe fn otfcc_parse_maxp(
         JsonType::Object,
     );
     if !table.is_null() {
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"maxp"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -305,10 +297,8 @@ pub unsafe fn otfcc_parse_maxp(
                 b"maxStackElements\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
     }

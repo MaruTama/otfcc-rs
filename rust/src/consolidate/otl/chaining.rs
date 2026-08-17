@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::table::otl::coverage::{Coverage, shrink_coverage};
 use crate::support::handle::{HandleState, handle_name_eq_bytes, Handle, otfcc_handle_dispose, LookupHandle};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, TableId};
@@ -24,10 +24,8 @@ pub unsafe extern "C" fn consolidate_chaining(
     let Subtable::Chaining(mut_subtable) = &mut *_subtable else { unreachable!() };
     let subtable: *mut ChainingSubtable = mut_subtable;
     if !chaining_is_canonical(subtable) {
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Consolidate] Ignoring non-canonical chaining subtable."),
@@ -87,12 +85,8 @@ pub unsafe extern "C" fn consolidate_chaining(
                 k = k.wrapping_add(1);
             }
             if !found_lookup && !(&(*rule).apply)[j_0 as usize].lookup.name.is_empty() {
-                (*(*options).logger)
-                    .log_sds
-                    .expect(
-                        "non-null function pointer",
-                    )(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Quoting an invalid lookup ",
@@ -107,10 +101,8 @@ pub unsafe extern "C" fn consolidate_chaining(
         } else if (*h).state == HandleState::Index
         {
             if (*h).index as usize >= (*table).lookups.len() {
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Quoting an invalid lookup #",

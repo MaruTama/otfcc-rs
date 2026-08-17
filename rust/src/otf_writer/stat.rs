@@ -8,7 +8,7 @@ unsafe extern "C" {
 use crate::support::handle::{HandleState, handle_from_index, GlyphHandle, Handle, otfcc_handle_replace};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, GlyphId, Length, Pos, Scale, ShapeId};
@@ -90,12 +90,8 @@ pub unsafe fn stat_single_glyph(
         return stat;
     }
     if *stated.offset(j as isize) == StatStatus::Doing {
-        (*(*options).logger)
-            .log_sds
-            .expect(
-                "non-null function pointer",
-            )(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Stat] Circular glyph reference found in gid ",

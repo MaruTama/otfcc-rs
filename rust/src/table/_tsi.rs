@@ -3,7 +3,7 @@ use libc::{strcmp};
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u, read_32u};
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -229,10 +229,8 @@ pub unsafe fn otfcc_dump_tsi(
         Some(t) => t,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(tag),
     );
     let entries: &Vec<TsiEntry> = tsi;
@@ -317,9 +315,7 @@ pub unsafe fn otfcc_dump_tsi(
         );
         json_object_push(root, tag, _tsi);
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 #[allow(improper_ctypes_definitions)]
@@ -334,10 +330,8 @@ pub unsafe fn otfcc_parse_tsi(
         return None;
     }
     let mut tsi: TsiTable = Vec::new();
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
@@ -427,9 +421,7 @@ pub unsafe fn otfcc_parse_tsi(
             }
         }
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     return Some(tsi);
 }

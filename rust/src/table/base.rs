@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::parsed_json::{ParsedValue, json_numof, json_obj_get_type, json_obj_getstr_share, json_obj_key_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::support::binio::{read_16u, read_16s, read_32u};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, Pos, TableId};
@@ -281,10 +281,8 @@ pub unsafe fn otfcc_read_base(
                     let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     let mut table_length: u32 = table.length;
                     if table_length < 8 as u32 {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect("non-null function pointer")(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Table 'BASE' Corrupted"),
@@ -369,10 +367,8 @@ pub unsafe fn otfcc_dump_base(
         Some(b) => b as *const BaseTable,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"BASE"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -398,9 +394,7 @@ pub unsafe fn otfcc_dump_base(
             _base,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 /// Returns `(default_baseline_tag, base_values)`, the JSON-side twin of
@@ -471,10 +465,8 @@ pub unsafe fn otfcc_parse_base(
         JsonType::Object,
     );
     if !table.is_null() {
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"BASE"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -491,10 +483,8 @@ pub unsafe fn otfcc_parse_base(
             ));
             base = Some(Box::new(BaseTable { horizontal, vertical }));
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
     }

@@ -3,7 +3,7 @@ use libc::{free, strncmp};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, LOG_VL_PROGRESS, ILogger};
+use crate::logger::{LoggerType, LOG_VL_PROGRESS, logger_log_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 
@@ -675,10 +675,8 @@ pub unsafe fn cff_il_graph_to_buffers(
 ) {
     cff_stat_height((*g).root, 0 as u32);
     let mut max_subroutines: u32 = cff_number_subroutines(g);
-    (*(*options).logger)
-        .log_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_log_sds(
+        (*options).logger,
         LOG_VL_PROGRESS,
         LoggerType::Progress,
         crate::bytesbuild!(b"[libcff] Total ", max_subroutines, b" subroutines extracted."),

@@ -7,7 +7,7 @@ unsafe extern "C" {
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{Arity};
@@ -130,10 +130,8 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         &raw mut (*cff).top_dict,
     );
     if (*cff).name.count != (*cff).top_dict.count {
-        (*(*options).logger)
-            .log_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_log_sds(
+            (*options).logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[libcff] Bad CFF font: (",
@@ -199,10 +197,8 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
             (*cff).cnt_glyph = (*cff).char_strings.count as u16;
         } else {
             empty_index(&raw mut (*cff).char_strings);
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[libcff] Bad CFF font: no any glyph data.\n"),
@@ -713,12 +709,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     4 => {
                         if (*stack).index < 1 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -754,12 +746,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     21 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -799,12 +787,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     22 => {
                         if (*stack).index < 1 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1500,12 +1484,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3106 => {
                         if (*stack).index < 7 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1555,12 +1535,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3107 => {
                         if (*stack).index < 12 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1618,12 +1594,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3108 => {
                         if (*stack).index < 9 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1683,12 +1655,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3109 => {
                         if (*stack).index < 11 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1785,12 +1753,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3075 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1825,12 +1789,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3076 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1865,12 +1825,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3077 => {
                         if (*stack).index < 1 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1895,12 +1851,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3081 => {
                         if (*stack).index < 1 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1925,12 +1877,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3082 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1961,12 +1909,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3083 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1997,12 +1941,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3084 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2033,12 +1973,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3086 => {
                         if (*stack).index < 1 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2063,12 +1999,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3087 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2099,12 +2031,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3090 => {
                         if (*stack).index < 1 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2120,12 +2048,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3092 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2156,12 +2080,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3093 => {
                         if (*stack).index < 1 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2190,12 +2110,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3094 => {
                         if (*stack).index < 4 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2243,12 +2159,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3096 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2279,12 +2191,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3098 => {
                         if (*stack).index < 1 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2309,12 +2217,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3099 => {
                         if (*stack).index < 1 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2333,12 +2237,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3100 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2373,12 +2273,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3101 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2403,12 +2299,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     3102 => {
                         if (*stack).index < 2 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2430,12 +2322,8 @@ pub unsafe fn cff_parse_outline(
                             .c2rust_unnamed
                             .d as u32;
                             if (*stack).index < (2 as u32).wrapping_add(n_0) {
-                                (*(*options).logger)
-                                    .log_sds
-                                    .expect(
-                                        "non-null function pointer",
-                                    )(
-                                    (*options).logger as *mut ILogger,
+                                logger_log_sds(
+                                    (*options).logger,
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2473,12 +2361,8 @@ pub unsafe fn cff_parse_outline(
                     11 => return,
                     10 => {
                         if (*stack).index < 1 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2526,12 +2410,8 @@ pub unsafe fn cff_parse_outline(
                     }
                     29 => {
                         if (*stack).index < 1 as Arity {
-                            (*(*options).logger)
-                                .log_sds
-                                .expect(
-                                    "non-null function pointer",
-                                )(
-                                (*options).logger as *mut ILogger,
+                            logger_log_sds(
+                                (*options).logger,
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2574,12 +2454,8 @@ pub unsafe fn cff_parse_outline(
                         }
                     }
                     _ => {
-                        (*(*options).logger)
-                            .log_sds
-                            .expect(
-                                "non-null function pointer",
-                            )(
-                            (*options).logger as *mut ILogger,
+                        logger_log_sds(
+                            (*options).logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Warning: unknown operator ",

@@ -5,7 +5,7 @@ use libc::{free};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get_type, json_str_len, json_str_ptr, json_type_of};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer};
@@ -88,10 +88,8 @@ pub unsafe fn otfcc_dump_cvt(
         Some(t) => t,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"cvt"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -107,9 +105,7 @@ pub unsafe fn otfcc_dump_cvt(
         }
         json_object_push(root, tag, arr);
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 pub unsafe fn otfcc_parse_cvt(
@@ -121,10 +117,8 @@ pub unsafe fn otfcc_parse_cvt(
     let mut table: *const ParsedValue = ::core::ptr::null();
     table = json_obj_get_type(root, tag, JsonType::Array);
     if !table.is_null() {
-        (*(*options).logger)
-            .start_sds
-            .expect("non-null function pointer")(
-            (*options).logger as *mut ILogger,
+        logger_start_sds(
+            (*options).logger,
             crate::bytesbuild!(b"cvt"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -151,19 +145,15 @@ pub unsafe fn otfcc_parse_cvt(
             }
             t = Some(Box::new(CvtTable { length: table_length, words }));
             ___loggedstep_v = false;
-            (*(*options).logger)
-                .finish
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger
+            logger_finish(
+                (*options).logger
             );
         }
     } else {
         table = json_obj_get_type(root, tag, JsonType::String);
         if !table.is_null() {
-            (*(*options).logger)
-                .start_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_start_sds(
+                (*options).logger,
                 crate::bytesbuild!(b"cvt"),
             );
             let mut ___loggedstep_v_0: bool = true;
@@ -191,10 +181,8 @@ pub unsafe fn otfcc_parse_cvt(
                 raw = ::core::ptr::null_mut::<u8>();
                 t = Some(Box::new(CvtTable { length: table_length, words }));
                 ___loggedstep_v_0 = false;
-                (*(*options).logger)
-                    .finish
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger
+                logger_finish(
+                    (*options).logger
                 );
             }
         }

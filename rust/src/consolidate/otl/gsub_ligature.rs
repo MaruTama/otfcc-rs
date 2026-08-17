@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::table::otl::coverage::{Coverage, shrink_coverage};
 use crate::support::handle::{GlyphHandle, Handle, otfcc_handle_dup};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -61,10 +61,8 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*subtable))[k as usize].to,
         ) {
-            (*(*options).logger)
-                .log_sds
-                .expect("non-null function pointer")(
-                (*options).logger as *mut ILogger,
+            logger_log_sds(
+                (*options).logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
@@ -83,10 +81,8 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
                 false,
             );
             if (&(*subtable))[k as usize].from.is_empty() {
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignoring empty ligature substitution to glyph /",

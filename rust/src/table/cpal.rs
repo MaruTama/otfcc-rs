@@ -4,7 +4,7 @@ use libc::{free};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getint_fallback, json_type_of};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_8u, read_16u, read_32u};
-use crate::logger::{ILogger};
+use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{ColorId, FontFilePointer, TableId};
@@ -426,10 +426,8 @@ pub unsafe fn otfcc_dump_cpal(
         Some(t) => t,
         None => return,
     };
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"CPAL"),
     );
     let palettes: &Vec<CpalPalette> = &(*table).palettes;
@@ -461,9 +459,7 @@ pub unsafe fn otfcc_dump_cpal(
             _t,
         );
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
 }
 #[inline]
@@ -515,10 +511,8 @@ pub unsafe fn otfcc_parse_cpal(
         return None;
     }
     let mut cpal: Option<Box<CpalTable>> = None;
-    (*(*options).logger)
-        .start_sds
-        .expect("non-null function pointer")(
-        (*options).logger as *mut ILogger,
+    logger_start_sds(
+        (*options).logger,
         crate::bytesbuild!(b"CPAL"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -575,9 +569,7 @@ pub unsafe fn otfcc_parse_cpal(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        (*(*options).logger)
-            .finish
-            .expect("non-null function pointer")((*options).logger as *mut ILogger);
+        logger_finish((*options).logger);
     }
     return cpal;
 }

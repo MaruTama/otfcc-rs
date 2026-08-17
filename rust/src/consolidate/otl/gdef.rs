@@ -2,7 +2,7 @@
 
 use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, ILogger};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -105,10 +105,8 @@ pub unsafe fn consolidate_gdef(
             ) {
                 let gid: i32 = lig_carets[j as usize].glyph.index as i32;
                 if seen.contains_key(&gid) {
-                    (*(*options).logger)
-                        .log_sds
-                        .expect("non-null function pointer")(
-                        (*options).logger as *mut ILogger,
+                    logger_log_sds(
+                        (*options).logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Detected caret value double-mapping about glyph ",

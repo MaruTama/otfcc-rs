@@ -7,7 +7,7 @@ use libc::{strlen, strtol};
 
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of};
 use crate::otf_reader::FontBuilder;
-use crate::logger::{LoggerType, LOG_VL_NOTICE, ILogger};
+use crate::logger::{LoggerType, LOG_VL_NOTICE, logger_log_sds};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
@@ -288,10 +288,8 @@ unsafe fn parse_glyph_order(
                 )
                 .is_null()
             {
-                (*(*options).logger)
-                    .log_sds
-                    .expect("non-null function pointer")(
-                    (*options).logger as *mut ILogger,
+                logger_log_sds(
+                    (*options).logger,
                     LOG_VL_NOTICE,
                     LoggerType::Info,
                     crate::bytesbuild!(b"OpenType SVG table detected. Glyph order is preserved.",

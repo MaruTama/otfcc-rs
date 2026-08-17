@@ -894,6 +894,74 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Phase 4 sub-phase C (final): collapse `ILogger`, closing out the
+  `unsafe extern "C"` removal plan entirely.** `ILogger` (12 fields, one
+  implementation, `VTABLE_LOGGER`) was structurally different from every
+  other vtable this migration collapsed: dispatch went through an
+  *instance* pointer -- `Options.logger: *mut ILogger` -- rather than a
+  bare `pub static`, so the field-access shape at every call site was
+  `(*(*options).logger).field.expect(...)(logger_ptr, args)` instead of
+  `VTABLE.field.expect(...)(args)`. Same single-implementation shape
+  underneath, just one more level of indirection to see through. With
+  ~312 call sites across 54 files (`.log_sds` alone: 149; `.start_sds`/
+  `.finish`: 78 each; `.indent`: 3; `.set_verbosity`: 2; `.dispose`/
+  `.dedent`: 1 each), this is the largest single mechanical sweep in the
+  whole cleanup after `OTFCC_PKG_GLYPH_ORDER`'s ~628. The existing
+  `collapse_vtable_calls.pl` couldn't be reused as-is -- its mapping
+  format splits on the first `.` in the left-hand side, which breaks when
+  the "vtable expression" itself contains dots (`(*(*options).logger)`)
+  -- so a sibling script, `collapse_ilogger_calls.pl`, uses a
+  pipe-separated mapping (`VTABLE_EXPR|field=real_fn`) instead. Every one
+  of the 312 sites converted cleanly on the first pass; the only manual
+  follow-up was stripping the now-dangling `as *mut ILogger` casts every
+  call site's `(*options).logger` argument carried (312 more sites,
+  handled with a single crate-wide `s/ as \*mut ILogger//g` once
+  `Options.logger` was retyped to `*mut Logger` directly) and adding the
+  newly-direct `logger_*` names to each of the ~55 files' `use
+  crate::logger::{...}` imports (`ILogger` swapped out, whichever
+  `logger_*` functions that file actually calls swapped in) -- both bin/
+  crates (`otfccbuild.rs`/`otfccdump.rs`) needed the same treatment via
+  their `otfcc_rust::logger::` import path, since they're separate crate
+  targets.
+
+  Two internal fields had zero call sites anywhere, external or
+  internal, once traced (`logger_start`, the `*const c_char`-taking
+  sibling of the always-used `logger_start_sds`; and `logger_log`, same
+  relationship to `logger_log_sds`) -- both deleted outright, matching
+  the "confirmed dead, no call site anywhere in the crate" pattern used
+  throughout this project. `logger_indent_sds` and `logger_dedent` had no
+  *external* call sites either, but survived: `logger_indent`/
+  `logger_start_sds` call the former directly by name, and
+  `logger_finish` calls the latter directly by name, once those internal
+  vtable-style dispatches collapsed too -- the same "trace the internal
+  call chain before declaring something dead" discipline the
+  `VQ_I_SEGMENT`/`I_VQ` batches established.
+
+  `ILogger` and `VTABLE_LOGGER` are gone; `Logger.vtable: ILogger`
+  (the embedded copy every `Logger` instance carried) is gone too --
+  `Options.logger`/`otfcc_new_logger`'s return type are `*mut Logger`
+  now, not `*mut ILogger`. With the struct gone, the crate-level
+  `#![allow(improper_ctypes_definitions)]` in `logger.rs` -- there since
+  the `sds` sweep gave these vtable slots `Vec<u8>` parameters --
+  finally came off clean too, confirmed by a full rebuild under
+  `warnings = "deny"`.
+
+  Verified with the standard full pipeline on both platforms: 54 unit
+  tests green, every payload byte-identical in both directions including
+  the `otfccdll` cdylib, all 10 round-trip payloads stable, issue #1's
+  large-lookup regression test green, and `compare-log-output.sh` green
+  -- particularly load-bearing here, since every one of the 312 rewritten
+  call sites feeds this crate's logging output, and this is the one
+  check in the pipeline that actually exercises it byte-for-byte against
+  the C original.
+
+  **This closes out the original `unsafe extern "C"` removal plan in
+  full** -- all 17 Phase 3 vtables plus all 3 Phase 4 exceptions
+  (`IFontBuilder`/`IFontSerializer`, `ILoggerTarget`, `ILogger`) are now
+  collapsed or converted to idiomatic Rust. The only `extern "C"` left
+  anywhere in `rust/src` is the crate's genuine 4-function FFI boundary
+  in `ffi/dll.rs`.
+
 - **Phase 4 sub-phases A+B, bundled into one PR: `IFontBuilder`/
   `IFontSerializer` collapse, and `ILoggerTarget` → `LoggerTarget` enum.**
   The original Phase 4 scoping (README, previously) assumed
