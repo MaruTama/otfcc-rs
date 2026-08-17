@@ -1,19 +1,18 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, strlen, strtol};
+use libc::{strlen, strtol};
 
 
 
 
 
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of};
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::otf_reader::FontBuilder;
 use crate::logger::{LoggerType, LOG_VL_NOTICE, ILogger};
 
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::json::{JsonType};
-use crate::font::caryll_font::{FontSubtype, Font, IFontBuilder};
+use crate::font::caryll_font::{FontSubtype, Font};
 use crate::support::{NULL};
 use crate::support::glyph_order::{GlyphOrderPass, GlyphOrder, GlyphOrderEntry};
 
@@ -387,40 +386,11 @@ impl FontBuilder for JsonReader {
     return font as *mut ::core::ffi::c_void;
     }
 }
-unsafe extern "C" fn read_json(
+pub unsafe fn read_json(
     mut _root: *mut ::core::ffi::c_void,
     mut _index: u32,
     mut options: *const Options,
 ) -> *mut Font {
     <JsonReader as FontBuilder>::read(_root, _index, options as *const ::core::ffi::c_void)
         as *mut Font
-}
-#[inline]
-unsafe extern "C" fn free_reader(mut self_0: *mut IFontBuilder) {
-    free(self_0 as *mut ::core::ffi::c_void);
-}
-pub unsafe fn otfcc_new_json_reader() -> *mut IFontBuilder {
-    let mut reader: *mut IFontBuilder = ::core::ptr::null_mut::<IFontBuilder>();
-    reader = __caryll_allocate_clean(
-        ::core::mem::size_of::<IFontBuilder>() as usize,
-        177 as ::core::ffi::c_ulong,
-    ) as *mut IFontBuilder;
-    (*reader).read = Some(
-        read_json
-            as unsafe extern "C" fn(
-                *mut ::core::ffi::c_void,
-                u32,
-                *const Options,
-            ) -> *mut Font,
-    )
-        as Option<
-            unsafe extern "C" fn(
-                *mut ::core::ffi::c_void,
-                u32,
-                *const Options,
-            ) -> *mut Font,
-        >;
-    (*reader).free = Some(free_reader as unsafe extern "C" fn(*mut IFontBuilder) -> ())
-        as Option<unsafe extern "C" fn(*mut IFontBuilder) -> ()>;
-    return reader;
 }

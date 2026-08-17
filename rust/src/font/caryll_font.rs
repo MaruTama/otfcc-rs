@@ -4,7 +4,6 @@ use libc::{free, malloc, memset};
 
 
 
-use crate::support::options::{Options};
 
 
 
@@ -279,24 +278,3 @@ pub unsafe fn otfcc_font_free(mut x: *mut Font) {
     free(x as *mut ::core::ffi::c_void);
 }
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct IFontBuilder {
-    pub read: Option<
-        unsafe extern "C" fn(
-            *mut ::core::ffi::c_void,
-            u32,
-            *const Options,
-        ) -> *mut Font,
-    >,
-    pub free: Option<unsafe extern "C" fn(*mut IFontBuilder) -> ()>,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct IFontSerializer {
-    pub serialize: Option<
-        unsafe extern "C" fn(*mut Font, *const Options) -> *mut ::core::ffi::c_void,
-    >,
-    pub free: Option<unsafe extern "C" fn(*mut IFontSerializer) -> ()>,
-}

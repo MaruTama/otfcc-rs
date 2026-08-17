@@ -1,20 +1,18 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 pub mod stat;
 
-use libc::{free};
 
 
 
 
 
-use crate::support::alloc::{__caryll_allocate_clean};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
 use crate::support::glyph_order::{GlyphOrder};
 
-use crate::font::caryll_font::{FontSubtype, Font, IFontSerializer};
+use crate::font::caryll_font::{FontSubtype, Font};
 use crate::font::caryll_sfnt_builder::{SfntBuilder};
 
 use crate::table::cff::{CffAndGlyf, CffTable};
@@ -291,7 +289,7 @@ impl FontSerializer for OtfSerializer {
     return otf as *mut ::core::ffi::c_void;
     }
 }
-unsafe extern "C" fn serialize_to_otf(
+pub unsafe fn serialize_to_otf(
     mut font: *mut Font,
     mut options: *const Options,
 ) -> *mut ::core::ffi::c_void {
@@ -299,27 +297,4 @@ unsafe extern "C" fn serialize_to_otf(
         font as *mut ::core::ffi::c_void,
         options as *const ::core::ffi::c_void,
     )
-}
-unsafe extern "C" fn free_font_writer(mut self_0: *mut IFontSerializer) {
-    free(self_0 as *mut ::core::ffi::c_void);
-}
-pub unsafe fn otfcc_new_otf_writer() -> *mut IFontSerializer {
-    let mut writer: *mut IFontSerializer = ::core::ptr::null_mut::<IFontSerializer>();
-    writer = __caryll_allocate_clean(
-        ::core::mem::size_of::<IFontSerializer>() as usize,
-        100 as ::core::ffi::c_ulong,
-    ) as *mut IFontSerializer;
-    (*writer).serialize = Some(
-        serialize_to_otf
-            as unsafe extern "C" fn(
-                *mut Font,
-                *const Options,
-            ) -> *mut ::core::ffi::c_void,
-    )
-        as Option<
-            unsafe extern "C" fn(*mut Font, *const Options) -> *mut ::core::ffi::c_void,
-        >;
-    (*writer).free = Some(free_font_writer as unsafe extern "C" fn(*mut IFontSerializer) -> ())
-        as Option<unsafe extern "C" fn(*mut IFontSerializer) -> ()>;
-    return writer;
 }

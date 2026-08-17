@@ -10,11 +10,41 @@ use libc::{fprintf, free, fwrite};
 use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean};
 
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct ILoggerTarget {
-    pub dispose: Option<unsafe extern "C" fn(*mut ILoggerTarget) -> ()>,
-    pub push: Option<unsafe extern "C" fn(*mut ILoggerTarget, Vec<u8>) -> ()>,
+// Was `ILoggerTarget`, a 2-field vtable (`dispose`/`push`) with exactly two
+// static instances (stderr output vs no-op) selected once at `Logger`
+// construction and never switched afterward -- the same "genuine but
+// call-path-fixed" 2-way choice already converted to enum+match elsewhere
+// in this migration. Neither variant carries payload or owns a heap
+// allocation (the old `StderrTarget` shell existed only to give the
+// vtable pointer somewhere to live), so `dispose` needs no counterpart:
+// dropping a `Logger` drops its inline `target` field for free.
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+pub enum LoggerTarget {
+    Stderr,
+    Empty,
+}
+impl LoggerTarget {
+    unsafe fn push(self, data: Vec<u8>) {
+        match self {
+            LoggerTarget::Stderr => {
+                // Writes the exact byte count rather than `fprintf("%s", ...)`:
+                // `data` is no longer NUL-terminated storage, and this crate's log
+                // text is not expected to contain an embedded NUL either way.
+                fwrite(
+                    data.as_ptr() as *const ::core::ffi::c_void,
+                    1,
+                    data.len(),
+                    stderr,
+                );
+                if data.last() != Some(&b'\n') {
+                    fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
+                }
+            }
+            LoggerTarget::Empty => {
+                drop(data);
+            }
+        }
+    }
 }
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -58,12 +88,11 @@ pub struct ILogger {
     pub finish: Option<unsafe extern "C" fn(*mut ILogger) -> ()>,
     pub end: Option<unsafe extern "C" fn(*mut ILogger) -> ()>,
     pub set_verbosity: Option<unsafe extern "C" fn(*mut ILogger, u8) -> ()>,
-    pub get_target: Option<unsafe extern "C" fn(*mut ILogger) -> *mut ILoggerTarget>,
 }
 #[repr(C)]
 pub struct Logger {
     pub vtable: ILogger,
-    pub target: *mut ::core::ffi::c_void,
+    pub target: LoggerTarget,
     pub level: u16,
     pub last_logged_level: u16,
     /// One entry per indent level, holding that level's own segment text.
@@ -75,11 +104,6 @@ pub struct Logger {
     /// fields into one".
     pub indents: Vec<Vec<u8>>,
     pub verbosity_limit: u8,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub struct StderrTarget {
-    pub vtable: ILoggerTarget,
 }
 pub static OTFCC_LOGGER_TYPE_NAMES: [&::core::ffi::CStr; 3] = [
     c"[ERROR]",
@@ -202,19 +226,10 @@ unsafe extern "C" fn logger_log_sds(
     // `data` (an owned `Vec<u8>` parameter) drops here, at the same point
     // the old `sdsfree(data)` ran -- no explicit free needed.
     if verbosity as ::core::ffi::c_int <= (*self_0).verbosity_limit as ::core::ffi::c_int {
-        (*(*_self).get_target.expect("non-null function pointer")(_self as *mut ILogger))
-            .push
-            .expect("non-null function pointer")(
-            (*self_0).target as *mut ILoggerTarget,
-            demand,
-        );
+        (*self_0).target.push(demand);
         (*self_0).last_logged_level = (*self_0).level;
     }
     // else `demand` just drops.
-}
-unsafe extern "C" fn logger_get_target(mut _self: *mut ILogger) -> *mut ILoggerTarget {
-    let mut self_0: *mut Logger = _self as *mut Logger;
-    return (*self_0).target as *mut ILoggerTarget;
 }
 unsafe extern "C" fn logger_set_verbosity(mut _self: *mut ILogger, mut verbosity: u8) {
     let mut self_0: *mut Logger = _self as *mut Logger;
@@ -226,10 +241,8 @@ unsafe extern "C" fn logger_dispose(mut _self: *mut ILogger) {
     if self_0.is_null() {
         return;
     }
-    let mut target: *mut ILoggerTarget =
-        (*_self).get_target.expect("non-null function pointer")(_self as *mut ILogger);
-    (*target).dispose.expect("non-null function pointer")(target as *mut ILoggerTarget);
-    // Runs `Vec<Vec<u8>>`'s own destructor (frees every segment's backing
+    // `target` is an inline `LoggerTarget` (no heap allocation of its own
+    // to free) -- runs `Vec<Vec<u8>>`'s own destructor (frees every segment's backing
     // buffer, then the outer `Vec`'s) before the raw `free()` below drops
     // the malloc'd `Logger` struct out from under it -- matches the old
     // per-entry `sdsfree` loop plus the final `free(indents)`.
@@ -269,20 +282,17 @@ pub static VTABLE_LOGGER: ILogger = {
         set_verbosity: Some(
             logger_set_verbosity as unsafe extern "C" fn(*mut ILogger, u8) -> (),
         ),
-        get_target: Some(
-            logger_get_target as unsafe extern "C" fn(*mut ILogger) -> *mut ILoggerTarget,
-        ),
     }
 };
 pub unsafe fn otfcc_new_logger(
-    mut target: *mut ILoggerTarget,
+    mut target: LoggerTarget,
 ) -> *mut ILogger {
     let mut logger: *mut Logger = ::core::ptr::null_mut::<Logger>();
     logger = __caryll_allocate_clean(
         ::core::mem::size_of::<Logger>() as usize,
         120 as ::core::ffi::c_ulong,
     ) as *mut Logger;
-    (*logger).target = target as *mut ::core::ffi::c_void;
+    (*logger).target = target;
     (*logger).vtable = VTABLE_LOGGER;
     // `__caryll_allocate_clean` calloc's the struct, which is not a valid
     // `Vec<Vec<u8>>` bit pattern (a zero-capacity `Vec` uses a dangling
@@ -292,88 +302,9 @@ pub unsafe fn otfcc_new_logger(
     (*logger).indents = Vec::new();
     return logger as *mut ILogger;
 }
-trait LoggerTarget {
-    unsafe fn dispose(self_: *mut ILoggerTarget);
-    unsafe fn push(self_: *mut ILoggerTarget, data: Vec<u8>);
+pub unsafe fn otfcc_new_std_err_target() -> LoggerTarget {
+    LoggerTarget::Stderr
 }
-struct StderrLoggerTarget;
-impl LoggerTarget for StderrLoggerTarget {
-    unsafe fn dispose(mut _self: *mut ILoggerTarget) {
-        let mut self_0: *mut StderrTarget = _self as *mut StderrTarget;
-        if self_0.is_null() {
-            return;
-        }
-        free(self_0 as *mut ::core::ffi::c_void);
-        self_0 = ::core::ptr::null_mut::<StderrTarget>();
-    }
-    unsafe fn push(mut _self: *mut ILoggerTarget, mut data: Vec<u8>) {
-        // Writes the exact byte count rather than `fprintf("%s", ...)`:
-        // `data` is no longer NUL-terminated storage, and this crate's log
-        // text is not expected to contain an embedded NUL either way.
-        fwrite(
-            data.as_ptr() as *const ::core::ffi::c_void,
-            1,
-            data.len(),
-            stderr,
-        );
-        if data.last() != Some(&b'\n') {
-            fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
-        }
-    }
-}
-pub unsafe extern "C" fn stderr_target_dispose(mut _self: *mut ILoggerTarget) {
-    <StderrLoggerTarget as LoggerTarget>::dispose(_self);
-}
-pub unsafe extern "C" fn stderr_target_push(mut _self: *mut ILoggerTarget, mut data: Vec<u8>) {
-    <StderrLoggerTarget as LoggerTarget>::push(_self, data);
-}
-pub static VTABLE_STDERR_TARGET: ILoggerTarget = {
-    ILoggerTarget {
-        dispose: Some(stderr_target_dispose as unsafe extern "C" fn(*mut ILoggerTarget) -> ()),
-        push: Some(stderr_target_push as unsafe extern "C" fn(*mut ILoggerTarget, Vec<u8>) -> ()),
-    }
-};
-pub unsafe fn otfcc_new_std_err_target() -> *mut ILoggerTarget {
-    let mut target: *mut StderrTarget = ::core::ptr::null_mut::<StderrTarget>();
-    target = __caryll_allocate_clean(
-        ::core::mem::size_of::<StderrTarget>() as usize,
-        146 as ::core::ffi::c_ulong,
-    ) as *mut StderrTarget;
-    (*target).vtable = VTABLE_STDERR_TARGET;
-    return target as *mut ILoggerTarget;
-}
-struct EmptyLoggerTarget;
-impl LoggerTarget for EmptyLoggerTarget {
-    unsafe fn dispose(mut _self: *mut ILoggerTarget) {
-        let mut self_0: *mut StderrTarget = _self as *mut StderrTarget;
-        if self_0.is_null() {
-            return;
-        }
-        free(self_0 as *mut ::core::ffi::c_void);
-        self_0 = ::core::ptr::null_mut::<StderrTarget>();
-    }
-    unsafe fn push(mut _self: *mut ILoggerTarget, mut data: Vec<u8>) {
-        drop(data);
-    }
-}
-pub unsafe extern "C" fn empty_target_dispose(mut _self: *mut ILoggerTarget) {
-    <EmptyLoggerTarget as LoggerTarget>::dispose(_self);
-}
-pub unsafe extern "C" fn empty_target_push(mut _self: *mut ILoggerTarget, mut data: Vec<u8>) {
-    <EmptyLoggerTarget as LoggerTarget>::push(_self, data);
-}
-pub static VTABLE_EMPTY_TARGET: ILoggerTarget = {
-    ILoggerTarget {
-        dispose: Some(empty_target_dispose as unsafe extern "C" fn(*mut ILoggerTarget) -> ()),
-        push: Some(empty_target_push as unsafe extern "C" fn(*mut ILoggerTarget, Vec<u8>) -> ()),
-    }
-};
-pub unsafe fn otfcc_new_empty_target() -> *mut ILoggerTarget {
-    let mut target: *mut StderrTarget = ::core::ptr::null_mut::<StderrTarget>();
-    target = __caryll_allocate_clean(
-        ::core::mem::size_of::<StderrTarget>() as usize,
-        168 as ::core::ffi::c_ulong,
-    ) as *mut StderrTarget;
-    (*target).vtable = VTABLE_EMPTY_TARGET;
-    return target as *mut ILoggerTarget;
+pub unsafe fn otfcc_new_empty_target() -> LoggerTarget {
+    LoggerTarget::Empty
 }

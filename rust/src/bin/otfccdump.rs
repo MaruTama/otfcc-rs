@@ -35,7 +35,7 @@ use otfcc_rust::logger::{LoggerType, ILogger};
 use otfcc_rust::support::options::{Options};
 
 use otfcc_rust::support::built_json::BuiltValue;
-use otfcc_rust::font::caryll_font::{Font, IFontBuilder, IFontSerializer};
+use otfcc_rust::font::caryll_font::{Font};
 use otfcc_rust::font::caryll_sfnt::{SplineFontContainer};
 use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::support::{EXIT_FAILURE, NULL};
@@ -78,9 +78,9 @@ use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use otfcc_rust::font::caryll_font::{otfcc_font_free};
 use otfcc_rust::consolidate::{otfcc_consolidate_font};
 use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt};
-use otfcc_rust::json_writer::{otfcc_new_json_writer};
+use otfcc_rust::json_writer::{serialize_to_json};
 use otfcc_rust::logger::{otfcc_new_logger, otfcc_new_std_err_target};
-use otfcc_rust::otf_reader::{otfcc_new_otf_reader};
+use otfcc_rust::otf_reader::{read_otf};
 use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::support::built_json::json_serialize_ex;
@@ -523,12 +523,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
-        let mut reader: *mut IFontBuilder = otfcc_new_otf_reader();
-        font = (*reader).read.expect("non-null function pointer")(
-            sfnt as *mut ::core::ffi::c_void,
-            ttcindex,
-            options,
-        );
+        font = read_otf(sfnt as *mut ::core::ffi::c_void, ttcindex, options);
         if font.is_null() {
             (*(*options).logger)
                 .log_sds
@@ -543,7 +538,6 @@ unsafe fn main_0(
             );
             exit(EXIT_FAILURE);
         }
-        (*reader).free.expect("non-null function pointer")(reader as *mut IFontBuilder);
         if !sfnt.is_null() {
             otfcc_delete_sfnt(sfnt);
         }
@@ -591,9 +585,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
-        let mut dumper: *mut IFontSerializer = otfcc_new_json_writer();
-        root = (*dumper).serialize.expect("non-null function pointer")(font, options)
-            as *mut BuiltValue;
+        root = serialize_to_json(font, options) as *mut BuiltValue;
         if root.is_null() {
             (*(*options).logger)
                 .log_sds
@@ -616,7 +608,6 @@ unsafe fn main_0(
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
-        (*dumper).free.expect("non-null function pointer")(dumper as *mut IFontSerializer);
         ___loggedstep_v_2 = false;
         (*(*options).logger)
             .finish
