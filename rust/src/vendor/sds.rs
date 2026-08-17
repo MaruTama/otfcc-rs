@@ -594,6 +594,14 @@ macro_rules! bytesbuild {
     ($($part:expr),* $(,)?) => {{
         let mut __v: ::std::vec::Vec<u8> = ::std::vec::Vec::new();
         $(
+            // Callers in the middle of the `unsafe_op_in_unsafe_fn` burn-down
+            // increasingly wrap their whole function body in one `unsafe {}`
+            // block rather than fine-grain every raw-pointer operation --
+            // this macro's own `unsafe` then nests inside that caller block,
+            // which `unused_unsafe` (correctly) flags as redundant. Silenced
+            // here, once, rather than forcing every call site (this macro is
+            // used at ~50+ of them) to restructure around it.
+            #[allow(unused_unsafe)]
             unsafe { $crate::vendor::sds::SdsPart::append_to_vec($part, &mut __v); }
         )*
         __v

@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::binio::{read_32u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 use crate::support::options::{Options};
@@ -9,6 +8,7 @@ pub unsafe fn otfcc_read_meta(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<MetaTable>> {
+    unsafe {
     let mut version: u32 = 0;
     let mut flags: u32 = 0;
     let mut data_maps_count: u32 = 0;
@@ -90,4 +90,5 @@ pub unsafe fn otfcc_read_meta(
         __fortable_count += 1;
     }
     return meta;
+    }
 }

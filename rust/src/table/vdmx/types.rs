@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VdmxRecord {
