@@ -53,11 +53,16 @@ fuzz_target!(|data: &[u8]| {
             return;
         }
 
+        // otfcc_read_sfnt takes ownership of `file` and fcloses it itself,
+        // unconditionally, on every path (font/caryll_sfnt.rs:172, after
+        // the match over sfnt_version) -- mirrors src/bin/otfccdump.rs,
+        // which never fcloses the FILE* it opened either. An extra
+        // `libc::fclose(file)` here used to double-close it: harmless on
+        // this Mac's libc, but a real double-free under glibc + ASan,
+        // caught by CI on the very first (unmutated) seed-corpus run
+        // (tests/payload/gvar-test.ttf) -- a bug in this harness, not in
+        // otfcc_read_sfnt.
         let sfnt = otfcc_read_sfnt(file as *mut otfcc_rust::support::stdio::FILE);
-        // otfcc_read_sfnt does not take ownership of `file` on any path
-        // (mirrors src/bin/otfccdump.rs, which never fcloses it either) --
-        // only the fmemopen'd FILE* itself needs closing here.
-        libc::fclose(file);
 
         if sfnt.is_null() || (*sfnt).count == 0 {
             if !sfnt.is_null() {

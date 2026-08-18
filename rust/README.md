@@ -1033,9 +1033,8 @@ on the other platform before a commit is trusted.
     anticipated treating Miri and now treats fuzzing the same way. The fuzz
     job seeds its corpora from `tests/payload/` at CI time rather than
     committing them (avoids duplicating already-committed font payloads);
-    the Miri job runs `--test-threads=1` after a flaky false-failure
-    (`string_edge_cases`) under the default multi-threaded runner didn't
-    reproduce single-threaded.
+    the Miri job runs `--test-threads=1` since Miri's concurrency emulation
+    is limited.
   - Verified with the standard pipeline on macOS (arm64 native, Rosetta
     rustup): 0 warnings, 57 tests (was 54 — the 3 new `ffi::dll` tests),
     clippy clean, ABI export guard, all golden fixtures byte-identical
@@ -1045,6 +1044,37 @@ on the other platform before a commit is trusted.
     failed, 14 ignored (see above). Both fuzz targets smoke-tested locally
     (short runs plus the two committed crash reproducers), confirmed to
     behave exactly as documented.
+  - **CI itself then caught two things local testing missed, both fixed in
+    a follow-up commit before merge:**
+    - **`string_edge_cases` also hit the `10.0f64.powf()` non-determinism**
+      above — not a flaky multi-threading artifact as first guessed, the
+      *same* root cause as `number_edge_cases`, just the fraction-digit
+      `powf` call (`1.5`'s fractional part) instead of the exponent one,
+      and it happened to round correctly on this Mac's local Miri run by
+      chance. Confirmed non-deterministic across platforms, not just
+      across runs on one: passed reliably locally on macOS, failed
+      reliably on the Linux CI runner. Now `#[cfg_attr(miri, ignore)]`'d
+      with the same reasoning.
+    - **The `otf_parse` fuzz target's own harness had a real double-close
+      bug**, caught by Linux + ASan on the very first (unmutated)
+      seed-corpus file, `tests/payload/gvar-test.ttf` — a real, valid,
+      already-extensively-tested payload, not a malformed one. Root cause:
+      `otfcc_read_sfnt` (`font/caryll_sfnt.rs:172`) takes ownership of the
+      `FILE*` passed in and `fclose`s it internally on every path — the
+      harness *also* called `libc::fclose` on it afterward, a genuine
+      double-close/double-free of the `fmemopen`'d handle. This is a bug
+      in the fuzz harness `rust/fuzz/fuzz_targets/otf_parse.rs` introduced
+      in this same PR, not a production bug: `bin/otfccdump.rs`'s own
+      `otfcc_read_sfnt` call site (the pattern the harness was supposed to
+      mirror) never calls `fclose` on the file it opened either, for
+      exactly this reason. Confirmed local, un-fixed reproduction against
+      the exact byte-identical failing input did *not* crash on this
+      Mac's libc (double-`fclose` is implementation-defined behavior, and
+      apparently harmless here) — glibc's ASan build is what caught it.
+      Removing the redundant `fclose` call fixed it; re-ran the fuzz
+      target afterward and the only remaining finding is the
+      already-documented, already out-of-scope CFF stack-overflow (same
+      crash hash as before, not new).
 
 - **Phase 5, second PR: clippy wired in with an allow-list ratchet, and CI
   gained a native macOS (arm64) job.** Second piece of the verification-
