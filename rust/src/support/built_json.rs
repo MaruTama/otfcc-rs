@@ -516,6 +516,13 @@ mod tests {
     /// or bracket/indent spacing -- just without a live second
     /// implementation to compare against.
     #[test]
+    // vendor/emyg_dtoa.rs's `prettify` calls libc `memmove` to shift digits
+    // when rounding carries a decimal point -- Miri (at least on the macOS
+    // target) doesn't implement that foreign function ("unsupported
+    // operation", not a bug finding). Untested whether this also reproduces
+    // on the Linux target; if CI's miri job passes this test, the ignore
+    // can come off.
+    #[cfg_attr(miri, ignore = "libc memmove in vendor/emyg_dtoa.rs unsupported under Miri")]
     fn packed_matches_the_known_good_fixture() {
         unsafe {
             let tree = build_sample_tree();
@@ -530,6 +537,8 @@ mod tests {
     }
 
     #[test]
+    // Same reason as packed_matches_the_known_good_fixture above.
+    #[cfg_attr(miri, ignore = "libc memmove in vendor/emyg_dtoa.rs unsupported under Miri")]
     fn multiline_matches_the_known_good_fixture() {
         unsafe {
             let tree = build_sample_tree();

@@ -111,3 +111,93 @@ jobs:
 
       - name: Compare round-trip stability
         run: node rust/scripts/compare-roundtrips.js
+
+  # Advisory, NOT a merge gate (continue-on-error on every step): this is new
+  # dynamic-analysis tooling added specifically because the byte-comparison
+  # checks above only ever exercise *valid* payloads, never malformed input --
+  # see rust/fuzz/README.md for the concrete bugs it found within seconds of
+  # being wired up (a subtract-overflow panic, a null-pointer dereference that
+  # only panics instead of being outright UB because of debug-assertions, and
+  # a library-internal exit() call that blocks long fuzzing campaigns), none
+  # of which are fixed yet. Gating merges on a target whose current findings
+  # are known-but-untriaged would just permanently red every unrelated PR;
+  # revisit once Stage 7-1/7-3 of the Phase 5 plan address them. Single OS
+  # (ubuntu-latest) is enough -- this isn't verifying platform-specific
+  # behavior the way build-test-compare's matrix is.
+  fuzz:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      # rust/fuzz/ pins its own nightly (rust/fuzz/rust-toolchain.toml) --
+      # rustup picks it up automatically once cwd is inside that directory,
+      # same as the main crate's stable pin does for the other job.
+      - name: Install cargo-fuzz
+        run: cargo install cargo-fuzz --locked
+
+      - name: Seed the corpora from tests/payload/
+        run: |
+          cd rust/fuzz
+          mkdir -p corpus/otf_parse corpus/json_build
+          # Cormorant-Medium.otf/WorkSans-Regular.otf excluded on purpose --
+          # see rust/fuzz/README.md's "Running" section for why.
+          for f in ../../tests/payload/*.ttf ../../tests/payload/*.otf; do
+            case "$f" in
+              *Cormorant-Medium.otf|*WorkSans-Regular.otf) continue ;;
+            esac
+            cp "$f" corpus/otf_parse/
+          done
+          echo '{}' > corpus/json_build/empty.json
+          cp ../../tests/payload/*.json corpus/json_build/ 2>/dev/null || true
+
+      # Short, fixed time budget per target -- not exhaustive fuzzing (that
+      # would need a much longer-running, separately-scheduled job). The
+      # point of running this in CI at all is to catch a *newly introduced*
+      # crash quickly, not to explore the full state space.
+      - name: Fuzz otf_parse
+        run: |
+          cd rust/fuzz
+          cargo fuzz run otf_parse -- -max_total_time=60
+
+      - name: Fuzz json_build
+        run: |
+          cd rust/fuzz
+          cargo fuzz run json_build -- -max_total_time=60
+
+      - name: Confirm the known findings still reproduce
+        run: |
+          cd rust/fuzz
+          cargo fuzz run json_build ../../tests/fuzz-corpus/known-issues/json-build-cff-charset-null-glyf.bin
+          cargo fuzz run json_build ../../tests/fuzz-corpus/known-issues/json-build-advance-width-subtract-overflow.bin
+
+  # Also advisory (continue-on-error): Miri found a real, crate-wide bug the
+  # very first time it ran against this crate's own existing test suite (a
+  # calloc'd struct's pointer-niche fields -- Vec, Box, Option<Vec<_>>, etc.
+  # -- are not a valid bit pattern, so a plain `=` assignment's implicit
+  # "drop the old value" is UB the instant that value is constructed, not
+  # just if the drop glue would go on to actually free something). One
+  # instance is fixed (logger.rs); the rest -- essentially every
+  # `otfcc_*_create`/`init_*` pair across the crate -- is not, and is tracked
+  # in rust/README.md's "Next steps" rather than chased down in the PR that
+  # added this job. `#[cfg_attr(miri, ignore = "...")]` marks both the tests
+  # that hit that known, tracked issue and the ones that hit genuine Miri
+  # *limitations* (unsupported libc FFI calls, filesystem access under
+  # isolation, non-reproducible transcendental-function rounding) -- see each
+  # ignored test's own comment for which. `--test-threads=1`: Miri's
+  # concurrency emulation is limited and the default multi-threaded test
+  # runner produced one flaky failure locally that didn't reproduce
+  # single-threaded.
+  miri:
+    runs-on: ubuntu-latest
+    continue-on-error: true
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Install Miri
+        run: rustup toolchain install nightly-2026-08-17 --component miri
+
+      - name: cargo miri test
+        run: |
+          cd rust
+          cargo +nightly-2026-08-17 miri test --lib -- --test-threads=1

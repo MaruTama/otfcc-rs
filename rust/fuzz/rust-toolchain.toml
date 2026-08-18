@@ -1,0 +1,20 @@
+[toolchain]
+# cargo-fuzz needs `-Z sanitizer=address` and friends, which only exist on
+# nightly -- unlike the rest of this crate (rust-toolchain.toml one level
+# up: stable 1.97.1, deliberately, see that file's comment), so this one
+# subdirectory is the sole exception to "stable only" in the whole repo.
+# Isolated in its own workspace (fuzz/Cargo.toml's `[workspace] members =
+# ["."]`) precisely so this toolchain override and the instability that
+# comes with nightly never reach the main crate: `cargo build`/`cargo test`
+# run from rust/ never see this file, only `cargo fuzz` invocations run
+# from (or targeting) rust/fuzz/ do.
+#
+# Pinned to a specific date rather than tracking "nightly", for the same
+# reason the main crate's channel is an exact version rather than "stable":
+# a fuzz target that starts failing to build is indistinguishable from one
+# that stopped compiling for an unrelated nightly-breakage reason, and
+# nightly makes zero stability promises release to release. Bump
+# deliberately, and re-run both targets against tests/fuzz-corpus/ (see
+# fuzz/README.md) before trusting a new date.
+channel = "nightly-2026-08-17"
+components = ["rust-src"]
