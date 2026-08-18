@@ -9,4 +9,4 @@
 # warnings would otherwise break CI on a day nothing in the repo changed. Bump
 # deliberately. Edition 2024 sets the floor at 1.85.
 channel = "1.97.1"
-components = ["rustfmt"]
+components = ["rustfmt", "clippy"]

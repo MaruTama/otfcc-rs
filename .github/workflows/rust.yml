@@ -1,8 +1,20 @@
 name: Rust build & compatibility
 
 # Verifies the checked-in Rust port (rust/) stays green: it builds, its unit
-# tests pass, and its output is byte-compatible with the frozen "golden"
-# fixtures under tests/golden/. See rust/README.md.
+# tests pass, it's clippy-clean, and its output is byte-compatible with the
+# frozen "golden" fixtures under tests/golden/. See rust/README.md.
+#
+# Runs on both Linux (amd64) and macOS (arm64, GitHub's hosted macos-latest
+# runners are native Apple Silicon) -- not just Linux. The crate is
+# hand-maintained cross-platform code with a real platform-conditional split
+# (vendor/sds.rs's ctype externs differ under `#[cfg(target_os = "macos")]`),
+# and until this matrix existed the arm64/native-macOS half of "verified on
+# both OSes" (rust/README.md's own stated bar for every PR) depended on
+# someone running the pipeline by hand locally. As a side effect, the
+# otfccdll ctypes check now runs for real here instead of SKIPping: it only
+# SKIPs on an architecture mismatch between the built cdylib and the
+# runner's python3 (see dll-arch-check.sh), which a native arm64 runner with
+# a native arm64 toolchain doesn't have.
 #
 # This does NOT build or compare against the C toolchain anymore -- c/ (the
 # C sources) was confirmed byte-identical to Rust across every payload
@@ -33,16 +45,20 @@ on:
   workflow_dispatch: {}
 
 jobs:
-  # Standard amd64 runner, no Docker, no c2rust, no C toolchain: builds the
-  # committed Rust source with the pinned stable toolchain
-  # (rust-toolchain.toml; rustup on the runner installs it automatically),
-  # runs `cargo test`, and compares its output against tests/golden/
+  # No Docker, no c2rust, no C toolchain on either OS: builds the committed
+  # Rust source with the pinned stable toolchain (rust-toolchain.toml; rustup
+  # on the runner installs it automatically), runs `cargo test` and
+  # `cargo clippy`, and compares its output against tests/golden/
   # byte-for-byte — including the gvar (variable-font) payload (itself a
-  # frozen fixture, tests/payload/gvar-test.ttf) and the otfccdll cdylib.
-  # Finally runs the project's own round-trip stability tests against the
-  # Rust binaries.
+  # frozen fixture, tests/payload/gvar-test.ttf), stderr log output, and the
+  # otfccdll cdylib. Finally runs the project's own round-trip stability
+  # tests against the Rust binaries.
   build-test-compare:
-    runs-on: ubuntu-latest
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, macos-latest]
+    runs-on: ${{ matrix.os }}
     steps:
       - uses: actions/checkout@v4
 
@@ -52,6 +68,18 @@ jobs:
 
       - name: Build the Rust crate and run cargo test
         run: ./rust/scripts/build-crate.sh
+
+      # Pinned exact toolchain (rust-toolchain.toml) means a new stable/clippy
+      # release can't invent a warning that breaks this build out from under
+      # us -- same reasoning as `warnings = "deny"` in Cargo.toml. The
+      # allow-list in `[lints.clippy]` documents, lint by lint, which
+      # c2rust-transpile-shaped categories are deferred to a later Phase 5
+      # stage rather than fixed here; anything not on that list is a hard
+      # failure.
+      - name: Clippy
+        run: |
+          cd rust
+          cargo clippy --release --all-targets --locked -- -D warnings
 
       # Only four symbols are otfcc's real public C ABI (the otfccdll API);
       # everything else the cdylib exports is an artifact of c2rust marking
