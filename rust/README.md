@@ -1044,8 +1044,10 @@ on the other platform before a commit is trusted.
     failed, 14 ignored (see above). Both fuzz targets smoke-tested locally
     (short runs plus the two committed crash reproducers), confirmed to
     behave exactly as documented.
-  - **CI itself then caught two things local testing missed, both fixed in
-    a follow-up commit before merge:**
+  - **CI itself then caught three things local testing missed** — two are
+    fixed in a follow-up commit before merge, the third is a genuine
+    production finding, documented (not fixed) the same as the fuzzing
+    findings above:
     - **`string_edge_cases` also hit the `10.0f64.powf()` non-determinism**
       above — not a flaky multi-threading artifact as first guessed, the
       *same* root cause as `number_edge_cases`, just the fraction-digit
@@ -1072,9 +1074,29 @@ on the other platform before a commit is trusted.
       Mac's libc (double-`fclose` is implementation-defined behavior, and
       apparently harmless here) — glibc's ASan build is what caught it.
       Removing the redundant `fclose` call fixed it; re-ran the fuzz
-      target afterward and the only remaining finding is the
+      target afterward and the only *crashing* finding left is the
       already-documented, already out-of-scope CFF stack-overflow (same
-      crash hash as before, not new).
+      crash hash as before, not new) — see the next bullet for what fixing
+      the double-close uncovered underneath it.
+    - **With the double-close gone, `otf_parse` now runs far enough into
+      `gvar-test.ttf` (the same seed file) to surface a real leak**: 478
+      bytes across 9 allocations, confirmed reproducible locally with
+      symbols. Two sites in the trace: a `calloc` inside
+      `table/glyf/read.rs::otfcc_read_glyf`, and a `format!()` allocation
+      (`FvarMaster.name`) inside `table/fvar.rs::fvar_register_region`
+      reached through it. Both are downstream of `VqRegion` — already
+      flagged in this same entry's Stage 6-4 discussion as one of the
+      "difficult" remaining raw-pointer types
+      (`FvarMaster.region: *mut VqRegion`, blocked on `VqRegion` itself
+      becoming `Vec`-shaped) — likely a region-dedup or error path that
+      frees/reassigns `region` without going through the drop chain that
+      would also free the `FvarMaster` entry pointing at it. Not
+      investigated further or fixed here; full detail and reproduction
+      steps in `rust/fuzz/README.md`. Left leak detection **on** rather
+      than passing `-detect_leaks=0` to get a clean advisory job — that
+      would just hide this class of finding (and any future one) instead
+      of surfacing it, which defeats the entire point of adding this
+      tooling.
 
 - **Phase 5, second PR: clippy wired in with an allow-list ratchet, and CI
   gained a native macOS (arm64) job.** Second piece of the verification-

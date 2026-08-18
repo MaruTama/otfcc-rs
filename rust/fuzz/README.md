@@ -86,6 +86,31 @@ point instead of having to rediscover them:
   second, quieter bug hiding behind the loud one.
   Reproduce: `cargo fuzz run json_build ../../tests/fuzz-corpus/known-issues/json-build-advance-width-subtract-overflow.bin`
 
+- **`otf_parse` leaks 478 bytes across 9 allocations on `tests/payload/gvar-test.ttf`** —
+  a real, valid, already-extensively-tested payload, not a malformed or
+  synthetic one, so this is a genuine pre-existing production leak in
+  normal operation, not just an edge-case robustness gap. Confirmed
+  reproducible locally with symbols (`cargo fuzz run otf_parse
+  ../../tests/payload/gvar-test.ttf`, `ASAN_OPTIONS=detect_leaks=1`). Two
+  distinct allocation sites in the trace: a `calloc` inside
+  `table/glyf/read.rs::otfcc_read_glyf` (32 bytes), and a `format!()`
+  call inside `table/fvar.rs::fvar_register_region` (the `FvarMaster.name`
+  field, 2 bytes plus its `Vec` backing) reached through the same
+  function. Both are downstream of `VqRegion` — the C flexible-array-member
+  gvar/fvar tuple-variation-region type the Phase 5 plan's Stage 6-4
+  section already flagged as one of the "difficult" remaining raw-pointer
+  types (`FvarMaster.region: *mut VqRegion`, "owned, but `VqRegion` is a
+  C flexible array member so it can't be a plain `Box` until `VqRegion`
+  itself is `Vec`-ified"). Likely root cause: some region-deduplication or
+  error path frees/reassigns `region` without going through the drop chain
+  that would also free the `FvarMaster` entry pointing at it, orphaning
+  the entry's own heap fields. Not investigated further or fixed here —
+  belongs to the same Stage 6-4 ownership work as the rest of `VqRegion`.
+  This is why `otf_parse`'s CI step doesn't use `-detect_leaks=0`: leaving
+  leak detection on is what caught this, and disabling it to get a
+  "clean" advisory job would just hide this class of finding going
+  forward too.
+
 - **`otf_parse` cannot yet run a long, unattended fuzzing campaign**, because
   a short/truncated input very quickly reaches `otfcc_get16u`/`otfcc_get32u`
   (`font/caryll_sfnt.rs:220,239`) calling **`libc::exit(EXIT_FAILURE)`
