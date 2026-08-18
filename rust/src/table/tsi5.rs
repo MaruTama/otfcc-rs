@@ -4,13 +4,13 @@ use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def
 
 use crate::support::handle::{handle_from_index, GlyphHandle};
 
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::table::otl::classdef::{dump_class_def, parse_class_def};
 use crate::support::built_json::{BuiltValue, json_object_push};
@@ -32,47 +32,30 @@ pub type Tsi5Table = ClassDef;
 unsafe fn unwrap_class_def(raw: *mut ClassDef) -> Box<ClassDef> {
     Box::from_raw(raw)
 }
+// The original loop condition (`j * 2 < table.length`) admitted one
+// out-of-bounds 2-byte read whenever `table.length` was odd: e.g. a
+// 1-byte table has `j = 0` satisfy `0 < 1`, then reads bytes `[0, 1]` --
+// the second of which does not exist. `FontReader::u16` requires both
+// bytes to actually be present, so the loop below now stops one entry
+// earlier on an odd-length table instead of reading past the end; a
+// well-formed (even-length) table parses identically to before.
 pub unsafe fn otfcc_read_tsi5(
     packet: &Packet,
     mut _options: *const Options,
 ) -> Option<Box<Tsi5Table>> {
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_TSI5 {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                if __fortable_k2 != 0 {
-                    let mut tsi5: *mut Tsi5Table =
-                        otl_class_def_create() as *mut Tsi5Table;
-                    let mut j: GlyphId = 0 as GlyphId;
-                    while ((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32)
-                        < table.length
-                    {
-                        push_class_def(
-                            tsi5 as *mut ClassDef,
-                            handle_from_index(j)
-                                as GlyphHandle,
-                            read_16u(table.data.as_ptr().offset(
-                                (j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
-                            )) as GlyphClass,
-                        );
-                        j = j.wrapping_add(1);
-                    }
-                    return Some(unwrap_class_def(tsi5));
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_TSI5)?;
+    let tsi5: *mut Tsi5Table = otl_class_def_create() as *mut Tsi5Table;
+    let mut r = FontReader::new(&table.data);
+    let mut j: GlyphId = 0 as GlyphId;
+    while let Ok(class) = r.u16() {
+        push_class_def(
+            tsi5 as *mut ClassDef,
+            handle_from_index(j) as GlyphHandle,
+            class as GlyphClass,
+        );
+        j = j.wrapping_add(1);
     }
-    return None;
+    Some(unwrap_class_def(tsi5))
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_tsi5(
@@ -136,4 +119,64 @@ pub unsafe fn otfcc_build_tsi5(
         j_0 = j_0.wrapping_add(1);
     }
     return buf;
+}
+
+#[cfg(test)]
+mod otfcc_read_tsi5_tests {
+    use super::*;
+    use crate::font::caryll_sfnt::PacketPiece;
+
+    fn packet_with_tsi5(data: Vec<u8>) -> Packet {
+        Packet {
+            sfnt_version: 0,
+            num_tables: 1,
+            search_range: 0,
+            entry_selector: 0,
+            range_shift: 0,
+            pieces: vec![PacketPiece {
+                tag: crate::tag::TAG_TSI5,
+                check_sum: 0,
+                offset: 0,
+                length: data.len() as u32,
+                data,
+            }],
+        }
+    }
+
+    #[test]
+    fn even_length_table_reads_every_class() {
+        // Two glyphs: gid 0 -> class 5, gid 1 -> class 300.
+        let data = vec![0x00, 0x05, 0x01, 0x2C];
+        unsafe {
+            let packet = packet_with_tsi5(data);
+            let table = otfcc_read_tsi5(&packet, ::core::ptr::null()).unwrap();
+            assert_eq!(table.classes, vec![5, 300]);
+            assert_eq!(table.glyphs.len(), 2);
+        }
+    }
+
+    #[test]
+    fn odd_length_table_drops_the_trailing_byte_instead_of_reading_oob() {
+        // No committed payload has a TSI5 table (checked by hand against
+        // every tests/payload/*.ttf), so this is the only coverage of the
+        // original off-by-one: `j * 2 < table.length` let a 1-byte table
+        // read 2 bytes -- 1 byte past the end. FontReader::u16 requires
+        // both bytes to be present, so the trailing odd byte is dropped
+        // instead of read.
+        let data = vec![0x00, 0x05, 0xFF]; // one full entry + one stray byte
+        unsafe {
+            let packet = packet_with_tsi5(data);
+            let table = otfcc_read_tsi5(&packet, ::core::ptr::null()).unwrap();
+            assert_eq!(table.classes, vec![5]);
+        }
+    }
+
+    #[test]
+    fn empty_table_produces_an_empty_class_def() {
+        unsafe {
+            let packet = packet_with_tsi5(Vec::new());
+            let table = otfcc_read_tsi5(&packet, ::core::ptr::null()).unwrap();
+            assert!(table.classes.is_empty());
+        }
+    }
 }

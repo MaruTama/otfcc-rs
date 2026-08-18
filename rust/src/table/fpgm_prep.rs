@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, memcpy};
+use libc::{free};
 
 
 use crate::support::parsed_json::{ParsedValue, json_obj_get};
@@ -7,8 +7,7 @@ use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::buffer::{bufnew, bufwrite_bytes};
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::support::built_json::{BuiltValue, json_object_push};
@@ -46,48 +45,31 @@ impl Drop for FpgmPrepTable {
         }
     }
 }
+// Unlike most of this batch, this was already memory-safe without a
+// separate length guard: it copies the table's own `PacketPiece.data`
+// verbatim (`length` bytes from a buffer that is always exactly `length`
+// bytes long, per `font/caryll_sfnt.rs`'s invariant), so there is no
+// declared-length-vs-actual-data mismatch to exploit -- and no field
+// structure to parse, so there is nothing here for `FontReader` itself to
+// add. Still dropped `__fortable_*`/the raw pointer for consistency with
+// the rest of this stage, matching `table/cvt.rs::otfcc_read_cvt`'s
+// precedent -- not a safety fix.
 pub unsafe fn otfcc_read_fpgm_prep(
     packet: &Packet,
     mut _options: *const Options,
     mut tag: u32,
 ) -> Option<Box<FpgmPrepTable>> {
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == tag {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
-                    let bytes = __caryll_allocate_clean(
-                        (::core::mem::size_of::<u8>() as usize)
-                            .wrapping_mul(length as usize),
-                        22 as ::core::ffi::c_ulong,
-                    ) as *mut u8;
-                    if !bytes.is_null() {
-                        memcpy(
-                            bytes as *mut ::core::ffi::c_void,
-                            data as *const ::core::ffi::c_void,
-                            length as usize,
-                        );
-                        return Some(Box::new(FpgmPrepTable { tag: Vec::new(), length, bytes }));
-                    }
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
+    let table = packet.pieces.iter().find(|p| p.tag == tag)?;
+    let length = table.data.len() as u32;
+    let bytes = __caryll_allocate_clean(
+        (::core::mem::size_of::<u8>() as usize).wrapping_mul(length as usize),
+        22 as ::core::ffi::c_ulong,
+    ) as *mut u8;
+    if bytes.is_null() {
+        return None;
     }
-    return None;
+    ::core::ptr::copy_nonoverlapping(table.data.as_ptr(), bytes, length as usize);
+    Some(Box::new(FpgmPrepTable { tag: Vec::new(), length, bytes }))
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn table_dump_table_fpgm_prep(
