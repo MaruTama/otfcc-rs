@@ -932,6 +932,46 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1, third batch: `table/fpgm_prep.rs` + `table/tsi5.rs`.**
+  `table/_tsi.rs` and `table/name.rs` — the two real-bug-dense files left in
+  the original batch-1 list — turned out to need enough of their own
+  design work (dual-table cross-referencing for `_tsi.rs`, a string heap
+  for `name.rs`) that they're better served as their own focused PRs;
+  this one stays small.
+  - **`table/fpgm_prep.rs::otfcc_read_fpgm_prep` was already memory-safe**,
+    the same shape as `table/cvt.rs::otfcc_read_cvt` two PRs ago: it copies
+    the table's own `PacketPiece.data` verbatim, and that buffer is always
+    exactly `length` bytes long (an invariant `font/caryll_sfnt.rs`
+    establishes when it builds the packet), so there's no
+    declared-length-vs-actual-data mismatch to exploit — and no field
+    structure to parse, so `FontReader` itself has nothing to add here.
+    Still dropped `__fortable_*` and the raw-pointer/`memcpy` pair for
+    `table.data.len()` + `copy_nonoverlapping`, for consistency. Real
+    payloads (`fpgm`/`prep` are present in 3 of the 9 TTFs) confirm no
+    output change.
+  - **`table/tsi5.rs::otfcc_read_tsi5` had a real off-by-one overread** —
+    the loop condition `j * 2 < table.length` admits one extra 2-byte read
+    whenever `table.length` is odd (a 1-byte table satisfies `0 < 1`, then
+    reads bytes `[0, 1]`, the second of which doesn't exist). Rewritten as
+    `while let Ok(class) = r.u16()`, which requires both bytes to actually
+    be present, so an odd-length table now drops its trailing byte instead
+    of reading past the end — even-length tables parse identically. No
+    committed payload has a TSI5 table, so the 3 new unit tests (even
+    length, the odd-length off-by-one specifically, and the empty-table
+    case) are this table's only coverage; they build a synthetic `Packet`/
+    `PacketPiece` directly and call `otfcc_read_tsi5` end to end rather
+    than testing an extracted `parse_*` helper, since this table's
+    "parsing" *is* the incremental `push_class_def` construction — there
+    was nothing to cleanly separate the way `post`/`ltsh`/`hdmx` could.
+  - `rust/scripts/survey-unsafe.sh` deltas: `__fortable_*` 394 → 368,
+    `.offset(` 1687 → 1686 (`fpgm_prep.rs`'s single `memcpy` call had
+    already collapsed most of its own `.offset()` arithmetic away before
+    this batch), raw pointer types 6585 → 6583.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 82 tests (was 79 — 3 new), clippy clean, ABI export guard,
+    all golden fixtures byte-identical (dump/build and log output), all
+    round-trip payloads stable, issue #1's regression test green.
+
 - **Stage 7-1, second batch: `table/{ltsh,hdmx,cvt}.rs` onto `FontReader`.**
   Same shape as the `post.rs` pilot — each reader's fallible parsing moved
   into a small `parse_*(&[u8]) -> Result<...>` helper that builds nothing
