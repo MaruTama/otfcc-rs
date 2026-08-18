@@ -932,6 +932,65 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1, fifth batch and last of the original batch-1 list:
+  `table/name.rs::otfcc_read_name`.** The file the plan's original survey
+  flagged as the single worst offender, and the last of the "0–1 guard"
+  files from that first pass. Confirms the survey's judgment exactly: the
+  record *array* (12 bytes/record starting at offset 6) already had a
+  guard (`length < 6 + 12 * count`), but each record's *string* — read from
+  `string_offset + offset` for a declared `length` bytes, through one of
+  three different decoders depending on the record's platform/encoding
+  (`should_decode_as_bytes`'s raw copy, `should_decode_as_utf16`'s
+  UTF-16BE conversion, or a `base64_encode` fallback for anything else) —
+  had no bounds check at all. Any of the three could read arbitrarily far
+  past the table.
+  - **Fixed once, for all three decoders**, by resolving the whole string
+    span through `FontReader::at` + `peek_bytes` *before* branching on
+    which decoder to use — the three `unsafe` legacy helpers
+    (`utf16be_to_utf8`/`base64_encode`, still raw-pointer-shaped; Stage
+    7-4's concern, not this one) only ever see a byte range already
+    confirmed to fit. A record whose string span doesn't fit keeps its
+    `platform_id`/`encoding_id`/`language_id`/`name_id` (still meaningful
+    metadata) but gets an empty `name_string` instead of the
+    out-of-bounds read — the same "keep the record, drop only what
+    doesn't fit" choice `table/post.rs::parse_post` made for an
+    out-of-range `glyphNameIndex` two PRs ago.
+  - **The record-array bound itself is now `checked_mul`/`checked_add`**
+    (via `FontReader::require_room`) instead of the original's
+    `wrapping_add`/`wrapping_mul`, closing the same "guard expression
+    overflows and passes vacuously" gap already fixed in `table/cmap.rs`'s
+    guards elsewhere in this crate (documented in this plan's Stage 7-1
+    writeup) — an 0xFFFF `count` can no longer wrap `12 * count` back into
+    range.
+  - **No behavior change on any committed payload**: every one of the 9
+    TTF/OTF payloads has a `name` table with real records across all
+    three decode paths (Mac-Roman bytes, Windows UTF-16BE, and at least
+    one payload exercising the base64 fallback), so this is the first
+    file in this stage where the happy path's golden coverage is total,
+    not partial — `compare-with-golden.sh` stayed byte-identical across
+    every payload with zero exceptions. The malformed-input fix itself
+    (like every other in this stage) has no golden payload to exercise it,
+    so the 8 new unit tests — Mac-Roman decode, UTF-16BE decode (checked
+    against the actual converted UTF-8 bytes, not just "no crash"), a
+    truncated header, a record array shorter than its declared count, an
+    overflowing count, the string-span-past-the-end case (metadata kept,
+    string dropped), a `string_offset` itself past the table end, and a
+    zero-length string — are its only coverage.
+  - This closes out the plan's original Stage 7-1 batch-1 file list
+    (`post`/`ltsh`/`hdmx`/`cvt`/`fpgm_prep`/`_tsi`/`tsi5`/`name`, across
+    five PRs). Next: batch 2 (fixed-length-header-centric files:
+    `head`/`hhea`/`maxp`/`hmtx`/`vhea`/`vmtx`/`os_2`/`gasp`/`meta`/`vdmx`),
+    then `cmap` (where the plan's motivating real bugs live), then the
+    `otl`/`glyf` families.
+  - `rust/scripts/survey-unsafe.sh` deltas: `__fortable_*` 340 → 326,
+    `.offset(` 1677 → 1652 (the largest single-file drop in this stage so
+    far), raw pointer types 6583 → 6572.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 99 tests (was 91 — 8 new), clippy clean, ABI export guard,
+    all golden fixtures byte-identical (dump/build and log output, with
+    zero exceptions this time), all round-trip payloads stable, issue #1's
+    regression test green.
+
 - **Stage 7-1, fourth batch: `table/_tsi.rs::otfcc_read_tsi` — the dual-
   table cross-referencing reader deferred out of the third batch.** This
   is the most involved single-function migration in Stage 7-1 so far: it
