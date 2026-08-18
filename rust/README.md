@@ -932,6 +932,55 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1, second batch: `table/{ltsh,hdmx,cvt}.rs` onto `FontReader`.**
+  Same shape as the `post.rs` pilot — each reader's fallible parsing moved
+  into a small `parse_*(&[u8]) -> Result<...>` helper that builds nothing
+  until every read has already succeeded, `__fortable_*`/`.offset()` gone,
+  a `parse_*_tests` module added directly beside each.
+  - **`table/ltsh.rs::otfcc_read_ltsh` had no length check at all** — read a
+    4-byte fixed header, then `memcpy`'d `num_glyphs` bytes regardless of
+    whether the table actually had that many. `y_pels` stays a raw
+    `*mut u8` (Stage 7-2's concern, not this one) — `parse_ltsh` now
+    resolves the pel slice first and only `__caryll_allocate_clean`s +
+    `copy_nonoverlapping`s it in once parsing succeeds, so a rejected table
+    never allocates at all. No committed payload has an LTSH table (checked
+    by hand against every `tests/payload/*.ttf`), so the 3 new unit tests
+    are this table's only coverage of either the fix or the original bug.
+  - **`table/hdmx.rs::otfcc_read_hdmx` had the same missing-length-check
+    shape** — `record_base` was computed from an untrusted `i * stride`
+    with nothing checking the whole records array actually fit the table.
+    Confirmed (again) that this function is unreachable from anywhere in
+    the crate (`otf_reader.rs` never calls it, matching the module's own
+    existing dead-code comment) — fixed anyway, for the same reason the
+    file's earlier `Vec`-conversion comment gives ("converted anyway for
+    consistency… this was inert, but…"), and because dead code has a way of
+    not staying dead. No logger call on the error path, matching this
+    function's pre-existing unused `_options` parameter. 2 new unit tests.
+  - **`table/cvt.rs::otfcc_read_cvt` turned out to already be memory-safe**,
+    unlike the other two — `table_length` is derived directly from the
+    table's own declared length (`length / 2`), and the read loop is
+    bounded by that exact same value, so `2 * table_length <= length`
+    always holds by construction. The plan's original file-level survey
+    (a text-pattern heuristic counting explicit guard clauses) flagged this
+    as a "0-guard" file; reading the actual arithmetic shows it never
+    needed one. Migrated to `FontReader` anyway for consistency with the
+    rest of this batch (and because the read genuinely cannot fail here,
+    `.expect()` with an explanation of why, rather than a `Result` return
+    with no real error path) — no behavior or safety change, pure
+    modernization. Left `otfcc_parse_cvt` (the JSON-side reader, including
+    its base64-decode path) and `otfcc_build_cvt` untouched — out of this
+    stage's scope (OTF binary parsing, not JSON parsing or serialization).
+  - **No behavior change on any committed payload**: `cvt_` is exercised by
+    5 of the 9 TTF payloads and stayed byte-identical; LTSH/hdmx are
+    exercised by none, so their fix is provable only via the new unit
+    tests and by the absence of any golden regression.
+  - `rust/scripts/survey-unsafe.sh` deltas from this batch: `__fortable_*`
+    432 → 394, `.offset(` 1695 → 1687, raw pointer types 6594 → 6585.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 79 tests (was 74 — 5 new), clippy clean, ABI export guard,
+    all golden fixtures byte-identical (dump/build and log output), all
+    round-trip payloads stable, issue #1's regression test green.
+
 - **Phase 5, Stage 7-1 begins: `support/font_reader.rs` (`FontReader`), and
   `table/post.rs`'s reader is the pilot migration.** Stage 7-0 (verification
   infrastructure: golden log/`c/` deletion, clippy, fuzz+miri) is complete
