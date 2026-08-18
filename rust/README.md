@@ -15,20 +15,23 @@ The C-side fix for [issue #1](https://github.com/MaruTama/otfcc/issues/1)
 (large `gsub_alternate` corruption) landed separately and is carried into the
 committed Rust source, since it was part of the C sources at transpile time.
 
-**Repository layout**: the C implementation (`lib/`, `src/`, `dep/`,
-`include/`, `premake5.lua`, `quick.make`, `_vc*.bat`) lives under `c/` at the
-repo root, mirroring how the Rust port is self-contained under
-`rust/`. This is deliberate: once Rust is trusted as the sole
-implementation, retiring C is a single `rm -rf c/` (see "Next steps" below).
-`tests/`, `build/`, and `bin/` stay at the repo root — both sides build
-against and are verified against those same shared fixtures/outputs, so
-splitting them would mean duplicating the font payloads. `c/premake5.lua`
-and `c/quick.make` are written to still produce `build/` and `bin/` at the
-repo root (not nested under `c/`), so nothing downstream (this directory's
-scripts, CI) had to change its output-path assumptions. This directory is
-flattened: the crate root (`Cargo.toml`, `src/`) and the migration tooling
-(`scripts/`, this README) live side by side directly in `rust/` — there is no
-separate `transpiled/` subdirectory.
+**The C implementation is gone.** `c/` (`lib/`, `src/`, `dep/`, `include/`,
+`premake5.lua`, `quick.make`, `_vc*.bat`) held the original C sources this
+crate was transpiled from, and was deliberately kept side by side with
+`rust/` for exactly as long as it was needed as the byte-comparison oracle
+(`compare-with-c.sh`). Once `tests/golden/` was frozen from a confirmed-
+matching build — dump/build output via `checksums.sha256`
+(`compare-with-golden.sh`), and stderr log output via `tests/golden/log/`
+(`compare-log-output.sh`) — nothing in the build or in CI needed `c/` present,
+built, or even checked out any more, and it was deleted. It is still in git
+history (tag/commit predating the deletion) for anyone who needs to diff
+against the original C source or re-run `compare-with-c.sh` by hand; see
+`rust/scripts/archive/README.md`. `tests/`, `build/`, and `bin/` stay at the
+repo root — the Rust binaries build against and are verified against those
+same fixtures/outputs. This directory is flattened: the crate root
+(`Cargo.toml`, `src/`) and the migration tooling (`scripts/`, this README)
+live side by side directly in `rust/` — there is no separate `transpiled/`
+subdirectory.
 
 ## Crate layout
 
@@ -61,30 +64,34 @@ from those paths.
 ## Everyday use: just build and test
 
 CI (`.github/workflows/rust.yml`) and local development do **not**
-re-run c2rust, and — since `tests/golden/` was frozen (see below) — do
-**not** need `c/` present, built, or even checked out either:
+re-run c2rust, and — since `tests/golden/` was frozen (see below) and `c/`
+has been deleted — do not need it present, built, or checked out either:
 
 ```bash
-./rust/scripts/build-crate.sh        # cargo build --release + cargo test
-./rust/scripts/check-abi.sh          # the exported C ABI surface is unchanged
-./rust/scripts/compare-with-golden.sh # compare byte-for-byte against tests/golden/
-./rust/scripts/run-cycles.sh         # dump/build cycles against the Rust binaries
+./rust/scripts/build-crate.sh          # cargo build --release + cargo test
+./rust/scripts/check-abi.sh            # the exported C ABI surface is unchanged
+./rust/scripts/compare-with-golden.sh  # compare byte-for-byte against tests/golden/
+./rust/scripts/compare-log-output.sh   # compare stderr output against tests/golden/log/
+./rust/scripts/run-cycles.sh           # dump/build cycles against the Rust binaries
 node rust/scripts/compare-roundtrips.js
 ```
 
 (`./rust/scripts/test.sh` = `build-crate.sh` + `check-abi.sh` +
-`compare-with-golden.sh` + `run-cycles.sh`, for convenience.) None of this
-needs Docker, c2rust, a C compiler, or a specific architecture — plain
-`rustup`/`cargo`.
+`compare-with-golden.sh` + `compare-log-output.sh` + `run-cycles.sh`, for
+convenience.) None of this needs Docker, c2rust, a C compiler, or a specific
+architecture — plain `rustup`/`cargo`.
 
-If you're changing behavior in a way that's meant to keep matching C (as
-opposed to a deliberate, intentional divergence), `compare-with-c.sh` is
-still there for that: it builds C with clang and compares byte-for-byte
-against the live Rust build, the same check `compare-with-golden.sh` now
-runs against a frozen snapshot instead. Confirm with it, then run
-`generate-golden.sh` to refresh `tests/golden/` and commit the result
-alongside the change that motivated it. See "CI decoupled from C" further
-down for the full story.
+If you're changing behavior in a way that's meant to keep matching what C
+used to do (as opposed to a deliberate, intentional divergence — which is
+explicitly permitted from Phase 5 onward, see the plan linked from the
+issue), `scripts/archive/compare-with-c.sh` still exists for that, but needs
+`c/` restored from git history to run (`git show <pre-deletion-commit>:c` or
+checking out a tag before the deletion) — see `scripts/archive/README.md`.
+Confirm with it, then run `generate-golden.sh`/`generate-log-golden.sh` to
+refresh `tests/golden/` and commit the result alongside the change that
+motivated it. See "CI decoupled from C" further down for the full story of
+how the dump/build half of this moved; the log-output half moved the same
+way, later (see "Next steps").
 
 The toolchain is **stable Rust, pinned** (`rust-toolchain.toml`: 1.97.1,
 edition 2024); rustup installs it on first build. The pin is deliberate, for the
@@ -125,10 +132,12 @@ And 305 of the declarations were for items the declaring file never used, dead
 text that could not fail to compile because nothing was being resolved.
 
 This is worth stating explicitly because it defines the boundary of what the
-idiomatization is allowed to change. `compare-with-c.sh` and `test-dll.py` run
-the C and the Rust implementations as **separate processes / separate shared
-libraries** and compare their *output*; at no point do C code and Rust code
-share a struct inside one process. So:
+idiomatization is allowed to change. `compare-with-golden.sh`/`test-dll.py`
+today (originally `archive/compare-with-c.sh`, before `tests/golden/` was
+frozen and `c/` deleted — see "CI decoupled from C" below) run the checked
+implementation as a **separate process / separate shared library** from
+whatever it's being verified against and compare their *output*; at no point
+did C code and Rust code share a struct inside one process. So:
 
 > **Byte-identical output is the invariant. ABI-compatible internals are
 > not.** Internal struct layouts, `#[repr(C)]`, field order, and the
@@ -180,10 +189,12 @@ deliberate `EXPR as int16_t as uint16_t` double casts that must never be
 <details>
 <summary>The original procedure (do not run)</summary>
 
-1. Generate the compilation database (macOS shown; `OS=linux` on Linux):
+1. Restore `c/` from git history (e.g. `git show <pre-deletion-commit>:c`),
+   then generate the compilation database (macOS shown; `OS=linux` on
+   Linux):
 
    ```bash
-   ./rust/scripts/gen-compile-commands.sh
+   ./rust/scripts/archive/gen-compile-commands.sh
    ```
 
 2. Build the transpiler image once (native arm64; slow — it compiles c2rust
@@ -264,12 +275,14 @@ transpile step itself needs arm64.
 
 ## Pipeline pieces
 
-- `gen-compile-commands.sh` / `filter-compdb.js` — host-side: premake →
-  `ninja -t compdb cc` → reduce to the single release-x64 C config
-  (118 translation units). Was the input to the transpiler; still useful on
-  its own for pointing clangd at the C sources.
 - `archive/{Dockerfile,transpile.sh,fix-transmute-abi.py,fix-float-narrowing.py}`
   — the retired c2rust pipeline. Do not run; see the section above.
+- `archive/{gen-compile-commands.sh,filter-compdb.js}` — host-side: premake →
+  `ninja -t compdb cc` → reduce to the single release-x64 C config
+  (118 translation units). Was the input to the transpiler; moved to
+  `archive/` along with `compare-with-c.sh` (below) when `c/` was deleted
+  from the tree, and needs it restored from git history to run; see
+  `archive/README.md`.
 - `build-crate.sh` — builds the committed crate (release) and runs
   `cargo test`. Needs only rustup + cargo (the pinned stable toolchain in
   `rust-toolchain.toml`) — no c2rust/Docker, works on any architecture.
@@ -281,12 +294,21 @@ transpile step itself needs arm64.
   `abi-exports.txt` (see "The public ABI is four functions" above).
   `--update` refreshes the snapshot.
 - `test.sh` — convenience wrapper: `build-crate.sh` + `check-abi.sh` +
-  `run-cycles.sh`.
+  `compare-with-golden.sh` + `compare-log-output.sh` + `run-cycles.sh`.
+- `compare-with-golden.sh` / `generate-golden.sh` — compare the built crate's
+  dump/build output against `tests/golden/checksums.sha256`, and refresh
+  that snapshot after a legitimate output-changing change. See "CI decoupled
+  from C" below.
+- `compare-log-output.sh` / `generate-log-golden.sh` — the same freeze-then-
+  compare move as the pair above, but for stderr log output against
+  `tests/golden/log/`. See "Next steps" below for how this one came later.
 - `compare-roundtrips.js` — runs `tests/ttf-roundtrip-test.js` over every
   payload produced and reports a single pass/fail summary.
-- `compare-with-c.sh` — builds the C toolchain **with clang** and compares
-  its output against an already-built Rust crate byte-for-byte, on the same
-  machine. Both directions: `otfccdump`'s JSON, and the font that `otfccbuild`
+- `archive/compare-with-c.sh` — **moved to `archive/`, needs `c/` restored
+  from git history to run** (see `archive/README.md`). Historically: builds
+  the C toolchain **with clang** and compares its output against an
+  already-built Rust crate byte-for-byte, on the same machine. Both
+  directions: `otfccdump`'s JSON, and the font that `otfccbuild`
   produces from the C dump. Defaults to clang, not gcc: c2rust's transpile is based on parsing
   with clang's AST, and gcc vs clang produce measurably different
   floating-point rounding in this codebase (verified: a gcc build differs
@@ -309,9 +331,10 @@ transpile step itself needs arm64.
   *build* the resulting JSON, identically, which is why that half is skipped.
 - `make-test-unknown-lookup.py` — generates the payload above from a committed
   one. Standard library only, unlike `make-test-variable-font.py`.
-- `dll-arch-check.sh` — sourced by `run-cycles.sh`/`compare-with-c.sh` to
-  detect when python3 cannot `dlopen` the crate's cdylib at all, so the
-  ctypes check is skipped with a stated reason instead of failing. Normally the
+- `dll-arch-check.sh` — sourced by `run-cycles.sh`/`compare-with-golden.sh`/
+  `archive/compare-with-c.sh` to detect when python3 cannot `dlopen` the
+  crate's cdylib at all, so the ctypes check is skipped with a stated reason
+  instead of failing. Normally the
   two match, since `rust-toolchain.toml`'s `channel` resolves to rustup's own
   host triple. What breaks it is a *Rosetta rustup* on an Apple Silicon Mac: an
   `x86_64-apple-darwin` rustup emits an x86_64 dylib while python3 is arm64, and
@@ -361,7 +384,9 @@ Two fonts (`Cormorant-Medium.otf`, `WorkSans-Regular.otf`) crash both the C
 CFF interpreter (verified: the C binary also exits SIGSEGV on them), not
 something the Rust translation introduced or needs to fix here.
 
-**CI checks five things**: the crate builds and `cargo test` passes (c2rust
+**CI checks five things** (true as of Phase 1; see "CI decoupled from C" and
+"Next steps" below for how the mechanism — not the coverage — changed since):
+the crate builds and `cargo test` passes (c2rust
 generated no tests; hand-written coverage now starts with the `cvec` capacity
 arithmetic and the `caryll_Buffer` byte-order/cursor contract, and grows with
 each idiomatized module), the exported C ABI surface is unchanged
@@ -893,6 +918,64 @@ which is also why `cargo fix`'s unused-import removals have to be re-checked
 on the other platform before a commit is trusted.
 
 ## Next steps
+
+- **Phase 5 kickoff: log output frozen as a golden fixture, then `c/` deleted.**
+  First PR of the Phase 5 plan (see the plan file linked from the issue —
+  "unsafe を整理する" から "unsafe を無くす" へ). The plan's first move is
+  building out the verification net *before* touching any production code,
+  because the rest of Phase 5 (parse-boundary safety, `Options`/`Logger`
+  ownership, `Result`-typed errors) all needs something to check output
+  against once `c/` is gone.
+  - **What was missing**: `tests/golden/checksums.sha256` (PR #78, see "CI
+    decoupled from C" above) already froze *dump/build output* as the oracle
+    for `compare-with-golden.sh`, but `compare-log-output.sh` — the only
+    check covering the 425 logger call sites and the `Logger.indents`
+    indent-guide rendering (Stage 6-2's `ILogger`/`ILoggerTarget` retype,
+    later collapsed to a plain enum in the Phase 4 PRs) — was never migrated
+    alongside it. It still rebuilt `c/` from source on every invocation and
+    was consequently never added to CI or `test.sh`. Confirmed it still
+    passed against C one more time before freezing anything (`PASS` on all
+    six cases: `dump-verbose`, `dump-quiet`, `dump-cff-verbose`,
+    `build-verbose`, `build-quiet`, `dump-missing-file`).
+  - **`rust/scripts/generate-log-golden.sh`** (new) captures the same six
+    cases' normalized stderr into `tests/golden/log/*.log` — real committed
+    text files, not hashes, since the largest is ~300KB and a `git diff`
+    against a log fixture is directly useful for review (unlike the ~28MB of
+    dump/build output `checksums.sha256` avoided committing).
+    `compare-log-output.sh` was rewritten to diff freshly captured,
+    normalized output against those fixtures instead of building C. One
+    extra normalization was needed beyond the existing "Step time = …s."
+    blanking: the golden-generation script and the comparison script use
+    differently-named scratch directories (`build/log-golden-gen` vs
+    `build/compare-log-output`), and that path leaks into log text via
+    "From file …" and error messages — a bare `cmp` would have failed on
+    every run for a reason unrelated to log content. Both scripts' `normalize()`
+    now also collapse `build/<anything>/` to a placeholder.
+  - **`compare-log-output.sh` is now wired into `test.sh` and CI**
+    (`.github/workflows/rust.yml`), immediately after
+    `compare-with-golden.sh` — it no longer needs the C toolchain, so
+    nothing was stopping it from running on every push/PR any more.
+  - **`c/` (8.0MB: `lib/`, `src/`, `dep/`, `include/`, `premake5.lua`,
+    `quick.make`, `_vc*.bat`) is deleted.** Nothing in the build or in CI
+    referenced it after the above (CI's `paths:` trigger already dropped
+    `c/**` back in PR #78). It remains available from git history for
+    anyone who needs to diff against the original C source.
+  - **`compare-with-c.sh`, `gen-compile-commands.sh`, and
+    `filter-compdb.js` moved to `scripts/archive/`.** All three require
+    `c/` to run (the first builds and compares against it directly; the
+    other two produce a `compile_commands.json` for `c/`'s sources) and
+    cannot function once it's gone. They join `transpile.sh` and friends as
+    audit trail rather than being deleted outright, consistent with how
+    this directory already treats retired-but-documentation-worthy
+    tooling — `archive/README.md` explains why and notes they need `c/`
+    restored from git history (e.g. `git show <pre-deletion-commit>:c`) to
+    run again. `dll-arch-check.sh` was **not** moved: `compare-with-golden.sh`
+    and `run-cycles.sh` both still source it for the Rust-only cdylib arch
+    check, independent of C.
+  - Verified with the full pipeline on macOS (arm64 native): 0 warnings, 54
+    tests, ABI export guard, all golden fixtures byte-identical (dump/build
+    output and now log output), all round-trip payloads stable, issue #1's
+    regression test green.
 
 - **`unsafe_op_in_unsafe_fn` burn-down, sixteenth batch: 12 files, 114 → 102.**
   Resumed the burn-down after the `unsafe extern "C"` removal plan (Phase

@@ -4,13 +4,15 @@ name: Rust build & compatibility
 # tests pass, and its output is byte-compatible with the frozen "golden"
 # fixtures under tests/golden/. See rust/README.md.
 #
-# This does NOT build or compare against the C toolchain (c/) anymore --
-# compare-with-c.sh confirmed Rust byte-identical to C across every payload
-# through PR #78, and tests/golden/ is that confirmed-good output frozen in
-# place, so CI no longer needs c/ present, built, or even checked out.
-# rust/scripts/compare-with-c.sh still exists for a manual, on-demand
-# re-check against C (e.g. before regenerating tests/golden/ after a
-# legitimate output-changing fix); it's just no longer part of this workflow.
+# This does NOT build or compare against the C toolchain anymore -- c/ (the
+# C sources) was confirmed byte-identical to Rust across every payload
+# (dump/build output through PR #78, stderr log output afterward) and then
+# deleted from the tree entirely; tests/golden/ is that confirmed-good output
+# frozen in place, so CI never needs C present, built, or even checked out.
+# rust/scripts/archive/compare-with-c.sh still exists for a manual,
+# on-demand re-check against C (e.g. before regenerating tests/golden/ after
+# a legitimate output-changing fix), but needs c/ restored from git history
+# to run -- see rust/scripts/archive/README.md.
 #
 # This does NOT re-run c2rust (the C -> Rust transpile). The Rust source is
 # committed to the repo and hand-maintained; the transpile pipeline is retired
@@ -62,6 +64,9 @@ jobs:
 
       - name: Compare output against the golden fixtures
         run: ./rust/scripts/compare-with-golden.sh
+
+      - name: Compare log output against the golden fixtures
+        run: ./rust/scripts/compare-log-output.sh
 
       - name: Run dump/build cycles (Rust only)
         run: ./rust/scripts/run-cycles.sh

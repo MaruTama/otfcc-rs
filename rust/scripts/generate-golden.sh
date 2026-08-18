@@ -8,8 +8,9 @@
 # the full bytes are, at a tiny fraction of the size (the alternative was
 # ~28MB of committed fixtures, dominated by one payload's 14MB pretty-
 # printed JSON dump). The one thing a hash can't do is show you *what*
-# changed in a `git diff` -- for that, use rust/scripts/compare-with-c.sh
-# (which does keep full output around, transiently, under build/) or
+# changed in a `git diff` -- for that, use rust/scripts/archive/compare-with-c.sh
+# (which does keep full output around, transiently, under build/ -- needs
+# c/ restored from git history, see scripts/archive/README.md) or
 # otfccdump the payload yourself and diff by hand.
 #
 # The one file kept as an actual committed fixture, not a hash, is

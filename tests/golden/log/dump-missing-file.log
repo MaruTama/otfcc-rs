@@ -1,0 +1,3 @@
+otfccdump : Read SFNT : Begin
+          |-Read SFNT : From file build/<SCRATCH>/does-not-exist.ttf
+          |-Read SFNT : [ERROR] Cannot read SFNT file "build/<SCRATCH>/does-not-exist.ttf". Exit.
