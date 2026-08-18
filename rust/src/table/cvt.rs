@@ -5,12 +5,12 @@ use libc::{free};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get_type, json_str_len, json_str_ptr, json_type_of};
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer};
 use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::base64::{base64_decode};
 use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_push};
@@ -34,48 +34,33 @@ impl Drop for CvtTable {
         }
     }
 }
+// Unlike every other table in this batch, the original C (and the first
+// Rust translation) here was already memory-safe without a separate length
+// guard: `table_length` is derived directly from the table's own declared
+// length (`length >> 1`, i.e. `length / 2`), and the read loop is bounded
+// by that exact same `table_length` -- so `2 * table_length <= length`
+// always holds and no read can go past the end. Migrated anyway for
+// consistency with the rest of this batch (dropping `__fortable_*`/
+// `.offset()`), not because it fixes a bug.
 pub unsafe fn otfcc_read_cvt(
     packet: &Packet,
     mut _options: *const Options,
     mut tag: u32,
 ) -> Option<Box<CvtTable>> {
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == tag {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                if __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
-                    let table_length = length >> 1 as ::core::ffi::c_int;
-                    let words = __caryll_allocate_clean(
-                        (::core::mem::size_of::<u16>() as usize)
-                            .wrapping_mul(table_length.wrapping_add(1 as u32) as usize),
-                        18 as ::core::ffi::c_ulong,
-                    ) as *mut u16;
-                    let mut j: u16 = 0 as u16;
-                    while (j as u32) < table_length {
-                        *words.offset(j as isize) =
-                            read_16u(data.offset(
-                                (2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize,
-                            ) as *const u8);
-                        j = j.wrapping_add(1);
-                    }
-                    return Some(Box::new(CvtTable { length: table_length, words }));
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
+    let table = packet.pieces.iter().find(|p| p.tag == tag)?;
+    let table_length = (table.data.len() / 2) as u32;
+    let words = __caryll_allocate_clean(
+        (::core::mem::size_of::<u16>() as usize)
+            .wrapping_mul(table_length.wrapping_add(1 as u32) as usize),
+        18 as ::core::ffi::c_ulong,
+    ) as *mut u16;
+    let mut r = FontReader::new(&table.data);
+    for j in 0..table_length as usize {
+        *words.offset(j as isize) = r
+            .u16()
+            .expect("table_length is derived from data.len(), so table_length u16 reads always fit");
     }
-    return None;
+    Some(Box::new(CvtTable { length: table_length, words }))
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_cvt(

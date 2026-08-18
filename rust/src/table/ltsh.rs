@@ -1,14 +1,15 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, memcpy};
+use libc::{free};
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::support::primitives::{GlyphId};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite8};
 
 
@@ -39,46 +40,40 @@ impl Drop for LtshTable {
         }
     }
 }
+// Parses into owned values only -- no allocation happens until every read
+// has already succeeded, so an `Err` here never leaves a partial `y_pels`
+// buffer to free. Same shape as `table/post.rs::parse_post`.
+fn parse_ltsh(data: &[u8]) -> Result<(u16, GlyphId, &[u8]), ReadError> {
+    let mut r = FontReader::new(data);
+    let version = r.u16()?;
+    let num_glyphs = r.u16()? as GlyphId;
+    let pels = r.bytes(num_glyphs as usize)?;
+    Ok((version, num_glyphs, pels))
+}
+
 pub unsafe fn otfcc_read_ltsh(
     packet: &Packet,
-    mut _options: *const Options,
+    options: *const Options,
 ) -> Option<Box<LtshTable>> {
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_LTSH {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                if __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let version = read_16u(data as *const u8);
-                    let num_glyphs =
-                        read_16u(data.offset(2 as ::core::ffi::c_int as isize) as *const u8)
-                            as GlyphId;
-                    let y_pels = __caryll_allocate_clean(
-                        (::core::mem::size_of::<u8>() as usize)
-                            .wrapping_mul(num_glyphs as usize),
-                        18 as ::core::ffi::c_ulong,
-                    ) as *mut u8;
-                    memcpy(
-                        y_pels as *mut ::core::ffi::c_void,
-                        data.offset(4 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_void,
-                        num_glyphs as usize,
-                    );
-                    return Some(Box::new(LtshTable { version, num_glyphs, y_pels }));
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_LTSH)?;
+    let (version, num_glyphs, pels) = match parse_ltsh(&table.data) {
+        Ok(parsed) => parsed,
+        Err(_) => {
+            logger_log_sds(
+                (*options).logger,
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"table 'LTSH' corrupted.\n"),
+            );
+            return None;
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
-    }
-    return None;
+    };
+    let y_pels = __caryll_allocate_clean(
+        (::core::mem::size_of::<u8>() as usize).wrapping_mul(num_glyphs as usize),
+        18 as ::core::ffi::c_ulong,
+    ) as *mut u8;
+    ::core::ptr::copy_nonoverlapping(pels.as_ptr(), y_pels, num_glyphs as usize);
+    Some(Box::new(LtshTable { version, num_glyphs, y_pels }))
 }
 // `Option<&LtshTable>`, not `*const LtshTable`: internal-only call (never
 // crosses the real FFI boundary, see `rust/README.md`), and the crate's
@@ -102,4 +97,35 @@ pub unsafe fn otfcc_build_ltsh(
         j = j.wrapping_add(1);
     }
     return buf;
+}
+
+#[cfg(test)]
+mod parse_ltsh_tests {
+    use super::*;
+
+    #[test]
+    fn valid_header_resolves_the_pel_array() {
+        let data: &[u8] = &[0x00, 0x01, 0x00, 0x03, 10, 20, 30];
+        let (version, num_glyphs, pels) = parse_ltsh(data).unwrap();
+        assert_eq!(version, 1);
+        assert_eq!(num_glyphs, 3);
+        assert_eq!(pels, &[10, 20, 30]);
+    }
+
+    #[test]
+    fn truncated_header_errs() {
+        // No committed payload has an LTSH table (checked by hand via
+        // otfccdump on every tests/payload/*.ttf), so this direct test is
+        // this table's only coverage. otfcc_read_ltsh used to read this
+        // unconditionally regardless of the table's real length.
+        assert!(parse_ltsh(&[0x00, 0x01]).is_err());
+    }
+
+    #[test]
+    fn pel_array_shorter_than_num_glyphs_errs() {
+        // num_glyphs says 5 but only 1 pel byte actually follows the
+        // 4-byte header -- this used to memcpy 5 bytes regardless.
+        let data: &[u8] = &[0x00, 0x01, 0x00, 0x05, 10];
+        assert!(parse_ltsh(data).is_err());
+    }
 }

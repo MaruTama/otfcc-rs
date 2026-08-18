@@ -1,9 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::binio::{read_16u, read_32u};
+use crate::support::font_reader::{FontReader, ReadError};
 
 use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 
 use crate::table::maxp::{MaxpTable};
 
@@ -36,64 +35,86 @@ pub struct HdmxTable {
 // `DeviceRecord.widths`) is now a plain `Vec`, so the old manual
 // `dispose_hdmx`/vtable-`Drop`-impl pair this replaced is no longer
 // needed at all -- `Vec`'s own drop glue reaches every level.
+// Confirmed dead code crate-wide (see the module doc comment above) -- no
+// logger call on failure, matching this function's existing unused
+// `_options` parameter; kept purely `Result`-shaped for the same
+// "everything parses into owned values before any allocation" discipline
+// as every other table this migration touches.
+fn parse_hdmx(
+    data: &[u8],
+    num_glyphs: usize,
+) -> Result<(u16, u16, u32, Vec<DeviceRecord>), ReadError> {
+    let mut r = FontReader::new(data);
+    let version = r.u16()?;
+    let num_records = r.u16()?;
+    let size_device_record = r.u32()?;
+    let stride = 2usize.wrapping_add(num_glyphs);
+    r.require_room(num_records as usize, stride)?;
+    let mut records = Vec::with_capacity(num_records as usize);
+    for i in 0..num_records as usize {
+        let mut rr = r.at(8usize.wrapping_add(i.wrapping_mul(stride)))?;
+        let pixel_size = rr.u8()?;
+        let max_width = rr.u8()?;
+        let widths = rr.bytes(num_glyphs)?.to_vec();
+        records.push(DeviceRecord {
+            pixel_size,
+            max_width,
+            widths,
+        });
+    }
+    Ok((version, num_records, size_device_record, records))
+}
+
 pub unsafe fn otfcc_read_hdmx(
-    mut packet: &Packet,
+    packet: &Packet,
     mut _options: *const Options,
     mut maxp: *mut MaxpTable,
 ) -> Option<Box<HdmxTable>> {
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_HDMX {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                if __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let version = read_16u(data as *const u8);
-                    let num_records =
-                        read_16u(data.offset(2 as ::core::ffi::c_int as isize) as *const u8);
-                    let size_device_record =
-                        read_32u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8);
-                    let mut records: Vec<DeviceRecord> = Vec::with_capacity(num_records as usize);
-                    let mut i: u32 = 0 as u32;
-                    while i < num_records as u32 {
-                        let record_base = data
-                            .offset(8 as ::core::ffi::c_int as isize)
-                            .offset(i.wrapping_mul(
-                                (2 as ::core::ffi::c_int + (*maxp).num_glyphs as ::core::ffi::c_int)
-                                    as u32,
-                            ) as isize);
-                        let pixel_size = *record_base;
-                        let max_width = *record_base.offset(1 as ::core::ffi::c_int as isize);
-                        let widths = ::core::slice::from_raw_parts(
-                            record_base.offset(2 as ::core::ffi::c_int as isize) as *const u8,
-                            (*maxp).num_glyphs as usize,
-                        )
-                        .to_vec();
-                        records.push(DeviceRecord {
-                            pixel_size,
-                            max_width,
-                            widths,
-                        });
-                        i = i.wrapping_add(1);
-                    }
-                    return Some(Box::new(HdmxTable {
-                        version,
-                        num_records,
-                        size_device_record,
-                        records,
-                    }));
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_HDMX)?;
+    let (version, num_records, size_device_record, records) =
+        parse_hdmx(&table.data, (*maxp).num_glyphs as usize).ok()?;
+    Some(Box::new(HdmxTable {
+        version,
+        num_records,
+        size_device_record,
+        records,
+    }))
+}
+
+#[cfg(test)]
+mod parse_hdmx_tests {
+    use super::*;
+
+    #[test]
+    fn valid_table_resolves_all_records() {
+        // header: version=0, num_records=2, size_device_record=4
+        // records (stride = 2 + num_glyphs = 4, num_glyphs = 2):
+        //   record 0: pixel_size=8,  max_width=9,  widths=[1,2]
+        //   record 1: pixel_size=10, max_width=11, widths=[3,4]
+        let data: &[u8] = &[
+            0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x04, 8, 9, 1, 2, 10, 11, 3, 4,
+        ];
+        let (version, num_records, size_device_record, records) = parse_hdmx(data, 2).unwrap();
+        assert_eq!(version, 0);
+        assert_eq!(num_records, 2);
+        assert_eq!(size_device_record, 4);
+        assert_eq!(records.len(), 2);
+        assert_eq!(records[0].pixel_size, 8);
+        assert_eq!(records[0].max_width, 9);
+        assert_eq!(records[0].widths, vec![1, 2]);
+        assert_eq!(records[1].pixel_size, 10);
+        assert_eq!(records[1].max_width, 11);
+        assert_eq!(records[1].widths, vec![3, 4]);
     }
-    return None;
+
+    #[test]
+    fn truncated_records_errs_instead_of_reading_oob() {
+        // num_records says 2 (stride 4 each = 8 bytes), but only one
+        // record's worth of bytes actually follows the 8-byte header --
+        // this used to walk straight past the allocation computing
+        // `record_base` from an untrusted `i * stride` with no check that
+        // the whole records array actually fits.
+        let data: &[u8] = &[0x00, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x04, 8, 9, 1, 2];
+        assert!(parse_hdmx(data, 2).is_err());
+    }
 }
