@@ -1,6 +1,8 @@
 #!/usr/bin/env bash
-# Convenience wrapper: build-crate.sh + run-cycles.sh. Runs the project's own
-# round-trip stability tests against the Rust binaries, mirroring quick.make's
+# Convenience wrapper: build-crate.sh + clippy + check-abi.sh +
+# compare-with-golden.sh + compare-log-output.sh + run-cycles.sh +
+# test-lookup-alias.sh -- the same steps CI runs, minus the round-trip
+# stability tests (see below). Mirrors quick.make's
 # ttfroundtriptest/cffroundtriptest targets.
 #
 # Invoke as:
@@ -14,6 +16,7 @@ set -euo pipefail
 cd "$(dirname "$0")/../.."
 
 ./rust/scripts/build-crate.sh
+( cd rust && cargo clippy --release --all-targets --locked -- -D warnings )
 ./rust/scripts/check-abi.sh
 ./rust/scripts/compare-with-golden.sh
 ./rust/scripts/compare-log-output.sh

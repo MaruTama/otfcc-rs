@@ -24,6 +24,72 @@ crate-type = ["staticlib", "rlib", "cdylib"]
 # with, deliberately.
 warnings = "deny"
 
+[lints.clippy]
+# CI runs `cargo clippy --all-targets -- -D warnings`, so any lint not listed
+# here is a hard build failure -- the same ratchet `unsafe_op_in_unsafe_fn`'s
+# per-file `allow` already uses (rust/README.md, "Next steps"), just crate-wide
+# instead of per-file, since clippy has no per-file granularity to match. Safe
+# to make fatal for the same reason as `[lints.rust]`: the toolchain is pinned,
+# so a new clippy version can't invent a warning that breaks this build; a
+# version bump is where that gets dealt with.
+#
+# Every lint below is c2rust-transpile shape, not a judgment call about style,
+# and every one is already scoped to a later Phase 5 stage that removes it as
+# a side effect of rewriting the lines it fires on -- fixing it here first
+# would just be rework once that stage's rewrite lands, and touches files
+# those stages already plan to touch, so it's deferred to them instead of
+# fixed in this (verification-infrastructure-only) PR. Counts are what
+# `cargo clippy --release --all-targets` reported the day this table was
+# added; re-run it to see what's left before removing an entry.
+#
+# Stage 7-1 (FontReader / parse-boundary safety) removes `.offset()` outright:
+ptr_offset_with_cast = "allow" # 105 -- `ptr.offset(x as isize)`
+
+# Stage 7-4 (C-ism mechanical cleanup) removes these as a direct consequence
+# of the `as ::core::ffi::c_int` / `__fortable_*` / goto-emulation sweep:
+unnecessary_cast = "allow" # 3435 -- redundant `x as T` where `x` is already `T`
+needless_return = "allow" # 1426 -- c2rust's explicit `return expr;` at fn end
+explicit_auto_deref = "allow" # 286 -- c2rust's `&raw` / deref-cast idiom
+precedence = "allow" # 24 -- `a & b == c` read as `a & (b == c)`, matches C's precedence table
+redundant_field_names = "allow" # 22 -- `Struct { field: field }`
+toplevel_ref_arg = "allow" # 34 -- `fn f(ref x: T)`, c2rust's by-value-into-by-ref idiom
+collapsible_if = "allow" # 64 -- nested `if`s from flattened C control flow
+if_same_then_else = "allow" # 16 -- both arms identical after a cast that clippy sees through
+map_entry = "allow" # 14 -- `if map.contains_key(k) { .. } map.insert(k, v)` instead of `.entry()`
+for_kv_map = "allow" # 12 -- `for (_, v) in &map` instead of `.values()`
+
+# Stage 7-1/7-2/7-3 (parse-boundary safety, Options/Logger ownership,
+# Result-typed errors) delete most of the crate's 961 `unsafe fn`s outright
+# rather than document their contracts in place, so writing `# Safety` docs
+# for functions on their way out is wasted work; revisit once those stages
+# have run and this count has actually dropped:
+missing_safety_doc = "allow" # 924 -- `pub unsafe fn` without a `# Safety` doc section
+
+# Not yet triaged to a specific stage -- small enough (≤8 sites each) that a
+# future pass through the crate should look at each individually rather than
+# batch-fix here, and several (manual_memcpy, useless_transmute, manual_swap)
+# are exactly the kind of line Stage 7-1/7-2 will already be looking hard at:
+assign_op_pattern = "allow" # 66 -- `x = x + y` instead of `x += y`
+collapsible_match = "allow" # 6
+empty_line_after_doc_comments = "allow" # 2
+excessive_precision = "allow" # 4 -- float literals with more digits than f64 can hold
+implicit_saturating_sub = "allow" # 2
+items_after_test_module = "allow" # 1
+len_zero = "allow" # 2 -- `.len() == 0` instead of `.is_empty()`
+macro_metavars_in_unsafe = "allow" # 2 -- `bytesbuild!`'s internal `unsafe {}`, see vendor/sds.rs
+manual_c_str_literals = "allow" # 4
+manual_memcpy = "allow" # 2
+manual_swap = "allow" # 2
+needless_late_init = "allow" # 2
+ptr_arg = "allow" # 4 -- `&Vec<T>` parameter instead of `&[T]`
+single_match = "allow" # 4
+too_many_arguments = "allow" # 8
+type_complexity = "allow" # 2
+unnecessary_map_or = "allow" # 2
+unnecessary_sort_by = "allow" # 4
+useless_transmute = "allow" # 2
+vec_box = "allow" # 2 -- `Vec<Box<T>>` field clippy thinks should be `Vec<T>`
+
 [dependencies]
 bitflags = "2.13.1"
 indexmap = "2.14.0"

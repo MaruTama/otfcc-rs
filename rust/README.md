@@ -69,12 +69,18 @@ has been deleted — do not need it present, built, or checked out either:
 
 ```bash
 ./rust/scripts/build-crate.sh          # cargo build --release + cargo test
+(cd rust && cargo clippy --release --all-targets --locked -- -D warnings)
 ./rust/scripts/check-abi.sh            # the exported C ABI surface is unchanged
 ./rust/scripts/compare-with-golden.sh  # compare byte-for-byte against tests/golden/
 ./rust/scripts/compare-log-output.sh   # compare stderr output against tests/golden/log/
 ./rust/scripts/run-cycles.sh           # dump/build cycles against the Rust binaries
 node rust/scripts/compare-roundtrips.js
 ```
+
+(Clippy has no dedicated wrapper script; `[lints.clippy]` in `rust/Cargo.toml`
+is the allow-list of c2rust-transpile-shaped lint categories deferred to a
+later Phase 5 stage — see "Next steps" below — so anything not on that list
+is a hard failure under `-D warnings`.)
 
 (`./rust/scripts/test.sh` = `build-crate.sh` + `check-abi.sh` +
 `compare-with-golden.sh` + `compare-log-output.sh` + `run-cycles.sh`, for
@@ -918,6 +924,69 @@ which is also why `cargo fix`'s unused-import removals have to be re-checked
 on the other platform before a commit is trusted.
 
 ## Next steps
+
+- **Phase 5, second PR: clippy wired in with an allow-list ratchet, and CI
+  gained a native macOS (arm64) job.** Second piece of the verification-
+  infrastructure trio the plan opens with (log-output golden + `c/` deletion
+  was the first; fuzz + miri come next), still zero production-code changes.
+  - **`cargo clippy --release --all-targets` reported 6,485 warnings across
+    30 lint categories on first run — all style/complexity, zero
+    `clippy::correctness`.** Every single one is c2rust-transpile shape
+    (`unnecessary_cast` 3,435 — matches the `as ::core::ffi::c_int` noise
+    already tallied in the plan; `needless_return` 1,426 — c2rust's explicit
+    `return expr;` at every function's end; `missing_safety_doc` 924 — every
+    `pub unsafe fn` lacking a `# Safety` section; `explicit_auto_deref` 286;
+    `ptr_offset_with_cast` 105 — every `.offset()` call; and 25 smaller
+    categories down to single digits). None of it was fixed in this PR:
+    every category is already scoped to a specific later Phase 5 stage that
+    removes it as a side effect of rewriting those exact lines
+    (`ptr_offset_with_cast` → Stage 7-1's `FontReader`;
+    `missing_safety_doc` → Stages 7-1–7-3, which delete most of the crate's
+    961 `unsafe fn`s outright rather than document contracts on functions
+    that are about to stop existing; the rest → Stage 7-4's mechanical
+    cleanup). Fixing any of it here would be rework once those stages land,
+    and would touch files they already plan to touch — the exact
+    "container replacement and element ownership in the same PR" mistake
+    the `VqSegList`→`Vec` pilot (Stage 6) made and the plan explicitly
+    guards against repeating.
+  - **`[lints.clippy]` in `Cargo.toml`** lists all 30 categories as
+    `"allow"`, each with the count from this PR's clippy run and which
+    stage removes it — the same ratchet `unsafe_op_in_unsafe_fn`'s per-file
+    `allow` already is (`grep -rc "allow(unsafe_op_in_unsafe_fn)"` as the
+    remaining-work count), just crate-wide in `Cargo.toml` instead of
+    per-file, since clippy has no per-file granularity to match. CI runs
+    `cargo clippy --all-targets -- -D warnings`, so anything not on that
+    list — including any *new* lint category introduced by future code —
+    is a hard failure. Safe to make fatal for the same reason
+    `[lints.rust] warnings = "deny"` already is: the toolchain
+    (`rust-toolchain.toml`) is pinned to an exact version, so a new stable
+    or clippy release can't invent a warning that breaks this build out
+    from under anyone; a deliberate version bump is where that gets dealt
+    with.
+  - **CI's one `ubuntu-latest` job became a `strategy.matrix` over
+    `[ubuntu-latest, macos-latest]`**, running the identical full pipeline
+    (build, `cargo test`, clippy, ABI guard, golden dump/build comparison,
+    golden log comparison, dump/build cycles, issue #1 regression,
+    `compare-roundtrips.js`) on both. `rust/README.md` has said "verified on
+    both OSes" for every PR in this log, but that macOS/arm64 half only ever
+    happened by hand, locally — this closes that gap.
+    `docs.github.com`'s hosted `macos-latest` runners are native Apple
+    Silicon (not x86_64-under-Rosetta), so this is also expected to close a
+    long-standing coverage hole for free: the `otfccdll` ctypes comparison
+    (`dll-arch-check.sh`) SKIPs whenever the built cdylib's architecture
+    doesn't match the runner's python3 — which is exactly the failure mode
+    this Mac's non-native rustup hits locally (`cdylib is x86_64, python3 is
+    arm64`, SKIPped throughout this PR's own local verification runs) — and
+    a native arm64 toolchain building on a native arm64 runner with a
+    native arm64 python3 shouldn't hit that mismatch at all. Not confirmed
+    from a local run (that's precisely the gap this closes); confirm by
+    reading the macOS job's log after this PR's CI run.
+  - Verified with the standard pipeline on macOS (arm64 native, Rosetta
+    rustup — see above for the one expected SKIP): clippy clean under
+    `-D warnings`, 0 rustc warnings, 54 tests, ABI export guard, all golden
+    fixtures byte-identical (dump/build and log output), all round-trip
+    payloads stable, issue #1's regression test green. The matrix's actual
+    Linux+native-macOS split is what CI itself verifies from here.
 
 - **Phase 5 kickoff: log output frozen as a golden fixture, then `c/` deleted.**
   First PR of the Phase 5 plan (see the plan file linked from the issue —
