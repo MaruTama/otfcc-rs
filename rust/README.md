@@ -932,6 +932,56 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1, fourth batch: `table/_tsi.rs::otfcc_read_tsi` — the dual-
+  table cross-referencing reader deferred out of the third batch.** This
+  is the most involved single-function migration in Stage 7-1 so far: it
+  reads an "index" table (`TSI0`/`TSI2`, 8-byte records: gid + declared
+  text length + text offset) that describes spans into a separate "text"
+  table (`TSI1`/`TSI3`), including a forward scan across the index for a
+  `>= 0x8000` "compute the length from the next entry's offset" sentinel.
+  Three real bugs, all now fixed:
+  - **The actual overread this table exists to guard against**: a
+    *non-sentinel* declared `text_length` (the common case — anything
+    below `0x8000`) was used to slice `text_part` with no check that
+    `text_offset + text_length` actually fit inside it. The existing
+    `text_offset >= text_part.length` guard caught an out-of-range
+    *start*, but said nothing about the *span* — a `text_length` of, say,
+    100 against a 2-byte `text_part` read 98 bytes past the end. Fixed by
+    resolving the whole span through `FontReader::at` + `peek_bytes`
+    before touching any byte; an index entry whose declared length doesn't
+    actually fit is dropped rather than read out of bounds — no golden
+    payload has ever exercised this table (see below), so there is no
+    "matches C" behavior to preserve here, only "don't read past the
+    buffer" to establish for the first time.
+  - **Two independent instances of the `tsi5.rs`-style off-by-one**: the
+    main scan over index records (`j * 8 < index_part.length`) and the
+    inner forward-scan for the sentinel's replacement length (`k * 8 <
+    index_part.length`) both admitted a final *partial* 8-byte record.
+    Both replaced by a shared `read_tsi_index_entry` helper built on
+    `FontReader`, which only succeeds when the full record is present —
+    the same fix shape as `table/tsi5.rs::otfcc_read_tsi5` two PRs ago,
+    applied twice here since the bug pattern appeared twice.
+  - **No behavior change for any input this table can correctly parse**:
+    the sentinel-length-prediction logic (find the next entry with a
+    larger, in-range offset; fall back to "rest of the buffer" if none
+    exists) is preserved exactly, including cross-entry state carried
+    across loop iterations — verified by a dedicated test
+    (`sentinel_length_is_predicted_from_the_next_entrys_offset`) that
+    pins the exact byte arithmetic. No committed payload has a TSI0/TSI1
+    (or TSI2/TSI3) pair at all, so this table's *only* coverage, both of
+    the fix and of the three bugs it replaces, is the 9 new unit tests —
+    happy path, the sentinel prediction (with and without a following
+    entry), both off-by-one shapes, the real overread, the pre-existing
+    out-of-range-offset skip, a zero-length skip, and the
+    `Prep`/`Cvt`/`Fpgm` reserved-gid type mapping.
+  - `rust/scripts/survey-unsafe.sh` deltas: `__fortable_*` 368 → 340,
+    `.offset(` 1686 → 1677, raw pointer types unchanged (this function had
+    none of its own to begin with — it borrowed `&PacketPiece`s already).
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 91 tests (was 82 — 9 new), clippy clean, ABI export guard,
+    all golden fixtures byte-identical (dump/build and log output), all
+    round-trip payloads stable, issue #1's regression test green.
+
 - **Stage 7-1, third batch: `table/fpgm_prep.rs` + `table/tsi5.rs`.**
   `table/_tsi.rs` and `table/name.rs` — the two real-bug-dense files left in
   the original batch-1 list — turned out to need enough of their own
