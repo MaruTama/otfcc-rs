@@ -1,0 +1,138 @@
+otfccdump : Read SFNT : Begin
+          |-Read SFNT : From file tests/payload/KRName-Regular.otf
+          |-Read SFNT : Step time = <T>s.
+          |-Read SFNT : Finish
+otfccdump : Read Font : Begin
+          |-Read Font : Step time = <T>s.
+          |-Read Font : Finish
+otfccdump : Consolidate : Begin
+          |-Consolidate : glyf : Begin
+          |             |-glyf : .notdef : Begin
+          |             |      |-.notdef : Finish
+          |             |-glyf : CID1 : Begin
+          |             |      |-CID1 : Finish
+          |             |-glyf : CID2 : Begin
+          |             |      |-CID2 : Finish
+          |             |-glyf : CID3 : Begin
+          |             |      |-CID3 : Finish
+          |             |-glyf : CID4 : Begin
+          |             |      |-CID4 : Finish
+          |             |-glyf : CID5 : Begin
+          |             |      |-CID5 : Finish
+          |             |-glyf : CID6 : Begin
+          |             |      |-CID6 : Finish
+          |             |-glyf : CID7 : Begin
+          |             |      |-CID7 : Finish
+          |             |-glyf : CID8 : Begin
+          |             |      |-CID8 : Finish
+          |             |-glyf : CID9 : Begin
+          |             |      |-CID9 : Finish
+          |             |-glyf : CID10 : Begin
+          |             |      |-CID10 : Finish
+          |             |-glyf : CID11 : Begin
+          |             |      |-CID11 : Finish
+          |             |-glyf : CID12 : Begin
+          |             |      |-CID12 : Finish
+          |             |-glyf : CID13 : Begin
+          |             |      |-CID13 : Finish
+          |             |-glyf : CID14 : Begin
+          |             |      |-CID14 : Finish
+          |             |-glyf : CID15 : Begin
+          |             |      |-CID15 : Finish
+          |             |-glyf : CID16 : Begin
+          |             |      |-CID16 : Finish
+          |             |-glyf : CID17 : Begin
+          |             |      |-CID17 : Finish
+          |             |-glyf : CID18 : Begin
+          |             |      |-CID18 : Finish
+          |             |-glyf : CID19 : Begin
+          |             |      |-CID19 : Finish
+          |             |-glyf : CID20 : Begin
+          |             |      |-CID20 : Finish
+          |             |-glyf : CID21 : Begin
+          |             |      |-CID21 : Finish
+          |             |-glyf : CID22 : Begin
+          |             |      |-CID22 : Finish
+          |             |-glyf : CID23 : Begin
+          |             |      |-CID23 : Finish
+          |             |-glyf : CID24 : Begin
+          |             |      |-CID24 : Finish
+          |             |-glyf : CID25 : Begin
+          |             |      |-CID25 : Finish
+          |             |-glyf : CID26 : Begin
+          |             |      |-CID26 : Finish
+          |             |-glyf : CID27 : Begin
+          |             |      |-CID27 : Finish
+          |             |-glyf : CID28 : Begin
+          |             |      |-CID28 : Finish
+          |             |-glyf : CID29 : Begin
+          |             |      |-CID29 : Finish
+          |             |-glyf : CID30 : Begin
+          |             |      |-CID30 : Finish
+          |             |-glyf : CID31 : Begin
+          |             |      |-CID31 : Finish
+          |             |-glyf : CID32 : Begin
+          |             |      |-CID32 : Finish
+          |             |-glyf : CID33 : Begin
+          |             |      |-CID33 : Finish
+          |             |-glyf : CID34 : Begin
+          |             |      |-CID34 : Finish
+          |             |-glyf : CID35 : Begin
+          |             |      |-CID35 : Finish
+          |             |-glyf : CID36 : Begin
+          |             |      |-CID36 : Finish
+          |             |-glyf : CID37 : Begin
+          |             |      |-CID37 : Finish
+          |             |-glyf : Finish
+          |-Consolidate : cmap : Begin
+          |             |-cmap : Finish
+          |-Consolidate : GSUB : Begin
+          |             |-GSUB : Finish
+          |-Consolidate : GPOS : Begin
+          |             |-GPOS : Finish
+          |-Consolidate : GDEF : Begin
+          |             |-GDEF : Finish
+          |-Consolidate : COLR : Begin
+          |             |-COLR : Finish
+          |-Consolidate : TSI_01 : Begin
+          |             |-TSI_01 : Finish
+          |-Consolidate : TSI_23 : Begin
+          |             |-TSI_23 : Finish
+          |-Consolidate : TSI5 : Begin
+          |             |-TSI5 : Finish
+          |-Consolidate : Step time = <T>s.
+          |-Consolidate : Finish
+otfccdump : Dump : Begin
+          |-Dump : head : Begin
+          |      |-head : Finish
+          |-Dump : hhea : Begin
+          |      |-hhea : Finish
+          |-Dump : maxp : Begin
+          |      |-maxp : Finish
+          |-Dump : vhea : Begin
+          |      |-vhea : Finish
+          |-Dump : post : Begin
+          |      |-post : Finish
+          |-Dump : OS/2 : Begin
+          |      |-OS/2 : Finish
+          |-Dump : name : Begin
+          |      |-name : Finish
+          |-Dump : cmap : Begin
+          |      |-cmap : Finish
+          |-Dump : CFF : Begin
+          |      |-CFF : Finish
+          |-Dump : glyf : Begin
+          |      |-glyf : Finish
+          |-Dump : BASE : Begin
+          |      |-BASE : Finish
+          |-Dump : Step time = <T>s.
+          |-Dump : Finish
+otfccdump : Serialize to JSON : Begin
+          |-Serialize to JSON : Step time = <T>s.
+          |-Serialize to JSON : Finish
+otfccdump : Output : Begin
+          |-Output : Step time = <T>s.
+          |-Output : Finish
+otfccdump : Finalize : Begin
+          |-Finalize : Step time = <T>s.
+          |-Finalize : Finish

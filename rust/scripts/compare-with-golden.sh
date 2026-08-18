@@ -4,12 +4,14 @@
 # toolchain from source and comparing against that on every run.
 #
 # The golden checksums were captured from the Rust build at a point where
-# rust/scripts/compare-with-c.sh had just confirmed it byte-identical to C
-# on every payload (see rust/README.md for when and how); they are C's
-# approval, frozen. This script re-validates the crate against that frozen
-# snapshot without needing c/ present, built, or even checked out --
-# c/ can now fall behind, be archived, or be removed without losing the
-# regression safety net compare-with-c.sh used to provide.
+# rust/scripts/archive/compare-with-c.sh (then still at rust/scripts/, before
+# c/ was deleted -- see scripts/archive/README.md) had just confirmed it
+# byte-identical to C on every payload (see rust/README.md for when and
+# how); they are C's approval, frozen. This script re-validates the crate
+# against that frozen snapshot without needing c/ present, built, or even
+# checked out -- which is exactly what happened: c/ was deleted (see
+# rust/README.md, "Next steps") without losing the regression safety net
+# compare-with-c.sh used to provide.
 #
 # Hashes, not the dump JSON / build output files themselves: see the header
 # of generate-golden.sh for why (repo size). tests/golden/dll-test.otf is
