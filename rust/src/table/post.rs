@@ -1,12 +1,12 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::binio::{read_16u, read_32u, read_32s};
-use crate::logger::{logger_finish, logger_start_sds};
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{F16Dot16, FontFilePointer, GlyphId};
+use crate::support::primitives::{F16Dot16, GlyphId};
 use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::glyph_order::{GlyphOrder};
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getbool, json_obj_getnum};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
@@ -310,118 +310,133 @@ static STANDARD_MAC_NAMES: [&::core::ffi::CStr; 258] = [
     c"ccaron",
     c"dcroat",
 ];
+// The fallible, allocation-free half of the read: parses the fixed header
+// and (for a version-2.0 table) the whole name-index/name-heap structure
+// into plain owned Rust values first, and only builds the `GlyphOrder` (via
+// `otfcc_glyph_order_create`/`otfcc_set_glyph_order_by_gid`, both raw-
+// pointer FFI-shaped calls) once every read has already succeeded -- so an
+// `Err` here never leaves a partially-built `GlyphOrder` to clean up.
+struct ParsedPost {
+    fixed: PostFixedHeader,
+    // `None` unless `fixed.version == 0x20000`.
+    names: Option<Vec<(GlyphId, Vec<u8>)>>,
+}
+struct PostFixedHeader {
+    version: F16Dot16,
+    italic_angle: F16Dot16,
+    underline_position: i16,
+    underline_thickness: i16,
+    is_fixed_pitch: u32,
+    min_mem_type42: u32,
+    max_mem_type42: u32,
+    min_mem_type1: u32,
+    max_mem_type1: u32,
+}
+
+fn parse_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
+    let mut r = FontReader::new(data);
+    let fixed = PostFixedHeader {
+        version: r.i32()?,
+        italic_angle: r.u32()? as F16Dot16,
+        underline_position: r.i16()?,
+        underline_thickness: r.i16()?,
+        is_fixed_pitch: r.u32()?,
+        min_mem_type42: r.u32()?,
+        max_mem_type42: r.u32()?,
+        min_mem_type1: r.u32()?,
+        max_mem_type1: r.u32()?,
+    };
+    if fixed.version != 0x20000 {
+        return Ok(ParsedPost { fixed, names: None });
+    }
+    let number_glyphs = r.u16()?;
+    // The fixed-size `glyphNameIndex[numberOfGlyphs]` array itself must be
+    // present -- `require_room` also rejects a `number_glyphs` so large
+    // that `2 * number_glyphs` would overflow before ever comparing
+    // against the table's real (much smaller) length.
+    r.require_room(number_glyphs as usize, 2)?;
+    let mut offset = 34usize.wrapping_add(2 * number_glyphs as usize);
+    // Pascal-string name heap: a 1-byte length prefix, then that many
+    // bytes, repeated until the table ends. Bounded purely by `offset <
+    // data.len()`, same as the original C -- each entry consumes at least
+    // 1 byte, so this always terminates.
+    let mut pending_names: Vec<Vec<u8>> = Vec::new();
+    while offset < data.len() {
+        let mut sr = r.at(offset)?;
+        let len = sr.u8()?;
+        let name = if len > 0 {
+            sr.bytes(len as usize)?.to_vec()
+        } else {
+            Vec::new()
+        };
+        offset = offset.wrapping_add(1 + len as usize);
+        pending_names.push(name);
+    }
+    let mut names = Vec::with_capacity(number_glyphs as usize);
+    for j in 0..number_glyphs {
+        let mut nr = r.at(34usize.wrapping_add(2 * j as usize))?;
+        let name_map = nr.u16()?;
+        let name = if name_map as usize >= 258 {
+            match pending_names.get(name_map as usize - 258) {
+                Some(n) => n.clone(),
+                // A `glyphNameIndex` entry pointing past the actual name
+                // heap: the original C read whatever `pending_names[...]`
+                // happened to occupy past the end of the allocation. There
+                // is no well-formed name to recover here, so this glyph
+                // gets an empty one instead of that garbage -- the same
+                // "corrupted input loses this one piece of data instead of
+                // reading past a buffer" trade the rest of this migration
+                // makes.
+                None => Vec::new(),
+            }
+        } else {
+            STANDARD_MAC_NAMES[name_map as usize].to_bytes().to_vec()
+        };
+        names.push((j as GlyphId, name));
+    }
+    Ok(ParsedPost {
+        fixed,
+        names: Some(names),
+    })
+}
+
 pub unsafe fn otfcc_read_post(
     packet: &Packet,
-    mut _options: *const Options,
+    options: *const Options,
 ) -> Option<Box<PostTable>> {
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_POST {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                if __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    // Every field below is unconditionally overwritten by
-                    // this function's own body, so `mem::zeroed()`'s default
-                    // is never observed -- unlike `otfcc_parse_post`, where
-                    // `.version`'s default does matter.
-                    let mut post_val: PostTable = ::core::mem::zeroed();
-                    post_val.version = read_32s(data as *const u8) as F16Dot16;
-                    post_val.italic_angle =
-                        read_32u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8)
-                            as F16Dot16;
-                    post_val.underline_position =
-                        read_16u(data.offset(8 as ::core::ffi::c_int as isize) as *const u8)
-                            as i16;
-                    post_val.underline_thickness =
-                        read_16u(data.offset(10 as ::core::ffi::c_int as isize) as *const u8)
-                            as i16;
-                    post_val.is_fixed_pitch =
-                        read_32u(data.offset(12 as ::core::ffi::c_int as isize) as *const u8);
-                    post_val.min_mem_type42 =
-                        read_32u(data.offset(16 as ::core::ffi::c_int as isize) as *const u8);
-                    post_val.max_mem_type42 =
-                        read_32u(data.offset(20 as ::core::ffi::c_int as isize) as *const u8);
-                    post_val.min_mem_type1 =
-                        read_32u(data.offset(24 as ::core::ffi::c_int as isize) as *const u8);
-                    post_val.max_mem_type1 =
-                        read_32u(data.offset(28 as ::core::ffi::c_int as isize) as *const u8);
-                    post_val.post_name_map = ::core::ptr::null_mut::<GlyphOrder>();
-                    if post_val.version == 0x20000 as F16Dot16 {
-                        let mut map: *mut GlyphOrder =
-                            (
-                                otfcc_glyph_order_create)();
-                        let mut pending_names: Vec<Vec<u8>> = Vec::new();
-                        let mut number_glyphs: u16 = read_16u(
-                            data.offset(32 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        let mut offset: u32 = (34 as ::core::ffi::c_int
-                            + 2 as ::core::ffi::c_int * number_glyphs as ::core::ffi::c_int)
-                            as u32;
-                        let mut pending_name_index: u16 = 0 as u16;
-                        while pending_name_index as ::core::ffi::c_int <= 0xffff as ::core::ffi::c_int
-                            && offset < table.length
-                        {
-                            let mut len: u8 = *data.offset(offset as isize);
-                            let s: Vec<u8> = if len as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-                                ::core::slice::from_raw_parts(
-                                    data.offset(offset as isize)
-                                        .offset(1 as ::core::ffi::c_int as isize)
-                                        as *const u8,
-                                    len as usize,
-                                ).to_vec()
-                            } else {
-                                Vec::new()
-                            };
-                            offset = offset.wrapping_add(
-                                (len as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u32,
-                            );
-                            pending_names.push(s);
-                            pending_name_index = (pending_name_index as ::core::ffi::c_int
-                                + 1 as ::core::ffi::c_int)
-                                as u16;
-                        }
-                        let mut j: u16 = 0 as u16;
-                        while (j as ::core::ffi::c_int) < number_glyphs as ::core::ffi::c_int {
-                            let mut name_map: u16 =
-                                read_16u(data.offset(34 as ::core::ffi::c_int as isize).offset(
-                                    (2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize,
-                                ) as *const u8);
-                            if name_map as ::core::ffi::c_int >= 258 as ::core::ffi::c_int {
-                                otfcc_set_glyph_order_by_gid(
-                                    map,
-                                    j as GlyphId,
-                                    pending_names[(name_map as ::core::ffi::c_int
-                                        - 258 as ::core::ffi::c_int)
-                                        as usize]
-                                        .clone(),
-                                );
-                            } else {
-                                otfcc_set_glyph_order_by_gid(
-                                    map,
-                                    j as GlyphId,
-                                    STANDARD_MAC_NAMES[name_map as usize].to_bytes().to_vec(),
-                                );
-                            }
-                            j = j.wrapping_add(1);
-                        }
-                        post_val.post_name_map = map;
-                    }
-                    return Some(Box::new(post_val));
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_POST)?;
+    let parsed = match parse_post(&table.data) {
+        Ok(parsed) => parsed,
+        Err(_) => {
+            logger_log_sds(
+                (*options).logger,
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"table 'post' corrupted.\n"),
+            );
+            return None;
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
+    };
+    let mut post_val = PostTable {
+        version: parsed.fixed.version,
+        italic_angle: parsed.fixed.italic_angle,
+        underline_position: parsed.fixed.underline_position,
+        underline_thickness: parsed.fixed.underline_thickness,
+        is_fixed_pitch: parsed.fixed.is_fixed_pitch,
+        min_mem_type42: parsed.fixed.min_mem_type42,
+        max_mem_type42: parsed.fixed.max_mem_type42,
+        min_mem_type1: parsed.fixed.min_mem_type1,
+        max_mem_type1: parsed.fixed.max_mem_type1,
+        post_name_map: ::core::ptr::null_mut::<GlyphOrder>(),
+    };
+    if let Some(names) = parsed.names {
+        let map = otfcc_glyph_order_create();
+        for (gid, name) in names {
+            otfcc_set_glyph_order_by_gid(map, gid, name);
+        }
+        post_val.post_name_map = map;
     }
-    return None;
+    Some(Box::new(post_val))
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_post(
@@ -610,4 +625,114 @@ pub unsafe fn otfcc_build_post(
         }
     }
     return buf;
+}
+
+#[cfg(test)]
+mod parse_post_tests {
+    use super::*;
+
+    fn header(version: u32, underline_position: i16, underline_thickness: i16) -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&version.to_be_bytes());
+        b.extend_from_slice(&0u32.to_be_bytes()); // italic_angle
+        b.extend_from_slice(&underline_position.to_be_bytes());
+        b.extend_from_slice(&underline_thickness.to_be_bytes());
+        b.extend_from_slice(&0u32.to_be_bytes()); // is_fixed_pitch
+        b.extend_from_slice(&0u32.to_be_bytes()); // min_mem_type42
+        b.extend_from_slice(&0u32.to_be_bytes()); // max_mem_type42
+        b.extend_from_slice(&0u32.to_be_bytes()); // min_mem_type1
+        b.extend_from_slice(&0u32.to_be_bytes()); // max_mem_type1
+        assert_eq!(b.len(), 32);
+        b
+    }
+
+    #[test]
+    fn version_1_header_has_no_name_map() {
+        let data = header(0x00010000, -100, 50);
+        let parsed = parse_post(&data).unwrap();
+        assert_eq!(parsed.fixed.version, 0x00010000);
+        assert_eq!(parsed.fixed.underline_position, -100);
+        assert_eq!(parsed.fixed.underline_thickness, 50);
+        assert!(parsed.names.is_none());
+    }
+
+    #[test]
+    fn truncated_header_errs_instead_of_reading_oob() {
+        // Only 10 of the required 32 header bytes -- this table used to be
+        // read unconditionally (otfcc_read_post had no length check at
+        // all), overreading up to 22 bytes past a table this short.
+        let data = header(0x00010000, 0, 0);
+        assert!(parse_post(&data[..10]).is_err());
+    }
+
+    #[test]
+    fn version_2_header_resolves_pending_names() {
+        let mut data = header(0x00020000, 0, 0);
+        data.extend_from_slice(&1u16.to_be_bytes()); // numberOfGlyphs
+        data.extend_from_slice(&258u16.to_be_bytes()); // glyphNameIndex[0] -> pending_names[0]
+        data.push(1); // pascal string length
+        data.push(b'A'); // pascal string bytes
+        let parsed = parse_post(&data).unwrap();
+        let names = parsed.names.unwrap();
+        assert_eq!(names, vec![(0u16, b"A".to_vec())]);
+    }
+
+    #[test]
+    fn standard_mac_name_index_below_258_does_not_touch_the_heap() {
+        let mut data = header(0x00020000, 0, 0);
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&0u16.to_be_bytes()); // glyphNameIndex[0] -> ".notdef"
+        // No name heap bytes at all -- a standard-Mac-name entry must not
+        // need one.
+        let parsed = parse_post(&data).unwrap();
+        assert_eq!(parsed.names.unwrap(), vec![(0u16, b".notdef".to_vec())]);
+    }
+
+    #[test]
+    fn pascal_string_length_running_past_the_table_end_errs() {
+        // This is the actual pre-existing overread: a name heap entry
+        // whose declared length reaches past the table's real end. The
+        // original C (and the first Rust translation) read the extra
+        // bytes anyway, since the only loop guard was the *offset* of the
+        // length byte itself, never `offset + 1 + len`.
+        let mut data = header(0x00020000, 0, 0);
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&258u16.to_be_bytes());
+        data.push(10); // claims 10 bytes follow
+        data.push(b'A'); // only 1 actually does
+        assert!(parse_post(&data).is_err());
+    }
+
+    #[test]
+    fn glyph_name_index_past_the_name_heap_gets_an_empty_name_not_a_panic() {
+        // glyphNameIndex[0] claims pending_names[0], but the name heap is
+        // empty (the table ends exactly at the index array) -- the
+        // original C read whatever bytes happened to sit past the
+        // `pending_names` allocation; a naive Rust port of the same index
+        // expression would panic instead. Neither is acceptable, so this
+        // falls back to an empty name.
+        let mut data = header(0x00020000, 0, 0);
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&258u16.to_be_bytes());
+        let parsed = parse_post(&data).unwrap();
+        assert_eq!(parsed.names.unwrap(), vec![(0u16, Vec::new())]);
+    }
+
+    #[test]
+    fn glyph_name_index_array_shorter_than_declared_errs() {
+        // number_glyphs says 5 entries but only 1 is actually present --
+        // require_room on the fixed-size index array should catch this
+        // before ever indexing past it.
+        let mut data = header(0x00020000, 0, 0);
+        data.extend_from_slice(&5u16.to_be_bytes());
+        data.extend_from_slice(&0u16.to_be_bytes()); // only one entry present
+        assert!(parse_post(&data).is_err());
+    }
+
+    #[test]
+    fn number_glyphs_large_enough_to_overflow_the_multiplication_errs() {
+        let mut data = header(0x00020000, 0, 0);
+        data.extend_from_slice(&0xFFFFu16.to_be_bytes());
+        assert!(parse_post(&data).is_err());
+    }
 }

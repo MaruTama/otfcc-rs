@@ -932,6 +932,73 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Phase 5, Stage 7-1 begins: `support/font_reader.rs` (`FontReader`), and
+  `table/post.rs`'s reader is the pilot migration.** Stage 7-0 (verification
+  infrastructure: golden log/`c/` deletion, clippy, fuzz+miri) is complete
+  and merged; this is the first PR of the actual parse-boundary-safety work
+  those tools were built to check. `support/binio.rs`'s `read_*` family (465
+  call sites across 41 files, per the plan's own survey) takes a bare
+  `*const u8` with no length and trusts the caller — `FontReader` replaces
+  it with bounds-checked reads over a `&[u8]` that return `Result` instead
+  of reading past the end. Nine new unit tests directly on the reader
+  (`support/font_reader.rs`): big/little-endian round-trips, signed
+  two's-complement, `u24`, past-the-end errors that don't move the cursor,
+  `require_room`'s `checked_mul` guard against the "count large enough to
+  overflow the multiplication itself" class the plan's own `cmap.rs`
+  writeup documents, and `at`/`sub` for following an in-table offset
+  without losing the outer buffer's bounds.
+  - **`table/post.rs::otfcc_read_post` had zero length checks at all before
+    this** — the worst offender the plan's survey found: a 4-byte `post`
+    table used to overread 28+ bytes reading its own fixed header, and a
+    version-2.0 table's Pascal-string name heap was bounded only by the
+    *offset* of each entry's length byte, never `offset + 1 + len`, so a
+    single corrupt length byte could read arbitrarily far past the table.
+    Split into a new pure, fully-safe `parse_post(&[u8]) -> Result<...>` (no
+    `unsafe` anywhere in it) that parses the fixed header and, for a
+    version-2.0 table, the entire name-index/name-heap structure into plain
+    owned Rust values — and only *then*, once every read has already
+    succeeded, builds the real `GlyphOrder` via
+    `otfcc_glyph_order_create`/`otfcc_set_glyph_order_by_gid`. That ordering
+    is deliberate: it means a read failure can never leave a partially-built
+    `GlyphOrder` needing cleanup, so there was nothing to get wrong on the
+    error path. `otfcc_read_post` itself shrank to "find the table, call
+    `parse_post`, log-and-return-`None` on `Err`, otherwise build the
+    `PostTable`" — the `__fortable_*`/`current_block` scaffolding is gone,
+    replaced with `packet.pieces.iter().find(|p| p.tag == TAG_POST)`.
+  - **A second, quieter bug**: `glyphNameIndex[j] - 258` indexing straight
+    into `pending_names` with no bounds check — the original C read
+    whatever bytes sat past that allocation; a naive Rust port of the same
+    index expression would have turned that into a panic instead (progress,
+    but still not acceptable for untrusted input). Falls back to an empty
+    name instead of either.
+  - **Seven new unit tests on `parse_post` directly**, each pinning one
+    specific case: a valid version-1.0 header, a version-2.0 header with
+    real pending-name resolution, a standard-Mac-name index that correctly
+    never touches the heap, the truncated-header case, the exact
+    Pascal-string-length-past-the-end overread described above, the
+    out-of-range `glyphNameIndex` case, and a `number_glyphs` large enough
+    to overflow `2 * number_glyphs` in the index-array bounds check.
+  - **No behavior change on any committed payload**: 9 of the project's TTF
+    payloads have a real version-2.0 `post` table with real pending names
+    (checked by hand via `otfccdump`), so the happy path was already
+    exercised by real data, not just the new synthetic tests — confirmed by
+    `compare-with-golden.sh` staying byte-identical across every payload.
+    Only genuinely malformed input (none of which exists in the committed
+    corpus) takes a different path now: log a warning and skip the table,
+    same as every other already-migrated reader's existing length checks,
+    instead of reading adjacent memory.
+  - **New `rust/scripts/survey-unsafe.sh`**, read-only, reports the
+    residual-work counters the plan tracks across Stage 7-1/7-2/7-4 (allow-list
+    file count, `unsafe fn`/`.offset()`/`is_null()`/`__fortable_*`/
+    `current_block` counts, `Result`/`Option` adoption) in one place, the
+    same way `grep -rc "allow(unsafe_op_in_unsafe_fn)"` already serves the
+    burn-down. Every future PR touching this area should paste its output.
+  - Verified with the standard pipeline on macOS (arm64 native): 0 warnings,
+    74 tests (was 57 — 9 new on `FontReader`, 8 new on `parse_post`), clippy
+    clean, ABI export guard, all golden fixtures byte-identical (dump/build
+    and log output), all round-trip payloads stable, issue #1's regression
+    test green.
+
 - **Phase 5, third PR: `cargo-fuzz` and `cargo miri test`, both wired into CI
   as advisory (`continue-on-error: true`), not merge gates.** Last piece of
   the verification-infrastructure trio the plan opens with. Unlike the first
