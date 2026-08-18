@@ -2,13 +2,13 @@
 use libc::{strcmp};
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
-use crate::support::binio::{read_16u, read_32u};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::buffer::{bufnew, bufnwrite8, bufwrite16b, bufwrite32b};
 use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
 
@@ -63,6 +63,26 @@ unsafe fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {
         return (gid as ::core::ffi::c_int) < 0xfffa as ::core::ffi::c_int;
     };
 }
+// One 8-byte record: gid(u16) + text_length(u16, widened) + text_offset(u32).
+// `FontReader::at` + the three field reads only succeed together when the
+// full 8 bytes are actually present -- unlike the original's `j * 8 <
+// index_part.length` loop guard, which admits a final *partial* record
+// whenever `index_part.length` isn't a multiple of 8 (the same off-by-one
+// class `table/tsi5.rs::otfcc_read_tsi5` had, fixed two PRs ago).
+struct TsiIndexEntry {
+    gid: u16,
+    text_length: u32,
+    text_offset: u32,
+}
+fn read_tsi_index_entry(index_data: &[u8], idx: u32) -> Result<TsiIndexEntry, ReadError> {
+    let mut r = FontReader::new(index_data).at((idx as usize).wrapping_mul(8))?;
+    Ok(TsiIndexEntry {
+        gid: r.u16()?,
+        text_length: r.u16()? as u32,
+        text_offset: r.u32()?,
+    })
+}
+
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_read_tsi(
     packet: &Packet,
@@ -70,149 +90,80 @@ pub unsafe fn otfcc_read_tsi(
     mut tag_index: u32,
     mut tag_text: u32,
 ) -> Option<TsiTable> {
-    // `text_part`/`index_part` were plain `PacketPiece` values with a
-    // tag-0 sentinel standing in for "not found yet" (assigned by value
-    // once a matching tag turned up while scanning `packet.pieces`).
-    // `PacketPiece` no longer derives `Copy` (it owns `data: Vec<u8>`), so
-    // this becomes `Option<&PacketPiece>` -- `None` is the same "not found"
-    // signal the tag-0 sentinel used to carry, and borrowing a matched
-    // element out of `packet.pieces` needs no copy at all.
-    let mut text_part: Option<&PacketPiece> = None;
-    let mut index_part: Option<&PacketPiece> = None;
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table_ix: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table_ix.tag == tag_index {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    index_part = Some(table_ix);
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
-    }
-    let mut __fortable_keep_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound_0 != 0
-        && __fortable_keep_0 != 0
-        && __fortable_count_0 < packet.num_tables as ::core::ffi::c_int
-    {
-        let table_tx: &PacketPiece = &packet.pieces[__fortable_count_0 as usize];
-        while __fortable_keep_0 != 0 {
-            if table_tx.tag == tag_text {
-                let mut __fortable_k2_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2_0 != 0 {
-                    text_part = Some(table_tx);
-                    __fortable_k2_0 = 0 as ::core::ffi::c_int;
-                    __notfound_0 = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep_0 = (__fortable_keep_0 == 0) as ::core::ffi::c_int;
-        }
-        __fortable_keep_0 = (__fortable_keep_0 == 0) as ::core::ffi::c_int;
-        __fortable_count_0 += 1;
-    }
-    if text_part.is_none() || index_part.is_none() {
-        return None;
-    }
-    let text_part = text_part.unwrap();
-    let index_part = index_part.unwrap();
+    let index_part = packet.pieces.iter().find(|p| p.tag == tag_index)?;
+    let text_part = packet.pieces.iter().find(|p| p.tag == tag_text)?;
+    let text_len = text_part.data.len() as u32;
     let mut tsi: TsiTable = Vec::new();
     let mut j: u32 = 0 as u32;
-    while j.wrapping_mul(8 as u32) < index_part.length {
-        let mut gid: u16 = read_16u(
-            index_part
-                .data.as_ptr()
-                .offset(j.wrapping_mul(8 as u32) as isize),
-        );
-        let mut text_length: u32 = read_16u(
-            index_part
-                .data.as_ptr()
-                .offset(j.wrapping_mul(8 as u32) as isize)
-                .offset(2 as ::core::ffi::c_int as isize),
-        ) as u32;
-        let mut text_offset: u32 = read_32u(
-            index_part
-                .data.as_ptr()
-                .offset(j.wrapping_mul(8 as u32) as isize)
-                .offset(4 as ::core::ffi::c_int as isize),
-        );
-        if !(!is_valid_gid(gid, tag_index) || text_offset >= text_part.length || text_length == 0) {
-            let mut predicted_text_length: u32 = text_part.length.wrapping_sub(text_offset);
-            let mut k: GlyphId = j.wrapping_add(1 as u32) as GlyphId;
-            while ((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as u32)
-                < index_part.length
-            {
-                let mut gid_k: u16 = read_16u(
-                    index_part
-                        .data.as_ptr()
-                        .offset((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as isize),
-                );
-                let mut text_offset_k: u32 = read_32u(
-                    index_part
-                        .data.as_ptr()
-                        .offset((k as ::core::ffi::c_int * 8 as ::core::ffi::c_int) as isize)
-                        .offset(4 as ::core::ffi::c_int as isize),
-                );
-                if gid_k as ::core::ffi::c_int != 0xfffe as ::core::ffi::c_int
-                    && text_offset_k < text_part.length
-                    && text_offset_k > text_offset
+    while let Ok(entry) = read_tsi_index_entry(&index_part.data, j) {
+        if is_valid_gid(entry.gid, tag_index) && entry.text_offset < text_len && entry.text_length != 0 {
+            let mut predicted_text_length: u32 = text_len.wrapping_sub(entry.text_offset);
+            let mut k: u32 = j.wrapping_add(1 as u32);
+            while let Ok(entry_k) = read_tsi_index_entry(&index_part.data, k) {
+                if entry_k.gid as ::core::ffi::c_int != 0xfffe as ::core::ffi::c_int
+                    && entry_k.text_offset < text_len
+                    && entry_k.text_offset > entry.text_offset
                 {
-                    predicted_text_length = text_offset_k.wrapping_sub(text_offset);
+                    predicted_text_length = entry_k.text_offset.wrapping_sub(entry.text_offset);
                     break;
                 } else {
                     k = k.wrapping_add(1);
                 }
             }
-            if text_length >= 0x8000 as u32 {
-                text_length = predicted_text_length;
-            }
-            let mut entry: TsiEntry = TsiEntry {
+            let text_length = if entry.text_length >= 0x8000 as u32 {
+                predicted_text_length
+            } else {
+                entry.text_length
+            };
+            // The original read `text_length` bytes from `text_offset`
+            // unconditionally, trusting the declared length even when it
+            // wasn't the `>= 0x8000` "compute it instead" sentinel --
+            // `text_offset < text_len` alone does not imply `text_offset +
+            // text_length <= text_len`. `at` + `peek_bytes` check that
+            // full span actually fits `text_part` before any bytes are
+            // read; a declared length that doesn't fit drops this index
+            // entry entirely; matches the "corrupted piece, skip it"
+            // pattern the rest of this migration uses.
+            let content = match FontReader::new(&text_part.data)
+                .at(entry.text_offset as usize)
+                .and_then(|r| r.peek_bytes(text_length as usize))
+            {
+                Ok(bytes) => bytes.to_vec(),
+                Err(_) => {
+                    j = j.wrapping_add(1);
+                    continue;
+                }
+            };
+            let mut tsi_entry: TsiEntry = TsiEntry {
                 type_0: TsiEntryType::Glyph,
                 glyph: Handle {
                     state: HandleState::Empty,
                     index: 0,
                     name: Vec::new(),
                 },
-                content: Vec::new(),
+                content,
             };
-            match gid as ::core::ffi::c_int {
+            match entry.gid as ::core::ffi::c_int {
                 65530 => {
-                    entry.type_0 = TsiEntryType::Prep;
-                    otfcc_handle_init(&raw mut entry.glyph);
+                    tsi_entry.type_0 = TsiEntryType::Prep;
+                    otfcc_handle_init(&raw mut tsi_entry.glyph);
                 }
                 65531 => {
-                    entry.type_0 = TsiEntryType::Cvt;
-                    otfcc_handle_init(&raw mut entry.glyph);
+                    tsi_entry.type_0 = TsiEntryType::Cvt;
+                    otfcc_handle_init(&raw mut tsi_entry.glyph);
                 }
                 65533 => {
-                    entry.type_0 = TsiEntryType::Fpgm;
-                    otfcc_handle_init(&raw mut entry.glyph);
+                    tsi_entry.type_0 = TsiEntryType::Fpgm;
+                    otfcc_handle_init(&raw mut tsi_entry.glyph);
                 }
                 _ => {
-                    entry.type_0 = TsiEntryType::Glyph;
-                    entry.glyph = handle_from_index(
-                        gid as GlyphId,
+                    tsi_entry.type_0 = TsiEntryType::Glyph;
+                    tsi_entry.glyph = handle_from_index(
+                        entry.gid as GlyphId,
                     ) as GlyphHandle;
                 }
             }
-            entry.content = ::core::slice::from_raw_parts(
-                text_part.data.as_ptr().offset(text_offset as isize),
-                text_length as usize,
-            )
-            .to_vec();
-            tsi.push(entry);
+            tsi.push(tsi_entry);
         }
         j = j.wrapping_add(1);
     }
@@ -510,4 +461,162 @@ pub unsafe fn otfcc_build_tsi(
         push_tsi_entries(&raw mut target, tsi, TsiEntryType::Fpgm, 1 as GlyphId);
     }
     return target;
+}
+
+#[cfg(test)]
+mod otfcc_read_tsi_tests {
+    use super::*;
+    use crate::font::caryll_sfnt::PacketPiece;
+
+    // No committed payload has a TSI0/TSI1 (or TSI2/TSI3) pair (checked by
+    // hand against every tests/payload/*.ttf), so this whole module is the
+    // only coverage -- both of the fix and of the original three bugs it
+    // replaces.
+
+    fn index_record(gid: u16, text_length: u16, text_offset: u32) -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&gid.to_be_bytes());
+        b.extend_from_slice(&text_length.to_be_bytes());
+        b.extend_from_slice(&text_offset.to_be_bytes());
+        b
+    }
+
+    fn packet(index_data: Vec<u8>, text_data: Vec<u8>) -> Packet {
+        Packet {
+            sfnt_version: 0,
+            num_tables: 2,
+            search_range: 0,
+            entry_selector: 0,
+            range_shift: 0,
+            pieces: vec![
+                PacketPiece {
+                    tag: crate::tag::TAG_TSI0,
+                    check_sum: 0,
+                    offset: 0,
+                    length: index_data.len() as u32,
+                    data: index_data,
+                },
+                PacketPiece {
+                    tag: crate::tag::TAG_TSI1,
+                    check_sum: 0,
+                    offset: 0,
+                    length: text_data.len() as u32,
+                    data: text_data,
+                },
+            ],
+        }
+    }
+
+    unsafe fn read(index_data: Vec<u8>, text_data: Vec<u8>) -> TsiTable {
+        let p = packet(index_data, text_data);
+        otfcc_read_tsi(&p, ::core::ptr::null(), crate::tag::TAG_TSI0, crate::tag::TAG_TSI1).unwrap()
+    }
+
+    #[test]
+    fn declared_length_resolves_content_directly() {
+        let index = index_record(9, 3, 0);
+        unsafe {
+            let tsi = read(index, b"ABC".to_vec());
+            assert_eq!(tsi.len(), 1);
+            assert_eq!(tsi[0].type_0, TsiEntryType::Glyph);
+            assert_eq!(tsi[0].glyph.index, 9);
+            assert_eq!(tsi[0].content, b"ABC");
+        }
+    }
+
+    #[test]
+    fn sentinel_length_is_predicted_from_the_next_entrys_offset() {
+        // Entry 0: gid 1, text_length = 0x8000 ("compute it"), offset 0.
+        // Entry 1: gid 2, text_length 1, offset 5.
+        // Entry 0's predicted length must come from entry 1's offset (5),
+        // not from "rest of the buffer" (10).
+        let mut index = index_record(1, 0x8000, 0);
+        index.extend(index_record(2, 1, 5));
+        unsafe {
+            let tsi = read(index, b"0123456789".to_vec());
+            assert_eq!(tsi.len(), 2);
+            assert_eq!(tsi[0].content, b"01234");
+            assert_eq!(tsi[1].content, b"5");
+        }
+    }
+
+    #[test]
+    fn sentinel_length_falls_back_to_the_rest_of_the_buffer_with_no_next_entry() {
+        let index = index_record(1, 0x8000, 2);
+        unsafe {
+            let tsi = read(index, b"ABCDEF".to_vec());
+            assert_eq!(tsi[0].content, b"CDEF"); // offset 2 to the end
+        }
+    }
+
+    #[test]
+    fn trailing_partial_index_record_is_dropped_not_read_oob() {
+        // One full 8-byte record, then 3 stray bytes -- not a full second
+        // record. The original `j * 8 < index_part.length` loop guard
+        // would have read 5 bytes past the (8+3)-byte index buffer trying
+        // to parse that partial record as real.
+        let mut index = index_record(9, 2, 0);
+        index.extend_from_slice(&[0xAA, 0xBB, 0xCC]);
+        unsafe {
+            let tsi = read(index, b"AB".to_vec());
+            assert_eq!(tsi.len(), 1);
+            assert_eq!(tsi[0].content, b"AB");
+        }
+    }
+
+    #[test]
+    fn declared_length_longer_than_the_text_part_is_dropped_not_read_oob() {
+        // The actual overread this migration exists to fix: a declared
+        // (non-sentinel) text_length that runs past text_part's real
+        // length. text_offset(0) < text_len(2) passes the original's only
+        // check, but 0 + 100 > 2.
+        let index = index_record(9, 100, 0);
+        unsafe {
+            let tsi = read(index, b"AB".to_vec());
+            assert!(tsi.is_empty());
+        }
+    }
+
+    #[test]
+    fn text_offset_past_the_text_part_is_skipped() {
+        // Preserved from the original: an out-of-range text_offset was
+        // already checked (`text_offset >= text_part.length`).
+        let index = index_record(9, 1, 5);
+        unsafe {
+            let tsi = read(index, b"AB".to_vec());
+            assert!(tsi.is_empty());
+        }
+    }
+
+    #[test]
+    fn zero_length_entry_is_skipped() {
+        let index = index_record(9, 0, 0);
+        unsafe {
+            let tsi = read(index, b"AB".to_vec());
+            assert!(tsi.is_empty());
+        }
+    }
+
+    #[test]
+    fn special_gids_map_to_their_reserved_entry_types() {
+        for (gid, expected) in [
+            (65530u16, TsiEntryType::Prep),
+            (65531u16, TsiEntryType::Cvt),
+            (65533u16, TsiEntryType::Fpgm),
+        ] {
+            let index = index_record(gid, 1, 0);
+            unsafe {
+                let tsi = read(index, b"X".to_vec());
+                assert_eq!(tsi[0].type_0, expected, "gid {gid}");
+            }
+        }
+    }
+
+    #[test]
+    fn empty_index_table_produces_no_entries() {
+        unsafe {
+            let tsi = read(Vec::new(), Vec::new());
+            assert!(tsi.is_empty());
+        }
+    }
 }
