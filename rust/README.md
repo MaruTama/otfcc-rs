@@ -87,6 +87,13 @@ is a hard failure under `-D warnings`.)
 convenience.) None of this needs Docker, c2rust, a C compiler, or a specific
 architecture — plain `rustup`/`cargo`.
 
+Two more checks exist but aren't part of `test.sh` and aren't merge gates —
+`rust/fuzz/` (cargo-fuzz; needs a pinned nightly, its own toolchain file, see
+`rust/fuzz/README.md`) and `cargo +nightly-2026-08-17 miri test --lib --
+--test-threads=1`. Both are wired into CI as advisory
+(`continue-on-error: true`) jobs; see "Next steps" below for why and what
+they've already found.
+
 If you're changing behavior in a way that's meant to keep matching what C
 used to do (as opposed to a deliberate, intentional divergence — which is
 explicitly permitted from Phase 5 onward, see the plan linked from the
@@ -924,6 +931,172 @@ which is also why `cargo fix`'s unused-import removals have to be re-checked
 on the other platform before a commit is trusted.
 
 ## Next steps
+
+- **Phase 5, third PR: `cargo-fuzz` and `cargo miri test`, both wired into CI
+  as advisory (`continue-on-error: true`), not merge gates.** Last piece of
+  the verification-infrastructure trio the plan opens with. Unlike the first
+  two PRs, this one **does** touch production code — twice, and only because
+  the newly-added tooling would otherwise have been immediately useless (see
+  each fix below for why) — everything else found is deliberately left
+  unfixed and tracked here for Stage 7-1/7-3 to pick up.
+  - **`rust/fuzz/`** (new): two libFuzzer targets. `otf_parse` fuzzes the
+    sfnt/OTF binary-parsing path (`otfcc_read_sfnt` + `read_otf`) — the exact
+    path this plan's Stage 7-1 was written around (unvalidated offsets in
+    `cmap.rs`/`name.rs`/`post.rs`, glyph readers with no length parameter,
+    the CFF INDEX overflow) and which had never been fuzzed before.
+    `libc::fmemopen` wraps the fuzzer's byte slice as the `FILE*`
+    `otfcc_read_sfnt`'s C-inherited signature expects. `json_build` fuzzes
+    the JSON→font builder through the actual public FFI entry point
+    (`otfccbuild_json_otf`) — no internal reflection needed for that one.
+    This subdirectory is its own cargo workspace with its own
+    `rust-toolchain.toml` pinned to a dated **nightly** (cargo-fuzz needs
+    `-Z sanitizer=address`, stable-only everywhere else in this repo) —
+    isolated so `cargo build`/`test`/`clippy` from `rust/` never see it.
+  - **Found three real, unfixed bugs within the first ~20 seconds of
+    running each target**, none fixed here (see `rust/fuzz/README.md` for
+    the full detail, minimized repros committed at
+    `tests/fuzz-corpus/known-issues/`):
+    - `libcff/charstring_il.rs:405` — `glyph_adw_const as c_int - nominal_width
+      as c_int` panics ("attempt to subtract with overflow") when an
+      attacker-controlled JSON `advanceWidth` is astronomically large; the
+      float→int cast itself saturates correctly, the *subsequent*
+      subtraction is what overflows. Silent (wrong) wrapping in an ordinary
+      release build, not just a fuzz-build panic.
+    - `table/cff.rs:2302` (`cff_make_charset`) — dereferences
+      `glyf: *mut GlyfTable` without a null check; `{"CFF_": {}}` (13 bytes)
+      reaches it with `glyf` null. Real undefined behavior in a plain
+      `cargo build --release`; only panics ("null reference produced")
+      under this fuzz build's extra validity checks.
+    - `font/caryll_sfnt.rs:220,239` (`otfcc_get16u`/`otfcc_get32u`) call
+      `libc::exit(EXIT_FAILURE)` directly from **library** code on a short
+      read — exactly the four library-internal `exit()` calls Stage 7-3
+      already planned to remove, confirmed here to have a concrete cost
+      beyond API cleanliness: it kills the whole `otf_parse` fuzzing
+      process on any truncated file, which caps how much of that target's
+      state space a campaign can actually explore until it's fixed.
+  - **`ffi/dll.rs`'s `otfccbuild_json_otf` leaked its `Options` (and the
+    `Logger` it owns) on all three return paths — fixed here.** Found while
+    writing the `json_build` fuzz harness; not fixing it would have made
+    that target report the identical already-known leak on its very first
+    input and stay stuck there forever, which is a different situation from
+    "a bug fuzzing found" (the actual point of the tooling) — the same
+    "the new infra is worthless without this one fix" reasoning as the
+    logger fix below. `ffi/dll.rs` also gained its first unit tests (3 new
+    ones — this file had none): the two early-return leak paths, and the
+    success path (`otfcc_delete_options` on the third, previously-also-
+    leaking return). Along the way, confirmed `read_json` is fully
+    permissive — `{}`, `[]`, `null`, `123`, `"x"` all build a valid,
+    if nearly empty, font rather than failing, so the `font.is_null()`
+    early return is dead code today, not just untested; documented in the
+    test module for whoever eventually makes `read_json` fail for real.
+  - **`cargo miri test` found a crate-wide bug on its first run — one
+    instance fixed here, dozens more tracked, not fixed.** A `calloc`'d
+    struct's pointer-niche fields (`Vec<T>`, `Box<T>`, `Option<Vec<T>>`,
+    `Option<Box<T>>`, ...) are not a valid bit pattern, so a plain `(*ptr).
+    field = value;` first-write is undefined behavior **the instant the
+    implicit "drop the old value" step constructs a typed value from the
+    all-zero bytes** — independent of whether the drop body ever goes on to
+    read or free anything, which is exactly why this was never caught by
+    ~57 unit tests, the full golden byte-comparison suite, or any round-trip
+    test before Miri: it's usually harmless in practice on today's codegen.
+    See the corrected entry in project memory
+    (`otfcc-vec-field-assign-needs-calloc`, if consulting these notes
+    outside this repo's own memory system) — the earlier belief that calloc
+    alone made this pattern "safe by convention" was wrong; only
+    `ptr::write` (a placement store that skips the drop entirely) is
+    actually sound. `logger.rs`'s `otfcc_new_logger` is fixed (blocks
+    essentially every test that touches a `Logger`, which is most of them).
+    `font/caryll_font.rs:init_font` (`memset`-zeroes the whole `Font`
+    struct, then `json_reader.rs`/`otf_reader.rs` plain-assign `glyf`/
+    `cff`/`head`/dozens more fields) has the identical pattern on
+    essentially every field and is **not** fixed here — real, substantial,
+    crate-wide work belonging to a new Stage 6-4 sub-task (audit every
+    `_create()`/`init_*()` pair), not to this infrastructure PR. Tests that
+    construct a real `Font` are `#[cfg_attr(miri, ignore = "...")]`'d with a
+    pointer to this paragraph.
+  - **14 of 57 tests are `#[cfg_attr(miri, ignore)]`'d in total** — the two
+    Font-construction ones above, plus 12 that hit genuine Miri
+    *limitations*, not bugs (each with its own comment explaining which):
+    libc `memmove`/`snprintf`/`strcmp`/ctype functions unsupported as
+    foreign functions on the macOS target; `std::fs::read_dir` needing
+    `-Zmiri-disable-isolation`; and `parse_number`'s `10.0f64.powf()`
+    (JSON exponent handling) — a transcendental function IEEE754 doesn't
+    require to be correctly-rounded, confirmed to disagree with native
+    libm *and with itself between separate Miri runs* on the identical
+    input, i.e. actually non-deterministic under Miri specifically, not a
+    parsing bug reachable on any real target. The remaining 43 pass clean.
+  - **CI**: `cargo clippy`'s and `warnings = "deny"`'s reasoning (a pinned
+    exact toolchain means a new release can't invent a failure) does not
+    extend to fuzzing or Miri — both are new dynamic-analysis tools whose
+    *current* findings are real but untriaged, so both CI jobs are
+    `continue-on-error: true` (advisory), matching how the plan already
+    anticipated treating Miri and now treats fuzzing the same way. The fuzz
+    job seeds its corpora from `tests/payload/` at CI time rather than
+    committing them (avoids duplicating already-committed font payloads);
+    the Miri job runs `--test-threads=1` since Miri's concurrency emulation
+    is limited.
+  - Verified with the standard pipeline on macOS (arm64 native, Rosetta
+    rustup): 0 warnings, 57 tests (was 54 — the 3 new `ffi::dll` tests),
+    clippy clean, ABI export guard, all golden fixtures byte-identical
+    (dump/build and log output unaffected by the `ffi/dll.rs`/`logger.rs`
+    fixes), all round-trip payloads stable, issue #1's regression test
+    green. `cargo miri test --lib -- --test-threads=1`: 43 passed, 0
+    failed, 14 ignored (see above). Both fuzz targets smoke-tested locally
+    (short runs plus the two committed crash reproducers), confirmed to
+    behave exactly as documented.
+  - **CI itself then caught three things local testing missed** — two are
+    fixed in a follow-up commit before merge, the third is a genuine
+    production finding, documented (not fixed) the same as the fuzzing
+    findings above:
+    - **`string_edge_cases` also hit the `10.0f64.powf()` non-determinism**
+      above — not a flaky multi-threading artifact as first guessed, the
+      *same* root cause as `number_edge_cases`, just the fraction-digit
+      `powf` call (`1.5`'s fractional part) instead of the exponent one,
+      and it happened to round correctly on this Mac's local Miri run by
+      chance. Confirmed non-deterministic across platforms, not just
+      across runs on one: passed reliably locally on macOS, failed
+      reliably on the Linux CI runner. Now `#[cfg_attr(miri, ignore)]`'d
+      with the same reasoning.
+    - **The `otf_parse` fuzz target's own harness had a real double-close
+      bug**, caught by Linux + ASan on the very first (unmutated)
+      seed-corpus file, `tests/payload/gvar-test.ttf` — a real, valid,
+      already-extensively-tested payload, not a malformed one. Root cause:
+      `otfcc_read_sfnt` (`font/caryll_sfnt.rs:172`) takes ownership of the
+      `FILE*` passed in and `fclose`s it internally on every path — the
+      harness *also* called `libc::fclose` on it afterward, a genuine
+      double-close/double-free of the `fmemopen`'d handle. This is a bug
+      in the fuzz harness `rust/fuzz/fuzz_targets/otf_parse.rs` introduced
+      in this same PR, not a production bug: `bin/otfccdump.rs`'s own
+      `otfcc_read_sfnt` call site (the pattern the harness was supposed to
+      mirror) never calls `fclose` on the file it opened either, for
+      exactly this reason. Confirmed local, un-fixed reproduction against
+      the exact byte-identical failing input did *not* crash on this
+      Mac's libc (double-`fclose` is implementation-defined behavior, and
+      apparently harmless here) — glibc's ASan build is what caught it.
+      Removing the redundant `fclose` call fixed it; re-ran the fuzz
+      target afterward and the only *crashing* finding left is the
+      already-documented, already out-of-scope CFF stack-overflow (same
+      crash hash as before, not new) — see the next bullet for what fixing
+      the double-close uncovered underneath it.
+    - **With the double-close gone, `otf_parse` now runs far enough into
+      `gvar-test.ttf` (the same seed file) to surface a real leak**: 478
+      bytes across 9 allocations, confirmed reproducible locally with
+      symbols. Two sites in the trace: a `calloc` inside
+      `table/glyf/read.rs::otfcc_read_glyf`, and a `format!()` allocation
+      (`FvarMaster.name`) inside `table/fvar.rs::fvar_register_region`
+      reached through it. Both are downstream of `VqRegion` — already
+      flagged in this same entry's Stage 6-4 discussion as one of the
+      "difficult" remaining raw-pointer types
+      (`FvarMaster.region: *mut VqRegion`, blocked on `VqRegion` itself
+      becoming `Vec`-shaped) — likely a region-dedup or error path that
+      frees/reassigns `region` without going through the drop chain that
+      would also free the `FvarMaster` entry pointing at it. Not
+      investigated further or fixed here; full detail and reproduction
+      steps in `rust/fuzz/README.md`. Left leak detection **on** rather
+      than passing `-detect_leaks=0` to get a clean advisory job — that
+      would just hide this class of finding (and any future one) instead
+      of surfacing it, which defeats the entire point of adding this
+      tooling.
 
 - **Phase 5, second PR: clippy wired in with an allow-list ratchet, and CI
   gained a native macOS (arm64) job.** Second piece of the verification-

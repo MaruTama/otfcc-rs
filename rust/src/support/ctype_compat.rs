@@ -74,6 +74,11 @@ mod tests {
     // produce (a `c_char` byte is -128..=127; 128..=255 and EOF are included
     // because glibc's tables are indexable there and C code does reach them).
     #[test]
+    // Miri doesn't implement libc's isdigit/isspace/isprint/tolower/toupper
+    // on the macOS target ("unsupported operation", not a bug finding) --
+    // this whole file's tests exist specifically to call the platform's
+    // real libc and compare, so there is no Miri-friendly way to run them.
+    #[cfg_attr(miri, ignore = "calls real libc ctype functions, unsupported under Miri")]
     fn ctype_predicates_match_libc() {
         for c in -128..=255 {
             unsafe {
@@ -85,6 +90,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls real libc ctype functions, unsupported under Miri")]
     fn case_conversion_matches_libc_where_c_defines_it() {
         // `EOF` and any value of an `unsigned char` -- everything C actually
         // specifies, and everything the two libcs agree on.
@@ -112,6 +118,7 @@ mod tests {
     // shown harmless rather than assumed to be. Two properties do it, one per
     // call site.
     #[test]
+    #[cfg_attr(miri, ignore = "calls real libc ctype functions, unsupported under Miri")]
     fn the_negative_range_disagreement_is_unobservable() {
         // sdstolower/sdstoupper store the result back into a `c_char`, and
         // `128 as c_char == -128`, so the byte written is the same either way.

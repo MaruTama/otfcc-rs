@@ -1253,6 +1253,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri")]
     fn decimal_matches_printf() {
         unsafe {
             for v in [0, 1, -1, 42, -42, i32::MAX, i32::MIN] {
@@ -1269,6 +1270,7 @@ mod tests {
     // digits and not four. Casting to `u16` at the call site -- the obvious
     // reading of "%04x" -- would silently drop the top half.
     #[test]
+    #[cfg_attr(miri, ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri")]
     fn hex_matches_printf_including_negatives() {
         unsafe {
             for v in [0i32, 1, 0x0a, 0xabcd, 0xfffff, -1, -32768] {
@@ -1283,6 +1285,7 @@ mod tests {
     // `%c` is a byte, not a character: 0xe9 is one byte for C, and would be the
     // two bytes of U+00E9 if it went through Rust's `char` formatting.
     #[test]
+    #[cfg_attr(miri, ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri")]
     fn byte_is_one_byte_not_a_char() {
         unsafe {
             for v in [b'A' as i32, 0, 0x7f, 0x80, 0xe9, 0xff] {
@@ -1310,6 +1313,7 @@ mod tests {
     }
 
     #[test]
+    #[cfg_attr(miri, ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri")]
     fn null_c_string_prints_like_libc() {
         unsafe {
             assert_matches_printf!(

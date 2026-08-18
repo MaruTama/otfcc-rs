@@ -1,0 +1,37 @@
+[package]
+name = "otfcc_rust-fuzz"
+version = "0.0.0"
+publish = false
+edition = "2024"
+
+[package.metadata]
+cargo-fuzz = true
+
+[dependencies]
+libfuzzer-sys = "0.4"
+# Only otf_parse.rs needs this directly (fmemopen, to wrap a fuzzer-provided
+# byte slice as the FILE* otfcc_read_sfnt's signature expects) -- kept at the
+# crate level rather than target-specific since cargo-fuzz's per-target
+# binaries all share one Cargo.toml and one dependency set regardless.
+libc = "0.2.189"
+
+[dependencies.otfcc_rust]
+path = ".."
+
+# Use independent workspace for fuzzers
+[workspace]
+members = ["."]
+
+[[bin]]
+name = "otf_parse"
+path = "fuzz_targets/otf_parse.rs"
+test = false
+doc = false
+bench = false
+
+[[bin]]
+name = "json_build"
+path = "fuzz_targets/json_build.rs"
+test = false
+doc = false
+bench = false

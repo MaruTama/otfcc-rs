@@ -194,10 +194,18 @@ pub unsafe fn otfcc_new_logger(
     (*logger).target = target;
     // `__caryll_allocate_clean` calloc's the struct, which is not a valid
     // `Vec<Vec<u8>>` bit pattern (a zero-capacity `Vec` uses a dangling
-    // *non-null* sentinel pointer, not a null one) -- must be assigned for
-    // real, matching every other malloc'd-struct-plus-`Vec`-field
-    // conversion in this migration.
-    (*logger).indents = Vec::new();
+    // *non-null* sentinel pointer, not a null one). A plain `=` assignment
+    // here is UB, not just wrong -- Rust drops the old place's value before
+    // writing the new one, and dropping an all-zero-bytes `Vec` means
+    // constructing a `Unique<u8>`/`NonNull<u8>` from a null pointer, which
+    // is instant UB the moment that typed value exists (caught by Miri:
+    // "constructing invalid value ... encountered 0, but expected
+    // something greater or equal to 1"), independent of whether the drop
+    // glue would have gone on to actually dereference it. `ptr::write`
+    // performs the same bitwise store without reading/dropping what was
+    // there before, which is what a freshly-calloc'd, not-yet-Rust-valid
+    // field actually needs.
+    ::core::ptr::write(&raw mut (*logger).indents, Vec::new());
     return logger;
 }
 pub unsafe fn otfcc_new_std_err_target() -> LoggerTarget {
