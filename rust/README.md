@@ -932,6 +932,75 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `table/cmap.rs` -- the file the plan's original survey wrote
+  up as the primary motivating example for this whole stage.** Both
+  headline bugs from that writeup are real and are now fixed.
+  - **The `wrapping_sub` underflow.** Every subtable reader used to take
+    `(start: pointer, length_limit: u32)`, and `length_limit` was computed
+    *once*, by the caller, as `length.wrapping_sub(table_offset)` --
+    `table_offset` is a `u32` read straight from the cmap directory, never
+    checked against `length` first. A `table_offset` larger than the
+    table's own `length` wrapped that subtraction to a number near
+    `u32::MAX`, so every downstream `length_limit < ...` guard in whatever
+    format reader ran next passed vacuously against a budget that no
+    longer meant anything. The exact same shape existed one level down,
+    too: `read_format14` computed each `read_uvs_default`/
+    `read_uvs_non_default` call's budget the same way, from
+    `default_uvs_offset`/`non_default_uvs_offset` fields that are equally
+    unchecked. The fix isn't a patched guard -- it's removing the
+    `length_limit` concept entirely. Every reader now takes `(data: &[u8],
+    offset: usize)`, where `data` is always the *whole* cmap table's bytes
+    and `offset` is an absolute, unvalidated position into it;
+    `FontReader::at(offset)` rejects `offset > data.len()` before any
+    arithmetic on it happens, so there is nothing left to underflow, at
+    any recursion depth. Covered by
+    `parse_cmap_directory_entry_pointing_past_the_table_end_skips_just_that_subtable`
+    and `format14_default_uvs_offset_past_the_table_end_is_a_noop_not_oob`.
+  - **The overflowing guard expression.** `read_format12`'s `n_groups`,
+    `read_uvs_default`'s `num_unicode_value_ranges`,
+    `read_uvs_non_default`'s `num_uvs_mappings`, and `read_format14`'s own
+    `n_groups` are all full 32-bit fields read straight from the file,
+    each guarded by a `length_limit < K.wrapping_add(S.wrapping_mul(count))`
+    check that can itself overflow for a large enough `count` (the
+    `12 * n_groups` example the plan's writeup used verbatim). All four
+    now use `FontReader::require_room`'s `checked_mul`/`checked_add`,
+    matching the fix already applied to `name.rs`'s record array and
+    `meta.rs`'s entry array. Covered by
+    `format12_n_groups_large_enough_to_overflow_the_multiplication_is_a_noop`,
+    `uvs_default_num_ranges_overflow_is_a_noop_not_oob`,
+    `uvs_non_default_num_mappings_overflow_is_a_noop_not_oob`, and
+    `format14_n_groups_overflow_is_a_noop_not_oob`.
+  - **`read_format4` needed no guard fix** -- its own header-level
+    `length_limit < 16 + segments_count*8` check is safe as-is, since
+    `segments_count` is derived from a `u16` field (bounded to 32767
+    after the `/2`), so `segments_count*8` can't overflow. Converted for
+    consistency and to drop the raw-pointer array-offset arithmetic
+    (`idRangeOffset`'s "byte distance from the entry's own array
+    position" indirection, in particular, is exactly the kind of pointer
+    math this migration is removing crate-wide). Covered by
+    `format4_direct_delta_segment_maps_one_codepoint` and
+    `format4_indirect_segment_follows_id_range_offset_into_the_glyph_array`.
+  - **This PR only touches the reading half** (`read_format4`/`12`/`14`,
+    `read_uvs_default`/`_non_default`, `read_cmap_mapping_table`/`_uvs`,
+    `otfcc_read_cmap`). `otfcc_dump_cmap`/`otfcc_parse_cmap`/
+    `otfcc_build_cmap*` work entirely on the in-memory `CmapTable` (a
+    `BTreeMap`, already safe) or write fresh output buffers -- no
+    untrusted file bytes reach them, so they're out of this PR's scope.
+  - **No behavior change on any committed payload**: every payload with a
+    `cmap` table (which is most of them) stayed byte-identical --
+    `compare-with-golden.sh` and `run-cycles.sh` both exercise real
+    format4/format12 subtables end to end. 12 new unit tests are the only
+    coverage of the fixed bugs themselves, since no committed payload has
+    a malformed `cmap`.
+  - `rust/scripts/survey-unsafe.sh` deltas: `__fortable_*` 186 → 172,
+    `.offset(` 1505 → 1452, raw pointer types 6448 → 6427.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 144 tests (was 132 -- 12 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log output,
+    zero exceptions), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes.
+  - Next: the `otl`/`glyf` families, per the plan.
+
 - **Stage 7-1, seventh batch and last of batch 2: `os_2`/`gasp`/`meta`/`vdmx`.**
   Closes out batch 2 (fixed-length-header-centric files). Unlike the sixth
   batch, two of these four files had real unchecked-offset bugs, matching
