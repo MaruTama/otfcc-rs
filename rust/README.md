@@ -932,6 +932,81 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1, seventh batch and last of batch 2: `os_2`/`gasp`/`meta`/`vdmx`.**
+  Closes out batch 2 (fixed-length-header-centric files). Unlike the sixth
+  batch, two of these four files had real unchecked-offset bugs, matching
+  what the plan's original survey expected from this file group.
+  - **`table/meta/read.rs`: the same overflow-defeats-guard bug class as
+    `cmap.rs`, this time in `meta`.** The header guard was
+    `table.length < 16.wrapping_add(12.wrapping_mul(data_maps_count))` --
+    a `data_maps_count` large enough to overflow `12 * count` (e.g.
+    `0x1555_5556`) wraps the sum back down to something small, so the
+    guard passes even though the real entry array is nowhere near that
+    short, and the loop then read each entry's `tag`/`offset`/`length`
+    straight past the table's actual end. `require_room`'s
+    `checked_mul`/`checked_add` closes this the same way it already did
+    for `name.rs`'s record array. Each entry's own data span
+    (`offset..offset+length`) had the identical wrapping-arithmetic gap
+    (`table.length < offset.wrapping_add(length)`); `FontReader::sub`'s
+    `checked_add` replaces it. Unlike the header-level guard, a single
+    entry failing this check does not drop the whole table -- matching
+    the original, which silently skipped just that one entry and kept
+    going (covered by
+    `entry_whose_span_overflows_offset_plus_length_is_dropped_not_the_whole_table`
+    and `entry_span_past_the_table_end_is_dropped_not_the_whole_table`).
+  - **`table/vdmx/funcs.rs`: `group_offset` had no bounds check at all --
+    not even the wrapping-arithmetic-defeated kind, just nothing.** Each
+    ratio range's offset table entry (`group_offset`, a raw `u16` read
+    straight from the file) was handed directly to `data.offset()` to
+    locate that ratio's VDMX group -- no comparison against the table's
+    actual length anywhere before dereferencing it. A crafted
+    `group_offset` (or a `recs` count implying group entries past the
+    table) could read arbitrarily far out of bounds. Every offset in this
+    reader (ratio range, offset table, group) now goes through
+    `FontReader::at`, so an out-of-range offset fails the read instead of
+    dereferencing it. Unlike `meta`, the original had no existing
+    per-entry skip logic to preserve here, so a bad `group_offset` now
+    fails the whole table (the same "corrupted" warning the header-level
+    guards already used) rather than reading garbage.
+  - **`table/os_2.rs`: mechanical, but the most structurally intricate
+    file in this batch.** Five nested `version >= N && length < M` gates
+    decide, tier by tier, whether the whole table is rejected outright
+    (not merely truncated) when a table claims a higher OS/2 version than
+    its actual length supports. Ported verbatim -- including the
+    pre-existing bug where the version-5 tier's second field write reuses
+    `us_lower_optical_point_size` instead of
+    `us_upper_optical_point_size`, so the latter is never actually
+    populated from the file. Fixing that is a correctness change outside
+    this migration's parse-bounds-safety scope, called out in the code
+    and covered (not fixed) by
+    `version_5_table_leaves_upper_optical_point_size_at_zero`. Sequential
+    `FontReader` reads land on the same fixed byte offsets the original's
+    explicit `data.offset(N)` calls used, because each version tier's
+    length threshold (68 < 78 < 86 < 96 < 100) is strictly increasing and
+    every version-gated read only happens once its own threshold has
+    already passed -- verified both by the field-by-field comments in the
+    code and by `version_1_table_shorter_than_86_is_rejected_even_though_base_fields_parsed`.
+  - **`table/gasp.rs`: mechanical**, already had a sound (non-overflowing,
+    since `num_ranges` is bounded to a `u16`) length guard.
+  - **No behavior change on any committed payload**: `meta-test.ttf` and
+    `vdmx-test.ttf` -- the two golden payloads built specifically to
+    exercise these readers -- both stayed byte-identical, alongside the
+    rest of the 9-payload set with zero exceptions.
+  - 19 new unit tests across the four files.
+  - `rust/scripts/survey-unsafe.sh` deltas: `__fortable_*` 242 → 186,
+    `.offset(` 1585 → 1505, raw pointer types 6497 → 6448.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 132 tests (was 113 -- 19 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log output,
+    zero exceptions), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes.
+  - This closes out Stage 7-1 batch 2. Next: `cmap` -- the file the
+    plan's original survey wrote up as the primary motivating example for
+    this whole stage (`table_offset` read unchecked and used in a
+    `wrapping_sub` that underflows past every downstream guard; a
+    `12 * n_groups` guard expression that itself overflows) -- then the
+    `otl`/`glyf` families.
+
 - **Stage 7-1, sixth batch (start of batch 2): the six fixed-length
   metrics-header tables — `head`/`hhea`/`maxp`/`hmtx`/`vhea`/`vmtx`.**
   Unlike batch 1's files, every one of these six already had a length guard

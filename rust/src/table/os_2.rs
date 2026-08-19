@@ -1,12 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{memcpy};
-use crate::support::binio::{read_16u, read_16s, read_32u};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer};
 use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, json_str_len, json_str_ptr, json_type_of, otfcc_parse_flags};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_bytes};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_from_bytes, otfcc_dump_flags};
@@ -60,212 +59,148 @@ pub struct Os2Table {
 // note on why that matters) confirmed only `.create`/`.free` were ever
 // called, both from within this crate (this file's own read/parse entry
 // points, and `caryll_font.rs`'s table disposal).
+// `length` here means "the whole declared version tier's fields must fit,
+// or the whole table is rejected" -- not merely "read as much as fits".
+// The three `version >= N && length < M` gates are the original's, kept
+// verbatim: a table that *claims* a higher version than its actual length
+// supports is dropped entirely rather than silently truncated, exactly as
+// before. Because each threshold (68 < 78 < 86 < 96 < 100) is strictly
+// increasing and every version-gated read only happens once the
+// corresponding threshold has already passed, reading sequentially through
+// one `FontReader` lands on the same fixed byte offsets the original's
+// `data.offset(N)` calls used explicitly -- confirmed field-by-field below.
+fn parse_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
+    if data.len() < 2 {
+        return Err(ReadError { needed: 2, available: data.len() });
+    }
+    // All-zero is a valid bit pattern for every field (integers and
+    // fixed-size byte arrays only), matching the old `memset`-then-
+    // `.version = 4` construction.
+    let mut os2 = Os2Table {
+        version: 4,
+        x_avg_char_width: 0,
+        us_weight_class: 0,
+        us_width_class: 0,
+        fs_type: 0,
+        y_subscript_x_size: 0,
+        y_subscript_y_size: 0,
+        y_subscript_x_offset: 0,
+        y_subscript_y_offset: 0,
+        y_supscript_x_size: 0,
+        y_supscript_y_size: 0,
+        y_supscript_x_offset: 0,
+        y_supscript_y_offset: 0,
+        y_strikeout_size: 0,
+        y_strikeout_position: 0,
+        s_family_class: 0,
+        panose: [0; 10],
+        ul_unicode_range1: 0,
+        ul_unicode_range2: 0,
+        ul_unicode_range3: 0,
+        ul_unicode_range4: 0,
+        ach_vend_id: [0; 4],
+        fs_selection: 0,
+        us_first_char_index: 0,
+        us_last_char_index: 0,
+        s_typo_ascender: 0,
+        s_typo_descender: 0,
+        s_typo_line_gap: 0,
+        us_win_ascent: 0,
+        us_win_descent: 0,
+        ul_code_page_range1: 0,
+        ul_code_page_range2: 0,
+        sx_height: 0,
+        s_cap_height: 0,
+        us_default_char: 0,
+        us_break_char: 0,
+        us_max_context: 0,
+        us_lower_optical_point_size: 0,
+        us_upper_optical_point_size: 0,
+    };
+    let mut r = FontReader::new(data);
+    os2.version = r.u16()?;
+    if data.len() < 68 {
+        return Err(ReadError { needed: 68, available: data.len() });
+    }
+    os2.x_avg_char_width = r.i16()?;
+    os2.us_weight_class = r.u16()?;
+    os2.us_width_class = r.u16()?;
+    os2.fs_type = r.u16()?;
+    os2.y_subscript_x_size = r.i16()?;
+    os2.y_subscript_y_size = r.i16()?;
+    os2.y_subscript_x_offset = r.i16()?;
+    os2.y_subscript_y_offset = r.i16()?;
+    os2.y_supscript_x_size = r.i16()?;
+    os2.y_supscript_y_size = r.i16()?;
+    os2.y_supscript_x_offset = r.i16()?;
+    os2.y_supscript_y_offset = r.i16()?;
+    os2.y_strikeout_size = r.i16()?;
+    os2.y_strikeout_position = r.i16()?;
+    os2.s_family_class = r.i16()?;
+    os2.panose.copy_from_slice(r.bytes(10)?);
+    os2.ul_unicode_range1 = r.u32()?;
+    os2.ul_unicode_range2 = r.u32()?;
+    os2.ul_unicode_range3 = r.u32()?;
+    os2.ul_unicode_range4 = r.u32()?;
+    os2.ach_vend_id.copy_from_slice(r.bytes(4)?);
+    os2.fs_selection = r.u16()?;
+    os2.us_first_char_index = r.u16()?;
+    os2.us_last_char_index = r.u16()?;
+    if data.len() >= 78 {
+        os2.s_typo_ascender = r.i16()?;
+        os2.s_typo_descender = r.i16()?;
+        os2.s_typo_line_gap = r.i16()?;
+        os2.us_win_ascent = r.u16()?;
+        os2.us_win_descent = r.u16()?;
+    }
+    if os2.version >= 1 && data.len() < 86 {
+        return Err(ReadError { needed: 86, available: data.len() });
+    }
+    if os2.version >= 1 {
+        os2.ul_code_page_range1 = r.u32()?;
+        os2.ul_code_page_range2 = r.u32()?;
+    }
+    if os2.version >= 2 && data.len() < 96 {
+        return Err(ReadError { needed: 96, available: data.len() });
+    }
+    if os2.version >= 2 {
+        os2.sx_height = r.i16()?;
+        os2.s_cap_height = r.i16()?;
+        os2.us_default_char = r.u16()?;
+        os2.us_break_char = r.u16()?;
+        os2.us_max_context = r.u16()?;
+    }
+    if os2.version >= 5 && data.len() < 100 {
+        return Err(ReadError { needed: 100, available: data.len() });
+    }
+    if os2.version >= 5 {
+        // Preserving the original's bug verbatim: both reads assign to
+        // `us_lower_optical_point_size`, so `us_upper_optical_point_size`
+        // is never actually populated from the file (stays 0). Fixing this
+        // is a correctness change outside this migration's parse-bounds-
+        // safety scope; see rust/README.md.
+        os2.us_lower_optical_point_size = r.u16()?;
+        os2.us_lower_optical_point_size = r.u16()?;
+    }
+    Ok(os2)
+}
 pub unsafe fn otfcc_read_os_2(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<Os2Table>> {
-    let mut os_2_box: Option<Box<Os2Table>> = None;
-    let mut os_2: *mut Os2Table = ::core::ptr::null_mut::<Os2Table>();
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_OS_2 {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
-                    if !(length < 2 as u32) {
-                        // All-zero is a valid bit pattern for every field
-                        // (integers and fixed-size byte arrays only), matching
-                        // the old `memset`-then-`.version = 4` construction.
-                        let mut os2_val: Os2Table = ::core::mem::zeroed();
-                        os2_val.version = 4;
-                        os_2_box = Some(Box::new(os2_val));
-                        os_2 = os_2_box.as_deref_mut().unwrap() as *mut Os2Table;
-                        (*os_2).version = read_16u(data as *const u8);
-                        if !(length < 68 as u32) {
-                            (*os_2).x_avg_char_width = read_16u(
-                                data.offset(2 as ::core::ffi::c_int as isize) as *const u8,
-                            ) as i16;
-                            (*os_2).us_weight_class = read_16u(
-                                data.offset(4 as ::core::ffi::c_int as isize) as *const u8,
-                            );
-                            (*os_2).us_width_class = read_16u(
-                                data.offset(6 as ::core::ffi::c_int as isize) as *const u8,
-                            );
-                            (*os_2).fs_type = read_16u(
-                                data.offset(8 as ::core::ffi::c_int as isize) as *const u8,
-                            );
-                            (*os_2).y_subscript_x_size =
-                                read_16u(data.offset(10 as ::core::ffi::c_int as isize)
-                                    as *const u8) as i16;
-                            (*os_2).y_subscript_y_size =
-                                read_16u(data.offset(12 as ::core::ffi::c_int as isize)
-                                    as *const u8) as i16;
-                            (*os_2).y_subscript_x_offset =
-                                read_16u(data.offset(14 as ::core::ffi::c_int as isize)
-                                    as *const u8) as i16;
-                            (*os_2).y_subscript_y_offset =
-                                read_16u(data.offset(16 as ::core::ffi::c_int as isize)
-                                    as *const u8) as i16;
-                            (*os_2).y_supscript_x_size =
-                                read_16u(data.offset(18 as ::core::ffi::c_int as isize)
-                                    as *const u8) as i16;
-                            (*os_2).y_supscript_y_size =
-                                read_16u(data.offset(20 as ::core::ffi::c_int as isize)
-                                    as *const u8) as i16;
-                            (*os_2).y_supscript_x_offset =
-                                read_16u(data.offset(22 as ::core::ffi::c_int as isize)
-                                    as *const u8) as i16;
-                            (*os_2).y_supscript_y_offset =
-                                read_16u(data.offset(24 as ::core::ffi::c_int as isize)
-                                    as *const u8) as i16;
-                            (*os_2).y_strikeout_size =
-                                read_16u(data.offset(26 as ::core::ffi::c_int as isize)
-                                    as *const u8) as i16;
-                            (*os_2).y_strikeout_position =
-                                read_16u(data.offset(28 as ::core::ffi::c_int as isize)
-                                    as *const u8) as i16;
-                            (*os_2).s_family_class =
-                                read_16u(data.offset(30 as ::core::ffi::c_int as isize)
-                                    as *const u8) as i16;
-                            memcpy(
-                                &raw mut (*os_2).panose as *mut u8 as *mut ::core::ffi::c_void,
-                                data.offset(32 as ::core::ffi::c_int as isize)
-                                    as *const ::core::ffi::c_void,
-                                10 as usize,
-                            );
-                            (*os_2).ul_unicode_range1 =
-                                read_32u(data.offset(42 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*os_2).ul_unicode_range2 =
-                                read_32u(data.offset(46 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*os_2).ul_unicode_range3 =
-                                read_32u(data.offset(50 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*os_2).ul_unicode_range4 =
-                                read_32u(data.offset(54 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            memcpy(
-                                &raw mut (*os_2).ach_vend_id as *mut u8
-                                    as *mut ::core::ffi::c_void,
-                                data.offset(58 as ::core::ffi::c_int as isize)
-                                    as *const ::core::ffi::c_void,
-                                4 as usize,
-                            );
-                            (*os_2).fs_selection =
-                                read_16u(data.offset(62 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*os_2).us_first_char_index =
-                                read_16u(data.offset(64 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*os_2).us_last_char_index =
-                                read_16u(data.offset(66 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            if length >= 78 as u32 {
-                                (*os_2).s_typo_ascender =
-                                    read_16s(data.offset(68 as ::core::ffi::c_int as isize)
-                                        as *const u8);
-                                (*os_2).s_typo_descender =
-                                    read_16s(data.offset(70 as ::core::ffi::c_int as isize)
-                                        as *const u8);
-                                (*os_2).s_typo_line_gap =
-                                    read_16s(data.offset(72 as ::core::ffi::c_int as isize)
-                                        as *const u8);
-                                (*os_2).us_win_ascent =
-                                    read_16u(data.offset(74 as ::core::ffi::c_int as isize)
-                                        as *const u8);
-                                (*os_2).us_win_descent =
-                                    read_16u(data.offset(76 as ::core::ffi::c_int as isize)
-                                        as *const u8);
-                            }
-                            if !((*os_2).version as ::core::ffi::c_int >= 1 as ::core::ffi::c_int
-                                && length < 86 as u32)
-                            {
-                                if (*os_2).version as ::core::ffi::c_int >= 1 as ::core::ffi::c_int
-                                {
-                                    (*os_2).ul_code_page_range1 =
-                                        read_32u(data.offset(78 as ::core::ffi::c_int as isize)
-                                            as *const u8);
-                                    (*os_2).ul_code_page_range2 =
-                                        read_32u(data.offset(82 as ::core::ffi::c_int as isize)
-                                            as *const u8);
-                                }
-                                if !((*os_2).version as ::core::ffi::c_int
-                                    >= 2 as ::core::ffi::c_int
-                                    && length < 96 as u32)
-                                {
-                                    if (*os_2).version as ::core::ffi::c_int
-                                        >= 2 as ::core::ffi::c_int
-                                    {
-                                        (*os_2).sx_height = read_16s(
-                                            data.offset(86 as ::core::ffi::c_int as isize)
-                                                as *const u8,
-                                        );
-                                        (*os_2).s_cap_height = read_16s(
-                                            data.offset(88 as ::core::ffi::c_int as isize)
-                                                as *const u8,
-                                        );
-                                        (*os_2).us_default_char = read_16u(
-                                            data.offset(90 as ::core::ffi::c_int as isize)
-                                                as *const u8,
-                                        );
-                                        (*os_2).us_break_char = read_16u(
-                                            data.offset(92 as ::core::ffi::c_int as isize)
-                                                as *const u8,
-                                        );
-                                        (*os_2).us_max_context = read_16u(
-                                            data.offset(94 as ::core::ffi::c_int as isize)
-                                                as *const u8,
-                                        );
-                                    }
-                                    if !((*os_2).version as ::core::ffi::c_int
-                                        >= 5 as ::core::ffi::c_int
-                                        && length < 100 as u32)
-                                    {
-                                        if (*os_2).version as ::core::ffi::c_int
-                                            >= 5 as ::core::ffi::c_int
-                                        {
-                                            (*os_2).us_lower_optical_point_size = read_16u(
-                                                data.offset(96 as ::core::ffi::c_int as isize)
-                                                    as *const u8,
-                                            );
-                                            (*os_2).us_lower_optical_point_size = read_16u(
-                                                data.offset(98 as ::core::ffi::c_int as isize)
-                                                    as *const u8,
-                                            );
-                                        }
-                                        return os_2_box;
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    logger_log_sds(
-                        (*options).logger,
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(b"table 'OS/2' corrupted.\n"),
-                    );
-                    os_2_box = None;
-                    os_2 = ::core::ptr::null_mut::<Os2Table>();
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_OS_2)?;
+    match parse_os_2(&table.data) {
+        Ok(os2) => Some(Box::new(os2)),
+        Err(_) => {
+            logger_log_sds(
+                (*options).logger,
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"table 'OS/2' corrupted.\n"),
+            );
+            None
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
     }
-    return None;
 }
 pub static FS_TYPE_LABELS: [&::core::ffi::CStr; 10] = [
     c"_reserved1",
@@ -1090,4 +1025,72 @@ pub unsafe fn otfcc_build_os_2(
     bufwrite16b(buf, (*os_2).us_lower_optical_point_size);
     bufwrite16b(buf, (*os_2).us_upper_optical_point_size);
     return buf;
+}
+
+#[cfg(test)]
+mod parse_os_2_tests {
+    use super::*;
+
+    fn version_0_base(us_weight_class: u16) -> Vec<u8> {
+        let mut data = vec![0u8; 68];
+        data[0..2].copy_from_slice(&0u16.to_be_bytes()); // version 0
+        data[4..6].copy_from_slice(&us_weight_class.to_be_bytes());
+        data
+    }
+
+    #[test]
+    fn version_0_table_needs_only_68_bytes() {
+        let os2 = parse_os_2(&version_0_base(700)).unwrap();
+        assert_eq!(os2.version, 0);
+        assert_eq!(os2.us_weight_class, 700);
+    }
+
+    #[test]
+    fn table_one_byte_short_of_68_is_rejected() {
+        let mut data = version_0_base(700);
+        data.truncate(67);
+        assert!(parse_os_2(&data).is_err());
+    }
+
+    #[test]
+    fn version_1_table_shorter_than_86_is_rejected_even_though_base_fields_parsed() {
+        // The base (0..68) and typo/win (68..78) fields are all in bounds
+        // here -- only the version-1-specific code-page-range fields
+        // (78..86) are missing. The original drops the *whole* table in
+        // this case rather than returning what it already read.
+        let mut data = version_0_base(0);
+        data[0..2].copy_from_slice(&1u16.to_be_bytes()); // version 1
+        data.resize(85, 0);
+        assert!(parse_os_2(&data).is_err());
+    }
+
+    #[test]
+    fn version_1_table_with_86_bytes_reads_code_page_ranges() {
+        let mut data = version_0_base(0);
+        data[0..2].copy_from_slice(&1u16.to_be_bytes());
+        data.resize(86, 0);
+        data[78..82].copy_from_slice(&0x0000_0001u32.to_be_bytes());
+        let os2 = parse_os_2(&data).unwrap();
+        assert_eq!(os2.ul_code_page_range1, 1);
+    }
+
+    #[test]
+    fn version_5_table_leaves_upper_optical_point_size_at_zero() {
+        // Preserving the original's field-name bug: both reads at this
+        // version tier assign to `us_lower_optical_point_size`, so
+        // `us_upper_optical_point_size` is never actually populated.
+        let mut data = version_0_base(0);
+        data[0..2].copy_from_slice(&5u16.to_be_bytes());
+        data.resize(100, 0);
+        data[96..98].copy_from_slice(&12u16.to_be_bytes());
+        data[98..100].copy_from_slice(&34u16.to_be_bytes());
+        let os2 = parse_os_2(&data).unwrap();
+        assert_eq!(os2.us_lower_optical_point_size, 34);
+        assert_eq!(os2.us_upper_optical_point_size, 0);
+    }
+
+    #[test]
+    fn one_byte_table_is_rejected_before_reading_the_version_field() {
+        assert!(parse_os_2(&[0x00]).is_err());
+    }
 }
