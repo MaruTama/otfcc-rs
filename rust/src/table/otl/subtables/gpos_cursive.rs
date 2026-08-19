@@ -4,7 +4,7 @@ use libc::{free, malloc};
 use crate::support::parsed_json::{ParsedValue, json_obj_get, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
@@ -12,7 +12,7 @@ use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
-use crate::table::otl::{Anchor, GposCursiveEntry, Subtable, GposCursiveSubtable, subtable_from_raw};
+use crate::table::otl::{GposCursiveEntry, Subtable, GposCursiveSubtable, subtable_from_raw};
 use crate::table::otl::subtables::{BuildHeuristics};
 use crate::bk::bkblock::{bk_new_block_from_buffer};
 use crate::bk::bkgraph::{bk_build_block};
@@ -41,93 +41,65 @@ unsafe fn subtable_gpos_cursive_create() -> *mut GposCursiveSubtable {
 }
 pub unsafe fn otl_read_gpos_cursive(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     _max_glyphs: GlyphId,
-    mut _options: *const Options,
+    _options: *const Options,
 ) -> *mut Subtable {
-    let mut value_count: GlyphId = 0;
     let subtable: *mut GposCursiveSubtable = subtable_gpos_cursive_create();
     let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    if !(table_length < offset.wrapping_add(6 as u32)) {
-        targets = read_coverage(
-            data as *const u8,
-            table_length,
-            offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
-        );
-        if !(targets.is_null()
-            || (*targets).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
-        {
-            value_count = read_16u(
-                data.offset(offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-            ) as GlyphId;
-            if !(table_length
-                < offset.wrapping_add(6 as u32).wrapping_add(
-                    (4 as ::core::ffi::c_int * value_count as ::core::ffi::c_int) as u32,
-                ))
-            {
-                if !(value_count as ::core::ffi::c_int != (*targets).len() as GlyphId as ::core::ffi::c_int)
-                {
-                    let mut j: GlyphId = 0 as GlyphId;
-                    while (j as ::core::ffi::c_int) < value_count as ::core::ffi::c_int {
-                        let mut enter_offset: u16 = read_16u(
-                            data.offset(offset as isize)
-                                .offset(6 as ::core::ffi::c_int as isize)
-                                .offset(
-                                    (4 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize,
-                                ) as *const u8,
-                        );
-                        let mut exit_offset: u16 = read_16u(
-                            data.offset(offset as isize)
-                                .offset(6 as ::core::ffi::c_int as isize)
-                                .offset(
-                                    (4 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize,
-                                )
-                                .offset(2 as ::core::ffi::c_int as isize)
-                                as *const u8,
-                        );
-                        let mut enter: Anchor = otl_anchor_absent();
-                        let mut exit: Anchor = otl_anchor_absent();
-                        if enter_offset != 0 {
-                            enter = otl_read_anchor(
-                                data,
-                                table_length,
-                                offset.wrapping_add(enter_offset as u32),
-                            );
-                        }
-                        if exit_offset != 0 {
-                            exit = otl_read_anchor(
-                                data,
-                                table_length,
-                                offset.wrapping_add(exit_offset as u32),
-                            );
-                        }
-                        (*subtable).push(GposCursiveEntry {
-                            target: otfcc_handle_dup(
-                                (&(*targets))[j as usize].clone() as Handle,
-                            ) as GlyphHandle,
-                            enter: enter,
-                            exit: exit,
-                        });
-                        j = j.wrapping_add(1);
-                    }
-                    if !targets.is_null() {
-                        otl_coverage_free(targets);
-                    }
-                    return subtable_from_raw(subtable, Subtable::GposCursive);
-                }
-            }
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+
+    'parse: {
+        let mut header = match FontReader::new(slice).at(offset as usize) {
+            Ok(r) => r,
+            Err(_) => break 'parse,
+        };
+        if header.skip(2).is_err() {
+            break 'parse; // format, unused
         }
+        let Ok(from_rel) = header.u16() else { break 'parse };
+        let Ok(value_count) = header.u16() else { break 'parse };
+
+        targets = read_coverage(data, table_length, offset.wrapping_add(from_rel as u32));
+        if targets.is_null() || (*targets).is_empty() {
+            break 'parse;
+        }
+        if header.require_room(value_count as usize, 4).is_err() {
+            break 'parse;
+        }
+        if value_count as usize != (*targets).len() {
+            break 'parse;
+        }
+
+        for j in 0..value_count {
+            let Ok(enter_offset) = header.u16() else { break 'parse };
+            let Ok(exit_offset) = header.u16() else { break 'parse };
+            let enter = if enter_offset != 0 {
+                otl_read_anchor(data, table_length, offset.wrapping_add(enter_offset as u32))
+            } else {
+                otl_anchor_absent()
+            };
+            let exit = if exit_offset != 0 {
+                otl_read_anchor(data, table_length, offset.wrapping_add(exit_offset as u32))
+            } else {
+                otl_anchor_absent()
+            };
+            (*subtable).push(GposCursiveEntry {
+                target: otfcc_handle_dup((&(*targets))[j as usize].clone() as Handle) as GlyphHandle,
+                enter,
+                exit,
+            });
+        }
+        otl_coverage_free(targets);
+        return subtable_from_raw(subtable, Subtable::GposCursive);
     }
+
     if !targets.is_null() {
         otl_coverage_free(targets);
     }
     subtable_gpos_cursive_free(subtable);
-    return ::core::ptr::null_mut::<Subtable>();
+    ::core::ptr::null_mut::<Subtable>()
 }
 pub unsafe extern "C" fn otl_gpos_dump_cursive(
     mut _subtable: *const Subtable,
@@ -208,4 +180,57 @@ pub unsafe extern "C" fn otfcc_build_gpos_cursive(
     }
     otl_coverage_free(cov);
     return bk_build_block(root);
+}
+
+#[cfg(test)]
+mod otl_read_gpos_cursive_tests {
+    use super::*;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    #[test]
+    fn well_formed_table_with_absent_anchors_reads_the_target() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes()); // format
+        data.extend_from_slice(&10u16.to_be_bytes()); // coverageOffset -> 10
+        data.extend_from_slice(&1u16.to_be_bytes()); // entryExitCount
+        data.extend_from_slice(&0u16.to_be_bytes()); // entryAnchorOffset (absent)
+        data.extend_from_slice(&0u16.to_be_bytes()); // exitAnchorOffset (absent)
+        // Coverage format 1 at byte 10: one glyph, id 5.
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&5u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_cursive(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GposCursive(entries) = &*boxed else { unreachable!() };
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].target.index, 5);
+        }
+    }
+
+    #[test]
+    fn entry_exit_count_mismatch_with_coverage_is_rejected() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&14u16.to_be_bytes()); // coverageOffset -> 14 (after the 2-record array)
+        data.extend_from_slice(&2u16.to_be_bytes()); // entryExitCount claims 2
+        data.extend_from_slice(&0u16.to_be_bytes()); // record0.enter
+        data.extend_from_slice(&0u16.to_be_bytes()); // record0.exit
+        data.extend_from_slice(&0u16.to_be_bytes()); // record1.enter
+        data.extend_from_slice(&0u16.to_be_bytes()); // record1.exit
+        // Coverage format 1 at byte 14: only 1 glyph, not 2.
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&5u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_cursive(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(raw.is_null());
+        }
+    }
 }

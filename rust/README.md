@@ -932,6 +932,61 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `otl/subtables/{gsub_single,gsub_multi,gpos_cursive}.rs`
+  -- first batch of individual subtable readers.** Chosen as the
+  smallest, self-contained single-format readers to start this next
+  round with. Each takes `otl_read_otl_subtable`'s original raw-pointer
+  `(data: FontFilePointer, table_length: u32, subtable_offset: u32, ...)`
+  signature unchanged (their caller in `otl/read.rs` isn't touched
+  again, and neither are `Coverage`/`otl_read_anchor` in
+  `coverage.rs`/`gpos_common.rs`, both still raw-pointer-shaped) --
+  internally, each reconstructs a `&[u8]` via `slice::from_raw_parts`
+  and uses `FontReader` for its own header fields, same boundary
+  discipline as `coverage.rs`/`classdef.rs`'s PR.
+  - **Where the original had `current_block` goto-emulation for a
+    header parse that either fully succeeds or bails to shared cleanup**
+    (freeing whatever coverage tables were already read, freeing the
+    subtable shell), the rewrite uses a labeled block
+    (`'parse: { ...; break 'parse; }`) instead -- the same shape
+    `otl/read.rs`'s `?`-propagation used, but suited to these functions
+    because they interleave `FontReader` header reads with raw-pointer
+    `Coverage`/`Anchor` calls that a pure `Result` chain can't cleanly
+    wrap without more churn than this batch's scope justifies.
+  - **`gsub_multi.rs`: a real, previously-undocumented bug, same shape
+    as `otl/read.rs`'s `langSysRecords` one.** Each Sequence subtable
+    (reached via a per-entry `sequenceOffsets[]` array) had *no* length
+    guard at all -- neither `seq_offset` itself nor the Sequence's own
+    `glyphCount` (a full attacker-controlled u16) were checked against
+    the table's actual length before reading that many glyph IDs.
+    `FontReader::at`/`require_room` close both, independently: covered
+    by `sequence_offset_past_the_table_end_is_rejected_instead_of_reading_oob`
+    and
+    `sequence_glyph_count_larger_than_available_is_rejected_instead_of_reading_oob`.
+  - **`gsub_single.rs` and `gpos_cursive.rs` were already fully
+    guarded** in the original (their `toglyphs`/`value_count` array
+    guards use a `u16`-bounded multiplier, so no overflow risk either) --
+    both are mechanical conversions, not bug fixes.
+  - **No behavior change on any committed payload**: the golden set's
+    three dedicated payloads for these exact readers
+    (`gsub-single-dedup.ttf`, `gsub-multi-dedup.ttf`,
+    `gpos-cursive-dedup.ttf`) plus `unknown-lookup.ttf` (51 GSUB
+    lookups) all stayed byte-identical. 8 new unit tests cover the one
+    fixed bug plus well-formed/mismatched-count cases for all three
+    readers, since no committed payload happens to be malformed here --
+    caught two of my own test-data offset mistakes this way (a header
+    length miscount and a stale coverage offset) before they could hide
+    a real bug behind a coincidentally-passing assertion.
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 1352 → 1320, raw
+    pointer types 6407 → 6398, `current_block` 68 → 64.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 165 tests (was 157 -- 8 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log
+    output, zero exceptions), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes.
+  - Next: the remaining `otl/subtables/*` readers
+    (gpos_single/pair/mark_to_*, gsub_ligature/reverse,
+    `chaining/read.rs`), same boundary pattern.
+
 - **Stage 7-1: `otl/read.rs` -- the top-level GSUB/GPOS/GDEF
   script/feature/lookup-list parser.** The single biggest structural
   change in this stage so far: `otfcc_read_otl_common` was five levels of
