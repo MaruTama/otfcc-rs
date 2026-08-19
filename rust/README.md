@@ -932,6 +932,59 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `otl/subtables/{gsub_ligature,gpos_mark_to_ligature}.rs`
+  -- third batch of individual subtable readers.** Same boundary
+  discipline as the previous two batches.
+  - **`gpos_mark_to_ligature.rs`: the same overflow-defeats-guard bug as
+    `gpos_mark_to_single.rs`'s, but sharper.** The LigatureAttach's
+    byte-length guard is `2 * component_count * class_count` -- unlike
+    `gpos_mark_to_single.rs`'s `bases.len() * class_count` (where one
+    factor is at least bounded by the actual glyph count), *both*
+    `component_count` and `class_count` here are independently unbounded
+    `u16` fields read straight from the file, so the product can reach
+    65535*65535*2 (~8.6 billion) from a much smaller, more plausible
+    crafted input. Fixed the same way: `checked_mul` on `usize`.
+  - **`init_mark_to_ligature`: the exact same calloc'd-struct
+    plain-assignment UB that CI's `miri` job caught in the previous PR's
+    `gpos_mark_to_single.rs`.** Found by inspection this time, before
+    pushing, rather than by CI -- once one instance of this pattern turns
+    up in one `init_*` function in this file family, it's worth checking
+    every sibling `init_*` right away rather than waiting for `miri` to
+    find each one independently. Fixed with the same `.write()` pattern.
+  - **`gsub_ligature.rs`: the same pre-existing Coverage leak as
+    `gpos_mark_to_single.rs`'s, from the previous batch** --
+    `start_coverage` (always-allocated by `read_coverage`) was only freed
+    on the success path in the original; every failure guard reached
+    after it was read leaked it. Fixed by freeing it on both the success
+    and failure paths uniformly, matching `gsub_ligature.rs`'s own
+    `current_block`-eliminated structure. Also dropped `ligature_count`,
+    an accumulator the original computed (summing each LigatureSet's own
+    ligature count as an incidental side effect of validating it) but,
+    per a full grep, never actually read afterward -- the same kind of
+    vestigial validation-only computation `otl/read.rs`'s
+    `n_language_combinations` turned out to be.
+  - **No behavior change on any committed payload**: `KRName-Regular.otf`
+    (a font with real ligature substitutions) and
+    `mark-consolidate-dedup.ttf` (built specifically to exercise
+    `gpos_mark_to_base`/`gpos_mark_to_ligature`) both stayed
+    byte-identical. 5 new unit tests cover the fixed bugs plus
+    well-formed/mismatched-count cases. Ran `cargo miri test` locally
+    before pushing this time, learning from the previous PR's CI-caught
+    finding.
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 1278 → 1240, raw
+    pointer types 6380 → 6362, `current_block` 58 → 44 -- eliminated in
+    both files this batch.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 177 tests (was 172 -- 5 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log
+    output, zero exceptions), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes, `cargo miri test` clean
+    locally.
+  - Next: `gpos_pair.rs` (865 lines, the last "regular" subtable reader
+    left) and `chaining/read.rs` (1,246 lines, the largest and most
+    structurally complex file in this family) -- likely each its own PR
+    given their size.
+
 - **Stage 7-1: `otl/subtables/{gpos_single,gsub_reverse,gpos_mark_to_single}.rs`
   -- second batch of individual subtable readers.** Same boundary
   discipline as the previous batch: raw-pointer public signatures

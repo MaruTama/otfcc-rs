@@ -7,7 +7,7 @@ use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_fr
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
@@ -30,8 +30,13 @@ pub(crate) unsafe fn dispose_lig_array(arr: *mut LigatureArray) {
     *arr = Vec::new();
 }
 unsafe fn init_mark_to_ligature(subtable: *mut GposMarkToLigatureSubtable) {
-    (*subtable).mark_array = Vec::new();
-    (*subtable).lig_array = Vec::new();
+    // `.write()`, not `=`: `subtable` is fresh from `__caryll_allocate_clean`
+    // (calloc'd, all zero bits), so a plain assignment would drop the
+    // all-zero `Vec` "already there" first -- UB per miri, the same bug
+    // `init_mark_to_single` in the sibling file had (see its comment and
+    // `otfcc-vec-field-assign-needs-calloc` in this repo's memory notes).
+    (&raw mut (*subtable).mark_array).write(Vec::new());
+    (&raw mut (*subtable).lig_array).write(Vec::new());
 }
 pub(crate) unsafe fn subtable_gpos_mark_to_ligature_free(x: *mut GposMarkToLigatureSubtable) {
     if x.is_null() {
@@ -52,160 +57,100 @@ unsafe fn subtable_gpos_mark_to_ligature_create() -> *mut GposMarkToLigatureSubt
     init_mark_to_ligature(x);
     x
 }
+// `2 * component_count * class_count` (the LigatureAttach's byte-length
+// guard) is the same overflow-defeats-guard shape as
+// `gpos_mark_to_single.rs`'s `bases.len() * class_count`, but sharper
+// here: *both* factors are independently unbounded `u16` fields read
+// straight from the file (unlike `bases.len()`, which is at least bounded
+// by the actual glyph count), so the product can reach 65535*65535*2 --
+// ~8.6 billion -- from a much smaller, more plausible crafted input.
+// Fixed the same way: `checked_mul` on `usize` before `require_room`.
 pub unsafe fn otl_read_gpos_mark_to_ligature(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     _max_glyphs: GlyphId,
-    mut _options: *const Options,
+    _options: *const Options,
 ) -> *mut Subtable {
-    let mut mark_array_offset: u32 = 0;
-    let mut lig_array_offset: u32 = 0;
-    let mut current_block: u64;
-    let mut subtable: *mut GposMarkToLigatureSubtable = subtable_gpos_mark_to_ligature_create();
+    let subtable: *mut GposMarkToLigatureSubtable = subtable_gpos_mark_to_ligature_create();
     let mut marks: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let mut bases: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    if !(table_length < offset.wrapping_add(12 as u32)) {
-        marks = read_coverage(
-            data as *const u8,
-            table_length,
-            offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
-        );
-        bases = read_coverage(
-            data as *const u8,
-            table_length,
-            offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
-        );
-        if !(marks.is_null()
-            || (*marks).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-            || bases.is_null()
-            || (*bases).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
-        {
-            (*subtable).class_count = read_16u(
-                data.offset(offset as isize)
-                    .offset(6 as ::core::ffi::c_int as isize) as *const u8,
-            ) as GlyphClass;
-            mark_array_offset = offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(8 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32);
-            otl_read_mark_array(
-                &raw mut (*subtable).mark_array,
-                marks,
-                data,
-                table_length,
-                mark_array_offset,
-            );
-            lig_array_offset = offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(10 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32);
-            if !(table_length
-                < lig_array_offset.wrapping_add(2 as u32).wrapping_add(
-                    (2 as ::core::ffi::c_int * (*bases).len() as GlyphId as ::core::ffi::c_int)
-                        as u32,
-                ))
-            {
-                if !(read_16u(data.offset(lig_array_offset as isize) as *const u8)
-                    as ::core::ffi::c_int
-                    != (*bases).len() as GlyphId as ::core::ffi::c_int)
-                {
-                    let mut j: GlyphId = 0 as GlyphId;
-                    loop {
-                        if !((j as ::core::ffi::c_int) < (*bases).len() as GlyphId as ::core::ffi::c_int) {
-                            current_block = 17788412896529399552;
-                            break;
-                        }
-                        let mut lig: LigatureBaseRecord = LigatureBaseRecord {
-                            glyph: Handle {
-                                state: HandleState::Empty,
-                                index: 0,
-                                name: Vec::new(),
-                            },
-                            component_count: 0,
-                            anchors: Vec::new(),
-                        };
-                        lig.glyph = otfcc_handle_dup(
-                            (&(*bases))[j as usize].clone() as Handle,
-                        ) as GlyphHandle;
-                        let mut lig_attach_offset: u32 = lig_array_offset.wrapping_add(read_16u(
-                            data.offset(lig_array_offset as isize)
-                                .offset(2 as ::core::ffi::c_int as isize)
-                                .offset(
-                                    (j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
-                                ) as *const u8,
-                        )
-                            as u32);
-                        if table_length < lig_attach_offset.wrapping_add(2 as u32) {
-                            current_block = 14470250473917821325;
-                            break;
-                        }
-                        lig.component_count =
-                            read_16u(data.offset(lig_attach_offset as isize) as *const u8)
-                                as GlyphId;
-                        if table_length
-                            < lig_attach_offset.wrapping_add(2 as u32).wrapping_add(
-                                (2 as ::core::ffi::c_int
-                                    * lig.component_count as ::core::ffi::c_int
-                                    * (*subtable).class_count as ::core::ffi::c_int)
-                                    as u32,
-                            )
-                        {
-                            current_block = 14470250473917821325;
-                            break;
-                        }
-                        lig.anchors = Vec::with_capacity(lig.component_count as usize);
-                        let mut _offset: u32 = lig_attach_offset.wrapping_add(2 as u32);
-                        let mut k: GlyphId = 0 as GlyphId;
-                        while (k as ::core::ffi::c_int) < lig.component_count as ::core::ffi::c_int {
-                            let mut component: Vec<Anchor> =
-                                Vec::with_capacity((*subtable).class_count as usize);
-                            let mut m: GlyphClass = 0 as GlyphClass;
-                            while (m as ::core::ffi::c_int)
-                                < (*subtable).class_count as ::core::ffi::c_int
-                            {
-                                let mut anchor_offset: u32 =
-                                    read_16u(data.offset(_offset as isize) as *const u8)
-                                        as u32;
-                                if anchor_offset != 0 {
-                                    component.push(otl_read_anchor(
-                                        data,
-                                        table_length,
-                                        lig_attach_offset.wrapping_add(anchor_offset),
-                                    ));
-                                } else {
-                                    component.push(otl_anchor_absent());
-                                }
-                                _offset = _offset.wrapping_add(2 as u32);
-                                m = m.wrapping_add(1);
-                            }
-                            lig.anchors.push(component);
-                            k = k.wrapping_add(1);
-                        }
-                        (*subtable).lig_array.push(lig);
-                        j = j.wrapping_add(1);
-                    }
-                    match current_block {
-                        14470250473917821325 => {}
-                        _ => {
-                            if !marks.is_null() {
-                                otl_coverage_free(marks);
-                            }
-                            if !bases.is_null() {
-                                otl_coverage_free(bases);
-                            }
-                            return subtable_from_raw(subtable, Subtable::GposMarkToLigature);
-                        }
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+
+    'parse: {
+        let mut header = match FontReader::new(slice).at(offset as usize) {
+            Ok(r) => r,
+            Err(_) => break 'parse,
+        };
+        if header.skip(2).is_err() {
+            break 'parse; // format, unused
+        }
+        let Ok(marks_rel) = header.u16() else { break 'parse };
+        let Ok(bases_rel) = header.u16() else { break 'parse };
+        let Ok(class_count) = header.u16() else { break 'parse };
+        let Ok(mark_array_rel) = header.u16() else { break 'parse };
+        let Ok(lig_array_rel) = header.u16() else { break 'parse };
+
+        marks = read_coverage(data, table_length, offset.wrapping_add(marks_rel as u32));
+        bases = read_coverage(data, table_length, offset.wrapping_add(bases_rel as u32));
+        if marks.is_null() || (*marks).is_empty() || bases.is_null() || (*bases).is_empty() {
+            break 'parse;
+        }
+
+        (*subtable).class_count = class_count as GlyphClass;
+        let mark_array_offset = offset.wrapping_add(mark_array_rel as u32);
+        otl_read_mark_array(&raw mut (*subtable).mark_array, marks, data, table_length, mark_array_offset);
+
+        let lig_array_offset = offset.wrapping_add(lig_array_rel as u32);
+        let Ok(mut lr) = FontReader::new(slice).at(lig_array_offset as usize) else { break 'parse };
+        let Ok(lig_count) = lr.u16() else { break 'parse };
+        if lig_count as usize != (*bases).len() {
+            break 'parse;
+        }
+        if lr.require_room(lig_count as usize, 2).is_err() {
+            break 'parse;
+        }
+        let mut lig_attach_offsets = Vec::with_capacity(lig_count as usize);
+        for _ in 0..lig_count {
+            lig_attach_offsets.push(lig_array_offset.wrapping_add(lr.u16().unwrap() as u32));
+        }
+
+        for (j, &lig_attach_offset) in lig_attach_offsets.iter().enumerate() {
+            let Ok(mut ar) = FontReader::new(slice).at(lig_attach_offset as usize) else { break 'parse };
+            let Ok(component_count) = ar.u16() else { break 'parse };
+            let Some(total_anchors) = (component_count as usize).checked_mul(class_count as usize) else {
+                break 'parse;
+            };
+            if ar.require_room(total_anchors, 2).is_err() {
+                break 'parse;
+            }
+            let mut lig = LigatureBaseRecord {
+                glyph: otfcc_handle_dup((&(*bases))[j].clone() as Handle) as GlyphHandle,
+                component_count,
+                anchors: Vec::with_capacity(component_count as usize),
+            };
+            for _ in 0..component_count {
+                let mut component: Vec<Anchor> = Vec::with_capacity(class_count as usize);
+                for _ in 0..class_count {
+                    let anchor_rel = ar.u16().unwrap();
+                    if anchor_rel != 0 {
+                        component.push(otl_read_anchor(data, table_length, lig_attach_offset.wrapping_add(anchor_rel as u32)));
+                    } else {
+                        component.push(otl_anchor_absent());
                     }
                 }
+                lig.anchors.push(component);
             }
+            (*subtable).lig_array.push(lig);
         }
+
+        if !marks.is_null() {
+            otl_coverage_free(marks);
+        }
+        if !bases.is_null() {
+            otl_coverage_free(bases);
+        }
+        return subtable_from_raw(subtable, Subtable::GposMarkToLigature);
     }
     if !marks.is_null() {
         otl_coverage_free(marks);
@@ -214,7 +159,7 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
         otl_coverage_free(bases);
     }
     subtable_gpos_mark_to_ligature_free(subtable);
-    return ::core::ptr::null_mut::<Subtable>();
+    ::core::ptr::null_mut::<Subtable>()
 }
 pub unsafe extern "C" fn otl_gpos_dump_mark_to_ligature(
     mut st: *const Subtable,
@@ -476,4 +421,106 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
     otl_coverage_free(marks);
     otl_coverage_free(bases);
     return bk_build_block(root);
+}
+
+#[cfg(test)]
+mod otl_read_gpos_mark_to_ligature_tests {
+    use super::*;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    // format(2)@0, marksOffset(2)@2 -> 12, ligatureOffset(2)@4 -> 18,
+    // classCount(2)@6, markArrayOffset(2)@8 -> 24, ligatureArrayOffset(2)
+    // @10 -> 26; marks coverage @12 (glyph 5); ligature coverage @18
+    // (glyph 6); mark array @24 (markCount=0, avoiding any dependency on
+    // a real Anchor subtable); ligature array @26 (ligatureCount=1,
+    // ligAttachOffsets[0]=4 -> 30); LigatureAttach @30
+    // (componentCount=1, one absent anchor).
+    fn well_formed_data() -> Vec<u8> {
+        let mut data = vec![0u8; 34];
+        data[2..4].copy_from_slice(&12u16.to_be_bytes());
+        data[4..6].copy_from_slice(&18u16.to_be_bytes());
+        data[6..8].copy_from_slice(&1u16.to_be_bytes()); // classCount
+        data[8..10].copy_from_slice(&24u16.to_be_bytes());
+        data[10..12].copy_from_slice(&26u16.to_be_bytes());
+        data[12..14].copy_from_slice(&1u16.to_be_bytes());
+        data[14..16].copy_from_slice(&1u16.to_be_bytes());
+        data[16..18].copy_from_slice(&5u16.to_be_bytes());
+        data[18..20].copy_from_slice(&1u16.to_be_bytes());
+        data[20..22].copy_from_slice(&1u16.to_be_bytes());
+        data[22..24].copy_from_slice(&6u16.to_be_bytes());
+        data[24..26].copy_from_slice(&0u16.to_be_bytes()); // markCount = 0
+        data[26..28].copy_from_slice(&1u16.to_be_bytes()); // ligatureCount
+        data[28..30].copy_from_slice(&4u16.to_be_bytes()); // ligAttachOffsets[0] -> 30
+        data[30..32].copy_from_slice(&1u16.to_be_bytes()); // componentCount
+        data[32..34].copy_from_slice(&0u16.to_be_bytes()); // anchorOffset = absent
+        data
+    }
+
+    #[test]
+    fn well_formed_table_reads_the_ligature_array() {
+        let data = well_formed_data();
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_mark_to_ligature(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                0,
+                &options as *const Options,
+            );
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GposMarkToLigature(subtable) = &*boxed else { unreachable!() };
+            assert_eq!(subtable.class_count, 1);
+            assert_eq!(subtable.lig_array.len(), 1);
+            assert_eq!(subtable.lig_array[0].glyph.index, 6);
+            assert_eq!(subtable.lig_array[0].component_count, 1);
+            assert!(!subtable.lig_array[0].anchors[0][0].present);
+        }
+    }
+
+    #[test]
+    fn ligature_count_mismatch_with_coverage_is_rejected() {
+        let mut data = well_formed_data();
+        data[26..28].copy_from_slice(&2u16.to_be_bytes()); // ligatureCount claims 2, coverage has only 1
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_mark_to_ligature(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                0,
+                &options as *const Options,
+            );
+            assert!(raw.is_null());
+        }
+    }
+
+    #[test]
+    fn max_component_count_times_class_count_is_rejected_not_read_oob() {
+        // `component_count * class_count` can reach ~4.3 billion with
+        // both factors at `u16::MAX` -- comfortably inside a 64-bit
+        // `usize` (so `checked_mul` itself never overflows for any
+        // u16-bounded pair; that's the point of using `usize` here
+        // instead of the original's `i32`), but `require_room` still
+        // correctly rejects it against this 34-byte buffer rather than
+        // reading anywhere close to that many bytes.
+        let mut data = well_formed_data();
+        data[6..8].copy_from_slice(&u16::MAX.to_be_bytes()); // classCount
+        data[30..32].copy_from_slice(&u16::MAX.to_be_bytes()); // componentCount
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_mark_to_ligature(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                0,
+                &options as *const Options,
+            );
+            assert!(raw.is_null());
+        }
+    }
 }
