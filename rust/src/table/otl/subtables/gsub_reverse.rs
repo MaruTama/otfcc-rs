@@ -6,7 +6,7 @@ use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_o
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, GlyphHandle};
 
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
@@ -73,158 +73,103 @@ unsafe fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
 }
 pub unsafe fn otl_read_gsub_reverse(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     _max_glyphs: GlyphId,
-    mut _options: *const Options,
+    _options: *const Options,
 ) -> *mut Subtable {
-    let mut n_backtrack: TableId = 0;
-    let mut n_forward: TableId = 0;
-    let mut n_replacement: TableId = 0;
-    let mut subtable: *mut GsubReverseSubtable =
-        (
-            subtable_gsub_reverse_create)();
-    if !(table_length < offset.wrapping_add(6 as u32)) {
-        n_backtrack = read_16u(
-            data.offset(offset as isize)
-                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-        ) as TableId;
-        if !(table_length
-            < offset.wrapping_add(6 as u32).wrapping_add(
-                (n_backtrack as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
-            ))
-        {
-            n_forward = read_16u(
-                data.offset(offset as isize)
-                    .offset(6 as ::core::ffi::c_int as isize)
-                    .offset((n_backtrack as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                    as *const u8,
-            ) as TableId;
-            if !(table_length
-                < offset.wrapping_add(8 as u32).wrapping_add(
-                    ((n_backtrack as ::core::ffi::c_int + n_forward as ::core::ffi::c_int)
-                        * 2 as ::core::ffi::c_int) as u32,
-                ))
-            {
-                n_replacement = read_16u(
-                    data.offset(offset as isize)
-                        .offset(8 as ::core::ffi::c_int as isize)
-                        .offset(
-                            ((n_backtrack as ::core::ffi::c_int + n_forward as ::core::ffi::c_int)
-                                * 2 as ::core::ffi::c_int) as isize,
-                        ) as *const u8,
-                ) as TableId;
-                if !(table_length
-                    < offset.wrapping_add(10 as u32).wrapping_add(
-                        ((n_backtrack as ::core::ffi::c_int
-                            + n_forward as ::core::ffi::c_int
-                            + n_replacement as ::core::ffi::c_int)
-                            * 2 as ::core::ffi::c_int) as u32,
-                    ))
-                {
-                    (*subtable).match_count = (n_backtrack as ::core::ffi::c_int
-                        + n_forward as ::core::ffi::c_int
-                        + 1 as ::core::ffi::c_int)
-                        as TableId;
-                    // Filled out of sequential order below (backtrack slots,
-                    // then the input slot at `input_index`, then forward
-                    // slots) -- every one of the `match_count` slots is
-                    // written exactly once by the time this subtable is
-                    // returned, so pre-sizing with placeholder empty
-                    // `Coverage`s and index-assigning is the direct
-                    // replacement for the old `offset`-indexed writes into
-                    // `__caryll_allocate_clean`'d memory.
-                    (*subtable).match_0 =
-                        vec![Coverage::new(); (*subtable).match_count as usize];
-                    (*subtable).input_index = n_backtrack;
-                    let mut j: TableId = 0 as TableId;
-                    while (j as ::core::ffi::c_int) < n_backtrack as ::core::ffi::c_int {
-                        let mut cov_offset: u32 = offset.wrapping_add(read_16u(
-                            data.offset(offset as isize)
-                                .offset(6 as ::core::ffi::c_int as isize)
-                                .offset(
-                                    (j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
-                                ) as *const u8,
-                        )
-                            as u32);
-                        (&mut (*subtable).match_0)[j as usize] = coverage_from_raw(read_coverage(
-                            data as *const u8,
-                            table_length,
-                            cov_offset,
-                        ));
-                        j = j.wrapping_add(1);
-                    }
-                    let mut cov_offset_0: u32 = offset.wrapping_add(read_16u(
-                        data.offset(offset as isize)
-                            .offset(2 as ::core::ffi::c_int as isize)
-                            as *const u8,
-                    )
-                        as u32);
-                    (&mut (*subtable).match_0)[(*subtable).input_index as usize] = coverage_from_raw(read_coverage(
-                        data as *const u8,
-                        table_length,
-                        cov_offset_0,
-                    ));
-                    if !(n_replacement as usize
-                        != (&(*subtable).match_0)[(*subtable).input_index as usize].len())
-                    {
-                        let mut j_0: TableId = 0 as TableId;
-                        while (j_0 as ::core::ffi::c_int) < n_forward as ::core::ffi::c_int {
-                            let mut cov_offset_1: u32 = offset.wrapping_add(read_16u(
-                                data.offset(offset as isize)
-                                    .offset(8 as ::core::ffi::c_int as isize)
-                                    .offset(
-                                        (n_backtrack as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                            as isize,
-                                    )
-                                    .offset(
-                                        (j_0 as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                            as isize,
-                                    ) as *const u8,
-                            )
-                                as u32);
-                            let fwd_idx: usize = (n_backtrack as ::core::ffi::c_int
-                                + 1 as ::core::ffi::c_int
-                                + j_0 as ::core::ffi::c_int)
-                                as usize;
-                            (&mut (*subtable).match_0)[fwd_idx] = coverage_from_raw(read_coverage(
-                                data as *const u8,
-                                table_length,
-                                cov_offset_1,
-                            ));
-                            j_0 = j_0.wrapping_add(1);
-                        }
-                        (*subtable).to = Coverage::new();
-                        let mut j_1: TableId = 0 as TableId;
-                        while (j_1 as ::core::ffi::c_int) < n_replacement as ::core::ffi::c_int {
-                            push_to_coverage(
-                                &mut (*subtable).to as *mut Coverage,
-                                handle_from_index(
-                                    read_16u(
-                                        data.offset(offset as isize)
-                                            .offset(10 as ::core::ffi::c_int as isize)
-                                            .offset(
-                                                ((n_backtrack as ::core::ffi::c_int
-                                                    + n_forward as ::core::ffi::c_int
-                                                    + j_1 as ::core::ffi::c_int)
-                                                    * 2 as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                            as *const u8,
-                                    ) as GlyphId,
-                                ) as GlyphHandle,
-                            );
-                            j_1 = j_1.wrapping_add(1);
-                        }
-                        reverse_backtracks(&mut (*subtable).match_0, (*subtable).input_index);
-                        return subtable_from_raw(subtable, Subtable::GsubReverse);
-                    }
-                }
-            }
+    let subtable: *mut GsubReverseSubtable = subtable_gsub_reverse_create();
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+
+    'parse: {
+        let mut header = match FontReader::new(slice).at(offset as usize) {
+            Ok(r) => r,
+            Err(_) => break 'parse,
+        };
+        if header.skip(2).is_err() {
+            break 'parse; // format, unused (this reader is only ever called for format 1)
         }
+        let Ok(input_cov_rel) = header.u16() else { break 'parse };
+        let Ok(n_backtrack) = header.u16() else { break 'parse };
+        if header.require_room(n_backtrack as usize, 2).is_err() {
+            break 'parse;
+        }
+        let mut backtrack_offsets = Vec::with_capacity(n_backtrack as usize);
+        for _ in 0..n_backtrack {
+            backtrack_offsets.push(offset.wrapping_add(header.u16().unwrap() as u32));
+        }
+
+        let Ok(n_forward) = header.u16() else { break 'parse };
+        if header.require_room(n_forward as usize, 2).is_err() {
+            break 'parse;
+        }
+        let mut forward_offsets = Vec::with_capacity(n_forward as usize);
+        for _ in 0..n_forward {
+            forward_offsets.push(offset.wrapping_add(header.u16().unwrap() as u32));
+        }
+
+        let Ok(n_replacement) = header.u16() else { break 'parse };
+        if header.require_room(n_replacement as usize, 2).is_err() {
+            break 'parse;
+        }
+
+        // `match_count` (a `TableId`/u16 field) is `n_backtrack + n_forward
+        // + 1` -- each addend is individually bounded to u16, but their
+        // sum is not, and the original's implicit `as TableId` cast just
+        // truncated it. A truncated `match_count` here would go on to
+        // index `match_0` (sized to the truncated count) with the *real*
+        // `n_backtrack`/`n_forward` below and panic out of bounds, rather
+        // than merely produce a wrong-but-safe result -- rejected instead.
+        let Some(match_count_u32) =
+            (n_backtrack as u32).checked_add(n_forward as u32).and_then(|s| s.checked_add(1))
+        else {
+            break 'parse;
+        };
+        if match_count_u32 > u16::MAX as u32 {
+            break 'parse;
+        }
+        let match_count = match_count_u32 as TableId;
+
+        (*subtable).match_count = match_count;
+        // Filled out of sequential order below (backtrack slots, then the
+        // input slot at `input_index`, then forward slots) -- every one of
+        // the `match_count` slots is written exactly once by the time this
+        // subtable is returned, so pre-sizing with placeholder empty
+        // `Coverage`s and index-assigning is the direct replacement for
+        // the old `offset`-indexed writes into `__caryll_allocate_clean`'d
+        // memory.
+        (*subtable).match_0 = vec![Coverage::new(); match_count as usize];
+        (*subtable).input_index = n_backtrack;
+
+        for (j, &cov_offset) in backtrack_offsets.iter().enumerate() {
+            (&mut (*subtable).match_0)[j] = coverage_from_raw(read_coverage(data, table_length, cov_offset));
+        }
+
+        let input_cov_offset = offset.wrapping_add(input_cov_rel as u32);
+        (&mut (*subtable).match_0)[(*subtable).input_index as usize] =
+            coverage_from_raw(read_coverage(data, table_length, input_cov_offset));
+
+        if n_replacement as usize != (&(*subtable).match_0)[(*subtable).input_index as usize].len() {
+            break 'parse;
+        }
+
+        for (j, &cov_offset) in forward_offsets.iter().enumerate() {
+            let fwd_idx = n_backtrack as usize + 1 + j;
+            (&mut (*subtable).match_0)[fwd_idx] = coverage_from_raw(read_coverage(data, table_length, cov_offset));
+        }
+
+        (*subtable).to = Coverage::new();
+        for _ in 0..n_replacement {
+            push_to_coverage(
+                &mut (*subtable).to as *mut Coverage,
+                handle_from_index(header.u16().unwrap() as GlyphId) as GlyphHandle,
+            );
+        }
+        reverse_backtracks(&mut (*subtable).match_0, (*subtable).input_index);
+        return subtable_from_raw(subtable, Subtable::GsubReverse);
     }
     subtable_gsub_reverse_free(subtable);
-    return ::core::ptr::null_mut::<Subtable>();
+    ::core::ptr::null_mut::<Subtable>()
 }
 pub unsafe extern "C" fn otl_gsub_dump_reverse(
     mut _subtable: *const Subtable,
@@ -345,4 +290,68 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
         j_1 = j_1.wrapping_add(1);
     }
     return bk_build_block(root);
+}
+
+#[cfg(test)]
+mod otl_read_gsub_reverse_tests {
+    use super::*;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    #[test]
+    fn well_formed_table_builds_match_0_in_backtrack_input_forward_order() {
+        let mut data = [0u8; 26];
+        data[2..4].copy_from_slice(&14u16.to_be_bytes()); // inputCoverageOffset -> 14
+        data[4..6].copy_from_slice(&1u16.to_be_bytes()); // backtrackGlyphCount
+        data[6..8].copy_from_slice(&20u16.to_be_bytes()); // backtrackCoverageOffsets[0] -> 20
+        data[8..10].copy_from_slice(&0u16.to_be_bytes()); // lookaheadGlyphCount
+        data[10..12].copy_from_slice(&1u16.to_be_bytes()); // glyphCount (substitute count)
+        data[12..14].copy_from_slice(&99u16.to_be_bytes()); // substituteGlyphID[0]
+        // Input coverage format 1 at byte 14: one glyph, id 20.
+        data[14..16].copy_from_slice(&1u16.to_be_bytes());
+        data[16..18].copy_from_slice(&1u16.to_be_bytes());
+        data[18..20].copy_from_slice(&20u16.to_be_bytes());
+        // Backtrack coverage format 1 at byte 20: one glyph, id 21.
+        data[20..22].copy_from_slice(&1u16.to_be_bytes());
+        data[22..24].copy_from_slice(&1u16.to_be_bytes());
+        data[24..26].copy_from_slice(&21u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gsub_reverse(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GsubReverse(subtable) = &*boxed else { unreachable!() };
+            assert_eq!(subtable.match_count, 2);
+            assert_eq!(subtable.input_index, 1);
+            assert_eq!(subtable.match_0[0].iter().map(|h| h.index).collect::<Vec<_>>(), vec![21]);
+            assert_eq!(subtable.match_0[1].iter().map(|h| h.index).collect::<Vec<_>>(), vec![20]);
+            assert_eq!(subtable.to.iter().map(|h| h.index).collect::<Vec<_>>(), vec![99]);
+        }
+    }
+
+    #[test]
+    fn match_count_overflow_is_rejected_instead_of_panicking() {
+        // `match_count` (`n_backtrack + n_forward + 1`, a u16 field) can
+        // overflow even though each addend is individually u16-bounded.
+        // The original's implicit `as TableId` cast truncated it, which
+        // would have gone on to index `match_0` (sized to the truncated
+        // count) with the real, larger `n_backtrack` below and panic out
+        // of bounds. `n_backtrack` here is pushed to `u16::MAX` and
+        // `n_forward` to 1, so their sum plus the input slot overflows
+        // `u16::MAX` by one.
+        let mut data = vec![0u8; 131082];
+        data[4..6].copy_from_slice(&u16::MAX.to_be_bytes()); // backtrackGlyphCount
+        let n_forward_pos = 6 + u16::MAX as usize * 2;
+        data[n_forward_pos..n_forward_pos + 2].copy_from_slice(&1u16.to_be_bytes()); // lookaheadGlyphCount
+        let n_replacement_pos = n_forward_pos + 2 + 2;
+        data[n_replacement_pos..n_replacement_pos + 2].copy_from_slice(&0u16.to_be_bytes()); // glyphCount
+        assert_eq!(data.len(), n_replacement_pos + 2);
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gsub_reverse(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(raw.is_null());
+        }
+    }
 }

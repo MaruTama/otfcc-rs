@@ -3,7 +3,7 @@ use libc::{free, malloc};
 
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 use crate::support::parsed_json::{ParsedValue, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 
 use crate::support::buffer::{Buffer};
@@ -41,112 +41,71 @@ unsafe fn subtable_gpos_single_create() -> *mut GposSingleSubtable {
 }
 pub unsafe fn otl_read_gpos_single(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     _max_glyphs: GlyphId,
-    mut _options: *const Options,
+    _options: *const Options,
 ) -> *mut Subtable {
-    let mut subtable_format: u16 = 0;
-    let mut current_block: u64;
     let subtable: *mut GposSingleSubtable = subtable_gpos_single_create();
     let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    if !(table_length < offset.wrapping_add(6 as u32)) {
-        subtable_format = read_16u(data.offset(offset as isize) as *const u8);
-        targets = read_coverage(
-            data as *const u8,
-            table_length,
-            offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
-        );
-        if !(targets.is_null()
-            || (*targets).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
-        {
-            if subtable_format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-                let mut v: PositionValue = read_gpos_value(
-                    data,
-                    table_length,
-                    offset.wrapping_add(6 as u32),
-                    read_16u(
-                        data.offset(offset as isize)
-                            .offset(4 as ::core::ffi::c_int as isize)
-                            as *const u8,
-                    ),
-                );
-                let mut j: GlyphId = 0 as GlyphId;
-                while (j as ::core::ffi::c_int) < (*targets).len() as GlyphId as ::core::ffi::c_int {
-                    (*subtable).push(GposSingleEntry {
-                        target: otfcc_handle_dup(
-                            (&(*targets))[j as usize].clone() as Handle,
-                        ) as GlyphHandle,
-                        value: v,
-                    });
-                    j = j.wrapping_add(1);
-                }
-                current_block = 6009453772311597924;
-            } else {
-                let mut value_format: u16 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(4 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                );
-                let mut value_count: u16 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(6 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                );
-                if table_length
-                    < offset.wrapping_add(8 as u32).wrapping_add(
-                        (position_format_length(value_format) as ::core::ffi::c_int
-                            * value_count as ::core::ffi::c_int) as u32,
-                    )
-                {
-                    current_block = 18154618883129817269;
-                } else if value_count as ::core::ffi::c_int
-                    != (*targets).len() as GlyphId as ::core::ffi::c_int
-                {
-                    current_block = 18154618883129817269;
-                } else {
-                    let mut j_0: GlyphId = 0 as GlyphId;
-                    while (j_0 as ::core::ffi::c_int) < (*targets).len() as GlyphId as ::core::ffi::c_int {
-                        (*subtable).push(GposSingleEntry {
-                            target: otfcc_handle_dup(
-                                (&(*targets))[j_0 as usize].clone() as Handle,
-                            ) as GlyphHandle,
-                            value: read_gpos_value(
-                                data,
-                                table_length,
-                                offset.wrapping_add(8 as u32).wrapping_add(
-                                    (j_0 as ::core::ffi::c_int
-                                        * position_format_length(value_format)
-                                            as ::core::ffi::c_int)
-                                        as u32,
-                                ),
-                                value_format,
-                            ),
-                        });
-                        j_0 = j_0.wrapping_add(1);
-                    }
-                    current_block = 6009453772311597924;
-                }
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+
+    'parse: {
+        let mut header = match FontReader::new(slice).at(offset as usize) {
+            Ok(r) => r,
+            Err(_) => break 'parse,
+        };
+        let Ok(subtable_format) = header.u16() else { break 'parse };
+        let Ok(from_rel) = header.u16() else { break 'parse };
+
+        targets = read_coverage(data, table_length, offset.wrapping_add(from_rel as u32));
+        if targets.is_null() || (*targets).is_empty() {
+            break 'parse;
+        }
+
+        if subtable_format == 1 {
+            let Ok(value_format) = header.u16() else { break 'parse };
+            let v: PositionValue = read_gpos_value(data, table_length, offset.wrapping_add(6), value_format);
+            for j in 0..(*targets).len() {
+                (*subtable).push(GposSingleEntry {
+                    target: otfcc_handle_dup((&(*targets))[j].clone() as Handle) as GlyphHandle,
+                    value: v,
+                });
             }
-            match current_block {
-                18154618883129817269 => {}
-                _ => {
-                    if !targets.is_null() {
-                        otl_coverage_free(targets);
-                    }
-                    return subtable_from_raw(subtable, Subtable::GposSingle);
-                }
+        } else {
+            let Ok(value_format) = header.u16() else { break 'parse };
+            let Ok(value_count) = header.u16() else { break 'parse };
+            let stride = position_format_length(value_format) as usize;
+            if header.require_room(value_count as usize, stride).is_err() {
+                break 'parse;
+            }
+            if value_count as usize != (*targets).len() {
+                break 'parse;
+            }
+            for j in 0..(*targets).len() {
+                (*subtable).push(GposSingleEntry {
+                    target: otfcc_handle_dup((&(*targets))[j].clone() as Handle) as GlyphHandle,
+                    value: read_gpos_value(
+                        data,
+                        table_length,
+                        offset.wrapping_add(8).wrapping_add((j * stride) as u32),
+                        value_format,
+                    ),
+                });
             }
         }
+
+        if !targets.is_null() {
+            otl_coverage_free(targets);
+        }
+        return subtable_from_raw(subtable, Subtable::GposSingle);
     }
+
     if !targets.is_null() {
         otl_coverage_free(targets);
     }
     subtable_gpos_single_free(subtable);
-    return ::core::ptr::null_mut::<Subtable>();
+    ::core::ptr::null_mut::<Subtable>()
 }
 pub unsafe extern "C" fn otl_gpos_dump_single(
     mut _subtable: *const Subtable,
@@ -244,4 +203,60 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
         otl_coverage_free(cov);
         return bk_build_block(b_0);
     };
+}
+
+#[cfg(test)]
+mod otl_read_gpos_single_tests {
+    use super::*;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    #[test]
+    fn format1_applies_one_shared_value_to_every_glyph() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes()); // format
+        data.extend_from_slice(&8u16.to_be_bytes()); // coverageOffset -> 8
+        data.extend_from_slice(&1u16.to_be_bytes()); // valueFormat: FORMAT_DX only
+        data.extend_from_slice(&77i16.to_be_bytes()); // Value.dx
+        // Coverage format 1 at byte 8: one glyph, id 9.
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&9u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GposSingle(entries) = &*boxed else { unreachable!() };
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].target.index, 9);
+            assert_eq!(entries[0].value.dx, 77.0);
+        }
+    }
+
+    #[test]
+    fn format2_reads_a_per_glyph_value() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&2u16.to_be_bytes()); // format
+        data.extend_from_slice(&10u16.to_be_bytes()); // coverageOffset -> 10
+        data.extend_from_slice(&1u16.to_be_bytes()); // valueFormat: FORMAT_DX only
+        data.extend_from_slice(&1u16.to_be_bytes()); // valueCount
+        data.extend_from_slice(&50i16.to_be_bytes()); // value[0].dx
+        // Coverage format 1 at byte 10: one glyph, id 5.
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&5u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GposSingle(entries) = &*boxed else { unreachable!() };
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].target.index, 5);
+            assert_eq!(entries[0].value.dx, 50.0);
+        }
+    }
 }
