@@ -1,158 +1,73 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum, json_type_of};
-use crate::support::binio::{read_8u, read_16u, read_16s};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{ShapeId};
 use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 
 use crate::table::vdmx::types::{VdmxTable, VdmxRatioRange, VdmxRecord};
 use crate::bk::bkgraph::{bk_build_block_no_minimize};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
+// `group_offset` (read from the per-ratio offset table) used to be handed
+// straight to `data.offset()` with no check against the table's actual
+// length at all -- not even the wrapping-arithmetic-defeated kind of guard
+// `table/meta/read.rs` had, just no guard whatsoever. A crafted
+// `group_offset` pointing anywhere past the table (or a `recs` count
+// implying entries past it) read arbitrarily far out of bounds. Every
+// offset below -- the ratio range, the offset table, and the group itself
+// -- now goes through `FontReader::at`, so an out-of-range offset fails the
+// read instead of dereferencing it.
+fn parse_vdmx(data: &[u8]) -> Result<VdmxTable, ReadError> {
+    let mut r = FontReader::new(data);
+    let version = r.u16()?;
+    r.skip(2)?; // numRecs: unused, each group carries its own record count
+    let num_ratios = r.u16()? as usize;
+    r.require_room(num_ratios, 6)?; // 4-byte ratio range + 2-byte offset, per ratio
+    let mut ratios = Vec::with_capacity(num_ratios);
+    for g in 0..num_ratios {
+        let ratio_range_offset = 6 + 4 * g;
+        let offset_offset = 6 + 4 * num_ratios + 2 * g;
+        let mut rr = FontReader::new(data).at(ratio_range_offset)?;
+        let b_charset = rr.u8()?;
+        let x_ratio = rr.u8()?;
+        let y_start_ratio = rr.u8()?;
+        let y_end_ratio = rr.u8()?;
+        let group_offset = FontReader::new(data).at(offset_offset)?.u16()? as usize;
+        let mut gr = FontReader::new(data).at(group_offset)?;
+        let recs = gr.u16()?;
+        gr.skip(2)?; // startSize, endSize: unused
+        let mut records = Vec::with_capacity(recs as usize);
+        for _ in 0..recs {
+            records.push(VdmxRecord {
+                y_pel_height: gr.u16()?,
+                y_max: gr.i16()?,
+                y_min: gr.i16()?,
+            });
+        }
+        ratios.push(VdmxRatioRange { b_charset, x_ratio, y_start_ratio, y_end_ratio, records });
+    }
+    Ok(VdmxTable { version, ratios })
+}
 pub unsafe fn otfcc_read_vdmx(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<VdmxTable>> {
-    let mut version: u16 = 0;
-    let mut num_ratios: u16 = 0;
-    let mut vdmx: Option<Box<VdmxTable>> = None;
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_VDMX {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    if !(table.length < 6 as u32) {
-                        version = read_16u(table.data.as_ptr().offset(0 as ::core::ffi::c_int as isize));
-                        num_ratios = read_16u(table.data.as_ptr().offset(4 as ::core::ffi::c_int as isize));
-                        if !(table.length
-                            < (6 as ::core::ffi::c_int
-                                + 6 as ::core::ffi::c_int * num_ratios as ::core::ffi::c_int)
-                                as u32)
-                        {
-                            vdmx = Some(Box::new(VdmxTable { version, ratios: Vec::new() }));
-                            let mut g: ShapeId = 0 as ShapeId;
-                            while (g as ::core::ffi::c_int) < num_ratios as ::core::ffi::c_int {
-                                let ratio_range_offset: usize = (6 as ::core::ffi::c_int
-                                    + 4 as ::core::ffi::c_int * g as ::core::ffi::c_int)
-                                    as usize;
-                                let offset_offset: usize = (6 as ::core::ffi::c_int
-                                    + 4 as ::core::ffi::c_int * num_ratios as ::core::ffi::c_int
-                                    + 2 as ::core::ffi::c_int * g as ::core::ffi::c_int)
-                                    as usize;
-                                let mut r: VdmxRatioRange = VdmxRatioRange {
-                                    b_charset: 0,
-                                    x_ratio: 0,
-                                    y_start_ratio: 0,
-                                    y_end_ratio: 0,
-                                    records: Vec::new(),
-                                };
-                                r.b_charset = read_8u(
-                                    table
-                                        .data.as_ptr()
-                                        .offset(ratio_range_offset as isize)
-                                        .offset(0 as ::core::ffi::c_int as isize),
-                                );
-                                r.x_ratio = read_8u(
-                                    table
-                                        .data.as_ptr()
-                                        .offset(ratio_range_offset as isize)
-                                        .offset(1 as ::core::ffi::c_int as isize),
-                                );
-                                r.y_start_ratio = read_8u(
-                                    table
-                                        .data.as_ptr()
-                                        .offset(ratio_range_offset as isize)
-                                        .offset(2 as ::core::ffi::c_int as isize),
-                                );
-                                r.y_end_ratio = read_8u(
-                                    table
-                                        .data.as_ptr()
-                                        .offset(ratio_range_offset as isize)
-                                        .offset(3 as ::core::ffi::c_int as isize),
-                                );
-                                let mut group_offset: u16 =
-                                    read_16u(table.data.as_ptr().offset(offset_offset as isize));
-                                let mut recs: u16 = read_16u(
-                                    table
-                                        .data.as_ptr()
-                                        .offset(group_offset as ::core::ffi::c_int as isize)
-                                        .offset(0 as ::core::ffi::c_int as isize),
-                                );
-                                let mut j: u16 = 0 as u16;
-                                while (j as ::core::ffi::c_int) < recs as ::core::ffi::c_int {
-                                    let mut y_pel_height: u16 = read_16u(
-                                        table
-                                            .data.as_ptr()
-                                            .offset(group_offset as ::core::ffi::c_int as isize)
-                                            .offset(4 as ::core::ffi::c_int as isize)
-                                            .offset(
-                                                (j as ::core::ffi::c_int * 6 as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                            .offset(0 as ::core::ffi::c_int as isize),
-                                    );
-                                    let mut y_max: i16 = read_16s(
-                                        table
-                                            .data.as_ptr()
-                                            .offset(group_offset as ::core::ffi::c_int as isize)
-                                            .offset(4 as ::core::ffi::c_int as isize)
-                                            .offset(
-                                                (j as ::core::ffi::c_int * 6 as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                            .offset(2 as ::core::ffi::c_int as isize),
-                                    );
-                                    let mut y_min: i16 = read_16s(
-                                        table
-                                            .data.as_ptr()
-                                            .offset(group_offset as ::core::ffi::c_int as isize)
-                                            .offset(4 as ::core::ffi::c_int as isize)
-                                            .offset(
-                                                (j as ::core::ffi::c_int * 6 as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                            .offset(4 as ::core::ffi::c_int as isize),
-                                    );
-                                    r.records.push(VdmxRecord {
-                                        y_pel_height: y_pel_height,
-                                        y_max: y_max,
-                                        y_min: y_min,
-                                    });
-                                    j = j.wrapping_add(1);
-                                }
-                                vdmx.as_mut().unwrap().ratios.push(r);
-                                g = g.wrapping_add(1);
-                            }
-                            return vdmx;
-                        }
-                    }
-                    logger_log_sds(
-                        (*options).logger,
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(b"Table 'VDMX' corrupted.\n"),
-                    );
-                    vdmx = None;
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VDMX)?;
+    match parse_vdmx(&table.data) {
+        Ok(vdmx) => Some(Box::new(vdmx)),
+        Err(_) => {
+            logger_log_sds(
+                (*options).logger,
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"Table 'VDMX' corrupted.\n"),
+            );
+            None
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
     }
-    return vdmx;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_vdmx(
@@ -420,4 +335,68 @@ pub unsafe fn otfcc_build_vdmx(
         __caryll_index_0 = __caryll_index_0.wrapping_add(1);
     }
     return bk_build_block_no_minimize(root);
+}
+
+#[cfg(test)]
+mod parse_vdmx_tests {
+    use super::*;
+
+    fn well_formed_one_ratio_vdmx() -> Vec<u8> {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0u16.to_be_bytes()); // version
+        data.extend_from_slice(&1u16.to_be_bytes()); // numRecs (unused by the reader)
+        data.extend_from_slice(&1u16.to_be_bytes()); // numRatios
+        data.extend_from_slice(&[1, 1, 0, 0]); // ratio range: bCharSet, xRatio, yStartRatio, yEndRatio
+        data.extend_from_slice(&12u16.to_be_bytes()); // offset table: group at byte 12
+        assert_eq!(data.len(), 12);
+        data.extend_from_slice(&1u16.to_be_bytes()); // group.recs
+        data.extend_from_slice(&0u16.to_be_bytes()); // group.startSize/endSize
+        data.extend_from_slice(&12u16.to_be_bytes()); // record.yPelHeight
+        data.extend_from_slice(&900i16.to_be_bytes()); // record.yMax
+        data.extend_from_slice(&(-200i16).to_be_bytes()); // record.yMin
+        data
+    }
+
+    #[test]
+    fn well_formed_table_follows_the_group_offset() {
+        let vdmx = parse_vdmx(&well_formed_one_ratio_vdmx()).unwrap();
+        assert_eq!(vdmx.ratios.len(), 1);
+        assert_eq!(vdmx.ratios[0].records.len(), 1);
+        assert_eq!(vdmx.ratios[0].records[0].y_pel_height, 12);
+        assert_eq!(vdmx.ratios[0].records[0].y_max, 900);
+        assert_eq!(vdmx.ratios[0].records[0].y_min, -200);
+    }
+
+    #[test]
+    fn group_offset_past_the_table_end_errs_instead_of_reading_oob() {
+        // The original had no bounds check on `group_offset` at all -- it
+        // was handed straight to pointer arithmetic. This is the case that
+        // used to read arbitrarily far past the table.
+        let mut data = well_formed_one_ratio_vdmx();
+        let bogus_offset = (data.len() as u16) + 1000;
+        data[10..12].copy_from_slice(&bogus_offset.to_be_bytes());
+        assert!(parse_vdmx(&data).is_err());
+    }
+
+    #[test]
+    fn recs_implying_entries_past_the_table_end_errs_instead_of_reading_oob() {
+        let mut data = well_formed_one_ratio_vdmx();
+        let recs_field_start = 12;
+        data[recs_field_start..recs_field_start + 2].copy_from_slice(&9000u16.to_be_bytes());
+        assert!(parse_vdmx(&data).is_err());
+    }
+
+    #[test]
+    fn num_ratios_large_enough_to_overflow_the_multiplication_errs() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0u16.to_be_bytes());
+        data.extend_from_slice(&0u16.to_be_bytes());
+        data.extend_from_slice(&0xFFFFu16.to_be_bytes()); // numRatios
+        assert!(parse_vdmx(&data).is_err());
+    }
+
+    #[test]
+    fn truncated_header_errs_instead_of_reading_oob() {
+        assert!(parse_vdmx(&[0x00, 0x00]).is_err());
+    }
 }

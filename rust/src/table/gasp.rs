@@ -1,11 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer, GlyphSize, TableId};
+use crate::support::primitives::{GlyphSize};
 use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getbool, json_obj_getint_fallback, json_type_of};
 use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push};
@@ -33,92 +33,42 @@ pub const GASP_DOGRAY: ::core::ffi::c_int = 0x2 as ::core::ffi::c_int;
 pub const GASP_GRIDFIT: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
 pub const GASP_SYMMETRIC_GRIDFIT: ::core::ffi::c_int = 0x4 as ::core::ffi::c_int;
 pub const GASP_SYMMETRIC_SMOOTHING: ::core::ffi::c_int = 0x8 as ::core::ffi::c_int;
+fn parse_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
+    let mut r = FontReader::new(data);
+    let version = r.u16()?;
+    let num_ranges = r.u16()? as usize;
+    r.require_room(num_ranges, 4)?;
+    let mut records = Vec::with_capacity(num_ranges);
+    for _ in 0..num_ranges {
+        let range_max_ppem = r.u16()? as GlyphSize;
+        let range_gasp_behavior = r.u16()?;
+        records.push(GaspRecord {
+            range_max_ppem,
+            dogray: range_gasp_behavior & GASP_DOGRAY as u16 != 0,
+            gridfit: range_gasp_behavior & GASP_GRIDFIT as u16 != 0,
+            symmetric_smoothing: range_gasp_behavior & GASP_SYMMETRIC_SMOOTHING as u16 != 0,
+            symmetric_gridfit: range_gasp_behavior & GASP_SYMMETRIC_GRIDFIT as u16 != 0,
+        });
+    }
+    Ok(GaspTable { version, records })
+}
 pub unsafe fn otfcc_read_gasp(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<GaspTable>> {
-    let mut num_ranges: TableId = 0;
-    let mut gasp: Option<Box<GaspTable>> = None;
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_GASP {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
-                    if !(length < 4 as u32) {
-                        let version = read_16u(data as *const u8);
-                        gasp = Some(Box::new(GaspTable { version, records: Vec::new() }));
-                        num_ranges = read_16u(
-                            data.offset(2 as ::core::ffi::c_int as isize) as *const u8
-                        ) as TableId;
-                        if !(length
-                            < (4 as ::core::ffi::c_int
-                                + num_ranges as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
-                                as u32)
-                        {
-                            let mut j: u32 = 0 as u32;
-                            while j < num_ranges as u32 {
-                                let mut record: GaspRecord = GaspRecord {
-                                    range_max_ppem: 0,
-                                    dogray: false,
-                                    gridfit: false,
-                                    symmetric_smoothing: false,
-                                    symmetric_gridfit: false,
-                                };
-                                record.range_max_ppem = read_16u(
-                                    data.offset(4 as ::core::ffi::c_int as isize)
-                                        .offset(j.wrapping_mul(4 as u32) as isize)
-                                        as *const u8,
-                                )
-                                    as GlyphSize;
-                                let mut range_gasp_behavior: u16 = read_16u(
-                                    data.offset(4 as ::core::ffi::c_int as isize)
-                                        .offset(j.wrapping_mul(4 as u32) as isize)
-                                        .offset(2 as ::core::ffi::c_int as isize)
-                                        as *const u8,
-                                );
-                                record.dogray =
-                                    range_gasp_behavior as ::core::ffi::c_int & GASP_DOGRAY != 0;
-                                record.gridfit =
-                                    range_gasp_behavior as ::core::ffi::c_int & GASP_GRIDFIT != 0;
-                                record.symmetric_smoothing = range_gasp_behavior
-                                    as ::core::ffi::c_int
-                                    & GASP_SYMMETRIC_SMOOTHING
-                                    != 0;
-                                record.symmetric_gridfit = range_gasp_behavior as ::core::ffi::c_int
-                                    & GASP_SYMMETRIC_GRIDFIT
-                                    != 0;
-                                gasp.as_mut().unwrap().records.push(record);
-                                j = j.wrapping_add(1);
-                            }
-                            return gasp;
-                        }
-                    }
-                    logger_log_sds(
-                        (*options).logger,
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(b"table 'gasp' corrupted.\n"),
-                    );
-                    gasp = None;
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_GASP)?;
+    match parse_gasp(&table.data) {
+        Ok(gasp) => Some(Box::new(gasp)),
+        Err(_) => {
+            logger_log_sds(
+                (*options).logger,
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"table 'gasp' corrupted.\n"),
+            );
+            None
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
     }
-    return None;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_gasp(
@@ -285,4 +235,37 @@ pub unsafe fn otfcc_build_gasp(
         j = j.wrapping_add(1);
     }
     return buf;
+}
+
+#[cfg(test)]
+mod parse_gasp_tests {
+    use super::*;
+
+    #[test]
+    fn well_formed_table_parses_flags_from_behavior_bits() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes()); // version
+        data.extend_from_slice(&1u16.to_be_bytes()); // numRanges
+        data.extend_from_slice(&65535u16.to_be_bytes()); // rangeMaxPPEM
+        data.extend_from_slice(&(GASP_GRIDFIT as u16 | GASP_SYMMETRIC_SMOOTHING as u16).to_be_bytes());
+        let gasp = parse_gasp(&data).unwrap();
+        assert_eq!(gasp.records.len(), 1);
+        assert_eq!(gasp.records[0].range_max_ppem, 65535);
+        assert!(gasp.records[0].gridfit);
+        assert!(gasp.records[0].symmetric_smoothing);
+        assert!(!gasp.records[0].dogray);
+    }
+
+    #[test]
+    fn num_ranges_large_enough_to_overflow_the_multiplication_errs() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&0xFFFFu16.to_be_bytes()); // numRanges, far more than the data holds
+        assert!(parse_gasp(&data).is_err());
+    }
+
+    #[test]
+    fn truncated_header_errs_instead_of_reading_oob() {
+        assert!(parse_gasp(&[0x00, 0x01]).is_err());
+    }
 }
