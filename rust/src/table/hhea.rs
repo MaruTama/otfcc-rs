@@ -1,12 +1,12 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum_fallback};
-use crate::support::binio::{read_16u, read_32s};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{F16Dot16, FontFilePointer};
+use crate::support::primitives::{F16Dot16};
 use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::support::built_json::{BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push};
@@ -35,99 +35,42 @@ pub struct HheaTable {
 // entire vtable is deleted: grepping the bare `TABLE_I_HHEA` identifier
 // confirmed only `.create`/`.free` were ever called, both internal to
 // this crate.
+fn parse_hhea(data: &[u8]) -> Result<HheaTable, ReadError> {
+    let mut r = FontReader::new(data);
+    Ok(HheaTable {
+        version: r.i32()? as F16Dot16,
+        ascender: r.i16()?,
+        descender: r.i16()?,
+        line_gap: r.i16()?,
+        advance_width_max: r.u16()?,
+        min_left_side_bearing: r.i16()?,
+        min_right_side_bearing: r.i16()?,
+        x_max_extent: r.i16()?,
+        caret_slope_rise: r.i16()?,
+        caret_slope_run: r.i16()?,
+        caret_offset: r.i16()?,
+        reserved: [r.i16()?, r.i16()?, r.i16()?, r.i16()?],
+        metric_data_format: r.i16()?,
+        number_of_metrics: r.u16()?,
+    })
+}
 pub unsafe fn otfcc_read_hhea(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<HheaTable>> {
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_HHEA {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
-                    if length < 36 as u32 {
-                        logger_log_sds(
-                            (*options).logger,
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(b"table 'hhea' corrupted.\n"),
-                        );
-                    } else {
-                        let mut hhea_box: Box<HheaTable> = Box::new(::core::mem::zeroed());
-                        let hhea: *mut HheaTable = hhea_box.as_mut() as *mut HheaTable;
-                        (*hhea).version = read_32s(data as *const u8) as F16Dot16;
-                        (*hhea).ascender = read_16u(
-                            data.offset(4 as ::core::ffi::c_int as isize) as *const u8
-                        ) as i16;
-                        (*hhea).descender = read_16u(
-                            data.offset(6 as ::core::ffi::c_int as isize) as *const u8
-                        ) as i16;
-                        (*hhea).line_gap = read_16u(
-                            data.offset(8 as ::core::ffi::c_int as isize) as *const u8
-                        ) as i16;
-                        (*hhea).advance_width_max = read_16u(
-                            data.offset(10 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*hhea).min_left_side_bearing = read_16u(
-                            data.offset(12 as ::core::ffi::c_int as isize) as *const u8,
-                        ) as i16;
-                        (*hhea).min_right_side_bearing = read_16u(
-                            data.offset(14 as ::core::ffi::c_int as isize) as *const u8,
-                        ) as i16;
-                        (*hhea).x_max_extent = read_16u(
-                            data.offset(16 as ::core::ffi::c_int as isize) as *const u8,
-                        ) as i16;
-                        (*hhea).caret_slope_rise = read_16u(
-                            data.offset(18 as ::core::ffi::c_int as isize) as *const u8,
-                        ) as i16;
-                        (*hhea).caret_slope_run = read_16u(
-                            data.offset(20 as ::core::ffi::c_int as isize) as *const u8,
-                        ) as i16;
-                        (*hhea).caret_offset = read_16u(
-                            data.offset(22 as ::core::ffi::c_int as isize) as *const u8,
-                        ) as i16;
-                        (*hhea).reserved[0 as ::core::ffi::c_int as usize] = read_16u(
-                            data.offset(24 as ::core::ffi::c_int as isize) as *const u8,
-                        )
-                            as i16;
-                        (*hhea).reserved[1 as ::core::ffi::c_int as usize] = read_16u(
-                            data.offset(26 as ::core::ffi::c_int as isize) as *const u8,
-                        )
-                            as i16;
-                        (*hhea).reserved[2 as ::core::ffi::c_int as usize] = read_16u(
-                            data.offset(28 as ::core::ffi::c_int as isize) as *const u8,
-                        )
-                            as i16;
-                        (*hhea).reserved[3 as ::core::ffi::c_int as usize] = read_16u(
-                            data.offset(30 as ::core::ffi::c_int as isize) as *const u8,
-                        )
-                            as i16;
-                        (*hhea).metric_data_format = read_16u(
-                            data.offset(32 as ::core::ffi::c_int as isize) as *const u8,
-                        ) as i16;
-                        (*hhea).number_of_metrics = read_16u(
-                            data.offset(34 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        return Some(hhea_box);
-                    }
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_HHEA)?;
+    match parse_hhea(&table.data) {
+        Ok(hhea) => Some(Box::new(hhea)),
+        Err(_) => {
+            logger_log_sds(
+                (*options).logger,
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"table 'hhea' corrupted.\n"),
+            );
+            None
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
     }
-    return None;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_hhea(
@@ -334,4 +277,32 @@ pub unsafe fn otfcc_build_hhea(
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, (*hhea).number_of_metrics);
     return buf;
+}
+
+#[cfg(test)]
+mod parse_hhea_tests {
+    use super::*;
+
+    fn well_formed_hhea() -> Vec<u8> {
+        let mut data = vec![0u8; 36];
+        data[0..4].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // version
+        data[4..6].copy_from_slice(&900i16.to_be_bytes()); // ascender
+        data[34..36].copy_from_slice(&5u16.to_be_bytes()); // numberOfMetrics
+        data
+    }
+
+    #[test]
+    fn well_formed_36_byte_table_parses_every_field() {
+        let hhea = parse_hhea(&well_formed_hhea()).unwrap();
+        assert_eq!(hhea.version, 0x0001_0000);
+        assert_eq!(hhea.ascender, 900);
+        assert_eq!(hhea.number_of_metrics, 5);
+    }
+
+    #[test]
+    fn table_one_byte_short_of_36_is_rejected_instead_of_reading_oob() {
+        let mut data = well_formed_hhea();
+        data.truncate(35);
+        assert!(parse_hhea(&data).is_err());
+    }
 }

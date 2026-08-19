@@ -1,10 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::binio::{pos_to_u16, read_16u, read_16s};
+use crate::support::binio::{pos_to_u16};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer, GlyphId, Length, Pos};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::support::primitives::{GlyphId, Length, Pos};
+use crate::font::caryll_sfnt::{Packet};
 
 use crate::table::maxp::{MaxpTable};
 use crate::table::vhea::{VheaTable};
@@ -24,6 +25,20 @@ pub struct VmtxTable {
     pub metrics: Vec<VerticalMetric>,
     pub top_side_bearing: Vec<Pos>,
 }
+fn parse_vmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<VmtxTable, ReadError> {
+    let mut r = FontReader::new(data);
+    let mut metrics = Vec::with_capacity(count_a);
+    for _ in 0..count_a {
+        let advance_height = r.u16()? as Length;
+        let tsb = r.i16()? as Pos;
+        metrics.push(VerticalMetric { advance_height, tsb });
+    }
+    let mut top_side_bearing = Vec::with_capacity(count_k);
+    for _ in 0..count_k {
+        top_side_bearing.push(r.i16()? as Pos);
+    }
+    Ok(VmtxTable { metrics, top_side_bearing })
+}
 pub unsafe fn otfcc_read_vmtx(
     packet: &Packet,
     mut options: *const Options,
@@ -38,78 +53,21 @@ pub unsafe fn otfcc_read_vmtx(
     {
         return None;
     }
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_VMTX {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
-                    let mut count_a: GlyphId = (*vhea).num_of_long_ver_metrics as GlyphId;
-                    let mut count_k: GlyphId = ((*maxp).num_glyphs as ::core::ffi::c_int
-                        - (*vhea).num_of_long_ver_metrics as ::core::ffi::c_int)
-                        as GlyphId;
-                    if length
-                        < (count_a as ::core::ffi::c_int * 4 as ::core::ffi::c_int
-                            + count_k as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                            as u32
-                    {
-                        logger_log_sds(
-                            (*options).logger,
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(b"Table 'vmtx' corrupted.\n"),
-                        );
-                    } else {
-                        let mut metrics: Vec<VerticalMetric> = Vec::with_capacity(count_a as usize);
-                        let mut ia: GlyphId = 0 as GlyphId;
-                        while (ia as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
-                            let advance_height = read_16u(data.offset(
-                                (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
-                            ) as *const u8) as Length;
-                            let tsb = read_16s(
-                                data.offset(
-                                    (ia as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize,
-                                )
-                                .offset(2 as ::core::ffi::c_int as isize)
-                                    as *const u8,
-                            ) as Pos;
-                            metrics.push(VerticalMetric { advance_height, tsb });
-                            ia = ia.wrapping_add(1);
-                        }
-                        let mut top_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
-                        let mut ik: GlyphId = 0 as GlyphId;
-                        while (ik as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
-                            top_side_bearing.push(read_16s(
-                                data.offset(
-                                    (count_a as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
-                                        as isize,
-                                )
-                                .offset(
-                                    (ik as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
-                                ) as *const u8,
-                            ) as Pos);
-                            ik = ik.wrapping_add(1);
-                        }
-                        return Some(Box::new(VmtxTable { metrics, top_side_bearing }));
-                    }
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VMTX)?;
+    let count_a = (*vhea).num_of_long_ver_metrics as usize;
+    let count_k = (*maxp).num_glyphs as usize - count_a;
+    match parse_vmtx(&table.data, count_a, count_k) {
+        Ok(vmtx) => Some(Box::new(vmtx)),
+        Err(_) => {
+            logger_log_sds(
+                (*options).logger,
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"Table 'vmtx' corrupted.\n"),
+            );
+            None
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
     }
-    return None;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_vmtx(
@@ -135,4 +93,28 @@ pub unsafe fn otfcc_build_vmtx(
         j_0 = j_0.wrapping_add(1);
     }
     return buf;
+}
+
+#[cfg(test)]
+mod parse_vmtx_tests {
+    use super::*;
+
+    #[test]
+    fn reads_full_metrics_then_trailing_top_side_bearings() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&600u16.to_be_bytes()); // metrics[0].advance_height
+        data.extend_from_slice(&(-5i16).to_be_bytes()); // metrics[0].tsb
+        data.extend_from_slice(&(15i16).to_be_bytes()); // top_side_bearing[0]
+        let vmtx = parse_vmtx(&data, 1, 1).unwrap();
+        assert_eq!(vmtx.metrics.len(), 1);
+        assert_eq!(vmtx.metrics[0].advance_height, 600.0);
+        assert_eq!(vmtx.metrics[0].tsb, -5.0);
+        assert_eq!(vmtx.top_side_bearing, vec![15.0]);
+    }
+
+    #[test]
+    fn table_shorter_than_declared_counts_is_rejected_instead_of_reading_oob() {
+        let data = vec![0u8; 3]; // one byte short of a single 4-byte metric
+        assert!(parse_vmtx(&data, 1, 0).is_err());
+    }
 }
