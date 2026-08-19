@@ -932,6 +932,84 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `otl/read.rs` -- the top-level GSUB/GPOS/GDEF
+  script/feature/lookup-list parser.** The single biggest structural
+  change in this stage so far: `otfcc_read_otl_common` was five levels of
+  nested `if`/`current_block` goto-emulation (the c2rust idiom for a C
+  function with multiple `goto fail;` labels), because every guard
+  failure, at any depth, converged on the same `return None;` at the very
+  bottom -- discarding the whole in-progress `OtlTable` (every lookup/
+  feature/language already pushed, included). That "any failure discards
+  everything, uniformly" shape is exactly what `?`-propagation on a
+  `Result` gives for free, so the rewrite (`parse_otl_common`) flattens
+  entirely: no `current_block`, no goto targets, half the nesting depth.
+  - **Two real, previously-undocumented bugs**, both unrelated to the
+    `wrapping_add`-overflow class already fixed elsewhere in this stage
+    -- these had *no length guard whatsoever*, not even a defeatable one:
+    - `langSysRecords[]` in the script-list walk: `lang_sys_count` is a
+      full attacker-controlled `u16`, and the original read that many
+      6-byte records completely unconditionally. `require_room` before
+      the loop closes it. Covered by
+      `lang_sys_records_array_larger_than_declared_is_rejected_instead_of_reading_oob`.
+    - `featureIndex[]` in `parse_language` (a LangSys's referenced-
+      feature list): same shape, `feature_count` unbounded. Unlike the
+      one above, a failure here was already recoverable in the original
+      (it clears just that one language's `required_feature`/`features`
+      rather than aborting): `require_room` is added to the same
+      try-this-language block, so a failure there falls back the same
+      way a truncated 6-byte header already did. Covered by
+      `feature_index_array_larger_than_declared_falls_back_per_language_not_the_whole_table`.
+  - **A verified, deliberate simplification**: the original's script-list
+    walk was two passes over every script -- a validation-only first pass
+    (computing a `n_language_combinations` count that, per a full grep,
+    is never read again anywhere) whose real job was checking every
+    `script_offset` up front, *before* the second pass started mutating
+    `table.languages`/`table.features` -- because with no per-read bounds
+    checking, an OOB read discovered mid-way through the second pass
+    would have left partially-built state with no clean way to unwind.
+    `parse_otl_common` doesn't need that split: since every failure here
+    already discards the whole `OtlTable` via `?`, a bounds failure
+    partway through a single merged pass is no different from one at the
+    very start -- both end in the same `Err` and the same fully-discarded
+    `table_box`. Confirmed there's no other reader anywhere in `otl/`
+    that reaches into a partially-populated `OtlTable` after a failed
+    parse (`otfcc_read_otl` only ever sees `Ok`/`Err` from this function,
+    never a partial value).
+  - **`otfcc_read_otl_subtable` (the per-lookup-type-format dispatcher)
+    and everything below it in `subtables/*` are untouched** -- still
+    raw-pointer-shaped, called from `otfcc_read_otl_lookup` via
+    `data.as_ptr()`/`data.len()` derived from the same `&[u8]` this PR
+    threads everywhere else, exactly the boundary `coverage.rs`/
+    `classdef.rs` established their previous PR.
+  - **No behavior change on any committed payload**: every payload with
+    GSUB/GPOS/GDEF (most of them, including the golden set's
+    `unknown-lookup.ttf` with 51 GSUB + 4 GPOS lookups and every
+    `-dedup` payload) stayed byte-identical -- this function builds every
+    lookup/feature name and language-system linkage the golden output
+    depends on, so this is strong end-to-end confirmation of the
+    rewrite, not just unit-level. Issue #1's lookup-alias regression
+    (which specifically exercises lookup naming/aliasing) still passes.
+    5 new unit tests cover the two fixed bugs plus a well-formed
+    round-trip through `parse_otl_common`/`otfcc_read_otl_lookup`
+    directly (constructing a minimal synthetic GSUB-shaped table, since
+    no committed payload happens to be malformed here).
+  - `rust/scripts/survey-unsafe.sh` deltas: `__fortable_*` 172 → 158,
+    `.offset(` 1412 → 1352, raw pointer types 6425 → 6407,
+    `current_block` (goto emulation) 78 → 68 -- the largest single-PR
+    drop in `current_block` count so far, from eliminating this file's
+    goto-emulation entirely.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 157 tests (was 152 -- 5 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log
+    output, zero exceptions), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes.
+  - Next: the individual subtable readers in `otl/subtables/*`
+    (gpos_single/pair/cursive/mark_to_*, gsub_single/multi/ligature/
+    reverse, `chaining/read.rs`) -- all confirmed (by this and the
+    previous PR) to receive the same trustworthy, non-shrinking
+    `table_length`/`(data, offset)` pairing, so each can adopt
+    `FontReader` independently.
+
 - **Stage 7-1, start of the `otl`/ family: `otl/coverage.rs` and
   `otl/classdef.rs`.** These two are the shared building blocks
   `read_coverage`/`read_class_def` that every GSUB/GPOS/GDEF subtable

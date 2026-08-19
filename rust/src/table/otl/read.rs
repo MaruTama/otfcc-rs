@@ -2,11 +2,11 @@
 
 
 
-use crate::support::binio::{read_16u, read_32u};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::sds::{Byte, Dec5, Hex2};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 
 use crate::table::otl::{Feature, FeatureList, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
 use crate::table::otl::{otl_feature_ref_list_dispose, subtable_list_slot, new_feature, new_language, new_lookup};
@@ -115,559 +115,289 @@ pub unsafe fn otfcc_read_otl_subtable(
         _ => return ::core::ptr::null_mut::<Subtable>(),
     };
 }
+// The original's own guard covered only the 6-byte header
+// (`lookupOrder`/`requiredFeatureIndex`/`featureCount`); the
+// `featureIndex[]` array that follows had no length check at all before
+// the loop that reads `feature_count` (attacker-controlled, up to 65535)
+// entries of it -- a real, previously-undocumented unchecked-array read,
+// same class as the `langSysRecords` bug in `otfcc_read_otl_common`
+// below. `require_room` closes both. A failure at either point falls
+// back to the original's own recovery: clear this one language's
+// `required_feature`/`features` rather than aborting the whole table
+// (`otl_feature_ref_list_dispose` matches the original's cleanup call).
 unsafe fn parse_language(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut base: u32,
-    mut lang: *mut LanguageSystem,
-    mut features: *mut FeatureList,
+    data: &[u8],
+    base: u32,
+    lang: *mut LanguageSystem,
+    features: *mut FeatureList,
 ) {
-    let mut rid: TableId = 0;
-    let mut feature_count: TableId = 0;
-    if table_length < base.wrapping_add(6 as u32) {
-        otl_feature_ref_list_dispose(&raw mut (*lang).features);
-        (*lang).required_feature = ::core::ptr::null::<Feature>();
-        return;
-    } else {
-        rid = read_16u(
-            data.offset(base as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-        ) as TableId;
-        if (rid as usize) < (*features).len() {
-            (*lang).required_feature = &raw const *(&(*features))[rid as usize] as FeatureRef;
-        } else {
-            (*lang).required_feature = ::core::ptr::null::<Feature>();
+    let parsed = FontReader::new(data).at(base as usize).and_then(|mut r| {
+        r.skip(2)?; // lookupOrder, unused
+        let rid = r.u16()?;
+        let feature_count = r.u16()?;
+        r.require_room(feature_count as usize, 2)?;
+        let mut feature_indices = Vec::with_capacity(feature_count as usize);
+        for _ in 0..feature_count {
+            feature_indices.push(r.u16()?);
         }
-        feature_count = read_16u(
-            data.offset(base as isize)
-                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-        ) as TableId;
-        let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < feature_count as ::core::ffi::c_int {
-            let mut feature_index: TableId = read_16u(
-                data.offset(base as isize)
-                    .offset(6 as ::core::ffi::c_int as isize)
-                    .offset((2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize)
-                    as *const u8,
-            ) as TableId;
-            if (feature_index as usize) < (*features).len() {
-                (*lang).features.push(&raw const *(&(*features))[feature_index as usize] as FeatureRef);
+        Ok((rid, feature_indices))
+    });
+    match parsed {
+        Ok((rid, feature_indices)) => {
+            if (rid as usize) < (*features).len() {
+                (*lang).required_feature = &raw const *(&(*features))[rid as usize] as FeatureRef;
+            } else {
+                (*lang).required_feature = ::core::ptr::null::<Feature>();
             }
-            j = j.wrapping_add(1);
-        }
-        return;
-    };
-}
-unsafe fn otfcc_read_otl_common(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut lookup_type_base: LookupType,
-    mut options: *const Options,
-) -> Option<Box<OtlTable>> {
-    let mut script_list_offset: u32 = 0;
-    let mut feature_list_offset: u32 = 0;
-    let mut lookup_list_offset: u32 = 0;
-    let mut current_block: u64;
-    let mut table_box: Box<OtlTable> = Box::new(OtlTable { lookups: Vec::new(), features: Vec::new(), languages: Vec::new() });
-    let table: *mut OtlTable = table_box.as_mut() as *mut OtlTable;
-    if !table.is_null() {
-        if !(table_length < 10 as u32) {
-            script_list_offset =
-                read_16u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8)
-                    as u32;
-            if !(table_length < script_list_offset.wrapping_add(2 as u32)) {
-                feature_list_offset =
-                    read_16u(data.offset(6 as ::core::ffi::c_int as isize) as *const u8)
-                        as u32;
-                if !(table_length < feature_list_offset.wrapping_add(2 as u32)) {
-                    lookup_list_offset =
-                        read_16u(data.offset(8 as ::core::ffi::c_int as isize) as *const u8)
-                            as u32;
-                    if !(table_length < lookup_list_offset.wrapping_add(2 as u32)) {
-                        let mut lookup_count: TableId =
-                            read_16u(data.offset(lookup_list_offset as isize) as *const u8)
-                                as TableId;
-                        if !(table_length
-                            < lookup_list_offset.wrapping_add(2 as u32).wrapping_add(
-                                (lookup_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                    as u32,
-                            ))
-                        {
-                            let mut j: TableId = 0 as TableId;
-                            loop {
-                                if !((j as ::core::ffi::c_int) < lookup_count as ::core::ffi::c_int)
-                                {
-                                    current_block = 12147880666119273379;
-                                    break;
-                                }
-                                let mut lookup: Box<Lookup> = new_lookup();
-                                (*lookup)._offset = lookup_list_offset.wrapping_add(read_16u(
-                                    data.offset(lookup_list_offset as isize)
-                                        .offset(2 as ::core::ffi::c_int as isize)
-                                        .offset(
-                                            (2 as ::core::ffi::c_int * j as ::core::ffi::c_int)
-                                                as isize,
-                                        ) as *const u8,
-                                )
-                                    as u32);
-                                if table_length < (*lookup)._offset.wrapping_add(6 as u32) {
-                                    current_block = 2510049428056405458;
-                                    break;
-                                }
-                                (*lookup).type_0 = LookupType::from_file(
-                                    lookup_type_base,
-                                    read_16u(data.offset((*lookup)._offset as isize) as *const u8),
-                                );
-                                (*table).lookups.push(lookup);
-                                j = j.wrapping_add(1);
-                            }
-                            match current_block {
-                                2510049428056405458 => {}
-                                _ => {
-                                    let mut feature_count: TableId =
-                                        read_16u(data.offset(feature_list_offset as isize)
-                                            as *const u8)
-                                            as TableId;
-                                    if !(table_length
-                                        < feature_list_offset
-                                            .wrapping_add(2 as u32)
-                                            .wrapping_add(
-                                                (feature_count as ::core::ffi::c_int
-                                                    * 6 as ::core::ffi::c_int)
-                                                    as u32,
-                                            ))
-                                    {
-                                        let mut lnk: TableId = 0 as TableId;
-                                        let mut j_0: TableId = 0 as TableId;
-                                        loop {
-                                            if !((j_0 as ::core::ffi::c_int)
-                                                < feature_count as ::core::ffi::c_int)
-                                            {
-                                                current_block = 13460095289871124136;
-                                                break;
-                                            }
-                                            let mut feature: Box<Feature> = new_feature();
-                                            let mut tag: u32 = read_32u(
-                                                data.offset(feature_list_offset as isize)
-                                                    .offset(2 as ::core::ffi::c_int as isize)
-                                                    .offset(
-                                                        (j_0 as ::core::ffi::c_int
-                                                            * 6 as ::core::ffi::c_int)
-                                                            as isize,
-                                                    )
-                                                    as *const u8,
-                                            );
-                                            if !(*options).glyph_name_prefix.is_null() {
-                                                (*feature).name = crate::bytesbuild!(
-                                                    Byte((tag >> 24 as ::core::ffi::c_int
-                                                        & 0xff as u32) as u8),
-                                                    Byte((tag >> 16 as ::core::ffi::c_int
-                                                        & 0xff as u32) as u8),
-                                                    Byte((tag >> 8 as ::core::ffi::c_int
-                                                        & 0xff as u32) as u8),
-                                                    Byte((tag & 0xff as u32) as u8),
-                                                    b"_",
-                                                    (*options).glyph_name_prefix,
-                                                    b"_",
-                                                    Dec5((j_0 as ::core::ffi::c_int) as ::core::ffi::c_int),
-                                                );
-                                            } else {
-                                                (*feature).name = crate::bytesbuild!(
-                                                    Byte((tag >> 24 as ::core::ffi::c_int
-                                                        & 0xff as u32) as u8),
-                                                    Byte((tag >> 16 as ::core::ffi::c_int
-                                                        & 0xff as u32) as u8),
-                                                    Byte((tag >> 8 as ::core::ffi::c_int
-                                                        & 0xff as u32) as u8),
-                                                    Byte((tag & 0xff as u32) as u8),
-                                                    b"_",
-                                                    Dec5((j_0 as ::core::ffi::c_int) as ::core::ffi::c_int),
-                                                );
-                                            }
-                                            let mut feature_offset: u32 = feature_list_offset
-                                                .wrapping_add(read_16u(
-                                                    data.offset(feature_list_offset as isize)
-                                                        .offset(2 as ::core::ffi::c_int as isize)
-                                                        .offset(
-                                                            (j_0 as ::core::ffi::c_int
-                                                                * 6 as ::core::ffi::c_int)
-                                                                as isize,
-                                                        )
-                                                        .offset(4 as ::core::ffi::c_int as isize)
-                                                        as *const u8,
-                                                )
-                                                    as u32);
-                                            if table_length
-                                                < feature_offset.wrapping_add(4 as u32)
-                                            {
-                                                current_block = 2510049428056405458;
-                                                break;
-                                            }
-                                            let mut lookup_count_0: TableId = read_16u(
-                                                data.offset(feature_offset as isize)
-                                                    .offset(2 as ::core::ffi::c_int as isize)
-                                                    as *const u8,
-                                            )
-                                                as TableId;
-                                            if table_length
-                                                < feature_offset
-                                                    .wrapping_add(4 as u32)
-                                                    .wrapping_add(
-                                                        (lookup_count_0 as ::core::ffi::c_int
-                                                            * 2 as ::core::ffi::c_int)
-                                                            as u32,
-                                                    )
-                                            {
-                                                current_block = 2510049428056405458;
-                                                break;
-                                            }
-                                            let mut k: TableId = 0 as TableId;
-                                            while (k as ::core::ffi::c_int)
-                                                < lookup_count_0 as ::core::ffi::c_int
-                                            {
-                                                let mut lookupid: TableId = read_16u(
-                                                    data.offset(feature_offset as isize)
-                                                        .offset(4 as ::core::ffi::c_int as isize)
-                                                        .offset(
-                                                            (k as ::core::ffi::c_int
-                                                                * 2 as ::core::ffi::c_int)
-                                                                as isize,
-                                                        )
-                                                        as *const u8,
-                                                )
-                                                    as TableId;
-                                                if (lookupid as usize) < (*table).lookups.len() {
-                                                    let lookup_0: *mut Lookup =
-                                                        &raw mut *(&mut (*table).lookups)[lookupid as usize];
-                                                    if (*lookup_0).name.is_empty() {
-                                                        if !(*options).glyph_name_prefix.is_null() {
-                                                            let fresh3 = lnk;
-                                                            lnk = lnk.wrapping_add(1);
-                                                            (*lookup_0).name = crate::bytesbuild!(
-                                                                b"lookup_",
-                                                                (*options).glyph_name_prefix,
-                                                                b"_",
-                                                                Byte((tag >> 24 as ::core::ffi::c_int
-                                                                    & 0xff as u32) as u8),
-                                                                Byte((tag >> 16 as ::core::ffi::c_int
-                                                                    & 0xff as u32) as u8),
-                                                                Byte((tag >> 8 as ::core::ffi::c_int
-                                                                    & 0xff as u32) as u8),
-                                                                Byte((tag & 0xff as u32) as u8),
-                                                                b"_",
-                                                                fresh3 as ::core::ffi::c_int,
-                                                            );
-                                                        } else {
-                                                            let fresh4 = lnk;
-                                                            lnk = lnk.wrapping_add(1);
-                                                            (*lookup_0).name = crate::bytesbuild!(
-                                                                b"lookup_",
-                                                                Byte((tag >> 24 as ::core::ffi::c_int
-                                                                    & 0xff as u32) as u8),
-                                                                Byte((tag >> 16 as ::core::ffi::c_int
-                                                                    & 0xff as u32) as u8),
-                                                                Byte((tag >> 8 as ::core::ffi::c_int
-                                                                    & 0xff as u32) as u8),
-                                                                Byte((tag & 0xff as u32) as u8),
-                                                                b"_",
-                                                                fresh4 as ::core::ffi::c_int,
-                                                            );
-                                                        }
-                                                    }
-                                                    (*feature).lookups.push(lookup_0 as LookupRef);
-                                                }
-                                                k = k.wrapping_add(1);
-                                            }
-                                            (*table).features.push(feature);
-                                            j_0 = j_0.wrapping_add(1);
-                                        }
-                                        match current_block {
-                                            2510049428056405458 => {}
-                                            _ => {
-                                                let mut script_count: TableId =
-                                                    read_16u(data.offset(script_list_offset as isize)
-                                                        as *const u8)
-                                                        as TableId;
-                                                if !(table_length
-                                                    < script_list_offset
-                                                        .wrapping_add(2 as u32)
-                                                        .wrapping_add(
-                                                            (6 as ::core::ffi::c_int
-                                                                * script_count as ::core::ffi::c_int)
-                                                                as u32,
-                                                        ))
-                                                {
-                                                    let mut n_language_combinations: u32 =
-                                                        0 as u32;
-                                                    let mut j_1: TableId = 0 as TableId;
-                                                    loop {
-                                                        if !((j_1 as ::core::ffi::c_int)
-                                                            < script_count as ::core::ffi::c_int)
-                                                        {
-                                                            current_block = 6528285054092551010;
-                                                            break;
-                                                        }
-                                                        let mut script_offset: u32 =
-                                                            script_list_offset
-                                                                .wrapping_add(read_16u(
-                                                                data.offset(
-                                                                    script_list_offset as isize,
-                                                                )
-                                                                .offset(
-                                                                    2 as ::core::ffi::c_int
-                                                                        as isize,
-                                                                )
-                                                                .offset(
-                                                                    (6 as ::core::ffi::c_int
-                                                                        * j_1 as ::core::ffi::c_int)
-                                                                        as isize,
-                                                                )
-                                                                .offset(
-                                                                    4 as ::core::ffi::c_int
-                                                                        as isize,
-                                                                )
-                                                                    as *const u8,
-                                                            )
-                                                                as u32);
-                                                        if table_length
-                                                            < script_offset
-                                                                .wrapping_add(4 as u32)
-                                                        {
-                                                            current_block = 2510049428056405458;
-                                                            break;
-                                                        }
-                                                        let mut default_lang_system: TableId =
-                                                            read_16u(
-                                                                data.offset(script_offset as isize)
-                                                                    as *const u8,
-                                                            )
-                                                                as TableId;
-                                                        n_language_combinations =
-                                                            n_language_combinations.wrapping_add(
-                                                                ((if default_lang_system
-                                                                    as ::core::ffi::c_int
-                                                                    != 0
-                                                                {
-                                                                    1 as ::core::ffi::c_int
-                                                                } else {
-                                                                    0 as ::core::ffi::c_int
-                                                                }) + read_16u(
-                                                                    data.offset(
-                                                                        script_offset as isize,
-                                                                    )
-                                                                    .offset(
-                                                                        2 as ::core::ffi::c_int
-                                                                            as isize,
-                                                                    )
-                                                                        as *const u8,
-                                                                )
-                                                                    as ::core::ffi::c_int)
-                                                                    as u32,
-                                                            );
-                                                        j_1 = j_1.wrapping_add(1);
-                                                    }
-                                                    match current_block {
-                                                        2510049428056405458 => {}
-                                                        _ => {
-                                                            let mut j_2: TableId = 0 as TableId;
-                                                            while (j_2 as ::core::ffi::c_int)
-                                                                < script_count as ::core::ffi::c_int
-                                                            {
-                                                                let mut tag_0: u32 = read_32u(
-                                                                    data
-                                                                        .offset(script_list_offset as isize)
-                                                                        .offset(2 as ::core::ffi::c_int as isize)
-                                                                        .offset(
-                                                                            (6 as ::core::ffi::c_int * j_2 as ::core::ffi::c_int)
-                                                                                as isize,
-                                                                        ) as *const u8,
-                                                                );
-                                                                let mut script_offset_0: u32 = script_list_offset
-                                                                    .wrapping_add(
-                                                                        read_16u(
-                                                                            data
-                                                                                .offset(script_list_offset as isize)
-                                                                                .offset(2 as ::core::ffi::c_int as isize)
-                                                                                .offset(
-                                                                                    (6 as ::core::ffi::c_int * j_2 as ::core::ffi::c_int)
-                                                                                        as isize,
-                                                                                )
-                                                                                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-                                                                        ) as u32,
-                                                                    );
-                                                                let mut default_lang_system_0: TableId = read_16u(
-                                                                    data.offset(script_offset_0 as isize) as *const u8,
-                                                                ) as TableId;
-                                                                if default_lang_system_0 != 0 {
-                                                                    let mut lang: Box<LanguageSystem> = new_language();
-                                                                    (*lang).name = crate::bytesbuild!(
-                                                                        Byte((tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
-                                                                        Byte((tag_0 >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
-                                                                        Byte((tag_0 >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
-                                                                        Byte((tag_0 & 0xff as u32) as u8),
-                                                                        Byte((SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int) as u8),
-                                                                        b"DFLT",
-                                                                    );
-                                                                    parse_language(
-                                                                        data,
-                                                                        table_length,
-                                                                        script_offset_0
-                                                                            .wrapping_add(
-                                                                                default_lang_system_0
-                                                                                    as u32,
-                                                                            ),
-                                                                        &raw mut *lang,
-                                                                        &raw mut (*table).features,
-                                                                    );
-                                                                    (*table).languages.push(lang);
-                                                                }
-                                                                let mut lang_sys_count: TableId =
-                                                                    read_16u(
-                                                                        data.offset(
-                                                                            script_offset_0 as isize,
-                                                                        )
-                                                                        .offset(
-                                                                            2 as ::core::ffi::c_int
-                                                                                as isize,
-                                                                        )
-                                                                            as *const u8,
-                                                                    )
-                                                                        as TableId;
-                                                                let mut k_0: TableId =
-                                                                    0 as TableId;
-                                                                while (k_0 as ::core::ffi::c_int)
-                                                                    < lang_sys_count
-                                                                        as ::core::ffi::c_int
-                                                                {
-                                                                    let mut lang_tag: u32 = read_32u(
-                                                                        data
-                                                                            .offset(script_offset_0 as isize)
-                                                                            .offset(4 as ::core::ffi::c_int as isize)
-                                                                            .offset(
-                                                                                (6 as ::core::ffi::c_int * k_0 as ::core::ffi::c_int)
-                                                                                    as isize,
-                                                                            ) as *const u8,
-                                                                    );
-                                                                    let mut lang_sys: TableId = read_16u(
-                                                                        data
-                                                                            .offset(script_offset_0 as isize)
-                                                                            .offset(4 as ::core::ffi::c_int as isize)
-                                                                            .offset(
-                                                                                (6 as ::core::ffi::c_int * k_0 as ::core::ffi::c_int)
-                                                                                    as isize,
-                                                                            )
-                                                                            .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-                                                                    ) as TableId;
-                                                                    let mut lang_0: Box<LanguageSystem> = new_language();
-                                                                    (*lang_0).name = crate::bytesbuild!(
-                                                                        Byte((tag_0 >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
-                                                                        Byte((tag_0 >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
-                                                                        Byte((tag_0 >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
-                                                                        Byte((tag_0 & 0xff as u32) as u8),
-                                                                        Byte((SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int) as u8),
-                                                                        Byte((lang_tag >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
-                                                                        Byte((lang_tag >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
-                                                                        Byte((lang_tag >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
-                                                                        Byte((lang_tag & 0xff as u32) as u8),
-                                                                    );
-                                                                    parse_language(
-                                                                        data,
-                                                                        table_length,
-                                                                        script_offset_0
-                                                                            .wrapping_add(
-                                                                                lang_sys as u32,
-                                                                            ),
-                                                                        &raw mut *lang_0,
-                                                                        &raw mut (*table).features,
-                                                                    );
-                                                                    (*table).languages.push(lang_0);
-                                                                    k_0 = k_0.wrapping_add(1);
-                                                                }
-                                                                j_2 = j_2.wrapping_add(1);
-                                                            }
-                                                            let mut j_3: TableId = 0 as TableId;
-                                                            while (j_3 as usize)
-                                                                < (*table).lookups.len()
-                                                            {
-                                                                if (*(&(*table)
-                                                                    .lookups)[j_3 as usize])
-                                                                .name
-                                                                .is_empty()
-                                                                {
-                                                                    if !(*options)
-                                                                        .glyph_name_prefix
-                                                                        .is_null()
-                                                                    {
-                                                                        (*(&mut (*table).lookups)[j_3 as usize]).name = crate::bytesbuild!(
-                                                                            b"lookup_",
-                                                                            (*options).glyph_name_prefix,
-                                                                            b"_",
-                                                                            Hex2((*(&(*table).lookups)[j_3 as usize]).type_0.raw()),
-                                                                            b"_",
-                                                                            j_3 as ::core::ffi::c_int,
-                                                                        );
-                                                                    } else {
-                                                                        (*(&mut (*table).lookups)[j_3 as usize]).name = crate::bytesbuild!(
-                                                                            b"lookup_",
-                                                                            Hex2((*(&(*table).lookups)[j_3 as usize]).type_0.raw()),
-                                                                            b"_",
-                                                                            j_3 as ::core::ffi::c_int,
-                                                                        );
-                                                                    }
-                                                                }
-                                                                j_3 = j_3.wrapping_add(1);
-                                                            }
-                                                            return Some(table_box);
-                                                        }
-                                                    }
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
+            for feature_index in feature_indices {
+                if (feature_index as usize) < (*features).len() {
+                    (*lang).features.push(&raw const *(&(*features))[feature_index as usize] as FeatureRef);
                 }
             }
         }
+        Err(_) => {
+            otl_feature_ref_list_dispose(&raw mut (*lang).features);
+            (*lang).required_feature = ::core::ptr::null::<Feature>();
+        }
     }
-    return None;
+}
+// Every guard failure in the original, at any nesting depth, falls
+// through to the same `return None;` at the very bottom -- discarding
+// `table_box` (lookups/features/languages already pushed included, all
+// the way). That single-outcome-on-any-failure shape is exactly what `?`
+// propagation on a `Result` gives for free, which is what lets this
+// rewrite flatten five levels of nested `if`/`current_block` goto-
+// emulation into one function with early returns.
+//
+// Two real, previously-undocumented bugs fixed along the way (beyond the
+// `wrapping_add` overflow-defeats-guard class already fixed in
+// `cmap.rs`/`coverage.rs`/`classdef.rs`): the `langSysRecords` array
+// (read via `lang_tag`/`lang_sys` below) had *no* length guard at all
+// before this rewrite -- `lang_sys_count` is attacker-controlled and
+// unbounded, so a script with a large `lang_sys_count` read straight past
+// the table. `require_room` before that loop closes it. The other is in
+// `parse_language`, see its own comment.
+unsafe fn parse_otl_common(
+    data: &[u8],
+    lookup_type_base: LookupType,
+    options: *const Options,
+) -> Result<Box<OtlTable>, ReadError> {
+    let mut table_box: Box<OtlTable> =
+        Box::new(OtlTable { lookups: Vec::new(), features: Vec::new(), languages: Vec::new() });
+    let table: *mut OtlTable = table_box.as_mut() as *mut OtlTable;
+
+    let script_list_offset = FontReader::new(data).at(4)?.u16()? as u32;
+    let feature_list_offset = FontReader::new(data).at(6)?.u16()? as u32;
+    let lookup_list_offset = FontReader::new(data).at(8)?.u16()? as u32;
+
+    // -- Lookup list --
+    let mut lr = FontReader::new(data).at(lookup_list_offset as usize)?;
+    let lookup_count = lr.u16()?;
+    lr.require_room(lookup_count as usize, 2)?;
+    for _ in 0..lookup_count {
+        let mut lookup: Box<Lookup> = new_lookup();
+        let lookup_offset = lookup_list_offset.wrapping_add(lr.u16()? as u32);
+        // Needs 6 bytes at `lookup_offset` (lookupType/lookupFlag/
+        // subtableCount): only the first 2 are read here, but the
+        // original required all 6 up front, before the lookup was even
+        // pushed, so this is checked the same way.
+        let mut hr = FontReader::new(data).at(lookup_offset as usize)?;
+        hr.require_room(6, 1)?;
+        (*lookup)._offset = lookup_offset;
+        (*lookup).type_0 = LookupType::from_file(lookup_type_base, hr.u16()?);
+        (*table).lookups.push(lookup);
+    }
+
+    // -- Feature list --
+    let mut fr = FontReader::new(data).at(feature_list_offset as usize)?;
+    let feature_count = fr.u16()?;
+    fr.require_room(feature_count as usize, 6)?;
+    let mut lnk: TableId = 0;
+    for j in 0..feature_count {
+        let tag = fr.u32()?;
+        let feature_offset = feature_list_offset.wrapping_add(fr.u16()? as u32);
+        let mut feature: Box<Feature> = new_feature();
+        if !(*options).glyph_name_prefix.is_null() {
+            (*feature).name = crate::bytesbuild!(
+                Byte((tag >> 24 & 0xff) as u8),
+                Byte((tag >> 16 & 0xff) as u8),
+                Byte((tag >> 8 & 0xff) as u8),
+                Byte((tag & 0xff) as u8),
+                b"_",
+                (*options).glyph_name_prefix,
+                b"_",
+                Dec5(j as ::core::ffi::c_int),
+            );
+        } else {
+            (*feature).name = crate::bytesbuild!(
+                Byte((tag >> 24 & 0xff) as u8),
+                Byte((tag >> 16 & 0xff) as u8),
+                Byte((tag >> 8 & 0xff) as u8),
+                Byte((tag & 0xff) as u8),
+                b"_",
+                Dec5(j as ::core::ffi::c_int),
+            );
+        }
+        let mut fer = FontReader::new(data).at(feature_offset as usize)?;
+        fer.skip(2)?; // featureParams, unused
+        let lookup_count_0 = fer.u16()?;
+        fer.require_room(lookup_count_0 as usize, 2)?;
+        for _ in 0..lookup_count_0 {
+            let lookupid = fer.u16()?;
+            if (lookupid as usize) < (*table).lookups.len() {
+                let lookup_0: *mut Lookup = &raw mut *(&mut (*table).lookups)[lookupid as usize];
+                if (*lookup_0).name.is_empty() {
+                    if !(*options).glyph_name_prefix.is_null() {
+                        let fresh3 = lnk;
+                        lnk = lnk.wrapping_add(1);
+                        (*lookup_0).name = crate::bytesbuild!(
+                            b"lookup_",
+                            (*options).glyph_name_prefix,
+                            b"_",
+                            Byte((tag >> 24 & 0xff) as u8),
+                            Byte((tag >> 16 & 0xff) as u8),
+                            Byte((tag >> 8 & 0xff) as u8),
+                            Byte((tag & 0xff) as u8),
+                            b"_",
+                            fresh3 as ::core::ffi::c_int,
+                        );
+                    } else {
+                        let fresh4 = lnk;
+                        lnk = lnk.wrapping_add(1);
+                        (*lookup_0).name = crate::bytesbuild!(
+                            b"lookup_",
+                            Byte((tag >> 24 & 0xff) as u8),
+                            Byte((tag >> 16 & 0xff) as u8),
+                            Byte((tag >> 8 & 0xff) as u8),
+                            Byte((tag & 0xff) as u8),
+                            b"_",
+                            fresh4 as ::core::ffi::c_int,
+                        );
+                    }
+                }
+                (*feature).lookups.push(lookup_0 as LookupRef);
+            }
+        }
+        (*table).features.push(feature);
+    }
+
+    // -- Script list --
+    let mut sr = FontReader::new(data).at(script_list_offset as usize)?;
+    let script_count = sr.u16()?;
+    sr.require_room(script_count as usize, 6)?;
+    for _ in 0..script_count {
+        let tag_0 = sr.u32()?;
+        let script_offset_0 = script_list_offset.wrapping_add(sr.u16()? as u32);
+        let mut so = FontReader::new(data).at(script_offset_0 as usize)?;
+        let default_lang_system_0 = so.u16()?;
+        let lang_sys_count = so.u16()?;
+        if default_lang_system_0 != 0 {
+            let mut lang: Box<LanguageSystem> = new_language();
+            (*lang).name = crate::bytesbuild!(
+                Byte((tag_0 >> 24 & 0xff) as u8),
+                Byte((tag_0 >> 16 & 0xff) as u8),
+                Byte((tag_0 >> 8 & 0xff) as u8),
+                Byte((tag_0 & 0xff) as u8),
+                Byte(SCRIPT_LANGUAGE_SEPARATOR as u8),
+                b"DFLT",
+            );
+            parse_language(
+                data,
+                script_offset_0.wrapping_add(default_lang_system_0 as u32),
+                &raw mut *lang,
+                &raw mut (*table).features,
+            );
+            (*table).languages.push(lang);
+        }
+        // `langSysRecords[]` -- see this function's top comment: the
+        // original read `lang_sys_count` (attacker-controlled) entries of
+        // this array with no length check at all.
+        so.require_room(lang_sys_count as usize, 6)?;
+        for _ in 0..lang_sys_count {
+            let lang_tag = so.u32()?;
+            let lang_sys = so.u16()?;
+            let mut lang_0: Box<LanguageSystem> = new_language();
+            (*lang_0).name = crate::bytesbuild!(
+                Byte((tag_0 >> 24 & 0xff) as u8),
+                Byte((tag_0 >> 16 & 0xff) as u8),
+                Byte((tag_0 >> 8 & 0xff) as u8),
+                Byte((tag_0 & 0xff) as u8),
+                Byte(SCRIPT_LANGUAGE_SEPARATOR as u8),
+                Byte((lang_tag >> 24 & 0xff) as u8),
+                Byte((lang_tag >> 16 & 0xff) as u8),
+                Byte((lang_tag >> 8 & 0xff) as u8),
+                Byte((lang_tag & 0xff) as u8),
+            );
+            parse_language(
+                data,
+                script_offset_0.wrapping_add(lang_sys as u32),
+                &raw mut *lang_0,
+                &raw mut (*table).features,
+            );
+            (*table).languages.push(lang_0);
+        }
+    }
+
+    for j_3 in 0..(*table).lookups.len() {
+        if (*(&(*table).lookups)[j_3]).name.is_empty() {
+            if !(*options).glyph_name_prefix.is_null() {
+                (*(&mut (*table).lookups)[j_3]).name = crate::bytesbuild!(
+                    b"lookup_",
+                    (*options).glyph_name_prefix,
+                    b"_",
+                    Hex2((*(&(*table).lookups)[j_3]).type_0.raw()),
+                    b"_",
+                    j_3 as ::core::ffi::c_int,
+                );
+            } else {
+                (*(&mut (*table).lookups)[j_3]).name = crate::bytesbuild!(
+                    b"lookup_",
+                    Hex2((*(&(*table).lookups)[j_3]).type_0.raw()),
+                    b"_",
+                    j_3 as ::core::ffi::c_int,
+                );
+            }
+        }
+    }
+    Ok(table_box)
 }
 unsafe fn otfcc_read_otl_lookup(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut lookup: *mut Lookup,
-    mut max_glyphs: GlyphId,
-    mut options: *const Options,
+    data: &[u8],
+    lookup: *mut Lookup,
+    max_glyphs: GlyphId,
+    options: *const Options,
 ) {
-    (*lookup).flags = read_16u(
-        data.offset((*lookup)._offset as isize)
-            .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-    );
-    let mut subtable_count: TableId = read_16u(
-        data.offset((*lookup)._offset as isize)
-            .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-    ) as TableId;
-    if subtable_count == 0
-        || table_length
-            < (*lookup)._offset.wrapping_add(6 as u32).wrapping_add(
-                (2 as ::core::ffi::c_int * subtable_count as ::core::ffi::c_int) as u32,
-            )
-    {
-        (*lookup).type_0 = OTL_TYPE_UNKNOWN;
-        return;
-    }
-    let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < subtable_count as ::core::ffi::c_int {
-        let mut subtable_offset: u32 = (*lookup)._offset.wrapping_add(read_16u(
-            data.offset((*lookup)._offset as isize)
-                .offset(6 as ::core::ffi::c_int as isize)
-                .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                as *const u8,
-        ) as u32);
-        let mut subtable: *mut Subtable = otfcc_read_otl_subtable(
-            data,
+    let parsed = FontReader::new(data).at((*lookup)._offset as usize).and_then(|mut r| {
+        r.skip(2)?; // lookupType, already resolved into type_0
+        let flags = r.u16()?;
+        let subtable_count = r.u16()?;
+        r.require_room(subtable_count as usize, 2)?;
+        let mut subtable_offsets = Vec::with_capacity(subtable_count as usize);
+        for _ in 0..subtable_count {
+            subtable_offsets.push((*lookup)._offset.wrapping_add(r.u16()? as u32));
+        }
+        if subtable_count == 0 {
+            return Err(ReadError { needed: 1, available: 0 });
+        }
+        Ok((flags, subtable_offsets))
+    });
+    let (flags, subtable_offsets) = match parsed {
+        Ok(v) => v,
+        Err(_) => {
+            (*lookup).type_0 = OTL_TYPE_UNKNOWN;
+            return;
+        }
+    };
+    (*lookup).flags = flags;
+    // `otfcc_read_otl_subtable` and everything below it (`subtables/*`)
+    // still takes a raw pointer/length pair -- not yet converted to
+    // `FontReader`. `data`/`table.data.len()` is the same
+    // pointer/length pair the original passed, unchanged.
+    let raw_data = data.as_ptr() as FontFilePointer;
+    let table_length = data.len() as u32;
+    for subtable_offset in subtable_offsets {
+        let subtable: *mut Subtable = otfcc_read_otl_subtable(
+            raw_data,
             table_length,
             subtable_offset,
             (*lookup).type_0,
@@ -675,7 +405,6 @@ unsafe fn otfcc_read_otl_lookup(
             options,
         );
         (*lookup).subtables.push(subtable_list_slot(subtable));
-        j = j.wrapping_add(1);
     }
     if (*lookup).type_0 == OTL_TYPE_GSUB_EXTEND
         || (*lookup).type_0 == OTL_TYPE_GPOS_EXTEND
@@ -749,61 +478,168 @@ unsafe fn otfcc_read_otl_lookup(
     }
 }
 pub unsafe fn otfcc_read_otl(
-    mut packet: &Packet,
-    mut options: *const Options,
-    mut tag: u32,
-    mut max_glyphs: GlyphId,
+    packet: &Packet,
+    options: *const Options,
+    tag: u32,
+    max_glyphs: GlyphId,
 ) -> Option<Box<OtlTable>> {
-    let mut otl: Option<Box<OtlTable>> = None;
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == tag {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
-                    otl = otfcc_read_otl_common(
-                        data,
-                        length,
-                        if tag == crate::tag::TAG_GSUB {
-                            OTL_TYPE_GSUB_UNKNOWN
-                        } else if tag == crate::tag::TAG_GPOS {
-                            OTL_TYPE_GPOS_UNKNOWN
-                        } else {
-                            OTL_TYPE_UNKNOWN
-                        },
-                        options,
-                    );
-                    if let Some(otl_box) = otl.as_mut() {
-                        let otl_ptr: *mut OtlTable = otl_box.as_mut() as *mut OtlTable;
-                        let mut j: TableId = 0 as TableId;
-                        while (j as usize) < (*otl_ptr).lookups.len() {
-                            otfcc_read_otl_lookup(
-                                data,
-                                length,
-                                &raw mut *(&mut (*otl_ptr).lookups)[j as usize],
-                                max_glyphs,
-                                options,
-                            );
-                            j = j.wrapping_add(1);
-                        }
-                        return otl;
-                    }
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
+    let table = packet.pieces.iter().find(|p| p.tag == tag)?;
+    let lookup_type_base = if tag == crate::tag::TAG_GSUB {
+        OTL_TYPE_GSUB_UNKNOWN
+    } else if tag == crate::tag::TAG_GPOS {
+        OTL_TYPE_GPOS_UNKNOWN
+    } else {
+        OTL_TYPE_UNKNOWN
+    };
+    // No "corrupted" log on failure here, matching the original: OTL
+    // parse failures are silent (unlike most other table readers).
+    let mut otl_box = parse_otl_common(&table.data, lookup_type_base, options).ok()?;
+    let otl_ptr: *mut OtlTable = otl_box.as_mut() as *mut OtlTable;
+    for j in 0..(*otl_ptr).lookups.len() {
+        otfcc_read_otl_lookup(&table.data, &raw mut *(&mut (*otl_ptr).lookups)[j], max_glyphs, options);
     }
-    return None;
+    Some(otl_box)
+}
+
+#[cfg(test)]
+mod parse_otl_common_tests {
+    use super::*;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    // A minimal but complete GSUB-shaped table: one lookup (0 subtables,
+    // so `otfcc_read_otl_subtable` -- unconverted, out of this PR's scope
+    // -- is never reached), one feature referencing it, one script whose
+    // single langSysRecord (not the default) references the feature.
+    //
+    // Layout (byte offsets): version 0..4, scriptListOffset(u16) @4,
+    // featureListOffset(u16) @6, lookupListOffset(u16) @8;
+    // lookupList @10 (count=1, entry@12); lookup table @14 (type=4,
+    // flag=0, subtableCount=0); featureList @20 (count=1, tag='liga'
+    // @22, offset@26); feature table @28 (featureParams unused,
+    // lookupCount=1, lookupIndices=[0]); scriptList @34 (count=1,
+    // tag='latn' @36, offset@40); script table @42 (defaultLangSys=0,
+    // langSysCount=1, langSysRecord: tag @46, offset(rel. to script
+    // table)=10 @50); langSys table @52 (lookupOrder unused,
+    // requiredFeatureIndex=0xFFFF, featureCount=1, featureIndices=[0]).
+    fn well_formed_gsub() -> Vec<u8> {
+        let mut data = vec![0u8; 60];
+        data[4..6].copy_from_slice(&34u16.to_be_bytes()); // scriptListOffset
+        data[6..8].copy_from_slice(&20u16.to_be_bytes()); // featureListOffset
+        data[8..10].copy_from_slice(&10u16.to_be_bytes()); // lookupListOffset
+
+        data[10..12].copy_from_slice(&1u16.to_be_bytes()); // lookupCount
+        data[12..14].copy_from_slice(&4u16.to_be_bytes()); // lookup[0] offset (rel. to 10) -> 14
+        data[14..16].copy_from_slice(&4u16.to_be_bytes()); // lookupType
+        data[18..20].copy_from_slice(&0u16.to_be_bytes()); // subtableCount
+
+        data[20..22].copy_from_slice(&1u16.to_be_bytes()); // featureCount
+        data[22..26].copy_from_slice(b"liga"); // featureTag
+        data[26..28].copy_from_slice(&8u16.to_be_bytes()); // feature[0] offset (rel. to 20) -> 28
+        data[30..32].copy_from_slice(&1u16.to_be_bytes()); // feature.lookupCount
+        data[32..34].copy_from_slice(&0u16.to_be_bytes()); // feature.lookupIndices[0]
+
+        data[34..36].copy_from_slice(&1u16.to_be_bytes()); // scriptCount
+        data[36..40].copy_from_slice(b"latn"); // scriptTag
+        data[40..42].copy_from_slice(&8u16.to_be_bytes()); // script[0] offset (rel. to 34) -> 42
+        data[42..44].copy_from_slice(&0u16.to_be_bytes()); // defaultLangSys (none)
+        data[44..46].copy_from_slice(&1u16.to_be_bytes()); // langSysCount
+        data[46..50].copy_from_slice(b"dflt"); // langSysRecord.tag
+        data[50..52].copy_from_slice(&10u16.to_be_bytes()); // langSysRecord offset (rel. to 42) -> 52
+        data[54..56].copy_from_slice(&0xFFFFu16.to_be_bytes()); // requiredFeatureIndex (none)
+        data[56..58].copy_from_slice(&1u16.to_be_bytes()); // langSys.featureCount
+        data[58..60].copy_from_slice(&0u16.to_be_bytes()); // langSys.featureIndices[0]
+        data
+    }
+
+    #[test]
+    fn well_formed_table_links_lookup_feature_and_language() {
+        let data = well_formed_gsub();
+        let options = zeroed_options();
+        unsafe {
+            let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options as *const Options).unwrap();
+            assert_eq!(otl.lookups.len(), 1);
+            assert_eq!(otl.features.len(), 1);
+            assert_eq!(otl.features[0].name, b"liga_00000"); // Dec5 zero-pads the index
+            assert_eq!(otl.features[0].lookups.len(), 1);
+            assert_eq!(otl.languages.len(), 1); // only the non-default langSys; defaultLangSys was 0
+        }
+    }
+
+    #[test]
+    fn lang_sys_records_array_larger_than_declared_is_rejected_instead_of_reading_oob() {
+        // The original had *no* length check on `langSysRecords[]` at
+        // all -- `lang_sys_count` is a full attacker-controlled u16, and
+        // the original read that many 6-byte records unconditionally.
+        // `langSysCount` here claims 2 records (12 bytes needed from the
+        // array's start), but the table is truncated right after the one
+        // real record's 6 bytes -- confirming the new `require_room`
+        // guard catches the shortfall rather than reading into whatever
+        // (if anything) follows in memory.
+        let mut data = well_formed_gsub();
+        data[44..46].copy_from_slice(&2u16.to_be_bytes()); // langSysCount: claims 2, only 1 present
+        data.truncate(52); // cuts off right after the one real langSysRecord
+        let options = zeroed_options();
+        unsafe {
+            assert!(parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options as *const Options).is_err());
+        }
+    }
+
+    #[test]
+    fn feature_index_array_larger_than_declared_falls_back_per_language_not_the_whole_table() {
+        // `parse_language`'s own missing guard (see its comment): unlike
+        // the langSysRecords bug above, a failure here is recoverable --
+        // just this one language's features/required_feature are
+        // cleared, the rest of the table still parses.
+        let mut data = well_formed_gsub();
+        data[56..58].copy_from_slice(&5u16.to_be_bytes()); // langSys.featureCount: claims 5, only 1 present
+        let options = zeroed_options();
+        unsafe {
+            let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options as *const Options).unwrap();
+            assert_eq!(otl.languages.len(), 1);
+            assert!(otl.languages[0].features.is_empty());
+            assert!(otl.languages[0].required_feature.is_null());
+        }
+    }
+
+    #[test]
+    fn otfcc_read_otl_lookup_reads_subtable_offsets() {
+        // A standalone lookup table, independent of `well_formed_gsub`'s
+        // layout: lookupType(2)@0 (unused by `otfcc_read_otl_lookup`
+        // itself -- already resolved by `parse_otl_common`),
+        // lookupFlag(2)@2, subtableCount(2)@4=1, subtableOffsets[0](2)@6
+        // (relative to the lookup's own offset, 0 here).
+        let mut data = vec![0u8; 8];
+        data[4..6].copy_from_slice(&1u16.to_be_bytes()); // subtableCount
+        data[6..8].copy_from_slice(&2u16.to_be_bytes()); // subtableOffsets[0] -> 2 (unused by any real reader here)
+        let options = zeroed_options();
+        let mut lookup = new_lookup();
+        unsafe {
+            (*lookup)._offset = 0;
+            // Not GSUB_EXTEND/GPOS_EXTEND, so the extend-unwrap branch
+            // below is skipped; not a real per-format type either, so
+            // `otfcc_read_otl_subtable` (unconverted, out of scope) falls
+            // through to its null-return arm -- this test only checks
+            // that one subtable slot was appended, not what's in it.
+            (*lookup).type_0 = OTL_TYPE_GSUB_UNKNOWN;
+            let lookup_ptr: *mut Lookup = lookup.as_mut() as *mut Lookup;
+            otfcc_read_otl_lookup(&data, lookup_ptr, 0, &options as *const Options);
+            assert_eq!((*lookup_ptr).subtables.len(), 1);
+        }
+    }
+
+    #[test]
+    fn subtable_count_zero_marks_the_lookup_unknown() {
+        let data = well_formed_gsub(); // subtableCount is already 0
+        let options = zeroed_options();
+        unsafe {
+            let mut otl =
+                parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options as *const Options).unwrap();
+            let lookup_ptr: *mut Lookup = &raw mut *otl.lookups[0];
+            otfcc_read_otl_lookup(&data, lookup_ptr, 0, &options as *const Options);
+            assert_eq!((*lookup_ptr).type_0, OTL_TYPE_UNKNOWN);
+        }
+    }
 }
