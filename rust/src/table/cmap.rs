@@ -5,15 +5,16 @@ use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_a
 use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_8u, read_16u, read_24u, read_32u};
+use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer, GlyphId, TableId, Unicode};
+use crate::support::primitives::{GlyphId, TableId, Unicode};
 use crate::vendor::sds::{Hex4Upper};
 use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::{NULL};
 use crate::bk::bkblock::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
 use crate::bk::bkgraph::{bk_build_block};
@@ -180,39 +181,44 @@ pub unsafe fn otfcc_cmap_lookup_uvs(
         None => ::core::ptr::null_mut::<GlyphHandle>(),
     }
 }
-unsafe fn read_format12(
-    mut start: FontFilePointer,
-    mut length_limit: u32,
-    mut cmap: *mut CmapTable,
-) {
-    if length_limit < 16 as u32 {
+// Every reader below takes the *whole* cmap table's bytes (`data`) plus an
+// absolute offset into it, instead of the original's `(start: pointer,
+// length_limit: u32)` pair. That pairing is what let the plan's two
+// headline bugs happen: `length_limit` was computed once, elsewhere, via
+// `length.wrapping_sub(table_offset)` -- an offset read straight from the
+// file and never checked against `length` first, so a `table_offset`
+// larger than `length` wrapped the subtraction to a huge number and every
+// downstream `length_limit < ...` guard passed vacuously. Dropping
+// `length_limit` entirely and re-deriving "how much is left" as
+// `data.len() - offset` fresh at each `FontReader::at(offset)` call closes
+// this by construction: `at` itself rejects `offset > data.len()` before
+// any arithmetic on it happens, so there is nothing left to underflow.
+// This also applies recursively -- `read_format14`'s dispatch into
+// `read_uvs_default`/`read_uvs_non_default` had the exact same
+// `length_limit.wrapping_sub(offset)` shape one level down.
+//
+// The other bug class -- a `count`-driven guard computed with
+// `wrapping_add`/`wrapping_mul` on a `count` read straight from the file
+// (`n_groups`, `num_unicode_value_ranges`, `num_uvs_mappings`, all full
+// 32-bit fields) -- is closed the same way it already was in `name.rs`/
+// `meta.rs`: `FontReader::require_room`'s `checked_mul`/`checked_add`.
+unsafe fn read_format12(data: &[u8], offset: usize, cmap: *mut CmapTable) {
+    let mut r = match FontReader::new(data).at(offset) {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    if r.skip(12).is_err() {
+        return; // format, reserved, length, language
+    }
+    let Ok(n_groups) = r.u32() else { return };
+    if r.require_room(n_groups as usize, 12).is_err() {
         return;
     }
-    let mut n_groups: u32 =
-        read_32u(start.offset(12 as ::core::ffi::c_int as isize) as *const u8);
-    if length_limit < (16 as u32).wrapping_add((12 as u32).wrapping_mul(n_groups)) {
-        return;
-    }
-    let mut j: u32 = 0 as u32;
-    while j < n_groups {
-        let mut start_code: u32 = read_32u(
-            start
-                .offset(16 as ::core::ffi::c_int as isize)
-                .offset((12 as u32).wrapping_mul(j) as isize) as *const u8,
-        );
-        let mut end_code: u32 = read_32u(
-            start
-                .offset(16 as ::core::ffi::c_int as isize)
-                .offset((12 as u32).wrapping_mul(j) as isize)
-                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-        );
-        let mut start_gid: u32 = read_32u(
-            start
-                .offset(16 as ::core::ffi::c_int as isize)
-                .offset((12 as u32).wrapping_mul(j) as isize)
-                .offset(8 as ::core::ffi::c_int as isize) as *const u8,
-        );
-        let mut c: u32 = start_code;
+    for _ in 0..n_groups {
+        let start_code = r.u32().unwrap();
+        let end_code = r.u32().unwrap();
+        let start_gid = r.u32().unwrap();
+        let mut c = start_code;
         while c <= end_code {
             otfcc_encode_cmap_by_index(
                 cmap,
@@ -221,380 +227,251 @@ unsafe fn read_format12(
             );
             c = c.wrapping_add(1);
         }
-        j = j.wrapping_add(1);
     }
 }
-unsafe fn read_format4(
-    mut start: FontFilePointer,
-    mut length_limit: u32,
-    mut cmap: *mut CmapTable,
-) {
-    if length_limit < 14 as u32 {
+unsafe fn read_format4(data: &[u8], offset: usize, cmap: *mut CmapTable) {
+    let available = data.len().saturating_sub(offset);
+    if available < 14 {
         return;
     }
-    let mut segments_count: u16 =
-        (read_16u(start.offset(6 as ::core::ffi::c_int as isize) as *const u8)
-            as ::core::ffi::c_int
-            / 2 as ::core::ffi::c_int) as u16;
-    if length_limit
-        < (16 as ::core::ffi::c_int + segments_count as ::core::ffi::c_int * 8 as ::core::ffi::c_int)
-            as u32
-    {
+    let mut header = match FontReader::new(data).at(offset) {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    if header.skip(6).is_err() {
+        return; // format, length, language
+    }
+    let Ok(seg_count_x2) = header.u16() else { return };
+    let segments_count = (seg_count_x2 / 2) as usize;
+    let Some(needed) = segments_count.checked_mul(8).and_then(|n| n.checked_add(16)) else {
+        return;
+    };
+    if available < needed {
         return;
     }
-    let mut j: u16 = 0 as u16;
-    while (j as ::core::ffi::c_int) < segments_count as ::core::ffi::c_int {
-        let mut end_code: u16 = read_16u(
-            start
-                .offset(14 as ::core::ffi::c_int as isize)
-                .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                as *const u8,
-        );
-        let mut start_code: u16 = read_16u(
-            start
-                .offset(14 as ::core::ffi::c_int as isize)
-                .offset((segments_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                .offset(2 as ::core::ffi::c_int as isize)
-                .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                as *const u8,
-        );
-        let mut id_delta: i16 = read_16u(
-            start
-                .offset(14 as ::core::ffi::c_int as isize)
-                .offset((segments_count as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
-                .offset(2 as ::core::ffi::c_int as isize)
-                .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                as *const u8,
-        ) as i16;
-        let mut id_range_offset_offset: u32 = (14 as ::core::ffi::c_int
-            + segments_count as ::core::ffi::c_int * 6 as ::core::ffi::c_int
-            + 2 as ::core::ffi::c_int
-            + j as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-            as u32;
-        let mut id_range_offset: u16 =
-            read_16u(start.offset(id_range_offset_offset as isize) as *const u8);
-        if id_range_offset as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
-            let mut c: u32 = start_code as u32;
-            while c < 0xffff as u32 && c <= end_code as u32 {
-                let mut gid: u16 =
-                    (c.wrapping_add(id_delta as u32) & 0xffff as u32) as u16;
+
+    // All four parallel arrays are subtable-relative, matching the
+    // original's `start.offset(...)` layout: endCode[] at 14, a 2-byte
+    // reserved pad, then startCode[]/idDelta[]/idRangeOffset[], each
+    // `segments_count` u16s.
+    let end_code_rel = 14usize;
+    let start_code_rel = end_code_rel + segments_count * 2 + 2;
+    let id_delta_rel = start_code_rel + segments_count * 2;
+    let id_range_offset_rel = id_delta_rel + segments_count * 2;
+
+    let read_u16 = |rel: usize| -> Option<u16> {
+        FontReader::new(data).at(offset + rel).ok().and_then(|mut r| r.u16().ok())
+    };
+
+    for j in 0..segments_count {
+        let Some(end_code) = read_u16(end_code_rel + j * 2) else { return };
+        let Some(start_code) = read_u16(start_code_rel + j * 2) else { return };
+        let Some(id_delta_raw) = read_u16(id_delta_rel + j * 2) else { return };
+        let id_delta = id_delta_raw as i16;
+        let id_range_offset_entry_rel = id_range_offset_rel + j * 2;
+        let Some(id_range_offset) = read_u16(id_range_offset_entry_rel) else { return };
+        if id_range_offset == 0 {
+            let mut c = start_code as u32;
+            while c < 0xffff && c <= end_code as u32 {
+                let gid = (c.wrapping_add(id_delta as u32) & 0xffff) as u16;
                 otfcc_encode_cmap_by_index(cmap, c as ::core::ffi::c_int, gid);
                 c = c.wrapping_add(1);
             }
         } else {
-            let mut c_0: u32 = start_code as u32;
-            while c_0 < 0xffff as u32 && c_0 <= end_code as u32 {
-                let mut glyph_offset: u32 = (id_range_offset as u32)
-                    .wrapping_add(
-                        c_0.wrapping_sub(start_code as u32)
-                            .wrapping_mul(2 as u32),
-                    )
-                    .wrapping_add(id_range_offset_offset);
-                if !(glyph_offset.wrapping_add(2 as u32) > length_limit) {
-                    let mut gid_0: u16 =
-                        (read_16u(start.offset(glyph_offset as isize) as *const u8)
-                            as ::core::ffi::c_int
-                            + id_delta as ::core::ffi::c_int
-                            & 0xffff as ::core::ffi::c_int) as u16;
-                    otfcc_encode_cmap_by_index(cmap, c_0 as ::core::ffi::c_int, gid_0);
+            let mut c = start_code as u32;
+            while c < 0xffff && c <= end_code as u32 {
+                // idRangeOffset's value is a byte distance measured from the
+                // idRangeOffset array *entry itself* -- matches the
+                // original's `.wrapping_add(id_range_offset_offset)`.
+                let glyph_offset_rel = (id_range_offset as u32)
+                    .wrapping_add(c.wrapping_sub(start_code as u32).wrapping_mul(2))
+                    .wrapping_add(id_range_offset_entry_rel as u32);
+                if let Some(raw) = read_u16(glyph_offset_rel as usize) {
+                    let gid = ((raw as i32 + id_delta as i32) & 0xffff) as u16;
+                    otfcc_encode_cmap_by_index(cmap, c as ::core::ffi::c_int, gid);
                 }
-                c_0 = c_0.wrapping_add(1);
+                c = c.wrapping_add(1);
             }
         }
-        j = j.wrapping_add(1);
     }
 }
-unsafe fn read_uvs_default(
-    mut start: FontFilePointer,
-    mut length_limit: u32,
-    mut selector: Unicode,
-    mut cmap: *mut CmapTable,
-) {
-    if length_limit < 4 as u32 {
+unsafe fn read_uvs_default(data: &[u8], offset: usize, selector: Unicode, cmap: *mut CmapTable) {
+    let mut r = match FontReader::new(data).at(offset) {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    let Ok(num_ranges) = r.u32() else { return };
+    if r.require_room(num_ranges as usize, 4).is_err() {
         return;
     }
-    let mut num_unicode_value_ranges: u32 = read_32u(start as *const u8);
-    if length_limit
-        < (4 as u32).wrapping_add((4 as u32).wrapping_mul(num_unicode_value_ranges))
-    {
-        return;
-    }
-    let mut j: u32 = 0 as u32;
-    while j < num_unicode_value_ranges {
-        let mut vsr: FontFilePointer = start
-            .offset(4 as ::core::ffi::c_int as isize)
-            .offset((4 as u32).wrapping_mul(j) as isize);
-        let mut start_unicode_value: Unicode = read_24u(vsr as *const u8) as Unicode;
-        let mut additional_count: u8 =
-            read_8u(vsr.offset(3 as ::core::ffi::c_int as isize) as *const u8);
-        let mut u: Unicode = start_unicode_value;
-        while u <= start_unicode_value.wrapping_add(additional_count as Unicode) {
-            let mut g: *mut GlyphHandle = otfcc_cmap_lookup(cmap, u as ::core::ffi::c_int);
+    for _ in 0..num_ranges {
+        let start_unicode_value = r.u24().unwrap();
+        let additional_count = r.u8().unwrap();
+        let mut u = start_unicode_value;
+        let end = start_unicode_value.wrapping_add(additional_count as u32);
+        while u <= end {
+            let g = otfcc_cmap_lookup(cmap, u as ::core::ffi::c_int);
             if !g.is_null() {
                 otfcc_encode_cmap_uvs_by_index(
                     cmap,
-                    CmapUvsKey {
-                        unicode: u as u32,
-                        selector: selector as u32,
-                    },
+                    CmapUvsKey { unicode: u, selector },
                     (*g).index as u16,
                 );
             }
             u = u.wrapping_add(1);
         }
-        j = j.wrapping_add(1);
     }
 }
-unsafe fn read_uvs_non_default(
-    mut start: FontFilePointer,
-    mut length_limit: u32,
-    mut selector: Unicode,
-    mut cmap: *mut CmapTable,
-) {
-    if length_limit < 4 as u32 {
+unsafe fn read_uvs_non_default(data: &[u8], offset: usize, selector: Unicode, cmap: *mut CmapTable) {
+    let mut r = match FontReader::new(data).at(offset) {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    let Ok(num_mappings) = r.u32() else { return };
+    if r.require_room(num_mappings as usize, 5).is_err() {
         return;
     }
-    let mut num_uvs_mappings: u32 = read_32u(start as *const u8);
-    if length_limit < (4 as u32).wrapping_add((5 as u32).wrapping_mul(num_uvs_mappings)) {
-        return;
-    }
-    let mut j: u32 = 0 as u32;
-    while j < num_uvs_mappings {
-        let mut vsr: FontFilePointer = start
-            .offset(4 as ::core::ffi::c_int as isize)
-            .offset((5 as u32).wrapping_mul(j) as isize);
-        let mut unicode_value: Unicode = read_24u(vsr as *const u8) as Unicode;
-        let mut glyph_id: GlyphId =
-            read_16u(vsr.offset(3 as ::core::ffi::c_int as isize) as *const u8) as GlyphId;
-        otfcc_encode_cmap_uvs_by_index(
-            cmap,
-            CmapUvsKey {
-                unicode: unicode_value as u32,
-                selector: selector as u32,
-            },
-            glyph_id as u16,
-        );
-        j = j.wrapping_add(1);
+    for _ in 0..num_mappings {
+        let unicode_value = r.u24().unwrap();
+        let glyph_id = r.u16().unwrap();
+        otfcc_encode_cmap_uvs_by_index(cmap, CmapUvsKey { unicode: unicode_value, selector }, glyph_id);
     }
 }
-unsafe fn read_format14(
-    mut start: FontFilePointer,
-    mut length_limit: u32,
-    mut cmap: *mut CmapTable,
-) {
-    if length_limit < 10 as u32 {
+unsafe fn read_format14(data: &[u8], offset: usize, cmap: *mut CmapTable) {
+    let mut r = match FontReader::new(data).at(offset) {
+        Ok(r) => r,
+        Err(_) => return,
+    };
+    if r.skip(6).is_err() {
+        return; // format, length
+    }
+    let Ok(n_groups) = r.u32() else { return }; // numVarSelectorRecords, at offset+6
+    // The original's guard is `length_limit >= 11 + 11*n_groups` -- one
+    // byte more than the VarSelectorRecord array's actual size
+    // (10 + 11*n_groups) needs. Preserved exactly: it's stricter, not
+    // weaker, so keeping it doesn't reopen any bound.
+    let Some(needed) = (n_groups as usize).checked_mul(11).and_then(|n| n.checked_add(11)) else {
+        return;
+    };
+    if data.len().saturating_sub(offset) < needed {
         return;
     }
-    let mut n_groups: u32 =
-        read_32u(start.offset(6 as ::core::ffi::c_int as isize) as *const u8);
-    if length_limit < (11 as u32).wrapping_add((11 as u32).wrapping_mul(n_groups)) {
-        return;
-    }
-    let mut j: u32 = 0 as u32;
-    while j < n_groups {
-        let mut vsr: FontFilePointer = start
-            .offset(10 as ::core::ffi::c_int as isize)
-            .offset((11 as u32).wrapping_mul(j) as isize);
-        let mut selector: Unicode = read_24u(vsr as *const u8) as Unicode;
-        let mut default_uvs_offset: u32 =
-            read_32u(vsr.offset(3 as ::core::ffi::c_int as isize) as *const u8);
-        let mut non_default_uvs_offset: u32 =
-            read_32u(vsr.offset(7 as ::core::ffi::c_int as isize) as *const u8);
+    for j in 0..n_groups as usize {
+        let record_rel = 10 + 11 * j;
+        let Ok(selector) = FontReader::new(data).at(offset + record_rel).and_then(|mut r| r.u24())
+        else {
+            return;
+        };
+        let Ok(default_uvs_offset) =
+            FontReader::new(data).at(offset + record_rel + 3).and_then(|mut r| r.u32())
+        else {
+            return;
+        };
+        let Ok(non_default_uvs_offset) =
+            FontReader::new(data).at(offset + record_rel + 7).and_then(|mut r| r.u32())
+        else {
+            return;
+        };
         if default_uvs_offset != 0 {
-            read_uvs_default(
-                start.offset(default_uvs_offset as isize),
-                length_limit.wrapping_sub(default_uvs_offset),
-                selector,
-                cmap,
-            );
+            if let Some(sub_offset) = offset.checked_add(default_uvs_offset as usize) {
+                read_uvs_default(data, sub_offset, selector, cmap);
+            }
         }
         if non_default_uvs_offset != 0 {
-            read_uvs_non_default(
-                start.offset(non_default_uvs_offset as isize),
-                length_limit.wrapping_sub(non_default_uvs_offset),
-                selector,
-                cmap,
-            );
+            if let Some(sub_offset) = offset.checked_add(non_default_uvs_offset as usize) {
+                read_uvs_non_default(data, sub_offset, selector, cmap);
+            }
         }
-        j = j.wrapping_add(1);
     }
 }
 unsafe fn read_cmap_mapping_table(
-    mut start: FontFilePointer,
-    mut length_limit: u32,
-    mut cmap: *mut CmapTable,
-    mut required_format: TableId,
+    data: &[u8],
+    offset: usize,
+    cmap: *mut CmapTable,
+    required_format: TableId,
 ) {
-    let mut format: u16 = read_16u(start as *const u8);
-    if format as ::core::ffi::c_int == required_format as ::core::ffi::c_int {
-        if format as ::core::ffi::c_int == 4 as ::core::ffi::c_int {
-            read_format4(start, length_limit, cmap);
-        } else if format as ::core::ffi::c_int == 12 as ::core::ffi::c_int {
-            read_format12(start, length_limit, cmap);
+    let Some(format) = FontReader::new(data).at(offset).ok().and_then(|mut r| r.u16().ok()) else {
+        return;
+    };
+    if format == required_format {
+        if format == 4 {
+            read_format4(data, offset, cmap);
+        } else if format == 12 {
+            read_format12(data, offset, cmap);
         }
     }
 }
-unsafe fn read_cmap_mapping_table_uvs(
-    mut start: FontFilePointer,
-    mut length_limit: u32,
-    mut cmap: *mut CmapTable,
-) {
-    let mut format: u16 = read_16u(start as *const u8);
-    if format as ::core::ffi::c_int == 14 as ::core::ffi::c_int {
-        read_format14(start, length_limit, cmap);
+unsafe fn read_cmap_mapping_table_uvs(data: &[u8], offset: usize, cmap: *mut CmapTable) {
+    let Some(format) = FontReader::new(data).at(offset).ok().and_then(|mut r| r.u16().ok()) else {
+        return;
+    };
+    if format == 14 {
+        read_format14(data, offset, cmap);
     }
 }
 #[inline]
-unsafe fn is_valid_cmap_encoding(mut platform: u16, mut encoding: u16) -> bool {
-    return platform as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-        && encoding as ::core::ffi::c_int == 3 as ::core::ffi::c_int
-        || platform as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-            && encoding as ::core::ffi::c_int == 4 as ::core::ffi::c_int
-        || platform as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-            && encoding as ::core::ffi::c_int == 5 as ::core::ffi::c_int
-        || platform as ::core::ffi::c_int == 3 as ::core::ffi::c_int
-            && encoding as ::core::ffi::c_int == 1 as ::core::ffi::c_int
-        || platform as ::core::ffi::c_int == 3 as ::core::ffi::c_int
-            && encoding as ::core::ffi::c_int == 10 as ::core::ffi::c_int;
+fn is_valid_cmap_encoding(platform: u16, encoding: u16) -> bool {
+    matches!((platform, encoding), (0, 3) | (0, 4) | (0, 5) | (3, 1) | (3, 10))
 }
-pub static FORMAT_PRIORITIES: [TableId; 3] = [
-    12 as ::core::ffi::c_int as TableId,
-    4 as ::core::ffi::c_int as TableId,
-    0 as ::core::ffi::c_int as TableId,
-];
+pub static FORMAT_PRIORITIES: [TableId; 3] = [12, 4, 0];
+// `FORMAT_PRIORITIES` ends with a `0` sentinel that is also, confusingly,
+// a real cmap subtable format number (Apple standard byte encoding) --
+// `take_while(|&f| f != 0)` stops before reaching it, matching the
+// original's `while FORMAT_PRIORITIES[k] != 0` loop exactly: only formats
+// 12 and 4 are ever dispatched as a `required_format`, never 0.
+unsafe fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
+    let mut header = FontReader::new(data);
+    header.skip(2)?; // version
+    let num_tables = header.u16()? as usize;
+    header.require_room(num_tables, 8)?;
+
+    let mut cmap_box = Box::new(CmapTable {
+        unicodes: std::collections::BTreeMap::new(),
+        uvs: std::collections::BTreeMap::new(),
+    });
+    let cmap: *mut CmapTable = cmap_box.as_mut() as *mut CmapTable;
+
+    for &required_format in FORMAT_PRIORITIES.iter().take_while(|&&f| f != 0) {
+        for j in 0..num_tables {
+            let entry_rel = 4 + 8 * j;
+            let mut entry = FontReader::new(data).at(entry_rel)?;
+            let platform = entry.u16()?;
+            let encoding = entry.u16()?;
+            if is_valid_cmap_encoding(platform, encoding) {
+                let table_offset = FontReader::new(data).at(entry_rel + 4)?.u32()?;
+                read_cmap_mapping_table(data, table_offset as usize, cmap, required_format);
+            }
+        }
+    }
+    for j in 0..num_tables {
+        let entry_rel = 4 + 8 * j;
+        let mut entry = FontReader::new(data).at(entry_rel)?;
+        let platform = entry.u16()?;
+        let encoding = entry.u16()?;
+        if is_valid_cmap_encoding(platform, encoding) {
+            let table_offset = FontReader::new(data).at(entry_rel + 4)?.u32()?;
+            read_cmap_mapping_table_uvs(data, table_offset as usize, cmap);
+        }
+    }
+    Ok(cmap_box)
+}
 pub unsafe fn otfcc_read_cmap(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<CmapTable>> {
-    let mut num_tables: u16 = 0;
-    let mut cmap_box: Option<Box<CmapTable>> = None;
-    let mut cmap: *mut CmapTable = ::core::ptr::null_mut::<CmapTable>();
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_CMAP {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
-                    if !(length < 4 as u32) {
-                        cmap_box = Some(Box::new(CmapTable {
-                            unicodes: std::collections::BTreeMap::new(),
-                            uvs: std::collections::BTreeMap::new(),
-                        }));
-                        cmap = cmap_box.as_deref_mut().unwrap() as *mut CmapTable;
-                        num_tables = read_16u(
-                            data.offset(2 as ::core::ffi::c_int as isize) as *const u8
-                        );
-                        if !(length
-                            < (4 as ::core::ffi::c_int
-                                + 8 as ::core::ffi::c_int * num_tables as ::core::ffi::c_int)
-                                as u32)
-                        {
-                            let mut k_subtable_type: usize = 0 as usize;
-                            while FORMAT_PRIORITIES[k_subtable_type] != 0 {
-                                let mut j: u16 = 0 as u16;
-                                while (j as ::core::ffi::c_int) < num_tables as ::core::ffi::c_int {
-                                    let mut platform: u16 = read_16u(
-                                        data.offset(4 as ::core::ffi::c_int as isize).offset(
-                                            (8 as ::core::ffi::c_int * j as ::core::ffi::c_int)
-                                                as isize,
-                                        ) as *const u8,
-                                    );
-                                    let mut encoding: u16 = read_16u(
-                                        data.offset(4 as ::core::ffi::c_int as isize)
-                                            .offset(
-                                                (8 as ::core::ffi::c_int * j as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                            .offset(2 as ::core::ffi::c_int as isize)
-                                            as *const u8,
-                                    );
-                                    if is_valid_cmap_encoding(platform, encoding) {
-                                        let mut table_offset: u32 = read_32u(
-                                            data.offset(4 as ::core::ffi::c_int as isize)
-                                                .offset(
-                                                    (8 as ::core::ffi::c_int
-                                                        * j as ::core::ffi::c_int)
-                                                        as isize,
-                                                )
-                                                .offset(4 as ::core::ffi::c_int as isize)
-                                                as *const u8,
-                                        );
-                                        read_cmap_mapping_table(
-                                            data.offset(table_offset as isize),
-                                            length.wrapping_sub(table_offset),
-                                            cmap,
-                                            FORMAT_PRIORITIES[k_subtable_type],
-                                        );
-                                    }
-                                    j = j.wrapping_add(1);
-                                }
-                                k_subtable_type = k_subtable_type.wrapping_add(1);
-                            }
-                            let mut j_0: u16 = 0 as u16;
-                            while (j_0 as ::core::ffi::c_int) < num_tables as ::core::ffi::c_int {
-                                let mut platform_0: u16 = read_16u(
-                                    data.offset(4 as ::core::ffi::c_int as isize).offset(
-                                        (8 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int)
-                                            as isize,
-                                    ) as *const u8,
-                                );
-                                let mut encoding_0: u16 = read_16u(
-                                    data.offset(4 as ::core::ffi::c_int as isize)
-                                        .offset(
-                                            (8 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int)
-                                                as isize,
-                                        )
-                                        .offset(2 as ::core::ffi::c_int as isize)
-                                        as *const u8,
-                                );
-                                if is_valid_cmap_encoding(platform_0, encoding_0) {
-                                    let mut table_offset_0: u32 = read_32u(
-                                        data.offset(4 as ::core::ffi::c_int as isize)
-                                            .offset(
-                                                (8 as ::core::ffi::c_int
-                                                    * j_0 as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                            .offset(4 as ::core::ffi::c_int as isize)
-                                            as *const u8,
-                                    );
-                                    read_cmap_mapping_table_uvs(
-                                        data.offset(table_offset_0 as isize),
-                                        length.wrapping_sub(table_offset_0),
-                                        cmap,
-                                    );
-                                }
-                                j_0 = j_0.wrapping_add(1);
-                            }
-                            return cmap_box;
-                        }
-                    }
-                    logger_log_sds(
-                        (*options).logger,
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(b"table 'cmap' corrupted.\n"),
-                    );
-                    cmap_box = None;
-                    cmap = ::core::ptr::null_mut::<CmapTable>();
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CMAP)?;
+    match parse_cmap(&table.data) {
+        Ok(cmap) => Some(cmap),
+        Err(_) => {
+            logger_log_sds(
+                (*options).logger,
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"table 'cmap' corrupted.\n"),
+            );
+            None
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
     }
-    return None;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_cmap(
@@ -1266,4 +1143,244 @@ pub unsafe fn otfcc_build_cmap(
     buffree(format4);
     buffree(format12);
     return bk_build_block(root);
+}
+
+#[cfg(test)]
+mod cmap_read_tests {
+    use super::*;
+
+    fn empty_cmap() -> Box<CmapTable> {
+        Box::new(CmapTable {
+            unicodes: std::collections::BTreeMap::new(),
+            uvs: std::collections::BTreeMap::new(),
+        })
+    }
+
+    #[test]
+    fn format4_direct_delta_segment_maps_one_codepoint() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&4u16.to_be_bytes()); // format
+        data.extend_from_slice(&32u16.to_be_bytes()); // length (informational)
+        data.extend_from_slice(&0u16.to_be_bytes()); // language
+        data.extend_from_slice(&4u16.to_be_bytes()); // segCountX2 (2 segments)
+        data.extend_from_slice(&[0u8; 6]); // searchRange, entrySelector, rangeShift
+        data.extend_from_slice(&0x0041u16.to_be_bytes()); // endCode[0]
+        data.extend_from_slice(&0xFFFFu16.to_be_bytes()); // endCode[1]
+        data.extend_from_slice(&0u16.to_be_bytes()); // reservedPad
+        data.extend_from_slice(&0x0041u16.to_be_bytes()); // startCode[0]
+        data.extend_from_slice(&0xFFFFu16.to_be_bytes()); // startCode[1]
+        data.extend_from_slice(&((5i32 - 0x41i32) as i16).to_be_bytes()); // idDelta[0]
+        data.extend_from_slice(&1i16.to_be_bytes()); // idDelta[1]
+        data.extend_from_slice(&0u16.to_be_bytes()); // idRangeOffset[0]
+        data.extend_from_slice(&0u16.to_be_bytes()); // idRangeOffset[1]
+        assert_eq!(data.len(), 32);
+
+        let mut cmap = empty_cmap();
+        unsafe { read_format4(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        assert_eq!(cmap.unicodes.get(&0x41).unwrap().index, 5);
+        assert!(!cmap.unicodes.contains_key(&0xFFFF));
+    }
+
+    #[test]
+    fn format4_indirect_segment_follows_id_range_offset_into_the_glyph_array() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&4u16.to_be_bytes());
+        data.extend_from_slice(&36u16.to_be_bytes());
+        data.extend_from_slice(&0u16.to_be_bytes());
+        data.extend_from_slice(&4u16.to_be_bytes()); // 2 segments
+        data.extend_from_slice(&[0u8; 6]);
+        data.extend_from_slice(&0x0042u16.to_be_bytes()); // endCode[0]
+        data.extend_from_slice(&0xFFFFu16.to_be_bytes());
+        data.extend_from_slice(&0u16.to_be_bytes()); // reservedPad
+        data.extend_from_slice(&0x0041u16.to_be_bytes()); // startCode[0]
+        data.extend_from_slice(&0xFFFFu16.to_be_bytes());
+        data.extend_from_slice(&0i16.to_be_bytes()); // idDelta[0]
+        data.extend_from_slice(&1i16.to_be_bytes());
+        data.extend_from_slice(&4u16.to_be_bytes()); // idRangeOffset[0]: 4 bytes ahead of its own entry
+        data.extend_from_slice(&0u16.to_be_bytes());
+        data.extend_from_slice(&7u16.to_be_bytes()); // glyphIdArray[0] (for 0x41)
+        data.extend_from_slice(&8u16.to_be_bytes()); // glyphIdArray[1] (for 0x42)
+        assert_eq!(data.len(), 36);
+
+        let mut cmap = empty_cmap();
+        unsafe { read_format4(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        assert_eq!(cmap.unicodes.get(&0x41).unwrap().index, 7);
+        assert_eq!(cmap.unicodes.get(&0x42).unwrap().index, 8);
+    }
+
+    #[test]
+    fn format12_direct_group_maps_a_range() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&12u16.to_be_bytes()); // format
+        data.extend_from_slice(&0u16.to_be_bytes()); // reserved
+        data.extend_from_slice(&28u32.to_be_bytes()); // length (informational)
+        data.extend_from_slice(&0u32.to_be_bytes()); // language
+        data.extend_from_slice(&1u32.to_be_bytes()); // nGroups
+        data.extend_from_slice(&0x1F600u32.to_be_bytes()); // startCharCode
+        data.extend_from_slice(&0x1F601u32.to_be_bytes()); // endCharCode
+        data.extend_from_slice(&10u32.to_be_bytes()); // startGlyphID
+        assert_eq!(data.len(), 28);
+
+        let mut cmap = empty_cmap();
+        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        assert_eq!(cmap.unicodes.get(&0x1F600).unwrap().index, 10);
+        assert_eq!(cmap.unicodes.get(&0x1F601).unwrap().index, 11);
+    }
+
+    #[test]
+    fn format12_n_groups_large_enough_to_overflow_the_multiplication_is_a_noop() {
+        // Was `length_limit < 16.wrapping_add(12.wrapping_mul(n_groups))`:
+        // an n_groups this large wraps `12 * n_groups` back down to a small
+        // number, so the guard passed even though the real group array is
+        // nowhere near that short, and the loop then read groups straight
+        // past this 16-byte buffer's end. `require_room`'s `checked_mul`
+        // must reject it instead.
+        let mut data = Vec::new();
+        data.extend_from_slice(&12u16.to_be_bytes());
+        data.extend_from_slice(&0u16.to_be_bytes());
+        data.extend_from_slice(&16u32.to_be_bytes());
+        data.extend_from_slice(&0u32.to_be_bytes());
+        data.extend_from_slice(&0x1555_5556u32.to_be_bytes()); // nGroups
+        assert_eq!(data.len(), 16);
+
+        let mut cmap = empty_cmap();
+        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        assert!(cmap.unicodes.is_empty());
+    }
+
+    #[test]
+    fn uvs_default_num_ranges_overflow_is_a_noop_not_oob() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0x4000_0001u32.to_be_bytes()); // numUnicodeValueRanges
+        assert_eq!(data.len(), 4);
+
+        let mut cmap = empty_cmap();
+        unsafe { read_uvs_default(&data, 0, 0xFE00, cmap.as_mut() as *mut CmapTable) };
+        assert!(cmap.uvs.is_empty());
+    }
+
+    #[test]
+    fn uvs_non_default_num_mappings_overflow_is_a_noop_not_oob() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0x3333_3334u32.to_be_bytes()); // numUVSMappings
+        assert_eq!(data.len(), 4);
+
+        let mut cmap = empty_cmap();
+        unsafe { read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut() as *mut CmapTable) };
+        assert!(cmap.uvs.is_empty());
+    }
+
+    #[test]
+    fn uvs_non_default_well_formed_registers_a_mapping() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u32.to_be_bytes()); // numUVSMappings
+        data.extend_from_slice(&[0x00, 0x00, 0x41]); // unicodeValue (24-bit): 0x41
+        data.extend_from_slice(&9u16.to_be_bytes()); // glyphID
+        assert_eq!(data.len(), 9);
+
+        let mut cmap = empty_cmap();
+        unsafe { read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut() as *mut CmapTable) };
+        let g = cmap.uvs.get(&CmapUvsKey { unicode: 0x41, selector: 0xFE00 }).unwrap();
+        assert_eq!(g.index, 9);
+    }
+
+    #[test]
+    fn format14_n_groups_overflow_is_a_noop_not_oob() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&14u16.to_be_bytes()); // format
+        data.extend_from_slice(&0u32.to_be_bytes()); // length
+        data.extend_from_slice(&0x1999_999Au32.to_be_bytes()); // numVarSelectorRecords
+        assert_eq!(data.len(), 10);
+
+        let mut cmap = empty_cmap();
+        unsafe { read_format14(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        assert!(cmap.uvs.is_empty());
+    }
+
+    #[test]
+    fn format14_default_uvs_offset_past_the_table_end_is_a_noop_not_oob() {
+        // The original computed the recursive call's remaining-length
+        // budget as `length_limit.wrapping_sub(default_uvs_offset)` --
+        // an `default_uvs_offset` larger than the whole table's own
+        // length wrapped that subtraction into a huge number, so
+        // `read_uvs_default`'s own guards, now looking at a bogus giant
+        // budget, no longer protected anything. This reader has no
+        // separate length_limit to underflow at all: the recursive call's
+        // own `FontReader::at` rejects the out-of-range offset directly.
+        let mut data = Vec::new();
+        data.extend_from_slice(&14u16.to_be_bytes());
+        data.extend_from_slice(&0u32.to_be_bytes());
+        data.extend_from_slice(&1u32.to_be_bytes()); // numVarSelectorRecords
+        data.extend_from_slice(&[0x00, 0xFE, 0x00]); // varSelector (24-bit): 0xFE00
+        data.extend_from_slice(&0xFFFF_FFF0u32.to_be_bytes()); // defaultUVSOffset: far past the table
+        data.extend_from_slice(&0u32.to_be_bytes()); // nonDefaultUVSOffset: absent
+        assert_eq!(data.len(), 21);
+
+        let mut cmap = empty_cmap();
+        unsafe { read_format14(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        assert!(cmap.uvs.is_empty());
+    }
+
+    #[test]
+    fn parse_cmap_directory_entry_pointing_past_the_table_end_skips_just_that_subtable() {
+        // The headline bug this file's migration exists to fix: the
+        // original derived each subtable's remaining-length budget as
+        // `length.wrapping_sub(table_offset)`, so a `table_offset` larger
+        // than the table's own length wrapped that subtraction into a
+        // huge number, defeating every downstream guard in whichever
+        // format reader ran next. `parse_cmap` never computes that
+        // subtraction at all -- it just hands the format readers the same
+        // `data` slice and the (unvalidated) absolute `table_offset`, and
+        // each one's own `FontReader::at` rejects an out-of-range offset
+        // on contact.
+        let mut data = Vec::new();
+        data.extend_from_slice(&0u16.to_be_bytes()); // version
+        data.extend_from_slice(&1u16.to_be_bytes()); // numTables
+        data.extend_from_slice(&3u16.to_be_bytes()); // platformID (Windows)
+        data.extend_from_slice(&1u16.to_be_bytes()); // encodingID (Unicode BMP)
+        data.extend_from_slice(&0xFFFF_FFF0u32.to_be_bytes()); // offset: far past the table
+        assert_eq!(data.len(), 12);
+
+        let cmap = unsafe { parse_cmap(&data).unwrap() };
+        assert!(cmap.unicodes.is_empty());
+    }
+
+    #[test]
+    fn parse_cmap_directory_shorter_than_declared_num_tables_errs() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0u16.to_be_bytes());
+        data.extend_from_slice(&5u16.to_be_bytes()); // numTables, but no entries follow
+        assert!(unsafe { parse_cmap(&data) }.is_err());
+    }
+
+    #[test]
+    fn parse_cmap_end_to_end_finds_the_format4_subtable() {
+        let mut subtable = Vec::new();
+        subtable.extend_from_slice(&4u16.to_be_bytes());
+        subtable.extend_from_slice(&32u16.to_be_bytes());
+        subtable.extend_from_slice(&0u16.to_be_bytes());
+        subtable.extend_from_slice(&4u16.to_be_bytes());
+        subtable.extend_from_slice(&[0u8; 6]);
+        subtable.extend_from_slice(&0x0041u16.to_be_bytes());
+        subtable.extend_from_slice(&0xFFFFu16.to_be_bytes());
+        subtable.extend_from_slice(&0u16.to_be_bytes());
+        subtable.extend_from_slice(&0x0041u16.to_be_bytes());
+        subtable.extend_from_slice(&0xFFFFu16.to_be_bytes());
+        subtable.extend_from_slice(&((5i32 - 0x41i32) as i16).to_be_bytes());
+        subtable.extend_from_slice(&1i16.to_be_bytes());
+        subtable.extend_from_slice(&0u16.to_be_bytes());
+        subtable.extend_from_slice(&0u16.to_be_bytes());
+        assert_eq!(subtable.len(), 32);
+
+        let mut data = Vec::new();
+        data.extend_from_slice(&0u16.to_be_bytes()); // version
+        data.extend_from_slice(&1u16.to_be_bytes()); // numTables
+        data.extend_from_slice(&3u16.to_be_bytes()); // platformID
+        data.extend_from_slice(&1u16.to_be_bytes()); // encodingID
+        data.extend_from_slice(&12u32.to_be_bytes()); // offset: right after the 12-byte directory
+        data.extend_from_slice(&subtable);
+
+        let cmap = unsafe { parse_cmap(&data).unwrap() };
+        assert_eq!(cmap.unicodes.get(&0x41).unwrap().index, 5);
+    }
 }
