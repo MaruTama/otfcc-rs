@@ -5,7 +5,7 @@ use crate::table::otl::classdef::{expand_class_def, classdef_from_raw, ClassDef,
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage, shrink_coverage};
 use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphHandle};
 
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
@@ -73,430 +73,259 @@ unsafe fn subtable_gpos_pair_free(mut x: *mut GposPairSubtable) {
     subtable_gpos_pair_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
+// Two real bugs fixed, one per format:
+//
+// Format 1's initial `coverageOffset` (and everything after it) used to be
+// read with *no* guard beyond the very first `table_length < offset + 2`
+// (just the 2-byte format field itself) -- a 3-or-more-byte-short table
+// claiming format 1 read straight past its own end before any of the
+// per-field guards further down ever ran. `FontReader`'s sequential reads
+// close this by construction: every field, not just the ones the original
+// happened to guard explicitly, is checked.
+//
+// Format 2's final byte-length guard -- `class1_count * class2_count *
+// (len1+len2)` -- is the same overflow-defeats-guard shape as
+// `gpos_mark_to_ligature.rs`'s `component_count * class_count`:
+// `class1_count`/`class2_count` are independently unbounded `u16` fields,
+// so the product can reach 65535*65535*16 (~68.7 billion), far past
+// `i32::MAX`. Fixed with two chained `checked_mul`s on `usize` (count*count,
+// then that product against the per-cell stride via `require_room`).
 pub unsafe fn otl_read_gpos_pair(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     _max_glyphs: GlyphId,
-    mut _options: *const Options,
+    _options: *const Options,
 ) -> *mut Subtable {
-    let mut subtable_format: u16 = 0;
-    let mut current_block: u64;
-    let mut subtable: *mut GposPairSubtable =
-        (
-            subtable_gpos_pair_create)();
-    if !(table_length < offset.wrapping_add(2 as u32)) {
-        subtable_format = read_16u(data.offset(offset as isize) as *const u8);
-        if subtable_format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-            let mut cov: *mut Coverage = read_coverage(
-                data as *const u8,
-                table_length,
-                offset.wrapping_add(read_16u(
-                    data.offset(offset as isize)
-                        .offset(2 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                ) as u32),
-            );
+    let subtable: *mut GposPairSubtable = subtable_gpos_pair_create();
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+
+    'parse: {
+        let Ok(subtable_format) =
+            FontReader::new(slice).at(offset as usize).and_then(|mut r| r.u16())
+        else {
+            break 'parse;
+        };
+
+        if subtable_format == 1 {
+            let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
+                break 'parse;
+            };
+            let Ok(cov_rel) = header.u16() else { break 'parse };
+
             // Built through a local raw pointer first (matches
             // `otl_class_def_create`'s own raw-pointer API), then adopted
             // into `(*subtable).first` as soon as it's fully constructed --
-            // same timing as the original's immediate field assignment, so
-            // every exit path below (including the length-check failures
-            // that fall through to the bottom `subtable_gpos_pair_free`)
-            // still disposes it correctly.
+            // matching the original's immediate field assignment, so every
+            // exit path below still disposes it correctly via
+            // `subtable_gpos_pair_free`'s `dispose_gpos_pair`.
+            let cov = read_coverage(data, table_length, offset.wrapping_add(cov_rel as u32));
             let first_raw: *mut ClassDef = otl_class_def_create();
             (*first_raw).glyphs = ::core::mem::take(&mut *cov);
-            (*first_raw).maxclass = ((*first_raw).glyphs.len() as ::core::ffi::c_int
-                - 1 as ::core::ffi::c_int) as GlyphClass;
-            (*first_raw).classes = (0..(*first_raw).glyphs.len())
-                .map(|j| j as GlyphClass)
-                .collect();
+            (*first_raw).maxclass = ((*first_raw).glyphs.len() as i32 - 1) as GlyphClass;
+            (*first_raw).classes =
+                (0..(*first_raw).glyphs.len()).map(|j| j as GlyphClass).collect();
             otl_coverage_free(cov);
-            cov = ::core::ptr::null_mut::<Coverage>();
             (*subtable).first = classdef_from_raw(first_raw);
             let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
-            let mut format1: u16 = read_16u(
-                data.offset(offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-            );
-            let mut format2: u16 = read_16u(
-                data.offset(offset as isize)
-                    .offset(6 as ::core::ffi::c_int as isize) as *const u8,
-            );
-            let mut len1: u8 = position_format_length(format1);
-            let mut len2: u8 = position_format_length(format2);
-            let mut pair_set_count: GlyphId = read_16u(
-                data.offset(offset as isize)
-                    .offset(8 as ::core::ffi::c_int as isize) as *const u8,
-            ) as GlyphId;
-            if !(pair_set_count as usize != (*first_cd).glyphs.len())
-            {
-                if !(table_length
-                    < offset.wrapping_add(10 as u32).wrapping_add(
-                        (2 as ::core::ffi::c_int * pair_set_count as ::core::ffi::c_int) as u32,
-                    ))
-                {
-                    let mut j_0: GlyphId = 0 as GlyphId;
-                    loop {
-                        if !((j_0 as ::core::ffi::c_int) < pair_set_count as ::core::ffi::c_int) {
-                            current_block = 14401909646449704462;
-                            break;
-                        }
-                        let mut pair_set_offset: u32 = offset.wrapping_add(read_16u(
-                            data.offset(offset as isize)
-                                .offset(10 as ::core::ffi::c_int as isize)
-                                .offset(
-                                    (2 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize,
-                                ) as *const u8,
-                        )
-                            as u32);
-                        if table_length < pair_set_offset.wrapping_add(2 as u32) {
-                            current_block = 1524425613423851471;
-                            break;
-                        }
-                        let mut pair_count: GlyphId =
-                            read_16u(data.offset(pair_set_offset as isize) as *const u8)
-                                as GlyphId;
-                        if table_length
-                            < pair_set_offset.wrapping_add(2 as u32).wrapping_add(
-                                ((2 as ::core::ffi::c_int
-                                    + len1 as ::core::ffi::c_int
-                                    + len2 as ::core::ffi::c_int)
-                                    * pair_count as ::core::ffi::c_int)
-                                    as u32,
-                            )
-                        {
-                            current_block = 1524425613423851471;
-                            break;
-                        }
-                        j_0 = j_0.wrapping_add(1);
-                    }
-                    match current_block {
-                        1524425613423851471 => {}
-                        _ => {
-                            // Deduplicates the "second" glyph of every pair by gid,
-                            // assigning each distinct one the next sequential class id
-                            // (1-based -- class 0 is reserved for "not covered" per the
-                            // OpenType format) -- synthesizing a class def for `second`
-                            // that Format 1 (individual pairs) doesn't carry on the
-                            // wire, the same way Format 2 already does explicitly. No
-                            // `HASH_SORT` is used before the original's `HASH_ITER`
-                            // here, so output order is insertion order; since cid is
-                            // assigned as `num_items + 1` at insert time, insertion
-                            // order and cid-ascending order are the same order by
-                            // construction, matching the `IndexSet`-not-a-map shape of
-                            // `LigatureAggregator` (see rust/README.md) but with cid
-                            // derived from position instead of tracked separately.
-                            // This one set is used across three phases within this
-                            // branch: built while first reading every pair (below),
-                            // then looked up (not rebuilt) while re-reading the same
-                            // pairs a second time to place position values into the
-                            // `first_values`/`second_values` grid, then walked once
-                            // more at the end to populate `(*subtable).second`'s
-                            // `glyphs`/`classes` before this branch returns.
-                            let mut h: indexmap::IndexSet<::core::ffi::c_int> = indexmap::IndexSet::new();
-                            let mut j_1: GlyphId = 0 as GlyphId;
-                            while (j_1 as ::core::ffi::c_int) < pair_set_count as ::core::ffi::c_int {
-                                let mut pair_set_offset_0: u32 = offset.wrapping_add(read_16u(
-                                    data.offset(offset as isize)
-                                        .offset(10 as ::core::ffi::c_int as isize)
-                                        .offset(
-                                            (2 as ::core::ffi::c_int * j_1 as ::core::ffi::c_int)
-                                                as isize,
-                                        ) as *const u8,
-                                )
-                                    as u32);
-                                let mut pair_count_0: GlyphId = read_16u(
-                                    data.offset(pair_set_offset_0 as isize) as *const u8,
-                                )
-                                    as GlyphId;
-                                let mut k: GlyphId = 0 as GlyphId;
-                                while (k as ::core::ffi::c_int) < pair_count_0 as ::core::ffi::c_int
-                                {
-                                    let mut second: ::core::ffi::c_int = read_16u(
-                                        data.offset(pair_set_offset_0 as isize)
-                                            .offset(2 as ::core::ffi::c_int as isize)
-                                            .offset(
-                                                ((2 as ::core::ffi::c_int
-                                                    + len1 as ::core::ffi::c_int
-                                                    + len2 as ::core::ffi::c_int)
-                                                    * k as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                            as *const u8,
-                                    )
-                                        as ::core::ffi::c_int;
-                                    h.insert(second);
-                                    k = k.wrapping_add(1);
-                                }
-                                j_1 = j_1.wrapping_add(1);
-                            }
-                            let second_raw: *mut ClassDef = otl_class_def_create();
-                            let n_second: usize = h.len();
-                            (*second_raw).maxclass = n_second as GlyphClass;
-                            (*second_raw).classes = vec![0 as GlyphClass; n_second];
-                            (*second_raw).glyphs = vec![GlyphHandle::default(); n_second];
-                            (*subtable).second = classdef_from_raw(second_raw);
-                            let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
-                            let mut class2_count: GlyphClass = ((*second_cd).maxclass
-                                as ::core::ffi::c_int
-                                + 1 as ::core::ffi::c_int)
-                                as GlyphClass;
-                            // Was a manual `__caryll_allocate_clean` +
-                            // nested-loop-of-`position_zero()` writes over
-                            // `*mut *mut PositionValue` -- `PositionValue` is
-                            // `Copy`, so pre-sizing the whole grid collapses
-                            // to one `vec![vec![..]; ..]` expression; the
-                            // real values below are then index-assigned
-                            // directly, the same shape B-3-1/B-3-4 used for
-                            // out-of-order-indexed `Copy` element fills.
-                            let mut first_values: Vec<Vec<PositionValue>> = vec![
-                                vec![position_zero(); class2_count as usize];
-                                ((*first_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize
-                            ];
-                            let mut second_values: Vec<Vec<PositionValue>> = vec![
-                                vec![position_zero(); class2_count as usize];
-                                ((*first_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize
-                            ];
-                            let mut j_3: GlyphClass = 0 as GlyphClass;
-                            while j_3 as ::core::ffi::c_int
-                                <= (*first_cd).maxclass as ::core::ffi::c_int
-                            {
-                                let mut pair_set_offset_1: u32 = offset.wrapping_add(read_16u(
-                                    data.offset(offset as isize)
-                                        .offset(10 as ::core::ffi::c_int as isize)
-                                        .offset(
-                                            (2 as ::core::ffi::c_int * j_3 as ::core::ffi::c_int)
-                                                as isize,
-                                        ) as *const u8,
-                                )
-                                    as u32);
-                                let mut pair_count_1: GlyphId = read_16u(
-                                    data.offset(pair_set_offset_1 as isize) as *const u8,
-                                )
-                                    as GlyphId;
-                                let mut k_1: GlyphId = 0 as GlyphId;
-                                while (k_1 as ::core::ffi::c_int)
-                                    < pair_count_1 as ::core::ffi::c_int
-                                {
-                                    let mut second_0: ::core::ffi::c_int = read_16u(
-                                        data.offset(pair_set_offset_1 as isize)
-                                            .offset(2 as ::core::ffi::c_int as isize)
-                                            .offset(
-                                                ((2 as ::core::ffi::c_int
-                                                    + len1 as ::core::ffi::c_int
-                                                    + len2 as ::core::ffi::c_int)
-                                                    * k_1 as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                            as *const u8,
-                                    )
-                                        as ::core::ffi::c_int;
-                                    if let Some(idx) = h.get_index_of(&second_0) {
-                                        let cid: ::core::ffi::c_int =
-                                            idx as ::core::ffi::c_int + 1 as ::core::ffi::c_int;
-                                        first_values[j_3 as usize][cid as usize] = read_gpos_value(
-                                            data,
-                                            table_length,
-                                            pair_set_offset_1
-                                                .wrapping_add(2 as u32)
-                                                .wrapping_add(
-                                                    ((2 as ::core::ffi::c_int
-                                                        + len1 as ::core::ffi::c_int
-                                                        + len2 as ::core::ffi::c_int)
-                                                        * k_1 as ::core::ffi::c_int)
-                                                        as u32,
-                                                )
-                                                .wrapping_add(2 as u32),
-                                            format1,
-                                        );
-                                        second_values[j_3 as usize][cid as usize] = read_gpos_value(
-                                            data,
-                                            table_length,
-                                            pair_set_offset_1
-                                                .wrapping_add(2 as u32)
-                                                .wrapping_add(
-                                                    ((2 as ::core::ffi::c_int
-                                                        + len1 as ::core::ffi::c_int
-                                                        + len2 as ::core::ffi::c_int)
-                                                        * k_1 as ::core::ffi::c_int)
-                                                        as u32,
-                                                )
-                                                .wrapping_add(2 as u32)
-                                                .wrapping_add(len1 as u32),
-                                            format2,
-                                        );
-                                    }
-                                    k_1 = k_1.wrapping_add(1);
-                                }
-                                j_3 = j_3.wrapping_add(1);
-                            }
-                            (*subtable).first_values = first_values;
-                            (*subtable).second_values = second_values;
-                            for (jj, &gid) in h.iter().enumerate() {
-                                (&mut (*second_cd).glyphs)[jj as usize] =
-                                    handle_from_index(gid as GlyphId) as GlyphHandle;
-                                (&mut (*second_cd).classes)[jj as usize] =
-                                    (jj as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
-                            }
-                            return subtable_from_raw(subtable, Subtable::GposPair);
-                        }
+
+            let Ok(format1) = header.u16() else { break 'parse };
+            let Ok(format2) = header.u16() else { break 'parse };
+            let len1 = position_format_length(format1);
+            let len2 = position_format_length(format2);
+            let Ok(pair_set_count) = header.u16() else { break 'parse };
+            if pair_set_count as usize != (*first_cd).glyphs.len() {
+                break 'parse;
+            }
+            if header.require_room(pair_set_count as usize, 2).is_err() {
+                break 'parse;
+            }
+            let mut pair_set_offsets = Vec::with_capacity(pair_set_count as usize);
+            for _ in 0..pair_set_count {
+                pair_set_offsets.push(offset.wrapping_add(header.u16().unwrap() as u32));
+            }
+
+            // Validate every PairSet's own header + record array up front,
+            // matching the original's separate validation pass.
+            let stride = 2usize + len1 as usize + len2 as usize;
+            let mut pair_counts = Vec::with_capacity(pair_set_count as usize);
+            for &pso in &pair_set_offsets {
+                let Ok(mut pr) = FontReader::new(slice).at(pso as usize) else { break 'parse };
+                let Ok(pc) = pr.u16() else { break 'parse };
+                if pr.require_room(pc as usize, stride).is_err() {
+                    break 'parse;
+                }
+                pair_counts.push(pc);
+            }
+
+            // Deduplicates the "second" glyph of every pair by gid,
+            // assigning each distinct one the next sequential class id
+            // (1-based -- class 0 is reserved for "not covered" per the
+            // OpenType format) -- synthesizing a class def for `second`
+            // that Format 1 (individual pairs) doesn't carry on the wire,
+            // the same way Format 2 already does explicitly. No
+            // `HASH_SORT` is used before the original's `HASH_ITER` here,
+            // so output order is insertion order; since cid is assigned as
+            // `num_items + 1` at insert time, insertion order and
+            // cid-ascending order are the same order by construction,
+            // matching the `IndexSet`-not-a-map shape of
+            // `LigatureAggregator` (see rust/README.md) but with cid
+            // derived from position instead of tracked separately. This
+            // one set is used across two phases within this branch: built
+            // while first reading every pair (below), then looked up (not
+            // rebuilt) while re-reading the same pairs a second time to
+            // place position values into the `first_values`/
+            // `second_values` grid, then walked once more at the end to
+            // populate `(*subtable).second`'s `glyphs`/`classes`.
+            let mut h: indexmap::IndexSet<i32> = indexmap::IndexSet::new();
+            for (i, &pso) in pair_set_offsets.iter().enumerate() {
+                for k in 0..pair_counts[i] {
+                    let second_offset = pso as usize + 2 + stride * k as usize;
+                    // Already validated by the pass above.
+                    let second =
+                        FontReader::new(slice).at(second_offset).unwrap().u16().unwrap() as i32;
+                    h.insert(second);
+                }
+            }
+
+            let second_raw: *mut ClassDef = otl_class_def_create();
+            let n_second = h.len();
+            (*second_raw).maxclass = n_second as GlyphClass;
+            (*second_raw).classes = vec![0 as GlyphClass; n_second];
+            (*second_raw).glyphs = vec![GlyphHandle::default(); n_second];
+            (*subtable).second = classdef_from_raw(second_raw);
+            let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
+            let class2_count = (*second_cd).maxclass as usize + 1;
+
+            // Was a manual `__caryll_allocate_clean` + nested-loop-of-
+            // `position_zero()` writes over `*mut *mut PositionValue` --
+            // `PositionValue` is `Copy`, so pre-sizing the whole grid
+            // collapses to one `vec![vec![..]; ..]` expression; the real
+            // values below are then index-assigned directly.
+            let first_class_count = (*first_cd).maxclass as usize + 1;
+            let mut first_values: Vec<Vec<PositionValue>> =
+                vec![vec![position_zero(); class2_count]; first_class_count];
+            let mut second_values: Vec<Vec<PositionValue>> =
+                vec![vec![position_zero(); class2_count]; first_class_count];
+
+            for (j3, &pso) in pair_set_offsets.iter().enumerate() {
+                for k1 in 0..pair_counts[j3] {
+                    let second_offset = pso as usize + 2 + stride * k1 as usize;
+                    let second =
+                        FontReader::new(slice).at(second_offset).unwrap().u16().unwrap() as i32;
+                    if let Some(idx) = h.get_index_of(&second) {
+                        let cid = idx + 1;
+                        first_values[j3][cid] = read_gpos_value(
+                            data,
+                            table_length,
+                            (second_offset + 2) as u32,
+                            format1,
+                        );
+                        second_values[j3][cid] = read_gpos_value(
+                            data,
+                            table_length,
+                            (second_offset + 2 + len1 as usize) as u32,
+                            format2,
+                        );
                     }
                 }
             }
-        } else if subtable_format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-            if !(table_length < offset.wrapping_add(16 as u32)) {
-                let mut format1_0: u16 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(4 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                );
-                let mut format2_0: u16 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(6 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                );
-                let mut len1_0: u8 = position_format_length(format1_0);
-                let mut len2_0: u8 = position_format_length(format2_0);
-                let mut cov_0: *mut Coverage =
-                    read_coverage(
-                        data as *const u8,
+            (*subtable).first_values = first_values;
+            (*subtable).second_values = second_values;
+            for (jj, &gid) in h.iter().enumerate() {
+                (&mut (*second_cd).glyphs)[jj] = handle_from_index(gid as GlyphId) as GlyphHandle;
+                (&mut (*second_cd).classes)[jj] = (jj + 1) as GlyphClass;
+            }
+            return subtable_from_raw(subtable, Subtable::GposPair);
+        } else if subtable_format == 2 {
+            let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
+                break 'parse;
+            };
+            let Ok(cov_rel) = header.u16() else { break 'parse };
+            let Ok(format1_0) = header.u16() else { break 'parse };
+            let Ok(format2_0) = header.u16() else { break 'parse };
+            let Ok(cd1_rel) = header.u16() else { break 'parse };
+            let Ok(cd2_rel) = header.u16() else { break 'parse };
+            let Ok(class1_count) = header.u16() else { break 'parse };
+            let Ok(class2_count) = header.u16() else { break 'parse };
+            let len1_0 = position_format_length(format1_0);
+            let len2_0 = position_format_length(format2_0);
+
+            let cov_0 = read_coverage(data, table_length, offset.wrapping_add(cov_rel as u32));
+            // `expand_class_def` consumes (and internally frees) the `ocd`
+            // it's handed and returns a brand-new `*mut ClassDef` -- kept
+            // as a plain local raw pointer through that consuming call,
+            // then adopted into `(*subtable).first` only once settled.
+            let mut first_raw: *mut ClassDef =
+                read_class_def(data, table_length, offset.wrapping_add(cd1_rel as u32));
+            first_raw = expand_class_def(cov_0, first_raw);
+            otl_coverage_free(cov_0);
+            (*subtable).first = classdef_from_raw(first_raw);
+            (*subtable).second = classdef_from_raw(read_class_def(
+                data,
+                table_length,
+                offset.wrapping_add(cd2_rel as u32),
+            ));
+            if (*subtable).first.is_none() || (*subtable).second.is_none() {
+                break 'parse;
+            }
+            let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
+            let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
+            if (*first_cd).maxclass as usize + 1 != class1_count as usize {
+                break 'parse;
+            }
+            if (*second_cd).maxclass as usize + 1 != class2_count as usize {
+                break 'parse;
+            }
+
+            let stride = len1_0 as usize + len2_0 as usize;
+            let Some(total_cells) = (class1_count as usize).checked_mul(class2_count as usize)
+            else {
+                break 'parse;
+            };
+            let Ok(matrix) = FontReader::new(slice).at(offset as usize + 16) else {
+                break 'parse;
+            };
+            if matrix.require_room(total_cells, stride).is_err() {
+                break 'parse;
+            }
+
+            // Format 2 fills every cell exhaustively and in order, so
+            // (unlike Format 1's `cid`-indexed overwrite pass) no
+            // pre-sized placeholder grid is needed -- each row is just
+            // pushed as it's read.
+            let mut first_values: Vec<Vec<PositionValue>> =
+                Vec::with_capacity(class1_count as usize);
+            let mut second_values: Vec<Vec<PositionValue>> =
+                Vec::with_capacity(class1_count as usize);
+            for j4 in 0..class1_count as u32 {
+                let mut row1 = Vec::with_capacity(class2_count as usize);
+                let mut row2 = Vec::with_capacity(class2_count as usize);
+                for k2 in 0..class2_count as u32 {
+                    // Safe from u32 overflow: `require_room` above already
+                    // rejected any input where `total_cells * stride`
+                    // wouldn't fit in `table_length` (itself a `u32`), so
+                    // every offset computed here is bounded by that.
+                    let cell_offset =
+                        offset.wrapping_add(16).wrapping_add((j4 * class2_count as u32 + k2) * stride as u32);
+                    row1.push(read_gpos_value(data, table_length, cell_offset, format1_0));
+                    row2.push(read_gpos_value(
+                        data,
                         table_length,
-                        offset.wrapping_add(read_16u(
-                            data.offset(offset as isize)
-                                .offset(2 as ::core::ffi::c_int as isize)
-                                as *const u8,
-                        ) as u32),
-                    );
-                // `expand_class_def` consumes (and internally frees) the
-                // `ocd` it's handed and returns a brand-new `*mut ClassDef`
-                // -- kept as a plain local raw pointer through that
-                // consuming call, then adopted into `(*subtable).first`
-                // only once settled, so no Rust-`Box`-into-a-`free()`-only
-                // API mismatch is ever created.
-                let mut first_raw: *mut ClassDef = read_class_def(
-                    data as *const u8,
-                    table_length,
-                    offset.wrapping_add(read_16u(
-                        data.offset(offset as isize)
-                            .offset(8 as ::core::ffi::c_int as isize)
-                            as *const u8,
-                    ) as u32),
-                );
-                first_raw = expand_class_def(
-                    cov_0,
-                    first_raw,
-                );
-                otl_coverage_free(cov_0);
-                cov_0 = ::core::ptr::null_mut::<Coverage>();
-                (*subtable).first = classdef_from_raw(first_raw);
-                (*subtable).second = classdef_from_raw(read_class_def(
-                    data as *const u8,
-                    table_length,
-                    offset.wrapping_add(read_16u(
-                        data.offset(offset as isize)
-                            .offset(10 as ::core::ffi::c_int as isize)
-                            as *const u8,
-                    ) as u32),
-                ));
-                if !((*subtable).first.is_none() || (*subtable).second.is_none()) {
-                    let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
-                    let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
-                    let mut class1_count: GlyphClass = read_16u(
-                        data.offset(offset as isize)
-                            .offset(12 as ::core::ffi::c_int as isize)
-                            as *const u8,
-                    ) as GlyphClass;
-                    let mut class2_count_0: GlyphClass = read_16u(
-                        data.offset(offset as isize)
-                            .offset(14 as ::core::ffi::c_int as isize)
-                            as *const u8,
-                    ) as GlyphClass;
-                    if !((*first_cd).maxclass as ::core::ffi::c_int
-                        + 1 as ::core::ffi::c_int
-                        != class1_count as ::core::ffi::c_int)
-                    {
-                        if !((*second_cd).maxclass as ::core::ffi::c_int
-                            + 1 as ::core::ffi::c_int
-                            != class2_count_0 as ::core::ffi::c_int)
-                        {
-                            if !(table_length
-                                < offset.wrapping_add(16 as u32).wrapping_add(
-                                    (class1_count as ::core::ffi::c_int
-                                        * class2_count_0 as ::core::ffi::c_int
-                                        * (len1_0 as ::core::ffi::c_int
-                                            + len2_0 as ::core::ffi::c_int))
-                                        as u32,
-                                ))
-                            {
-                                // Format 2 fills every cell exhaustively and
-                                // in order, so (unlike Format 1's `cid`
-                                // -indexed overwrite pass) no pre-sized
-                                // placeholder grid is needed -- each row is
-                                // just pushed as it's read.
-                                let mut first_values: Vec<Vec<PositionValue>> =
-                                    Vec::with_capacity(class1_count as usize);
-                                let mut second_values: Vec<Vec<PositionValue>> =
-                                    Vec::with_capacity(class1_count as usize);
-                                let mut j_4: GlyphClass = 0 as GlyphClass;
-                                while (j_4 as ::core::ffi::c_int)
-                                    < class1_count as ::core::ffi::c_int
-                                {
-                                    let mut row1: Vec<PositionValue> =
-                                        Vec::with_capacity(class2_count_0 as usize);
-                                    let mut row2: Vec<PositionValue> =
-                                        Vec::with_capacity(class2_count_0 as usize);
-                                    let mut k_2: GlyphClass = 0 as GlyphClass;
-                                    while (k_2 as ::core::ffi::c_int)
-                                        < class2_count_0 as ::core::ffi::c_int
-                                    {
-                                        row1.push(read_gpos_value(
-                                            data,
-                                            table_length,
-                                            offset.wrapping_add(16 as u32).wrapping_add(
-                                                ((j_4 as ::core::ffi::c_int
-                                                    * class2_count_0 as ::core::ffi::c_int
-                                                    + k_2 as ::core::ffi::c_int)
-                                                    * (len1_0 as ::core::ffi::c_int
-                                                        + len2_0 as ::core::ffi::c_int))
-                                                    as u32,
-                                            ),
-                                            format1_0,
-                                        ));
-                                        row2.push(read_gpos_value(
-                                            data,
-                                            table_length,
-                                            offset
-                                                .wrapping_add(16 as u32)
-                                                .wrapping_add(
-                                                    ((j_4 as ::core::ffi::c_int
-                                                        * class2_count_0 as ::core::ffi::c_int
-                                                        + k_2 as ::core::ffi::c_int)
-                                                        * (len1_0 as ::core::ffi::c_int
-                                                            + len2_0 as ::core::ffi::c_int))
-                                                        as u32,
-                                                )
-                                                .wrapping_add(len1_0 as u32),
-                                            format2_0,
-                                        ));
-                                        k_2 = k_2.wrapping_add(1);
-                                    }
-                                    first_values.push(row1);
-                                    second_values.push(row2);
-                                    j_4 = j_4.wrapping_add(1);
-                                }
-                                (*subtable).first_values = first_values;
-                                (*subtable).second_values = second_values;
-                                return subtable_from_raw(subtable, Subtable::GposPair);
-                            }
-                        }
-                    }
+                        cell_offset + len1_0 as u32,
+                        format2_0,
+                    ));
                 }
+                first_values.push(row1);
+                second_values.push(row2);
             }
+            (*subtable).first_values = first_values;
+            (*subtable).second_values = second_values;
+            return subtable_from_raw(subtable, Subtable::GposPair);
         }
     }
     subtable_gpos_pair_free(subtable);
-    return ::core::ptr::null_mut::<Subtable>();
+    ::core::ptr::null_mut::<Subtable>()
 }
 pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltValue {
     let Subtable::GposPair(mut_subtable) = &*_subtable else { unreachable!() };
@@ -862,4 +691,139 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair(
         bk_delete_graph(g1);
         return buf_0;
     };
+}
+
+#[cfg(test)]
+mod otl_read_gpos_pair_tests {
+    use super::*;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    #[test]
+    fn format1_reads_one_pair_and_synthesizes_the_second_class_def() {
+        let mut data = [0u8; 24];
+        data[0..2].copy_from_slice(&1u16.to_be_bytes()); // format
+        data[2..4].copy_from_slice(&12u16.to_be_bytes()); // coverageOffset -> 12
+        data[4..6].copy_from_slice(&1u16.to_be_bytes()); // valueFormat1: dx only
+        data[6..8].copy_from_slice(&0u16.to_be_bytes()); // valueFormat2: none
+        data[8..10].copy_from_slice(&1u16.to_be_bytes()); // pairSetCount
+        data[10..12].copy_from_slice(&18u16.to_be_bytes()); // pairSetOffsets[0] -> 18
+        // Coverage format 1 at byte 12: one glyph, id 10.
+        data[12..14].copy_from_slice(&1u16.to_be_bytes());
+        data[14..16].copy_from_slice(&1u16.to_be_bytes());
+        data[16..18].copy_from_slice(&10u16.to_be_bytes());
+        // PairSet at byte 18: one pair, second=20, value1.dx=50.
+        data[18..20].copy_from_slice(&1u16.to_be_bytes());
+        data[20..22].copy_from_slice(&20i16.to_be_bytes());
+        data[22..24].copy_from_slice(&50i16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GposPair(subtable) = &*boxed else { unreachable!() };
+            let first = subtable.first.as_ref().unwrap();
+            let second = subtable.second.as_ref().unwrap();
+            assert_eq!(first.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(), vec![10]);
+            assert_eq!(second.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(), vec![20]);
+            assert_eq!(second.classes, vec![1]);
+            assert_eq!(subtable.first_values[0][1].dx, 50.0);
+        }
+    }
+
+    #[test]
+    fn format1_table_too_short_for_the_header_is_rejected_instead_of_reading_oob() {
+        // The original read `coverageOffset` (and every header field after
+        // it) with no guard beyond the very first `table_length < offset +
+        // 2` -- just the 2-byte format field itself -- so a table this
+        // short claiming format 1 read straight past its own end.
+        let data = [0u8, 1]; // format = 1, nothing else
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(raw.is_null());
+        }
+    }
+
+    #[test]
+    fn format2_reads_the_matrix_cell_for_each_class_pair() {
+        let mut data = [0u8; 46];
+        data[0..2].copy_from_slice(&2u16.to_be_bytes()); // format
+        data[2..4].copy_from_slice(&24u16.to_be_bytes()); // coverageOffset -> 24
+        data[4..6].copy_from_slice(&1u16.to_be_bytes()); // valueFormat1: dx only
+        data[6..8].copy_from_slice(&0u16.to_be_bytes()); // valueFormat2: none
+        data[8..10].copy_from_slice(&30u16.to_be_bytes()); // classDef1Offset -> 30
+        data[10..12].copy_from_slice(&38u16.to_be_bytes()); // classDef2Offset -> 38
+        data[12..14].copy_from_slice(&2u16.to_be_bytes()); // class1Count
+        data[14..16].copy_from_slice(&2u16.to_be_bytes()); // class2Count
+        // Matrix at byte 16: 2x2 cells, 2 bytes (dx) each; cell[1][1].dx=77.
+        data[22..24].copy_from_slice(&77i16.to_be_bytes());
+        // Coverage format 1 at byte 24: one glyph, id 10.
+        data[24..26].copy_from_slice(&1u16.to_be_bytes());
+        data[26..28].copy_from_slice(&1u16.to_be_bytes());
+        data[28..30].copy_from_slice(&10u16.to_be_bytes());
+        // ClassDef format 1 at byte 30: glyph 10 -> class 1.
+        data[30..32].copy_from_slice(&1u16.to_be_bytes());
+        data[32..34].copy_from_slice(&10u16.to_be_bytes());
+        data[34..36].copy_from_slice(&1u16.to_be_bytes());
+        data[36..38].copy_from_slice(&1u16.to_be_bytes());
+        // ClassDef format 1 at byte 38: glyph 20 -> class 1.
+        data[38..40].copy_from_slice(&1u16.to_be_bytes());
+        data[40..42].copy_from_slice(&20u16.to_be_bytes());
+        data[42..44].copy_from_slice(&1u16.to_be_bytes());
+        data[44..46].copy_from_slice(&1u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GposPair(subtable) = &*boxed else { unreachable!() };
+            assert_eq!(subtable.first_values[1][1].dx, 77.0);
+            assert_eq!(subtable.first_values[0][0].dx, 0.0);
+        }
+    }
+
+    #[test]
+    fn format2_max_class_counts_are_rejected_not_read_oob() {
+        // The original's final guard -- `class1_count * class2_count *
+        // (len1+len2)` -- is computed as unchecked `i32` arithmetic;
+        // `class1_count`/`class2_count` are independently unbounded u16
+        // fields, so the product can reach ~68.7 billion, far past
+        // `i32::MAX`. A single-range ClassDef format 2 entry cheaply
+        // claims a `maxclass` of `u16::MAX - 1` without needing anywhere
+        // near that many real entries, so this reaches the guard with a
+        // tiny buffer.
+        let mut data = [0u8; 42];
+        data[0..2].copy_from_slice(&2u16.to_be_bytes()); // format
+        data[2..4].copy_from_slice(&16u16.to_be_bytes()); // coverageOffset -> 16
+        data[4..6].copy_from_slice(&1u16.to_be_bytes()); // valueFormat1
+        data[6..8].copy_from_slice(&1u16.to_be_bytes()); // valueFormat2
+        data[8..10].copy_from_slice(&22u16.to_be_bytes()); // classDef1Offset -> 22
+        data[10..12].copy_from_slice(&32u16.to_be_bytes()); // classDef2Offset -> 32
+        data[12..14].copy_from_slice(&u16::MAX.to_be_bytes()); // class1Count
+        data[14..16].copy_from_slice(&u16::MAX.to_be_bytes()); // class2Count
+        // Coverage format 1 at byte 16: one glyph, id 10.
+        data[16..18].copy_from_slice(&1u16.to_be_bytes());
+        data[18..20].copy_from_slice(&1u16.to_be_bytes());
+        data[20..22].copy_from_slice(&10u16.to_be_bytes());
+        // ClassDef format 2 at byte 22: one range, glyph 10, class u16::MAX-1.
+        data[22..24].copy_from_slice(&2u16.to_be_bytes());
+        data[24..26].copy_from_slice(&1u16.to_be_bytes());
+        data[26..28].copy_from_slice(&10u16.to_be_bytes());
+        data[28..30].copy_from_slice(&10u16.to_be_bytes());
+        data[30..32].copy_from_slice(&(u16::MAX - 1).to_be_bytes());
+        // ClassDef format 2 at byte 32: one range, glyph 20, class u16::MAX-1.
+        data[32..34].copy_from_slice(&2u16.to_be_bytes());
+        data[34..36].copy_from_slice(&1u16.to_be_bytes());
+        data[36..38].copy_from_slice(&20u16.to_be_bytes());
+        data[38..40].copy_from_slice(&20u16.to_be_bytes());
+        data[40..42].copy_from_slice(&(u16::MAX - 1).to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(raw.is_null());
+        }
+    }
 }
