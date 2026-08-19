@@ -6,7 +6,7 @@ use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_o
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
 
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
@@ -53,192 +53,85 @@ unsafe fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
     x.write(Vec::new());
     x
 }
+// Also fixes a real (if minor) pre-existing leak, same shape as
+// `gpos_mark_to_single.rs`'s: the original only freed `start_coverage`
+// (always-allocated by `read_coverage`, even for an empty result) on the
+// success path -- every failure guard reached after it was read fell
+// through to `subtable_gsub_ligature_free(subtable)` without freeing it.
 pub unsafe fn otl_read_gsub_ligature(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     _max_glyphs: GlyphId,
-    mut _options: *const Options,
+    _options: *const Options,
 ) -> *mut Subtable {
-    let mut start_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    let mut set_count: GlyphId = 0;
-    let mut ligature_count: u32 = 0;
-    let mut current_block: u64;
     let subtable: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
-    if !(table_length < offset.wrapping_add(6 as u32)) {
-        start_coverage = read_coverage(
-            data as *const u8,
-            table_length,
-            offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
-        );
-        if !start_coverage.is_null() {
-            set_count = read_16u(
-                data.offset(offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-            ) as GlyphId;
-            if !(set_count as usize != (*start_coverage).len())
-            {
-                if !(table_length
-                    < offset.wrapping_add(6 as u32).wrapping_add(
-                        (set_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
-                    ))
-                {
-                    ligature_count = 0 as u32;
-                    let mut j: GlyphId = 0 as GlyphId;
-                    loop {
-                        if !((j as ::core::ffi::c_int) < set_count as ::core::ffi::c_int) {
-                            current_block = 17860125682698302841;
-                            break;
-                        }
-                        let mut set_offset: u32 = offset.wrapping_add(read_16u(
-                            data.offset(offset as isize)
-                                .offset(6 as ::core::ffi::c_int as isize)
-                                .offset(
-                                    (j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
-                                ) as *const u8,
-                        )
-                            as u32);
-                        if table_length < set_offset.wrapping_add(2 as u32) {
-                            current_block = 3443835632518673764;
-                            break;
-                        }
-                        ligature_count = ligature_count.wrapping_add(read_16u(
-                            data.offset(set_offset as isize) as *const u8,
-                        )
-                            as u32);
-                        if table_length
-                            < set_offset.wrapping_add(2 as u32).wrapping_add(
-                                (read_16u(data.offset(set_offset as isize) as *const u8)
-                                    as ::core::ffi::c_int
-                                    * 2 as ::core::ffi::c_int)
-                                    as u32,
-                            )
-                        {
-                            current_block = 3443835632518673764;
-                            break;
-                        }
-                        j = j.wrapping_add(1);
-                    }
-                    match current_block {
-                        3443835632518673764 => {}
-                        _ => {
-                            let mut j_0: GlyphId = 0 as GlyphId;
-                            's_77: loop {
-                                if !((j_0 as ::core::ffi::c_int) < set_count as ::core::ffi::c_int) {
-                                    current_block = 11932355480408055363;
-                                    break;
-                                }
-                                let mut set_offset_0: u32 = offset.wrapping_add(read_16u(
-                                    data.offset(offset as isize)
-                                        .offset(6 as ::core::ffi::c_int as isize)
-                                        .offset(
-                                            (j_0 as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                                as isize,
-                                        ) as *const u8,
-                                )
-                                    as u32);
-                                let mut lc: GlyphId =
-                                    read_16u(data.offset(set_offset_0 as isize) as *const u8)
-                                        as GlyphId;
-                                let mut k: GlyphId = 0 as GlyphId;
-                                while (k as ::core::ffi::c_int) < lc as ::core::ffi::c_int {
-                                    let mut lig_offset: u32 = set_offset_0.wrapping_add(
-                                        read_16u(
-                                            data.offset(set_offset_0 as isize)
-                                                .offset(2 as ::core::ffi::c_int as isize)
-                                                .offset(
-                                                    (k as ::core::ffi::c_int
-                                                        * 2 as ::core::ffi::c_int)
-                                                        as isize,
-                                                )
-                                                as *const u8,
-                                        ) as u32,
-                                    );
-                                    if table_length < lig_offset.wrapping_add(4 as u32) {
-                                        current_block = 3443835632518673764;
-                                        break 's_77;
-                                    }
-                                    let mut lig_components: GlyphId = read_16u(
-                                        data.offset(lig_offset as isize)
-                                            .offset(2 as ::core::ffi::c_int as isize)
-                                            as *const u8,
-                                    )
-                                        as GlyphId;
-                                    if table_length
-                                        < lig_offset.wrapping_add(2 as u32).wrapping_add(
-                                            (lig_components as ::core::ffi::c_int
-                                                * 2 as ::core::ffi::c_int)
-                                                as u32,
-                                        )
-                                    {
-                                        current_block = 3443835632518673764;
-                                        break 's_77;
-                                    }
-                                    let mut cov: *mut Coverage =
-                                        otl_coverage_create();
-                                    push_to_coverage(
-                                        cov,
-                                        handle_from_index(
-                                            (&(*start_coverage))[j_0 as usize].index,
-                                        )
-                                            as GlyphHandle,
-                                    );
-                                    let mut m: GlyphId = 1 as GlyphId;
-                                    while (m as ::core::ffi::c_int)
-                                        < lig_components as ::core::ffi::c_int
-                                    {
-                                        push_to_coverage(
-                                            cov,
-                                            handle_from_index(
-                                                read_16u(
-                                                    data.offset(lig_offset as isize)
-                                                        .offset(2 as ::core::ffi::c_int as isize)
-                                                        .offset(
-                                                            (m as ::core::ffi::c_int
-                                                                * 2 as ::core::ffi::c_int)
-                                                                as isize,
-                                                        )
-                                                        as *const u8,
-                                                )
-                                                    as GlyphId,
-                                            )
-                                                as GlyphHandle,
-                                        );
-                                        m = m.wrapping_add(1);
-                                    }
-                                    (*subtable).push(GsubLigatureEntry {
-                                        from: coverage_from_raw(cov),
-                                        to: handle_from_index(
-                                            read_16u(data.offset(lig_offset as isize)
-                                                as *const u8)
-                                                as GlyphId,
-                                        )
-                                            as GlyphHandle,
-                                    });
-                                    k = k.wrapping_add(1);
-                                }
-                                j_0 = j_0.wrapping_add(1);
-                            }
-                            match current_block {
-                                3443835632518673764 => {}
-                                _ => {
-                                    otl_coverage_free(
-                                        start_coverage,
-                                    );
-                                    return subtable_from_raw(subtable, Subtable::GsubLigature);
-                                }
-                            }
-                        }
-                    }
+    let mut start_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+
+    'parse: {
+        let mut header = match FontReader::new(slice).at(offset as usize) {
+            Ok(r) => r,
+            Err(_) => break 'parse,
+        };
+        if header.skip(2).is_err() {
+            break 'parse; // format, unused
+        }
+        let Ok(cov_rel) = header.u16() else { break 'parse };
+        let Ok(set_count) = header.u16() else { break 'parse };
+
+        start_coverage = read_coverage(data, table_length, offset.wrapping_add(cov_rel as u32));
+        if start_coverage.is_null() {
+            break 'parse;
+        }
+        if set_count as usize != (*start_coverage).len() {
+            break 'parse;
+        }
+        if header.require_room(set_count as usize, 2).is_err() {
+            break 'parse;
+        }
+        let mut set_offsets = Vec::with_capacity(set_count as usize);
+        for _ in 0..set_count {
+            set_offsets.push(offset.wrapping_add(header.u16().unwrap() as u32));
+        }
+
+        for (j, &set_offset) in set_offsets.iter().enumerate() {
+            let Ok(mut sr) = FontReader::new(slice).at(set_offset as usize) else { break 'parse };
+            let Ok(lig_count) = sr.u16() else { break 'parse };
+            if sr.require_room(lig_count as usize, 2).is_err() {
+                break 'parse;
+            }
+            let mut lig_offsets = Vec::with_capacity(lig_count as usize);
+            for _ in 0..lig_count {
+                lig_offsets.push(set_offset.wrapping_add(sr.u16().unwrap() as u32));
+            }
+
+            for &lig_offset in &lig_offsets {
+                let Ok(mut lr) = FontReader::new(slice).at(lig_offset as usize) else { break 'parse };
+                let Ok(lig_glyph) = lr.u16() else { break 'parse };
+                let Ok(lig_components) = lr.u16() else { break 'parse };
+                if lr.require_room((lig_components as usize).saturating_sub(1), 2).is_err() {
+                    break 'parse;
                 }
+                let cov: *mut Coverage = otl_coverage_create();
+                push_to_coverage(cov, handle_from_index((&(*start_coverage))[j].index) as GlyphHandle);
+                for _ in 1..lig_components {
+                    push_to_coverage(cov, handle_from_index(lr.u16().unwrap() as GlyphId) as GlyphHandle);
+                }
+                (*subtable).push(GsubLigatureEntry {
+                    from: coverage_from_raw(cov),
+                    to: handle_from_index(lig_glyph as GlyphId) as GlyphHandle,
+                });
             }
         }
+        otl_coverage_free(start_coverage);
+        return subtable_from_raw(subtable, Subtable::GsubLigature);
     }
     subtable_gsub_ligature_free(subtable);
-    return ::core::ptr::null_mut::<Subtable>();
+    if !start_coverage.is_null() {
+        otl_coverage_free(start_coverage);
+    }
+    ::core::ptr::null_mut::<Subtable>()
 }
 pub unsafe extern "C" fn otl_gsub_dump_ligature(
     mut _subtable: *const Subtable,
@@ -407,4 +300,59 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
     }
     otl_coverage_free(startcov);
     return bk_build_block(root);
+}
+
+#[cfg(test)]
+mod otl_read_gsub_ligature_tests {
+    use super::*;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    #[test]
+    fn well_formed_table_reads_one_ligature() {
+        let mut data = [0u8; 24];
+        data[2..4].copy_from_slice(&8u16.to_be_bytes()); // coverageOffset -> 8
+        data[4..6].copy_from_slice(&1u16.to_be_bytes()); // ligSetCount
+        data[6..8].copy_from_slice(&14u16.to_be_bytes()); // ligSetOffsets[0] -> 14
+        // Coverage format 1 at byte 8: one glyph, id 10.
+        data[8..10].copy_from_slice(&1u16.to_be_bytes());
+        data[10..12].copy_from_slice(&1u16.to_be_bytes());
+        data[12..14].copy_from_slice(&10u16.to_be_bytes());
+        // LigatureSet at byte 14: one ligature, offset 4 (-> byte 18).
+        data[14..16].copy_from_slice(&1u16.to_be_bytes());
+        data[16..18].copy_from_slice(&4u16.to_be_bytes());
+        // Ligature at byte 18: ligGlyph=30, componentCount=2 (1 declared component after the implicit first).
+        data[18..20].copy_from_slice(&30u16.to_be_bytes());
+        data[20..22].copy_from_slice(&2u16.to_be_bytes());
+        data[22..24].copy_from_slice(&20u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GsubLigature(entries) = &*boxed else { unreachable!() };
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].from.iter().map(|h| h.index).collect::<Vec<_>>(), vec![10, 20]);
+            assert_eq!(entries[0].to.index, 30);
+        }
+    }
+
+    #[test]
+    fn ligature_set_count_mismatch_with_coverage_is_rejected() {
+        let mut data = [0u8; 20];
+        data[2..4].copy_from_slice(&8u16.to_be_bytes());
+        data[4..6].copy_from_slice(&2u16.to_be_bytes()); // ligSetCount claims 2
+        data[6..8].copy_from_slice(&14u16.to_be_bytes());
+        // Coverage format 1 at byte 8: only 1 glyph, not 2.
+        data[8..10].copy_from_slice(&1u16.to_be_bytes());
+        data[10..12].copy_from_slice(&1u16.to_be_bytes());
+        data[12..14].copy_from_slice(&10u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(raw.is_null());
+        }
+    }
 }
