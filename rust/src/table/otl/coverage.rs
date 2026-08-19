@@ -2,7 +2,7 @@
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_str_bytes, json_type_of};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphId};
 use crate::vendor::json::{JsonType};
@@ -52,27 +52,33 @@ pub(crate) unsafe fn coverage_from_raw(raw: *mut Coverage) -> Coverage {
 pub(crate) unsafe fn push_to_coverage(coverage: *mut Coverage, h: GlyphHandle) {
     (*coverage).push(h);
 }
-pub(crate) unsafe fn read_coverage(
-    mut data: *const u8,
-    mut table_length: u32,
-    mut offset: u32,
-) -> *mut Coverage {
-    let mut coverage: *mut Coverage = otl_coverage_create();
-    if table_length < offset.wrapping_add(4 as u32) {
+// `data`/`table_length` are always the untouched pointer/length of the
+// whole owning GSUB/GPOS/GDEF table (confirmed by tracing every call site
+// up to `otfcc_read_otl`/`otfcc_read_gdef`, which read `table.length` once
+// from the `PacketPiece` and thread it unchanged through every layer down
+// to here -- only `offset` grows as recursion descends into subtables).
+// That means `slice::from_raw_parts(data, table_length as usize)` below
+// really does describe the same allocation the top-level table reader
+// validated, so every bounds check downstream of it is real.
+//
+// The original's own guards here used `wrapping_add` on `offset` (a `u32`
+// read from the file, unbounded) plus a small constant: `offset` close to
+// `u32::MAX` could wrap the whole comparison back down to something
+// small, passing a guard that should have failed -- the same overflow-
+// defeats-guard shape as `cmap.rs`'s bugs, just via addition instead of
+// multiplication. `FontReader::at`/`require_room` use `checked_add`/
+// `checked_mul` throughout, closing this.
+pub(crate) unsafe fn read_coverage(data: *const u8, table_length: u32, offset: u32) -> *mut Coverage {
+    let coverage = otl_coverage_create();
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+    let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
         return coverage;
-    }
-    let mut format: u16 = read_16u(data.offset(offset as isize));
-    match format as ::core::ffi::c_int {
+    };
+    let Ok(format) = r.u16() else { return coverage };
+    match format {
         1 => {
-            let mut glyph_count: u16 = read_16u(
-                data.offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize),
-            );
-            if table_length
-                < offset.wrapping_add(4 as u32).wrapping_add(
-                    (glyph_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
-                )
-            {
+            let Ok(glyph_count) = r.u16() else { return coverage };
+            if r.require_room(glyph_count as usize, 2).is_err() {
                 return coverage;
             }
             // `HASH_SORT`-by-`covIndex` is a no-op here: `covIndex` was
@@ -83,30 +89,16 @@ pub(crate) unsafe fn read_coverage(
             // order exactly. `IndexSet` (insertion-order-preserving,
             // dedups on `.insert()`) needs no explicit sort step at all.
             let mut h: indexmap::IndexSet<GlyphId> = indexmap::IndexSet::new();
-            let mut j: u16 = 0 as u16;
-            while (j as ::core::ffi::c_int) < glyph_count as ::core::ffi::c_int {
-                let gid: GlyphId = read_16u(
-                    data.offset(offset as isize)
-                        .offset(4 as ::core::ffi::c_int as isize)
-                        .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize),
-                );
-                h.insert(gid);
-                j = j.wrapping_add(1);
+            for _ in 0..glyph_count {
+                h.insert(r.u16().unwrap());
             }
             for gid in h.into_iter() {
                 push_to_coverage(coverage, handle_from_index(gid) as GlyphHandle);
             }
         }
         2 => {
-            let mut range_count: u16 = read_16u(
-                data.offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize),
-            );
-            if table_length
-                < offset.wrapping_add(4 as u32).wrapping_add(
-                    (range_count as ::core::ffi::c_int * 6 as ::core::ffi::c_int) as u32,
-                )
-            {
+            let Ok(range_count) = r.u16() else { return coverage };
+            if r.require_room(range_count as usize, 6).is_err() {
                 return coverage;
             }
             // Unlike format 1, `covIndex` here is `startCoverageIndex + k`
@@ -118,35 +110,19 @@ pub(crate) unsafe fn read_coverage(
             // wins) via `IndexMap`, then a stable sort by the stored
             // `covIndex`, matching `HASH_SORT`'s documented mergesort
             // stability for ties.
-            let mut h: indexmap::IndexMap<GlyphId, ::core::ffi::c_int> = indexmap::IndexMap::new();
-            let mut j_0: u16 = 0 as u16;
-            while (j_0 as ::core::ffi::c_int) < range_count as ::core::ffi::c_int {
-                let start: u16 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(4 as ::core::ffi::c_int as isize)
-                        .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize),
-                );
-                let end: u16 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(4 as ::core::ffi::c_int as isize)
-                        .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize)
-                        .offset(2 as ::core::ffi::c_int as isize),
-                );
-                let start_coverage_index: u16 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(4 as ::core::ffi::c_int as isize)
-                        .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize)
-                        .offset(4 as ::core::ffi::c_int as isize),
-                );
-                let mut k: ::core::ffi::c_int = start as ::core::ffi::c_int;
-                while k <= end as ::core::ffi::c_int {
-                    let cov_index: ::core::ffi::c_int = start_coverage_index as ::core::ffi::c_int + k;
+            let mut h: indexmap::IndexMap<GlyphId, i32> = indexmap::IndexMap::new();
+            for _ in 0..range_count {
+                let start = r.u16().unwrap();
+                let end = r.u16().unwrap();
+                let start_coverage_index = r.u16().unwrap();
+                let mut k = start as i32;
+                while k <= end as i32 {
+                    let cov_index = start_coverage_index as i32 + k;
                     h.entry(k as GlyphId).or_insert(cov_index);
                     k += 1;
                 }
-                j_0 = j_0.wrapping_add(1);
             }
-            let mut entries: Vec<(GlyphId, ::core::ffi::c_int)> = h.into_iter().collect();
+            let mut entries: Vec<(GlyphId, i32)> = h.into_iter().collect();
             entries.sort_by_key(|&(_, cov_index)| cov_index);
             for (gid, _) in entries {
                 push_to_coverage(coverage, handle_from_index(gid) as GlyphHandle);
@@ -154,7 +130,7 @@ pub(crate) unsafe fn read_coverage(
         }
         _ => {}
     }
-    return coverage;
+    coverage
 }
 pub(crate) unsafe extern "C" fn dump_coverage(coverage: *const Coverage) -> *mut BuiltValue {
     let mut a: *mut BuiltValue = json_array_new((*coverage).len());
@@ -313,5 +289,64 @@ pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
         }
         let new_len = (*coverage).len() - skip;
         (*coverage).truncate(new_len);
+    }
+}
+
+#[cfg(test)]
+mod read_coverage_tests {
+    use super::*;
+
+    #[test]
+    fn format1_glyph_array_dedups_and_preserves_insertion_order() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes()); // format
+        data.extend_from_slice(&3u16.to_be_bytes()); // glyphCount
+        data.extend_from_slice(&5u16.to_be_bytes());
+        data.extend_from_slice(&9u16.to_be_bytes());
+        data.extend_from_slice(&5u16.to_be_bytes()); // duplicate, deduped
+        unsafe {
+            let raw = read_coverage(data.as_ptr(), data.len() as u32, 0);
+            let cov = coverage_from_raw(raw);
+            assert_eq!(cov.iter().map(|h| h.index).collect::<Vec<_>>(), vec![5, 9]);
+        }
+    }
+
+    #[test]
+    fn format2_ranges_expand_and_sort_by_coverage_index() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&2u16.to_be_bytes()); // format
+        data.extend_from_slice(&1u16.to_be_bytes()); // rangeCount
+        data.extend_from_slice(&10u16.to_be_bytes()); // startGlyphID
+        data.extend_from_slice(&12u16.to_be_bytes()); // endGlyphID
+        data.extend_from_slice(&0u16.to_be_bytes()); // startCoverageIndex
+        unsafe {
+            let raw = read_coverage(data.as_ptr(), data.len() as u32, 0);
+            let cov = coverage_from_raw(raw);
+            assert_eq!(cov.iter().map(|h| h.index).collect::<Vec<_>>(), vec![10, 11, 12]);
+        }
+    }
+
+    #[test]
+    fn offset_near_u32_max_does_not_wrap_the_guard() {
+        // The original computed `offset.wrapping_add(4)` -- an offset this
+        // close to u32::MAX wraps that addition back down to a small
+        // number, which could pass the `table_length < ...` guard even
+        // though `offset` itself points nowhere near the table.
+        let data = [0u8; 8];
+        unsafe {
+            let raw = read_coverage(data.as_ptr(), data.len() as u32, 0xFFFF_FFF0);
+            let cov = coverage_from_raw(raw);
+            assert!(cov.is_empty());
+        }
+    }
+
+    #[test]
+    fn truncated_header_is_empty_not_oob() {
+        let data = [0u8; 1];
+        unsafe {
+            let raw = read_coverage(data.as_ptr(), data.len() as u32, 0);
+            let cov = coverage_from_raw(raw);
+            assert!(cov.is_empty());
+        }
     }
 }

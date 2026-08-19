@@ -3,7 +3,7 @@ use crate::support::parsed_json::{ParsedValue, json_dbl_val, json_int_val, json_
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
 
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 use crate::support::buffer::{Buffer};
 use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::vendor::json::{JsonType};
@@ -78,60 +78,31 @@ pub(crate) unsafe fn push_class_def(cd: *mut ClassDef, h: GlyphHandle, cls: Glyp
         (*cd).maxclass = cls;
     }
 }
-pub(crate) unsafe fn read_class_def(
-    mut data: *const u8,
-    mut table_length: u32,
-    mut offset: u32,
-) -> *mut ClassDef {
-    let mut cd: *mut ClassDef = otl_class_def_create();
-    if table_length < offset.wrapping_add(4 as u32) {
+// Same `data`/`table_length` trustworthiness and overflow-defeats-guard
+// reasoning as `coverage.rs::read_coverage` (see its comment).
+pub(crate) unsafe fn read_class_def(data: *const u8, table_length: u32, offset: u32) -> *mut ClassDef {
+    let cd = otl_class_def_create();
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+    let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
         return cd;
-    }
-    let mut format: u16 = read_16u(data.offset(offset as isize));
-    if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int
-        && table_length >= offset.wrapping_add(6 as u32)
-    {
-        let mut start_gid: GlyphId = read_16u(
-            data.offset(offset as isize)
-                .offset(2 as ::core::ffi::c_int as isize),
-        ) as GlyphId;
-        let mut count: GlyphId = read_16u(
-            data.offset(offset as isize)
-                .offset(4 as ::core::ffi::c_int as isize),
-        ) as GlyphId;
-        if count as ::core::ffi::c_int != 0
-            && table_length
-                >= offset.wrapping_add(6 as u32).wrapping_add(
-                    (count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
-                )
-        {
-            let mut j: GlyphId = 0 as GlyphId;
-            while (j as ::core::ffi::c_int) < count as ::core::ffi::c_int {
+    };
+    let Ok(format) = r.u16() else { return cd };
+    if format == 1 {
+        let Ok(start_gid) = r.u16() else { return cd };
+        let Ok(count) = r.u16() else { return cd };
+        if count != 0 && r.require_room(count as usize, 2).is_ok() {
+            for j in 0..count {
+                let cls = r.u16().unwrap();
                 push_class_def(
                     cd,
-                    handle_from_index(
-                        (start_gid as ::core::ffi::c_int + j as ::core::ffi::c_int) as GlyphId,
-                    ) as GlyphHandle,
-                    read_16u(
-                        data.offset(offset as isize)
-                            .offset(6 as ::core::ffi::c_int as isize)
-                            .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize),
-                    ) as GlyphClass,
+                    handle_from_index(start_gid.wrapping_add(j)) as GlyphHandle,
+                    cls as GlyphClass,
                 );
-                j = j.wrapping_add(1);
             }
-            return cd;
         }
-    } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-        let mut range_count: u16 = read_16u(
-            data.offset(offset as isize)
-                .offset(2 as ::core::ffi::c_int as isize),
-        );
-        if table_length
-            < offset.wrapping_add(4 as u32).wrapping_add(
-                (range_count as ::core::ffi::c_int * 6 as ::core::ffi::c_int) as u32,
-            )
-        {
+    } else if format == 2 {
+        let Ok(range_count) = r.u16() else { return cd };
+        if r.require_room(range_count as usize, 6).is_err() {
             return cd;
         }
         // `covIndex` is repurposed here to carry the class value, not a
@@ -141,40 +112,23 @@ pub(crate) unsafe fn read_class_def(
         // be reproduced exactly: dedup-by-gid (first occurrence wins) via
         // `IndexMap`, then a stable sort by the stored class value.
         let mut h: indexmap::IndexMap<GlyphId, GlyphClass> = indexmap::IndexMap::new();
-        let mut j_0: u16 = 0 as u16;
-        while (j_0 as ::core::ffi::c_int) < range_count as ::core::ffi::c_int {
-            let start: u16 = read_16u(
-                data.offset(offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize)
-                    .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize),
-            );
-            let end: u16 = read_16u(
-                data.offset(offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize)
-                    .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize)
-                    .offset(2 as ::core::ffi::c_int as isize),
-            );
-            let cls: u16 = read_16u(
-                data.offset(offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize)
-                    .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize)
-                    .offset(4 as ::core::ffi::c_int as isize),
-            );
-            let mut k: ::core::ffi::c_int = start as ::core::ffi::c_int;
-            while k <= end as ::core::ffi::c_int {
+        for _ in 0..range_count {
+            let start = r.u16().unwrap();
+            let end = r.u16().unwrap();
+            let cls = r.u16().unwrap();
+            let mut k = start as i32;
+            while k <= end as i32 {
                 h.entry(k as GlyphId).or_insert(cls as GlyphClass);
                 k += 1;
             }
-            j_0 = j_0.wrapping_add(1);
         }
         let mut entries: Vec<(GlyphId, GlyphClass)> = h.into_iter().collect();
         entries.sort_by_key(|&(_, cls)| cls);
         for (gid, cls) in entries {
             push_class_def(cd, handle_from_index(gid) as GlyphHandle, cls);
         }
-        return cd;
     }
-    return cd;
+    cd
 }
 pub(crate) unsafe fn expand_class_def(
     mut cov: *mut Coverage,
@@ -325,4 +279,68 @@ pub(crate) unsafe fn shrink_class_def(cd: *mut ClassDef) {
     }
     (*cd).glyphs.truncate(k);
     (*cd).classes.truncate(k);
+}
+
+#[cfg(test)]
+mod read_class_def_tests {
+    use super::*;
+
+    #[test]
+    fn format1_sequential_gids_get_sequential_classes() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes()); // format
+        data.extend_from_slice(&10u16.to_be_bytes()); // startGlyphID
+        data.extend_from_slice(&2u16.to_be_bytes()); // glyphCount
+        data.extend_from_slice(&3u16.to_be_bytes()); // classValueArray[0]
+        data.extend_from_slice(&4u16.to_be_bytes()); // classValueArray[1]
+        unsafe {
+            let raw = read_class_def(data.as_ptr(), data.len() as u32, 0);
+            let cd = classdef_from_raw(raw).unwrap();
+            assert_eq!(cd.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(), vec![10, 11]);
+            assert_eq!(cd.classes, vec![3, 4]);
+        }
+    }
+
+    #[test]
+    fn format2_ranges_sort_by_class_value_not_gid() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&2u16.to_be_bytes()); // format
+        data.extend_from_slice(&2u16.to_be_bytes()); // classRangeCount
+        data.extend_from_slice(&20u16.to_be_bytes()); // range0: startGlyphID
+        data.extend_from_slice(&20u16.to_be_bytes()); // range0: endGlyphID
+        data.extend_from_slice(&5u16.to_be_bytes()); // range0: class
+        data.extend_from_slice(&10u16.to_be_bytes()); // range1: startGlyphID
+        data.extend_from_slice(&10u16.to_be_bytes()); // range1: endGlyphID
+        data.extend_from_slice(&1u16.to_be_bytes()); // range1: class
+        unsafe {
+            let raw = read_class_def(data.as_ptr(), data.len() as u32, 0);
+            let cd = classdef_from_raw(raw).unwrap();
+            // Sorted by class value ascending: class 1 (gid 10) then class 5 (gid 20).
+            assert_eq!(cd.classes, vec![1, 5]);
+            assert_eq!(cd.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(), vec![10, 20]);
+        }
+    }
+
+    #[test]
+    fn offset_near_u32_max_does_not_wrap_the_guard() {
+        let data = [0u8; 8];
+        unsafe {
+            let raw = read_class_def(data.as_ptr(), data.len() as u32, 0xFFFF_FFF0);
+            let cd = classdef_from_raw(raw).unwrap();
+            assert!(cd.glyphs.is_empty());
+        }
+    }
+
+    #[test]
+    fn zero_count_format1_is_empty_not_a_panic() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&0u16.to_be_bytes()); // startGlyphID
+        data.extend_from_slice(&0u16.to_be_bytes()); // glyphCount = 0
+        unsafe {
+            let raw = read_class_def(data.as_ptr(), data.len() as u32, 0);
+            let cd = classdef_from_raw(raw).unwrap();
+            assert!(cd.glyphs.is_empty());
+        }
+    }
 }
