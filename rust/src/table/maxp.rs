@@ -1,12 +1,12 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum};
-use crate::support::binio::{read_16u, read_32s};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{F16Dot16, FontFilePointer};
+use crate::support::primitives::{F16Dot16};
 use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::support::built_json::{BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push};
@@ -36,105 +36,71 @@ pub struct MaxpTable {
 // `HeadTable`). The entire vtable is deleted: grepping the bare
 // `TABLE_I_MAXP` identifier confirmed only `.create`/`.free` were ever
 // called, both internal to this crate.
+// `length` must be *exactly* 32 (version 1.0, full table) or 6 (version 0.5,
+// version+numGlyphs only) -- not merely "at least" -- matching the original
+// guard. A table that claims to be the 6-byte short form but whose first 4
+// bytes happen to spell version 1.0 now correctly fails to parse (dropping
+// the whole table) instead of reading the 26 version-1.0-only fields past
+// the buffer's actual end, which the original pointer-arithmetic version
+// would have done unconditionally once past the length check.
+fn parse_maxp(data: &[u8]) -> Result<MaxpTable, ReadError> {
+    if data.len() != 32 && data.len() != 6 {
+        return Err(ReadError { needed: 32, available: data.len() });
+    }
+    let mut r = FontReader::new(data);
+    let version = r.i32()? as F16Dot16;
+    let num_glyphs = r.u16()?;
+    let mut maxp = MaxpTable {
+        version,
+        num_glyphs,
+        max_points: 0,
+        max_contours: 0,
+        max_composite_points: 0,
+        max_composite_contours: 0,
+        max_zones: 0,
+        max_twilight_points: 0,
+        max_storage: 0,
+        max_function_defs: 0,
+        max_instruction_defs: 0,
+        max_stack_elements: 0,
+        max_size_of_instructions: 0,
+        max_component_elements: 0,
+        max_component_depth: 0,
+    };
+    if version == 0x10000 {
+        maxp.max_points = r.u16()?;
+        maxp.max_contours = r.u16()?;
+        maxp.max_composite_points = r.u16()?;
+        maxp.max_composite_contours = r.u16()?;
+        maxp.max_zones = r.u16()?;
+        maxp.max_twilight_points = r.u16()?;
+        maxp.max_storage = r.u16()?;
+        maxp.max_function_defs = r.u16()?;
+        maxp.max_instruction_defs = r.u16()?;
+        maxp.max_stack_elements = r.u16()?;
+        maxp.max_size_of_instructions = r.u16()?;
+        maxp.max_component_elements = r.u16()?;
+        maxp.max_component_depth = r.u16()?;
+    }
+    Ok(maxp)
+}
 pub unsafe fn otfcc_read_maxp(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<MaxpTable>> {
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_MAXP {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
-                    if length != 32 as u32 && length != 6 as u32 {
-                        logger_log_sds(
-                            (*options).logger,
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(b"table 'maxp' corrupted.\n"),
-                        );
-                    } else {
-                        let mut maxp_box: Box<MaxpTable> = Box::new(::core::mem::zeroed());
-                        let maxp: *mut MaxpTable = maxp_box.as_mut() as *mut MaxpTable;
-                        (*maxp).version = read_32s(data as *const u8) as F16Dot16;
-                        (*maxp).num_glyphs = read_16u(
-                            data.offset(4 as ::core::ffi::c_int as isize) as *const u8
-                        );
-                        if (*maxp).version == 0x10000 as F16Dot16 {
-                            (*maxp).max_points = read_16u(
-                                data.offset(6 as ::core::ffi::c_int as isize) as *const u8,
-                            );
-                            (*maxp).max_contours = read_16u(
-                                data.offset(8 as ::core::ffi::c_int as isize) as *const u8,
-                            );
-                            (*maxp).max_composite_points =
-                                read_16u(data.offset(10 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*maxp).max_composite_contours =
-                                read_16u(data.offset(12 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*maxp).max_zones =
-                                read_16u(data.offset(14 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*maxp).max_twilight_points =
-                                read_16u(data.offset(16 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*maxp).max_storage =
-                                read_16u(data.offset(18 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*maxp).max_function_defs =
-                                read_16u(data.offset(20 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*maxp).max_instruction_defs =
-                                read_16u(data.offset(22 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*maxp).max_stack_elements =
-                                read_16u(data.offset(24 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*maxp).max_size_of_instructions =
-                                read_16u(data.offset(26 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*maxp).max_component_elements =
-                                read_16u(data.offset(28 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                            (*maxp).max_component_depth =
-                                read_16u(data.offset(30 as ::core::ffi::c_int as isize)
-                                    as *const u8);
-                        } else {
-                            (*maxp).max_points = 0 as u16;
-                            (*maxp).max_contours = 0 as u16;
-                            (*maxp).max_composite_points = 0 as u16;
-                            (*maxp).max_composite_contours = 0 as u16;
-                            (*maxp).max_zones = 0 as u16;
-                            (*maxp).max_twilight_points = 0 as u16;
-                            (*maxp).max_storage = 0 as u16;
-                            (*maxp).max_function_defs = 0 as u16;
-                            (*maxp).max_instruction_defs = 0 as u16;
-                            (*maxp).max_stack_elements = 0 as u16;
-                            (*maxp).max_size_of_instructions = 0 as u16;
-                            (*maxp).max_component_elements = 0 as u16;
-                            (*maxp).max_component_depth = 0 as u16;
-                        }
-                        return Some(maxp_box);
-                    }
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_MAXP)?;
+    match parse_maxp(&table.data) {
+        Ok(maxp) => Some(Box::new(maxp)),
+        Err(_) => {
+            logger_log_sds(
+                (*options).logger,
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"table 'maxp' corrupted.\n"),
+            );
+            None
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
     }
-    return None;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_maxp(
@@ -332,4 +298,48 @@ pub unsafe fn otfcc_build_maxp(
         bufwrite16b(buf, (*maxp).max_component_depth);
     }
     return buf;
+}
+
+#[cfg(test)]
+mod parse_maxp_tests {
+    use super::*;
+
+    #[test]
+    fn version_0_5_reads_only_num_glyphs() {
+        let mut data = vec![0u8; 6];
+        data[0..4].copy_from_slice(&0x0000_5000u32.to_be_bytes());
+        data[4..6].copy_from_slice(&42u16.to_be_bytes());
+        let maxp = parse_maxp(&data).unwrap();
+        assert_eq!(maxp.num_glyphs, 42);
+        assert_eq!(maxp.max_points, 0);
+    }
+
+    #[test]
+    fn version_1_0_reads_every_field() {
+        let mut data = vec![0u8; 32];
+        data[0..4].copy_from_slice(&0x0001_0000u32.to_be_bytes());
+        data[4..6].copy_from_slice(&42u16.to_be_bytes());
+        data[6..8].copy_from_slice(&99u16.to_be_bytes()); // maxPoints
+        let maxp = parse_maxp(&data).unwrap();
+        assert_eq!(maxp.num_glyphs, 42);
+        assert_eq!(maxp.max_points, 99);
+    }
+
+    #[test]
+    fn length_between_6_and_32_is_rejected() {
+        let data = vec![0u8; 20];
+        assert!(parse_maxp(&data).is_err());
+    }
+
+    #[test]
+    fn six_byte_table_claiming_version_1_0_is_rejected_instead_of_reading_oob() {
+        // The version field itself (the first 4 bytes) can claim 1.0 even
+        // though the table is only the 6-byte short form -- the original
+        // pointer-arithmetic reader would have read the 26 version-1.0-only
+        // bytes straight past this 6-byte buffer's end once it took that
+        // branch.
+        let mut data = vec![0u8; 6];
+        data[0..4].copy_from_slice(&0x0001_0000u32.to_be_bytes());
+        assert!(parse_maxp(&data).is_err());
+    }
 }

@@ -1,12 +1,12 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
-use crate::support::binio::{read_16u, read_16s, read_32s};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{F16Dot16, FontFilePointer};
+use crate::support::primitives::{F16Dot16};
 use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::support::built_json::{BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push};
@@ -38,87 +38,62 @@ pub struct VheaTable {
 // vtable is deleted: grepping the bare `TABLE_I_VHEA` identifier
 // confirmed only `.create`/`.free` were ever called, both internal to
 // this crate.
+// `dummy0..3` and `metric_data_format` are never read from the table data --
+// only zeroed -- matching the original, which set them directly rather than
+// reading bytes 24..34; only `num_of_long_ver_metrics` at offset 34 follows
+// that gap.
+fn parse_vhea(data: &[u8]) -> Result<VheaTable, ReadError> {
+    let mut r = FontReader::new(data);
+    let version = r.i32()? as F16Dot16;
+    let ascent = r.i16()?;
+    let descent = r.i16()?;
+    let line_gap = r.i16()?;
+    let advance_height_max = r.i16()?;
+    let min_top = r.i16()?;
+    let min_bottom = r.i16()?;
+    let y_max_extent = r.i16()?;
+    let caret_slope_rise = r.i16()?;
+    let caret_slope_run = r.i16()?;
+    let caret_offset = r.i16()?;
+    r.skip(10)?;
+    let num_of_long_ver_metrics = r.u16()?;
+    Ok(VheaTable {
+        version,
+        ascent,
+        descent,
+        line_gap,
+        advance_height_max,
+        min_top,
+        min_bottom,
+        y_max_extent,
+        caret_slope_rise,
+        caret_slope_run,
+        caret_offset,
+        dummy0: 0,
+        dummy1: 0,
+        dummy2: 0,
+        dummy3: 0,
+        metric_data_format: 0,
+        num_of_long_ver_metrics,
+    })
+}
 pub unsafe fn otfcc_read_vhea(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<VheaTable>> {
-    let mut vhea_box: Option<Box<VheaTable>> = None;
-    let mut vhea: *mut VheaTable = ::core::ptr::null_mut::<VheaTable>();
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_VHEA {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: usize = table.length as usize;
-                    if length >= 36 as usize {
-                        vhea_box = Some(Box::new(::core::mem::zeroed()));
-                        vhea = vhea_box.as_deref_mut().unwrap() as *mut VheaTable;
-                        (*vhea).version = read_32s(data as *const u8) as F16Dot16;
-                        (*vhea).ascent = read_16s(
-                            data.offset(4 as ::core::ffi::c_int as isize) as *const u8
-                        );
-                        (*vhea).descent = read_16s(
-                            data.offset(6 as ::core::ffi::c_int as isize) as *const u8
-                        );
-                        (*vhea).line_gap = read_16s(
-                            data.offset(8 as ::core::ffi::c_int as isize) as *const u8
-                        );
-                        (*vhea).advance_height_max = read_16s(
-                            data.offset(10 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*vhea).min_top = read_16s(
-                            data.offset(12 as ::core::ffi::c_int as isize) as *const u8
-                        );
-                        (*vhea).min_bottom = read_16s(
-                            data.offset(14 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*vhea).y_max_extent = read_16s(
-                            data.offset(16 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*vhea).caret_slope_rise = read_16s(
-                            data.offset(18 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*vhea).caret_slope_run = read_16s(
-                            data.offset(20 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*vhea).caret_offset = read_16s(
-                            data.offset(22 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*vhea).dummy0 = 0 as i16;
-                        (*vhea).dummy1 = 0 as i16;
-                        (*vhea).dummy2 = 0 as i16;
-                        (*vhea).dummy3 = 0 as i16;
-                        (*vhea).metric_data_format = 0 as i16;
-                        (*vhea).num_of_long_ver_metrics = read_16u(
-                            data.offset(34 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        return vhea_box;
-                    } else {
-                        logger_log_sds(
-                            (*options).logger,
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(b"Table 'vhea' corrupted."),
-                        );
-                    }
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VHEA)?;
+    match parse_vhea(&table.data) {
+        Ok(vhea) => Some(Box::new(vhea)),
+        Err(_) => {
+            logger_log_sds(
+                (*options).logger,
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"Table 'vhea' corrupted."),
+            );
+            None
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
     }
-    return None;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_vhea(
@@ -312,4 +287,34 @@ pub unsafe fn otfcc_build_vhea(
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, (*vhea).num_of_long_ver_metrics);
     return buf;
+}
+
+#[cfg(test)]
+mod parse_vhea_tests {
+    use super::*;
+
+    fn well_formed_vhea() -> Vec<u8> {
+        let mut data = vec![0u8; 36];
+        data[0..4].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // version
+        data[4..6].copy_from_slice(&950i16.to_be_bytes()); // ascent
+        data[34..36].copy_from_slice(&7u16.to_be_bytes()); // numOfLongVerMetrics
+        data
+    }
+
+    #[test]
+    fn well_formed_36_byte_table_parses_and_zeroes_the_unread_reserved_fields() {
+        let vhea = parse_vhea(&well_formed_vhea()).unwrap();
+        assert_eq!(vhea.version, 0x0001_0000);
+        assert_eq!(vhea.ascent, 950);
+        assert_eq!(vhea.num_of_long_ver_metrics, 7);
+        assert_eq!(vhea.dummy0, 0);
+        assert_eq!(vhea.metric_data_format, 0);
+    }
+
+    #[test]
+    fn table_one_byte_short_of_36_is_rejected_instead_of_reading_oob() {
+        let mut data = well_formed_vhea();
+        data.truncate(35);
+        assert!(parse_vhea(&data).is_err());
+    }
 }

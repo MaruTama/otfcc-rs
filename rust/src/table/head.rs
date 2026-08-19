@@ -1,11 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::binio::{read_16u, read_32u, read_32s, read_64u};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
-use crate::support::primitives::{F16Dot16, FontFilePointer};
+use crate::support::primitives::{F16Dot16};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::{Packet};
 use crate::support::parsed_json::{ParsedValue, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, otfcc_parse_flags};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite64b};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
@@ -37,95 +37,45 @@ pub struct HeadTable {
 // The entire vtable is deleted: grepping the bare `TABLE_I_HEAD`
 // identifier confirmed only `.create`/`.free` were ever called, both
 // internal to this crate.
+fn parse_head(data: &[u8]) -> Result<HeadTable, ReadError> {
+    let mut r = FontReader::new(data);
+    Ok(HeadTable {
+        version: r.i32()? as F16Dot16,
+        font_revision: r.u32()?,
+        check_sum_adjustment: r.u32()?,
+        magic_number: r.u32()?,
+        flags: r.u16()?,
+        units_per_em: r.u16()?,
+        created: r.u64()? as i64,
+        modified: r.u64()? as i64,
+        x_min: r.i16()?,
+        y_min: r.i16()?,
+        x_max: r.i16()?,
+        y_max: r.i16()?,
+        mac_style: r.u16()?,
+        lowest_rec_ppem: r.u16()?,
+        font_directory_hint: r.i16()?,
+        index_to_loc_format: r.i16()?,
+        glyph_data_format: r.i16()?,
+    })
+}
 pub unsafe fn otfcc_read_head(
     packet: &Packet,
     mut options: *const Options,
 ) -> Option<Box<HeadTable>> {
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_HEAD {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
-                    if length < 54 as u32 {
-                        logger_log_sds(
-                            (*options).logger,
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(b"table 'head' corrupted.\n"),
-                        );
-                    } else {
-                        let mut head_box: Box<HeadTable> = Box::new(::core::mem::zeroed());
-                        let head: *mut HeadTable = head_box.as_mut() as *mut HeadTable;
-                        (*head).version = read_32s(data as *const u8) as F16Dot16;
-                        (*head).font_revision = read_32u(
-                            data.offset(4 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*head).check_sum_adjustment = read_32u(
-                            data.offset(8 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*head).magic_number = read_32u(
-                            data.offset(12 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*head).flags = read_16u(
-                            data.offset(16 as ::core::ffi::c_int as isize) as *const u8
-                        );
-                        (*head).units_per_em = read_16u(
-                            data.offset(18 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*head).created = read_64u(
-                            data.offset(20 as ::core::ffi::c_int as isize) as *const u8
-                        ) as i64;
-                        (*head).modified = read_64u(
-                            data.offset(28 as ::core::ffi::c_int as isize) as *const u8
-                        ) as i64;
-                        (*head).x_min = read_16u(
-                            data.offset(36 as ::core::ffi::c_int as isize) as *const u8
-                        ) as i16;
-                        (*head).y_min = read_16u(
-                            data.offset(38 as ::core::ffi::c_int as isize) as *const u8
-                        ) as i16;
-                        (*head).x_max = read_16u(
-                            data.offset(40 as ::core::ffi::c_int as isize) as *const u8
-                        ) as i16;
-                        (*head).y_max = read_16u(
-                            data.offset(42 as ::core::ffi::c_int as isize) as *const u8
-                        ) as i16;
-                        (*head).mac_style = read_16u(
-                            data.offset(44 as ::core::ffi::c_int as isize) as *const u8
-                        );
-                        (*head).lowest_rec_ppem = read_16u(
-                            data.offset(46 as ::core::ffi::c_int as isize) as *const u8,
-                        );
-                        (*head).font_directory_hint = read_16u(
-                            data.offset(48 as ::core::ffi::c_int as isize) as *const u8,
-                        ) as i16;
-                        (*head).index_to_loc_format = read_16u(
-                            data.offset(50 as ::core::ffi::c_int as isize) as *const u8,
-                        ) as i16;
-                        (*head).glyph_data_format = read_16u(
-                            data.offset(52 as ::core::ffi::c_int as isize) as *const u8,
-                        ) as i16;
-                        return Some(head_box);
-                    }
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_HEAD)?;
+    match parse_head(&table.data) {
+        Ok(head) => Some(Box::new(head)),
+        Err(_) => {
+            logger_log_sds(
+                (*options).logger,
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"table 'head' corrupted.\n"),
+            );
+            None
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
     }
-    return None;
 }
 static HEAD_FLAGS_LABELS: [&::core::ffi::CStr; 15] = [
     c"baselineAtY_0",
@@ -399,4 +349,32 @@ pub unsafe fn otfcc_build_head(
     bufwrite16b(buf, (*head).index_to_loc_format as u16);
     bufwrite16b(buf, (*head).glyph_data_format as u16);
     return buf;
+}
+
+#[cfg(test)]
+mod parse_head_tests {
+    use super::*;
+
+    fn well_formed_head() -> Vec<u8> {
+        let mut data = vec![0u8; 54];
+        data[0..4].copy_from_slice(&0x0001_0000u32.to_be_bytes()); // version
+        data[18..20].copy_from_slice(&1000u16.to_be_bytes()); // unitsPerEm
+        data[50..52].copy_from_slice(&1i16.to_be_bytes()); // indexToLocFormat
+        data
+    }
+
+    #[test]
+    fn well_formed_54_byte_table_parses_every_field() {
+        let head = parse_head(&well_formed_head()).unwrap();
+        assert_eq!(head.version, 0x0001_0000);
+        assert_eq!(head.units_per_em, 1000);
+        assert_eq!(head.index_to_loc_format, 1);
+    }
+
+    #[test]
+    fn table_one_byte_short_of_54_is_rejected_instead_of_reading_oob() {
+        let mut data = well_formed_head();
+        data.truncate(53);
+        assert!(parse_head(&data).is_err());
+    }
 }

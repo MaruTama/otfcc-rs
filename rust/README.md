@@ -932,6 +932,51 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1, sixth batch (start of batch 2): the six fixed-length
+  metrics-header tables — `head`/`hhea`/`maxp`/`hmtx`/`vhea`/`vmtx`.**
+  Unlike batch 1's files, every one of these six already had a length guard
+  before this PR (a lesson from the plan's original survey: `head`/`hhea`
+  reject `length < 54`/`36`; `maxp` requires `length == 32 || length == 6`
+  exactly; `hmtx`/`vmtx` check `length < count_a*4 + count_k*2`; `vhea`
+  requires `length >= 36`), so this batch is mechanical `FontReader`
+  conversion rather than bug-fixing — the `__fortable_*`/`.offset()`/raw
+  `FontFilePointer` scaffolding around an already-correct guard.
+  - **One real behavior change, found while converting `maxp`**: the
+    original guard only checks `length == 32 || length == 6`, then branches
+    on the *version field itself* (`if version == 0x10000`) to decide
+    whether to read the 13 version-1.0-only fields. A table that is exactly
+    the 6-byte short form but whose first 4 bytes happen to spell version
+    `0x00010000` would take that branch anyway and read the 26
+    version-1.0-only bytes straight past a 6-byte buffer's actual end — the
+    length check and the version check are independent conditions, and
+    satisfying one doesn't imply anything about the other. `parse_maxp`
+    keeps the same `data.len() == 32 || data.len() == 6` guard verbatim,
+    but the version-1.0 field reads now go through the same `FontReader`
+    as everything else, so they fail cleanly (whole table dropped, same
+    "corrupted" warning) instead of reading OOB. Covered by
+    `six_byte_table_claiming_version_1_0_is_rejected_instead_of_reading_oob`.
+  - **No behavior change on any committed payload**: all 9 TTF/OTF payloads
+    have well-formed `head`/`hhea`/`maxp` tables, and every payload with
+    vertical metrics has well-formed `vhea`/`vmtx` — `compare-with-golden.sh`
+    stayed byte-identical across every payload with zero exceptions.
+  - 14 new unit tests across the six files (well-formed-parses-every-field
+    and one-byte-short-is-rejected for each of `head`/`hhea`/`vhea`; the
+    two `maxp` version branches, a length strictly between 6 and 32, and
+    the 6-byte-but-claims-1.0 case; a full-metrics-plus-trailing-LSB case
+    and a too-short-table case for each of `hmtx`/`vmtx`).
+  - `rust/scripts/survey-unsafe.sh` deltas: `__fortable_*` 326 → 242,
+    `.offset(` 1652 → 1585, raw pointer types 6572 → 6497.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 113 tests (was 99 — 14 new), clippy clean, ABI export guard,
+    all golden fixtures byte-identical (dump/build and log output, zero
+    exceptions), all round-trip payloads stable, issue #1's lookup-alias
+    regression still passes.
+  - Next in batch 2: `os_2`/`gasp`/`meta`/`vdmx` — `meta` and `vdmx` both
+    have a real unchecked-offset bug in the current survey (`meta`'s
+    `data_maps_count`-driven guard can overflow the same way `cmap`'s does;
+    `vdmx`'s `group_offset` is used with no bounds check against the table
+    length at all), so that PR is not purely mechanical.
+
 - **Stage 7-1, fifth batch and last of the original batch-1 list:
   `table/name.rs::otfcc_read_name`.** The file the plan's original survey
   flagged as the single worst offender, and the last of the "0–1 guard"
