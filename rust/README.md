@@ -939,8 +939,9 @@ on the other platform before a commit is trusted.
   (`'parse: { ...; break 'parse; }`) replacing `current_block`
   goto-emulation where a header parse either fully succeeds or bails to
   shared cleanup.
-  - **`gpos_mark_to_single.rs`: two real, previously-undocumented bugs.**
-    First, the BaseArray's byte-length guard --
+  - **`gpos_mark_to_single.rs`: three real, previously-undocumented bugs
+    -- the third caught by CI itself, on this PR.** First, the
+    BaseArray's byte-length guard --
     `2 * bases.len() * class_count` -- is the same overflow-defeats-guard
     shape as `cmap.rs`'s `n_groups`, just reached by two independently
     large factors instead of one: `bases.len()` can be as large as the
@@ -960,6 +961,24 @@ on the other platform before a commit is trusted.
     every path -- covered indirectly by the `miri`/`fuzz` CI jobs rather
     than a dedicated unit test (a leak isn't observable through a normal
     assertion).
+
+    Third: `init_mark_to_single` initialized a fresh, `calloc`'d
+    (`__caryll_allocate_clean`) `GposMarkToSingleSubtable` with plain `=`
+    assignments (`(*subtable).mark_array = Vec::new()`) -- the exact
+    "constructing invalid value... encountered 0" UB this crate already
+    has a name for (`otfcc-vec-field-assign-needs-calloc` in this repo's
+    memory notes, and `logger.rs`'s `otfcc_new_logger` fix from Stage
+    7-0-c): the implicit drop of the "already there" all-zero `Vec`
+    before the new one is written is UB the instant it runs, whether or
+    not it has any observable runtime effect. This one predates this PR
+    entirely -- `gsub_reverse.rs`'s equivalent `init_gsub_reverse`
+    already used `.write()` correctly, but this file's copy didn't -- and
+    had simply never been exercised by `cargo miri test` before, since no
+    existing test constructed a `GposMarkToSingleSubtable` at all. CI's
+    `miri` job (advisory, but never previously red on this crate for a
+    *new* finding) caught it the moment this PR's own new tests started
+    calling `otl_read_gpos_mark_to_single`. Fixed the same way
+    `otfcc_new_logger` was: `(&raw mut (*subtable).mark_array).write(...)`.
   - **`gsub_reverse.rs`: one real, previously-undocumented bug, a
     different shape from the others in this stage.** `match_count`
     (`n_backtrack + n_forward + 1`, a `TableId`/u16 field) is a sum of

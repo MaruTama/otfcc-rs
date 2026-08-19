@@ -30,8 +30,16 @@ pub(crate) unsafe fn dispose_base_array(arr: *mut BaseArray) {
     *arr = Vec::new();
 }
 unsafe fn init_mark_to_single(subtable: *mut GposMarkToSingleSubtable) {
-    (*subtable).mark_array = Vec::new();
-    (*subtable).base_array = Vec::new();
+    // `subtable` is fresh from `__caryll_allocate_clean` (calloc'd, all
+    // zero bits) -- a plain `=` here would drop the all-zero `Vec` that's
+    // "already there" before writing the new one, and an all-zero `Vec`
+    // is not a valid value to drop (UB per miri, caught by CI on this
+    // exact PR once a new test finally exercised this path). `.write()`
+    // skips that implicit drop, matching `gsub_reverse.rs`'s
+    // `init_gsub_reverse` (already correct) and the wider fix documented
+    // in `otfcc-vec-field-assign-needs-calloc` for this crate.
+    (&raw mut (*subtable).mark_array).write(Vec::new());
+    (&raw mut (*subtable).base_array).write(Vec::new());
 }
 pub(crate) unsafe fn subtable_gpos_mark_to_single_free(x: *mut GposMarkToSingleSubtable) {
     if x.is_null() {
