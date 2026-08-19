@@ -6,7 +6,7 @@ use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_fr
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
 use crate::support::parsed_json::{ParsedValue, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of};
 
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
@@ -40,90 +40,75 @@ unsafe fn subtable_gsub_single_create() -> *mut GsubSingleSubtable {
     x.write(Vec::new());
     x
 }
+// `Coverage`/`otl_coverage_create`/`read_coverage` are still raw-pointer-
+// shaped (unconverted, out of this PR's scope), so this keeps interleaving
+// them with `FontReader`-checked header reads rather than fully
+// restructuring into a `Result`-returning helper -- the labeled block
+// below is the same "any failure bails to shared cleanup" shape the
+// original's `current_block` goto-emulation had, without the goto.
 pub unsafe fn otl_read_gsub_single(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut subtable_offset: u32,
+    table_length: u32,
+    subtable_offset: u32,
     _max_glyphs: GlyphId,
-    mut _options: *const Options,
+    _options: *const Options,
 ) -> *mut Subtable {
-    let mut subtable_format: u16 = 0;
-    let mut current_block: u64;
     let subtable: *mut GsubSingleSubtable = subtable_gsub_single_create();
     let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let mut to: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    if !(table_length < subtable_offset.wrapping_add(6 as u32)) {
-        subtable_format = read_16u(data.offset(subtable_offset as isize) as *const u8);
-        from = read_coverage(
-            data as *const u8,
-            table_length,
-            subtable_offset.wrapping_add(read_16u(
-                data.offset(subtable_offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
-        );
-        if !(from.is_null() || (*from).is_empty()) {
-            if subtable_format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-                to = otl_coverage_create();
-                let mut delta: u16 = read_16u(
-                    data.offset(subtable_offset as isize)
-                        .offset(4 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                );
-                for j in 0..(*from).len() {
-                    (*to).push(handle_from_index(
-                        ((&(*from))[j].index as ::core::ffi::c_int + delta as ::core::ffi::c_int)
-                            as GlyphId,
-                    ) as GlyphHandle);
-                }
-                current_block = 126606456056746247;
-            } else {
-                let mut toglyphs: GlyphId = read_16u(
-                    data.offset(subtable_offset as isize)
-                        .offset(4 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                ) as GlyphId;
-                if table_length
-                    < subtable_offset.wrapping_add(6 as u32).wrapping_add(
-                        (toglyphs as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
-                    )
-                    || toglyphs as usize != (*from).len()
-                {
-                    current_block = 2938280209257981098;
-                } else {
-                    to = otl_coverage_create();
-                    for j_0 in 0..toglyphs {
-                        (*to).push(handle_from_index(read_16u(
-                            data.offset(subtable_offset as isize)
-                                .offset(6 as ::core::ffi::c_int as isize)
-                                .offset(
-                                    (j_0 as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
-                                ) as *const u8,
-                        ) as GlyphId) as GlyphHandle);
-                    }
-                    current_block = 126606456056746247;
-                }
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+
+    'parse: {
+        let mut header = match FontReader::new(slice).at(subtable_offset as usize) {
+            Ok(r) => r,
+            Err(_) => break 'parse,
+        };
+        let Ok(subtable_format) = header.u16() else { break 'parse };
+        let Ok(from_rel) = header.u16() else { break 'parse };
+
+        from = read_coverage(data, table_length, subtable_offset.wrapping_add(from_rel as u32));
+        if from.is_null() || (*from).is_empty() {
+            break 'parse;
+        }
+
+        if subtable_format == 1 {
+            // `header`'s cursor is already at `subtable_offset + 4` here.
+            let Ok(delta) = header.u16() else { break 'parse };
+            to = otl_coverage_create();
+            for j in 0..(*from).len() {
+                (*to).push(handle_from_index(
+                    ((&(*from))[j].index as i32 + delta as i32) as GlyphId,
+                ) as GlyphHandle);
             }
-            match current_block {
-                2938280209257981098 => {}
-                _ => {
-                    for j_1 in 0..(*from).len() {
-                        (*subtable).push(GsubSingleEntry {
-                            from: otfcc_handle_dup((&(*from))[j_1].clone() as Handle) as GlyphHandle,
-                            to: otfcc_handle_dup((&(*to))[j_1].clone() as Handle) as GlyphHandle,
-                        });
-                    }
-                    if !from.is_null() {
-                        otl_coverage_free(from);
-                    }
-                    if !to.is_null() {
-                        otl_coverage_free(to);
-                    }
-                    return subtable_from_raw(subtable, Subtable::GsubSingle);
-                }
+        } else {
+            let Ok(toglyphs) = header.u16() else { break 'parse };
+            if toglyphs as usize != (*from).len() {
+                break 'parse;
+            }
+            if header.require_room(toglyphs as usize, 2).is_err() {
+                break 'parse;
+            }
+            to = otl_coverage_create();
+            for _ in 0..toglyphs {
+                (*to).push(handle_from_index(header.u16().unwrap() as GlyphId) as GlyphHandle);
             }
         }
+
+        for j_1 in 0..(*from).len() {
+            (*subtable).push(GsubSingleEntry {
+                from: otfcc_handle_dup((&(*from))[j_1].clone() as Handle) as GlyphHandle,
+                to: otfcc_handle_dup((&(*to))[j_1].clone() as Handle) as GlyphHandle,
+            });
+        }
+        if !from.is_null() {
+            otl_coverage_free(from);
+        }
+        if !to.is_null() {
+            otl_coverage_free(to);
+        }
+        return subtable_from_raw(subtable, Subtable::GsubSingle);
     }
+
     subtable_gsub_single_free(subtable);
     if !from.is_null() {
         otl_coverage_free(from);
@@ -131,7 +116,7 @@ pub unsafe fn otl_read_gsub_single(
     if !to.is_null() {
         otl_coverage_free(to);
     }
-    return ::core::ptr::null_mut::<Subtable>();
+    ::core::ptr::null_mut::<Subtable>()
 }
 pub unsafe extern "C" fn otl_gsub_dump_single(
     mut _subtable: *const Subtable,
@@ -237,4 +222,77 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
         otl_coverage_free(cov);
         return bk_build_block(b_0);
     };
+}
+
+#[cfg(test)]
+mod otl_read_gsub_single_tests {
+    use super::*;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    #[test]
+    fn format1_applies_a_constant_delta() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes()); // format
+        data.extend_from_slice(&6u16.to_be_bytes()); // coverageOffset -> 6
+        data.extend_from_slice(&100i16.to_be_bytes()); // deltaGlyphID
+        // Coverage format 1 at byte 6: one glyph, id 5.
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&5u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gsub_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GsubSingle(entries) = &*boxed else { unreachable!() };
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].from.index, 5);
+            assert_eq!(entries[0].to.index, 105);
+        }
+    }
+
+    #[test]
+    fn format2_uses_an_explicit_glyph_array() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&2u16.to_be_bytes()); // format
+        data.extend_from_slice(&8u16.to_be_bytes()); // coverageOffset -> 8
+        data.extend_from_slice(&1u16.to_be_bytes()); // glyphCount
+        data.extend_from_slice(&42u16.to_be_bytes()); // substituteGlyphIDs[0]
+        // Coverage format 1 at byte 8: one glyph, id 5.
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&5u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gsub_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GsubSingle(entries) = &*boxed else { unreachable!() };
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].from.index, 5);
+            assert_eq!(entries[0].to.index, 42);
+        }
+    }
+
+    #[test]
+    fn glyph_count_mismatch_with_coverage_is_rejected() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&2u16.to_be_bytes()); // format
+        data.extend_from_slice(&10u16.to_be_bytes()); // coverageOffset -> 10, after the 2-entry substitute array
+        data.extend_from_slice(&2u16.to_be_bytes()); // glyphCount claims 2
+        data.extend_from_slice(&42u16.to_be_bytes());
+        data.extend_from_slice(&43u16.to_be_bytes());
+        // Coverage format 1 at byte 10: only 1 glyph, not 2.
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&5u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gsub_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(raw.is_null());
+        }
+    }
 }

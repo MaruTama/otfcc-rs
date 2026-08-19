@@ -7,7 +7,7 @@ use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_d
 use crate::support::parsed_json::{ParsedValue, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 
 use crate::support::alloc::__caryll_reallocate;
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
@@ -40,76 +40,68 @@ unsafe fn subtable_gsub_multi_create() -> *mut GsubMultiSubtable {
     x.write(Vec::new());
     x
 }
+// Each Sequence subtable (`seq_offset`, resolved from the per-entry
+// `sequenceOffsets[]` array) had *no* length guard at all before this
+// rewrite: neither `seq_offset` itself nor `n` (the Sequence's own
+// glyphCount, a full attacker-controlled u16) were checked against the
+// table's actual length before reading `n` glyph IDs from it -- a real,
+// previously-undocumented unchecked read, same class as `otl/read.rs`'s
+// `langSysRecords` bug. `FontReader::at`/`require_room` close both.
 pub unsafe fn otl_read_gsub_multi(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    data: FontFilePointer,
+    table_length: u32,
+    offset: u32,
     _max_glyphs: GlyphId,
-    mut _options: *const Options,
+    _options: *const Options,
 ) -> *mut Subtable {
-    let mut seq_count: GlyphId = 0;
     let subtable: *mut GsubMultiSubtable = subtable_gsub_multi_create();
     let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    if !(table_length < offset.wrapping_add(6 as u32)) {
-        from = read_coverage(
-            data as *const u8,
-            table_length,
-            offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
-        );
-        seq_count = read_16u(
-            data.offset(offset as isize)
-                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-        ) as GlyphId;
-        if seq_count as usize == (*from).len() {
-            if !(table_length
-                < offset.wrapping_add(6 as u32).wrapping_add(
-                    (seq_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
-                ))
-            {
-                for j in 0..seq_count {
-                    let seq_offset: u32 = offset.wrapping_add(read_16u(
-                        data.offset(offset as isize)
-                            .offset(6 as ::core::ffi::c_int as isize)
-                            .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                            as *const u8,
-                    )
-                        as u32);
-                    let cov: *mut Coverage =
-                        otl_coverage_create();
-                    let n: GlyphId =
-                        read_16u(data.offset(seq_offset as isize) as *const u8) as GlyphId;
-                    for k in 0..n {
-                        push_to_coverage(
-                            cov,
-                            handle_from_index(read_16u(
-                                data.offset(seq_offset as isize)
-                                    .offset(2 as ::core::ffi::c_int as isize)
-                                    .offset(
-                                        (k as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                            as isize,
-                                    ) as *const u8,
-                            )
-                                as GlyphId) as GlyphHandle,
-                        );
-                    }
-                    (*subtable).push(GsubMultiEntry {
-                        from: otfcc_handle_dup((&(*from))[j as usize].clone() as Handle) as GlyphHandle,
-                        to: coverage_from_raw(cov),
-                    });
-                }
-                otl_coverage_free(from);
-                return subtable_from_raw(subtable, Subtable::GsubMulti);
-            }
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+
+    'parse: {
+        let mut header = match FontReader::new(slice).at(offset as usize) {
+            Ok(r) => r,
+            Err(_) => break 'parse,
+        };
+        if header.skip(2).is_err() {
+            break 'parse; // format, unused
         }
+        let Ok(from_rel) = header.u16() else { break 'parse };
+        let Ok(seq_count) = header.u16() else { break 'parse };
+
+        from = read_coverage(data, table_length, offset.wrapping_add(from_rel as u32));
+        if seq_count as usize != (*from).len() {
+            break 'parse;
+        }
+        if header.require_room(seq_count as usize, 2).is_err() {
+            break 'parse;
+        }
+
+        for j in 0..seq_count {
+            let seq_offset = offset.wrapping_add(header.u16().unwrap() as u32);
+            let Ok(mut sr) = FontReader::new(slice).at(seq_offset as usize) else { break 'parse };
+            let Ok(n) = sr.u16() else { break 'parse };
+            if sr.require_room(n as usize, 2).is_err() {
+                break 'parse;
+            }
+            let cov: *mut Coverage = otl_coverage_create();
+            for _ in 0..n {
+                push_to_coverage(cov, handle_from_index(sr.u16().unwrap() as GlyphId) as GlyphHandle);
+            }
+            (*subtable).push(GsubMultiEntry {
+                from: otfcc_handle_dup((&(*from))[j as usize].clone() as Handle) as GlyphHandle,
+                to: coverage_from_raw(cov),
+            });
+        }
+        otl_coverage_free(from);
+        return subtable_from_raw(subtable, Subtable::GsubMulti);
     }
+
     if !from.is_null() {
         otl_coverage_free(from);
     }
     subtable_gsub_multi_free(subtable);
-    return ::core::ptr::null_mut::<Subtable>();
+    ::core::ptr::null_mut::<Subtable>()
 }
 pub unsafe extern "C" fn otl_gsub_dump_multi(
     mut _subtable: *const Subtable,
@@ -232,4 +224,72 @@ pub unsafe fn otfcc_build_gsub_multi_subtable(
     let Subtable::GsubMulti(mut_subtable) = &*_subtable else { unreachable!() };
     let subtable: *const GsubMultiSubtable = mut_subtable;
     return build_gsub_multi_subtable_range(subtable, 0 as GlyphId, (*subtable).len() as GlyphId);
+}
+
+#[cfg(test)]
+mod otl_read_gsub_multi_tests {
+    use super::*;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    fn well_formed_data() -> Vec<u8> {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0u16.to_be_bytes()); // format
+        data.extend_from_slice(&8u16.to_be_bytes()); // coverageOffset -> 8
+        data.extend_from_slice(&1u16.to_be_bytes()); // sequenceCount
+        data.extend_from_slice(&14u16.to_be_bytes()); // sequenceOffsets[0] -> 14
+        // Coverage format 1 at byte 8: one glyph, id 5.
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&1u16.to_be_bytes());
+        data.extend_from_slice(&5u16.to_be_bytes());
+        // Sequence table at byte 14: 2 substitute glyphs.
+        data.extend_from_slice(&2u16.to_be_bytes());
+        data.extend_from_slice(&10u16.to_be_bytes());
+        data.extend_from_slice(&11u16.to_be_bytes());
+        data
+    }
+
+    #[test]
+    fn well_formed_table_reads_the_sequence() {
+        let data = well_formed_data();
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GsubMulti(entries) = &*boxed else { unreachable!() };
+            assert_eq!(entries.len(), 1);
+            assert_eq!(entries[0].from.index, 5);
+            let to: Vec<GlyphId> = entries[0].to.iter().map(|h| h.index).collect();
+            assert_eq!(to, vec![10, 11]);
+        }
+    }
+
+    #[test]
+    fn sequence_glyph_count_larger_than_available_is_rejected_instead_of_reading_oob() {
+        // The original had *no* length check on a Sequence subtable at
+        // all -- neither `seq_offset` nor its own `glyphCount` (a full
+        // attacker-controlled u16) were validated before reading that
+        // many glyph IDs.
+        let mut data = well_formed_data();
+        data[14..16].copy_from_slice(&100u16.to_be_bytes()); // glyphCount claims 100, far more than fits
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(raw.is_null());
+        }
+    }
+
+    #[test]
+    fn sequence_offset_past_the_table_end_is_rejected_instead_of_reading_oob() {
+        let mut data = well_formed_data();
+        data[6..8].copy_from_slice(&9000u16.to_be_bytes()); // sequenceOffsets[0]: far past the table
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            assert!(raw.is_null());
+        }
+    }
 }
