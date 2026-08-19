@@ -932,6 +932,67 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1, start of the `otl`/ family: `otl/coverage.rs` and
+  `otl/classdef.rs`.** These two are the shared building blocks
+  `read_coverage`/`read_class_def` that every GSUB/GPOS/GDEF subtable
+  reader calls to resolve a Coverage or ClassDef offset, so they're the
+  natural entry point into this next, much larger file family (10,834
+  lines across `otl/` and `otl/subtables/`).
+  - **Verified before touching anything**: whether it's actually safe to
+    convert these two files' *internals* in isolation, ahead of their
+    many not-yet-converted callers. Both take `(data: *const u8,
+    table_length: u32, offset: u32)`, and the concern was whether
+    `table_length` might, at some point in the call chain above these
+    functions, get recomputed as a shrinking "remaining budget" via
+    subtraction -- the exact shape that caused `cmap.rs`'s underflow bug.
+    Traced the whole chain: `otfcc_read_otl`/`otfcc_read_gdef` read
+    `table.length` once from the `PacketPiece` and thread that single
+    value unchanged through every layer (`otfcc_read_otl_lookup` ->
+    `otfcc_read_otl_subtable` -> every per-format reader); only `offset`
+    grows via `wrapping_add` as recursion descends. No reassignment or
+    subtraction of `table_length` exists anywhere in `otl/`. This means
+    `slice::from_raw_parts(data, table_length as usize)` inside these two
+    functions really does describe the same allocation the top-level
+    table reader validated -- converting bottom-up here doesn't create a
+    false sense of safety the way it would have if `table_length` were
+    untrustworthy.
+  - **Real bug, same class as `cmap.rs`'s but via addition instead of
+    multiplication**: both functions' guards used `offset.wrapping_add(N)`
+    where `offset` is a `u32` read from the file with no upper bound of
+    its own. An `offset` close to `u32::MAX` wraps the whole comparison
+    back down to something small, passing a `table_length < ...` guard
+    that should have failed. `FontReader::at`/`require_room`'s
+    `checked_add`/`checked_mul` close this the same way they did in
+    `cmap.rs`. Covered by both files'
+    `offset_near_u32_max_does_not_wrap_the_guard` tests.
+  - **Public signatures unchanged** (`*const u8`/`u32`/`u32` in, raw
+    `*mut Coverage`/`*mut ClassDef` out) -- every other file in `otl/`
+    still calls these two exactly as before; only the internals moved to
+    `FontReader`. `Coverage`/`ClassDef` themselves, and the surrounding
+    `dump`/`parse`/`build`/`shrink` functions (which never touch
+    untrusted file bytes), are unchanged.
+  - **No behavior change on any committed payload**: every payload with
+    GSUB/GPOS lookups (most of them) stayed byte-identical -- the golden
+    set specifically includes several `-dedup` payloads built to exercise
+    coverage/class-def-heavy consolidation paths. 8 new unit tests are
+    the only coverage of the fixed bug itself.
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 1452 → 1412, raw
+    pointer types 6427 → 6425 (`Coverage`/`ClassDef` themselves still
+    return raw pointers to their many not-yet-converted callers, so the
+    drop here is smaller than a full-file conversion's).
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 152 tests (was 144 -- 8 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log output,
+    zero exceptions), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes.
+  - Next: `otl/read.rs` (the top-level GSUB/GPOS/GDEF lookup/subtable
+    dispatcher), then the individual subtable readers in
+    `otl/subtables/*` (gpos_single/pair/cursive/mark_to_*,
+    gsub_single/multi/ligature/reverse, `chaining/read.rs`) -- all of
+    which already receive the same trustworthy, non-shrinking
+    `table_length` this PR confirmed, so each can adopt `FontReader`
+    independently without repeating that provenance check.
+
 - **Stage 7-1: `table/cmap.rs` -- the file the plan's original survey wrote
   up as the primary motivating example for this whole stage.** Both
   headline bugs from that writeup are real and are now fixed.
