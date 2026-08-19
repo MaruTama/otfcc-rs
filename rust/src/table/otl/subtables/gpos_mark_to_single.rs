@@ -7,7 +7,7 @@ use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_fr
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
@@ -30,8 +30,16 @@ pub(crate) unsafe fn dispose_base_array(arr: *mut BaseArray) {
     *arr = Vec::new();
 }
 unsafe fn init_mark_to_single(subtable: *mut GposMarkToSingleSubtable) {
-    (*subtable).mark_array = Vec::new();
-    (*subtable).base_array = Vec::new();
+    // `subtable` is fresh from `__caryll_allocate_clean` (calloc'd, all
+    // zero bits) -- a plain `=` here would drop the all-zero `Vec` that's
+    // "already there" before writing the new one, and an all-zero `Vec`
+    // is not a valid value to drop (UB per miri, caught by CI on this
+    // exact PR once a new test finally exercised this path). `.write()`
+    // skips that implicit drop, matching `gsub_reverse.rs`'s
+    // `init_gsub_reverse` (already correct) and the wider fix documented
+    // in `otfcc-vec-field-assign-needs-calloc` for this crate.
+    (&raw mut (*subtable).mark_array).write(Vec::new());
+    (&raw mut (*subtable).base_array).write(Vec::new());
 }
 pub(crate) unsafe fn subtable_gpos_mark_to_single_free(x: *mut GposMarkToSingleSubtable) {
     if x.is_null() {
@@ -53,119 +61,107 @@ unsafe fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSingleSubtable
     init_mark_to_single(x);
     x
 }
+// `2 * bases.len() * class_count` (the BaseArray's byte-length guard) is a
+// real, previously-undocumented overflow-defeats-guard bug: `bases.len()`
+// can be as large as the glyph count (bounded by `GlyphId`, up to 65535)
+// and `class_count` is an independent, unbounded `u16` read straight from
+// the file -- their product can exceed `i32::MAX` (65535*65535*2 is
+// ~8.6 billion), the same class of bug as `cmap.rs`'s `n_groups` guard,
+// just reached by two independently-large factors instead of one. Fixed
+// with `checked_mul` before ever calling `require_room`.
+//
+// Also fixes a real (if minor) pre-existing leak: the original only freed
+// `marks`/`bases` on the success path -- every failure guard after they
+// were read (`read_coverage` always allocates, even for an empty result)
+// fell through to `subtable_gpos_mark_to_single_free(subtable)` without
+// freeing either. Restructured so cleanup runs once, after the parse
+// attempt, on every path.
 pub unsafe fn otl_read_gpos_mark_to_single(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut subtable_offset: u32,
+    table_length: u32,
+    subtable_offset: u32,
     _max_glyphs: GlyphId,
-    mut _options: *const Options,
+    _options: *const Options,
 ) -> *mut Subtable {
-    let mut mark_array_offset: u32 = 0;
-    let mut base_array_offset: u32 = 0;
-    let mut _offset: u32 = 0;
-    let mut subtable: *mut GposMarkToSingleSubtable = subtable_gpos_mark_to_single_create();
+    let subtable: *mut GposMarkToSingleSubtable = subtable_gpos_mark_to_single_create();
     let mut marks: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let mut bases: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    if !(table_length < subtable_offset.wrapping_add(12 as u32)) {
-        marks = read_coverage(
-            data as *const u8,
-            table_length,
-            subtable_offset.wrapping_add(read_16u(
-                data.offset(subtable_offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
-        );
-        bases = read_coverage(
-            data as *const u8,
-            table_length,
-            subtable_offset.wrapping_add(read_16u(
-                data.offset(subtable_offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
-        );
-        if !(marks.is_null()
-            || (*marks).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-            || bases.is_null()
-            || (*bases).len() as GlyphId as ::core::ffi::c_int == 0 as ::core::ffi::c_int)
-        {
-            (*subtable).class_count = read_16u(
-                data.offset(subtable_offset as isize)
-                    .offset(6 as ::core::ffi::c_int as isize) as *const u8,
-            ) as GlyphClass;
-            mark_array_offset = subtable_offset.wrapping_add(read_16u(
-                data.offset(subtable_offset as isize)
-                    .offset(8 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32);
-            otl_read_mark_array(
-                &raw mut (*subtable).mark_array,
-                marks,
-                data,
-                table_length,
-                mark_array_offset,
-            );
-            base_array_offset = subtable_offset.wrapping_add(read_16u(
-                data.offset(subtable_offset as isize)
-                    .offset(10 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32);
-            if !(table_length
-                < base_array_offset.wrapping_add(2 as u32).wrapping_add(
-                    (2 as ::core::ffi::c_int
-                        * (*bases).len() as GlyphId as ::core::ffi::c_int
-                        * (*subtable).class_count as ::core::ffi::c_int)
-                        as u32,
-                ))
-            {
-                if !(read_16u(data.offset(base_array_offset as isize) as *const u8)
-                    as ::core::ffi::c_int
-                    != (*bases).len() as GlyphId as ::core::ffi::c_int)
-                {
-                    _offset = base_array_offset.wrapping_add(2 as u32);
-                    let mut j: GlyphId = 0 as GlyphId;
-                    while (j as ::core::ffi::c_int) < (*bases).len() as GlyphId as ::core::ffi::c_int {
-                        let mut base_anchors: Vec<Anchor> =
-                            Vec::with_capacity((*subtable).class_count as usize);
-                        let mut k: GlyphClass = 0 as GlyphClass;
-                        while (k as ::core::ffi::c_int)
-                            < (*subtable).class_count as ::core::ffi::c_int
-                        {
-                            if read_16u(data.offset(_offset as isize) as *const u8) != 0 {
-                                base_anchors.push(otl_read_anchor(
-                                    data,
-                                    table_length,
-                                    base_array_offset.wrapping_add(read_16u(
-                                        data.offset(_offset as isize) as *const u8,
-                                    )
-                                        as u32),
-                                ));
-                            } else {
-                                base_anchors.push(otl_anchor_absent());
-                            }
-                            _offset = _offset.wrapping_add(2 as u32);
-                            k = k.wrapping_add(1);
-                        }
-                        (*subtable).base_array.push(
-                            BaseRecord {
-                                glyph: otfcc_handle_dup(
-                                    (&(*bases))[j as usize].clone() as Handle,
-                                ) as GlyphHandle,
-                                anchors: base_anchors,
-                            },
-                        );
-                        j = j.wrapping_add(1);
-                    }
-                    if !marks.is_null() {
-                        otl_coverage_free(marks);
-                    }
-                    if !bases.is_null() {
-                        otl_coverage_free(bases);
-                    }
-                    return subtable_from_raw(subtable, Subtable::GposMarkToSingle);
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+
+    let result: Option<*mut Subtable> = 'parse: {
+        let mut header = match FontReader::new(slice).at(subtable_offset as usize) {
+            Ok(r) => r,
+            Err(_) => break 'parse None,
+        };
+        if header.skip(2).is_err() {
+            break 'parse None; // format, unused
+        }
+        let Ok(marks_rel) = header.u16() else { break 'parse None };
+        let Ok(bases_rel) = header.u16() else { break 'parse None };
+        let Ok(class_count) = header.u16() else { break 'parse None };
+        let Ok(mark_array_rel) = header.u16() else { break 'parse None };
+        let Ok(base_array_rel) = header.u16() else { break 'parse None };
+
+        marks = read_coverage(data, table_length, subtable_offset.wrapping_add(marks_rel as u32));
+        bases = read_coverage(data, table_length, subtable_offset.wrapping_add(bases_rel as u32));
+        if marks.is_null() || (*marks).is_empty() || bases.is_null() || (*bases).is_empty() {
+            break 'parse None;
+        }
+
+        (*subtable).class_count = class_count as GlyphClass;
+        let mark_array_offset = subtable_offset.wrapping_add(mark_array_rel as u32);
+        otl_read_mark_array(&raw mut (*subtable).mark_array, marks, data, table_length, mark_array_offset);
+
+        let base_array_offset = subtable_offset.wrapping_add(base_array_rel as u32);
+        let Ok(mut base_reader) = FontReader::new(slice).at(base_array_offset as usize) else {
+            break 'parse None;
+        };
+        let Ok(base_count) = base_reader.u16() else { break 'parse None };
+        if base_count as usize != (*bases).len() {
+            break 'parse None;
+        }
+        let Some(total_anchors) = (*bases).len().checked_mul(class_count as usize) else {
+            break 'parse None;
+        };
+        if base_reader.require_room(total_anchors, 2).is_err() {
+            break 'parse None;
+        }
+
+        for j in 0..(*bases).len() {
+            let mut base_anchors: Vec<Anchor> = Vec::with_capacity(class_count as usize);
+            for _ in 0..class_count {
+                let anchor_rel = base_reader.u16().unwrap();
+                if anchor_rel != 0 {
+                    base_anchors.push(otl_read_anchor(
+                        data,
+                        table_length,
+                        base_array_offset.wrapping_add(anchor_rel as u32),
+                    ));
+                } else {
+                    base_anchors.push(otl_anchor_absent());
                 }
             }
+            (*subtable).base_array.push(BaseRecord {
+                glyph: otfcc_handle_dup((&(*bases))[j].clone() as Handle) as GlyphHandle,
+                anchors: base_anchors,
+            });
+        }
+        break 'parse Some(subtable_from_raw(subtable, Subtable::GposMarkToSingle));
+    };
+
+    if !marks.is_null() {
+        otl_coverage_free(marks);
+    }
+    if !bases.is_null() {
+        otl_coverage_free(bases);
+    }
+    match result {
+        Some(s) => s,
+        None => {
+            subtable_gpos_mark_to_single_free(subtable);
+            ::core::ptr::null_mut::<Subtable>()
         }
     }
-    subtable_gpos_mark_to_single_free(subtable);
-    return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
     mut st: *const Subtable,
@@ -392,4 +388,101 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
     otl_coverage_free(marks);
     otl_coverage_free(bases);
     return bk_build_block(root);
+}
+
+#[cfg(test)]
+mod otl_read_gpos_mark_to_single_tests {
+    use super::*;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    // format(2)@0, marksOffset(2)@2 -> 12, basesOffset(2)@4 -> 18,
+    // classCount(2)@6, markArrayOffset(2)@8 -> 24, baseArrayOffset(2)@10
+    // -> 26; marks coverage @12 (glyph 5); bases coverage @18 (glyph 6);
+    // mark array @24 (markCount=0, avoiding any dependency on
+    // `otl_read_anchor`/a real Anchor subtable); base array @26
+    // (baseCount + baseCount*classCount anchor offsets, all absent).
+    fn well_formed_data(class_count: u16) -> Vec<u8> {
+        let mut data = vec![0u8; 30];
+        data[2..4].copy_from_slice(&12u16.to_be_bytes());
+        data[4..6].copy_from_slice(&18u16.to_be_bytes());
+        data[6..8].copy_from_slice(&class_count.to_be_bytes());
+        data[8..10].copy_from_slice(&24u16.to_be_bytes());
+        data[10..12].copy_from_slice(&26u16.to_be_bytes());
+        data[12..14].copy_from_slice(&1u16.to_be_bytes());
+        data[14..16].copy_from_slice(&1u16.to_be_bytes());
+        data[16..18].copy_from_slice(&5u16.to_be_bytes());
+        data[18..20].copy_from_slice(&1u16.to_be_bytes());
+        data[20..22].copy_from_slice(&1u16.to_be_bytes());
+        data[22..24].copy_from_slice(&6u16.to_be_bytes());
+        data[24..26].copy_from_slice(&0u16.to_be_bytes()); // markCount = 0
+        data[26..28].copy_from_slice(&1u16.to_be_bytes()); // baseCount
+        data[28..30].copy_from_slice(&0u16.to_be_bytes()); // anchorOffset[0][0] = absent
+        data
+    }
+
+    #[test]
+    fn well_formed_table_reads_the_base_array() {
+        let data = well_formed_data(1);
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_mark_to_single(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                0,
+                &options as *const Options,
+            );
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::GposMarkToSingle(subtable) = &*boxed else { unreachable!() };
+            assert_eq!(subtable.class_count, 1);
+            assert_eq!(subtable.base_array.len(), 1);
+            assert_eq!(subtable.base_array[0].glyph.index, 6);
+            assert!(!subtable.base_array[0].anchors[0].present);
+        }
+    }
+
+    #[test]
+    fn base_count_mismatch_with_coverage_is_rejected() {
+        let mut data = well_formed_data(1);
+        data[26..28].copy_from_slice(&2u16.to_be_bytes()); // baseCount claims 2, coverage has only 1
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_mark_to_single(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                0,
+                &options as *const Options,
+            );
+            assert!(raw.is_null());
+        }
+    }
+
+    #[test]
+    fn anchor_array_shorter_than_class_count_times_base_count_is_rejected() {
+        // The guard here (`bases.len() * class_count`, checked via
+        // `checked_mul` on `usize`) is what the original computed as
+        // unchecked `i32` arithmetic -- for a large enough `class_count`
+        // and `bases.len()`, that product can exceed `i32::MAX` and wrap.
+        // Demonstrating the exact overflow needs an impractically large
+        // base coverage; this instead confirms the guard rejects a
+        // shortfall at an ordinary scale (class_count raised from 1 to 5,
+        // but the base array still has room for only 1 anchor slot).
+        let data = well_formed_data(5); // baseCount=1, but only 1 anchor slot is present, not 5
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_gpos_mark_to_single(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                0,
+                &options as *const Options,
+            );
+            assert!(raw.is_null());
+        }
+    }
 }

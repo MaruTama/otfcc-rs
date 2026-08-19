@@ -932,6 +932,92 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `otl/subtables/{gpos_single,gsub_reverse,gpos_mark_to_single}.rs`
+  -- second batch of individual subtable readers.** Same boundary
+  discipline as the previous batch: raw-pointer public signatures
+  unchanged, `FontReader` used internally, labeled blocks
+  (`'parse: { ...; break 'parse; }`) replacing `current_block`
+  goto-emulation where a header parse either fully succeeds or bails to
+  shared cleanup.
+  - **`gpos_mark_to_single.rs`: three real, previously-undocumented bugs
+    -- the third caught by CI itself, on this PR.** First, the
+    BaseArray's byte-length guard --
+    `2 * bases.len() * class_count` -- is the same overflow-defeats-guard
+    shape as `cmap.rs`'s `n_groups`, just reached by two independently
+    large factors instead of one: `bases.len()` can be as large as the
+    glyph count (up to 65535) and `class_count` is an unrelated,
+    unbounded `u16` read straight from the file, so their product can
+    exceed `i32::MAX` (65535*65535*2 is ~8.6 billion) well within
+    plausible crafted input. Fixed with `checked_mul` on `usize` before
+    ever calling `require_room` -- `usize` is 64-bit on every target this
+    crate builds for, so the product of two u16-bounded values can never
+    itself overflow the check. Second, a genuine (if minor) memory leak:
+    the original only freed `marks`/`bases` (both always-allocated by
+    `read_coverage`, even for an empty result) on the success path --
+    every failure guard reached *after* they were read fell through to
+    `subtable_gpos_mark_to_single_free(subtable)` without freeing either.
+    Restructured so the labeled block evaluates to an `Option<*mut
+    Subtable>` and cleanup runs exactly once, after the parse attempt, on
+    every path -- covered indirectly by the `miri`/`fuzz` CI jobs rather
+    than a dedicated unit test (a leak isn't observable through a normal
+    assertion).
+
+    Third: `init_mark_to_single` initialized a fresh, `calloc`'d
+    (`__caryll_allocate_clean`) `GposMarkToSingleSubtable` with plain `=`
+    assignments (`(*subtable).mark_array = Vec::new()`) -- the exact
+    "constructing invalid value... encountered 0" UB this crate already
+    has a name for (`otfcc-vec-field-assign-needs-calloc` in this repo's
+    memory notes, and `logger.rs`'s `otfcc_new_logger` fix from Stage
+    7-0-c): the implicit drop of the "already there" all-zero `Vec`
+    before the new one is written is UB the instant it runs, whether or
+    not it has any observable runtime effect. This one predates this PR
+    entirely -- `gsub_reverse.rs`'s equivalent `init_gsub_reverse`
+    already used `.write()` correctly, but this file's copy didn't -- and
+    had simply never been exercised by `cargo miri test` before, since no
+    existing test constructed a `GposMarkToSingleSubtable` at all. CI's
+    `miri` job (advisory, but never previously red on this crate for a
+    *new* finding) caught it the moment this PR's own new tests started
+    calling `otl_read_gpos_mark_to_single`. Fixed the same way
+    `otfcc_new_logger` was: `(&raw mut (*subtable).mark_array).write(...)`.
+  - **`gsub_reverse.rs`: one real, previously-undocumented bug, a
+    different shape from the others in this stage.** `match_count`
+    (`n_backtrack + n_forward + 1`, a `TableId`/u16 field) is a sum of
+    two independently u16-bounded values plus one, which can itself
+    exceed `u16::MAX` even though the original's own array-length guards
+    (correctly, unlike the two bugs above) never overflow. The original's
+    implicit `as TableId` cast on that sum silently truncated it -- which
+    wouldn't have been a bounds-check bypass exactly, but would have gone
+    on to index `match_0` (sized to the *truncated* count) with the
+    *real*, larger `n_backtrack` a few lines later and panic out of
+    bounds, trading a clean "corrupted table" outcome for an abort.
+    Rejected instead via `checked_add`. Covered by
+    `match_count_overflow_is_rejected_instead_of_panicking` (constructs a
+    ~128KB synthetic subtable to actually reach `n_backtrack =
+    u16::MAX`, since the guard needs a real backing array that size to
+    get past the earlier length checks).
+  - **`gpos_single.rs` was already fully guarded** (its `value_count *
+    position_format_length` guard's multiplier is bounded to at most 16,
+    so no overflow risk) -- a mechanical conversion, not a bug fix.
+  - **No behavior change on any committed payload**: the golden set's
+    `gpos-single-dedup.ttf` and `gsub-reverse-dedup.ttf` (dedicated to
+    these exact readers) plus `mark-consolidate-dedup.ttf` (whose
+    `gpos_mark_to_base` lookup routes through `gpos_mark_to_single.rs` --
+    `MarkBasePos` and `MarkToSingle` share one binary format, hence the
+    shared reader) all stayed byte-identical. 7 new unit tests cover the
+    two fixed bugs plus well-formed/mismatched-count cases for all three
+    readers.
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 1320 → 1278, raw
+    pointer types 6398 → 6380, `current_block` 64 → 58.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 172 tests (was 165 -- 7 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log
+    output, zero exceptions), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes.
+  - Next: the remaining `otl/subtables/*` readers (gpos_pair,
+    gsub_ligature, gpos_mark_to_ligature, `chaining/read.rs`), same
+    boundary pattern -- `chaining/read.rs` (1,246 lines) is the largest
+    and most structurally complex file left in this family.
+
 - **Stage 7-1: `otl/subtables/{gsub_single,gsub_multi,gpos_cursive}.rs`
   -- first batch of individual subtable readers.** Chosen as the
   smallest, self-contained single-format readers to start this next
