@@ -86,7 +86,13 @@ pub(crate) unsafe fn parse_to_callback(
     }; 256];
     let mut temp: *const u8 = data;
     while temp < data.offset(len as isize) {
-        advance = cff_decode_cff_token(temp, &raw mut val);
+        // Same fix as `cff_parse_outline`'s equivalent loop: the token
+        // itself, not just where it starts, must stay within `len`.
+        let remaining = data.offset(len as isize).offset_from(temp) as usize;
+        let Some(adv) = cff_decode_cff_token(temp, remaining, &raw mut val) else {
+            break;
+        };
+        advance = adv;
         match val.t {
             CffValueType::Operator => {
                 callback.expect("non-null function pointer")(

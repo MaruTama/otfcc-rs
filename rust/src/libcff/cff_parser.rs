@@ -581,7 +581,16 @@ pub unsafe fn cff_parse_outline(
         c2rust_unnamed: CffValueBody { i: 0 },
     };
     while start < data.offset(len as isize) {
-        advance = cff_decode_cs2_token(start, &raw mut val);
+        // The outer loop already bounds where a token can *start*, but
+        // not that the token itself stays within `len` -- a token
+        // starting near the end of a truncated CharString used to read
+        // past it (see `cff_codecs.rs`'s own conversion). Stop cleanly
+        // instead of reading on.
+        let remaining = data.offset(len as isize).offset_from(start) as usize;
+        let Some(adv) = cff_decode_cs2_token(start, remaining, &raw mut val) else {
+            break;
+        };
+        advance = adv;
         match val.t {
             CffValueType::Operator => {
                 let mut hint_base: ::core::ffi::c_double = 0.;
