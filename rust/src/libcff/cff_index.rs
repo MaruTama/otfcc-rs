@@ -4,6 +4,7 @@ use libc::{memcpy};
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
+use crate::support::font_reader::{FontReader};
 use crate::support::primitives::{Arity};
 use crate::support::buffer::{buffree, bufnew, bufwrite8};
 
@@ -29,50 +30,13 @@ pub struct CffIndex {
     pub offset: Vec<u32>,
     pub data: Vec<u8>,
 }
-#[inline]
-unsafe fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
-    let mut b0: u32 = *s.offset(p as isize) as u32;
-    return b0;
-}
-#[inline]
-unsafe fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
-    let mut b0: u32 =
-        ((*s.offset(p as isize) as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
-    let mut b1: u32 = *s
-        .offset(p as isize)
-        .offset(1 as ::core::ffi::c_int as isize) as u32;
-    return b0 | b1;
-}
-#[inline]
-unsafe fn gu3(mut s: *mut u8, mut p: u32) -> u32 {
-    let mut b0: u32 =
-        ((*s.offset(p as isize) as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
-    let mut b1: u32 =
-        ((*s.offset(p as isize)
-            .offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
-            << 8 as ::core::ffi::c_int) as u32;
-    let mut b2: u32 = *s
-        .offset(p as isize)
-        .offset(2 as ::core::ffi::c_int as isize) as u32;
-    return b0 | b1 | b2;
-}
-#[inline]
-unsafe fn gu4(mut s: *mut u8, mut p: u32) -> u32 {
-    let mut b0: u32 =
-        ((*s.offset(p as isize) as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
-    let mut b1: u32 =
-        ((*s.offset(p as isize)
-            .offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
-            << 16 as ::core::ffi::c_int) as u32;
-    let mut b2: u32 =
-        ((*s.offset(p as isize)
-            .offset(2 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
-            << 8 as ::core::ffi::c_int) as u32;
-    let mut b3: u32 = *s
-        .offset(p as isize)
-        .offset(3 as ::core::ffi::c_int as isize) as u32;
-    return b0 | b1 | b2 | b3;
-}
+// `gu1`/`gu2`/`gu3`/`gu4` (1/2/3/4-byte big-endian unsigned reads, no
+// bounds checking, no length parameter at all) are gone from this file --
+// one of ten near-identical copies across `libcff/` the plan calls out by
+// name (`cff_charset.rs`/`cff_fdselect.rs`/`cff_parser.rs` each still have
+// their own; converting those is separately scoped follow-up work).
+// `FontReader::u8()`/`u16()`/`u24()`/`u32()` are exactly these four reads,
+// checked against the buffer's real length.
 #[inline]
 unsafe fn dispose_cff_index(mut in_0: *mut CffIndex) {
     (*in_0).offset = Vec::new();
@@ -149,64 +113,79 @@ pub(crate) unsafe fn empty_index(mut i: *mut CffIndex) {
     (*i).count = 0 as Arity;
     (*i).off_size = 0;
 }
+// This used to run entirely off a bare `*mut u8` with no length at all --
+// `count`/`off_size` and the whole `offset[]` array were read with no
+// bounds checking whatsoever, and the final `data_len` (the INDEX's data
+// block size) was computed as `offset[count].wrapping_sub(1)`: a
+// malformed INDEX whose last entry is 0 (invalid per spec -- offsets are
+// 1-based and non-decreasing, so a well-formed INDEX's last offset is
+// always >= 1) wrapped that subtraction to `0xFFFFFFFF`, and the `memcpy`
+// that followed copied up to ~4GB from wherever `data` happened to point
+// (the exact bug the plan's own writeup names by file and line). Every
+// read here now goes through `FontReader`, checked against `table_length`
+// -- that alone closes the wraparound (a `data_len` this large can never
+// fit in a real table, so `bytes()` below simply fails) without needing a
+// separate `checked_sub` special case. On any bounds failure `in_0` is
+// left as an empty index (matching this function's own existing "count
+// == 0" branch) rather than reading adjacent bytes -- the original never
+// had a failure path to distinguish "malformed" from "legitimately
+// empty" at all.
 pub(crate) unsafe fn extract_index(
-    mut data: *mut u8,
-    mut pos: u32,
-    mut in_0: *mut CffIndex,
+    data: *mut u8,
+    table_length: u32,
+    pos: u32,
+    in_0: *mut CffIndex,
 ) {
-    (*in_0).count = gu2(data, pos) as Arity;
-    (*in_0).off_size = gu1(data, pos.wrapping_add(2 as u32)) as u8;
-    if (*in_0).count > 0 as Arity {
-        let mut offset: Vec<u32> =
-            Vec::with_capacity((*in_0).count.wrapping_add(1 as Arity) as usize);
-        let mut i: Arity = 0 as Arity;
-        while i <= (*in_0).count {
-            offset.push(match (*in_0).off_size as ::core::ffi::c_int {
-                1 => gu1(
-                    data,
-                    pos.wrapping_add(3 as u32)
-                        .wrapping_add((i as u32).wrapping_mul((*in_0).off_size as u32)),
-                ),
-                2 => gu2(
-                    data,
-                    pos.wrapping_add(3 as u32)
-                        .wrapping_add((i as u32).wrapping_mul((*in_0).off_size as u32)),
-                ),
-                3 => gu3(
-                    data,
-                    pos.wrapping_add(3 as u32)
-                        .wrapping_add((i as u32).wrapping_mul((*in_0).off_size as u32)),
-                ),
-                4 => gu4(
-                    data,
-                    pos.wrapping_add(3 as u32)
-                        .wrapping_add((i as u32).wrapping_mul((*in_0).off_size as u32)),
-                ),
-                _ => 0 as u32,
-            });
-            i = i.wrapping_add(1);
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+    let result: Option<()> = 'parse: {
+        let Ok(mut r) = FontReader::new(slice).at(pos as usize) else {
+            break 'parse None;
+        };
+        let Ok(count) = r.u16().map(|v| v as Arity) else {
+            break 'parse None;
+        };
+        let Ok(off_size) = r.u8() else { break 'parse None };
+        (*in_0).count = count;
+        (*in_0).off_size = off_size;
+        if count > 0 as Arity {
+            if !(1..=4).contains(&off_size) {
+                break 'parse None;
+            }
+            if r.require_room(count as usize + 1, off_size as usize).is_err() {
+                break 'parse None;
+            }
+            let mut offset: Vec<u32> = Vec::with_capacity(count as usize + 1);
+            for _ in 0..=count {
+                let Ok(v) = (match off_size {
+                    1 => r.u8().map(|v| v as u32),
+                    2 => r.u16().map(|v| v as u32),
+                    3 => r.u24(),
+                    _ => r.u32(),
+                }) else {
+                    break 'parse None;
+                };
+                offset.push(v);
+            }
+            let Some(data_len) = offset[count as usize].checked_sub(1) else {
+                break 'parse None;
+            };
+            let Ok(body) = r.bytes(data_len as usize) else {
+                break 'parse None;
+            };
+            (*in_0).offset = offset;
+            (*in_0).data = body.to_vec();
+        } else {
+            (*in_0).offset = Vec::new();
+            (*in_0).data = Vec::new();
         }
-        let data_len: usize =
-            (offset[(*in_0).count as usize]).wrapping_sub(1 as u32) as usize;
-        (*in_0).offset = offset;
-        let mut buf: Vec<u8> = vec![0 as u8; data_len];
-        memcpy(
-            buf.as_mut_ptr() as *mut ::core::ffi::c_void,
-            data.offset(pos as isize)
-                .offset(3 as ::core::ffi::c_int as isize)
-                .offset(
-                    (*in_0)
-                        .count
-                        .wrapping_add(1 as Arity)
-                        .wrapping_mul((*in_0).off_size as Arity) as isize,
-                ) as *const ::core::ffi::c_void,
-            data_len,
-        );
-        (*in_0).data = buf;
-    } else {
+        break 'parse Some(());
+    };
+    if result.is_none() {
+        (*in_0).count = 0 as Arity;
+        (*in_0).off_size = 0;
         (*in_0).offset = Vec::new();
         (*in_0).data = Vec::new();
-    };
+    }
 }
 pub(crate) unsafe fn new_index_by_callback(
     mut context: *mut ::core::ffi::c_void,
@@ -372,4 +351,106 @@ pub(crate) unsafe fn build_index(mut index: *const CffIndex) -> *mut Buffer {
     }
     (*blob).cursor = (*blob).size;
     return blob;
+}
+
+#[cfg(test)]
+mod extract_index_tests {
+    use super::*;
+
+    #[test]
+    fn reads_a_well_formed_one_entry_index() {
+        // count=1, off_size=1, offset=[1,3] (data is 2 bytes), data=[0xAA,0xBB]
+        let data = [0x00u8, 0x01, 0x01, 0x01, 0x03, 0xAA, 0xBB];
+        unsafe {
+            let idx = cff_index_create();
+            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            assert_eq!((*idx).count, 1);
+            assert_eq!((*idx).off_size, 1);
+            assert_eq!((*idx).offset, vec![1, 3]);
+            assert_eq!((*idx).data, vec![0xAA, 0xBB]);
+            cff_index_free(idx);
+        }
+    }
+
+    #[test]
+    fn reads_an_empty_index() {
+        let data = [0x00u8, 0x00, 0x00]; // count=0, off_size=0
+        unsafe {
+            let idx = cff_index_create();
+            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            assert_eq!((*idx).count, 0);
+            assert!((*idx).offset.is_empty());
+            assert!((*idx).data.is_empty());
+            cff_index_free(idx);
+        }
+    }
+
+    #[test]
+    fn last_offset_of_zero_is_rejected_instead_of_a_4gb_memcpy() {
+        // count=1, off_size=1, offset=[1,0] -- the last offset entry is 0,
+        // which is invalid per spec (offsets are 1-based and
+        // non-decreasing). The original computed `data_len =
+        // offset[count].wrapping_sub(1)`, which wraps a 0 to
+        // 0xFFFFFFFF and `memcpy`s up to ~4GB from wherever `data`
+        // happened to point -- the exact bug the plan's own writeup
+        // names by file and line.
+        let data = [0x00u8, 0x01, 0x01, 0x01, 0x00];
+        unsafe {
+            let idx = cff_index_create();
+            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            assert_eq!((*idx).count, 0);
+            assert!((*idx).offset.is_empty());
+            assert!((*idx).data.is_empty());
+            cff_index_free(idx);
+        }
+    }
+
+    #[test]
+    fn truncated_offset_array_is_rejected_instead_of_reading_oob() {
+        // count=5, off_size=4, but the table ends right after off_size --
+        // the offset array (and everything past it) is missing entirely.
+        // The original had no length parameter to check this against at
+        // all.
+        let data = [0x00u8, 0x05, 0x04];
+        unsafe {
+            let idx = cff_index_create();
+            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            assert_eq!((*idx).count, 0);
+            assert!((*idx).offset.is_empty());
+            assert!((*idx).data.is_empty());
+            cff_index_free(idx);
+        }
+    }
+
+    #[test]
+    fn data_block_longer_than_the_table_is_rejected_instead_of_reading_oob() {
+        // count=1, off_size=1, offset=[1,200] (implying a 199-byte data
+        // block) but the table only has 2 more bytes after the offset
+        // array -- previously unguarded even when the offsets themselves
+        // are internally well-formed (not the wraparound case above).
+        let data = [0x00u8, 0x01, 0x01, 0x01, 200u8, 0xAA, 0xBB];
+        unsafe {
+            let idx = cff_index_create();
+            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            assert_eq!((*idx).count, 0);
+            assert!((*idx).offset.is_empty());
+            assert!((*idx).data.is_empty());
+            cff_index_free(idx);
+        }
+    }
+
+    #[test]
+    fn invalid_off_size_is_rejected_instead_of_producing_all_zero_offsets() {
+        // off_size must be 1-4; the original's `match` fell through to
+        // pushing 0 for every offset entry on an out-of-range value,
+        // which is just another way to reach the same wraparound bug
+        // above (an all-zero offset array's last entry is 0).
+        let data = [0x00u8, 0x01, 0x05, 0x00, 0x00];
+        unsafe {
+            let idx = cff_index_create();
+            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            assert_eq!((*idx).count, 0);
+            cff_index_free(idx);
+        }
+    }
 }

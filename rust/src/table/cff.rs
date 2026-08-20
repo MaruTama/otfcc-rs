@@ -893,6 +893,7 @@ unsafe fn build_outline(
         fd = cff_parse_subr(
             i as u16,
             (*f).raw_data,
+            (*f).raw_length,
             &(*f).font_dict,
             &(*f).fdselect,
             &raw mut local_subrs,
@@ -901,6 +902,7 @@ unsafe fn build_outline(
         fd = cff_parse_subr(
             i as u16,
             (*f).raw_data,
+            (*f).raw_length,
             &(*f).top_dict,
             &(*f).fdselect,
             &raw mut local_subrs,
