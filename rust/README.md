@@ -932,6 +932,59 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `libcff/cff_parser.rs`, part 1 -- the CFF header and
+  Encoding table, third piece of `libcff/`'s remaining scope.** Scoped
+  deliberately narrowly: `gu1`/`gu2`, `parse_encoding` (the Encoding table
+  reader -- same shape as the previous PR's `cff_extract_charset`/
+  `cff_extract_fd_select`), and the 4 fixed header-byte reads at the top
+  of `parse_cff_bytecode`. **Not** `cff_parse_outline` (~1,940 of this
+  file's 2,490 lines) -- the CFF Type2 charstring bytecode interpreter,
+  which already takes a real `len: u32` and bounds its own top-level token
+  loop against it (`while start < data.offset(len as isize)`), unlike
+  every other reader converted in this stage. What bounds-safety work it
+  still needs (individual token decoding near the boundary, subroutine
+  call depth/indexing) is a different shape of problem than "no length
+  parameter at all," closer in character to `libcff/subr.rs`'s intrusive
+  linked list (already called out in the plan as its own hardest,
+  separately-scoped piece) than to this stage's other targets -- left as
+  a deliberate, explicit gap rather than folded in here.
+  - **The 4 header-byte reads had no length check at all**: a `raw_length`
+    shorter than 4 read past the allocation `cff_open_stream` copied the
+    font's CFF table into. Each field now defaults to 0 on a bounds
+    failure instead of bailing out of the function entirely --
+    `extract_index` below is already bounds-checked regardless of what
+    `pos` (derived from `head.hdr_size`) it ends up given, so a garbage
+    header degrades the same way a garbage DICT offset already does,
+    rather than needing a new early-return path.
+  - **`parse_encoding` had the same shape of bugs `cff_extract_charset`/
+    `cff_extract_fd_select` did**: a negative `offset` (reachable from a
+    malformed DICT key, only checked against `-1` at the call site) moved
+    the read pointer before the buffer, and every one of the three
+    formats' arrays was completely unguarded. All now go through one
+    sequential `FontReader` -- all three formats lay their count field and
+    array immediately after the format byte with no gaps, so a single
+    reader walking forward covers the whole record, same as
+    `cff_extract_fd_select`'s equivalent conversion.
+  - **No behavior change on any committed payload**: the CFF payloads
+    stay byte-identical. 4 new unit tests (a minimal `CffFile` built
+    directly in safe Rust, not `__caryll_allocate_clean`, to avoid needing
+    every field to be a valid calloc'd bit pattern).
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 973 → 961 (-12),
+    `as ::core::ffi::c_int` 5447 → 5443 (-4), `while` loops 689 → 686 (-3).
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 225 tests (was 221 -- 4 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log output,
+    zero exceptions, CFF payloads specifically confirmed), all
+    round-trip payloads stable, issue #1's lookup-alias regression still
+    passes, `cargo miri test` clean locally before pushing (210 passed, 0
+    failed, 15 pre-existing ignores).
+  - Next: `cff_parse_outline` remains explicitly out of scope for Stage
+    7-1 (see above) -- with this PR, Stage 7-1's originally-scoped work
+    (parse-boundary safety across `otl/`, `glyf`/`gvar`, and the
+    `libcff/` header/INDEX/Encoding/Charset/FdSelect readers) is
+    complete. Revisit `cff_parse_outline`/`charstring_il.rs`/`subr.rs`
+    together as their own effort before moving to Stage 7-2.
+
 - **Stage 7-1: `libcff/cff_charset.rs`/`cff_fdselect.rs` -- second piece
   of `libcff/`'s remaining scope.** Same shape as `cff_index.rs`'s own
   conversion: each file's `gu1`/`gu2` and its one `cff_extract_*` reader
