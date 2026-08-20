@@ -118,6 +118,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
     pos = (*cff).head.hdr_size as u32;
     extract_index(
         (*cff).raw_data,
+        (*cff).raw_length,
         pos,
         &raw mut (*cff).name,
     );
@@ -126,6 +127,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
     ));
     extract_index(
         (*cff).raw_data,
+        (*cff).raw_length,
         pos,
         &raw mut (*cff).top_dict,
     );
@@ -151,6 +153,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         ));
     extract_index(
         (*cff).raw_data,
+        (*cff).raw_length,
         pos,
         &raw mut (*cff).string,
     );
@@ -166,6 +169,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         ));
     extract_index(
         (*cff).raw_data,
+        (*cff).raw_length,
         pos,
         &raw mut (*cff).global_subr,
     );
@@ -191,6 +195,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         if offset_0 != -(1 as i32) {
             extract_index(
                 (*cff).raw_data,
+                (*cff).raw_length,
                 offset_0 as u32,
                 &raw mut (*cff).char_strings,
             );
@@ -298,6 +303,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         if offset_0 != -(1 as i32) {
             extract_index(
                 (*cff).raw_data,
+                (*cff).raw_length,
                 offset_0 as u32,
                 &raw mut (*cff).font_dict,
             );
@@ -355,6 +361,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         if offset != -(1 as i32) {
             extract_index(
                 (*cff).raw_data,
+                (*cff).raw_length,
                 (private_off + offset) as u32,
                 &raw mut (*cff).local_subr,
             );
@@ -421,6 +428,7 @@ pub unsafe fn cff_close(mut file: *mut CffFile) {
 pub unsafe fn cff_parse_subr(
     idx: u16,
     raw: *mut u8,
+    raw_length: u32,
     fdarray: &CffIndex,
     select: &CffFdSelect,
     subr: *mut CffIndex,
@@ -495,6 +503,7 @@ pub unsafe fn cff_parse_subr(
         if off_subr != -(1 as i32) {
             extract_index(
                 raw,
+                raw_length,
                 (off_private + off_subr) as u32,
                 subr,
             );

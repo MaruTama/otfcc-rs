@@ -932,6 +932,65 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `libcff/cff_index.rs` -- the CFF INDEX reader, first piece
+  of the last remaining Stage 7-1 scope.** The plan names this file's
+  4GB-`memcpy` bug specifically; this PR is scoped to `cff_index.rs`
+  itself (`gu1`-`gu4`, `extract_index`) plus the minimal, mechanical
+  call-site threading needed to give it a real length -- not a full
+  conversion of `cff_parser.rs` (2,479 lines, its own much larger
+  follow-up) or the other three files that duplicate `gu1`/`gu2`
+  (`cff_charset.rs`, `cff_fdselect.rs`, also follow-ups).
+  - **The headline bug, fixed exactly as the plan describes it**:
+    `extract_index` computed the INDEX's data-block length as
+    `offset[count].wrapping_sub(1)`. A malformed INDEX whose last offset
+    entry is 0 (invalid per spec -- offsets are 1-based and
+    non-decreasing, so a well-formed INDEX's last offset is always >= 1)
+    wrapped that subtraction to `0xFFFFFFFF`, and the `memcpy` that
+    followed copied up to ~4GB from wherever `data` happened to point.
+    `FontReader`'s bounds checking closes this by construction -- a
+    `data_len` that large can never fit in a real table, so the read
+    simply fails -- without needing a separate special case for the
+    wraparound itself; a `checked_sub` still guards the subtraction
+    directly, since a `data_len` of exactly 0 wrapping to `usize::MAX` on
+    a 32-bit target would otherwise pass a 64-bit length check it
+    shouldn't. Pinned by `last_offset_of_zero_is_rejected_instead_of_a_
+    4gb_memcpy`.
+  - **The rest of `extract_index` was equally unguarded**: `count`/
+    `off_size` and the whole `offset[]` array were read off a bare
+    `*mut u8` with no length parameter anywhere in the call chain,
+    and an out-of-range `off_size` (not 1-4) silently produced an
+    all-zero offset array -- just another path to the same wraparound
+    bug above. All now guarded via `FontReader`, with dedicated tests for
+    a truncated offset array, a data block longer than the table, and
+    the invalid-`off_size` case.
+  - **Threading a real length required minimal, mechanical touches
+    outside this file**: `CffFile.raw_length` (already tracked alongside
+    `raw_data`, just never passed to `extract_index`) is now passed at
+    all 8 call sites in `cff_parser.rs`, and one of them
+    (`cff_parse_subr`, called from `table/cff.rs`) needed a new
+    `raw_length: u32` parameter threaded through its own two call sites
+    to reach it. Nothing else in `cff_parser.rs` or `table/cff.rs`
+    changed -- their own internal unguarded reads (including
+    `cff_parser.rs`'s own separate `gu1`/`gu2` copies) are out of this
+    PR's scope.
+  - **No behavior change on any committed payload**: `KRName-Regular.otf`
+    and its `-O2` (CFF subroutinize) variant -- the only CFF-bearing
+    payloads -- stay byte-identical on both build and dump. 6 new unit
+    tests cover the fixed bugs plus well-formed empty and non-empty INDEX
+    reads.
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 1001 → 982 (-19),
+    `as ::core::ffi::c_int` 5477 → 5457 (-20).
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 210 tests (was 204 -- 6 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log output,
+    zero exceptions, CFF payloads specifically confirmed), all
+    round-trip payloads stable, issue #1's lookup-alias regression still
+    passes, `cargo miri test` clean locally before pushing (195 passed, 0
+    failed, 15 pre-existing ignores).
+  - Next: `cff_charset.rs`/`cff_fdselect.rs` (their own smaller `gu1`/
+    `gu2` copies), then `cff_parser.rs` itself (the large remaining
+    piece) -- the rest of Stage 7-1's `libcff/` scope.
+
 - **Stage 7-1: `table/glyf/read.rs`, part 2 -- the gvar tuple-variation
   applicator** (`polymorphize`, `polymorphize_glyph`, `next_tvh` ->
   `next_tvh_offset`, `parse_point_numbers`, `read_packed_delta`,
