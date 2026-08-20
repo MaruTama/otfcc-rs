@@ -2,6 +2,7 @@
 
 use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::buffer::{Buffer};
+use crate::support::font_reader::{FontReader};
 use crate::support::buffer::{bufnew};
 
 #[derive(Copy, Clone)]
@@ -25,20 +26,9 @@ pub enum CffFdSelect {
     Format0(Vec<u8>),
     Format3 { range3: Vec<CffFdSelectRangeFormat3>, sentinel: u16 },
 }
-#[inline]
-unsafe fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
-    let mut b0: u32 = *s.offset(p as isize) as u32;
-    return b0;
-}
-#[inline]
-unsafe fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
-    let mut b0: u32 =
-        ((*s.offset(p as isize) as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
-    let mut b1: u32 = *s
-        .offset(p as isize)
-        .offset(1 as ::core::ffi::c_int as isize) as u32;
-    return b0 | b1;
-}
+// `gu1`/`gu2` (no bounds checking, no length parameter at all) are gone --
+// see `libcff/cff_index.rs`'s own conversion for the same move.
+//
 // Takes `&CffFdSelect` instead of by value -- it only ever reads the data to
 // serialize it, same reasoning as `cff_build_charset`.
 pub unsafe fn cff_build_fd_select(fd: &CffFdSelect) -> *mut Buffer {
@@ -98,39 +88,114 @@ pub unsafe fn cff_build_fd_select(fd: &CffFdSelect) -> *mut Buffer {
 // Returns `CffFdSelect` by value instead of writing through a `*mut
 // CffFdSelect` out-param -- the same "unwrap_X_table" shape used throughout
 // this migration.
-pub unsafe fn cff_extract_fd_select(data: *mut u8, offset: i32, nchars: u16) -> CffFdSelect {
-    match *data.offset(offset as isize) as ::core::ffi::c_int {
-        0 => {
-            let mut fds: Vec<u8> = Vec::with_capacity(nchars as usize);
-            let mut i: u32 = 0 as u32;
-            while i < nchars as u32 {
-                fds.push(gu1(data, ((offset + 1 as i32) as u32).wrapping_add(i)) as u8);
-                i = i.wrapping_add(1);
+//
+// The original had no bounds checking anywhere here either: not on
+// `offset` (a negative value, reachable from a malformed DICT key, moved
+// the read pointer *before* the buffer), not on `nranges` (an attacker-
+// controlled `u16` up to 65535, driving both a `Vec::with_capacity` and a
+// read loop with no check that the table actually holds that many 3-byte
+// range entries). Every read now goes through one sequential `FontReader`
+// -- format0's array and format3's range array plus the sentinel that
+// immediately follows it are laid out with no gaps, so a single reader
+// walking forward covers the whole record. On any bounds failure, or a
+// negative `offset`, this falls back to `Unspecified` -- the same
+// fallback the original already used for an unrecognized format byte,
+// just extended to cover "malformed" too.
+pub unsafe fn cff_extract_fd_select(data: *mut u8, table_length: u32, offset: i32, nchars: u16) -> CffFdSelect {
+    if offset < 0 {
+        return CffFdSelect::Unspecified;
+    }
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+    let result: Option<CffFdSelect> = 'parse: {
+        let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
+            break 'parse None;
+        };
+        let Ok(format) = r.u8() else { break 'parse None };
+        match format {
+            0 => {
+                let mut fds: Vec<u8> = Vec::with_capacity(nchars as usize);
+                for _ in 0..nchars {
+                    let Ok(v) = r.u8() else { break 'parse None };
+                    fds.push(v);
+                }
+                break 'parse Some(CffFdSelect::Format0(fds));
             }
-            CffFdSelect::Format0(fds)
-        }
-        3 => {
-            let nranges = gu2(data, (offset + 1 as i32) as u32) as u16;
-            let mut range3: Vec<CffFdSelectRangeFormat3> = Vec::with_capacity(nranges as usize);
-            let mut i_0: u32 = 0 as u32;
-            while i_0 < nranges as u32 {
-                let first = gu2(
-                    data,
-                    ((offset + 3 as i32) as u32).wrapping_add(i_0.wrapping_mul(3 as u32)),
-                ) as u16;
-                let fd = gu1(
-                    data,
-                    ((offset + 5 as i32) as u32).wrapping_add(i_0.wrapping_mul(3 as u32)),
-                ) as u8;
-                range3.push(CffFdSelectRangeFormat3 { first, fd });
-                i_0 = i_0.wrapping_add(1);
+            3 => {
+                let Ok(nranges) = r.u16() else { break 'parse None };
+                let mut range3: Vec<CffFdSelectRangeFormat3> = Vec::with_capacity(nranges as usize);
+                for _ in 0..nranges {
+                    let Ok(first) = r.u16() else { break 'parse None };
+                    let Ok(fd) = r.u8() else { break 'parse None };
+                    range3.push(CffFdSelectRangeFormat3 { first, fd });
+                }
+                let Ok(sentinel) = r.u16() else { break 'parse None };
+                break 'parse Some(CffFdSelect::Format3 { range3, sentinel });
             }
-            let sentinel = gu2(
-                data,
-                (offset + (nranges as i32 + 1 as i32) * 3 as i32) as u32,
-            ) as u16;
-            CffFdSelect::Format3 { range3, sentinel }
+            _ => break 'parse Some(CffFdSelect::Unspecified),
         }
-        _ => CffFdSelect::Unspecified,
+    };
+    result.unwrap_or(CffFdSelect::Unspecified)
+}
+
+#[cfg(test)]
+mod cff_extract_fd_select_tests {
+    use super::*;
+
+    #[test]
+    fn format0_reads_the_fd_array() {
+        let data = [0x00u8, 3, 7]; // format=0, fds=[3,7]
+        unsafe {
+            let CffFdSelect::Format0(fds) =
+                cff_extract_fd_select(data.as_ptr() as *mut u8, data.len() as u32, 0, 2)
+            else {
+                panic!("expected Format0");
+            };
+            assert_eq!(fds, vec![3, 7]);
+        }
+    }
+
+    #[test]
+    fn format0_truncated_fd_array_falls_back_to_unspecified_instead_of_reading_oob() {
+        let data = [0x00u8, 3]; // format=0, one fd, but 2 declared
+        unsafe {
+            let result = cff_extract_fd_select(data.as_ptr() as *mut u8, data.len() as u32, 0, 2);
+            assert!(matches!(result, CffFdSelect::Unspecified));
+        }
+    }
+
+    #[test]
+    fn format3_reads_ranges_and_the_trailing_sentinel() {
+        let data = [0x03u8, 0x00, 0x01, 0x00, 0x05, 0x02, 0x00, 0x0A];
+        unsafe {
+            let CffFdSelect::Format3 { range3, sentinel } =
+                cff_extract_fd_select(data.as_ptr() as *mut u8, data.len() as u32, 0, 0)
+            else {
+                panic!("expected Format3");
+            };
+            assert_eq!(range3.len(), 1);
+            assert_eq!(range3[0].first, 5);
+            assert_eq!(range3[0].fd, 2);
+            assert_eq!(sentinel, 10);
+        }
+    }
+
+    #[test]
+    fn format3_huge_nranges_against_a_tiny_table_falls_back_to_unspecified_instead_of_reading_oob() {
+        // The original had no check at all that the table actually held
+        // `nranges` 3-byte entries.
+        let data = [0x03u8, 0xFF, 0xFF]; // format=3, nranges=65535, nothing else
+        unsafe {
+            let result = cff_extract_fd_select(data.as_ptr() as *mut u8, data.len() as u32, 0, 0);
+            assert!(matches!(result, CffFdSelect::Unspecified));
+        }
+    }
+
+    #[test]
+    fn negative_offset_falls_back_to_unspecified_instead_of_reading_before_the_buffer() {
+        let data = [0u8; 8];
+        unsafe {
+            let result = cff_extract_fd_select(data.as_ptr() as *mut u8, data.len() as u32, -5, 10);
+            assert!(matches!(result, CffFdSelect::Unspecified));
+        }
     }
 }

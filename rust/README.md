@@ -932,6 +932,53 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `libcff/cff_charset.rs`/`cff_fdselect.rs` -- second piece
+  of `libcff/`'s remaining scope.** Same shape as `cff_index.rs`'s own
+  conversion: each file's `gu1`/`gu2` and its one `cff_extract_*` reader
+  (`cff_extract_charset`, `cff_extract_fd_select`) converted, plus
+  threading `CffFile.raw_length` through their two call sites in
+  `cff_parser.rs` -- not a conversion of `cff_parser.rs` itself, still the
+  larger remaining follow-up.
+  - **A negative `offset` moved the read pointer before the buffer in
+    both functions.** `offset: i32` comes from a DICT key lookup that
+    only checks it against `-1` ("not present") at the call site --
+    any other negative value reached `data.offset(offset as isize)`
+    directly, walking backward off the start of the allocation. Both
+    functions now check `offset < 0` up front and fall back to the same
+    value they already used for an unrecognized format byte
+    (`IsoAdobe`/`Unspecified`) -- the original drew no distinction
+    between "malformed" and "recognized fallback" to begin with.
+  - **`cff_extract_charset`'s Format0 had the same wraparound-to-huge-
+    allocation shape as `cff_index.rs`'s 4GB `memcpy` bug**: `count =
+    nchars as c_int - 1` for `nchars == 0` went negative in `c_int`
+    arithmetic and was cast straight to `u32`, producing `0xFFFFFFFF` and
+    an immediate `Vec::with_capacity` abort. `.saturating_sub(1)` closes
+    it. Pinned by `format0_nchars_zero_does_not_attempt_a_huge_allocation`.
+  - **Every array read in both functions was otherwise completely
+    unguarded**: Format0's glyph/fd arrays, Format1/Format2's two-pass
+    range-counting walk (the same "read a count from every entry as you
+    scan forward, no bound on how far" shape used in `otl/subtables/
+    chaining/read.rs`'s ClassSet arrays), and Format3's `nranges`-driven
+    range array plus its trailing sentinel. All now go through
+    `FontReader`; `cff_extract_fd_select` in particular collapses to one
+    sequential reader for the whole function, since format0's array and
+    format3's range array + sentinel are laid out with no gaps.
+  - **No behavior change on any committed payload**: the same CFF
+    payloads (`KRName-Regular.otf` and its `-O2` variant) stay
+    byte-identical. 11 new unit tests split across the two files.
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 982 → 973 (-9),
+    `as ::core::ffi::c_int` 5457 → 5447 (-10), `while` loops 694 → 689
+    (-5).
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 221 tests (was 210 -- 11 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log output,
+    zero exceptions, CFF payloads specifically confirmed), all
+    round-trip payloads stable, issue #1's lookup-alias regression still
+    passes, `cargo miri test` clean locally before pushing (206 passed, 0
+    failed, 15 pre-existing ignores).
+  - Next: `cff_parser.rs` itself -- the last and largest remaining piece
+    of Stage 7-1's `libcff/` scope, and of Stage 7-1 as a whole.
+
 - **Stage 7-1: `libcff/cff_index.rs` -- the CFF INDEX reader, first piece
   of the last remaining Stage 7-1 scope.** The plan names this file's
   4GB-`memcpy` bug specifically; this PR is scoped to `cff_index.rs`
