@@ -251,6 +251,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         if offset_0 != -(1 as i32) {
             (*cff).charsets = cff_extract_charset(
                 (*cff).raw_data,
+                (*cff).raw_length,
                 offset_0,
                 (*cff).char_strings.count as u16,
             );
@@ -277,6 +278,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options)
         if (*cff).char_strings.count != 0 && offset_0 != -(1 as i32) {
             (*cff).fdselect = cff_extract_fd_select(
                 (*cff).raw_data,
+                (*cff).raw_length,
                 offset_0,
                 (*cff).char_strings.count as u16,
             );
