@@ -932,6 +932,102 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `table/glyf/read.rs` -- the core glyf outline readers
+  (`otfcc_read_glyph`, `otfcc_read_simple_glyph`, `otfcc_read_composite_
+  glyph`, `otfcc_read_glyf`).** The plan flagged this file by name as the
+  hardest remaining piece in Stage 7-1: unlike every other reader
+  converted so far, the three glyph-body readers took **no length
+  parameter at all** -- just a raw `start: FontFilePointer` -- and walked
+  forward on nothing but what the wire format itself implied (a simple
+  glyph's flag/coordinate streams ran until they'd produced
+  `endPtsOfContours`-implied many points; a composite glyph's component
+  chain ran until it saw the `MORE_COMPONENTS` bit clear). Split into two
+  PRs: this one converts the glyf/loca-driven outline readers (the direct
+  attacker-reachable parse boundary); the gvar tuple-variation applicator
+  (`polymorphize`/`polymorphize_glyph`/`next_tvh`/`parse_point_numbers`/
+  `read_packed_delta`, ~670 more lines in the same file) is next, as its
+  own PR -- it's a large, independent binary format (F2Dot14 tuples,
+  shared/private point-number runs, packed deltas) that only ever runs as
+  a post-processing pass over glyphs this PR already finished reading.
+  - **`otfcc_read_glyph`/`otfcc_read_simple_glyph`/`otfcc_read_composite_
+    glyph` now take (and are bounds-checked against) an actual byte range,
+    derived from this glyph's own `loca` entries.** `otfcc_read_glyf`
+    already validates that `loca`'s offsets are monotonic non-decreasing
+    and fit within the `glyf` table's own length before ever reading a
+    glyph, so `offsets[gid+1] - offsets[gid]` is always a real, in-bounds
+    byte count -- passed down and used to scope a `FontReader` per glyph.
+    All three readers now return `Option<Box<Glyph>>`; a glyph whose data
+    doesn't fit its own declared range degrades to an empty glyph (same
+    fallback already used for a zero-length `loca` range) instead of
+    reading adjacent bytes.
+  - **Four real, previously-undocumented bugs**, all only reachable
+    through genuinely malformed glyph data (every committed payload stays
+    byte-identical -- see below):
+    - The fixed 10-byte glyph header (`numberOfContours` + bbox) was read
+      with no guard at all; a `loca`-implied glyph shorter than 10 bytes
+      read straight into whatever followed it in the `glyf` table's
+      buffer (or past the end, for the last glyph).
+    - A composite glyph's component chain had no bound *except*
+      `MORE_COMPONENTS`; one that never clears it (or is truncated
+      mid-record) read forever past its own bytes. Now every field read
+      goes through `FontReader`, so running out of bytes fails the read
+      and rejects the glyph -- pinned by
+      `composite_glyph_more_components_never_cleared_terminates_and_is_
+      rejected`.
+    - A non-monotonic `endPtsOfContours` (a later entry smaller than the
+      previous one) computed this contour's point count in signed
+      arithmetic, same as the original, but then cast that possibly-
+      negative result straight to `usize` for `glyf_contour_fill`'s fill
+      count -- turning a small malformed input into an attempted
+      near-`usize::MAX`-point allocation (a DoS, not a memory-safety
+      bug, but a real one). Now rejected before the cast can go negative.
+      Pinned by `non_monotonic_end_points_of_contours_is_rejected_not_a_
+      huge_allocation`.
+    - A flag run whose `REPEAT` count overruns the glyph's own declared
+      point count indexed a fixed-size buffer with no bounds check --
+      silently past the end in the original C, a Rust `Vec` index panic
+      if ported verbatim. Now rejected before the write. Pinned by
+      `repeat_run_overrunning_the_declared_point_count_is_rejected_not_a_
+      panic`.
+  - **`otfcc_read_glyf`'s own `loca` guard didn't account for
+    `loca_is_long`.** Its upfront length check (`length < 2*num_glyphs+2`)
+    used the *short*-format byte-per-entry count unconditionally, so a
+    long-format `loca` table (4 bytes/entry) only half as long as it
+    needed to be still passed the guard, and the `read_32u` calls that
+    followed read past the table's actual end. `FontReader`'s per-read
+    checking makes the separate upfront guard unnecessary -- removed
+    rather than duplicated, in favor of each `u16()`/`u32()` call failing
+    on its own.
+  - `__fortable_*`/`current_block` (goto emulation) in `otfcc_read_glyf`
+    -> the same `packet.pieces.iter().find(|p| p.tag == ...)` idiom every
+    other migrated table reader in this crate already uses.
+    `support/binio.rs`'s `read_8u`/`read_8s`/`read_16u`/`read_16s`/
+    `read_32u` import is gone from this file entirely (nothing left in
+    the converted functions uses it; the untouched gvar code below never
+    did -- it reads through `#[repr(C, packed)]` struct field access
+    instead).
+  - **No behavior change on any committed payload**: every payload stayed
+    byte-identical, including glyf-heavy fonts and `gvar-test.ttf`
+    (exercises both the outline readers and the still-untouched
+    `polymorphize` pass downstream of them), all verified end-to-end by
+    `compare-with-golden.sh`/`run-cycles.sh`/`compare-roundtrips.js`. 7
+    new unit tests cover all four fixed bugs plus a well-formed simple
+    and composite glyph.
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 1080 → 1029 (-51),
+    `__fortable_*` 158 → 131 (-27), `current_block` 29 → 23 (-6), raw
+    pointer types 6299 → 6275 (-24), `as ::core::ffi::c_int` 5632 → 5536
+    (-96), `while` loops 710 → 702 (-8).
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 196 tests (was 189 -- 7 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log output,
+    zero exceptions), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes, `cargo miri test` clean locally
+    before pushing (181 passed, 0 failed, 15 pre-existing ignores).
+  - Next: the gvar tuple-variation applicator in this same file
+    (`polymorphize` and friends), as its own PR -- then `libcff/` (`gu1`-
+    `gu4` duplicated readers, the CFF INDEX 4GB `memcpy` overflow), the
+    remaining Stage 7-1 scope per the plan.
+
 - **Stage 7-1: `otl/subtables/chaining/read.rs` (1,246 lines) -- the
   largest single file converted in the whole `otl/` family, and the last
   piece of Stage 7-1's `otl` scope.** Two nearly-parallel implementations

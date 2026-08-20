@@ -4,7 +4,7 @@ use libc::{memcpy};
 use crate::support::handle::{handle_from_index, GlyphHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_8u, read_8s, read_16u, read_16s, read_32u};
+use crate::support::font_reader::{FontReader};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, F2Dot14, FontFilePointer, GlyphId, Pos, Scale, ShapeId};
@@ -87,46 +87,61 @@ unsafe extern "C" fn next_point(
     *cp = (*cp).wrapping_add(1);
     return &raw mut (&mut (*contours))[*cc as usize][fresh8 as usize];
 }
+// `otfcc_read_simple_glyph`/`otfcc_read_composite_glyph`/`otfcc_read_glyph`
+// used to take no length at all -- just a raw `start: FontFilePointer` --
+// and walk forward on nothing but the shapes the wire format implies
+// (`endPtsOfContours[numberOfContours-1]+1` points, a run-length-coded flag
+// stream terminated only by having read that many flags, a component chain
+// terminated only by the `MORE_COMPONENTS` bit). Every one of those is
+// attacker-controlled: a malformed `endPtsOfContours` never reaching the
+// declared point count, or a composite glyph that never clears
+// `MORE_COMPONENTS`, read straight past this glyph's own bytes with no
+// guard at all (the plan's own writeup flags this file by name for exactly
+// this). `otfcc_read_glyf` below now derives this glyph's exact byte range
+// from its own (already-validated, monotonic) `loca` entries and passes it
+// down as a `&[u8]`; every read here goes through `FontReader`, so running
+// past that range now fails cleanly (`None`, the glyph becomes empty)
+// instead of reading adjacent memory.
 unsafe fn otfcc_read_simple_glyph(
-    mut start: FontFilePointer,
-    mut number_of_contours: ShapeId,
-    mut _options: *const Options,
-) -> Box<Glyph> {
+    body: &[u8],
+    number_of_contours: ShapeId,
+    _options: *const Options,
+) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
-    let mut contours: *mut ContourList = &raw mut (*g).contours;
-    let mut points_in_glyph: ShapeId = 0 as ShapeId;
-    let mut j: ShapeId = 0 as ShapeId;
-    while (j as ::core::ffi::c_int) < number_of_contours as ::core::ffi::c_int {
-        let mut last_point_in_current_contour: ShapeId = read_16u(
-            start.offset((2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize)
-                as *const u8,
-        ) as ShapeId;
+    let contours: *mut ContourList = &raw mut (*g).contours;
+    let mut r = FontReader::new(body);
+    r.require_room(number_of_contours as usize, 2).ok()?;
+    let mut points_in_glyph: ShapeId = 0;
+    for _ in 0..number_of_contours {
+        let last_point_in_current_contour: ShapeId = r.u16().unwrap(); // room already validated above
+        // The original computed this length in `c_int` (so a non-monotonic
+        // `endPtsOfContours` -- a later entry smaller than the previous
+        // one plus one -- went negative) and then cast straight to
+        // `usize` for the fill count below; that cast turns a negative
+        // `c_int` into a number near `usize::MAX`, and `glyf_contour_fill`
+        // would then try to push that many points -- an unbounded-
+        // allocation DoS on a malformed but otherwise tiny font. Reject
+        // instead.
+        let n = last_point_in_current_contour as i32 - points_in_glyph as i32 + 1;
+        if n < 0 {
+            return None;
+        }
         let mut contour: Contour = Vec::new();
-        glyf_contour_fill(
-            &raw mut contour,
-            (last_point_in_current_contour as ::core::ffi::c_int - points_in_glyph as ::core::ffi::c_int
-                + 1 as ::core::ffi::c_int) as usize,
-        );
+        glyf_contour_fill(&raw mut contour, n as usize);
         (*contours).push(contour);
-        points_in_glyph = (last_point_in_current_contour as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
-            as ShapeId;
-        j = j.wrapping_add(1);
+        points_in_glyph = last_point_in_current_contour.wrapping_add(1);
     }
-    let mut instruction_length: u16 = read_16u(
-        start.offset((2 as ::core::ffi::c_int * number_of_contours as ::core::ffi::c_int) as isize)
-            as *const u8,
-    );
+    let instruction_length: u16 = r.u16().ok()?;
+    let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
     let mut instructions: *mut u8 = ::core::ptr::null_mut::<u8>();
-    if instruction_length as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+    if instruction_length > 0 {
         instructions = __caryll_allocate_clean(
             (::core::mem::size_of::<u8>() as usize).wrapping_mul(instruction_length as usize),
             31 as ::core::ffi::c_ulong,
         ) as *mut u8;
         memcpy(
             instructions as *mut ::core::ffi::c_void,
-            start
-                .offset((2 as ::core::ffi::c_int * number_of_contours as ::core::ffi::c_int) as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_void,
+            instruction_bytes.as_ptr() as *const ::core::ffi::c_void,
             (::core::mem::size_of::<u8>() as usize).wrapping_mul(instruction_length as usize),
         );
     }
@@ -135,22 +150,13 @@ unsafe fn otfcc_read_simple_glyph(
     // A local `Vec<u8>` now, not a `__caryll_allocate_clean`'d/`free`'d
     // buffer -- dropped automatically at the end of this function.
     let mut flags: Vec<u8> = vec![0u8; points_in_glyph as usize];
-    let mut flag_start: FontFilePointer = start
-        .offset((2 as ::core::ffi::c_int * number_of_contours as ::core::ffi::c_int) as isize)
-        .offset(2 as ::core::ffi::c_int as isize)
-        .offset(instruction_length as ::core::ffi::c_int as isize);
-    let mut flags_read_sofar: ShapeId = 0 as ShapeId;
-    let mut flag_bytes_read_sofar: ShapeId = 0 as ShapeId;
+    let mut flags_read_sofar: usize = 0;
     let mut current_contour: ShapeId = 0 as ShapeId;
     let mut current_contour_point_index: ShapeId = 0 as ShapeId;
-    while (flags_read_sofar as ::core::ffi::c_int) < points_in_glyph as ::core::ffi::c_int {
-        let mut flag: PointFlags =
-            PointFlags::from_bits_retain(*flag_start.offset(flag_bytes_read_sofar as isize));
-        flags[flags_read_sofar as usize] = flag.bits();
-        flag_bytes_read_sofar =
-            (flag_bytes_read_sofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
-        flags_read_sofar =
-            (flags_read_sofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
+    while flags_read_sofar < points_in_glyph as usize {
+        let flag: PointFlags = PointFlags::from_bits_retain(r.u8().ok()?);
+        flags[flags_read_sofar] = flag.bits();
+        flags_read_sofar += 1;
         (*next_point(
             contours,
             &raw mut current_contour,
@@ -158,49 +164,41 @@ unsafe fn otfcc_read_simple_glyph(
         ))
         .on_curve = flag.contains(PointFlags::ON_CURVE) as i8;
         if flag.contains(PointFlags::REPEAT) {
-            let mut repeat: u8 = *flag_start.offset(flag_bytes_read_sofar as isize);
-            flag_bytes_read_sofar =
-                (flag_bytes_read_sofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
-            let mut j_0: u8 = 0 as u8;
-            while (j_0 as ::core::ffi::c_int) < repeat as ::core::ffi::c_int {
-                flags[(flags_read_sofar as ::core::ffi::c_int + j_0 as ::core::ffi::c_int) as usize] =
-                    flag.bits();
+            let repeat: u8 = r.u8().ok()?;
+            // The original indexed `flags[flags_read_sofar + j_0]` (a
+            // fixed-size `Vec` now, pre-sized to exactly
+            // `points_in_glyph`) with no check that a malformed repeat
+            // run doesn't overrun the declared point count -- in C this
+            // silently wrote past the buffer; in Rust it would panic.
+            // Reject instead of either.
+            if flags_read_sofar + repeat as usize > points_in_glyph as usize {
+                return None;
+            }
+            for _ in 0..repeat {
+                flags[flags_read_sofar] = flag.bits();
                 (*next_point(
                     contours,
                     &raw mut current_contour,
                     &raw mut current_contour_point_index,
                 ))
                 .on_curve = flag.contains(PointFlags::ON_CURVE) as i8;
-                j_0 = j_0.wrapping_add(1);
+                flags_read_sofar += 1;
             }
-            flags_read_sofar =
-                (flags_read_sofar as ::core::ffi::c_int + repeat as ::core::ffi::c_int) as ShapeId;
         }
     }
-    let mut coordinates_start: FontFilePointer =
-        flag_start.offset(flag_bytes_read_sofar as ::core::ffi::c_int as isize);
-    let mut coordinates_offset: u32 = 0 as u32;
-    let mut coordinates_read: ShapeId = 0 as ShapeId;
+    let mut coordinates_read: usize = 0;
     current_contour = 0 as ShapeId;
     current_contour_point_index = 0 as ShapeId;
-    while (coordinates_read as ::core::ffi::c_int) < points_in_glyph as ::core::ffi::c_int {
-        let mut flag_0: PointFlags =
-            PointFlags::from_bits_retain(flags[coordinates_read as usize]);
-        let mut x: i16 = 0;
-        if flag_0.contains(PointFlags::X_SHORT) {
-            x = ((if flag_0.contains(PointFlags::POSITIVE_X) {
-                1 as ::core::ffi::c_int
-            } else {
-                -(1 as ::core::ffi::c_int)
-            }) * read_8u(coordinates_start.offset(coordinates_offset as isize) as *const u8)
-                as ::core::ffi::c_int) as i16;
-            coordinates_offset = coordinates_offset.wrapping_add(1 as u32);
+    while coordinates_read < points_in_glyph as usize {
+        let flag_0: PointFlags = PointFlags::from_bits_retain(flags[coordinates_read]);
+        let x: i16 = if flag_0.contains(PointFlags::X_SHORT) {
+            let mag = r.u8().ok()? as i16;
+            if flag_0.contains(PointFlags::POSITIVE_X) { mag } else { -mag }
         } else if flag_0.contains(PointFlags::SAME_X) {
-            x = 0 as i16;
+            0
         } else {
-            x = read_16s(coordinates_start.offset(coordinates_offset as isize) as *const u8);
-            coordinates_offset = coordinates_offset.wrapping_add(2 as u32);
-        }
+            r.i16().ok()?
+        };
         vq_replace(
             &raw mut (*(next_point
                 as unsafe extern "C" fn(
@@ -215,30 +213,21 @@ unsafe fn otfcc_read_simple_glyph(
             .x,
             vq_create_still(x as Pos) as VQ,
         );
-        coordinates_read =
-            (coordinates_read as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
+        coordinates_read += 1;
     }
-    coordinates_read = 0 as ShapeId;
+    coordinates_read = 0;
     current_contour = 0 as ShapeId;
     current_contour_point_index = 0 as ShapeId;
-    while (coordinates_read as ::core::ffi::c_int) < points_in_glyph as ::core::ffi::c_int {
-        let mut flag_1: PointFlags =
-            PointFlags::from_bits_retain(flags[coordinates_read as usize]);
-        let mut y: i16 = 0;
-        if flag_1.contains(PointFlags::Y_SHORT) {
-            y = ((if flag_1.contains(PointFlags::POSITIVE_Y) {
-                1 as ::core::ffi::c_int
-            } else {
-                -(1 as ::core::ffi::c_int)
-            }) * read_8u(coordinates_start.offset(coordinates_offset as isize) as *const u8)
-                as ::core::ffi::c_int) as i16;
-            coordinates_offset = coordinates_offset.wrapping_add(1 as u32);
+    while coordinates_read < points_in_glyph as usize {
+        let flag_1: PointFlags = PointFlags::from_bits_retain(flags[coordinates_read]);
+        let y: i16 = if flag_1.contains(PointFlags::Y_SHORT) {
+            let mag = r.u8().ok()? as i16;
+            if flag_1.contains(PointFlags::POSITIVE_Y) { mag } else { -mag }
         } else if flag_1.contains(PointFlags::SAME_Y) {
-            y = 0 as i16;
+            0
         } else {
-            y = read_16s(coordinates_start.offset(coordinates_offset as isize) as *const u8);
-            coordinates_offset = coordinates_offset.wrapping_add(2 as u32);
-        }
+            r.i16().ok()?
+        };
         vq_replace(
             &raw mut (*(next_point
                 as unsafe extern "C" fn(
@@ -253,8 +242,7 @@ unsafe fn otfcc_read_simple_glyph(
             .y,
             vq_create_still(y as Pos) as VQ,
         );
-        coordinates_read =
-            (coordinates_read as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
+        coordinates_read += 1;
     }
     let mut cx: VQ =
         (vq_neutral)();
@@ -277,125 +265,59 @@ unsafe fn otfcc_read_simple_glyph(
     (*contours).shrink_to_fit();
     // `cx`/`cy` are plain owned locals, never moved out, so they auto-drop
     // when this function returns -- no explicit dispose call is needed.
-    return g;
+    Some(g)
 }
 unsafe fn otfcc_read_composite_glyph(
-    mut start: FontFilePointer,
-    mut options: *const Options,
-) -> Box<Glyph> {
+    body: &[u8],
+    options: *const Options,
+) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
-    let mut flags: ComponentFlags = ComponentFlags::empty();
-    let mut offset: u32 = 0 as u32;
+    let mut r = FontReader::new(body);
     let mut glyph_has_instruction: bool = false;
+    // The original's only loop terminator was the `MORE_COMPONENTS` bit --
+    // a malformed composite glyph that never clears it read components
+    // forever, straight past this glyph's own data (the plan's own
+    // writeup calls this out by name). Every field read below now goes
+    // through `FontReader`, so running out of bytes fails the `?` and
+    // rejects the glyph instead of reading on.
     loop {
-        flags = ComponentFlags::from_bits_retain(read_16u(
-            start.offset(offset as isize) as *const u8,
-        ));
-        let mut index: GlyphId = read_16u(
-            start
-                .offset(offset as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-        ) as GlyphId;
-        let mut ref_0: ComponentReference =
-            (
-                glyf_component_reference_empty)();
-        ref_0.glyph =
-            handle_from_index(index) as GlyphHandle;
-        offset = offset.wrapping_add(4 as u32);
+        let flags = ComponentFlags::from_bits_retain(r.u16().ok()?);
+        let index: GlyphId = r.u16().ok()? as GlyphId;
+        let mut ref_0: ComponentReference = (glyf_component_reference_empty)();
+        ref_0.glyph = handle_from_index(index) as GlyphHandle;
         if flags.contains(ComponentFlags::ARGS_ARE_XY_VALUES) {
             ref_0.is_anchored = RefAnchorStatus::Xy;
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
-                ref_0.x = vq_create_still(read_16s(
-                    start.offset(offset as isize) as *const u8,
-                )
-                    as Pos);
-                ref_0.y = vq_create_still(read_16s(
-                    start
-                        .offset(offset as isize)
-                        .offset(2 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                )
-                    as Pos);
-                offset = offset.wrapping_add(4 as u32);
+                ref_0.x = vq_create_still(r.i16().ok()? as Pos);
+                ref_0.y = vq_create_still(r.i16().ok()? as Pos);
             } else {
-                ref_0.x = vq_create_still(read_8s(
-                    start.offset(offset as isize) as *const u8,
-                )
-                    as Pos);
-                ref_0.y = vq_create_still(read_8s(
-                    start
-                        .offset(offset as isize)
-                        .offset(1 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                )
-                    as Pos);
-                offset = offset.wrapping_add(2 as u32);
+                ref_0.x = vq_create_still(r.i8().ok()? as Pos);
+                ref_0.y = vq_create_still(r.i8().ok()? as Pos);
             }
         } else {
             ref_0.is_anchored = RefAnchorStatus::AnchorAnchor;
             if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
-                ref_0.outer =
-                    read_16u(start.offset(offset as isize) as *const u8) as ShapeId;
-                ref_0.inner = read_16u(
-                    start
-                        .offset(offset as isize)
-                        .offset(2 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                ) as ShapeId;
-                offset = offset.wrapping_add(4 as u32);
+                ref_0.outer = r.u16().ok()? as ShapeId;
+                ref_0.inner = r.u16().ok()? as ShapeId;
             } else {
-                ref_0.outer = read_8u(start.offset(offset as isize) as *const u8) as ShapeId;
-                ref_0.inner = read_8u(
-                    start
-                        .offset(offset as isize)
-                        .offset(1 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                ) as ShapeId;
-                offset = offset.wrapping_add(2 as u32);
+                ref_0.outer = r.u8().ok()? as ShapeId;
+                ref_0.inner = r.u8().ok()? as ShapeId;
             }
         }
         if flags.contains(ComponentFlags::WE_HAVE_A_SCALE) {
-            ref_0.d = otfcc_from_f2dot14(
-                read_16s(start.offset(offset as isize) as *const u8) as F2Dot14
-            ) as Scale;
+            ref_0.d = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
             ref_0.a = ref_0.d;
-            offset = offset.wrapping_add(2 as u32);
-        } else if flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE)
-        {
-            ref_0.a = otfcc_from_f2dot14(
-                read_16s(start.offset(offset as isize) as *const u8) as F2Dot14
-            ) as Scale;
-            ref_0.d = otfcc_from_f2dot14(read_16s(
-                start
-                    .offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-            ) as F2Dot14) as Scale;
-            offset = offset.wrapping_add(4 as u32);
+        } else if flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
+            ref_0.a = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            ref_0.d = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
         } else if flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO) {
-            ref_0.a = otfcc_from_f2dot14(
-                read_16s(start.offset(offset as isize) as *const u8) as F2Dot14
-            ) as Scale;
-            ref_0.b = otfcc_from_f2dot14(read_16s(
-                start
-                    .offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-            ) as F2Dot14) as Scale;
-            ref_0.c = otfcc_from_f2dot14(read_16s(
-                start
-                    .offset(offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-            ) as F2Dot14) as Scale;
-            ref_0.d = otfcc_from_f2dot14(read_16s(
-                start
-                    .offset(offset as isize)
-                    .offset(6 as ::core::ffi::c_int as isize) as *const u8,
-            ) as F2Dot14) as Scale;
-            offset = offset.wrapping_add(8 as u32);
+            ref_0.a = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            ref_0.b = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            ref_0.c = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
+            ref_0.d = otfcc_from_f2dot14(r.i16().ok()? as F2Dot14) as Scale;
         }
-        ref_0.round_to_grid =
-            flags.contains(ComponentFlags::ROUND_XY_TO_GRID);
-        ref_0.use_my_metrics =
-            flags.contains(ComponentFlags::USE_MY_METRICS);
+        ref_0.round_to_grid = flags.contains(ComponentFlags::ROUND_XY_TO_GRID);
+        ref_0.use_my_metrics = flags.contains(ComponentFlags::USE_MY_METRICS);
         if flags.contains(ComponentFlags::SCALED_COMPONENT_OFFSET)
             && (flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE)
                 || flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO))
@@ -416,10 +338,10 @@ unsafe fn otfcc_read_composite_glyph(
         }
     }
     if glyph_has_instruction {
-        let mut instruction_length: u16 =
-            read_16u(start.offset(offset as isize) as *const u8);
+        let instruction_length: u16 = r.u16().ok()?;
+        let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
         let mut instructions: FontFilePointer = ::core::ptr::null_mut::<u8>();
-        if instruction_length as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+        if instruction_length > 0 {
             instructions = __caryll_allocate_clean(
                 (::core::mem::size_of::<u8>() as usize)
                     .wrapping_mul(instruction_length as usize),
@@ -427,10 +349,7 @@ unsafe fn otfcc_read_composite_glyph(
             ) as FontFilePointer;
             memcpy(
                 instructions as *mut ::core::ffi::c_void,
-                start
-                    .offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize)
-                    as *const ::core::ffi::c_void,
+                instruction_bytes.as_ptr() as *const ::core::ffi::c_void,
                 (::core::mem::size_of::<u8>() as usize)
                     .wrapping_mul(instruction_length as usize),
             );
@@ -441,34 +360,35 @@ unsafe fn otfcc_read_composite_glyph(
         (*g).instructions_length = 0 as u16;
         (*g).instructions = ::core::ptr::null_mut::<u8>();
     }
-    return g;
+    Some(g)
 }
 unsafe fn otfcc_read_glyph(
-    mut data: FontFilePointer,
-    mut offset: u32,
-    mut options: *const Options,
-) -> Box<Glyph> {
-    let mut start: FontFilePointer = data.offset(offset as isize);
-    let mut number_of_contours: i16 = read_16u(start as *const u8) as i16;
-    let mut g: Box<Glyph>;
-    if number_of_contours as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-        g = otfcc_read_simple_glyph(
-            start.offset(10 as ::core::ffi::c_int as isize),
-            number_of_contours as ShapeId,
-            options,
-        );
+    data: FontFilePointer,
+    offset: u32,
+    length: u32,
+    options: *const Options,
+) -> Option<Box<Glyph>> {
+    let glyph_bytes =
+        ::core::slice::from_raw_parts(data.offset(offset as isize), length as usize);
+    let mut r = FontReader::new(glyph_bytes);
+    let number_of_contours: i16 = r.i16().ok()?;
+    let x_min = r.i16().ok()? as Pos;
+    let y_min = r.i16().ok()? as Pos;
+    let x_max = r.i16().ok()? as Pos;
+    let y_max = r.i16().ok()? as Pos;
+    // Every one of the 5 header reads above succeeded, so at least 10
+    // bytes exist -- slicing the body here can't panic.
+    let body = &glyph_bytes[10..];
+    let mut g = if number_of_contours > 0 {
+        otfcc_read_simple_glyph(body, number_of_contours as ShapeId, options)?
     } else {
-        g = otfcc_read_composite_glyph(start.offset(10 as ::core::ffi::c_int as isize), options);
-    }
-    (*g).stat.x_min =
-        read_16s(start.offset(2 as ::core::ffi::c_int as isize) as *const u8) as Pos;
-    (*g).stat.y_min =
-        read_16s(start.offset(4 as ::core::ffi::c_int as isize) as *const u8) as Pos;
-    (*g).stat.x_max =
-        read_16s(start.offset(6 as ::core::ffi::c_int as isize) as *const u8) as Pos;
-    (*g).stat.y_max =
-        read_16s(start.offset(8 as ::core::ffi::c_int as isize) as *const u8) as Pos;
-    return g;
+        otfcc_read_composite_glyph(body, options)?
+    };
+    g.stat.x_min = x_min;
+    g.stat.y_min = y_min;
+    g.stat.x_max = x_max;
+    g.stat.y_max = y_max;
+    Some(g)
 }
 pub const GVAR_OFFSETS_ARE_LONG: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 pub const EMBEDDED_PEAK_TUPLE: ::core::ffi::c_int = 0x8000 as ::core::ffi::c_int;
@@ -1144,173 +1064,108 @@ unsafe fn polymorphize(
 }
 pub unsafe fn otfcc_read_glyf(
     packet: &Packet,
-    mut options: *const Options,
-    mut ctx: *const GlyfIOContext,
+    options: *const Options,
+    ctx: *const GlyfIOContext,
 ) -> Option<GlyfTable> {
-    let mut found_loca: bool = false;
-    let mut current_block: u64;
+    let num_glyphs = (*ctx).num_glyphs;
     // A local `Vec<u32>` now, not a `__caryll_allocate_clean`'d/`free`'d
     // buffer -- `Vec`'s own allocator aborts rather than returning null on
     // failure, so the `!offsets.is_null()` guard this used to need at
     // every entry/exit point is gone; the `Vec` drops itself wherever
     // this function returns.
-    let mut offsets: Vec<u32> = vec![0u32; ((*ctx).num_glyphs as usize).wrapping_add(1)];
-    let mut glyf: Option<GlyfTable> = None;
-    {
-        found_loca = false;
-        let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-        let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-        let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-        while __notfound != 0
-            && __fortable_keep != 0
-            && __fortable_count < packet.num_tables as ::core::ffi::c_int
-        {
-            let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-            while __fortable_keep != 0 {
-                if table.tag == crate::tag::TAG_LOCA {
-                    let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                    while __fortable_k2 != 0 {
-                        let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                        let mut length: u32 = table.length;
-                        if !(length
-                            < (2 as ::core::ffi::c_int * (*ctx).num_glyphs as ::core::ffi::c_int
-                                + 2 as ::core::ffi::c_int)
-                                as u32)
-                        {
-                            let mut j: u32 = 0 as u32;
-                            loop {
-                                if !(j
-                                    < ((*ctx).num_glyphs as ::core::ffi::c_int
-                                        + 1 as ::core::ffi::c_int)
-                                        as u32)
-                                {
-                                    current_block = 7149356873433890176;
-                                    break;
-                                }
-                                if (*ctx).loca_is_long {
-                                    offsets[j as usize] = read_32u(
-                                        data.offset(j.wrapping_mul(4 as u32) as isize)
-                                            as *const u8,
-                                    );
-                                } else {
-                                    offsets[j as usize] = (read_16u(
-                                        data.offset(j.wrapping_mul(2 as u32) as isize)
-                                            as *const u8,
-                                    )
-                                        as ::core::ffi::c_int
-                                        * 2 as ::core::ffi::c_int)
-                                        as u32;
-                                }
-                                if j > 0 as u32
-                                    && offsets[j as usize] < offsets[(j - 1) as usize]
-                                {
-                                    current_block = 15756379620357860923;
-                                    break;
-                                }
-                                j = j.wrapping_add(1);
-                            }
-                            match current_block {
-                                15756379620357860923 => {}
-                                _ => {
-                                    found_loca = true;
-                                    break;
-                                }
-                            }
-                        }
-                        logger_log_sds(
-                            (*options).logger,
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(b"table 'loca' corrupted.\n"),
-                        );
-                        __fortable_k2 = 0 as ::core::ffi::c_int;
-                        __notfound = 0 as ::core::ffi::c_int;
-                    }
-                }
-                __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-            __fortable_count += 1;
-        }
-        if found_loca {
-            let mut __fortable_keep_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-            let mut __fortable_count_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-            let mut __notfound_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-            's_126: loop {
-                if !(__notfound_0 != 0
-                    && __fortable_keep_0 != 0
-                    && __fortable_count_0 < packet.num_tables as ::core::ffi::c_int)
-                {
-                    current_block = 4135528745514935090;
+    let mut offsets: Vec<u32> = vec![0u32; num_glyphs as usize + 1];
+
+    // `__fortable_*`/`current_block` (goto emulation) -> the same
+    // `.iter().find()` idiom every other already-migrated table reader in
+    // this crate uses.
+    let loca_corrupted = || {
+        logger_log_sds(
+            (*options).logger,
+            LOG_VL_IMPORTANT,
+            LoggerType::Warning,
+            crate::bytesbuild!(b"table 'loca' corrupted.\n"),
+        );
+    };
+    let Some(loca) = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_LOCA) else {
+        loca_corrupted();
+        return None;
+    };
+    // The original's own guard here (`length < 2*num_glyphs+2`) used the
+    // *short*-format byte count unconditionally, even when `loca_is_long`
+    // -- a long-format `loca` table needs twice that (4 bytes/entry, not
+    // 2), so this let a table too short for the format it actually claims
+    // pass the guard and read past its own end in the `read_32u` calls
+    // below. `FontReader` needs no separate upfront guard at all: each
+    // `u16()`/`u32()` read below is checked against the real remaining
+    // length, for whichever format this table actually is.
+    let mut loca_r = FontReader::new(&loca.data);
+    let mut found_loca = true;
+    for j in 0..=(num_glyphs as u32) {
+        let v = if (*ctx).loca_is_long {
+            match loca_r.u32() {
+                Ok(v) => v,
+                Err(_) => {
+                    found_loca = false;
                     break;
                 }
-                let table_0: &PacketPiece =
-                    &packet.pieces[__fortable_count_0 as usize];
-                while __fortable_keep_0 != 0 {
-                    if table_0.tag == crate::tag::TAG_GLYF {
-                        let mut __fortable_k2_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                        while __fortable_k2_0 != 0 {
-                            let mut data_0: FontFilePointer = table_0.data.as_ptr() as FontFilePointer;
-                            let mut length_0: u32 = table_0.length;
-                            if length_0 < offsets[(*ctx).num_glyphs as usize] {
-                                logger_log_sds(
-                                    (*options).logger,
-                                    LOG_VL_IMPORTANT,
-                                    LoggerType::Warning,
-                                    crate::bytesbuild!(b"table 'glyf' corrupted.\n"),
-                                );
-                                // No `glyf` to free here: every path that
-                                // constructs one (below) breaks out of this
-                                // loop and returns immediately afterward, so
-                                // this branch is only ever reached before
-                                // any allocation happens.
-                                __fortable_k2_0 = 0 as ::core::ffi::c_int;
-                                __notfound_0 = 0 as ::core::ffi::c_int;
-                            } else {
-                                let mut glyf_val: GlyfTable = Vec::new();
-                                let mut j_0: GlyphId = 0 as GlyphId;
-                                while (j_0 as ::core::ffi::c_int)
-                                    < (*ctx).num_glyphs as ::core::ffi::c_int
-                                {
-                                    if offsets[j_0 as usize] < offsets[(j_0 as usize) + 1] {
-                                        glyf_val.push(Some(otfcc_read_glyph(
-                                            data_0,
-                                            offsets[j_0 as usize],
-                                            options,
-                                        )));
-                                    } else {
-                                        glyf_val.push(Some(otfcc_new_glyf_glyph()));
-                                    }
-                                    j_0 = j_0.wrapping_add(1);
-                                }
-                                glyf = Some(glyf_val);
-                                current_block = 5675710991063777755;
-                                break 's_126;
-                            }
-                        }
-                    }
-                    __fortable_keep_0 = (__fortable_keep_0 == 0) as ::core::ffi::c_int;
-                }
-                __fortable_keep_0 = (__fortable_keep_0 == 0) as ::core::ffi::c_int;
-                __fortable_count_0 += 1;
             }
-            match current_block {
-                4135528745514935090 => {}
-                _ => {
-                    polymorphize(
-                        packet,
-                        options,
-                        glyf.as_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable),
-                        ctx,
-                    );
-                    return glyf;
+        } else {
+            match loca_r.u16() {
+                Ok(v) => (v as u32) * 2,
+                Err(_) => {
+                    found_loca = false;
+                    break;
                 }
             }
+        };
+        if j > 0 && v < offsets[(j - 1) as usize] {
+            found_loca = false;
+            break;
+        }
+        offsets[j as usize] = v;
+    }
+    if !found_loca {
+        loca_corrupted();
+        return None;
+    }
+
+    let glyf_piece = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_GLYF)?;
+    if glyf_piece.length < offsets[num_glyphs as usize] {
+        logger_log_sds(
+            (*options).logger,
+            LOG_VL_IMPORTANT,
+            LoggerType::Warning,
+            crate::bytesbuild!(b"table 'glyf' corrupted.\n"),
+        );
+        return None;
+    }
+    let data_0: FontFilePointer = glyf_piece.data.as_ptr() as FontFilePointer;
+    let mut glyf_val: GlyfTable = Vec::with_capacity(num_glyphs as usize);
+    for j0 in 0..num_glyphs {
+        if offsets[j0 as usize] < offsets[j0 as usize + 1] {
+            let glyph_length = offsets[j0 as usize + 1] - offsets[j0 as usize];
+            // A malformed individual glyph (an unbounded component chain,
+            // a flag/coordinate stream that runs past its own declared
+            // byte range, ...) now fails cleanly inside
+            // `otfcc_read_glyph` instead of reading adjacent bytes --
+            // fall back to an empty glyph for this one GID rather than
+            // failing the whole table, the same degradation the
+            // zero-length-range case below already used.
+            let g = otfcc_read_glyph(data_0, offsets[j0 as usize], glyph_length, options)
+                .unwrap_or_else(|| otfcc_new_glyf_glyph());
+            glyf_val.push(Some(g));
+        } else {
+            glyf_val.push(Some(otfcc_new_glyf_glyph()));
         }
     }
-    // No `glyf` to free here: this point is only reached with `glyf` still
-    // `None` (every path that sets it returns immediately afterward).
-    return None;
+    let mut glyf = Some(glyf_val);
+    polymorphize(
+        packet,
+        options,
+        glyf.as_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable),
+        ctx,
+    );
+    glyf
 }
 #[inline]
 unsafe fn be16(mut x: u16) -> u16 {
@@ -1324,4 +1179,196 @@ unsafe fn be32(mut x: u32) -> u32 {
         | (x & 0xff00 as u32) << 8 as ::core::ffi::c_int
         | (x & 0xff0000 as u32) >> 8 as ::core::ffi::c_int
         | (x & 0xff000000 as u32) >> 24 as ::core::ffi::c_int;
+}
+
+#[cfg(test)]
+mod glyf_read_tests {
+    use super::*;
+    use crate::vf::vq::vq_get_still;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    unsafe fn still(v: &VQ) -> Pos {
+        vq_get_still(v.clone())
+    }
+
+    #[test]
+    fn simple_glyph_reads_one_contour_with_full_width_coordinates() {
+        // numberOfContours=1, bbox, endPtsOfContours[0]=1 (2 points),
+        // instructionLength=0, flags=[ON_CURVE, ON_CURVE] (no X_SHORT/
+        // SAME_X or Y_SHORT/SAME_Y, so each coordinate is a full i16).
+        let mut data = [0u8; 24];
+        data[0..2].copy_from_slice(&1i16.to_be_bytes());
+        data[10..12].copy_from_slice(&1u16.to_be_bytes()); // endPts[0]
+        data[12..14].copy_from_slice(&0u16.to_be_bytes()); // instructionLength
+        data[14] = 0x01; // flag point0: ON_CURVE
+        data[15] = 0x01; // flag point1: ON_CURVE
+        data[16..18].copy_from_slice(&5i16.to_be_bytes()); // x0
+        data[18..20].copy_from_slice(&7i16.to_be_bytes()); // x1
+        data[20..22].copy_from_slice(&3i16.to_be_bytes()); // y0
+        data[22..24].copy_from_slice(&9i16.to_be_bytes()); // y1
+        let options = zeroed_options();
+        unsafe {
+            let g = otfcc_read_glyph(
+                data.as_ptr() as FontFilePointer,
+                0,
+                data.len() as u32,
+                &options as *const Options,
+            );
+            let g = g.unwrap();
+            assert_eq!(g.contours.len(), 1);
+            assert_eq!(g.contours[0].len(), 2);
+            // glyf coordinates are deltas from the previous point (point 0
+            // from the implicit origin), accumulated by the function's own
+            // trailing cx/cy pass -- point1 = point0 + its own delta.
+            assert_eq!(still(&g.contours[0][0].x), 5.0);
+            assert_eq!(still(&g.contours[0][1].x), 12.0);
+            assert_eq!(still(&g.contours[0][0].y), 3.0);
+            assert_eq!(still(&g.contours[0][1].y), 12.0);
+        }
+    }
+
+    #[test]
+    fn composite_glyph_reads_one_xy_anchored_component() {
+        // numberOfContours=-1 (composite), bbox, one component:
+        // flags=ARGS_ARE_XY_VALUES|ARG_1_AND_2_ARE_WORDS (no
+        // MORE_COMPONENTS), glyphIndex=5, x=10, y=20.
+        let mut data = [0u8; 18];
+        data[0..2].copy_from_slice(&(-1i16).to_be_bytes());
+        data[10..12].copy_from_slice(&3u16.to_be_bytes()); // flags = 2|1
+        data[12..14].copy_from_slice(&5u16.to_be_bytes()); // glyphIndex
+        data[14..16].copy_from_slice(&10i16.to_be_bytes());
+        data[16..18].copy_from_slice(&20i16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let g = otfcc_read_glyph(
+                data.as_ptr() as FontFilePointer,
+                0,
+                data.len() as u32,
+                &options as *const Options,
+            );
+            let g = g.unwrap();
+            assert_eq!(g.references.len(), 1);
+            assert_eq!(g.references[0].glyph.index, 5);
+            assert_eq!(still(&g.references[0].x), 10.0);
+            assert_eq!(still(&g.references[0].y), 20.0);
+            assert_eq!(g.references[0].is_anchored, RefAnchorStatus::Xy);
+        }
+    }
+
+    #[test]
+    fn simple_glyph_truncated_flag_stream_is_rejected_instead_of_reading_oob() {
+        // Same header as the well-formed case above but cut off right
+        // after the first flag byte -- the second flag and every
+        // coordinate are missing.
+        let mut data = [0u8; 15];
+        data[0..2].copy_from_slice(&1i16.to_be_bytes());
+        data[10..12].copy_from_slice(&1u16.to_be_bytes());
+        data[12..14].copy_from_slice(&0u16.to_be_bytes());
+        data[14] = 0x01;
+        let options = zeroed_options();
+        unsafe {
+            let g = otfcc_read_glyph(
+                data.as_ptr() as FontFilePointer,
+                0,
+                data.len() as u32,
+                &options as *const Options,
+            );
+            assert!(g.is_none());
+        }
+    }
+
+    #[test]
+    fn composite_glyph_more_components_never_cleared_terminates_and_is_rejected() {
+        // The original's only loop terminator was the MORE_COMPONENTS
+        // bit -- a component chain that always sets it and then runs out
+        // of data used to read straight past the glyph's own bytes with
+        // no bound at all. One full component record with
+        // MORE_COMPONENTS set, then nothing: must terminate (not hang)
+        // and reject.
+        let mut data = [0u8; 18];
+        data[0..2].copy_from_slice(&(-1i16).to_be_bytes());
+        data[10..12].copy_from_slice(&35u16.to_be_bytes()); // flags = 2|1|32 (MORE_COMPONENTS)
+        data[12..14].copy_from_slice(&5u16.to_be_bytes());
+        data[14..16].copy_from_slice(&10i16.to_be_bytes());
+        data[16..18].copy_from_slice(&20i16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let g = otfcc_read_glyph(
+                data.as_ptr() as FontFilePointer,
+                0,
+                data.len() as u32,
+                &options as *const Options,
+            );
+            assert!(g.is_none());
+        }
+    }
+
+    #[test]
+    fn non_monotonic_end_points_of_contours_is_rejected_not_a_huge_allocation() {
+        // contour 0 ends at point 5 (6 points); contour 1 ends at point 2
+        // -- fewer than contour 0 already claimed. The original computed
+        // this contour's point count in signed arithmetic then cast
+        // straight to `usize`, so a negative result became a number near
+        // `usize::MAX` and `glyf_contour_fill` tried to allocate that
+        // many points. Must reject instead.
+        let mut data = [0u8; 14];
+        data[0..2].copy_from_slice(&2i16.to_be_bytes());
+        data[10..12].copy_from_slice(&5u16.to_be_bytes());
+        data[12..14].copy_from_slice(&2u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let g = otfcc_read_glyph(
+                data.as_ptr() as FontFilePointer,
+                0,
+                data.len() as u32,
+                &options as *const Options,
+            );
+            assert!(g.is_none());
+        }
+    }
+
+    #[test]
+    fn repeat_run_overrunning_the_declared_point_count_is_rejected_not_a_panic() {
+        // endPtsOfContours[0]=1 declares exactly 2 points. The first flag
+        // sets REPEAT with a run of 5 -- 1 + 5 = 6 total flags, four more
+        // than declared. The original indexed a now-`Vec`-backed,
+        // fixed-size `flags` array with no check that a repeat run stays
+        // within the declared point count, which would panic in Rust
+        // (a silent overflow write in the original C). Must reject
+        // instead of either.
+        let mut data = [0u8; 16];
+        data[0..2].copy_from_slice(&1i16.to_be_bytes());
+        data[10..12].copy_from_slice(&1u16.to_be_bytes());
+        data[12..14].copy_from_slice(&0u16.to_be_bytes());
+        data[14] = 0x09; // REPEAT | ON_CURVE
+        data[15] = 5; // repeat count
+        let options = zeroed_options();
+        unsafe {
+            let g = otfcc_read_glyph(
+                data.as_ptr() as FontFilePointer,
+                0,
+                data.len() as u32,
+                &options as *const Options,
+            );
+            assert!(g.is_none());
+        }
+    }
+
+    #[test]
+    fn header_shorter_than_ten_bytes_is_rejected_instead_of_reading_oob() {
+        let data = [0u8; 5];
+        let options = zeroed_options();
+        unsafe {
+            let g = otfcc_read_glyph(
+                data.as_ptr() as FontFilePointer,
+                0,
+                data.len() as u32,
+                &options as *const Options,
+            );
+            assert!(g.is_none());
+        }
+    }
 }
