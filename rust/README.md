@@ -932,6 +932,100 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `table/glyf/read.rs`, part 2 -- the gvar tuple-variation
+  applicator** (`polymorphize`, `polymorphize_glyph`, `next_tvh` ->
+  `next_tvh_offset`, `parse_point_numbers`, `read_packed_delta`,
+  `create_region_from_tuples`). Follow-up to the previous entry's glyf
+  outline readers, now converting the other half of this file: a
+  self-describing binary format with no length of its own anywhere in the
+  chain -- a `TupleVariationHeader` array's own end (and so where the next
+  one starts) is only known after reading *that* header's own flags, and a
+  `GlyphVariationData`'s point/delta streams are only bounded by their own
+  declared `variationDataSize` accumulating across the tuple loop. Every
+  one of these used to be walked with bare `*mut T`/`FontFilePointer`
+  pointer arithmetic and zero length awareness.
+  - **The core move: every raw pointer through this whole call chain
+    becomes an absolute `usize` byte offset into one `gvar: &[u8]` slice**
+    (the whole `gvar` table, built once in `polymorphize` from the
+    `PacketPiece`'s own `Vec<u8>`/length and threaded down unchanged --
+    same discipline as `data`/`table_length` pairs everywhere else in this
+    migration), with every read going through `FontReader::new(gvar).
+    at(offset)` instead of `.offset()`. This eliminated the need for the
+    `#[repr(C, packed)]` `GVARHeader`/`TupleVariationHeader`/
+    `GlyphVariationData` structs entirely (nothing else in the crate used
+    them -- confirmed by grep before deleting), along with the `be16`/
+    `be32` manual byte-swaps their native-endian pointer casts needed
+    (`FontReader`'s reads are big-endian by construction). `next_tvh` ->
+    `next_tvh_offset` returns the next tuple header's offset instead of a
+    pointer, and `TuplePolymorphizerCtx.shared_tuples: *mut F2Dot14`
+    becomes `shared_tuples_offset: usize` into the same slice.
+  - **Two real, previously-undocumented "zero guard" bugs in
+    `polymorphize`'s own top level**, the same class
+    `read_contextual_format2`'s `ChainSubClassSet` array had
+    (`otl/subtables/chaining/read.rs`, previous stage): the per-glyph
+    `glyphVariationDataOffsets` array read `data.offset(sizeof(GVARHeader)
+    + j*stride)` for every glyph with *no* check that the table was long
+    enough to actually hold that many entries, and the
+    `glyphVariationDataArrayOffset + glyphVariationDataOffset` sum that
+    follows was never checked against the table's own length either. Both
+    now go through `FontReader`; a glyph whose entry doesn't fit is
+    skipped (no variation applied to it) rather than reading past the
+    table.
+  - **Two more of the same class inside `polymorphize_glyph`/
+    `create_region_from_tuples`**: the embedded-peak/intermediate-region
+    `F2Dot14` reads inside a tuple header, and the whole per-tuple header
+    walk itself (`next_tvh_offset`'s bump, `tsd`'s accumulation via each
+    tuple's own `variationDataSize`) had no bounds checking against `gvar`
+    at all. `create_region_from_tuples` is the one function here that
+    allocates before it can fail (`vq_create_region`, up front, needed to
+    write each dimension's span into as it goes) -- a bounds failure
+    partway through now frees that allocation before returning `None`
+    instead of leaking it, verified by `cargo miri test` (see below).
+  - **A discovered-but-not-fixed correctness bug, deliberately left as
+    found**: `parse_point_numbers`'s wide (`POINTS_ARE_WORDS`) point-number
+    read did `*(data as *mut u16)` with no byte-swap at all, where its
+    sibling `read_packed_delta`'s wide-delta case correctly calls `be16()`
+    first. Every other 16-bit read in this codebase (`binio::read_16u`,
+    every `FontReader::u16()`) is big-endian; this one path reads
+    native-endian, which is wrong on this crate's own convention and the
+    OpenType spec's. This is a correctness bug, not a parse-boundary
+    safety issue, and out of this PR's scope to fix -- fixing it could
+    change output for a real, well-formed font whose gvar data actually
+    exercises a wide point-number run (none of the committed payloads do,
+    checked both ways), which would violate the "well-formed output stays
+    byte-identical" invariant this whole stage runs under. Preserved
+    exactly (a comment at the call site explains why); a good target for
+    a small, separately-scoped follow-up.
+  - `polymorphize`'s own `__fortable_*`/`current_block` (goto emulation)
+    -> the same `.iter().find()` idiom every other migrated reader uses,
+    same as `otfcc_read_glyf`'s conversion in the previous entry.
+  - **No behavior change on any committed payload**: `gvar-test.ttf`
+    (the only payload exercising this code path at all) stays
+    byte-identical on both `compare-with-golden.sh` (build and dump) and
+    `compare-roundtrips.js`. 8 new unit tests on the lower-level functions
+    (`next_tvh_offset`, `create_region_from_tuples`, `parse_point_numbers`,
+    `read_packed_delta`) cover both the truncated-input rejection paths
+    and a well-formed read each -- `polymorphize`'s own top-level per-glyph
+    guard isn't separately unit-tested (constructing a full `Packet`/
+    `FvarTable`/`GlyfTable` harness for it would be disproportionate to
+    the marginal coverage over what `gvar-test.ttf`'s end-to-end golden/
+    round-trip coverage and the lower-level tests already pin).
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 1029 → 1001 (-28),
+    `__fortable_*` 131 → 118 (-13), raw pointer types 6275 → 6248 (-27),
+    `as ::core::ffi::c_int` 5536 → 5477 (-59), `while` loops 702 → 695
+    (-7).
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 204 tests (was 196 -- 8 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log output,
+    zero exceptions, `gvar-test.ttf` specifically confirmed), all
+    round-trip payloads stable, issue #1's lookup-alias regression still
+    passes, `cargo miri test` clean locally before pushing (189 passed, 0
+    failed, 15 pre-existing ignores -- confirms `create_region_from_
+    tuples`'s new failure-path cleanup doesn't leak).
+  - Next: `libcff/` (`gu1`-`gu4` duplicated readers, the CFF INDEX 4GB
+    `memcpy` overflow) -- the last remaining Stage 7-1 scope per the plan.
+    `table/glyf/read.rs` is now fully converted.
+
 - **Stage 7-1: `table/glyf/read.rs` -- the core glyf outline readers
   (`otfcc_read_glyph`, `otfcc_read_simple_glyph`, `otfcc_read_composite_
   glyph`, `otfcc_read_glyf`).** The plan flagged this file by name as the
