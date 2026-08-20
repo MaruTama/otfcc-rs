@@ -932,6 +932,55 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `otl/subtables/gpos_pair.rs` -- the last "regular" (non-
+  chaining) subtable reader, and the most structurally complex file in
+  this stage so far.** Two very different binary formats live in one
+  function (Format 1: per-glyph-pair PairSets, with a synthesized
+  `second` ClassDef the wire format doesn't carry explicitly; Format 2: an
+  exhaustive class1×class2 value matrix), each fully rewritten with the
+  same boundary discipline as the rest of this file family.
+  - **Two real, previously-undocumented bugs, one per format.** Format
+    1's `coverageOffset` (and every header field after it) used to be
+    read with *no* guard beyond the very first `table_length < offset +
+    2` -- just the 2-byte format field itself -- so a table only a few
+    bytes long claiming format 1 read straight past its own end before
+    any of the format's own per-field guards further down ever ran.
+    Sequential `FontReader` reads close this by construction: every
+    field is checked, not just the ones the original happened to guard
+    explicitly. Format 2's final byte-length guard --
+    `class1_count * class2_count * (len1+len2)` -- is the same
+    overflow-defeats-guard shape as `gpos_mark_to_ligature.rs`'s
+    `component_count * class_count`: both `class1_count`/`class2_count`
+    are independently unbounded `u16` fields, so the product can reach
+    65535*65535*16 (~68.7 billion). Fixed with two chained
+    `checked_mul`s (count*count, then that product against the per-cell
+    stride via `require_room`) -- the same "checked step, then checked
+    step" shape `name.rs`'s two-tier guards used.
+  - **No other bugs found.** Unlike several files in this stage, this
+    one already freed its intermediate `Coverage`s (`cov`/`cov_0`)
+    unconditionally right after consuming them, on every path -- no
+    leak to fix here.
+  - **No behavior change on any committed payload**: every payload
+    stayed byte-identical, including the two committed payloads
+    (`BungeeColor-Regular_colr_Windows.ttf`, `Molengo-Regular.ttf`,
+    confirmed by grep) that actually carry a `gpos_pair` lookup and are
+    exercised end-to-end by `run-cycles.sh`/`compare-roundtrips.js`. 4
+    new unit tests cover both fixed bugs plus a well-formed case for
+    each format.
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 1240 → 1199, raw
+    pointer types 6362 → 6340, `current_block` 44 → 39.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 181 tests (was 177 -- 4 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log
+    output, zero exceptions), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes, `cargo miri test` clean
+    locally before pushing.
+  - Next: `chaining/read.rs` (1,246 lines) and its supporting files in
+    `otl/subtables/chaining/` -- the largest and most structurally
+    complex file left in the whole `otl/` family, and the last piece of
+    Stage 7-1's `otl`/`glyf` scope before moving to `glyf`/`gvar` (which
+    have no length parameter at all, per the plan) and `libcff/`.
+
 - **Stage 7-1: `otl/subtables/{gsub_ligature,gpos_mark_to_ligature}.rs`
   -- third batch of individual subtable readers.** Same boundary
   discipline as the previous two batches.
