@@ -932,6 +932,79 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1 follow-up: `libcff/cff_codecs.rs`'s Type2/DICT token
+  decoders -- the boundary gap the previous PR deliberately left open
+  in `cff_parse_outline`.** That PR noted `cff_parse_outline` already
+  bounds its own top-level token loop against a real `len`, unlike every
+  other reader in this stage, but that only checks *before* decoding a
+  token, not that the token *itself* stays within bounds -- the actual
+  per-token byte reads live one level down, in `cff_decode_cs2_token`
+  (CharStrings) and `cff_decode_cff_token`/`cff_dec_i`/`cff_dec_r`/
+  `cff_dec_o`/`cff_dec_e` (DICTs, shared by `cff_dict.rs`'s
+  `parse_to_callback` -- the DICT-key lookup every `cff_parser.rs` Top
+  DICT read goes through). All of these read up to 5 bytes unconditionally
+  based only on the first byte's value, with zero awareness of how many
+  bytes actually remained. This turned out to be a well-defined, tractable
+  fix rather than the open-ended gap it looked like -- not the
+  `cff_parse_outline`/`subr.rs` mega-effort originally floated as the
+  alternative next step.
+  - **`cff_dec_r`'s nibble scan (DICT real numbers) had no bound
+    whatsoever** -- not "checked against the wrong thing," genuinely
+    unbounded: it scanned forward one nibble at a time looking for a
+    `0xF` terminator with no length parameter anywhere in the function.
+    A malformed DICT real number that never has one read arbitrarily far
+    past the buffer -- the least-guarded read found anywhere in this
+    whole migration. It also built the decoded digit string with `strcat`
+    into a fixed 72-byte stack buffer with no check that the (also
+    attacker-controlled) nibble count fit, a second, independent bug (a
+    stack buffer overflow, not just an overread) hiding behind the first.
+    Rewritten to scan through a bounds-checked slice and build the text
+    into a growable `Vec<u8>` instead of the fixed buffer; `atof`/
+    `strtod` still does the actual parsing, unchanged, so number-format
+    fidelity is untouched (confirmed by golden: `KRName-Regular-O2.otf`,
+    the one payload whose CFF subroutinize path exercises DICT parsing
+    most heavily, stays byte-identical).
+  - **Every other decoder had the ordinary "reads N bytes based on the
+    first byte, no check that N are actually available" gap**: `cff_dec_i`
+    (DICT integers, 1-5 bytes), `cff_dec_o` (DICT operators, 1-2 bytes),
+    `cff_decode_cs2_token` (CharString tokens, 1-5 bytes depending on
+    format). All six decoders now take `remaining: usize` and return
+    `Option<u32>` instead of an unconditional `u32`; the `DE_T2` dispatch
+    table (256 entries, one per possible first byte) and its two callers
+    (`cff_parse_outline`'s CharString loop, `parse_to_callback`'s DICT
+    loop) updated to match -- both now compute `remaining` via
+    `.offset_from()` each iteration and `break` cleanly on `None` instead
+    of reading on.
+  - **No behavior change on any committed payload**: the CFF payloads
+    (`KRName-Regular.otf` and its `-O2` subroutinize variant, which
+    exercises both the CharString interpreter and DICT parsing far more
+    heavily than the plain payload) stay byte-identical on build, dump,
+    and round-trip. 8 new unit tests (1 ignored under Miri --
+    `libc::strtod` is unsupported there on macOS, the same category as
+    the pre-existing `printf`/`snprintf` ignores in `vendor/sds.rs`).
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 961 → 942 (-19),
+    `as ::core::ffi::c_int` 5443 → 5278 (-165, mostly the 256-entry
+    dispatch table's casts), `Option<` usage 279 → 543 (+264, the same
+    table now returning `Option<u32>`).
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 233 tests (was 225 -- 8 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log output,
+    zero exceptions, CFF payloads specifically confirmed), all
+    round-trip payloads stable, issue #1's lookup-alias regression still
+    passes, `cargo miri test` clean locally before pushing (217 passed, 0
+    failed, 16 ignored -- 15 pre-existing plus this PR's one `strtod`
+    ignore).
+  - With this PR, the boundary gap the previous PR deliberately left open
+    is closed. What remains genuinely out of Stage 7-1's scope in this
+    area is `libcff/subr.rs`'s intrusive linked list (the CFF
+    subroutinize *build* path, already flagged in the plan as Stage
+    7-2-g's own hardest, separately-scoped piece) and a full line-by-line
+    audit of `cff_parse_outline`'s ~1,900 lines of stack-machine
+    interpretation (subroutine call depth/indexing into `gsubr`/`lsubr`,
+    etc.) -- both real future work, but a different shape of task than
+    "add bounds checking to a raw-pointer reader," which is what Stage
+    7-1 set out to do.
+
 - **Stage 7-1: `libcff/cff_parser.rs`, part 1 -- the CFF header and
   Encoding table, third piece of `libcff/`'s remaining scope.** Scoped
   deliberately narrowly: `gu1`/`gu2`, `parse_encoding` (the Encoding table
