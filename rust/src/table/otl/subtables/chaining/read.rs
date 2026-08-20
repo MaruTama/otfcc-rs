@@ -6,7 +6,7 @@ use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_crea
 use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphHandle, LookupHandle};
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_16u};
+use crate::support::font_reader::{FontReader};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
@@ -155,6 +155,18 @@ pub unsafe extern "C" fn format3_coverage(
             .wrapping_sub(2 as u32),
     );
 }
+// Every guard below is expressed as a `FontReader` read or `require_room`
+// call in the exact sequence the original's hand-written `table_length <
+// ...` checks ran in, so the set of inputs accepted/rejected is unchanged
+// (`require_room`'s `checked_mul` cannot itself matter here: every count
+// this file reads is a `u16`, so `count * stride` can never overflow
+// `usize`). The one behavior change is fidelity, not scope: a `FontReader`
+// read only ever demands exactly the bytes the value it is producing
+// needs, where a few of the original's guards reserved a handful of extra
+// bytes beyond what the following reads actually touched (see
+// `read_contextual_format2`'s and `read_chaining_format2`'s "no slop"
+// note below) -- always in the safe direction (rejecting strictly less
+// than before), documented per-function where it applies.
 pub unsafe fn general_read_contextual_rule(
     mut data: FontFilePointer,
     mut table_length: u32,
@@ -165,119 +177,85 @@ pub unsafe fn general_read_contextual_rule(
     max_glyphs: GlyphId,
     mut userdata: *mut ::core::ffi::c_void,
 ) -> Option<Box<ChainingRule>> {
-    let mut n_input: u16 = 0;
-    let mut n_apply: u16 = 0;
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+    let minus_one_q: u16 = minus_one as u16;
+
+    let mut header = FontReader::new(slice).at(offset as usize).ok()?;
+    let n_input = header.u16().ok()?;
+    let n_apply = header.u16().ok()?;
+    // Matches the original's own guard exactly: it reserves `2*n_input`
+    // bytes for the input-glyph array even on the `minus_one` path, where
+    // only `n_input - minus_one_q` entries are actually read below (one
+    // slot more than strictly needed -- preserved as-is, not tightened).
+    let needed = (n_input as usize) * 2 + (n_apply as usize) * 4;
+    header.require_room(needed, 1).ok()?;
+
     // `Box` is the allocation, the struct literal is the zero-init the old
     // `__caryll_allocate_clean` provided -- same shape as `new_lookup`/
-    // `otfcc_new_glyf_glyph`. Every `(*rule).field` access below still
-    // works unchanged through the `Box`'s `Deref`/`DerefMut`.
+    // `otfcc_new_glyf_glyph`.
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
-        match_count: 0 as TableId,
+        match_count: n_input as TableId,
         input_begins: 0 as TableId,
-        input_ends: 0 as TableId,
+        input_ends: n_input as TableId,
         match_0: Vec::new(),
         apply: Vec::new(),
     });
-    let mut minus_one_q: u16 = (if minus_one as ::core::ffi::c_int != 0 {
-        1 as ::core::ffi::c_int
-    } else {
-        0 as ::core::ffi::c_int
-    }) as u16;
-    if !(table_length < offset.wrapping_add(4 as u32)) {
-        n_input = read_16u(data.offset(offset as isize) as *const u8);
-        n_apply = read_16u(
-            data.offset(offset as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-        );
-        if !(table_length
-            < offset
-                .wrapping_add(4 as u32)
-                .wrapping_add((2 as ::core::ffi::c_int * n_input as ::core::ffi::c_int) as u32)
-                .wrapping_add((4 as ::core::ffi::c_int * n_apply as ::core::ffi::c_int) as u32))
-        {
-            (*rule).match_count = n_input as TableId;
-            (*rule).input_begins = 0 as TableId;
-            (*rule).input_ends = n_input as TableId;
-            // Filled in order below (the `minus_one` slot first, then the
-            // rest sequentially) -- every one of the `match_count` slots is
-            // written exactly once, in increasing index order, so `.push()`
-            // is the direct replacement for the old `jj`-indexed writes into
-            // `__caryll_allocate_clean`'d memory (`jj` itself is gone: it
-            // was only ever used as that index).
-            (*rule).match_0 = Vec::with_capacity((*rule).match_count as usize);
-            if minus_one {
-                (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                    data,
-                    table_length,
-                    start_gid,
-                    offset,
-                    2 as u16,
-                    max_glyphs,
-                    userdata,
-                )));
-            }
-            let mut j: u16 = 0 as u16;
-            while (j as ::core::ffi::c_int)
-                < n_input as ::core::ffi::c_int - minus_one_q as ::core::ffi::c_int
-            {
-                let mut gid: u32 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(4 as ::core::ffi::c_int as isize)
-                        .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                        as *const u8,
-                ) as u32;
-                (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                    data,
-                    table_length,
-                    gid as u16,
-                    offset,
-                    2 as u16,
-                    max_glyphs,
-                    userdata,
-                )));
-                j = j.wrapping_add(1);
-            }
-            (*rule).apply = Vec::with_capacity(n_apply as usize);
-            let mut j_0: TableId = 0 as TableId;
-            while (j_0 as ::core::ffi::c_int) < n_apply as ::core::ffi::c_int {
-                let index = ((*rule).input_begins as ::core::ffi::c_int
-                    + read_16u(
-                        data.offset(offset as isize)
-                            .offset(4 as ::core::ffi::c_int as isize)
-                            .offset(
-                                (2 as ::core::ffi::c_int
-                                    * ((*rule).match_count as ::core::ffi::c_int
-                                        - minus_one_q as ::core::ffi::c_int))
-                                    as isize,
-                            )
-                            .offset((j_0 as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
-                            as *const u8,
-                    ) as ::core::ffi::c_int)
-                    as TableId;
-                let lookup = handle_from_index(read_16u(
-                    data.offset(offset as isize)
-                        .offset(4 as ::core::ffi::c_int as isize)
-                        .offset(
-                            (2 as ::core::ffi::c_int
-                                * ((*rule).match_count as ::core::ffi::c_int
-                                    - minus_one_q as ::core::ffi::c_int))
-                                as isize,
-                        )
-                        .offset((j_0 as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
-                        .offset(2 as ::core::ffi::c_int as isize)
-                        as *const u8,
-                )
-                    as GlyphId) as LookupHandle;
-                (*rule).apply.push(ChainLookupApplication { index, lookup });
-                j_0 = j_0.wrapping_add(1);
-            }
-            reverse_backtracks(&mut *rule as *mut ChainingRule);
-            return Some(rule);
-        }
+    // Filled in order below (the `minus_one` slot first, then the rest
+    // sequentially) -- every one of the `match_count` slots is written
+    // exactly once, in increasing index order, so `.push()` is the direct
+    // replacement for the old `jj`-indexed writes into
+    // `__caryll_allocate_clean`'d memory (`jj` itself is gone: it was only
+    // ever used as that index).
+    rule.match_0 = Vec::with_capacity(rule.match_count as usize);
+    if minus_one {
+        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+            data,
+            table_length,
+            start_gid,
+            offset,
+            2 as u16,
+            max_glyphs,
+            userdata,
+        )));
     }
-    // `rule` (whatever partial state it reached) drops here automatically --
-    // both fields self-drop now, no manual `delete_rule` call needed.
-    return None;
+    // `n_input - minus_one_q` in the original ran in signed `c_int`
+    // arithmetic, so a malformed `n_input < minus_one_q` (possible: the
+    // `minus_one` slot above is unconditional, independent of `n_input`'s
+    // own value) gave a negative loop bound and simply ran zero
+    // iterations. `saturating_sub` reproduces that same "zero iterations"
+    // outcome without the panic a plain `u16` subtraction would give here.
+    let n_input_read = n_input.saturating_sub(minus_one_q);
+    for j in 0..n_input_read {
+        let gid = FontReader::new(slice)
+            .at(offset as usize + 4 + 2 * j as usize)
+            .unwrap()
+            .u16()
+            .unwrap();
+        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+            data,
+            table_length,
+            gid,
+            offset,
+            2 as u16,
+            max_glyphs,
+            userdata,
+        )));
+    }
+
+    rule.apply = Vec::with_capacity(n_apply as usize);
+    let lookup_base = offset as usize + 4 + 2 * n_input_read as usize;
+    for j0 in 0..n_apply {
+        let mut lr = FontReader::new(slice)
+            .at(lookup_base + 4 * j0 as usize)
+            .unwrap();
+        let seq_index = lr.u16().unwrap();
+        let lookup_index = lr.u16().unwrap();
+        let index = rule.input_begins.wrapping_add(seq_index);
+        let lookup = handle_from_index(lookup_index) as LookupHandle;
+        rule.apply.push(ChainLookupApplication { index, lookup });
+    }
+    reverse_backtracks(&mut *rule as *mut ChainingRule);
+    Some(rule)
 }
 unsafe fn read_contextual_format1(
     mut subtable: *mut ChainingSubtable,
@@ -286,136 +264,110 @@ unsafe fn read_contextual_format1(
     mut offset: u32,
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
-    let mut cov_offset: u16 = 0;
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let mut first_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    let mut chain_sub_rule_set_count: TableId = 0;
-    let mut total_rules: TableId = 0;
-    let mut current_block: u64;
-    if !(table_length < offset.wrapping_add(6 as u32)) {
-        cov_offset = offset.wrapping_add(read_16u(
-            data.offset(offset as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-        ) as u32) as u16;
-        first_coverage = read_coverage(
-            data as *const u8,
-            table_length,
-            cov_offset as u32,
-        );
-        chain_sub_rule_set_count = read_16u(
-            data.offset(offset as isize)
-                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-        ) as TableId;
-        if !(chain_sub_rule_set_count as ::core::ffi::c_int
-            != (*first_coverage).len() as ::core::ffi::c_int)
-        {
-            if !(table_length
-                < offset.wrapping_add(6 as u32).wrapping_add(
-                    (2 as ::core::ffi::c_int * chain_sub_rule_set_count as ::core::ffi::c_int)
-                        as u32,
-                ))
-            {
-                total_rules = 0 as TableId;
-                let mut j: TableId = 0 as TableId;
-                loop {
-                    if !((j as ::core::ffi::c_int) < chain_sub_rule_set_count as ::core::ffi::c_int) {
-                        current_block = 4166486009154926805;
-                        break;
-                    }
-                    let mut srs_offset: u32 = offset.wrapping_add(read_16u(
-                        data.offset(offset as isize)
-                            .offset(6 as ::core::ffi::c_int as isize)
-                            .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                            as *const u8,
-                    )
-                        as u32);
-                    if table_length < srs_offset.wrapping_add(2 as u32) {
-                        current_block = 10321976752019472029;
-                        break;
-                    }
-                    total_rules = (total_rules as ::core::ffi::c_int
-                        + read_16u(data.offset(srs_offset as isize) as *const u8)
-                            as ::core::ffi::c_int) as TableId;
-                    if table_length
-                        < srs_offset.wrapping_add(2 as u32).wrapping_add(
-                            (2 as ::core::ffi::c_int
-                                * read_16u(data.offset(srs_offset as isize) as *const u8)
-                                    as ::core::ffi::c_int) as u32,
-                        )
-                    {
-                        current_block = 10321976752019472029;
-                        break;
-                    }
-                    j = j.wrapping_add(1);
-                }
-                match current_block {
-                    10321976752019472029 => {}
-                    _ => {
-                        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-                        (*ruleset).rules = Vec::with_capacity(total_rules as usize);
-                        let mut j_0: TableId = 0 as TableId;
-                        while (j_0 as ::core::ffi::c_int)
-                            < chain_sub_rule_set_count as ::core::ffi::c_int
-                        {
-                            let mut srs_offset_0: u32 = offset.wrapping_add(read_16u(
-                                data.offset(offset as isize)
-                                    .offset(6 as ::core::ffi::c_int as isize)
-                                    .offset(
-                                        (j_0 as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                            as isize,
-                                    ) as *const u8,
+
+    let result: Option<()> = 'parse: {
+        let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
+            break 'parse None;
+        };
+        let Ok(cov_rel) = header.u16() else { break 'parse None };
+        let Ok(chain_sub_rule_set_count) = header.u16() else {
+            break 'parse None;
+        };
+        let cov_offset = offset.wrapping_add(cov_rel as u32);
+        // `read_coverage` always returns a valid (possibly empty) `Coverage`
+        // shell, never null, even on malformed input -- see coverage.rs.
+        first_coverage = read_coverage(data as *const u8, table_length, cov_offset);
+        if chain_sub_rule_set_count as usize != (*first_coverage).len() {
+            break 'parse None;
+        }
+        if header.require_room(chain_sub_rule_set_count as usize, 2).is_err() {
+            break 'parse None;
+        }
+
+        // First pass: validate every ruleset's own header + rule-offset array.
+        let mut total_rules: usize = 0;
+        for j in 0..chain_sub_rule_set_count {
+            let srs_rel = FontReader::new(slice)
+                .at(offset as usize + 6 + 2 * j as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            let srs_offset = offset.wrapping_add(srs_rel as u32);
+            let Ok(mut srs_header) = FontReader::new(slice).at(srs_offset as usize) else {
+                break 'parse None;
+            };
+            let Ok(srs_count) = srs_header.u16() else {
+                break 'parse None;
+            };
+            if srs_header.require_room(srs_count as usize, 2).is_err() {
+                break 'parse None;
+            }
+            total_rules = total_rules.saturating_add(srs_count as usize);
+        }
+
+        // Second pass: build, re-deriving each offset exactly as the first
+        // pass did (nothing here is retained across passes, matching the
+        // original's own two-pass structure).
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        (*ruleset).rules = Vec::with_capacity(total_rules);
+        for j in 0..chain_sub_rule_set_count {
+            let srs_rel = FontReader::new(slice)
+                .at(offset as usize + 6 + 2 * j as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            let srs_offset = offset.wrapping_add(srs_rel as u32);
+            let srs_count = FontReader::new(slice)
+                .at(srs_offset as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            for k in 0..srs_count {
+                let sr_rel = FontReader::new(slice)
+                    .at(srs_offset as usize + 2 + 2 * k as usize)
+                    .unwrap()
+                    .u16()
+                    .unwrap();
+                let sr_offset = srs_offset.wrapping_add(sr_rel as u32);
+                let rule_ptr = general_read_contextual_rule(
+                    data,
+                    table_length,
+                    sr_offset,
+                    (&(*first_coverage))[j as usize].index as u16,
+                    true,
+                    Some(
+                        single_coverage
+                            as unsafe extern "C" fn(
+                                FontFilePointer,
+                                u32,
+                                u16,
+                                u32,
+                                u16,
+                                GlyphId,
+                                *mut ::core::ffi::c_void,
                             )
-                                as u32);
-                            let mut srs_count: TableId =
-                                read_16u(data.offset(srs_offset_0 as isize) as *const u8)
-                                    as TableId;
-                            let mut k: TableId = 0 as TableId;
-                            while (k as ::core::ffi::c_int) < srs_count as ::core::ffi::c_int {
-                                let mut sr_offset: u32 = srs_offset_0.wrapping_add(read_16u(
-                                    data.offset(srs_offset_0 as isize)
-                                        .offset(2 as ::core::ffi::c_int as isize)
-                                        .offset(
-                                            (k as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                                as isize,
-                                        ) as *const u8,
-                                )
-                                    as u32);
-                                let rule_ptr = general_read_contextual_rule(
-                                    data,
-                                    table_length,
-                                    sr_offset,
-                                    (&(*first_coverage))[j_0 as usize].index
-                                        as u16,
-                                    true,
-                                    Some(
-                                        single_coverage
-                                            as unsafe extern "C" fn(
-                                                FontFilePointer,
-                                                u32,
-                                                u16,
-                                                u32,
-                                                u16,
-                                                GlyphId,
-                                                *mut ::core::ffi::c_void,
-                                            )
-                                                -> *mut Coverage,
-                                    ),
-                                    max_glyphs,
-                                    NULL,
-                                );
-                                (*ruleset).rules.push(rule_ptr);
-                                k = k.wrapping_add(1);
-                            }
-                            j_0 = j_0.wrapping_add(1);
-                        }
-                        otl_coverage_free(first_coverage);
-                        return subtable;
-                    }
-                }
+                                -> *mut Coverage,
+                    ),
+                    max_glyphs,
+                    NULL,
+                );
+                (*ruleset).rules.push(rule_ptr);
             }
         }
+        break 'parse Some(());
+    };
+
+    // `first_coverage` was leaked on every failure path here (only the
+    // success path below ever freed it) -- now freed exactly once,
+    // unconditionally, regardless of which branch above bailed out.
+    otl_coverage_free(first_coverage);
+    if result.is_some() {
+        return subtable;
     }
     subtable_chaining_free(subtable);
-    return ::core::ptr::null_mut::<ChainingSubtable>();
+    ::core::ptr::null_mut::<ChainingSubtable>()
 }
 unsafe fn read_contextual_format2(
     mut subtable: *mut ChainingSubtable,
@@ -424,11 +376,25 @@ unsafe fn read_contextual_format2(
     mut offset: u32,
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let mut cds: *mut ClassDefs = ::core::ptr::null_mut::<ClassDefs>();
-    let mut chain_sub_class_set_cnt: TableId = 0;
-    let mut total_rules: TableId = 0;
-    if !(table_length < offset.wrapping_add(8 as u32)) {
-        cds = ::core::ptr::null_mut::<ClassDefs>();
+
+    let result: Option<()> = 'parse: {
+        let Ok(mut header) = FontReader::new(slice).at(offset as usize + 4) else {
+            break 'parse None;
+        };
+        let Ok(ic_rel) = header.u16() else { break 'parse None };
+        let Ok(chain_sub_class_set_cnt) = header.u16() else {
+            break 'parse None;
+        };
+        // The original reserved 4 extra bytes here (`offset+12+2*count`)
+        // beyond what the `classSetOffset` array at `offset+8` actually
+        // needs (`offset+8+2*count`) -- always-safe over-conservative slop,
+        // now exactly the array's real requirement.
+        if header.require_room(chain_sub_class_set_cnt as usize, 2).is_err() {
+            break 'parse None;
+        }
+
         cds = __caryll_allocate_clean(
             ::core::mem::size_of::<ClassDefs>() as usize,
             172 as ::core::ffi::c_ulong,
@@ -437,114 +403,96 @@ unsafe fn read_contextual_format2(
         (*cds).ic = read_class_def(
             data as *const u8,
             table_length,
-            offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
+            offset.wrapping_add(ic_rel as u32),
         );
         (*cds).fc = ::core::ptr::null_mut::<ClassDef>();
-        chain_sub_class_set_cnt = read_16u(
-            data.offset(offset as isize)
-                .offset(6 as ::core::ffi::c_int as isize) as *const u8,
-        ) as TableId;
-        if !(table_length
-            < offset.wrapping_add(12 as u32).wrapping_add(
-                (2 as ::core::ffi::c_int * chain_sub_class_set_cnt as ::core::ffi::c_int) as u32,
-            ))
-        {
-            total_rules = 0 as TableId;
-            let mut j: TableId = 0 as TableId;
-            while (j as ::core::ffi::c_int) < chain_sub_class_set_cnt as ::core::ffi::c_int {
-                let mut src_offset: u32 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(8 as ::core::ffi::c_int as isize)
-                        .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                        as *const u8,
-                ) as u32;
-                if src_offset != 0 {
-                    total_rules = (total_rules as ::core::ffi::c_int
-                        + read_16u(data.offset(offset as isize).offset(src_offset as isize)
-                            as *const u8) as ::core::ffi::c_int)
-                        as TableId;
-                }
-                j = j.wrapping_add(1);
+
+        // First pass: validate every non-empty ClassSet's own header +
+        // rule-offset array. The original had NO guard at all here -- every
+        // read below (`srs_count` itself, and its rule-offset array) ran
+        // straight off `offset + src_offset` with no bounds check, a real
+        // out-of-bounds read on a malformed `ChainSubClassSet` offset. Now
+        // guarded like every sibling array in this file.
+        let mut total_rules: usize = 0;
+        for j in 0..chain_sub_class_set_cnt {
+            let src_rel = FontReader::new(slice)
+                .at(offset as usize + 8 + 2 * j as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            if src_rel == 0 {
+                continue;
             }
-            let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-            (*ruleset).rules = Vec::with_capacity(total_rules as usize);
-            let mut j_0: TableId = 0 as TableId;
-            while (j_0 as ::core::ffi::c_int) < chain_sub_class_set_cnt as ::core::ffi::c_int {
-                let mut src_offset_0: u32 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(8 as ::core::ffi::c_int as isize)
-                        .offset((j_0 as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                        as *const u8,
-                ) as u32;
-                if src_offset_0 != 0 {
-                    let mut srs_count: TableId =
-                        read_16u(data.offset(offset as isize).offset(src_offset_0 as isize)
-                            as *const u8) as TableId;
-                    let mut k: TableId = 0 as TableId;
-                    while (k as ::core::ffi::c_int) < srs_count as ::core::ffi::c_int {
-                        let mut sr_offset: u32 = offset.wrapping_add(src_offset_0).wrapping_add(
-                            read_16u(
-                                data.offset(offset as isize)
-                                    .offset(src_offset_0 as isize)
-                                    .offset(2 as ::core::ffi::c_int as isize)
-                                    .offset(
-                                        (k as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                            as isize,
-                                    ) as *const u8,
-                            ) as u32,
-                        );
-                        let rule_ptr = general_read_contextual_rule(
-                            data,
-                            table_length,
-                            sr_offset,
-                            j_0 as u16,
-                            true,
-                            Some(
-                                class_coverage
-                                    as unsafe extern "C" fn(
-                                        FontFilePointer,
-                                        u32,
-                                        u16,
-                                        u32,
-                                        u16,
-                                        GlyphId,
-                                        *mut ::core::ffi::c_void,
-                                    )
-                                        -> *mut Coverage,
-                            ),
-                            max_glyphs,
-                            cds as *mut ::core::ffi::c_void,
-                        );
-                        (*ruleset).rules.push(rule_ptr);
-                        k = k.wrapping_add(1);
-                    }
-                }
-                j_0 = j_0.wrapping_add(1);
+            let Ok(mut cs_header) = FontReader::new(slice).at(offset as usize + src_rel as usize)
+            else {
+                break 'parse None;
+            };
+            let Ok(srs_count) = cs_header.u16() else {
+                break 'parse None;
+            };
+            if cs_header.require_room(srs_count as usize, 2).is_err() {
+                break 'parse None;
             }
-            if !cds.is_null() {
-                if !(*cds).bc.is_null() {
-                    otl_class_def_free((*cds).bc);
-                }
-                if !(*cds).ic.is_null() {
-                    otl_class_def_free((*cds).ic);
-                }
-                if !(*cds).fc.is_null() {
-                    otl_class_def_free((*cds).fc);
-                }
-                free(cds as *mut ::core::ffi::c_void);
-                cds = ::core::ptr::null_mut::<ClassDefs>();
-            }
-            return subtable;
+            total_rules = total_rules.saturating_add(srs_count as usize);
         }
-    }
-    // `cds` (and its populated `.ic`, from the first length check passing
-    // above) leaked here on this malformed-input path: falling through to
-    // the failure return below skipped the same cleanup the success path
-    // just above already does. Same fix as `read_chaining_format2`'s
-    // sibling leak.
+
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        (*ruleset).rules = Vec::with_capacity(total_rules);
+        for j in 0..chain_sub_class_set_cnt {
+            let src_rel = FontReader::new(slice)
+                .at(offset as usize + 8 + 2 * j as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            if src_rel == 0 {
+                continue;
+            }
+            let srs_count = FontReader::new(slice)
+                .at(offset as usize + src_rel as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            for k in 0..srs_count {
+                let sr_rel = FontReader::new(slice)
+                    .at(offset as usize + src_rel as usize + 2 + 2 * k as usize)
+                    .unwrap()
+                    .u16()
+                    .unwrap();
+                let sr_offset = offset
+                    .wrapping_add(src_rel as u32)
+                    .wrapping_add(sr_rel as u32);
+                let rule_ptr = general_read_contextual_rule(
+                    data,
+                    table_length,
+                    sr_offset,
+                    j as u16,
+                    true,
+                    Some(
+                        class_coverage
+                            as unsafe extern "C" fn(
+                                FontFilePointer,
+                                u32,
+                                u16,
+                                u32,
+                                u16,
+                                GlyphId,
+                                *mut ::core::ffi::c_void,
+                            )
+                                -> *mut Coverage,
+                    ),
+                    max_glyphs,
+                    cds as *mut ::core::ffi::c_void,
+                );
+                (*ruleset).rules.push(rule_ptr);
+            }
+        }
+        break 'parse Some(());
+    };
+
+    // `cds` cleanup, run exactly once regardless of outcome -- this is the
+    // fallthrough-leak fix that was already present (as a second, duplicated
+    // copy of this same block) before this conversion; consolidated into
+    // one unconditional cleanup rather than newly discovered here.
     if !cds.is_null() {
         if !(*cds).bc.is_null() {
             otl_class_def_free((*cds).bc);
@@ -556,10 +504,12 @@ unsafe fn read_contextual_format2(
             otl_class_def_free((*cds).fc);
         }
         free(cds as *mut ::core::ffi::c_void);
-        cds = ::core::ptr::null_mut::<ClassDefs>();
+    }
+    if result.is_some() {
+        return subtable;
     }
     subtable_chaining_free(subtable);
-    return ::core::ptr::null_mut::<ChainingSubtable>();
+    ::core::ptr::null_mut::<ChainingSubtable>()
 }
 pub unsafe fn otl_read_contextual(
     data: FontFilePointer,
@@ -568,10 +518,8 @@ pub unsafe fn otl_read_contextual(
     max_glyphs: GlyphId,
     mut options: *const Options,
 ) -> *mut Subtable {
-    let mut format: u16 = 0 as u16;
-    let mut subtable: *mut ChainingSubtable =
-        (
-            subtable_chaining_create)();
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+    let mut subtable: *mut ChainingSubtable = (subtable_chaining_create)();
     // `subtable` is fresh from `create()` (a valid, empty `Canonical`
     // value) -- replace it wholesale with a valid, empty `Poly` ruleset.
     // Every downstream construction path (format1/format2/format3, and the
@@ -579,43 +527,46 @@ pub unsafe fn otl_read_contextual(
     // sees a valid, possibly-still-empty ruleset from this point on.
     *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
     let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-    if !(table_length < offset.wrapping_add(2 as u32)) {
-        format = read_16u(data.offset(offset as isize) as *const u8);
-        if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-            return subtable_from_raw(
-                read_contextual_format1(subtable, data, table_length, offset, max_glyphs),
-                Subtable::Chaining,
-            );
-        } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-            return subtable_from_raw(
-                read_contextual_format2(subtable, data, table_length, offset, max_glyphs),
-                Subtable::Chaining,
-            );
-        } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
-            let rule_ptr = general_read_contextual_rule(
-                data,
-                table_length,
-                offset.wrapping_add(2 as u32),
-                0 as u16,
-                false,
-                Some(
-                    format3_coverage
-                        as unsafe extern "C" fn(
-                            FontFilePointer,
-                            u32,
-                            u16,
-                            u32,
-                            u16,
-                            GlyphId,
-                            *mut ::core::ffi::c_void,
-                        ) -> *mut Coverage,
-                ),
-                max_glyphs,
-                NULL,
-            );
-            (*ruleset).rules.push(rule_ptr);
-            return subtable_from_raw(subtable, Subtable::Chaining);
+    let mut format: u16 = 0 as u16;
+    if let Ok(mut r) = FontReader::new(slice).at(offset as usize) {
+        if let Ok(f) = r.u16() {
+            format = f;
         }
+    }
+    if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
+        return subtable_from_raw(
+            read_contextual_format1(subtable, data, table_length, offset, max_glyphs),
+            Subtable::Chaining,
+        );
+    } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
+        return subtable_from_raw(
+            read_contextual_format2(subtable, data, table_length, offset, max_glyphs),
+            Subtable::Chaining,
+        );
+    } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
+        let rule_ptr = general_read_contextual_rule(
+            data,
+            table_length,
+            offset.wrapping_add(2 as u32),
+            0 as u16,
+            false,
+            Some(
+                format3_coverage
+                    as unsafe extern "C" fn(
+                        FontFilePointer,
+                        u32,
+                        u16,
+                        u32,
+                        u16,
+                        GlyphId,
+                        *mut ::core::ffi::c_void,
+                    ) -> *mut Coverage,
+            ),
+            max_glyphs,
+            NULL,
+        );
+        (*ruleset).rules.push(rule_ptr);
+        return subtable_from_raw(subtable, Subtable::Chaining);
     }
     logger_log_sds(
         (*options).logger,
@@ -636,250 +587,137 @@ pub unsafe fn general_read_chaining_rule(
     max_glyphs: GlyphId,
     mut userdata: *mut ::core::ffi::c_void,
 ) -> Option<Box<ChainingRule>> {
-    let mut n_back: TableId = 0;
-    let mut n_input: TableId = 0;
-    let mut n_lookaround: TableId = 0;
-    let mut n_apply: TableId = 0;
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+    let minus_one_q: u16 = minus_one as u16;
+
+    // Four counts read back-to-back, each immediately followed by a skip
+    // over the array it introduces -- `n_back`/`backtrackArray`,
+    // `n_input`/`inputArray` (minus the `minus_one` slot), `n_lookaround`/
+    // `lookaheadArray`, then `n_apply` itself. This sequence of
+    // read-then-`require_room`-then-skip steps enforces exactly the same
+    // cumulative byte requirement the original's four incremental
+    // `table_length < ...` guards did (each of those checked the running
+    // total so far plus room for the next 2-byte count field; here each
+    // step's own `u16()`/`require_room` call demands precisely that).
+    let mut header = FontReader::new(slice).at(offset as usize).ok()?;
+    let n_back = header.u16().ok()?;
+    header.require_room(n_back as usize, 2).ok()?;
+    header.skip(n_back as usize * 2).ok()?;
+    let n_input = header.u16().ok()?;
+    let n_input_read = n_input.saturating_sub(minus_one_q);
+    header.require_room(n_input_read as usize, 2).ok()?;
+    header.skip(n_input_read as usize * 2).ok()?;
+    let n_lookaround = header.u16().ok()?;
+    header.require_room(n_lookaround as usize, 2).ok()?;
+    header.skip(n_lookaround as usize * 2).ok()?;
+    let n_apply = header.u16().ok()?;
+    header.require_room(n_apply as usize, 4).ok()?;
+
     // `Box` is the allocation, the struct literal is the zero-init the old
     // `__caryll_allocate_clean` provided -- see `general_read_contextual_rule`.
+    // `match_count`/`input_ends` used `c_int` addition then truncated to
+    // `TableId` (u16) in the original; `wrapping_add` reproduces that
+    // truncation instead of panicking on an overflowing plain `+` (each of
+    // `n_back`/`n_input`/`n_lookaround` is individually u16-bounded, but
+    // their sum is not).
+    let match_count = n_back.wrapping_add(n_input).wrapping_add(n_lookaround);
+    let input_ends = n_back.wrapping_add(n_input);
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
-        match_count: 0 as TableId,
-        input_begins: 0 as TableId,
-        input_ends: 0 as TableId,
+        match_count: match_count as TableId,
+        input_begins: n_back,
+        input_ends: input_ends as TableId,
         match_0: Vec::new(),
         apply: Vec::new(),
     });
-    let mut minus_one_q: u16 = (if minus_one as ::core::ffi::c_int != 0 {
-        1 as ::core::ffi::c_int
-    } else {
-        0 as ::core::ffi::c_int
-    }) as u16;
-    if !(table_length < offset.wrapping_add(8 as u32)) {
-        n_back = read_16u(data.offset(offset as isize) as *const u8) as TableId;
-        if !(table_length
-            < offset
-                .wrapping_add(2 as u32)
-                .wrapping_add((2 as ::core::ffi::c_int * n_back as ::core::ffi::c_int) as u32)
-                .wrapping_add(2 as u32))
-        {
-            n_input = read_16u(
-                data.offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize)
-                    .offset((2 as ::core::ffi::c_int * n_back as ::core::ffi::c_int) as isize)
-                    as *const u8,
-            ) as TableId;
-            if !(table_length
-                < offset
-                    .wrapping_add(4 as u32)
-                    .wrapping_add(
-                        (2 as ::core::ffi::c_int
-                            * (n_back as ::core::ffi::c_int + n_input as ::core::ffi::c_int
-                                - minus_one_q as ::core::ffi::c_int))
-                            as u32,
-                    )
-                    .wrapping_add(2 as u32))
-            {
-                n_lookaround = read_16u(
-                    data.offset(offset as isize)
-                        .offset(4 as ::core::ffi::c_int as isize)
-                        .offset(
-                            (2 as ::core::ffi::c_int
-                                * (n_back as ::core::ffi::c_int + n_input as ::core::ffi::c_int
-                                    - minus_one_q as ::core::ffi::c_int))
-                                as isize,
-                        ) as *const u8,
-                ) as TableId;
-                if !(table_length
-                    < offset
-                        .wrapping_add(6 as u32)
-                        .wrapping_add(
-                            (2 as ::core::ffi::c_int
-                                * (n_back as ::core::ffi::c_int + n_input as ::core::ffi::c_int
-                                    - minus_one_q as ::core::ffi::c_int
-                                    + n_lookaround as ::core::ffi::c_int))
-                                as u32,
-                        )
-                        .wrapping_add(2 as u32))
-                {
-                    n_apply = read_16u(
-                        data.offset(offset as isize)
-                            .offset(6 as ::core::ffi::c_int as isize)
-                            .offset(
-                                (2 as ::core::ffi::c_int
-                                    * (n_back as ::core::ffi::c_int + n_input as ::core::ffi::c_int
-                                        - minus_one_q as ::core::ffi::c_int
-                                        + n_lookaround as ::core::ffi::c_int))
-                                    as isize,
-                            ) as *const u8,
-                    ) as TableId;
-                    if !(table_length
-                        < offset
-                            .wrapping_add(8 as u32)
-                            .wrapping_add(
-                                (2 as ::core::ffi::c_int
-                                    * (n_back as ::core::ffi::c_int + n_input as ::core::ffi::c_int
-                                        - minus_one_q as ::core::ffi::c_int
-                                        + n_lookaround as ::core::ffi::c_int))
-                                    as u32,
-                            )
-                            .wrapping_add(
-                                (n_apply as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
-                                    as u32,
-                            ))
-                    {
-                        (*rule).match_count = (n_back as ::core::ffi::c_int
-                            + n_input as ::core::ffi::c_int
-                            + n_lookaround as ::core::ffi::c_int)
-                            as TableId;
-                        (*rule).input_begins = n_back;
-                        (*rule).input_ends = (n_back as ::core::ffi::c_int
-                            + n_input as ::core::ffi::c_int)
-                            as TableId;
-                        // Filled in order below (backtrack, then the
-                        // `minus_one` slot, then input, then lookaround) --
-                        // every one of the `match_count` slots is written
-                        // exactly once, in increasing index order, so
-                        // `.push()` is the direct replacement for the old
-                        // `jj`-indexed writes (`jj` itself is gone: it was
-                        // only ever used as that index).
-                        (*rule).match_0 = Vec::with_capacity((*rule).match_count as usize);
-                        let mut j: TableId = 0 as TableId;
-                        while (j as ::core::ffi::c_int) < n_back as ::core::ffi::c_int {
-                            let mut gid: u32 = read_16u(
-                                data.offset(offset as isize)
-                                    .offset(2 as ::core::ffi::c_int as isize)
-                                    .offset(
-                                        (j as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                            as isize,
-                                    ) as *const u8,
-                            ) as u32;
-                            (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                                data,
-                                table_length,
-                                gid as u16,
-                                offset,
-                                1 as u16,
-                                max_glyphs,
-                                userdata,
-                            )));
-                            j = j.wrapping_add(1);
-                        }
-                        if minus_one {
-                            (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                                data,
-                                table_length,
-                                start_gid,
-                                offset,
-                                2 as u16,
-                                max_glyphs,
-                                userdata,
-                            )));
-                        }
-                        let mut j_0: TableId = 0 as TableId;
-                        while (j_0 as ::core::ffi::c_int)
-                            < n_input as ::core::ffi::c_int - minus_one_q as ::core::ffi::c_int
-                        {
-                            let mut gid_0: u32 = read_16u(
-                                data.offset(offset as isize)
-                                    .offset(4 as ::core::ffi::c_int as isize)
-                                    .offset(
-                                        (2 as ::core::ffi::c_int
-                                            * (*rule).input_begins as ::core::ffi::c_int)
-                                            as isize,
-                                    )
-                                    .offset(
-                                        (j_0 as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                            as isize,
-                                    ) as *const u8,
-                            ) as u32;
-                            (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                                data,
-                                table_length,
-                                gid_0 as u16,
-                                offset,
-                                2 as u16,
-                                max_glyphs,
-                                userdata,
-                            )));
-                            j_0 = j_0.wrapping_add(1);
-                        }
-                        let mut j_1: TableId = 0 as TableId;
-                        while (j_1 as ::core::ffi::c_int) < n_lookaround as ::core::ffi::c_int {
-                            let mut gid_1: u32 = read_16u(
-                                data.offset(offset as isize)
-                                    .offset(6 as ::core::ffi::c_int as isize)
-                                    .offset(
-                                        (2 as ::core::ffi::c_int
-                                            * ((*rule).input_ends as ::core::ffi::c_int
-                                                - minus_one_q as ::core::ffi::c_int))
-                                            as isize,
-                                    )
-                                    .offset(
-                                        (j_1 as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                            as isize,
-                                    ) as *const u8,
-                            ) as u32;
-                            (*rule).match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                                data,
-                                table_length,
-                                gid_1 as u16,
-                                offset,
-                                3 as u16,
-                                max_glyphs,
-                                userdata,
-                            )));
-                            j_1 = j_1.wrapping_add(1);
-                        }
-                        (*rule).apply = Vec::with_capacity(n_apply as usize);
-                        let mut j_2: TableId = 0 as TableId;
-                        while (j_2 as ::core::ffi::c_int) < n_apply as ::core::ffi::c_int {
-                            let index = ((*rule).input_begins as ::core::ffi::c_int
-                                + read_16u(
-                                    data.offset(offset as isize)
-                                        .offset(8 as ::core::ffi::c_int as isize)
-                                        .offset(
-                                            (2 as ::core::ffi::c_int
-                                                * ((*rule).match_count as ::core::ffi::c_int
-                                                    - minus_one_q as ::core::ffi::c_int))
-                                                as isize,
-                                        )
-                                        .offset(
-                                            (j_2 as ::core::ffi::c_int * 4 as ::core::ffi::c_int)
-                                                as isize,
-                                        ) as *const u8,
-                                ) as ::core::ffi::c_int)
-                                as TableId;
-                            let lookup = handle_from_index(
-                                read_16u(
-                                    data.offset(offset as isize)
-                                        .offset(8 as ::core::ffi::c_int as isize)
-                                        .offset(
-                                            (2 as ::core::ffi::c_int
-                                                * ((*rule).match_count as ::core::ffi::c_int
-                                                    - minus_one_q as ::core::ffi::c_int))
-                                                as isize,
-                                        )
-                                        .offset(
-                                            (j_2 as ::core::ffi::c_int
-                                                * 4 as ::core::ffi::c_int)
-                                                as isize,
-                                        )
-                                        .offset(2 as ::core::ffi::c_int as isize)
-                                        as *const u8,
-                                ) as GlyphId,
-                            ) as LookupHandle;
-                            (*rule).apply.push(ChainLookupApplication { index, lookup });
-                            j_2 = j_2.wrapping_add(1);
-                        }
-                        reverse_backtracks(&mut *rule as *mut ChainingRule);
-                        return Some(rule);
-                    }
-                }
-            }
-        }
+    // Filled in order below (backtrack, then the `minus_one` slot, then
+    // input, then lookaround) -- every one of the `match_count` slots is
+    // written exactly once, in increasing index order, so `.push()` is the
+    // direct replacement for the old `jj`-indexed writes (`jj` itself is
+    // gone: it was only ever used as that index).
+    rule.match_0 = Vec::with_capacity(match_count as usize);
+    for j in 0..n_back {
+        let gid = FontReader::new(slice)
+            .at(offset as usize + 2 + 2 * j as usize)
+            .unwrap()
+            .u16()
+            .unwrap();
+        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+            data,
+            table_length,
+            gid,
+            offset,
+            1 as u16,
+            max_glyphs,
+            userdata,
+        )));
     }
-    // `rule` drops here automatically -- see `general_read_contextual_rule`.
-    return None;
+    if minus_one {
+        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+            data,
+            table_length,
+            start_gid,
+            offset,
+            2 as u16,
+            max_glyphs,
+            userdata,
+        )));
+    }
+    // Array positions derived the same way `header`'s cursor validated
+    // them above (cumulative `usize` addition on the *reduced* counts),
+    // rather than by re-subtracting `minus_one_q` from `input_ends`/
+    // `match_count` the way the original's pointer arithmetic did --
+    // avoids a `u16` underflow when a malformed `n_input < minus_one_q`
+    // makes those two disagree (see `n_input_read` above), and always
+    // agrees with them when they don't.
+    let input_base = offset as usize + 4 + 2 * n_back as usize;
+    for j0 in 0..n_input_read {
+        let gid = FontReader::new(slice)
+            .at(input_base + 2 * j0 as usize)
+            .unwrap()
+            .u16()
+            .unwrap();
+        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+            data,
+            table_length,
+            gid,
+            offset,
+            2 as u16,
+            max_glyphs,
+            userdata,
+        )));
+    }
+    let lookaround_base = input_base + 2 * n_input_read as usize + 2;
+    for j1 in 0..n_lookaround {
+        let gid = FontReader::new(slice)
+            .at(lookaround_base + 2 * j1 as usize)
+            .unwrap()
+            .u16()
+            .unwrap();
+        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+            data,
+            table_length,
+            gid,
+            offset,
+            3 as u16,
+            max_glyphs,
+            userdata,
+        )));
+    }
+
+    rule.apply = Vec::with_capacity(n_apply as usize);
+    let apply_base = lookaround_base + 2 * n_lookaround as usize + 2;
+    for j2 in 0..n_apply {
+        let mut lr = FontReader::new(slice)
+            .at(apply_base + 4 * j2 as usize)
+            .unwrap();
+        let seq_index = lr.u16().unwrap();
+        let lookup_index = lr.u16().unwrap();
+        let index = rule.input_begins.wrapping_add(seq_index);
+        let lookup = handle_from_index(lookup_index) as LookupHandle;
+        rule.apply.push(ChainLookupApplication { index, lookup });
+    }
+    reverse_backtracks(&mut *rule as *mut ChainingRule);
+    Some(rule)
 }
 unsafe fn read_chaining_format1(
     mut subtable: *mut ChainingSubtable,
@@ -888,136 +726,105 @@ unsafe fn read_chaining_format1(
     mut offset: u32,
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
-    let mut cov_offset: u16 = 0;
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let mut first_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    let mut chain_sub_rule_set_count: TableId = 0;
-    let mut total_rules: TableId = 0;
-    let mut current_block: u64;
-    if !(table_length < offset.wrapping_add(6 as u32)) {
-        cov_offset = offset.wrapping_add(read_16u(
-            data.offset(offset as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-        ) as u32) as u16;
-        first_coverage = read_coverage(
-            data as *const u8,
-            table_length,
-            cov_offset as u32,
-        );
-        chain_sub_rule_set_count = read_16u(
-            data.offset(offset as isize)
-                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-        ) as TableId;
-        if !(chain_sub_rule_set_count as ::core::ffi::c_int
-            != (*first_coverage).len() as ::core::ffi::c_int)
-        {
-            if !(table_length
-                < offset.wrapping_add(6 as u32).wrapping_add(
-                    (2 as ::core::ffi::c_int * chain_sub_rule_set_count as ::core::ffi::c_int)
-                        as u32,
-                ))
-            {
-                total_rules = 0 as TableId;
-                let mut j: TableId = 0 as TableId;
-                loop {
-                    if !((j as ::core::ffi::c_int) < chain_sub_rule_set_count as ::core::ffi::c_int) {
-                        current_block = 4166486009154926805;
-                        break;
-                    }
-                    let mut srs_offset: u32 = offset.wrapping_add(read_16u(
-                        data.offset(offset as isize)
-                            .offset(6 as ::core::ffi::c_int as isize)
-                            .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                            as *const u8,
-                    )
-                        as u32);
-                    if table_length < srs_offset.wrapping_add(2 as u32) {
-                        current_block = 17398460390698728049;
-                        break;
-                    }
-                    total_rules = (total_rules as ::core::ffi::c_int
-                        + read_16u(data.offset(srs_offset as isize) as *const u8)
-                            as ::core::ffi::c_int) as TableId;
-                    if table_length
-                        < srs_offset.wrapping_add(2 as u32).wrapping_add(
-                            (2 as ::core::ffi::c_int
-                                * read_16u(data.offset(srs_offset as isize) as *const u8)
-                                    as ::core::ffi::c_int) as u32,
-                        )
-                    {
-                        current_block = 17398460390698728049;
-                        break;
-                    }
-                    j = j.wrapping_add(1);
-                }
-                match current_block {
-                    17398460390698728049 => {}
-                    _ => {
-                        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-                        (*ruleset).rules = Vec::with_capacity(total_rules as usize);
-                        let mut j_0: TableId = 0 as TableId;
-                        while (j_0 as ::core::ffi::c_int)
-                            < chain_sub_rule_set_count as ::core::ffi::c_int
-                        {
-                            let mut srs_offset_0: u32 = offset.wrapping_add(read_16u(
-                                data.offset(offset as isize)
-                                    .offset(6 as ::core::ffi::c_int as isize)
-                                    .offset(
-                                        (j_0 as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                            as isize,
-                                    ) as *const u8,
+
+    let result: Option<()> = 'parse: {
+        let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
+            break 'parse None;
+        };
+        let Ok(cov_rel) = header.u16() else { break 'parse None };
+        let Ok(chain_sub_rule_set_count) = header.u16() else {
+            break 'parse None;
+        };
+        let cov_offset = offset.wrapping_add(cov_rel as u32);
+        // `read_coverage` always returns a valid (possibly empty) `Coverage`
+        // shell, never null, even on malformed input -- see coverage.rs.
+        first_coverage = read_coverage(data as *const u8, table_length, cov_offset);
+        if chain_sub_rule_set_count as usize != (*first_coverage).len() {
+            break 'parse None;
+        }
+        if header.require_room(chain_sub_rule_set_count as usize, 2).is_err() {
+            break 'parse None;
+        }
+
+        let mut total_rules: usize = 0;
+        for j in 0..chain_sub_rule_set_count {
+            let srs_rel = FontReader::new(slice)
+                .at(offset as usize + 6 + 2 * j as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            let srs_offset = offset.wrapping_add(srs_rel as u32);
+            let Ok(mut srs_header) = FontReader::new(slice).at(srs_offset as usize) else {
+                break 'parse None;
+            };
+            let Ok(srs_count) = srs_header.u16() else {
+                break 'parse None;
+            };
+            if srs_header.require_room(srs_count as usize, 2).is_err() {
+                break 'parse None;
+            }
+            total_rules = total_rules.saturating_add(srs_count as usize);
+        }
+
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        (*ruleset).rules = Vec::with_capacity(total_rules);
+        for j in 0..chain_sub_rule_set_count {
+            let srs_rel = FontReader::new(slice)
+                .at(offset as usize + 6 + 2 * j as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            let srs_offset = offset.wrapping_add(srs_rel as u32);
+            let srs_count = FontReader::new(slice)
+                .at(srs_offset as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            for k in 0..srs_count {
+                let sr_rel = FontReader::new(slice)
+                    .at(srs_offset as usize + 2 + 2 * k as usize)
+                    .unwrap()
+                    .u16()
+                    .unwrap();
+                let sr_offset = srs_offset.wrapping_add(sr_rel as u32);
+                let rule_ptr = general_read_chaining_rule(
+                    data,
+                    table_length,
+                    sr_offset,
+                    (&(*first_coverage))[j as usize].index as u16,
+                    true,
+                    Some(
+                        single_coverage
+                            as unsafe extern "C" fn(
+                                FontFilePointer,
+                                u32,
+                                u16,
+                                u32,
+                                u16,
+                                GlyphId,
+                                *mut ::core::ffi::c_void,
                             )
-                                as u32);
-                            let mut srs_count: TableId =
-                                read_16u(data.offset(srs_offset_0 as isize) as *const u8)
-                                    as TableId;
-                            let mut k: TableId = 0 as TableId;
-                            while (k as ::core::ffi::c_int) < srs_count as ::core::ffi::c_int {
-                                let mut sr_offset: u32 = srs_offset_0.wrapping_add(read_16u(
-                                    data.offset(srs_offset_0 as isize)
-                                        .offset(2 as ::core::ffi::c_int as isize)
-                                        .offset(
-                                            (k as ::core::ffi::c_int * 2 as ::core::ffi::c_int)
-                                                as isize,
-                                        ) as *const u8,
-                                )
-                                    as u32);
-                                let rule_ptr = general_read_chaining_rule(
-                                    data,
-                                    table_length,
-                                    sr_offset,
-                                    (&(*first_coverage))[j_0 as usize].index
-                                        as u16,
-                                    true,
-                                    Some(
-                                        single_coverage
-                                            as unsafe extern "C" fn(
-                                                FontFilePointer,
-                                                u32,
-                                                u16,
-                                                u32,
-                                                u16,
-                                                GlyphId,
-                                                *mut ::core::ffi::c_void,
-                                            )
-                                                -> *mut Coverage,
-                                    ),
-                                    max_glyphs,
-                                    NULL,
-                                );
-                                (*ruleset).rules.push(rule_ptr);
-                                k = k.wrapping_add(1);
-                            }
-                            j_0 = j_0.wrapping_add(1);
-                        }
-                        otl_coverage_free(first_coverage);
-                        return subtable;
-                    }
-                }
+                                -> *mut Coverage,
+                    ),
+                    max_glyphs,
+                    NULL,
+                );
+                (*ruleset).rules.push(rule_ptr);
             }
         }
+        break 'parse Some(());
+    };
+
+    // Same fallthrough leak `read_contextual_format1` had: `first_coverage`
+    // was only freed on the success path. Freed exactly once here instead.
+    otl_coverage_free(first_coverage);
+    if result.is_some() {
+        return subtable;
     }
     subtable_chaining_free(subtable);
-    return ::core::ptr::null_mut::<ChainingSubtable>();
+    ::core::ptr::null_mut::<ChainingSubtable>()
 }
 unsafe fn read_chaining_format2(
     mut subtable: *mut ChainingSubtable,
@@ -1026,11 +833,23 @@ unsafe fn read_chaining_format2(
     mut offset: u32,
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let mut cds: *mut ClassDefs = ::core::ptr::null_mut::<ClassDefs>();
-    let mut chain_sub_class_set_cnt: TableId = 0;
-    let mut total_rules: TableId = 0;
-    if !(table_length < offset.wrapping_add(12 as u32)) {
-        cds = ::core::ptr::null_mut::<ClassDefs>();
+
+    let result: Option<()> = 'parse: {
+        let Ok(mut header) = FontReader::new(slice).at(offset as usize + 4) else {
+            break 'parse None;
+        };
+        let Ok(bc_rel) = header.u16() else { break 'parse None };
+        let Ok(ic_rel) = header.u16() else { break 'parse None };
+        let Ok(fc_rel) = header.u16() else { break 'parse None };
+        let Ok(chain_sub_class_set_cnt) = header.u16() else {
+            break 'parse None;
+        };
+        if header.require_room(chain_sub_class_set_cnt as usize, 2).is_err() {
+            break 'parse None;
+        }
+
         cds = __caryll_allocate_clean(
             ::core::mem::size_of::<ClassDefs>() as usize,
             349 as ::core::ffi::c_ulong,
@@ -1038,126 +857,103 @@ unsafe fn read_chaining_format2(
         (*cds).bc = read_class_def(
             data as *const u8,
             table_length,
-            offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
+            offset.wrapping_add(bc_rel as u32),
         );
         (*cds).ic = read_class_def(
             data as *const u8,
             table_length,
-            offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(6 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
+            offset.wrapping_add(ic_rel as u32),
         );
         (*cds).fc = read_class_def(
             data as *const u8,
             table_length,
-            offset.wrapping_add(read_16u(
-                data.offset(offset as isize)
-                    .offset(8 as ::core::ffi::c_int as isize) as *const u8,
-            ) as u32),
+            offset.wrapping_add(fc_rel as u32),
         );
-        chain_sub_class_set_cnt = read_16u(
-            data.offset(offset as isize)
-                .offset(10 as ::core::ffi::c_int as isize) as *const u8,
-        ) as TableId;
-        if !(table_length
-            < offset.wrapping_add(12 as u32).wrapping_add(
-                (2 as ::core::ffi::c_int * chain_sub_class_set_cnt as ::core::ffi::c_int) as u32,
-            ))
-        {
-            total_rules = 0 as TableId;
-            let mut j: TableId = 0 as TableId;
-            while (j as ::core::ffi::c_int) < chain_sub_class_set_cnt as ::core::ffi::c_int {
-                let mut src_offset: u32 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(12 as ::core::ffi::c_int as isize)
-                        .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                        as *const u8,
-                ) as u32;
-                if src_offset != 0 {
-                    total_rules = (total_rules as ::core::ffi::c_int
-                        + read_16u(data.offset(offset as isize).offset(src_offset as isize)
-                            as *const u8) as ::core::ffi::c_int)
-                        as TableId;
-                }
-                j = j.wrapping_add(1);
+
+        // First pass: validate every non-empty ClassSet's own header +
+        // rule-offset array. The original had NO guard at all here (same
+        // missing-guard shape as `read_contextual_format2`'s ClassSet
+        // loop) -- every read below ran straight off `offset + src_offset`
+        // with no bounds check. Now guarded like every sibling array.
+        let mut total_rules: usize = 0;
+        for j in 0..chain_sub_class_set_cnt {
+            let src_rel = FontReader::new(slice)
+                .at(offset as usize + 12 + 2 * j as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            if src_rel == 0 {
+                continue;
             }
-            let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-            (*ruleset).rules = Vec::with_capacity(total_rules as usize);
-            let mut j_0: TableId = 0 as TableId;
-            while (j_0 as ::core::ffi::c_int) < chain_sub_class_set_cnt as ::core::ffi::c_int {
-                let mut src_offset_0: u32 = read_16u(
-                    data.offset(offset as isize)
-                        .offset(12 as ::core::ffi::c_int as isize)
-                        .offset((j_0 as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
-                        as *const u8,
-                ) as u32;
-                if src_offset_0 != 0 {
-                    let mut srs_count: TableId =
-                        read_16u(data.offset(offset as isize).offset(src_offset_0 as isize)
-                            as *const u8) as TableId;
-                    let mut k: TableId = 0 as TableId;
-                    while (k as ::core::ffi::c_int) < srs_count as ::core::ffi::c_int {
-                        let mut dsr_offset: u32 = read_16u(
-                            data.offset(offset as isize)
-                                .offset(src_offset_0 as isize)
-                                .offset(2 as ::core::ffi::c_int as isize)
-                                .offset(
-                                    (k as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
-                                ) as *const u8,
-                        ) as u32;
-                        let mut sr_offset: u32 =
-                            offset.wrapping_add(src_offset_0).wrapping_add(dsr_offset);
-                        let rule_ptr = general_read_chaining_rule(
-                            data,
-                            table_length,
-                            sr_offset,
-                            j_0 as u16,
-                            true,
-                            Some(
-                                class_coverage
-                                    as unsafe extern "C" fn(
-                                        FontFilePointer,
-                                        u32,
-                                        u16,
-                                        u32,
-                                        u16,
-                                        GlyphId,
-                                        *mut ::core::ffi::c_void,
-                                    )
-                                        -> *mut Coverage,
-                            ),
-                            max_glyphs,
-                            cds as *mut ::core::ffi::c_void,
-                        );
-                        (*ruleset).rules.push(rule_ptr);
-                        k = k.wrapping_add(1);
-                    }
-                }
-                j_0 = j_0.wrapping_add(1);
+            let Ok(mut cs_header) = FontReader::new(slice).at(offset as usize + src_rel as usize)
+            else {
+                break 'parse None;
+            };
+            let Ok(srs_count) = cs_header.u16() else {
+                break 'parse None;
+            };
+            if cs_header.require_room(srs_count as usize, 2).is_err() {
+                break 'parse None;
             }
-            if !cds.is_null() {
-                if !(*cds).bc.is_null() {
-                    otl_class_def_free((*cds).bc);
-                }
-                if !(*cds).ic.is_null() {
-                    otl_class_def_free((*cds).ic);
-                }
-                if !(*cds).fc.is_null() {
-                    otl_class_def_free((*cds).fc);
-                }
-                free(cds as *mut ::core::ffi::c_void);
-                cds = ::core::ptr::null_mut::<ClassDefs>();
-            }
-            return subtable;
+            total_rules = total_rules.saturating_add(srs_count as usize);
         }
-    }
-    // Same fallthrough leak `read_contextual_format2` had: `cds` (and its
-    // populated `.bc`/`.ic`/`.fc`, from the first length check passing
-    // above) was never freed on this malformed-input path.
+
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        (*ruleset).rules = Vec::with_capacity(total_rules);
+        for j in 0..chain_sub_class_set_cnt {
+            let src_rel = FontReader::new(slice)
+                .at(offset as usize + 12 + 2 * j as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            if src_rel == 0 {
+                continue;
+            }
+            let srs_count = FontReader::new(slice)
+                .at(offset as usize + src_rel as usize)
+                .unwrap()
+                .u16()
+                .unwrap();
+            for k in 0..srs_count {
+                let dsr_rel = FontReader::new(slice)
+                    .at(offset as usize + src_rel as usize + 2 + 2 * k as usize)
+                    .unwrap()
+                    .u16()
+                    .unwrap();
+                let sr_offset = offset
+                    .wrapping_add(src_rel as u32)
+                    .wrapping_add(dsr_rel as u32);
+                let rule_ptr = general_read_chaining_rule(
+                    data,
+                    table_length,
+                    sr_offset,
+                    j as u16,
+                    true,
+                    Some(
+                        class_coverage
+                            as unsafe extern "C" fn(
+                                FontFilePointer,
+                                u32,
+                                u16,
+                                u32,
+                                u16,
+                                GlyphId,
+                                *mut ::core::ffi::c_void,
+                            )
+                                -> *mut Coverage,
+                    ),
+                    max_glyphs,
+                    cds as *mut ::core::ffi::c_void,
+                );
+                (*ruleset).rules.push(rule_ptr);
+            }
+        }
+        break 'parse Some(());
+    };
+
+    // `cds` cleanup, run exactly once regardless of outcome -- same
+    // consolidation as `read_contextual_format2` (the fallthrough-leak fix
+    // was already present as a duplicated block before this conversion).
     if !cds.is_null() {
         if !(*cds).bc.is_null() {
             otl_class_def_free((*cds).bc);
@@ -1169,10 +965,12 @@ unsafe fn read_chaining_format2(
             otl_class_def_free((*cds).fc);
         }
         free(cds as *mut ::core::ffi::c_void);
-        cds = ::core::ptr::null_mut::<ClassDefs>();
+    }
+    if result.is_some() {
+        return subtable;
     }
     subtable_chaining_free(subtable);
-    return ::core::ptr::null_mut::<ChainingSubtable>();
+    ::core::ptr::null_mut::<ChainingSubtable>()
 }
 pub unsafe fn otl_read_chaining(
     data: FontFilePointer,
@@ -1181,50 +979,51 @@ pub unsafe fn otl_read_chaining(
     max_glyphs: GlyphId,
     mut options: *const Options,
 ) -> *mut Subtable {
-    let mut format: u16 = 0 as u16;
-    let mut subtable: *mut ChainingSubtable =
-        (
-            subtable_chaining_create)();
+    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+    let mut subtable: *mut ChainingSubtable = (subtable_chaining_create)();
     // See the identical comment in `otl_read_contextual`.
     *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
     let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-    if !(table_length < offset.wrapping_add(2 as u32)) {
-        format = read_16u(data.offset(offset as isize) as *const u8);
-        if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-            return subtable_from_raw(
-                read_chaining_format1(subtable, data, table_length, offset, max_glyphs),
-                Subtable::Chaining,
-            );
-        } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-            return subtable_from_raw(
-                read_chaining_format2(subtable, data, table_length, offset, max_glyphs),
-                Subtable::Chaining,
-            );
-        } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
-            let rule_ptr = general_read_chaining_rule(
-                data,
-                table_length,
-                offset.wrapping_add(2 as u32),
-                0 as u16,
-                false,
-                Some(
-                    format3_coverage
-                        as unsafe extern "C" fn(
-                            FontFilePointer,
-                            u32,
-                            u16,
-                            u32,
-                            u16,
-                            GlyphId,
-                            *mut ::core::ffi::c_void,
-                        ) -> *mut Coverage,
-                ),
-                max_glyphs,
-                NULL,
-            );
-            (*ruleset).rules.push(rule_ptr);
-            return subtable_from_raw(subtable, Subtable::Chaining);
+    let mut format: u16 = 0 as u16;
+    if let Ok(mut r) = FontReader::new(slice).at(offset as usize) {
+        if let Ok(f) = r.u16() {
+            format = f;
         }
+    }
+    if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
+        return subtable_from_raw(
+            read_chaining_format1(subtable, data, table_length, offset, max_glyphs),
+            Subtable::Chaining,
+        );
+    } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
+        return subtable_from_raw(
+            read_chaining_format2(subtable, data, table_length, offset, max_glyphs),
+            Subtable::Chaining,
+        );
+    } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
+        let rule_ptr = general_read_chaining_rule(
+            data,
+            table_length,
+            offset.wrapping_add(2 as u32),
+            0 as u16,
+            false,
+            Some(
+                format3_coverage
+                    as unsafe extern "C" fn(
+                        FontFilePointer,
+                        u32,
+                        u16,
+                        u32,
+                        u16,
+                        GlyphId,
+                        *mut ::core::ffi::c_void,
+                    ) -> *mut Coverage,
+            ),
+            max_glyphs,
+            NULL,
+        );
+        (*ruleset).rules.push(rule_ptr);
+        return subtable_from_raw(subtable, Subtable::Chaining);
     }
     logger_log_sds(
         (*options).logger,
@@ -1243,4 +1042,285 @@ pub unsafe fn otl_read_chaining(
 unsafe fn reverse_backtracks(mut rule: *mut ChainingRule) {
     let input_begins = (*rule).input_begins as usize;
     (&mut (*rule).match_0)[..input_begins].reverse();
+}
+
+#[cfg(test)]
+mod chaining_read_tests {
+    use super::*;
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    unsafe fn glyphs_of(cov: &Coverage) -> Vec<GlyphId> {
+        cov.iter().map(|h| h.index).collect()
+    }
+
+    #[test]
+    fn context_format3_reads_a_single_glyph_based_rule() {
+        // format=3, nInput=1, nApply=0, inputArray[0] = coverage shift (10,
+        // relative to the format3 rule's own subtable start), coverage
+        // table (format1, one glyph) at byte 10.
+        let mut data = [0u8; 16];
+        data[0..2].copy_from_slice(&3u16.to_be_bytes());
+        data[2..4].copy_from_slice(&1u16.to_be_bytes()); // nInput
+        data[4..6].copy_from_slice(&0u16.to_be_bytes()); // nApply
+        data[6..8].copy_from_slice(&10u16.to_be_bytes()); // shift -> byte 10
+        data[10..12].copy_from_slice(&1u16.to_be_bytes()); // coverage format 1
+        data[12..14].copy_from_slice(&1u16.to_be_bytes()); // glyphCount
+        data[14..16].copy_from_slice(&42u16.to_be_bytes()); // glyph
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_contextual(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                100,
+                &options as *const Options,
+            );
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::Chaining(sub) = &*boxed else { unreachable!() };
+            let ChainingSubtable::Poly(ruleset) = sub else { unreachable!() };
+            assert_eq!(ruleset.rules.len(), 1);
+            let rule = ruleset.rules[0].as_ref().unwrap();
+            assert_eq!(rule.match_0.len(), 1);
+            assert_eq!(glyphs_of(&rule.match_0[0]), vec![42]);
+            assert!(rule.apply.is_empty());
+        }
+    }
+
+    #[test]
+    fn context_format1_reads_one_rule_set_with_one_rule() {
+        // format=1, coverageOffset -> 16 (one glyph, id 5),
+        // chainSubRuleSetCount=1, srsOffset[0] -> 8.
+        // ChainSubRuleSet at 8: count=1, ruleOffset[0] -> 4 (abs 12).
+        // ChainSubRule at 12 (minus_one=true): nInput=1 (the coverage's own
+        // glyph fills the one slot), nApply=0.
+        let mut data = [0u8; 22];
+        data[0..2].copy_from_slice(&1u16.to_be_bytes()); // format
+        data[2..4].copy_from_slice(&16u16.to_be_bytes()); // coverageOffset
+        data[4..6].copy_from_slice(&1u16.to_be_bytes()); // chainSubRuleSetCount
+        data[6..8].copy_from_slice(&8u16.to_be_bytes()); // srsOffset[0]
+        data[8..10].copy_from_slice(&1u16.to_be_bytes()); // srs_count
+        data[10..12].copy_from_slice(&4u16.to_be_bytes()); // ruleOffset[0] (rel. to 8 -> 12)
+        data[12..14].copy_from_slice(&1u16.to_be_bytes()); // nInput
+        data[14..16].copy_from_slice(&0u16.to_be_bytes()); // nApply
+        data[16..18].copy_from_slice(&1u16.to_be_bytes()); // coverage format 1
+        data[18..20].copy_from_slice(&1u16.to_be_bytes()); // glyphCount
+        data[20..22].copy_from_slice(&5u16.to_be_bytes()); // glyph
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_contextual(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                100,
+                &options as *const Options,
+            );
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::Chaining(sub) = &*boxed else { unreachable!() };
+            let ChainingSubtable::Poly(ruleset) = sub else { unreachable!() };
+            assert_eq!(ruleset.rules.len(), 1);
+            let rule = ruleset.rules[0].as_ref().unwrap();
+            assert_eq!(rule.match_count, 1);
+            assert_eq!(glyphs_of(&rule.match_0[0]), vec![5]);
+        }
+    }
+
+    #[test]
+    fn context_format1_rule_set_count_mismatched_with_coverage_is_rejected() {
+        // chainSubRuleSetCount (2) doesn't match the coverage's glyph
+        // count (1) -- the original's own consistency check, preserved.
+        let mut data = [0u8; 12];
+        data[0..2].copy_from_slice(&1u16.to_be_bytes());
+        data[2..4].copy_from_slice(&6u16.to_be_bytes()); // coverageOffset -> 6
+        data[4..6].copy_from_slice(&2u16.to_be_bytes()); // count = 2
+        data[6..8].copy_from_slice(&1u16.to_be_bytes()); // coverage format 1
+        data[8..10].copy_from_slice(&1u16.to_be_bytes()); // glyphCount = 1
+        data[10..12].copy_from_slice(&9u16.to_be_bytes());
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_contextual(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                100,
+                &options as *const Options,
+            );
+            assert!(raw.is_null());
+        }
+    }
+
+    #[test]
+    fn context_format2_class_set_offset_past_the_table_end_is_rejected_instead_of_reading_oob() {
+        // The original read `srs_count` (and its rule-offset array)
+        // straight off `offset + classSetOffset[j]` with no guard at all --
+        // a `classSetOffset` pointing past `table_length` read out of
+        // bounds. `classSetOffset[0]` here (5000) is far past this
+        // 10-byte table.
+        let mut data = [0u8; 10];
+        data[0..2].copy_from_slice(&2u16.to_be_bytes()); // format
+        data[2..4].copy_from_slice(&0u16.to_be_bytes()); // unused field
+        data[4..6].copy_from_slice(&10u16.to_be_bytes()); // classDefOffset (past end, handled gracefully)
+        data[6..8].copy_from_slice(&1u16.to_be_bytes()); // chainSubClassSetCnt
+        data[8..10].copy_from_slice(&5000u16.to_be_bytes()); // classSetOffset[0]
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_contextual(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                100,
+                &options as *const Options,
+            );
+            assert!(raw.is_null());
+        }
+    }
+
+    #[test]
+    fn context_format2_zero_class_set_offset_is_skipped() {
+        // classSetOffset == 0 is a documented "no ruleset for this class"
+        // sentinel, not a real offset -- must not be dereferenced.
+        let mut data = [0u8; 10];
+        data[0..2].copy_from_slice(&2u16.to_be_bytes());
+        data[2..4].copy_from_slice(&0u16.to_be_bytes());
+        data[4..6].copy_from_slice(&10u16.to_be_bytes());
+        data[6..8].copy_from_slice(&1u16.to_be_bytes());
+        data[8..10].copy_from_slice(&0u16.to_be_bytes()); // classSetOffset[0] = 0
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_contextual(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                100,
+                &options as *const Options,
+            );
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::Chaining(sub) = &*boxed else { unreachable!() };
+            let ChainingSubtable::Poly(ruleset) = sub else { unreachable!() };
+            assert!(ruleset.rules.is_empty());
+        }
+    }
+
+    #[test]
+    fn chaining_format3_reads_backtrack_input_and_lookahead() {
+        // format=3, nBack=1, backtrack shift -> byte 20 (glyph 1),
+        // nInput=1, input shift -> byte 26 (glyph 2), nLookaround=1,
+        // lookaround shift -> byte 32 (glyph 3), nApply=0.
+        let mut data = [0u8; 38];
+        data[0..2].copy_from_slice(&3u16.to_be_bytes()); // format
+        data[2..4].copy_from_slice(&1u16.to_be_bytes()); // nBack
+        data[4..6].copy_from_slice(&20u16.to_be_bytes()); // backtrack shift
+        data[6..8].copy_from_slice(&1u16.to_be_bytes()); // nInput
+        data[8..10].copy_from_slice(&26u16.to_be_bytes()); // input shift
+        data[10..12].copy_from_slice(&1u16.to_be_bytes()); // nLookaround
+        data[12..14].copy_from_slice(&32u16.to_be_bytes()); // lookaround shift
+        data[14..16].copy_from_slice(&0u16.to_be_bytes()); // nApply
+        // Coverage tables (format 1, one glyph each) for the three shifts.
+        // Each `format3_coverage` call resolves to `offset + shift - 2`
+        // where `offset` is `general_read_chaining_rule`'s own offset
+        // (the dispatch's `offset + 2`, i.e. `2` here).
+        data[20..22].copy_from_slice(&1u16.to_be_bytes());
+        data[22..24].copy_from_slice(&1u16.to_be_bytes());
+        data[24..26].copy_from_slice(&1u16.to_be_bytes()); // backtrack glyph
+        data[26..28].copy_from_slice(&1u16.to_be_bytes());
+        data[28..30].copy_from_slice(&1u16.to_be_bytes());
+        data[30..32].copy_from_slice(&2u16.to_be_bytes()); // input glyph
+        data[32..34].copy_from_slice(&1u16.to_be_bytes());
+        data[34..36].copy_from_slice(&1u16.to_be_bytes());
+        data[36..38].copy_from_slice(&3u16.to_be_bytes()); // lookaround glyph
+        let options = zeroed_options();
+        unsafe {
+            let raw = otl_read_chaining(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                100,
+                &options as *const Options,
+            );
+            assert!(!raw.is_null());
+            let boxed = Box::from_raw(raw);
+            let Subtable::Chaining(sub) = &*boxed else { unreachable!() };
+            let ChainingSubtable::Poly(ruleset) = sub else { unreachable!() };
+            assert_eq!(ruleset.rules.len(), 1);
+            let rule = ruleset.rules[0].as_ref().unwrap();
+            // backtrack is stored reversed; here there's only one entry so
+            // the order is unaffected.
+            assert_eq!(
+                rule.match_0.iter().map(|c| glyphs_of(c)).collect::<Vec<_>>(),
+                vec![vec![1], vec![2], vec![3]]
+            );
+            assert_eq!(rule.input_begins, 1);
+            assert_eq!(rule.input_ends, 2);
+        }
+    }
+
+    #[test]
+    fn chaining_rule_with_input_count_below_the_minus_one_slot_does_not_panic() {
+        // A malformed `nInput` of 0 while this call site always wants the
+        // `minus_one` (coverage-implied) slot filled -- the original
+        // computed `nInput - minus_one_q` in signed `c_int` arithmetic and
+        // simply ran zero array-read iterations; a naive `u16` port of
+        // that subtraction would panic on overflow instead. Reached via
+        // `general_read_chaining_rule` directly since `read_chaining_format1`
+        // (the real caller of this path) also requires a fully valid,
+        // consistent outer coverage/ruleset structure this test isn't
+        // trying to build.
+        let mut data = [0u8; 10];
+        data[0..2].copy_from_slice(&0u16.to_be_bytes()); // nBack
+        data[2..4].copy_from_slice(&0u16.to_be_bytes()); // nInput (malformed: 0)
+        data[4..6].copy_from_slice(&0u16.to_be_bytes()); // nLookaround
+        data[6..8].copy_from_slice(&0u16.to_be_bytes()); // nApply
+        unsafe {
+            let rule = general_read_chaining_rule(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                7,
+                true,
+                Some(
+                    single_coverage
+                        as unsafe extern "C" fn(
+                            FontFilePointer,
+                            u32,
+                            u16,
+                            u32,
+                            u16,
+                            GlyphId,
+                            *mut ::core::ffi::c_void,
+                        ) -> *mut Coverage,
+                ),
+                100,
+                NULL,
+            );
+            let rule = rule.unwrap();
+            // Only the `minus_one` slot (glyph 7, from `start_gid`) is
+            // filled; the (empty) input array contributes nothing.
+            assert_eq!(rule.match_0.len(), 1);
+            assert_eq!(glyphs_of(&rule.match_0[0]), vec![7]);
+        }
+    }
+
+    #[test]
+    fn unsupported_format_logs_and_returns_null() {
+        let data = [0u8, 9]; // format = 9
+        let mut options = zeroed_options();
+        unsafe {
+            options.logger =
+                crate::logger::otfcc_new_logger(crate::logger::otfcc_new_empty_target());
+            let raw = otl_read_contextual(
+                data.as_ptr() as FontFilePointer,
+                data.len() as u32,
+                0,
+                100,
+                &options as *const Options,
+            );
+            assert!(raw.is_null());
+            crate::logger::logger_dispose(options.logger);
+        }
+    }
 }

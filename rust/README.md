@@ -932,6 +932,119 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1: `otl/subtables/chaining/read.rs` (1,246 lines) -- the
+  largest single file converted in the whole `otl/` family, and the last
+  piece of Stage 7-1's `otl` scope.** Two nearly-parallel implementations
+  live in this one file: "Context" (`general_read_contextual_rule`,
+  `read_contextual_format1/2`, `otl_read_contextual`) has no
+  backtrack/lookahead, "ChainContext" (`general_read_chaining_rule`,
+  `read_chaining_format1/2`, `otl_read_chaining`) has both -- each with
+  three binary formats (glyph-sequence, class-sequence, coverage-list).
+  `single_coverage`/`class_coverage`/`format3_coverage` (the
+  `CoverageReaderHandler` callbacks) and `reverse_backtracks` are
+  unchanged: the first two never touch raw font bytes, and
+  `format3_coverage` already passes its raw pointer/length straight
+  through to `read_coverage` unchanged, matching this file family's
+  established boundary discipline.
+  - **Three real, previously-undocumented bugs, plus one already-fixed
+    leak now consolidated.**
+    - **`read_contextual_format1`/`read_chaining_format1`: `first_coverage`
+      leaked on every failure path.** `read_coverage` always returns a
+      valid (never-null) shell even on malformed input, so this was never
+      a null-deref -- but the original only ever freed `first_coverage`
+      on the success `return subtable;` path; every guard failure below
+      it (count mismatch, truncated ruleset array, truncated per-rule
+      array) fell through to `subtable_chaining_free(subtable); return
+      null;` without touching it. Same shape as `gpos_mark_to_single.rs`/
+      `gsub_ligature.rs`'s Coverage leak, fixed the same way: a labeled
+      block evaluating to `Option<()>`, with `otl_coverage_free` run
+      exactly once, unconditionally, after it.
+    - **`read_contextual_format2`/`read_chaining_format2`: the
+      `ChainSubClassSet` array had *no guard at all*.** Unlike every
+      other array in this file family, the original read `srs_count` (and
+      then its own rule-offset array) straight off `offset +
+      classSetOffset[j]` with zero bounds checking -- a `classSetOffset`
+      pointing past `table_length` read out of bounds outright, not
+      merely past an overflowed guard. This is the same "no guard
+      whatsoever" shape `gsub_multi.rs`'s Sequence subtable and
+      `otl/read.rs`'s `langSysRecords`/`featureIndex` arrays had earlier
+      in this stage. Now guarded like every sibling array here; a
+      dedicated test (`context_format2_class_set_offset_past_the_table_
+      end_is_rejected_instead_of_reading_oob`) pins a `classSetOffset` of
+      5000 against a 10-byte table.
+    - **`general_read_chaining_rule`: a malformed `nInput < minus_one_q`
+      (a font can set `nInput = 0` while this call site always wants its
+      one coverage-implied slot filled) would underflow a `u16`
+      subtraction and panic**, where the original's signed `c_int`
+      arithmetic just ran zero array-read iterations. `general_read_
+      contextual_rule` has the analogous case. Fixed by computing the
+      reduced count once with `saturating_sub` (for loop bounds) and by
+      deriving every array's start position through cumulative `usize`
+      addition on that already-validated count, rather than re-deriving
+      it via `match_count - minus_one_q`/`input_ends - minus_one_q`
+      subtraction the way the original's pointer arithmetic did -- the
+      two disagree exactly in this degenerate case, and the `usize`
+      version is both panic-free and the one that actually matches where
+      `FontReader`'s own guards validated. Pinned by
+      `chaining_rule_with_input_count_below_the_minus_one_slot_does_not_
+      panic`.
+  - **The already-present `cds` (`ClassDefs`) leak-on-failure fix in
+    `read_contextual_format2`/`read_chaining_format2` is preserved, not
+    newly found here.** Both functions already had a duplicated cleanup
+    block on the fallthrough failure path (with a comment explaining the
+    leak it closes) from an earlier, pre-`FontReader` pass. Consolidated
+    into one unconditional cleanup after the labeled block instead of two
+    copies of the same code, but the fix itself predates this PR.
+  - **Guard-threshold notes (behavior changes only on malformed input,
+    always in the safe/stricter-or-equal direction).**
+    `general_read_contextual_rule`'s guard is preserved exactly as
+    written (it reserves one array slot more than strictly needed even on
+    the `minus_one` path -- over-conservative, not tightened, to avoid
+    second-guessing a byte-accounting quirk that was already safe).
+    `general_read_chaining_rule`'s four sequential `FontReader` reads
+    reproduce the original's four incremental guards exactly (each
+    demands precisely the next field/array, matching the original's
+    running-total-plus-next-field check). `read_contextual_format2`'s
+    `chainSubClassSet` array guard is 4 bytes tighter than the original's
+    (`offset+8+2*count` vs. the original's `offset+12+2*count`, which
+    reserved 4 bytes beyond the array's own real requirement) -- always
+    safe, since a `FontReader` read only ever demands the bytes the value
+    it produces actually needs.
+  - ClassDefs stays a `#[repr(C)]` struct of three raw `*mut ClassDef`
+    fields (not `Vec`/`Box`), so unlike the earlier `init_mark_to_*`
+    calloc'd-struct bug this migration found, plain `=` assignment onto
+    its `__caryll_allocate_clean`'d fields is not UB (no niche-optimized
+    type involved) -- confirmed, not changed.
+  - **No behavior change on any committed payload**: every payload stayed
+    byte-identical, including the 45 `gsub_chaining` and 1 `gpos_chaining`
+    lookup instances across the payload corpus (confirmed by grepping
+    `otfccdump` output), all exercised end-to-end by
+    `compare-with-golden.sh`/`run-cycles.sh`/`compare-roundtrips.js`. 8
+    new unit tests cover both fixed bugs, the underflow-panic fix, the
+    zero-classSetOffset sentinel, and a well-formed case for Context
+    format1/format3 and ChainContext format3.
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 1199 → 1080 (-119),
+    `current_block` 39 → 29 (-10), raw pointer types 6340 → 6299 (-41),
+    `as ::core::ffi::c_int` 5835 → 5632 (-203), `while` loops 725 → 710
+    (-15). `#![allow(unsafe_op_in_unsafe_fn)]` file count unchanged
+    (102/142): this file still defines `single_coverage`/`class_coverage`/
+    `format3_coverage` as raw-pointer `unsafe extern "C" fn`s and a
+    `#[repr(C)] ClassDefs` of raw pointers, none of which this PR's scope
+    (parse-boundary safety, not the C-ism removal in Stage 7-2/7-4)
+    touches.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 189 tests (was 181 -- 8 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log output,
+    zero exceptions), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes, `cargo miri test` clean locally
+    before pushing (174 passed, 0 failed, 15 ignored -- the ignored ones
+    are the pre-existing `libc::snprintf`-under-Miri exclusions, unrelated
+    to this file).
+  - Next: `glyf`/`gvar` (no length parameter at all, per the plan) and
+    `libcff/` (`gu1`-`gu4` duplicated readers, the CFF INDEX 4GB `memcpy`
+    overflow) -- Stage 7-1's remaining scope after `otl/` is now fully
+    converted.
+
 - **Stage 7-1: `otl/subtables/gpos_pair.rs` -- the last "regular" (non-
   chaining) subtable reader, and the most structurally complex file in
   this stage so far.** Two very different binary formats live in one
