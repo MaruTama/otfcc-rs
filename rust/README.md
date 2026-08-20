@@ -932,6 +932,61 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1 follow-up: `libcff/cff_parser.rs`'s `callsubr`/`callgsubr`
+  subroutine index bounds -- the other concrete gap flagged when
+  `cff_parse_outline` was first scoped out.** The subroutine index these
+  two CharString operators use is an entirely attacker-controlled Type2
+  operand (a stack value, popped and cast to `u32`). The original indexed
+  `gsubr`/`lsubr`'s own offset array with it via raw, unchecked
+  `.offset()` arithmetic, then used the (possibly garbage) result to
+  derive a *pointer and length* for a *recursive* `cff_parse_outline`
+  call -- a malformed subroutine index could recurse into arbitrary
+  memory. Fixed with one new helper, `locate_subr`, shared by both
+  operators.
+  - **`locate_subr` re-validates more than just "in bounds"**:
+    `extract_index` (`libcff/cff_index.rs`, an earlier PR in this same
+    push) only validates an INDEX's *last* offset entry, to close the
+    4GB-`memcpy` wraparound bug -- intermediate entries were never
+    checked at all, and can still be zero or non-monotonic. So beyond
+    `offset.get(idx)`/`offset.get(idx+1)` succeeding, `locate_subr` also
+    checks both entries are `>= 1` (the CFF INDEX spec's own 1-based
+    offset requirement), that the pair is non-decreasing, and that the
+    resulting byte range actually fits within the INDEX's own `data`.
+    Each of the three is independently pinned by its own test
+    (`a_zero_intermediate_offset_is_rejected`,
+    `a_non_monotonic_offset_pair_is_rejected`,
+    `a_range_past_the_actual_data_length_is_rejected_instead_of_reading_
+    oob`).
+  - **Deliberately not touched**: unbounded recursion depth (a
+    charstring's subroutines calling each other, even validly within
+    these new bounds) is a stack-overflow DoS, not a memory-safety bug,
+    and it's already a known, pre-existing, documented issue in this
+    exact interpreter -- `Cormorant-Medium.otf`/`WorkSans-Regular.otf`
+    are excluded from the fuzz corpus specifically because they trigger
+    it, and it reproduces in the original C toolchain too. Out of this
+    PR's scope; unrelated to the bug fixed here.
+  - **No behavior change on any committed payload**: `KRName-Regular-
+    O2.otf` (the CFF subroutinize variant, which exercises `callsubr`/
+    `callgsubr` far more heavily than the plain payload) stays
+    byte-identical on build, dump, and round-trip. 6 new unit tests on
+    `locate_subr` directly.
+  - `rust/scripts/survey-unsafe.sh` deltas: `.offset(` 942 → 934 (-8),
+    `as ::core::ffi::c_int` 5278 → 5276 (-2).
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 239 tests (was 233 -- 6 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (dump/build and log output,
+    zero exceptions, CFF payloads specifically confirmed), all
+    round-trip payloads stable, issue #1's lookup-alias regression still
+    passes, `cargo miri test` clean locally before pushing (223 passed, 0
+    failed, 16 pre-existing ignores).
+  - Between this PR and the previous one, both concrete gaps flagged when
+    `cff_parse_outline` was scoped out of Stage 7-1 proper are now
+    closed. What's left in this area -- `libcff/subr.rs`'s intrusive
+    linked list (the CFF subroutinize *build* path, Stage 7-2-g's own
+    hardest, separately-scoped piece) and the pre-existing unbounded-
+    recursion DoS noted above -- are both a different shape of task than
+    "add bounds checking to a raw-pointer reader."
+
 - **Stage 7-1 follow-up: `libcff/cff_codecs.rs`'s Type2/DICT token
   decoders -- the boundary gap the previous PR deliberately left open
   in `cff_parse_outline`.** That PR noted `cff_parse_outline` already
