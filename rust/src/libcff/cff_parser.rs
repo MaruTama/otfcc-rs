@@ -7,6 +7,7 @@ unsafe extern "C" {
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
+use crate::support::font_reader::{FontReader};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
@@ -33,20 +34,9 @@ use crate::libcff::cff_index::{extract_index, get_index_length, empty_index, cff
 /// real.
 const CFF_STANDARD_ENCODING_OFFSET: i32 = 0;
 const CFF_EXPERT_ENCODING_OFFSET: i32 = 1;
-#[inline]
-unsafe fn gu1(mut s: *mut u8, mut p: u32) -> u32 {
-    let mut b0: u32 = *s.offset(p as isize) as u32;
-    return b0;
-}
-#[inline]
-unsafe fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
-    let mut b0: u32 =
-        ((*s.offset(p as isize) as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
-    let mut b1: u32 = *s
-        .offset(p as isize)
-        .offset(1 as ::core::ffi::c_int as isize) as u32;
-    return b0 | b1;
-}
+// `gu1`/`gu2` (no bounds checking, no length parameter at all) are gone --
+// see `libcff/cff_index.rs`'s own conversion for the same move.
+//
 // Returns `CffEncoding` by value instead of writing through a `*mut
 // CffEncoding` out-param -- the same "unwrap_X_table"-adjacent shape as
 // every other `parse_*`/`read_*` function elsewhere in this migration
@@ -55,66 +45,87 @@ unsafe fn gu2(mut s: *mut u8, mut p: u32) -> u32 {
 // No longer `extern "C"`: `CffEncoding` is a data-carrying enum with no C
 // spelling, so claiming the C ABI would be a lie (`improper_ctypes_definitions`).
 // Only called from within this file, not part of the crate's public ABI.
-unsafe fn parse_encoding(mut cff: *mut CffFile, mut offset: i32) -> CffEncoding {
-    let mut data: *mut u8 = (*cff).raw_data;
+//
+// The original had no bounds checking anywhere in this function -- not on
+// `offset` (a negative value, reachable from a malformed DICT key, moved
+// the read pointer *before* the buffer), not on any of the three formats'
+// arrays. Every read now goes through one sequential `FontReader`: all
+// three formats lay their count field and array immediately after the
+// format byte with no gaps, so one reader walking forward covers the
+// whole record (matches `cff_extract_fd_select`'s equivalent conversion).
+// On any bounds failure, or a negative `offset`, this falls back to
+// `Unspecified` -- the same fallback the original already used at its own
+// call site for "no Encoding key in the DICT at all"; this function
+// itself drew no such distinction before, since it never had a failure
+// path.
+unsafe fn parse_encoding(cff: *mut CffFile, offset: i32) -> CffEncoding {
     if offset == CFF_STANDARD_ENCODING_OFFSET {
         return CffEncoding::Standard;
     } else if offset == CFF_EXPERT_ENCODING_OFFSET {
         return CffEncoding::Expert;
     }
-    match *data.offset(offset as isize) as ::core::ffi::c_int {
-        0 => {
-            let ncodes = *data.offset((offset + 1 as i32) as isize);
-            let mut code: Vec<u8> = Vec::with_capacity(ncodes as usize);
-            let mut i: u32 = 0 as u32;
-            while i < ncodes as u32 {
-                code.push(*data.offset(((offset + 2 as i32) as u32).wrapping_add(i) as isize));
-                i = i.wrapping_add(1);
-            }
-            CffEncoding::Format0(code)
-        }
-        1 => {
-            let nranges = *data.offset((offset + 1 as i32) as isize);
-            let mut range1: Vec<CffEncodingRangeFormat1> = Vec::with_capacity(nranges as usize);
-            let mut i_0: u32 = 0 as u32;
-            while i_0 < nranges as u32 {
-                let first = *data.offset(
-                    ((offset + 2 as i32) as u32).wrapping_add(i_0.wrapping_mul(2 as u32)) as isize,
-                );
-                let nleft = *data.offset(
-                    ((offset + 3 as i32) as u32).wrapping_add(i_0.wrapping_mul(2 as u32)) as isize,
-                );
-                range1.push(CffEncodingRangeFormat1 { first, nleft });
-                i_0 = i_0.wrapping_add(1);
-            }
-            CffEncoding::Format1(range1)
-        }
-        _ => {
-            let nsup = *data.offset(offset as isize);
-            let mut supplement: Vec<CffEncodingSupplement> = Vec::with_capacity(nsup as usize);
-            let mut i_1: u32 = 0 as u32;
-            while i_1 < nsup as u32 {
-                let code = *data.offset(
-                    ((offset + 1 as i32) as u32).wrapping_add(i_1.wrapping_mul(3 as u32)) as isize,
-                );
-                let glyph = gu2(
-                    data,
-                    ((offset + 2 as i32) as u32).wrapping_add(i_1.wrapping_mul(3 as u32)),
-                ) as u16;
-                supplement.push(CffEncodingSupplement { code, glyph });
-                i_1 = i_1.wrapping_add(1);
-            }
-            CffEncoding::FormatSupplement(supplement)
-        }
+    if offset < 0 {
+        return CffEncoding::Unspecified;
     }
+    let slice = ::core::slice::from_raw_parts((*cff).raw_data, (*cff).raw_length as usize);
+    let result: Option<CffEncoding> = 'parse: {
+        let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
+            break 'parse None;
+        };
+        let Ok(format) = r.u8() else { break 'parse None };
+        match format {
+            0 => {
+                let Ok(ncodes) = r.u8() else { break 'parse None };
+                let mut code: Vec<u8> = Vec::with_capacity(ncodes as usize);
+                for _ in 0..ncodes {
+                    let Ok(v) = r.u8() else { break 'parse None };
+                    code.push(v);
+                }
+                break 'parse Some(CffEncoding::Format0(code));
+            }
+            1 => {
+                let Ok(nranges) = r.u8() else { break 'parse None };
+                let mut range1: Vec<CffEncodingRangeFormat1> = Vec::with_capacity(nranges as usize);
+                for _ in 0..nranges {
+                    let Ok(first) = r.u8() else { break 'parse None };
+                    let Ok(nleft) = r.u8() else { break 'parse None };
+                    range1.push(CffEncodingRangeFormat1 { first, nleft });
+                }
+                break 'parse Some(CffEncoding::Format1(range1));
+            }
+            _ => {
+                // The original re-reads the format byte itself as `nsup`
+                // here (both are `data[offset]`) -- preserved verbatim,
+                // out of this PR's scope to second-guess.
+                let nsup = format;
+                let mut supplement: Vec<CffEncodingSupplement> = Vec::with_capacity(nsup as usize);
+                for _ in 0..nsup {
+                    let Ok(code) = r.u8() else { break 'parse None };
+                    let Ok(glyph) = r.u16() else { break 'parse None };
+                    supplement.push(CffEncodingSupplement { code, glyph });
+                }
+                break 'parse Some(CffEncoding::FormatSupplement(supplement));
+            }
+        }
+    };
+    result.unwrap_or(CffEncoding::Unspecified)
 }
 unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: *const Options) {
     let mut pos: u32 = 0;
     let mut offset: i32 = 0;
-    (*cff).head.major = gu1((*cff).raw_data, 0 as u32) as u8;
-    (*cff).head.minor = gu1((*cff).raw_data, 1 as u32) as u8;
-    (*cff).head.hdr_size = gu1((*cff).raw_data, 2 as u32) as u8;
-    (*cff).head.off_size = gu1((*cff).raw_data, 3 as u32) as u8;
+    // No length check guarded these 4 header-byte reads at all -- a `raw_
+    // length` shorter than 4 read straight past the allocation. Every
+    // field now defaults to 0 on a bounds failure instead: `extract_index`
+    // below is already bounds-checked regardless of what `pos` it's given
+    // (a garbage `hdr_size` just makes it fail cleanly too, same as any
+    // other malformed offset), so there's nothing to gain from bailing out
+    // of this function early on a too-short header.
+    let header_slice = ::core::slice::from_raw_parts((*cff).raw_data, (*cff).raw_length as usize);
+    let mut header_reader = FontReader::new(header_slice);
+    (*cff).head.major = header_reader.u8().unwrap_or(0);
+    (*cff).head.minor = header_reader.u8().unwrap_or(0);
+    (*cff).head.hdr_size = header_reader.u8().unwrap_or(0);
+    (*cff).head.off_size = header_reader.u8().unwrap_or(0);
     pos = (*cff).head.hdr_size as u32;
     extract_index(
         (*cff).raw_data,
@@ -2486,5 +2497,90 @@ pub unsafe fn cff_parse_outline(
             _ => {}
         }
         start = start.offset(advance as isize);
+    }
+}
+
+#[cfg(test)]
+mod cff_header_and_encoding_tests {
+    use super::*;
+    use crate::libcff::cff_index::CffIndexCountType;
+
+    fn empty_cff_index() -> CffIndex {
+        CffIndex {
+            count_type: CffIndexCountType::U16,
+            count: 0,
+            off_size: 0,
+            offset: Vec::new(),
+            data: Vec::new(),
+        }
+    }
+
+    unsafe fn cff_file_over(data: &[u8]) -> CffFile {
+        CffFile {
+            raw_data: data.as_ptr() as *mut u8,
+            raw_length: data.len() as u32,
+            cnt_glyph: 0,
+            head: crate::libcff::CffHeader { major: 0, minor: 0, hdr_size: 0, off_size: 0 },
+            name: empty_cff_index(),
+            top_dict: empty_cff_index(),
+            string: empty_cff_index(),
+            global_subr: empty_cff_index(),
+            encodings: CffEncoding::Unspecified,
+            charsets: CffCharset::IsoAdobe,
+            fdselect: CffFdSelect::Unspecified,
+            char_strings: empty_cff_index(),
+            font_dict: empty_cff_index(),
+            local_subr: empty_cff_index(),
+        }
+    }
+
+    #[test]
+    fn header_fields_default_to_zero_instead_of_reading_oob() {
+        // The original read the 4 fixed header bytes with no check that
+        // `raw_length` was even that long.
+        let data = [0x01u8]; // only 1 byte, header needs 4
+        unsafe {
+            let mut cff = cff_file_over(&data);
+            let cff_ptr = &raw mut cff;
+            parse_cff_bytecode(cff_ptr, ::core::ptr::null());
+            assert_eq!(cff.head.major, 1);
+            assert_eq!(cff.head.minor, 0);
+            assert_eq!(cff.head.hdr_size, 0);
+            assert_eq!(cff.head.off_size, 0);
+        }
+    }
+
+    #[test]
+    fn parse_encoding_format0_reads_the_code_array() {
+        // offset=0/1 are reserved predefined-encoding sentinels, so the
+        // real data starts at offset 2.
+        let data = [0u8, 0, 0x00, 0x02, 5, 9]; // format=0, codes=[5,9]
+        unsafe {
+            let mut cff = cff_file_over(&data);
+            let CffEncoding::Format0(code) = parse_encoding(&raw mut cff, 2) else {
+                panic!("expected Format0");
+            };
+            assert_eq!(code, vec![5, 9]);
+        }
+    }
+
+    #[test]
+    fn parse_encoding_format0_truncated_falls_back_to_unspecified_instead_of_reading_oob() {
+        let data = [0u8, 0, 0x00, 0x02, 5]; // format=0, ncodes=2, only 1 code present
+        unsafe {
+            let mut cff = cff_file_over(&data);
+            let result = parse_encoding(&raw mut cff, 2);
+            assert!(matches!(result, CffEncoding::Unspecified));
+        }
+    }
+
+    #[test]
+    fn parse_encoding_negative_offset_falls_back_to_unspecified_instead_of_reading_before_the_buffer() {
+        let data = [0u8; 8];
+        unsafe {
+            let mut cff = cff_file_over(&data);
+            let result = parse_encoding(&raw mut cff, -5);
+            assert!(matches!(result, CffEncoding::Unspecified));
+        }
     }
 }
