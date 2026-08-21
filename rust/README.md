@@ -932,6 +932,86 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-g: `libcff/subr.rs`'s intrusive doubly-linked-list CFF
+  subroutinizer, converted to an arena + index.** The plan's own single
+  hardest-flagged piece in the whole migration. `CffSubrNode`/
+  `CffSubrRule`'s `*mut`-typed `prev`/`next`/`rule`/`guard` fields are
+  gone, replaced by `NodeId`/`RuleId` (bare `usize` newtypes) indexing
+  into `CffSubrGraph.nodes: Vec<CffSubrNode>`/`.rules: Vec<CffSubrRule>`.
+  - **Why an index and not just "a safe pointer"**: this graph's core
+    operation is deleting a node mid-algorithm (`expand_call`,
+    `remove_node_from_graph`) while other structures -- sibling nodes'
+    own `prev`/`next`, and `diagram_index`'s weak `start` references --
+    can still describe where it used to be. A naive arena that *recycles*
+    a freed slot would let a stale reference silently start resolving to
+    a totally unrelated later node the instant that slot gets reused --
+    worse than the raw-pointer use-after-free it replaces, since a
+    dangling pointer tends to crash and a reused index just corrupts the
+    graph quietly. `CffSubrGraph::delete_node` never reuses a slot:
+    deleted nodes are tombstoned (a `dead: bool` flag) and left in place
+    for the rest of the graph's lifetime -- exactly one CFF table's
+    subroutinize build pass, not something long-lived, so the wasted
+    space is bounded and cheap. Rules never need this at all: nothing
+    ever removes one mid-algorithm (only `dispose` tears them all down at
+    once at the very end), so plain, always-valid indices sufficed there
+    from the start.
+  - **Verification strategy, given the algorithm's own subtlety**: rather
+    than trust a mechanical pointer-to-index transliteration, every
+    single function was diffed line-by-line against the pre-conversion
+    original (kept on hand via `git show`) after the initial rewrite.
+    This caught two real transcription mistakes before they ever reached
+    a test run:
+    - `process_match_doublet`'s "is this rule already fully surrounded by
+      its own guard" check was accidentally written against `n`'s
+      neighbors instead of `m`'s -- the original checks `(*m).prev` and
+      `(*(*m).next).next`, not `n`'s equivalents. Silent logic bug, not a
+      type error, so the compiler had no way to catch it.
+    - `cff_insert_il_to_graph` gained an unplanned `buffree()` for the
+      case where the accumulated blob is still empty after the main loop
+      (reachable only for a charstring IL with zero instructions). The
+      *original* leaks that one small `Buffer` in this case -- a real,
+      pre-existing, low-severity bug, but fixing it wasn't this PR's
+      purpose, and silently doing so as a side effect of an unrelated
+      structural conversion would have conflated two different kinds of
+      change in one diff. Reverted to match the leak exactly; noted here
+      instead as a discovered-but-deliberately-untouched issue, the same
+      posture taken elsewhere in this migration (e.g. `parse_point_
+      numbers`'s missing byte-swap in `table/glyf/read.rs`).
+  - **The strongest evidence this is correct**: `KRName-Regular-O2.otf`
+    (the CFF subroutinize build, the *only* payload that exercises this
+    algorithm at all) stays byte-identical on golden, including the
+    `[libcff] Total N subroutines extracted.` progress log line
+    (`compare-log-output.sh` checks stderr byte-for-byte too, so the
+    exact subroutine count -- not just the final bytes -- matches).
+  - **Miri coverage is partial, same limitation the prerequisite PR
+    already noted**: `cff_merge_cs2_operand` calls `libc::modf`,
+    unsupported on macOS under Miri, so 4 of the 5 existing tests (any
+    that encode real glyph content) stay Miri-ignored; only the
+    empty-graph test runs there, confirming the `CffSubrGraph` init/
+    dispose lifecycle itself (allocation and tombstoning included) is
+    clean. The rest of the correctness case rests on the line-by-line
+    diff and the golden `-O2` match above, not Miri.
+  - `table/cff.rs`'s one construction site for `CffSubrGraph` -- previously
+    a raw struct literal naming `*mut CffSubrRule` directly for `root`/
+    `last` -- now calls `CffSubrGraph::default()` instead, since
+    `NodeId`/`RuleId` are private to `subr.rs` and callers outside it were
+    never meant to need to name them.
+  - `rust/scripts/survey-unsafe.sh` deltas: raw pointer types 6261 → 6163
+    (-98), `is_null()` calls 440 → 413 (-27), `as ::core::ffi::c_int`
+    5276 → 5266 (-10).
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 244 tests (unchanged -- same 5 `subr_graph_tests` from the
+    prerequisite PR, now exercising the new implementation), clippy
+    clean, ABI export guard, all golden fixtures byte-identical (dump/
+    build and log output, zero exceptions, `KRName-Regular-O2.otf`
+    specifically confirmed), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes, `cargo miri test` clean locally
+    before pushing (224 passed, 0 failed, 20 pre-existing ignores).
+  - This closes Stage 7-2-g. What's left in `libcff/`'s C-isms (the
+    `#[repr(C)]`/`extern "C"` residue on `CffSubrRule` and the handful of
+    C-shaped signatures this file's callbacks still use) belongs to
+    Stage 7-2-h, not this PR.
+
 - **Stage 7-2-g prerequisite: `libcff/subr.rs` unit tests, no production
   code changed.** The plan flags `subr.rs`'s intrusive doubly-linked-list
   CFF subroutinizer (`CffSubrNode`/`CffSubrRule`/`CffSubrGraph`, headed
