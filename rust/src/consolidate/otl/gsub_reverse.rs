@@ -26,11 +26,11 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
         fontop_consolidate_coverage(
             font,
             &mut (&mut (*subtable).match_0)[j as usize] as *mut Coverage,
-            options,
+            &*options,
         );
         j = j.wrapping_add(1);
     }
-    fontop_consolidate_coverage(font, &mut (*subtable).to as *mut Coverage, options);
+    fontop_consolidate_coverage(font, &mut (*subtable).to as *mut Coverage, &*options);
     if (*subtable).input_index as ::core::ffi::c_int >= (*subtable).match_count as ::core::ffi::c_int
     {
         (*subtable).input_index =

@@ -40,7 +40,7 @@ struct LigHashValue {
 unsafe fn consolidate_mark_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
-    mut options: *const Options,
+    mut options: &Options,
     mut mark_array: *mut MarkArray,
     mut class_count: GlyphClass,
 ) {
@@ -52,7 +52,7 @@ unsafe fn consolidate_mark_array(
             &raw mut (&mut (*mark_array))[k as usize].glyph,
         ) {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
@@ -74,7 +74,7 @@ unsafe fn consolidate_mark_array(
                 }
                 _ => {
                     logger_log_sds(
-                        (*options).logger,
+                        options.logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored invalid or double-mapping mark definition for /",
@@ -111,7 +111,7 @@ unsafe fn consolidate_mark_array(
 unsafe fn consolidate_base_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
-    mut options: *const Options,
+    mut options: &Options,
     mut base_array: *mut BaseArray,
 ) {
     let mut h: BTreeMap<GlyphId, BaseHashValue> = BTreeMap::new();
@@ -122,7 +122,7 @@ unsafe fn consolidate_base_array(
             &raw mut (&mut (*base_array))[k as usize].glyph,
         ) {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
@@ -141,7 +141,7 @@ unsafe fn consolidate_base_array(
                 }
                 Entry::Occupied(_) => {
                     logger_log_sds(
-                        (*options).logger,
+                        options.logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored anchor double-definition for /",
@@ -171,7 +171,7 @@ unsafe fn consolidate_base_array(
 unsafe fn consolidate_lig_array(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
-    mut options: *const Options,
+    mut options: &Options,
     mut lig_array: *mut LigatureArray,
 ) {
     let mut h: BTreeMap<GlyphId, LigHashValue> = BTreeMap::new();
@@ -182,7 +182,7 @@ unsafe fn consolidate_lig_array(
             &raw mut (&mut (*lig_array))[k as usize].glyph,
         ) {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
@@ -202,7 +202,7 @@ unsafe fn consolidate_lig_array(
                 }
                 Entry::Occupied(_) => {
                     logger_log_sds(
-                        (*options).logger,
+                        options.logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored anchor double-definition for /",
@@ -241,11 +241,11 @@ pub unsafe extern "C" fn consolidate_mark_to_single(
     consolidate_mark_array(
         font,
         table,
-        options,
+        &*options,
         &raw mut (*subtable).mark_array,
         (*subtable).class_count,
     );
-    consolidate_base_array(font, table, options, &raw mut (*subtable).base_array);
+    consolidate_base_array(font, table, &*options, &raw mut (*subtable).base_array);
     return (*subtable).mark_array.len() == 0 as usize
         || (*subtable).base_array.len() == 0 as usize;
 }
@@ -260,11 +260,11 @@ pub unsafe extern "C" fn consolidate_mark_to_ligature(
     consolidate_mark_array(
         font,
         table,
-        options,
+        &*options,
         &raw mut (*subtable).mark_array,
         (*subtable).class_count,
     );
-    consolidate_lig_array(font, table, options, &raw mut (*subtable).lig_array);
+    consolidate_lig_array(font, table, &*options, &raw mut (*subtable).lig_array);
     return (*subtable).mark_array.len() == 0 as usize
         || (*subtable).lig_array.len() == 0 as usize;
 }

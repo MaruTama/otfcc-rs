@@ -76,7 +76,7 @@ pub enum LookupOrderType {
 unsafe fn _parse_lookup(
     mut lookup: *const ParsedValue,
     mut lookup_name: *mut ::core::ffi::c_char,
-    mut options: *const Options,
+    mut options: &Options,
     lh: &mut Vec<LookupEntry>,
 ) -> bool {
     let mut parsed: bool = false;
@@ -297,7 +297,7 @@ unsafe fn _declare_lookup_parser(
     >,
     mut _lookup: *const ParsedValue,
     mut lookup_name: *mut ::core::ffi::c_char,
-    mut options: *const Options,
+    mut options: &Options,
     lh: &mut Vec<LookupEntry>,
 ) -> bool {
     let mut type_0: *const ParsedValue = json_obj_get_type(
@@ -308,7 +308,7 @@ unsafe fn _declare_lookup_parser(
     if type_0.is_null() || strcmp(json_str_ptr(type_0), llt.name().as_ptr()) != 0 {
         if type_0.is_null() {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Lookup ",
@@ -322,7 +322,7 @@ unsafe fn _declare_lookup_parser(
     let name_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(lookup_name).to_bytes().to_vec();
     if lh.iter().any(|e| e.name == name_bytes) {
         logger_log_sds(
-            (*options).logger,
+            options.logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Lookup ", lookup_name, b" already exists."),
@@ -336,7 +336,7 @@ unsafe fn _declare_lookup_parser(
     );
     if _subtables.is_null() {
         logger_log_sds(
-            (*options).logger,
+            options.logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Lookup ",
@@ -370,7 +370,7 @@ unsafe fn _declare_lookup_parser(
     }
     let mut subtable_count: TableId = json_arr_len(_subtables) as TableId;
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(lookup_name),
     );
     let mut ___loggedstep_v: bool = true;
@@ -381,18 +381,20 @@ unsafe fn _declare_lookup_parser(
             if !_subtable.is_null()
                 && json_type_of(_subtable) == JsonType::Object
             {
-                let mut _st: *mut Subtable =
-                    parser.expect("non-null function pointer")(_subtable, options);
+                let mut _st: *mut Subtable = parser.expect("non-null function pointer")(
+                    _subtable,
+                    options as *const Options,
+                );
                 (*lookup).subtables.push(subtable_list_slot(_st));
             }
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
     if (*lookup).subtables.is_empty() {
         logger_log_sds(
-            (*options).logger,
+            options.logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Lookup ", lookup_name, b" does not have any subtables."),
@@ -413,7 +415,7 @@ unsafe fn _declare_lookup_parser(
 }
 unsafe fn figure_out_lookups_from_json(
     mut lookups: *const ParsedValue,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> Vec<LookupEntry> {
     let mut lh: Vec<LookupEntry> = Vec::new();
     let mut j: u32 = 0 as u32;
@@ -430,7 +432,7 @@ unsafe fn figure_out_lookups_from_json(
             );
             if !parsed {
                 logger_log_sds(
-                    (*options).logger,
+                    options.logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[OTFCC-fea] Ignoring invalid or unsupported lookup ",
@@ -469,7 +471,7 @@ unsafe fn feature_merger_activate(
     mut d: *mut ParsedValue,
     sametag: bool,
     mut objtype: *const ::core::ffi::c_char,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(d) as u32 {
@@ -496,7 +498,7 @@ unsafe fn feature_merger_activate(
                     alias_str.push(0);
                     json_obj_set_val_at(d, k, ParsedValue::Str(alias_str));
                     logger_log_sds(
-                        (*options).logger,
+                        options.logger,
                         LOG_VL_NOTICE,
                         LoggerType::Info,
                         crate::bytesbuild!(b"[OTFCC-fea] Merged duplicate ",
@@ -519,10 +521,10 @@ unsafe fn figure_out_features_from_json(
     mut features: *mut ParsedValue,
     lh: &Vec<LookupEntry>,
     mut tag: *const ::core::ffi::c_char,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> Vec<FeatureEntry> {
     let mut fh: Vec<FeatureEntry> = Vec::new();
-    if (*options).merge_features {
+    if options.merge_features {
         feature_merger_activate(
             features,
             true,
@@ -549,7 +551,7 @@ unsafe fn figure_out_features_from_json(
                         al.push(item.lookup as LookupRef);
                     } else {
                         logger_log_sds(
-                            (*options).logger,
+                            options.logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Lookup assignment ",
@@ -584,7 +586,7 @@ unsafe fn figure_out_features_from_json(
                     });
                 } else {
                     logger_log_sds(
-                        (*options).logger,
+                        options.logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[OTFCC-fea] Duplicate feature for [",
@@ -598,7 +600,7 @@ unsafe fn figure_out_features_from_json(
                 }
             } else {
                 logger_log_sds(
-                    (*options).logger,
+                    options.logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[OTFCC-fea] There is no valid lookup assignments for [",
@@ -638,7 +640,7 @@ unsafe fn figure_out_languages_from_json(
     mut languages: *const ParsedValue,
     fh: &Vec<FeatureEntry>,
     mut tag: *const ::core::ffi::c_char,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> {
     let mut sh: std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> = std::collections::BTreeMap::new();
     let mut j: u32 = 0 as u32;
@@ -702,7 +704,7 @@ unsafe fn figure_out_languages_from_json(
                     sh.insert(language_name_bytes, language);
                 } else {
                     logger_log_sds(
-                        (*options).logger,
+                        options.logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[OTFCC-fea] Duplicate language item [",
@@ -716,7 +718,7 @@ unsafe fn figure_out_languages_from_json(
                 }
             } else {
                 logger_log_sds(
-                    (*options).logger,
+                    options.logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[OTFCC-fea] There is no valid feature assignments for [",
@@ -735,7 +737,7 @@ unsafe fn figure_out_languages_from_json(
 }
 pub unsafe fn otfcc_parse_otl(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    mut options: &Options,
     mut tag: *const ::core::ffi::c_char,
 ) -> Option<Box<OtlTable>> {
     let mut languages: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
@@ -765,7 +767,7 @@ pub unsafe fn otfcc_parse_otl(
         );
         if !(languages.is_null() || features.is_null() || lookups.is_null()) {
             logger_start_sds(
-                (*options).logger,
+                options.logger,
                 crate::bytesbuild!(tag),
             );
             let mut ___loggedstep_v: bool = true;
@@ -803,7 +805,7 @@ pub unsafe fn otfcc_parse_otl(
                     figure_out_languages_from_json(languages, &fh, tag, options);
                 if lh.is_empty() || fh.is_empty() || sh.is_empty() {
                     logger_dedent(
-                        (*options).logger,
+                        options.logger,
                     );
                     current_block = 12498981253432484999;
                     break;
@@ -857,7 +859,7 @@ pub unsafe fn otfcc_parse_otl(
                     }
                     ___loggedstep_v = false;
                     logger_finish(
-                        (*options).logger,
+                        options.logger,
                     );
                 }
             }
@@ -869,7 +871,7 @@ pub unsafe fn otfcc_parse_otl(
     }
     if otl_box.is_some() {
         logger_log_sds(
-            (*options).logger,
+            options.logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[OTFCC-fea] Ignoring invalid or incomplete OTL table ",

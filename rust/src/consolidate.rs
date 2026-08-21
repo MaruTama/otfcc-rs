@@ -1103,7 +1103,7 @@ unsafe fn consolidate_otl(mut font: *mut Font, mut options: *const Options) {
         consolidate_gdef(
             font,
             (*font).gdef.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GdefTable),
-            options,
+            &*options,
         );
         ___loggedstep_v_1 = false;
         logger_finish((*options).logger);
@@ -1421,7 +1421,7 @@ pub unsafe fn otfcc_consolidate_font(
         fontop_consolidate_class_def(
             font,
             (*font).tsi5.as_deref_mut().map_or(::core::ptr::null_mut(), |c| c as *mut ClassDef),
-            options,
+            &*options,
         );
         ___loggedstep_v_4 = false;
         logger_finish((*options).logger);

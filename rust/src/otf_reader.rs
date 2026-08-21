@@ -166,13 +166,13 @@ impl FontBuilder for OtfReader {
             let num_glyphs = glyf.len() as GlyphId;
             (*font).gsub = otfcc_read_otl(
                 packet,
-                options,
+                &*options,
                 crate::tag::TAG_GSUB,
                 num_glyphs,
             );
             (*font).gpos = otfcc_read_otl(
                 packet,
-                options,
+                &*options,
                 crate::tag::TAG_GPOS,
                 num_glyphs,
             );

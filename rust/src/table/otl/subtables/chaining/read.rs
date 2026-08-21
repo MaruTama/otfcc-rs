@@ -516,7 +516,7 @@ pub unsafe fn otl_read_contextual(
     mut table_length: u32,
     mut offset: u32,
     max_glyphs: GlyphId,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Subtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let mut subtable: *mut ChainingSubtable = (subtable_chaining_create)();
@@ -569,7 +569,7 @@ pub unsafe fn otl_read_contextual(
         return subtable_from_raw(subtable, Subtable::Chaining);
     }
     logger_log_sds(
-        (*options).logger,
+        options.logger,
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
@@ -977,7 +977,7 @@ pub unsafe fn otl_read_chaining(
     mut table_length: u32,
     mut offset: u32,
     max_glyphs: GlyphId,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Subtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let mut subtable: *mut ChainingSubtable = (subtable_chaining_create)();
@@ -1026,7 +1026,7 @@ pub unsafe fn otl_read_chaining(
         return subtable_from_raw(subtable, Subtable::Chaining);
     }
     logger_log_sds(
-        (*options).logger,
+        options.logger,
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
@@ -1076,7 +1076,7 @@ mod chaining_read_tests {
                 data.len() as u32,
                 0,
                 100,
-                &options as *const Options,
+                &options,
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
@@ -1116,7 +1116,7 @@ mod chaining_read_tests {
                 data.len() as u32,
                 0,
                 100,
-                &options as *const Options,
+                &options,
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
@@ -1147,7 +1147,7 @@ mod chaining_read_tests {
                 data.len() as u32,
                 0,
                 100,
-                &options as *const Options,
+                &options,
             );
             assert!(raw.is_null());
         }
@@ -1173,7 +1173,7 @@ mod chaining_read_tests {
                 data.len() as u32,
                 0,
                 100,
-                &options as *const Options,
+                &options,
             );
             assert!(raw.is_null());
         }
@@ -1196,7 +1196,7 @@ mod chaining_read_tests {
                 data.len() as u32,
                 0,
                 100,
-                &options as *const Options,
+                &options,
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
@@ -1240,7 +1240,7 @@ mod chaining_read_tests {
                 data.len() as u32,
                 0,
                 100,
-                &options as *const Options,
+                &options,
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
@@ -1317,7 +1317,7 @@ mod chaining_read_tests {
                 data.len() as u32,
                 0,
                 100,
-                &options as *const Options,
+                &options,
             );
             assert!(raw.is_null());
             crate::logger::logger_dispose(options.logger);

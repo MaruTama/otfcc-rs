@@ -221,7 +221,7 @@ impl FontSerializer for OtfSerializer {
         crate::tag::TAG_GSUB,
         otfcc_build_otl(
             (*font).gsub.as_deref(),
-            options,
+            &*options,
             b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
         ),
     );
@@ -230,7 +230,7 @@ impl FontSerializer for OtfSerializer {
         crate::tag::TAG_GPOS,
         otfcc_build_otl(
             (*font).gpos.as_deref(),
-            options,
+            &*options,
             b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
         ),
     );

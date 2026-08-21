@@ -255,7 +255,7 @@ unsafe fn parse_bases(
     mut _bases: *const ParsedValue,
     mut subtable: *mut GposMarkToLigatureSubtable,
     mut h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
     let class_count: GlyphClass = (*h).len() as GlyphClass;
     let mut j: GlyphId = 0 as GlyphId;
@@ -303,7 +303,7 @@ unsafe fn parse_bases(
                         match (*h).get(&class_name) {
                             None => {
                                 logger_log_sds(
-                                    (*options).logger,
+                                    options.logger,
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::bytesbuild!(b"[OTFCC-fea] Invalid anchor class name <",
@@ -352,7 +352,7 @@ pub unsafe extern "C" fn otl_gpos_parse_mark_to_ligature(
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
     otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h);
     (*st).class_count = h.len() as GlyphClass;
-    parse_bases(_bases, st, &raw mut h, options);
+    parse_bases(_bases, st, &raw mut h, &*options);
     return subtable_from_raw(st, Subtable::GposMarkToLigature);
 }
 pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(

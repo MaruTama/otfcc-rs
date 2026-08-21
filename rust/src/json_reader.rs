@@ -356,12 +356,12 @@ impl FontBuilder for JsonReader {
     if (*font).glyf.is_some() {
         (*font).gsub = otfcc_parse_otl(
             root,
-            options,
+            &*options,
             b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
         );
         (*font).gpos = otfcc_parse_otl(
             root,
-            options,
+            &*options,
             b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
         );
         (*font).gdef = otfcc_parse_gdef(root, options);

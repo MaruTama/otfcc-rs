@@ -161,7 +161,7 @@ unsafe fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut BuiltValue) {
 pub unsafe fn otfcc_dump_otl(
     mut table: Option<&OtlTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    mut options: &Options,
     mut tag: *const ::core::ffi::c_char,
 ) {
     let table: *const OtlTable = table.map_or(::core::ptr::null(), |t| t as *const OtlTable);
@@ -173,14 +173,14 @@ pub unsafe fn otfcc_dump_otl(
         return;
     }
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut otl: *mut BuiltValue = json_object_new(3 as usize);
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"Languages"),
         );
         let mut ___loggedstep_v_0: bool = true;
@@ -223,11 +223,11 @@ pub unsafe fn otfcc_dump_otl(
             );
             ___loggedstep_v_0 = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"Features"),
         );
         let mut ___loggedstep_v_1: bool = true;
@@ -261,11 +261,11 @@ pub unsafe fn otfcc_dump_otl(
             );
             ___loggedstep_v_1 = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"Lookups"),
         );
         let mut ___loggedstep_v_2: bool = true;
@@ -300,11 +300,11 @@ pub unsafe fn otfcc_dump_otl(
             );
             ___loggedstep_v_2 = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
         json_object_push(root, tag, otl);
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
