@@ -55,7 +55,7 @@ static LAYER_REC_LENGTH: usize = 4 as usize;
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_read_colr(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<ColrTable> {
     let mut num_base_glyph_records: u16 = 0;
     let mut num_layer_records: u16 = 0;
@@ -192,7 +192,7 @@ pub unsafe fn otfcc_read_colr(
                         }
                     }
                     logger_log_sds(
-                        (*options).logger,
+                        options.logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"Table 'COLR' corrupted.\n"),
@@ -216,14 +216,14 @@ pub unsafe fn otfcc_read_colr(
 pub unsafe fn otfcc_dump_colr(
     colr: Option<&ColrTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let colr = match colr {
         Some(c) => c,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"COLR"),
     );
     let mappings: &Vec<ColrMapping> = colr;
@@ -281,13 +281,13 @@ pub unsafe fn otfcc_dump_colr(
             _colr,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_colr(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<ColrTable> {
     let mut _colr: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _colr = json_obj_get_type(
@@ -300,7 +300,7 @@ pub unsafe fn otfcc_parse_colr(
     }
     let mut colr: ColrTable = Vec::new();
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"COLR"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -364,7 +364,7 @@ pub unsafe fn otfcc_parse_colr(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
     return Some(colr);
 }

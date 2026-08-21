@@ -79,14 +79,14 @@ fn parse_vhea(data: &[u8]) -> Result<VheaTable, ReadError> {
 }
 pub unsafe fn otfcc_read_vhea(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<VheaTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VHEA)?;
     match parse_vhea(&table.data) {
         Ok(vhea) => Some(Box::new(vhea)),
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Table 'vhea' corrupted."),
@@ -99,7 +99,7 @@ pub unsafe fn otfcc_read_vhea(
 pub unsafe fn otfcc_dump_vhea(
     table: Option<&VheaTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let table = match table {
         Some(t) => t as *const VheaTable,
@@ -107,7 +107,7 @@ pub unsafe fn otfcc_dump_vhea(
     };
     let mut vhea: *mut BuiltValue = json_object_new(11 as usize);
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"vhea"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -173,12 +173,12 @@ pub unsafe fn otfcc_dump_vhea(
             vhea,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 pub unsafe fn otfcc_parse_vhea(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<VheaTable>> {
     let mut vhea_box: Option<Box<VheaTable>> = None;
     let mut vhea: *mut VheaTable = ::core::ptr::null_mut::<VheaTable>();
@@ -192,7 +192,7 @@ pub unsafe fn otfcc_parse_vhea(
         vhea_box = Some(Box::new(::core::mem::zeroed()));
         vhea = vhea_box.as_deref_mut().unwrap() as *mut VheaTable;
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"vhea"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -253,7 +253,7 @@ pub unsafe fn otfcc_parse_vhea(
             ) as i16;
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     }

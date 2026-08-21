@@ -53,14 +53,14 @@ fn parse_ltsh(data: &[u8]) -> Result<(u16, GlyphId, &[u8]), ReadError> {
 
 pub unsafe fn otfcc_read_ltsh(
     packet: &Packet,
-    options: *const Options,
+    options: &Options,
 ) -> Option<Box<LtshTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_LTSH)?;
     let (version, num_glyphs, pels) = match parse_ltsh(&table.data) {
         Ok(parsed) => parsed,
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'LTSH' corrupted.\n"),

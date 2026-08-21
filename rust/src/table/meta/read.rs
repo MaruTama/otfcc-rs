@@ -43,7 +43,7 @@ fn parse_meta(data: &[u8]) -> Result<MetaTable, ReadError> {
 }
 pub unsafe fn otfcc_read_meta(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<MetaTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_META)?;
     match parse_meta(&table.data) {
@@ -51,7 +51,7 @@ pub unsafe fn otfcc_read_meta(
         Err(_) => {
             unsafe {
                 logger_log_sds(
-                    (*options).logger,
+                    options.logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"Table 'meta' corrupted.\n"),

@@ -65,7 +65,7 @@ pub unsafe fn otfcc_read_cvt(
 pub unsafe fn otfcc_dump_cvt(
     table: Option<&CvtTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
     mut tag: *const ::core::ffi::c_char,
 ) {
     let table = match table {
@@ -73,7 +73,7 @@ pub unsafe fn otfcc_dump_cvt(
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"cvt"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -89,12 +89,12 @@ pub unsafe fn otfcc_dump_cvt(
         }
         json_object_push(root, tag, arr);
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 pub unsafe fn otfcc_parse_cvt(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
     mut tag: *const ::core::ffi::c_char,
 ) -> Option<Box<CvtTable>> {
     let mut t: Option<Box<CvtTable>> = None;
@@ -102,7 +102,7 @@ pub unsafe fn otfcc_parse_cvt(
     table = json_obj_get_type(root, tag, JsonType::Array);
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"cvt"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -130,14 +130,14 @@ pub unsafe fn otfcc_parse_cvt(
             t = Some(Box::new(CvtTable { length: table_length, words }));
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     } else {
         table = json_obj_get_type(root, tag, JsonType::String);
         if !table.is_null() {
             logger_start_sds(
-                (*options).logger,
+                options.logger,
                 crate::bytesbuild!(b"cvt"),
             );
             let mut ___loggedstep_v_0: bool = true;
@@ -166,7 +166,7 @@ pub unsafe fn otfcc_parse_cvt(
                 t = Some(Box::new(CvtTable { length: table_length, words }));
                 ___loggedstep_v_0 = false;
                 logger_finish(
-                    (*options).logger
+                    options.logger
                 );
             }
         }

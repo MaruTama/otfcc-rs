@@ -338,14 +338,14 @@ unsafe fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut BuiltValue {
 pub unsafe fn otfcc_dump_gdef(
     gdef: Option<&GdefTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let gdef = match gdef {
         Some(g) => g as *const GdefTable,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"GDEF"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -378,7 +378,7 @@ pub unsafe fn otfcc_dump_gdef(
             _gdef,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 unsafe fn lig_caret_from_json(
@@ -449,7 +449,7 @@ unsafe fn lig_caret_from_json(
 }
 pub unsafe fn otfcc_parse_gdef(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<GdefTable>> {
     let mut gdef: Option<Box<GdefTable>> = None;
     let mut table: *const ParsedValue = ::core::ptr::null();
@@ -460,7 +460,7 @@ pub unsafe fn otfcc_parse_gdef(
     );
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"GDEF"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -489,7 +489,7 @@ pub unsafe fn otfcc_parse_gdef(
             );
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     }

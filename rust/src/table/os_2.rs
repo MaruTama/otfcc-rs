@@ -186,14 +186,14 @@ fn parse_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
 }
 pub unsafe fn otfcc_read_os_2(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<Os2Table>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_OS_2)?;
     match parse_os_2(&table.data) {
         Ok(os2) => Some(Box::new(os2)),
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'OS/2' corrupted.\n"),
@@ -429,14 +429,14 @@ pub static UNICODE_RANGE_LABELS4: [&::core::ffi::CStr; 27] = [
 pub unsafe fn otfcc_dump_os_2(
     table: Option<&Os2Table>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let table = match table {
         Some(t) => t as *const Os2Table,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"OS/2"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -676,12 +676,12 @@ pub unsafe fn otfcc_dump_os_2(
             os_2,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 pub unsafe fn otfcc_parse_os_2(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<Os2Table>> {
     // `Box::new` cannot return null (it aborts on allocation failure), so
     // the old `TABLE_I_OS_2.create()`-returned-null defensive check --
@@ -699,7 +699,7 @@ pub unsafe fn otfcc_parse_os_2(
     );
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"OS/2"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -952,7 +952,7 @@ pub unsafe fn otfcc_parse_os_2(
             }
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     }

@@ -562,7 +562,7 @@ unsafe fn glyf_glyph_dump_maskdefs(
 }
 unsafe fn glyf_dump_glyph(
     mut g: *const Glyph,
-    mut options: *const Options,
+    options: &Options,
     mut ctx: *const GlyfIOContext,
 ) -> *mut BuiltValue {
     let mut glyph: *mut BuiltValue = json_object_new(12 as usize);
@@ -610,7 +610,7 @@ unsafe fn glyf_dump_glyph(
             json_integer_new((*g).cid as i64),
         );
     }
-    if !(*options).ignore_hints {
+    if !options.ignore_hints {
         if !(*g).instructions.is_null() && (*g).instructions_length as ::core::ffi::c_int != 0 {
             json_object_push(
                 glyph,
@@ -618,7 +618,7 @@ unsafe fn glyf_dump_glyph(
                 dump_ttinstr(
                     (*g).instructions,
                     (*g).instructions_length as u32,
-                    options,
+                    options as *const Options,
                 ),
             );
         }
@@ -695,7 +695,7 @@ pub unsafe fn otfcc_dump_glyphorder(
 pub unsafe fn otfcc_dump_glyf(
     table: Option<&GlyfTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
     mut ctx: *const GlyfIOContext,
 ) {
     let table = match table {
@@ -703,7 +703,7 @@ pub unsafe fn otfcc_dump_glyf(
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"glyf"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -724,11 +724,11 @@ pub unsafe fn otfcc_dump_glyf(
             b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
             glyf,
         );
-        if !(*options).ignore_glyph_order {
+        if !options.ignore_glyph_order {
             otfcc_dump_glyphorder(table, root);
         }
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 unsafe fn glyf_parse_point(mut pointdump: *const ParsedValue) -> Point {
@@ -1043,7 +1043,7 @@ unsafe fn parse_masks(mut md: *const ParsedValue, mut masks: *mut MaskList) {
 unsafe fn otfcc_glyf_parse_glyph(
     mut glyphdump: *const ParsedValue,
     order_entry: &GlyphOrderEntry,
-    mut options: *const Options,
+    options: &Options,
 ) -> Box<Glyph> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     (*g).name = order_entry.name.clone();
@@ -1103,7 +1103,7 @@ unsafe fn otfcc_glyf_parse_glyph(
         ),
         &raw mut *g,
     );
-    if !(*options).ignore_hints {
+    if !options.ignore_hints {
         parse_ttinstr(
             json_obj_get(
                 glyphdump,
@@ -1175,7 +1175,7 @@ unsafe fn otfcc_glyf_parse_glyph(
 pub unsafe fn otfcc_parse_glyf(
     mut root: *const ParsedValue,
     mut glyph_order: *mut GlyphOrder,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<GlyfTable> {
     if json_type_of(root) != JsonType::Object
         || glyph_order.is_null()
@@ -1191,7 +1191,7 @@ pub unsafe fn otfcc_parse_glyf(
     );
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"glyf"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -1219,7 +1219,7 @@ pub unsafe fn otfcc_parse_glyf(
             glyf = Some(glyf_val);
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
         return glyf;

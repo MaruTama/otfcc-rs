@@ -117,14 +117,14 @@ unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_read_name(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<NameTable> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_NAME)?;
     match parse_name(&table.data) {
         Ok(name) => Some(name),
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'name' corrupted.\n"),
@@ -137,14 +137,14 @@ pub unsafe fn otfcc_read_name(
 pub unsafe fn otfcc_dump_name(
     name: Option<&NameTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let name = match name {
         Some(n) => n,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"name"),
     );
     let records: &Vec<NameRecord> = name;
@@ -192,13 +192,13 @@ pub unsafe fn otfcc_dump_name(
             _name,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_name(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<NameTable> {
     let mut name: NameTable = Vec::new();
     let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
@@ -209,7 +209,7 @@ pub unsafe fn otfcc_parse_name(
     );
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"name"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -228,7 +228,7 @@ pub unsafe fn otfcc_parse_name(
                     .is_null()
                     {
                         logger_log_sds(
-                            (*options).logger,
+                            options.logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid platformID for name entry ",
@@ -244,7 +244,7 @@ pub unsafe fn otfcc_parse_name(
                     .is_null()
                     {
                         logger_log_sds(
-                            (*options).logger,
+                            options.logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid encodingID for name entry ",
@@ -260,7 +260,7 @@ pub unsafe fn otfcc_parse_name(
                     .is_null()
                     {
                         logger_log_sds(
-                            (*options).logger,
+                            options.logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid languageID for name entry ",
@@ -276,7 +276,7 @@ pub unsafe fn otfcc_parse_name(
                     .is_null()
                     {
                         logger_log_sds(
-                            (*options).logger,
+                            options.logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid nameID for name entry ",
@@ -292,7 +292,7 @@ pub unsafe fn otfcc_parse_name(
                     .is_null()
                     {
                         logger_log_sds(
-                            (*options).logger,
+                            options.logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid name string for name entry ",
@@ -347,7 +347,7 @@ pub unsafe fn otfcc_parse_name(
             });
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     }

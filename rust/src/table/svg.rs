@@ -181,14 +181,14 @@ unsafe fn can_use_plain_format(mut buf: *const Buffer) -> bool {
 pub unsafe fn otfcc_dump_svg(
     svg: Option<&SvgTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let svg = match svg {
         Some(s) => s,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"SVG "),
     );
     let entries: &Vec<SvgAssignment> = svg;
@@ -257,13 +257,13 @@ pub unsafe fn otfcc_dump_svg(
             _svg,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_svg(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<SvgTable> {
     let mut _svg: *const ParsedValue = ::core::ptr::null();
     _svg = json_obj_get_type(
@@ -276,7 +276,7 @@ pub unsafe fn otfcc_parse_svg(
     }
     let mut svg: SvgTable = Vec::new();
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"SVG "),
     );
     let mut ___loggedstep_v: bool = true;
@@ -325,7 +325,7 @@ pub unsafe fn otfcc_parse_svg(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
     return Some(svg);
 }

@@ -56,14 +56,14 @@ fn parse_hhea(data: &[u8]) -> Result<HheaTable, ReadError> {
 }
 pub unsafe fn otfcc_read_hhea(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<HheaTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_HHEA)?;
     match parse_hhea(&table.data) {
         Ok(hhea) => Some(Box::new(hhea)),
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'hhea' corrupted.\n"),
@@ -76,14 +76,14 @@ pub unsafe fn otfcc_read_hhea(
 pub unsafe fn otfcc_dump_hhea(
     table: Option<&HheaTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let table = match table {
         Some(t) => t as *const HheaTable,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"hhea"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -150,12 +150,12 @@ pub unsafe fn otfcc_dump_hhea(
             hhea,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 pub unsafe fn otfcc_parse_hhea(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<HheaTable>> {
     let mut hhea_val: HheaTable = ::core::mem::zeroed();
     hhea_val.version = 0x10000 as ::core::ffi::c_int as F16Dot16;
@@ -169,7 +169,7 @@ pub unsafe fn otfcc_parse_hhea(
     );
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"hhea"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -231,7 +231,7 @@ pub unsafe fn otfcc_parse_hhea(
             ) as i16;
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     }

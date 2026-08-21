@@ -102,27 +102,27 @@ impl FontBuilder for OtfReader {
         let sfnt_packets = &(*sfnt).packets;
         let packet: &Packet = &sfnt_packets[index as usize];
         (*font).subtype = decide_font_subtype_otf(sfnt, index);
-        (*font).fvar = otfcc_read_fvar(packet, options);
-        (*font).head = otfcc_read_head(packet, options);
-        (*font).maxp = otfcc_read_maxp(packet, options);
-        (*font).name = otfcc_read_name(packet, options);
-        (*font).meta = otfcc_read_meta(packet, options);
-        (*font).os_2 = otfcc_read_os_2(packet, options);
-        (*font).post = otfcc_read_post(packet, options);
-        (*font).hhea = otfcc_read_hhea(packet, options);
-        (*font).cmap = otfcc_read_cmap(packet, options);
+        (*font).fvar = otfcc_read_fvar(packet, &*options);
+        (*font).head = otfcc_read_head(packet, &*options);
+        (*font).maxp = otfcc_read_maxp(packet, &*options);
+        (*font).name = otfcc_read_name(packet, &*options);
+        (*font).meta = otfcc_read_meta(packet, &*options);
+        (*font).os_2 = otfcc_read_os_2(packet, &*options);
+        (*font).post = otfcc_read_post(packet, &*options);
+        (*font).hhea = otfcc_read_hhea(packet, &*options);
+        (*font).cmap = otfcc_read_cmap(packet, &*options);
         if (*font).subtype == FontSubtype::Ttf {
             (*font).hmtx = otfcc_read_hmtx(
                 packet,
-                options,
+                &*options,
                 (*font).hhea.as_deref_mut().map_or(::core::ptr::null_mut(), |h| h as *mut HheaTable),
                 (*font).maxp.as_deref_mut().map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable),
             );
-            (*font).vhea = otfcc_read_vhea(packet, options);
+            (*font).vhea = otfcc_read_vhea(packet, &*options);
             if (*font).vhea.is_some() {
                 (*font).vmtx = otfcc_read_vmtx(
                     packet,
-                    options,
+                    &*options,
                     (*font).vhea.as_deref_mut().map_or(::core::ptr::null_mut(), |v| v as *mut VheaTable),
                     (*font).maxp.as_deref_mut().map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable),
                 );
@@ -130,9 +130,9 @@ impl FontBuilder for OtfReader {
             (*font).fpgm = otfcc_read_fpgm_prep(packet, crate::tag::TAG_FPGM);
             (*font).prep = otfcc_read_fpgm_prep(packet, crate::tag::TAG_PREP);
             (*font).cvt_ = otfcc_read_cvt(packet, crate::tag::TAG_CVT);
-            (*font).gasp = otfcc_read_gasp(packet, options);
-            (*font).vdmx = otfcc_read_vdmx(packet, options);
-            (*font).ltsh = otfcc_read_ltsh(packet, options);
+            (*font).gasp = otfcc_read_gasp(packet, &*options);
+            (*font).vdmx = otfcc_read_vdmx(packet, &*options);
+            (*font).ltsh = otfcc_read_ltsh(packet, &*options);
             let mut ctx: GlyfIOContext = GlyfIOContext {
                 loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
                 num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
@@ -141,7 +141,7 @@ impl FontBuilder for OtfReader {
                 has_vertical_metrics: false,
                 export_fd_select: false,
             };
-            (*font).glyf = otfcc_read_glyf(packet, options, &raw mut ctx);
+            (*font).glyf = otfcc_read_glyf(packet, &*options, &raw mut ctx);
         } else {
             let mut cffpr: CffAndGlyf =
                 otfcc_read_cff_and_glyf_tables(
@@ -151,15 +151,15 @@ impl FontBuilder for OtfReader {
                 );
             (*font).cff = unwrap_cff_table(cffpr.meta);
             (*font).glyf = unwrap_glyf_table(cffpr.glyphs);
-            (*font).vhea = otfcc_read_vhea(packet, options);
+            (*font).vhea = otfcc_read_vhea(packet, &*options);
             if (*font).vhea.is_some() {
                 (*font).vmtx = otfcc_read_vmtx(
                     packet,
-                    options,
+                    &*options,
                     (*font).vhea.as_deref_mut().map_or(::core::ptr::null_mut(), |v| v as *mut VheaTable),
                     (*font).maxp.as_deref_mut().map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable),
                 );
-                (*font).vorg = otfcc_read_vorg(packet, options);
+                (*font).vorg = otfcc_read_vorg(packet, &*options);
             }
         }
         if let Some(glyf) = (*font).glyf.as_ref() {
@@ -178,9 +178,9 @@ impl FontBuilder for OtfReader {
             );
             (*font).gdef = otfcc_read_gdef(packet);
         }
-        (*font).base = otfcc_read_base(packet, options);
+        (*font).base = otfcc_read_base(packet, &*options);
         (*font).cpal = otfcc_read_cpal(packet);
-        (*font).colr = otfcc_read_colr(packet, options);
+        (*font).colr = otfcc_read_colr(packet, &*options);
         (*font).svg = otfcc_read_svg(packet);
         (*font).tsi_01 = otfcc_read_tsi(
             packet,

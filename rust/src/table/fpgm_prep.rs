@@ -74,7 +74,7 @@ pub unsafe fn otfcc_read_fpgm_prep(
 pub unsafe fn table_dump_table_fpgm_prep(
     table: Option<&FpgmPrepTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
     mut tag: *const ::core::ffi::c_char,
 ) {
     let table = match table {
@@ -82,7 +82,7 @@ pub unsafe fn table_dump_table_fpgm_prep(
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
@@ -90,10 +90,10 @@ pub unsafe fn table_dump_table_fpgm_prep(
         json_object_push(
             root,
             tag,
-            dump_ttinstr((*table).bytes, (*table).length, options),
+            dump_ttinstr((*table).bytes, (*table).length, options as *const Options),
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 pub unsafe extern "C" fn make_fpgm_prep_instr(
@@ -113,7 +113,7 @@ pub unsafe extern "C" fn wrong_fpgm_prep_instr(
 }
 pub unsafe fn otfcc_parse_fpgm_prep(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
     mut tag: *const ::core::ffi::c_char,
 ) -> Option<Box<FpgmPrepTable>> {
     let mut t: Option<Box<FpgmPrepTable>> = None;
@@ -121,7 +121,7 @@ pub unsafe fn otfcc_parse_fpgm_prep(
     table = json_obj_get(root, tag);
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(tag),
         );
         let mut ___loggedstep_v: bool = true;
@@ -154,7 +154,7 @@ pub unsafe fn otfcc_parse_fpgm_prep(
             t = Some(boxed);
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     }

@@ -45,7 +45,7 @@ fn parse_hmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<HmtxTable, 
 }
 pub unsafe fn otfcc_read_hmtx(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
     mut hhea: *mut HheaTable,
     mut maxp: *mut MaxpTable,
 ) -> Option<Box<HmtxTable>> {
@@ -63,7 +63,7 @@ pub unsafe fn otfcc_read_hmtx(
         Ok(hmtx) => Some(Box::new(hmtx)),
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Table 'hmtx' corrupted.\n"),
