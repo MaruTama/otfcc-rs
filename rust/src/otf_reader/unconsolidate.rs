@@ -507,9 +507,9 @@ unsafe fn merge_vmtx(font: *mut Font) {
     if let Some(vorg) = (*font).vorg.take() {
         let mut v: Vec<Pos> = vec![vorg.default_vertical_origin; (*glyf).len()];
         for j_0 in 0..vorg.num_vert_origin_y_metrics as GlyphId {
-            if ((*vorg.entries.offset(j_0 as isize)).gid as usize) < (*glyf).len() {
-                v[(*vorg.entries.offset(j_0 as isize)).gid as usize] =
-                    (*vorg.entries.offset(j_0 as isize)).vertical_origin as Pos;
+            let entry = vorg.entries[j_0 as usize];
+            if (entry.gid as usize) < (*glyf).len() {
+                v[entry.gid as usize] = entry.vertical_origin as Pos;
             }
         }
         vorgs = Some(v);
@@ -548,7 +548,7 @@ unsafe fn merge_ltsh(font: *mut Font) {
             let n = ((*glyf).len() as GlyphId).min(ltsh.num_glyphs);
             for j in 0..n {
                 (&mut (*glyf))[j as usize].as_mut().unwrap().y_pel =
-                    *ltsh.y_pels.offset(j as isize);
+                    ltsh.y_pels[j as usize];
             }
         }
     }

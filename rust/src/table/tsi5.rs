@@ -18,12 +18,14 @@ use crate::support::built_json::{BuiltValue, json_object_push};
 pub type Tsi5Table = ClassDef;
 // Stage 6-4 "Box化": `Font.tsi5` becomes `Option<Box<Tsi5Table>>`.
 // `ClassDef` itself stays a raw-pointer-constructible type everywhere else
-// in the crate (`GdefTable.glyph_class_def`/`.mark_attach_class_def`, and
-// `otl_class_def_create`/`parse_class_def` used throughout `otl`/`gdef`
-// consolidation) -- widening those constructors themselves to return
-// `Box<ClassDef>` would ripple across all of those, well beyond this
-// field's own scope. Instead, `unwrap_class_def` "adopts" the value into a
-// genuine `Box`: since `otl_class_def_create` itself allocates via
+// in the crate (`otl_class_def_create`/`parse_class_def`/`read_class_def`
+// used throughout `otl`/`gdef` construction and consolidation, and adopted
+// into an owned `Option<Box<ClassDef>>` only at each field's own assignment
+// site via `classdef_from_raw` -- see `GdefTable.glyph_class_def`/
+// `.mark_attach_class_def`, Stage 7-2-c) -- widening those constructors
+// themselves to return `Box<ClassDef>` would ripple across all of those,
+// well beyond this field's own scope. Instead, `unwrap_class_def` "adopts"
+// the value into a genuine `Box`: since `otl_class_def_create` itself allocates via
 // `Box::into_raw` now, `Box::from_raw` reclaims that exact allocation
 // directly -- no read-then-free-then-reallocate needed (and reaching for
 // `free` here would be wrong regardless: it must match `Box::into_raw`, not

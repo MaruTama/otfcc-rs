@@ -40,7 +40,7 @@ use crate::table::otl::classdef::ClassDef;
 
 use crate::consolidate::otl::common::{fontop_consolidate_class_def};
 use crate::support::glyph_order::{otfcc_gord_consolidate_handle, GlyphOrder};
-use crate::table::otl::classdef::{shrink_class_def, otl_class_def_free};
+use crate::table::otl::classdef::{shrink_class_def};
 
 pub unsafe fn consolidate_gdef(
     mut font: *mut Font,
@@ -54,20 +54,23 @@ pub unsafe fn consolidate_gdef(
         .glyph_order
         .as_deref_mut()
         .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
-    if !(*gdef).glyph_class_def.is_null() {
-        fontop_consolidate_class_def(font, (*gdef).glyph_class_def, options);
-        shrink_class_def((*gdef).glyph_class_def);
-        if (*(*gdef).glyph_class_def).glyphs.is_empty() {
-            otl_class_def_free((*gdef).glyph_class_def);
-            (*gdef).glyph_class_def = ::core::ptr::null_mut::<ClassDef>();
+    if let Some(cd) = (*gdef).glyph_class_def.as_deref_mut() {
+        let cd: *mut ClassDef = cd;
+        fontop_consolidate_class_def(font, cd, options);
+        shrink_class_def(cd);
+        if (*cd).glyphs.is_empty() {
+            // Dropping the `Box` here does exactly what
+            // `otl_class_def_free` used to (see `table/gdef.rs`'s
+            // `GdefTable` comment) -- no leak, no behavior change.
+            (*gdef).glyph_class_def = None;
         }
     }
-    if !(*gdef).mark_attach_class_def.is_null() {
-        fontop_consolidate_class_def(font, (*gdef).mark_attach_class_def, options);
-        shrink_class_def((*gdef).mark_attach_class_def);
-        if (*(*gdef).mark_attach_class_def).glyphs.is_empty() {
-            otl_class_def_free((*gdef).mark_attach_class_def);
-            (*gdef).mark_attach_class_def = ::core::ptr::null_mut::<ClassDef>();
+    if let Some(cd) = (*gdef).mark_attach_class_def.as_deref_mut() {
+        let cd: *mut ClassDef = cd;
+        fontop_consolidate_class_def(font, cd, options);
+        shrink_class_def(cd);
+        if (*cd).glyphs.is_empty() {
+            (*gdef).mark_attach_class_def = None;
         }
     }
     if !(*gdef).lig_carets.is_empty() {

@@ -932,6 +932,91 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-c (batch 1 of 2): 5 of the plan's 10 "outer `Box` + inner raw
+  array" types converted to `Vec<T>`/`Option<Box<T>>`, their manual `impl
+  Drop` deleted.** Stage 6-4 had already `Box`/`Vec`-ified the *outer*
+  container for every one of the plan's 10 candidates; this stage finishes
+  the job on the *inner* raw-pointer field each one still owned.
+  - **`CvtTable.words`** (`table/cvt.rs`): `*mut u16` → `Vec<u16>`. The
+    `length` field is gone too -- it always equaled `words.len()` at every
+    construction site, so it was pure redundancy once the storage itself
+    carries its own length.
+  - **`LtshTable.y_pels`** (`table/ltsh.rs`) and **`VorgTable.entries`**
+    (`table/vorg.rs`): `*mut u8`/`*mut VorgEntry` → `Vec<u8>`/
+    `Vec<VorgEntry>`. Unlike `CvtTable.length`, `num_glyphs`/
+    `num_vert_origin_y_metrics` stay as real fields -- both are read
+    independently at `otf_reader/unconsolidate.rs`'s `merge_ltsh`/
+    `merge_vmtx` (a `.min()` clamp bound, not just a length), so collapsing
+    them into `.len()` would have been a real (if probably harmless)
+    behavior risk, not just a cleanup. Extra call sites beyond the two
+    owning files: `otf_writer/stat.rs`'s `stat_ltsh`/`stat_vorg` (the build-
+    direction constructors) and `otf_reader/unconsolidate.rs`'s own reads.
+  - **`GdefTable.{glyph_class_def,mark_attach_class_def}`** (`table/
+    gdef.rs`): `*mut ClassDef` → `Option<Box<ClassDef>>` each, following an
+    exact precedent already in the tree (`table/otl.rs`'s
+    `ChainingRuleSet.bc`/`.ic`/`.fc`, same field shape for the same
+    `ClassDef` type). Verified before converting that this is safe: `ClassDef`
+    has no manual `Drop` of its own (a plain `Vec`-holding struct that
+    already self-drops), and `otl_class_def_free` -- the function `GdefTable`'s
+    old `Drop` used to call -- turned out to be exactly `drop(Box::from_raw(
+    x))`, i.e. precisely what `Option<Box<ClassDef>>`'s own drop glue does.
+    `impl Drop for GdefTable` deleted outright, not ported. A third call
+    site outside `gdef.rs` needed the same treatment:
+    `consolidate/otl/gdef.rs`'s `consolidate_gdef`, which shrinks a class
+    def post-consolidation and frees it if it ended up empty -- the manual
+    `otl_class_def_free` + null-out became a plain `= None`.
+  - **`table/otl/subtables/chaining/read.rs`'s `ClassDefs`** (a private,
+    transient parse-time scratch struct -- *not* the same type as
+    `ChainingRuleSet` above, despite sharing a field shape and the
+    `ClassDef` element type): same `Option<Box<ClassDef>>` conversion, but
+    with two added wrinkles this type's siblings didn't have. First, it used
+    to `#[derive(Copy, Clone)]`, incompatible with owning a `Box`; auditing
+    every touch site in the file first confirmed nothing ever actually
+    copied it by value (every access already went through a raw pointer),
+    so dropping the derive changed no call site's shape. Second, it never
+    had an `impl Drop` at all -- its raw pointers were freed by hand at a
+    specific point in `read_contextual_format2`/`read_chaining_format2`
+    (`otl_class_def_free` × 3 + a final `free`), now replaced by a single
+    `drop(Box::from_raw(cds))` once the whole struct is genuinely
+    `Box`-owned. Verified this introduces no double-free: the struct's only
+    other reader, `class_coverage` (invoked as a C-callback-shaped `fn_0`
+    with the struct as `void*` userdata), only ever *reads* through the raw
+    pointer during the parse loop and never takes ownership, so there is
+    exactly one owner to drop, at exactly the point the original code freed
+    it. One behavior-adjacent change worth flagging: `class_coverage` used
+    to read `bc`/`ic`/`fc` as a possibly-null `*mut ClassDef` and
+    dereference it unconditionally (a latent null-deref for any `kind` whose
+    field the calling parse path left unpopulated -- `read_contextual_
+    format2` deliberately leaves `bc`/`fc` as `None`, only ever populating
+    `ic`); this now calls `.expect()` on the `Option` instead, panicking
+    loudly rather than reading through null. Confirmed this can never
+    actually fire: traced every `class_coverage` call site by hand and
+    `general_read_contextual_rule` (the only caller reachable from the
+    `bc`/`fc`-leaves-`None` path) always passes `kind == 2` (`ic`), never
+    `1`/`3` -- so the `None` branches were already dead in practice, just
+    silently so. Same "UB becomes a panic, not silent" idiom used
+    throughout this migration.
+  - **What's deferred to a second batch, and why**: `FpgmPrepTable.bytes`
+    (coupled to a C-callback-shaped `extern "C" fn` `support/ttinstr.rs`
+    calls into), `Glyph.instructions` (~15 scattered touch sites across
+    `glyf.rs`/`glyf/build.rs`), `SvgAssignment.document` (owns a `*mut
+    Buffer`; `Buffer` itself is still the old C-shaped struct, better paired
+    with the separate Stage 7-2-e `Buffer`→`Vec<u8>` work), and
+    `PostTable.post_name_map` (coupled to a not-yet-decided `Font.
+    glyph_order`/`GlyphOrder` representation question). `FvarTable`'s
+    `Drop` (walks `FvarMaster.region: *mut VqRegion`) and `Subtable`'s
+    enum-dispatch `Drop` surfaced by a fresh grep are a different shape
+    entirely (not "inner raw array"), out of this stage's scope by
+    definition.
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged, round-
+    trips 10/10, lookup-alias regression clean, `cargo miri test` 224/0/20
+    identical to baseline, both fuzz targets `cargo check`-clean.
+    `survey-unsafe.sh`: raw pointer types 5924→5906, `.offset(` calls
+    934→915, `is_null()` 411→394, `impl Drop for` blocks 10→6 (`Subtable`,
+    `FvarTable`, `PostTable`, `FpgmPrepTable`, `SvgAssignment`, `Glyph`
+    remain -- the latter 4 are exactly this stage's deferred batch 2).
+
 - **Stage 7-2-b: `Options` owns its `Logger` inline, via `RefCell`, instead
   of pointing at a second heap allocation.** `Options.logger` was `*mut
   Logger`, built by a separate `otfcc_new_logger` allocation and freed by

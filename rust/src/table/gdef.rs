@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
-use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
+use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 use crate::support::binio::{read_16u};
@@ -45,31 +45,23 @@ pub(crate) unsafe fn clear_lig_carets(lc: *mut LigCaretTable) {
     (*lc).clear();
 }
 pub struct GdefTable {
-    pub glyph_class_def: *mut ClassDef,
-    pub mark_attach_class_def: *mut ClassDef,
+    pub glyph_class_def: Option<Box<ClassDef>>,
+    pub mark_attach_class_def: Option<Box<ClassDef>>,
     pub lig_carets: LigCaretTable,
 }
-// Stage 6-4 "Box化": `glyph_class_def`/`mark_attach_class_def` are the only
-// allocations this struct owns beyond `lig_carets` (already a `Vec`, freed
-// by its own drop glue) -- left as raw pointers for this PR (their own
-// Box化 is a separate future task), freed the same way `dispose_gdef`
-// always did. Replaces the entire `table_gdef_init`/`_dispose`/`_create`/
-// `_free` quartet -- construction now goes through `Box::new` directly at
-// each call site (`otfcc_read_gdef`/`otfcc_parse_gdef`), matching the
-// `GaspTable`/`VorgTable` precedent.
-impl Drop for GdefTable {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.glyph_class_def.is_null() {
-                otl_class_def_free(self.glyph_class_def);
-            }
-            if !self.mark_attach_class_def.is_null() {
-                otl_class_def_free(self.mark_attach_class_def);
-            }
-            self.lig_carets.clear();
-        }
-    }
-}
+// Stage 6-4 "Box化" Box-ified the outer `GdefTable` itself (replacing the
+// entire `table_gdef_init`/`_dispose`/`_create`/`_free` quartet). Stage
+// 7-2-c "inner Box化" finishes the job here: `glyph_class_def`/
+// `mark_attach_class_def` become `Option<Box<ClassDef>>`, the exact same
+// shape `table/otl.rs`'s `ChainingRuleSet.bc`/`.ic`/`.fc` and
+// `GposPairSubtable.first`/`.second` already use for this same `ClassDef`
+// type. `ClassDef` itself has no manual `Drop` impl -- it is a plain
+// `Vec`-holding struct (`glyphs: Vec<GlyphHandle>`, `classes:
+// Vec<GlyphClass>`) that already self-drops correctly, and
+// `otl_class_def_free` (the function this used to call) is itself just
+// `drop(Box::from_raw(x))`, i.e. exactly what `Option<Box<ClassDef>>`'s own
+// drop glue now does directly. No manual `Drop` impl remains: both class-def
+// fields and `lig_carets` (a plain `Vec`) all self-drop now.
 // `table_gdef_copy`'s old `memcpy`-based body is gone outright, not
 // `.clone()`-ported: it was unreachable even before this conversion (only
 // ever assigned into `GdefTableElementInterface.copy`, never called through
@@ -175,8 +167,8 @@ pub unsafe fn otfcc_read_gdef(
                     let mut table_length: u32 = table.length;
                     if !(table_length < 12 as u32) {
                         gdef = Some(Box::new(GdefTable {
-                            glyph_class_def: ::core::ptr::null_mut::<ClassDef>(),
-                            mark_attach_class_def: ::core::ptr::null_mut::<ClassDef>(),
+                            glyph_class_def: None,
+                            mark_attach_class_def: None,
                             lig_carets: Vec::new(),
                         }));
                         classdef_offset = read_16u(
@@ -184,11 +176,11 @@ pub unsafe fn otfcc_read_gdef(
                         );
                         if classdef_offset != 0 {
                             gdef.as_mut().unwrap().glyph_class_def =
-                                read_class_def(
+                                classdef_from_raw(read_class_def(
                                     data as *const u8,
                                     table_length,
                                     classdef_offset as u32,
-                                );
+                                ));
                         }
                         lig_caret_offset = read_16u(
                             data.offset(8 as ::core::ffi::c_int as isize) as *const u8
@@ -280,11 +272,11 @@ pub unsafe fn otfcc_read_gdef(
                                         as *const u8);
                                 if mark_attach_def_offset != 0 {
                                     gdef.as_mut().unwrap().mark_attach_class_def =
-                                        read_class_def(
+                                        classdef_from_raw(read_class_def(
                                             data as *const u8,
                                             table_length,
                                             mark_attach_def_offset as u32,
-                                        );
+                                        ));
                                 }
                                 return gdef;
                             }
@@ -351,18 +343,18 @@ pub unsafe fn otfcc_dump_gdef(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _gdef: *mut BuiltValue = json_object_new(4 as usize);
-        if !(*gdef).glyph_class_def.is_null() {
+        if let Some(cd) = (*gdef).glyph_class_def.as_deref() {
             json_object_push(
                 _gdef,
                 b"glyphClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                dump_class_def((*gdef).glyph_class_def),
+                dump_class_def(cd),
             );
         }
-        if !(*gdef).mark_attach_class_def.is_null() {
+        if let Some(cd) = (*gdef).mark_attach_class_def.as_deref() {
             json_object_push(
                 _gdef,
                 b"markAttachClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                dump_class_def((*gdef).mark_attach_class_def),
+                dump_class_def(cd),
             );
         }
         if !(*gdef).lig_carets.is_empty() {
@@ -466,20 +458,20 @@ pub unsafe fn otfcc_parse_gdef(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             gdef = Some(Box::new(GdefTable {
-                glyph_class_def: ::core::ptr::null_mut::<ClassDef>(),
-                mark_attach_class_def: ::core::ptr::null_mut::<ClassDef>(),
+                glyph_class_def: None,
+                mark_attach_class_def: None,
                 lig_carets: Vec::new(),
             }));
             gdef.as_mut().unwrap().glyph_class_def =
-                parse_class_def(json_obj_get(
+                classdef_from_raw(parse_class_def(json_obj_get(
                     table,
                     b"glyphClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                ));
+                )));
             gdef.as_mut().unwrap().mark_attach_class_def =
-                parse_class_def(json_obj_get(
+                classdef_from_raw(parse_class_def(json_obj_get(
                     table,
                     b"markAttachClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                ));
+                )));
             lig_caret_from_json(
                 json_obj_get(
                     table,
@@ -545,20 +537,16 @@ pub unsafe fn otfcc_build_gdef(
     let mut b_attach_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let mut b_lig_caret_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let mut b_mark_attach_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
-    if !(*gdef).glyph_class_def.is_null() {
+    if let Some(cd) = (*gdef).glyph_class_def.as_deref() {
         b_glyph_class_def =
-            bk_new_block_from_buffer(build_class_def(
-                (*gdef).glyph_class_def,
-            ));
+            bk_new_block_from_buffer(build_class_def(cd));
     }
     if !(*gdef).lig_carets.is_empty() {
         b_lig_caret_list = write_lig_carets(&raw const (*gdef).lig_carets);
     }
-    if !(*gdef).mark_attach_class_def.is_null() {
+    if let Some(cd) = (*gdef).mark_attach_class_def.as_deref() {
         b_mark_attach_class_def =
-            bk_new_block_from_buffer(build_class_def(
-                (*gdef).mark_attach_class_def,
-            ));
+            bk_new_block_from_buffer(build_class_def(cd));
     }
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, b_glyph_class_def), bk_ptr(BkCellType::P16, b_attach_list), bk_ptr(BkCellType::P16, b_lig_caret_list), bk_ptr(BkCellType::P16, b_mark_attach_class_def)]);
     return bk_build_block(root);
