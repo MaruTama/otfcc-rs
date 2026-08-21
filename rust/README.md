@@ -932,6 +932,107 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-a (part 2): `*const Options` → `&Options`, the ~153
+  actually-used parameters part 1 (below) left alone.** Done as 4 batches
+  by subsystem rather than one large PR, since a reference conversion can
+  in principle hit borrow-checker fallout that a plain deletion can't —
+  smaller batches keep each one's risk legible. All 4 landed on the same
+  branch/PR to keep review to a single pass.
+  - **Batch 1 — CFF** (`libcff/cff_parser.rs`, `libcff/charstring_il.rs`,
+    `libcff/subr.rs`, `table/cff.rs`, 12 functions incl.
+    `cff_parse_outline`, the ~1,900-line Type2 charstring interpreter —
+    the riskiest function by sheer size even though the change itself is
+    mechanical). Fully mechanical: no borrow-checker conflicts, no
+    dispatch-table constraints in these 4 files.
+    - **One deliberate exception, structural not accidental**:
+      `CffCharstringBuilderContext.options` (`table/cff.rs`) is a *struct
+      field*, not a function parameter, so it stays `*const Options` —
+      the struct is a stack-local scratch context threaded through one
+      call chain, and re-deriving the raw pointer from the incoming
+      `&Options` at that one field assignment is simpler than threading
+      a lifetime parameter through the whole struct.
+    - **One test fix, not a behavior change**: `cff_parser.rs`'s
+      truncated-header test used to pass a null `*const Options` down a
+      path that provably never dereferences it. A real `&Options` can't
+      be null, so it now uses a `mem::zeroed()` `Options` local — sound
+      because `Options` (`support/options.rs`) is `Copy`/`Clone` over
+      only `bool` and raw-pointer fields (no `Vec`/`Box`/`HashMap`), so
+      the all-zero bit pattern is a valid value, unlike the
+      `otfcc-vec-field-assign-needs-calloc`-shaped traps found earlier.
+  - **Batch 2 — OTL** (`table/otl/{build,dump,parse,read}.rs`,
+    `table/otl/subtables/{chaining/read,extend,gpos_mark_to_ligature,
+    gpos_mark_to_single}.rs`, `consolidate/otl/*.rs`, 33 functions).
+    Surfaced two `extern "C" fn`-typed dispatch tables where a function's
+    `Options` parameter is load-bearing because its *address* is taken
+    and stored as a value, not just called directly:
+    - `table/otl/parse.rs`'s `_declare_lookup_parser` table already had 8
+      known members (part 1's unused-parameter pass left them alone for
+      the same reason). Two more turned out to be in that table with a
+      genuinely *used* `Options` parameter — `otl_gpos_parse_mark_to_
+      ligature`/`_mark_to_single` — so instead of leaving the whole
+      function alone, the real work moved into a private `parse_bases(
+      ..., &Options)` helper, called as `parse_bases(..., &*options)`
+      from the still-`*const Options` dispatch entry point.
+    - `consolidate.rs` has a second, independent dispatch table
+      (`extern "C" fn(*mut Font, *mut OtlTable, *mut Subtable, *const
+      Options) -> bool`) constraining 10 more functions the same way
+      (`consolidate_gpos_cursive`/`_single`/`_pair`, `consolidate_gsub_
+      ligature`/`_reverse`/`_multi`/`_alternative`, `consolidate_
+      chaining`, `consolidate_mark_to_single`/`_to_ligature`) — each
+      keeps `*const Options` and bridges `&*options` into the
+      newly-`&Options` helpers it calls.
+  - **Batch 3 — other `table/*.rs`** (every remaining `table/*.rs` file:
+    `_tsi`, `base`, `cmap`, `colr`, `cpal`, `cvt`, `fpgm_prep`, `fvar`,
+    `gasp`, `gdef`, `glyf`/`glyf/read`, `head`, `hhea`, `hmtx`, `ltsh`,
+    `maxp`, `meta/{dump,parse,read}`, `name`, `os_2`, `post`, `svg`,
+    `vdmx/funcs`, `vhea`, `vmtx`, `vorg` — 68 functions, the largest
+    batch). No dispatch-table constraints found; fully mechanical.
+    `fpgm_prep.rs`/`glyf.rs` each kept one `options as *const Options`
+    pass-through into `support/ttinstr.rs`'s not-yet-converted
+    `dump_ttinstr`, cleaned up in batch 4.
+  - **Batch 4 — top-level orchestration** (`consolidate.rs`'s
+    non-dispatch-table functions, `font/caryll_sfnt_builder.rs`,
+    `json_reader.rs`/`json_writer.rs`, `otf_reader.rs`/`otf_reader/
+    unconsolidate.rs`, `otf_writer.rs`/`otf_writer/stat.rs`,
+    `support/ttinstr.rs` — 33 functions). This is where the outer
+    `read_otf`/`read_json`/`serialize_to_json`/`serialize_to_otf`
+    functions and their `FontBuilder`/`FontSerializer` trait-impl bodies
+    finally moved off `*const Options`, which let ~70 accumulated
+    `&*options` bridging expressions (added by batches 1–3 for callers
+    that hadn't converted yet) collapse back into plain `options`.
+    - `FontBuilder`/`FontSerializer` themselves stayed untouched: both
+      traits are already erased to `*const c_void` at the boundary (for
+      dynamic dispatch reasons predating this change), so each impl body
+      does one `&*(options as *const Options)` reconstruction up front
+      and uses a real `&Options` from there on — no trait signature or
+      cross-implementor change needed.
+    - `SfntBuilder.options` (`font/caryll_sfnt_builder.rs`) is a struct
+      field, same reasoning as `CffCharstringBuilderContext.options` in
+      batch 1 — left as `*const Options`.
+    - The 3 legitimate ownership/construction sites this whole part was
+      never going to touch — `support/options.rs`'s `otfcc_new_options`/
+      `otfcc_delete_options`/`otfcc_options_optimize_to`, and the `*mut
+      Options` locals in `bin/otfccbuild.rs`, `bin/otfccdump.rs`,
+      `ffi/dll.rs` — got their call sites into now-`&Options` functions
+      adjusted to `&*options`, nothing else.
+  - **What's left `*const Options` after all 4 batches, confirmed by
+    grep**: exactly the 21 dispatch-table-constrained function
+    declarations found across batches 2 and 4 (10 lookup-subtable
+    parsers + 11 `consolidate.rs` dispatch functions — one more than
+    the original plan's estimate of 20, since `consolidate_gsub_single`
+    turned out to be address-taken the same way), the 2 struct fields
+    (`table/cff.rs`, `font/caryll_sfnt_builder.rs`), and the
+    trait-boundary `*const c_void` bridging casts in batch 4's 4 files.
+    Everything else in `rust/src/` that ever took a used `Options`
+    parameter now takes `&Options`.
+  - **Verification** (run once at the end, after all 4 batches):
+    full pipeline green — build, 244/244 tests, clippy clean, ABI
+    unchanged, golden bytes and log output unchanged (including
+    `KRName-Regular-O2.otf`'s subroutine-count line), round-trips 10/10,
+    `cargo miri test` 224/0/20, identical to baseline throughout. `survey-
+    unsafe.sh`: raw pointer types 6088 (start of part 2, i.e. after part
+    1's deletions below) → 5935.
+
 - **Stage 7-2-a (part 1 of 2): removed 51 dead `_options: *const Options`
   parameters.** The plan flagged ~62 of these as pure C-signature inertia
   (never read, never dereferenced) across `rust/src/`; a fresh survey found

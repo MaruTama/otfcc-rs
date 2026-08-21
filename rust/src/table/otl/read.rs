@@ -28,7 +28,7 @@ pub unsafe fn otfcc_read_otl_subtable(
     mut subtable_offset: u32,
     mut lookup_type: LookupType,
     max_glyphs: GlyphId,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Subtable {
     match lookup_type {
         OTL_TYPE_GSUB_SINGLE => {
@@ -177,7 +177,7 @@ unsafe fn parse_language(
 unsafe fn parse_otl_common(
     data: &[u8],
     lookup_type_base: LookupType,
-    options: *const Options,
+    options: &Options,
 ) -> Result<Box<OtlTable>, ReadError> {
     let mut table_box: Box<OtlTable> =
         Box::new(OtlTable { lookups: Vec::new(), features: Vec::new(), languages: Vec::new() });
@@ -214,14 +214,14 @@ unsafe fn parse_otl_common(
         let tag = fr.u32()?;
         let feature_offset = feature_list_offset.wrapping_add(fr.u16()? as u32);
         let mut feature: Box<Feature> = new_feature();
-        if !(*options).glyph_name_prefix.is_null() {
+        if !options.glyph_name_prefix.is_null() {
             (*feature).name = crate::bytesbuild!(
                 Byte((tag >> 24 & 0xff) as u8),
                 Byte((tag >> 16 & 0xff) as u8),
                 Byte((tag >> 8 & 0xff) as u8),
                 Byte((tag & 0xff) as u8),
                 b"_",
-                (*options).glyph_name_prefix,
+                options.glyph_name_prefix,
                 b"_",
                 Dec5(j as ::core::ffi::c_int),
             );
@@ -244,12 +244,12 @@ unsafe fn parse_otl_common(
             if (lookupid as usize) < (*table).lookups.len() {
                 let lookup_0: *mut Lookup = &raw mut *(&mut (*table).lookups)[lookupid as usize];
                 if (*lookup_0).name.is_empty() {
-                    if !(*options).glyph_name_prefix.is_null() {
+                    if !options.glyph_name_prefix.is_null() {
                         let fresh3 = lnk;
                         lnk = lnk.wrapping_add(1);
                         (*lookup_0).name = crate::bytesbuild!(
                             b"lookup_",
-                            (*options).glyph_name_prefix,
+                            options.glyph_name_prefix,
                             b"_",
                             Byte((tag >> 24 & 0xff) as u8),
                             Byte((tag >> 16 & 0xff) as u8),
@@ -337,10 +337,10 @@ unsafe fn parse_otl_common(
 
     for j_3 in 0..(*table).lookups.len() {
         if (*(&(*table).lookups)[j_3]).name.is_empty() {
-            if !(*options).glyph_name_prefix.is_null() {
+            if !options.glyph_name_prefix.is_null() {
                 (*(&mut (*table).lookups)[j_3]).name = crate::bytesbuild!(
                     b"lookup_",
-                    (*options).glyph_name_prefix,
+                    options.glyph_name_prefix,
                     b"_",
                     Hex2((*(&(*table).lookups)[j_3]).type_0.raw()),
                     b"_",
@@ -362,7 +362,7 @@ unsafe fn otfcc_read_otl_lookup(
     data: &[u8],
     lookup: *mut Lookup,
     max_glyphs: GlyphId,
-    options: *const Options,
+    options: &Options,
 ) {
     let parsed = FontReader::new(data).at((*lookup)._offset as usize).and_then(|mut r| {
         r.skip(2)?; // lookupType, already resolved into type_0
@@ -476,7 +476,7 @@ unsafe fn otfcc_read_otl_lookup(
 }
 pub unsafe fn otfcc_read_otl(
     packet: &Packet,
-    options: *const Options,
+    options: &Options,
     tag: u32,
     max_glyphs: GlyphId,
 ) -> Option<Box<OtlTable>> {
@@ -556,7 +556,7 @@ mod parse_otl_common_tests {
         let data = well_formed_gsub();
         let options = zeroed_options();
         unsafe {
-            let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options as *const Options).unwrap();
+            let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
             assert_eq!(otl.lookups.len(), 1);
             assert_eq!(otl.features.len(), 1);
             assert_eq!(otl.features[0].name, b"liga_00000"); // Dec5 zero-pads the index
@@ -580,7 +580,7 @@ mod parse_otl_common_tests {
         data.truncate(52); // cuts off right after the one real langSysRecord
         let options = zeroed_options();
         unsafe {
-            assert!(parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options as *const Options).is_err());
+            assert!(parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).is_err());
         }
     }
 
@@ -594,7 +594,7 @@ mod parse_otl_common_tests {
         data[56..58].copy_from_slice(&5u16.to_be_bytes()); // langSys.featureCount: claims 5, only 1 present
         let options = zeroed_options();
         unsafe {
-            let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options as *const Options).unwrap();
+            let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
             assert_eq!(otl.languages.len(), 1);
             assert!(otl.languages[0].features.is_empty());
             assert!(otl.languages[0].required_feature.is_null());
@@ -622,7 +622,7 @@ mod parse_otl_common_tests {
             // that one subtable slot was appended, not what's in it.
             (*lookup).type_0 = OTL_TYPE_GSUB_UNKNOWN;
             let lookup_ptr: *mut Lookup = lookup.as_mut() as *mut Lookup;
-            otfcc_read_otl_lookup(&data, lookup_ptr, 0, &options as *const Options);
+            otfcc_read_otl_lookup(&data, lookup_ptr, 0, &options);
             assert_eq!((*lookup_ptr).subtables.len(), 1);
         }
     }
@@ -633,9 +633,9 @@ mod parse_otl_common_tests {
         let options = zeroed_options();
         unsafe {
             let mut otl =
-                parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options as *const Options).unwrap();
+                parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
             let lookup_ptr: *mut Lookup = &raw mut *otl.lookups[0];
-            otfcc_read_otl_lookup(&data, lookup_ptr, 0, &options as *const Options);
+            otfcc_read_otl_lookup(&data, lookup_ptr, 0, &options);
             assert_eq!((*lookup_ptr).type_0, OTL_TYPE_UNKNOWN);
         }
     }

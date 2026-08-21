@@ -45,7 +45,7 @@ use crate::table::otl::classdef::{shrink_class_def, otl_class_def_free};
 pub unsafe fn consolidate_gdef(
     mut font: *mut Font,
     mut gdef: *mut GdefTable,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
     if font.is_null() || (*font).glyph_order.is_none() || gdef.is_null() {
         return;
@@ -106,7 +106,7 @@ pub unsafe fn consolidate_gdef(
                 let gid: i32 = lig_carets[j as usize].glyph.index as i32;
                 if seen.contains_key(&gid) {
                     logger_log_sds(
-                        (*options).logger,
+                        options.logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Detected caret value double-mapping about glyph ",

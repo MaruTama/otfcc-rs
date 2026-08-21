@@ -402,14 +402,14 @@ fn parse_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
 
 pub unsafe fn otfcc_read_post(
     packet: &Packet,
-    options: *const Options,
+    options: &Options,
 ) -> Option<Box<PostTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_POST)?;
     let parsed = match parse_post(&table.data) {
         Ok(parsed) => parsed,
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'post' corrupted.\n"),
@@ -442,14 +442,14 @@ pub unsafe fn otfcc_read_post(
 pub unsafe fn otfcc_dump_post(
     table: Option<&PostTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let table = match table {
         Some(t) => t as *const PostTable,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"post"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -506,12 +506,12 @@ pub unsafe fn otfcc_dump_post(
             post,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 pub unsafe fn otfcc_parse_post(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<PostTable>> {
     // `.version`'s `0x30000` default carries through if the "post" JSON key
     // is absent (never overwritten below in that case, unlike every other
@@ -529,12 +529,12 @@ pub unsafe fn otfcc_parse_post(
     );
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"post"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            if (*options).short_post {
+            if options.short_post {
                 (*post).version = 0x30000 as ::core::ffi::c_int as F16Dot16;
             } else {
                 (*post).version = otfcc_to_fixed(json_obj_getnum(
@@ -576,7 +576,7 @@ pub unsafe fn otfcc_parse_post(
             ) as u32;
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     }

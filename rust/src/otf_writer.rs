@@ -72,7 +72,7 @@ impl FontSerializer for OtfSerializer {
         options: *const ::core::ffi::c_void,
     ) -> *mut ::core::ffi::c_void {
     let font = font as *mut Font;
-    let options = options as *const Options;
+    let options: &Options = &*(options as *const Options);
     otfcc_stat_font(font, options);
     let mut builder: *mut SfntBuilder = otfcc_new_sfnt_builder(
         (if (*font).subtype == FontSubtype::Cff {
@@ -272,7 +272,7 @@ impl FontSerializer for OtfSerializer {
             otfcc_build_tsi5((*font).tsi5.as_deref(), glyf.len() as GlyphId),
         );
     }
-    if (*options).dummy_dsig {
+    if options.dummy_dsig {
         let mut dsig: *mut Buffer = bufnew();
         bufwrite32b(dsig, 0x1 as u32);
         bufwrite16b(dsig, 0 as u16);
@@ -287,10 +287,10 @@ impl FontSerializer for OtfSerializer {
 }
 pub unsafe fn serialize_to_otf(
     mut font: *mut Font,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut ::core::ffi::c_void {
     <OtfSerializer as FontSerializer>::serialize(
         font as *mut ::core::ffi::c_void,
-        options as *const ::core::ffi::c_void,
+        options as *const Options as *const ::core::ffi::c_void,
     )
 }

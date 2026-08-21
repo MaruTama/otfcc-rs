@@ -255,7 +255,7 @@ unsafe fn otfcc_read_simple_glyph(
 }
 unsafe fn otfcc_read_composite_glyph(
     body: &[u8],
-    options: *const Options,
+    options: &Options,
 ) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     let mut r = FontReader::new(body);
@@ -309,7 +309,7 @@ unsafe fn otfcc_read_composite_glyph(
                 || flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO))
         {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"glyf: SCALED_COMPONENT_OFFSET is not supported."),
@@ -352,7 +352,7 @@ unsafe fn otfcc_read_glyph(
     data: FontFilePointer,
     offset: u32,
     length: u32,
-    options: *const Options,
+    options: &Options,
 ) -> Option<Box<Glyph>> {
     let glyph_bytes =
         ::core::slice::from_raw_parts(data.offset(offset as isize), length as usize);
@@ -976,7 +976,7 @@ unsafe fn polymorphize_glyph(
 #[inline]
 unsafe fn polymorphize(
     packet: &Packet,
-    options: *const Options,
+    options: &Options,
     glyf: *mut GlyfTable,
     ctx: *const GlyfIOContext,
 ) {
@@ -998,7 +998,7 @@ unsafe fn polymorphize(
     let Ok(axis_count) = header.u16() else { return };
     if axis_count as usize != (*(*ctx).fvar).axes.len() {
         logger_log_sds(
-            (*options).logger,
+            options.logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Axes number in GVAR and FVAR are inequal"),
@@ -1055,7 +1055,7 @@ unsafe fn polymorphize(
 }
 pub unsafe fn otfcc_read_glyf(
     packet: &Packet,
-    options: *const Options,
+    options: &Options,
     ctx: *const GlyfIOContext,
 ) -> Option<GlyfTable> {
     let num_glyphs = (*ctx).num_glyphs;
@@ -1071,7 +1071,7 @@ pub unsafe fn otfcc_read_glyf(
     // this crate uses.
     let loca_corrupted = || {
         logger_log_sds(
-            (*options).logger,
+            options.logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"table 'loca' corrupted.\n"),
@@ -1123,7 +1123,7 @@ pub unsafe fn otfcc_read_glyf(
     let glyf_piece = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_GLYF)?;
     if glyf_piece.length < offsets[num_glyphs as usize] {
         logger_log_sds(
-            (*options).logger,
+            options.logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"table 'glyf' corrupted.\n"),
@@ -1193,7 +1193,7 @@ mod glyf_read_tests {
                 data.as_ptr() as FontFilePointer,
                 0,
                 data.len() as u32,
-                &options as *const Options,
+                &options,
             );
             let g = g.unwrap();
             assert_eq!(g.contours.len(), 1);
@@ -1225,7 +1225,7 @@ mod glyf_read_tests {
                 data.as_ptr() as FontFilePointer,
                 0,
                 data.len() as u32,
-                &options as *const Options,
+                &options,
             );
             let g = g.unwrap();
             assert_eq!(g.references.len(), 1);
@@ -1252,7 +1252,7 @@ mod glyf_read_tests {
                 data.as_ptr() as FontFilePointer,
                 0,
                 data.len() as u32,
-                &options as *const Options,
+                &options,
             );
             assert!(g.is_none());
         }
@@ -1278,7 +1278,7 @@ mod glyf_read_tests {
                 data.as_ptr() as FontFilePointer,
                 0,
                 data.len() as u32,
-                &options as *const Options,
+                &options,
             );
             assert!(g.is_none());
         }
@@ -1302,7 +1302,7 @@ mod glyf_read_tests {
                 data.as_ptr() as FontFilePointer,
                 0,
                 data.len() as u32,
-                &options as *const Options,
+                &options,
             );
             assert!(g.is_none());
         }
@@ -1329,7 +1329,7 @@ mod glyf_read_tests {
                 data.as_ptr() as FontFilePointer,
                 0,
                 data.len() as u32,
-                &options as *const Options,
+                &options,
             );
             assert!(g.is_none());
         }
@@ -1344,7 +1344,7 @@ mod glyf_read_tests {
                 data.as_ptr() as FontFilePointer,
                 0,
                 data.len() as u32,
-                &options as *const Options,
+                &options,
             );
             assert!(g.is_none());
         }

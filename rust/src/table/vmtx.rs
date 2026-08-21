@@ -41,7 +41,7 @@ fn parse_vmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<VmtxTable, 
 }
 pub unsafe fn otfcc_read_vmtx(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
     mut vhea: *mut VheaTable,
     mut maxp: *mut MaxpTable,
 ) -> Option<Box<VmtxTable>> {
@@ -60,7 +60,7 @@ pub unsafe fn otfcc_read_vmtx(
         Ok(vmtx) => Some(Box::new(vmtx)),
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Table 'vmtx' corrupted.\n"),

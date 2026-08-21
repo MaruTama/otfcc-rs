@@ -54,7 +54,7 @@ pub unsafe fn parse_meta_data(mut v: *const ParsedValue) -> Option<Vec<u8>> {
 }
 pub unsafe fn otfcc_parse_meta(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<MetaTable>> {
     let mut _meta: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _meta = json_obj_get_type(
@@ -76,7 +76,7 @@ pub unsafe fn otfcc_parse_meta(
     }
     let mut meta: Box<MetaTable> = Box::new(MetaTable { version: 1, flags: 0, entries: Vec::new() });
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"meta"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -101,7 +101,7 @@ pub unsafe fn otfcc_parse_meta(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
     return Some(meta);
 }

@@ -39,7 +39,7 @@ pub unsafe extern "C" fn consolidate_chaining(
         fontop_consolidate_coverage(
             font,
             &mut (&mut (*rule).match_0)[j as usize] as *mut Coverage,
-            options,
+            &*options,
         );
         shrink_coverage(
             &mut (&mut (*rule).match_0)[j as usize] as *mut Coverage,

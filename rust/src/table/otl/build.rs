@@ -383,7 +383,7 @@ unsafe fn get_lookup_heuristics(
 }
 unsafe fn write_otl_lookups(
     mut table: *const OtlTable,
-    mut options: *const Options,
+    mut options: &Options,
     mut tag: *const ::core::ffi::c_char,
 ) -> *mut BkBlock {
     // `subtables`/`subtable_quantity`/`prefer_ext_for_this_lut` were three
@@ -401,7 +401,7 @@ unsafe fn write_otl_lookups(
         let lookup: *const Lookup = &raw const *(&(*table).lookups)[j as usize];
         let mut heu: BuildHeuristics = get_lookup_heuristics(table, lookup);
         logger_log_sds(
-            (*options).logger,
+            options.logger,
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             crate::bytesbuild!(b"Building lookup ",
@@ -442,7 +442,7 @@ unsafe fn write_otl_lookups(
     while (j_1 as usize) < (*table).lookups.len() {
         if subtable_quantity[j_1 as usize] == 0 {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_NOTICE,
                 LoggerType::Info,
                 crate::bytesbuild!(b"Lookup ",
@@ -457,7 +457,7 @@ unsafe fn write_otl_lookups(
             || prefer_ext_for_this_lut[j_1 as usize] as ::core::ffi::c_int != 0;
         if use_extended_for_it {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_NOTICE,
                 LoggerType::Info,
                 crate::bytesbuild!(b"[OTFCC-fea] Using extended OpenType table layout for ",
@@ -675,7 +675,7 @@ unsafe fn write_otl_script_and_languages(
 }
 pub unsafe fn otfcc_build_otl(
     mut table: Option<&OtlTable>,
-    mut options: *const Options,
+    mut options: &Options,
     mut tag: *const ::core::ffi::c_char,
 ) -> *mut Buffer {
     let table: *const OtlTable = table.map_or(::core::ptr::null(), |t| t as *const OtlTable);
@@ -684,7 +684,7 @@ pub unsafe fn otfcc_build_otl(
     }
     let mut buf: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
@@ -695,7 +695,7 @@ pub unsafe fn otfcc_build_otl(
         let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, languages), bk_ptr(BkCellType::P16, features), bk_ptr(BkCellType::P16, lookups)]);
         buf = bk_build_block(root);
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
     return buf;
 }

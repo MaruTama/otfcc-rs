@@ -14,14 +14,14 @@ unsafe fn is_string_tag(mut tag: u32) -> bool {
 pub unsafe fn otfcc_dump_meta(
     meta: Option<&MetaTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let meta = match meta {
         Some(m) => m,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"meta"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -99,7 +99,7 @@ pub unsafe fn otfcc_dump_meta(
             _meta,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 #[inline]

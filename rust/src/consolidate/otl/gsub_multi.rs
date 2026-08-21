@@ -83,7 +83,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
             fontop_consolidate_coverage(
                 font,
                 &mut (&mut (*subtable))[k as usize].to as *mut Coverage,
-                options,
+                &*options,
             );
             shrink_coverage(
                 &mut (&mut (*subtable))[k as usize].to as *mut Coverage,

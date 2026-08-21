@@ -457,14 +457,14 @@ unsafe fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
 }
 pub unsafe fn otfcc_read_cmap(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<CmapTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CMAP)?;
     match parse_cmap(&table.data) {
         Ok(cmap) => Some(cmap),
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'cmap' corrupted.\n"),
@@ -477,14 +477,14 @@ pub unsafe fn otfcc_read_cmap(
 pub unsafe fn otfcc_dump_cmap(
     table: Option<&CmapTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let table = match table {
         Some(t) => t as *const CmapTable,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -493,7 +493,7 @@ pub unsafe fn otfcc_dump_cmap(
             let mut cmap: *mut BuiltValue = json_object_new((*table).unicodes.len());
             for (&unicode, glyph) in (*table).unicodes.iter() {
                 if !glyph.name.is_empty() {
-                    let key: Vec<u8> = if (*options).decimal_cmap {
+                    let key: Vec<u8> = if options.decimal_cmap {
                         crate::bytesbuild!(unicode)
                     } else {
                         crate::bytesbuild!(b"U+", Hex4Upper(unicode as u32))
@@ -515,7 +515,7 @@ pub unsafe fn otfcc_dump_cmap(
             let mut uvs: *mut BuiltValue = json_object_new((*table).uvs.len());
             for (key, glyph) in (*table).uvs.iter() {
                 if !glyph.name.is_empty() {
-                    let key_0: Vec<u8> = if (*options).decimal_cmap {
+                    let key_0: Vec<u8> = if options.decimal_cmap {
                         crate::bytesbuild!(
                             key.unicode,
                             b" ",
@@ -543,7 +543,7 @@ pub unsafe fn otfcc_dump_cmap(
             );
         }
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 // `unicode_str` borrows `json_obj_key_at`'s pointer directly rather than
@@ -570,7 +570,7 @@ unsafe fn parse_unicode(unicode_str: *const ::core::ffi::c_char) -> Unicode {
 unsafe fn parse_cmap_unicodes(
     mut cmap: *mut CmapTable,
     mut table: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     if table.is_null()
         || json_type_of(table) != JsonType::Object
@@ -590,7 +590,7 @@ unsafe fn parse_cmap_unicodes(
                 let mut current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup(cmap, unicode as ::core::ffi::c_int) as *mut GlyphHandle;
                 logger_log_sds(
-                    (*options).logger,
+                    options.logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"U+",
@@ -629,7 +629,7 @@ unsafe fn parse_uvs_key(uvs_str: *const ::core::ffi::c_char) -> CmapUvsKey {
 unsafe fn parse_cmap_uvs(
     mut cmap: *mut CmapTable,
     mut table: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     if table.is_null()
         || json_type_of(table) != JsonType::Object
@@ -651,7 +651,7 @@ unsafe fn parse_cmap_uvs(
                 let mut current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup_uvs(cmap, k) as *mut GlyphHandle;
                 logger_log_sds(
-                    (*options).logger,
+                    options.logger,
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"UVS U+",
@@ -672,7 +672,7 @@ unsafe fn parse_cmap_uvs(
 }
 pub unsafe fn otfcc_parse_cmap(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<CmapTable>> {
     if json_type_of(root) != JsonType::Object
     {
@@ -684,7 +684,7 @@ pub unsafe fn otfcc_parse_cmap(
     });
     let cmap: *mut CmapTable = cmap_box.as_mut() as *mut CmapTable;
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -699,10 +699,10 @@ pub unsafe fn otfcc_parse_cmap(
             options,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"cmap_uvs"),
     );
     let mut ___loggedstep_v_0: bool = true;
@@ -717,7 +717,7 @@ pub unsafe fn otfcc_parse_cmap(
             options,
         );
         ___loggedstep_v_0 = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
     return Some(cmap_box);
 }
@@ -1079,7 +1079,7 @@ unsafe fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_cmap(
     cmap: Option<&CmapTable>,
-    mut options: *const Options,
+    options: &Options,
 ) -> *mut Buffer {
     let cmap = match cmap {
         Some(c) if !c.unicodes.is_empty() => c as *const CmapTable,
@@ -1093,7 +1093,7 @@ pub unsafe fn otfcc_build_cmap(
         }
     }
     let mut format4: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-    if !requires_format12 || !(*options).stub_cmap4 {
+    if !requires_format12 || !options.stub_cmap4 {
         format4 = otfcc_try_build_cmap_format4(cmap);
         if format4.is_null() {
             requires_format12 = true;

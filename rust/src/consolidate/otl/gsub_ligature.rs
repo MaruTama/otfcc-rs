@@ -74,7 +74,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
             fontop_consolidate_coverage(
                 font,
                 &mut (&mut (*subtable))[k as usize].from as *mut Coverage,
-                options,
+                &*options,
             );
             shrink_coverage(
                 &mut (&mut (*subtable))[k as usize].from as *mut Coverage,

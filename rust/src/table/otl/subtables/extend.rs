@@ -22,7 +22,7 @@ unsafe fn _caryll_read_otl_extend(
     mut subtable_offset: u32,
     mut basis: LookupType,
     max_glyphs: GlyphId,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Subtable {
     unsafe {
         if table_length < subtable_offset.wrapping_add(8 as u32) {
@@ -54,7 +54,7 @@ pub unsafe fn otfcc_read_otl_gsub_extend(
     mut table_length: u32,
     mut subtable_offset: u32,
     max_glyphs: GlyphId,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Subtable {
     return unsafe { _caryll_read_otl_extend(
         data,
@@ -70,7 +70,7 @@ pub unsafe fn otfcc_read_otl_gpos_extend(
     mut table_length: u32,
     mut subtable_offset: u32,
     max_glyphs: GlyphId,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Subtable {
     return unsafe { _caryll_read_otl_extend(
         data,

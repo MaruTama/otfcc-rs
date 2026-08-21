@@ -72,7 +72,7 @@ pub unsafe fn stat_single_glyph(
     mut stated: *mut StatStatus,
     mut depth: u8,
     mut topj: GlyphId,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> GlyphStat {
     let mut stat: GlyphStat = GlyphStat {
         x_min: 0 as ::core::ffi::c_int as Pos,
@@ -91,7 +91,7 @@ pub unsafe fn stat_single_glyph(
     }
     if *stated.offset(j as isize) == StatStatus::Doing {
         logger_log_sds(
-            (*options).logger,
+            options.logger,
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Stat] Circular glyph reference found in gid ",
@@ -258,7 +258,7 @@ pub unsafe fn stat_single_glyph(
     *stated.offset(j as isize) = StatStatus::Completed;
     return stat;
 }
-pub unsafe fn stat_glyf(mut font: *mut Font, mut options: *const Options) {
+pub unsafe fn stat_glyf(mut font: *mut Font, mut options: &Options) {
     // Only ever called (from `otfcc_stat_font`) under a `.head.is_some()`
     // guard.
     let head: *mut HeadTable = (*font).head.as_deref_mut().unwrap() as *mut HeadTable;
@@ -469,7 +469,7 @@ unsafe fn stat_hmtx(mut font: *mut Font) {
         | (if lsb_at_x_0 { 0x2 as ::core::ffi::c_int } else { 0 as ::core::ffi::c_int }))
         as u16;
 }
-unsafe fn stat_vmtx(mut font: *mut Font, mut options: *const Options) {
+unsafe fn stat_vmtx(mut font: *mut Font, mut options: &Options) {
     if (*font).glyf.is_none() {
         return;
     }
@@ -479,7 +479,7 @@ unsafe fn stat_vmtx(mut font: *mut Font, mut options: *const Options) {
     let vhea: *mut VheaTable = (*font).vhea.as_deref_mut().unwrap() as *mut VheaTable;
     let mut count_a: GlyphId = (*glyf).len() as GlyphId;
     let mut count_k: GlyphId = 0 as GlyphId;
-    if !((*font).subtype == FontSubtype::Cff && !(*options).cff_short_vmtx) {
+    if !((*font).subtype == FontSubtype::Cff && !options.cff_short_vmtx) {
         while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
             && vq_get_still(
                 (&(*glyf))
@@ -538,7 +538,7 @@ unsafe fn stat_vmtx(mut font: *mut Font, mut options: *const Options) {
 }
 unsafe fn stat_os_2_unicode_ranges(
     mut font: *mut Font,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
     let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
     let mut u1: u32 = 0 as u32;
@@ -998,7 +998,7 @@ unsafe fn stat_os_2_unicode_ranges(
             u4 |= ((1 as ::core::ffi::c_int) << 26 as ::core::ffi::c_int) as u32;
         }
     }
-    if !(*options).keep_unicode_ranges {
+    if !options.keep_unicode_ranges {
         (*os_2).ul_unicode_range1 = u1;
         (*os_2).ul_unicode_range2 = u2;
         (*os_2).ul_unicode_range3 = u3;
@@ -1017,9 +1017,9 @@ unsafe fn stat_os_2_unicode_ranges(
 }
 unsafe fn stat_os_2_average_width(
     mut font: *mut Font,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
-    if (*options).keep_average_char_width {
+    if options.keep_average_char_width {
         return;
     }
     let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
@@ -1113,7 +1113,7 @@ unsafe fn stat_max_context(mut font: *mut Font) {
     }
     (*os_2).us_max_context = maxc;
 }
-unsafe fn stat_os_2(mut font: *mut Font, mut options: *const Options) {
+unsafe fn stat_os_2(mut font: *mut Font, mut options: &Options) {
     stat_os_2_unicode_ranges(font, options);
     stat_os_2_average_width(font, options);
     stat_max_context(font);
@@ -1258,7 +1258,7 @@ unsafe fn stat_ltsh(mut font: *mut Font) {
 }
 pub unsafe fn otfcc_stat_font(
     mut font: *mut Font,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
     // Raw-pointer aliases, derived once: `Font.{head,maxp,hhea,vhea}`
     // are never reassigned anywhere in this function's body (only the
@@ -1274,7 +1274,7 @@ pub unsafe fn otfcc_stat_font(
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable);
     if !glyf.is_null() && !head.is_null() {
         stat_glyf(font, options);
-        if !(*options).keep_modified_time {
+        if !options.keep_modified_time {
             (*head).modified =
                 2082844800 as i64 + time(::core::ptr::null_mut::<time_t>()) as i64;
         }

@@ -223,7 +223,7 @@ pub unsafe fn name_glyph_by_hash(
 }
 unsafe fn create_glyph_order(
     mut font: *mut Font,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut GlyphOrder {
     let mut glyph_order: *mut GlyphOrder =
         (
@@ -232,14 +232,14 @@ unsafe fn create_glyph_order(
     // `.glyf.is_some()` guard.
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let mut num_glyphs: GlyphId = (*glyf).len() as GlyphId;
-    let prefix: Vec<u8> = if !(*options).glyph_name_prefix.is_null() {
-        crate::bytesbuild!((*options).glyph_name_prefix)
+    let prefix: Vec<u8> = if !options.glyph_name_prefix.is_null() {
+        crate::bytesbuild!(options.glyph_name_prefix)
     } else {
         Vec::new()
     };
     for j in 0..num_glyphs {
         let mut g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
-        if (*options).name_glyphs_by_hash {
+        if options.name_glyphs_by_hash {
             let h: GlyphHash = name_glyph_by_hash(g, glyf);
             let mut gname: Vec<u8> = Vec::new();
             for j_0 in 0..SHA1_BLOCK_SIZE as u16 {
@@ -278,7 +278,7 @@ unsafe fn create_glyph_order(
                 );
                 (*g).name = shared_name_0;
             }
-        } else if !((*options).ignore_glyph_order || (*options).name_glyphs_by_gid) {
+        } else if !(options.ignore_glyph_order || options.name_glyphs_by_gid) {
             if !(*g).name.is_empty() {
                 let gname_0: Vec<u8> = crate::bytesbuild!(&prefix, &(*g).name);
                 let shared_name_1: Vec<u8> = otfcc_set_glyph_order_by_gid(
@@ -293,8 +293,8 @@ unsafe fn create_glyph_order(
         .as_deref()
         .map_or(::core::ptr::null_mut(), |p| p.post_name_map);
     if !post_name_map.is_null()
-        && !(*options).ignore_glyph_order
-        && !(*options).name_glyphs_by_gid
+        && !options.ignore_glyph_order
+        && !options.name_glyphs_by_gid
     {
         for (_, &idx) in (*post_name_map).by_gid.iter() {
             let entry = &(&(*post_name_map).entries)[idx];
@@ -302,7 +302,7 @@ unsafe fn create_glyph_order(
             otfcc_set_glyph_order_by_gid(glyph_order, entry.gid, gname_1);
         }
     }
-    if (*font).cmap.is_some() && !(*options).name_glyphs_by_gid {
+    if (*font).cmap.is_some() && !options.name_glyphs_by_gid {
         let mut aglfn: *mut GlyphOrder =
             (
                 otfcc_glyph_order_create)();
@@ -555,7 +555,7 @@ unsafe fn merge_ltsh(font: *mut Font) {
 }
 pub unsafe fn otfcc_unconsolidate_font(
     mut font: *mut Font,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
     merge_hmtx(font);
     merge_vmtx(font);

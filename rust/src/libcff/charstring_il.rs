@@ -1019,15 +1019,15 @@ unsafe fn decide_advance(
 }
 pub unsafe fn cff_optimize_il(
     mut il: *mut CffCharstringIl,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
-    if !(*options).cff_roll_char_string {
+    if !options.cff_roll_char_string {
         return;
     }
     let mut j: u32 = 0 as u32;
     while j < (*il).instr.len() as u32 {
         j = j.wrapping_add(
-            decide_advance(il, j, (*options).cff_roll_char_string as u8) as u32,
+            decide_advance(il, j, options.cff_roll_char_string as u8) as u32,
         );
     }
 }

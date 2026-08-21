@@ -86,14 +86,14 @@ fn parse_maxp(data: &[u8]) -> Result<MaxpTable, ReadError> {
 }
 pub unsafe fn otfcc_read_maxp(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<MaxpTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_MAXP)?;
     match parse_maxp(&table.data) {
         Ok(maxp) => Some(Box::new(maxp)),
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'maxp' corrupted.\n"),
@@ -106,14 +106,14 @@ pub unsafe fn otfcc_read_maxp(
 pub unsafe fn otfcc_dump_maxp(
     table: Option<&MaxpTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let table = match table {
         Some(t) => t as *const MaxpTable,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"maxp"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -200,12 +200,12 @@ pub unsafe fn otfcc_dump_maxp(
             maxp,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 pub unsafe fn otfcc_parse_maxp(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<MaxpTable>> {
     // `.version` carries `init_maxp`'s `0x10000` default through if the
     // "maxp" JSON key is absent (never overwritten below in that case);
@@ -225,7 +225,7 @@ pub unsafe fn otfcc_parse_maxp(
     );
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"maxp"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -264,7 +264,7 @@ pub unsafe fn otfcc_parse_maxp(
             ) as u16;
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     }

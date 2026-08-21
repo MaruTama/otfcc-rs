@@ -47,7 +47,7 @@ impl Drop for VorgTable {
 }
 pub unsafe fn otfcc_read_vorg(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<VorgTable>> {
     let mut num_vert_origin_y_metrics: u16 = 0;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -112,7 +112,7 @@ pub unsafe fn otfcc_read_vorg(
                         }
                     }
                     logger_log_sds(
-                        (*options).logger,
+                        options.logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"Table 'VORG' corrupted."),

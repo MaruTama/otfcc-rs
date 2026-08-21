@@ -46,7 +46,7 @@ use crate::support::glyph_order::{otfcc_gord_consolidate_handle};
 pub unsafe fn fontop_consolidate_coverage(
     mut font: *mut Font,
     mut coverage: *mut Coverage,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
     if coverage.is_null() {
         return;
@@ -58,7 +58,7 @@ pub unsafe fn fontop_consolidate_coverage(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder), h as *mut GlyphHandle
         ) {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
@@ -74,7 +74,7 @@ pub unsafe fn fontop_consolidate_coverage(
 pub unsafe fn fontop_consolidate_class_def(
     mut font: *mut Font,
     mut cd: *mut ClassDef,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
     if cd.is_null() {
         return;
@@ -86,7 +86,7 @@ pub unsafe fn fontop_consolidate_class_def(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder), h as *mut GlyphHandle
         ) {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",

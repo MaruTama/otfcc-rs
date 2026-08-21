@@ -57,7 +57,7 @@ impl FontSerializer for JsonSerializer {
         options: *const ::core::ffi::c_void,
     ) -> *mut ::core::ffi::c_void {
     let font = font as *mut Font;
-    let options = options as *const Options;
+    let options: &Options = &*(options as *const Options);
     let mut root: *mut BuiltValue = json_object_new(48 as usize);
     if root.is_null() {
         return NULL;
@@ -82,7 +82,7 @@ impl FontSerializer for JsonSerializer {
         export_fd_select: (*font).cff.as_deref().map_or(false, |c| c.is_cid),
     };
     otfcc_dump_glyf((*font).glyf.as_ref(), root, options, &raw mut ctx);
-    if !(*options).ignore_hints {
+    if !options.ignore_hints {
         table_dump_table_fpgm_prep(
             (*font).fpgm.as_deref(),
             root,
@@ -139,10 +139,10 @@ impl FontSerializer for JsonSerializer {
 }
 pub unsafe fn serialize_to_json(
     mut font: *mut Font,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut ::core::ffi::c_void {
     <JsonSerializer as FontSerializer>::serialize(
         font as *mut ::core::ffi::c_void,
-        options as *const ::core::ffi::c_void,
+        options as *const Options as *const ::core::ffi::c_void,
     )
 }

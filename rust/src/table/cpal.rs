@@ -419,14 +419,14 @@ unsafe fn dump_palette(mut palette: *const CpalPalette) -> *mut BuiltValue {
 pub unsafe fn otfcc_dump_cpal(
     table: Option<&CpalTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let table = match table {
         Some(t) => t,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"CPAL"),
     );
     let palettes: &Vec<CpalPalette> = &(*table).palettes;
@@ -458,7 +458,7 @@ pub unsafe fn otfcc_dump_cpal(
             _t,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 #[inline]
@@ -498,7 +498,7 @@ unsafe fn parse_color(mut _color: *const ParsedValue) -> CpalColor {
 }
 pub unsafe fn otfcc_parse_cpal(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<CpalTable>> {
     let mut table: *const ParsedValue = ::core::ptr::null();
     table = json_obj_get_type(
@@ -511,7 +511,7 @@ pub unsafe fn otfcc_parse_cpal(
     }
     let mut cpal: Option<Box<CpalTable>> = None;
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"CPAL"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -568,7 +568,7 @@ pub unsafe fn otfcc_parse_cpal(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
     return cpal;
 }

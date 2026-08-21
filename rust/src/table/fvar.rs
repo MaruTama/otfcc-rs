@@ -173,7 +173,7 @@ unsafe fn fvar_find_master_by_region(
 }
 pub unsafe fn otfcc_read_fvar(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<FvarTable>> {
     let mut header: *mut FVARHeader = ::core::ptr::null_mut::<FVARHeader>();
     let mut n_axes: u16 = 0;
@@ -365,7 +365,7 @@ pub unsafe fn otfcc_read_fvar(
                         }
                     }
                     logger_log_sds(
-                        (*options).logger,
+                        options.logger,
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"table 'fvar' corrupted.\n"),
@@ -388,14 +388,14 @@ pub unsafe fn otfcc_read_fvar(
 pub unsafe fn otfcc_dump_fvar(
     table: Option<&FvarTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let table = match table {
         Some(t) => t as *const FvarTable,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"fvar"),
     );
     let axes: &Vec<VfAxis> = &(*table).axes;
@@ -505,7 +505,7 @@ pub unsafe fn otfcc_dump_fvar(
             t,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 pub unsafe fn json_new_vq_segment(

@@ -92,7 +92,7 @@ impl FontBuilder for OtfReader {
     mut index: u32,
     options: *const ::core::ffi::c_void,
 ) -> *mut ::core::ffi::c_void {
-    let options = options as *const Options;
+    let options: &Options = &*(options as *const Options);
     let mut sfnt: *mut SplineFontContainer = _sfnt as *mut SplineFontContainer;
     if (*sfnt).count.wrapping_sub(1 as u32) < index {
         return ::core::ptr::null_mut::<::core::ffi::c_void>();
@@ -201,8 +201,8 @@ impl FontBuilder for OtfReader {
 pub unsafe fn read_otf(
     mut _sfnt: *mut ::core::ffi::c_void,
     mut index: u32,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Font {
-    <OtfReader as FontBuilder>::read(_sfnt, index, options as *const ::core::ffi::c_void)
+    <OtfReader as FontBuilder>::read(_sfnt, index, options as *const Options as *const ::core::ffi::c_void)
         as *mut Font
 }

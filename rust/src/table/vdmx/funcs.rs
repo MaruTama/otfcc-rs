@@ -53,14 +53,14 @@ fn parse_vdmx(data: &[u8]) -> Result<VdmxTable, ReadError> {
 }
 pub unsafe fn otfcc_read_vdmx(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<VdmxTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VDMX)?;
     match parse_vdmx(&table.data) {
         Ok(vdmx) => Some(Box::new(vdmx)),
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Table 'VDMX' corrupted.\n"),
@@ -73,14 +73,14 @@ pub unsafe fn otfcc_read_vdmx(
 pub unsafe fn otfcc_dump_vdmx(
     vdmx: Option<&VdmxTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let vdmx = match vdmx {
         Some(v) => v,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"VDMX"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -169,12 +169,12 @@ pub unsafe fn otfcc_dump_vdmx(
             _vdmx,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 pub unsafe fn otfcc_parse_vdmx(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<VdmxTable>> {
     let mut _vdmx: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _vdmx = json_obj_get_type(
@@ -187,7 +187,7 @@ pub unsafe fn otfcc_parse_vdmx(
     }
     let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable { version: 0, ratios: Vec::new() });
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"VDMX"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -264,7 +264,7 @@ pub unsafe fn otfcc_parse_vdmx(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
     return Some(vdmx);
 }

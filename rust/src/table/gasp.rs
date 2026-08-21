@@ -54,14 +54,14 @@ fn parse_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
 }
 pub unsafe fn otfcc_read_gasp(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<GaspTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_GASP)?;
     match parse_gasp(&table.data) {
         Ok(gasp) => Some(Box::new(gasp)),
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'gasp' corrupted.\n"),
@@ -74,14 +74,14 @@ pub unsafe fn otfcc_read_gasp(
 pub unsafe fn otfcc_dump_gasp(
     table: Option<&GaspTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let table = match table {
         Some(t) => t,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"gasp"),
     );
     let records: &Vec<GaspRecord> = &(*table).records;
@@ -129,12 +129,12 @@ pub unsafe fn otfcc_dump_gasp(
             t,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 pub unsafe fn otfcc_parse_gasp(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<GaspTable>> {
     let mut gasp: Option<Box<GaspTable>> = None;
     let mut table: *const ParsedValue = ::core::ptr::null();
@@ -145,7 +145,7 @@ pub unsafe fn otfcc_parse_gasp(
     );
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"gasp"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -189,7 +189,7 @@ pub unsafe fn otfcc_parse_gasp(
             }
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     }

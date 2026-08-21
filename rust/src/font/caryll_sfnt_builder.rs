@@ -84,7 +84,7 @@ unsafe fn create_segment(tag: u32, buffer: *mut Buffer) -> SfntTableEntry {
 }
 pub unsafe fn otfcc_new_sfnt_builder(
     mut header: u32,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut SfntBuilder {
     let mut builder: *mut SfntBuilder = __caryll_allocate_clean(
         ::core::mem::size_of::<SfntBuilder>() as usize,

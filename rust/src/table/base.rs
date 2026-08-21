@@ -262,7 +262,7 @@ unsafe fn read_axis(
 }
 pub unsafe fn otfcc_read_base(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<BaseTable>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -282,7 +282,7 @@ pub unsafe fn otfcc_read_base(
                     let mut table_length: u32 = table.length;
                     if table_length < 8 as u32 {
                         logger_log_sds(
-                            (*options).logger,
+                            options.logger,
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Table 'BASE' Corrupted"),
@@ -361,14 +361,14 @@ unsafe fn axis_to_json(mut axis: *const BaseAxis) -> *mut BuiltValue {
 pub unsafe fn otfcc_dump_base(
     base: Option<&BaseTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let base = match base {
         Some(b) => b as *const BaseTable,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"BASE"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -394,7 +394,7 @@ pub unsafe fn otfcc_dump_base(
             _base,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 /// Returns `(default_baseline_tag, base_values)`, the JSON-side twin of
@@ -455,7 +455,7 @@ unsafe fn axis_from_json(mut _axis: *const ParsedValue) -> Option<Box<BaseAxis>>
 }
 pub unsafe fn otfcc_parse_base(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<BaseTable>> {
     let mut base: Option<Box<BaseTable>> = None;
     let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
@@ -466,7 +466,7 @@ pub unsafe fn otfcc_parse_base(
     );
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"BASE"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -484,7 +484,7 @@ pub unsafe fn otfcc_parse_base(
             base = Some(Box::new(BaseTable { horizontal, vertical }));
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     }

@@ -240,7 +240,7 @@ unsafe fn place_order_entries_from_subtable(
 }
 unsafe fn parse_glyph_order(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> Option<Box<GlyphOrder>> {
     // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
     // (`malloc`) + `Box::from_raw` -- see the matching note in
@@ -279,7 +279,7 @@ unsafe fn parse_glyph_order(
             JsonType::Array,
         );
         if !table.is_null() {
-            let mut ignore_glyph_order: bool = (*options).ignore_glyph_order;
+            let mut ignore_glyph_order: bool = options.ignore_glyph_order;
             if ignore_glyph_order as ::core::ffi::c_int != 0
                 && !json_obj_get_type(
                     root,
@@ -289,7 +289,7 @@ unsafe fn parse_glyph_order(
                 .is_null()
             {
                 logger_log_sds(
-                    (*options).logger,
+                    options.logger,
                     LOG_VL_NOTICE,
                     LoggerType::Info,
                     crate::bytesbuild!(b"OpenType SVG table detected. Glyph order is preserved.",
@@ -310,7 +310,7 @@ impl FontBuilder for JsonReader {
     mut _index: u32,
     options: *const ::core::ffi::c_void,
 ) -> *mut ::core::ffi::c_void {
-    let options = options as *const Options;
+    let options: &Options = &*(options as *const Options);
     let mut root: *const ParsedValue = _root as *const ParsedValue;
     let mut font: *mut Font = (
         otfcc_font_create)();
@@ -333,7 +333,7 @@ impl FontBuilder for JsonReader {
     (*font).name = otfcc_parse_name(root, options);
     (*font).meta = otfcc_parse_meta(root, options);
     (*font).cmap = otfcc_parse_cmap(root, options);
-    if !(*options).ignore_hints {
+    if !options.ignore_hints {
         (*font).fpgm = otfcc_parse_fpgm_prep(
             root,
             options,
@@ -387,8 +387,8 @@ impl FontBuilder for JsonReader {
 pub unsafe fn read_json(
     mut _root: *mut ::core::ffi::c_void,
     mut _index: u32,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Font {
-    <JsonReader as FontBuilder>::read(_root, _index, options as *const ::core::ffi::c_void)
+    <JsonReader as FontBuilder>::read(_root, _index, options as *const Options as *const ::core::ffi::c_void)
         as *mut Font
 }

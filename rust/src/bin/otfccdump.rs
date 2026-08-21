@@ -503,7 +503,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
-        font = read_otf(sfnt as *mut ::core::ffi::c_void, ttcindex, options);
+        font = read_otf(sfnt as *mut ::core::ffi::c_void, ttcindex, &*options);
         if font.is_null() {
             logger_log_sds(
                 (*options).logger,
@@ -534,7 +534,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
-        otfcc_consolidate_font(font, options);
+        otfcc_consolidate_font(font, &*options);
         logger_log_sds(
             (*options).logger,
             LOG_VL_PROGRESS,
@@ -551,7 +551,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
-        root = serialize_to_json(font, options) as *mut BuiltValue;
+        root = serialize_to_json(font, &*options) as *mut BuiltValue;
         if root.is_null() {
             logger_log_sds(
                 (*options).logger,

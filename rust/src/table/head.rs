@@ -61,14 +61,14 @@ fn parse_head(data: &[u8]) -> Result<HeadTable, ReadError> {
 }
 pub unsafe fn otfcc_read_head(
     packet: &Packet,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<HeadTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_HEAD)?;
     match parse_head(&table.data) {
         Ok(head) => Some(Box::new(head)),
         Err(_) => {
             logger_log_sds(
-                (*options).logger,
+                options.logger,
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'head' corrupted.\n"),
@@ -107,14 +107,14 @@ static MAC_STYLE_LABELS: [&::core::ffi::CStr; 7] = [
 pub unsafe fn otfcc_dump_head(
     table: Option<&HeadTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    options: &Options,
 ) {
     let table = match table {
         Some(t) => t as *const HeadTable,
         None => return,
     };
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"head"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -207,12 +207,12 @@ pub unsafe fn otfcc_dump_head(
             head,
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 pub unsafe fn otfcc_parse_head(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    options: &Options,
 ) -> Option<Box<HeadTable>> {
     // Reproduces `init_head`'s two non-zero defaults exactly:
     // `.magic_number` is never set anywhere in this function's body below
@@ -232,7 +232,7 @@ pub unsafe fn otfcc_parse_head(
     );
     if !table.is_null() {
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"head"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -315,7 +315,7 @@ pub unsafe fn otfcc_parse_head(
             ) as i16;
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
     }

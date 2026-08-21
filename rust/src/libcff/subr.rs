@@ -799,14 +799,14 @@ pub unsafe fn cff_il_graph_to_buffers(
     mut s: *mut *mut Buffer,
     mut gs: *mut *mut Buffer,
     mut ls: *mut *mut Buffer,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
     let g = &mut *g;
     let root = g.root;
     cff_stat_height(g, root, 0 as u32);
     let mut max_subroutines: u32 = cff_number_subroutines(g);
     logger_log_sds(
-        (*options).logger,
+        options.logger,
         LOG_VL_PROGRESS,
         LoggerType::Progress,
         crate::bytesbuild!(b"[libcff] Total ", max_subroutines, b" subroutines extracted."),
@@ -972,7 +972,7 @@ mod subr_graph_tests {
             &raw mut s,
             &raw mut gs,
             &raw mut ls,
-            &options as *const Options,
+            &options,
         );
         cff_subr_graph_dispose(&raw mut g);
         crate::logger::logger_dispose(options.logger);
