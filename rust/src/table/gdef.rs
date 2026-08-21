@@ -153,7 +153,6 @@ unsafe fn read_lig_caret_record(
 }
 pub unsafe fn otfcc_read_gdef(
     packet: &Packet,
-    mut _options: *const Options,
 ) -> Option<Box<GdefTable>> {
     let mut classdef_offset: u16 = 0;
     let mut lig_caret_offset: u16 = 0;
@@ -537,7 +536,6 @@ unsafe fn write_lig_carets(mut lc: *const LigCaretTable) -> *mut BkBlock {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_gdef(
     gdef: Option<&GdefTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let gdef = match gdef {
         Some(g) => g as *const GdefTable,

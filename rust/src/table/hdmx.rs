@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::font_reader::{FontReader, ReadError};
 
-use crate::support::options::{Options};
 use crate::font::caryll_sfnt::{Packet};
 
 use crate::table::maxp::{MaxpTable};
@@ -67,7 +66,6 @@ fn parse_hdmx(
 
 pub unsafe fn otfcc_read_hdmx(
     packet: &Packet,
-    mut _options: *const Options,
     mut maxp: *mut MaxpTable,
 ) -> Option<Box<HdmxTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_HDMX)?;

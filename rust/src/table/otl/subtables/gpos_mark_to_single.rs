@@ -81,7 +81,6 @@ pub unsafe fn otl_read_gpos_mark_to_single(
     table_length: u32,
     subtable_offset: u32,
     _max_glyphs: GlyphId,
-    _options: *const Options,
 ) -> *mut Subtable {
     let subtable: *mut GposMarkToSingleSubtable = subtable_gpos_mark_to_single_create();
     let mut marks: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
@@ -327,7 +326,7 @@ pub unsafe extern "C" fn otl_gpos_parse_mark_to_single(
     }
     let mut st: *mut GposMarkToSingleSubtable = subtable_gpos_mark_to_single_create();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
-    otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h, options);
+    otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h);
     (*st).class_count = h.len() as GlyphClass;
     parse_bases(_bases, st, &raw mut h, options);
     return subtable_from_raw(st, Subtable::GposMarkToSingle);
@@ -394,10 +393,6 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
 mod otl_read_gpos_mark_to_single_tests {
     use super::*;
 
-    fn zeroed_options() -> Options {
-        unsafe { ::core::mem::zeroed() }
-    }
-
     // format(2)@0, marksOffset(2)@2 -> 12, basesOffset(2)@4 -> 18,
     // classCount(2)@6, markArrayOffset(2)@8 -> 24, baseArrayOffset(2)@10
     // -> 26; marks coverage @12 (glyph 5); bases coverage @18 (glyph 6);
@@ -426,14 +421,12 @@ mod otl_read_gpos_mark_to_single_tests {
     #[test]
     fn well_formed_table_reads_the_base_array() {
         let data = well_formed_data(1);
-        let options = zeroed_options();
         unsafe {
             let raw = otl_read_gpos_mark_to_single(
                 data.as_ptr() as FontFilePointer,
                 data.len() as u32,
                 0,
                 0,
-                &options as *const Options,
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
@@ -449,14 +442,12 @@ mod otl_read_gpos_mark_to_single_tests {
     fn base_count_mismatch_with_coverage_is_rejected() {
         let mut data = well_formed_data(1);
         data[26..28].copy_from_slice(&2u16.to_be_bytes()); // baseCount claims 2, coverage has only 1
-        let options = zeroed_options();
         unsafe {
             let raw = otl_read_gpos_mark_to_single(
                 data.as_ptr() as FontFilePointer,
                 data.len() as u32,
                 0,
                 0,
-                &options as *const Options,
             );
             assert!(raw.is_null());
         }
@@ -473,14 +464,12 @@ mod otl_read_gpos_mark_to_single_tests {
         // shortfall at an ordinary scale (class_count raised from 1 to 5,
         // but the base array still has room for only 1 anchor slot).
         let data = well_formed_data(5); // baseCount=1, but only 1 anchor slot is present, not 5
-        let options = zeroed_options();
         unsafe {
             let raw = otl_read_gpos_mark_to_single(
                 data.as_ptr() as FontFilePointer,
                 data.len() as u32,
                 0,
                 0,
-                &options as *const Options,
             );
             assert!(raw.is_null());
         }

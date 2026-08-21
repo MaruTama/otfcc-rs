@@ -86,7 +86,6 @@ fn read_tsi_index_entry(index_data: &[u8], idx: u32) -> Result<TsiIndexEntry, Re
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_read_tsi(
     packet: &Packet,
-    mut _options: *const Options,
     mut tag_index: u32,
     mut tag_text: u32,
 ) -> Option<TsiTable> {
@@ -438,7 +437,6 @@ unsafe fn push_tsi_entries(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_tsi(
     tsi: Option<&TsiTable>,
-    mut _options: *const Options,
 ) -> TsiBuildTarget {
     let tsi: *const TsiTable = tsi.map_or(::core::ptr::null(), |t| t as *const TsiTable);
     let mut target: TsiBuildTarget = TsiBuildTarget {
@@ -509,7 +507,7 @@ mod otfcc_read_tsi_tests {
 
     unsafe fn read(index_data: Vec<u8>, text_data: Vec<u8>) -> TsiTable {
         let p = packet(index_data, text_data);
-        otfcc_read_tsi(&p, ::core::ptr::null(), crate::tag::TAG_TSI0, crate::tag::TAG_TSI1).unwrap()
+        otfcc_read_tsi(&p, crate::tag::TAG_TSI0, crate::tag::TAG_TSI1).unwrap()
     }
 
     #[test]

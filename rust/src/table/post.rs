@@ -586,7 +586,6 @@ pub unsafe fn otfcc_parse_post(
 pub unsafe fn otfcc_build_post(
     post: Option<&PostTable>,
     mut glyphorder: *mut GlyphOrder,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let post = match post {
         Some(p) => p as *const PostTable,

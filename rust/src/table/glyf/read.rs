@@ -92,7 +92,6 @@ unsafe extern "C" fn next_point(
 unsafe fn otfcc_read_simple_glyph(
     body: &[u8],
     number_of_contours: ShapeId,
-    _options: *const Options,
 ) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     let contours: *mut ContourList = &raw mut (*g).contours;
@@ -367,7 +366,7 @@ unsafe fn otfcc_read_glyph(
     // bytes exist -- slicing the body here can't panic.
     let body = &glyph_bytes[10..];
     let mut g = if number_of_contours > 0 {
-        otfcc_read_simple_glyph(body, number_of_contours as ShapeId, options)?
+        otfcc_read_simple_glyph(body, number_of_contours as ShapeId)?
     } else {
         otfcc_read_composite_glyph(body, options)?
     };

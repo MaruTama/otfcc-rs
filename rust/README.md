@@ -932,6 +932,40 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-a (part 1 of 2): removed 51 dead `_options: *const Options`
+  parameters.** The plan flagged ~62 of these as pure C-signature inertia
+  (never read, never dereferenced) across `rust/src/`; a fresh survey found
+  59 actually left in the tree (some were incidentally cleaned up by earlier
+  Stage 7-1 work). 51 were dropped from their function signatures, with
+  every call site (including cross-file callers and `#[cfg(test)]` call
+  sites) updated to match; a couple of now-dead `zeroed_options()` test
+  helpers and unused `use ... Options;` imports went with them.
+  - **8 left alone, deliberately**: every `otl_g{sub,pos}_parse_*`/
+    `otl_parse_chaining` function whose `_options` parameter is unused in
+    the body is *also* cast to `unsafe extern "C" fn(*const ParsedValue,
+    *const Options) -> *mut Subtable` and stored as a function-pointer
+    value in `table/otl/parse.rs`'s `_declare_lookup_parser` dispatch
+    table. Dropping the parameter there would change the function's type
+    and break the pointer-table match even though the value is never
+    used at the call site — a case where "unused" isn't the same question
+    as "safe to delete", because the signature itself is load-bearing.
+    These 8 stay as `*const Options` for now; they'll need to be
+    revisited together with that dispatch table, likely in Stage 7-2-h's
+    `extern "C"` residue cleanup rather than here.
+  - **Scope boundary**: this pass only *deletes* unused parameters. It does
+    not convert any of the remaining, actually-used `*const Options`
+    parameters to `&Options` — that conversion (part 2 of Stage 7-2-a) is
+    a separate PR, since "delete a parameter no one reads" and "change a
+    parameter's type and add borrow-checker constraints at every call
+    site" are different kinds of risk and shouldn't be reviewed together.
+  - **Verification**: full pipeline green (build, 244/244 tests, clippy
+    `-D warnings` clean, ABI unchanged at 4 exports, golden bytes and log
+    output unchanged, round-trips 10/10, `cargo miri test` 224 passed / 0
+    failed / 20 ignored — identical to the pre-PR baseline). `survey-
+    unsafe.sh`: raw pointer types 6163→6088, `unsafe` blocks 298→289,
+    everything else unchanged (deleting a parameter doesn't change a
+    function's own `unsafe fn`-ness).
+
 - **Stage 7-2-g: `libcff/subr.rs`'s intrusive doubly-linked-list CFF
   subroutinizer, converted to an arena + index.** The plan's own single
   hardest-flagged piece in the whole migration. `CffSubrNode`/

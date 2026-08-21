@@ -271,7 +271,6 @@ pub unsafe fn otfcc_parse_vdmx(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_vdmx(
     vdmx: Option<&VdmxTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let vdmx = match vdmx {
         Some(v) => v,

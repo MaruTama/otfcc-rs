@@ -1,5 +1,4 @@
 use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
@@ -8,7 +7,6 @@ use crate::bk::bkgraph::{bk_build_block};
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_meta(
     meta: Option<&MetaTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let meta = match meta {
         Some(m) if !m.entries.is_empty() => m,

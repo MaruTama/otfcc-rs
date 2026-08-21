@@ -510,7 +510,6 @@ unsafe fn write_otl_lookups(
 }
 unsafe fn write_otl_features(
     mut table: *const OtlTable,
-    mut _options: *const Options,
 ) -> *mut BkBlock {
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*table).features.len()) as u32)]);
     let mut j: TableId = 0 as TableId;
@@ -594,7 +593,6 @@ unsafe fn write_script(
 }
 unsafe fn write_otl_script_and_languages(
     mut table: *const OtlTable,
-    mut _options: *const Options,
 ) -> *mut BkBlock {
     // Groups languages by script tag (the first 4 bytes of `language.name`),
     // tracking each script's default (dflt/DFLT) language separately from
@@ -692,8 +690,8 @@ pub unsafe fn otfcc_build_otl(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut lookups: *mut BkBlock = write_otl_lookups(table, options, tag);
-        let mut features: *mut BkBlock = write_otl_features(table, options);
-        let mut languages: *mut BkBlock = write_otl_script_and_languages(table, options);
+        let mut features: *mut BkBlock = write_otl_features(table);
+        let mut languages: *mut BkBlock = write_otl_script_and_languages(table);
         let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, languages), bk_ptr(BkCellType::P16, features), bk_ptr(BkCellType::P16, lookups)]);
         buf = bk_build_block(root);
         ___loggedstep_v = false;

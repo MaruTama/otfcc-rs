@@ -198,7 +198,6 @@ pub unsafe fn otfcc_parse_gasp(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_gasp(
     gasp: Option<&GaspTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let gasp = match gasp {
         Some(g) => g,

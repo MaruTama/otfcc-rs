@@ -324,7 +324,6 @@ pub unsafe fn otfcc_parse_head(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_head(
     head: Option<&HeadTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let head = match head {
         Some(h) => h as *const HeadTable,

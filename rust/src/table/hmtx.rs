@@ -77,7 +77,6 @@ pub unsafe fn otfcc_build_hmtx(
     hmtx: Option<&HmtxTable>,
     mut count_a: GlyphId,
     mut count_k: GlyphId,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let mut buf: *mut Buffer = bufnew();
     let hmtx = match hmtx {

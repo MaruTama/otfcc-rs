@@ -127,9 +127,9 @@ impl FontBuilder for OtfReader {
                     (*font).maxp.as_deref_mut().map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable),
                 );
             }
-            (*font).fpgm = otfcc_read_fpgm_prep(packet, options, crate::tag::TAG_FPGM);
-            (*font).prep = otfcc_read_fpgm_prep(packet, options, crate::tag::TAG_PREP);
-            (*font).cvt_ = otfcc_read_cvt(packet, options, crate::tag::TAG_CVT);
+            (*font).fpgm = otfcc_read_fpgm_prep(packet, crate::tag::TAG_FPGM);
+            (*font).prep = otfcc_read_fpgm_prep(packet, crate::tag::TAG_PREP);
+            (*font).cvt_ = otfcc_read_cvt(packet, crate::tag::TAG_CVT);
             (*font).gasp = otfcc_read_gasp(packet, options);
             (*font).vdmx = otfcc_read_vdmx(packet, options);
             (*font).ltsh = otfcc_read_ltsh(packet, options);
@@ -176,25 +176,23 @@ impl FontBuilder for OtfReader {
                 crate::tag::TAG_GPOS,
                 num_glyphs,
             );
-            (*font).gdef = otfcc_read_gdef(packet, options);
+            (*font).gdef = otfcc_read_gdef(packet);
         }
         (*font).base = otfcc_read_base(packet, options);
-        (*font).cpal = otfcc_read_cpal(packet, options);
+        (*font).cpal = otfcc_read_cpal(packet);
         (*font).colr = otfcc_read_colr(packet, options);
-        (*font).svg = otfcc_read_svg(packet, options);
+        (*font).svg = otfcc_read_svg(packet);
         (*font).tsi_01 = otfcc_read_tsi(
             packet,
-            options,
             crate::tag::TAG_TSI0,
             crate::tag::TAG_TSI1,
         );
         (*font).tsi_23 = otfcc_read_tsi(
             packet,
-            options,
             crate::tag::TAG_TSI2,
             crate::tag::TAG_TSI3,
         );
-        (*font).tsi5 = otfcc_read_tsi5(packet, options);
+        (*font).tsi5 = otfcc_read_tsi5(packet);
         otfcc_unconsolidate_font(font, options);
         return font as *mut ::core::ffi::c_void;
     };

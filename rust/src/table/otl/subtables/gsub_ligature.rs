@@ -63,7 +63,6 @@ pub unsafe fn otl_read_gsub_ligature(
     table_length: u32,
     offset: u32,
     _max_glyphs: GlyphId,
-    _options: *const Options,
 ) -> *mut Subtable {
     let subtable: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
     let mut start_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
@@ -306,10 +305,6 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
 mod otl_read_gsub_ligature_tests {
     use super::*;
 
-    fn zeroed_options() -> Options {
-        unsafe { ::core::mem::zeroed() }
-    }
-
     #[test]
     fn well_formed_table_reads_one_ligature() {
         let mut data = [0u8; 24];
@@ -327,9 +322,8 @@ mod otl_read_gsub_ligature_tests {
         data[18..20].copy_from_slice(&30u16.to_be_bytes());
         data[20..22].copy_from_slice(&2u16.to_be_bytes());
         data[22..24].copy_from_slice(&20u16.to_be_bytes());
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
             let Subtable::GsubLigature(entries) = &*boxed else { unreachable!() };
@@ -349,9 +343,8 @@ mod otl_read_gsub_ligature_tests {
         data[8..10].copy_from_slice(&1u16.to_be_bytes());
         data[10..12].copy_from_slice(&1u16.to_be_bytes());
         data[12..14].copy_from_slice(&10u16.to_be_bytes());
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(raw.is_null());
         }
     }

@@ -7,7 +7,6 @@ use crate::support::handle::{handle_from_index, GlyphHandle};
 use crate::support::font_reader::{FontReader};
 
 use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
 use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::vendor::json::{JsonType};
 use crate::font::caryll_sfnt::{Packet};
@@ -41,7 +40,6 @@ unsafe fn unwrap_class_def(raw: *mut ClassDef) -> Box<ClassDef> {
 // well-formed (even-length) table parses identically to before.
 pub unsafe fn otfcc_read_tsi5(
     packet: &Packet,
-    mut _options: *const Options,
 ) -> Option<Box<Tsi5Table>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_TSI5)?;
     let tsi5: *mut Tsi5Table = otl_class_def_create() as *mut Tsi5Table;
@@ -61,7 +59,6 @@ pub unsafe fn otfcc_read_tsi5(
 pub unsafe fn otfcc_dump_tsi5(
     table: Option<&Tsi5Table>,
     mut root: *mut BuiltValue,
-    mut _options: *const Options,
 ) {
     let table = match table {
         Some(t) => t as *const Tsi5Table,
@@ -75,7 +72,6 @@ pub unsafe fn otfcc_dump_tsi5(
 }
 pub unsafe fn otfcc_parse_tsi5(
     mut root: *const ParsedValue,
-    mut _options: *const Options,
 ) -> Option<Box<Tsi5Table>> {
     let mut _tsi: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _tsi = json_obj_get_type(
@@ -95,7 +91,6 @@ pub unsafe fn otfcc_parse_tsi5(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_tsi5(
     tsi5: Option<&Tsi5Table>,
-    mut _options: *const Options,
     mut num_glyphs: GlyphId,
 ) -> *mut Buffer {
     let tsi5 = match tsi5 {
@@ -149,7 +144,7 @@ mod otfcc_read_tsi5_tests {
         let data = vec![0x00, 0x05, 0x01, 0x2C];
         unsafe {
             let packet = packet_with_tsi5(data);
-            let table = otfcc_read_tsi5(&packet, ::core::ptr::null()).unwrap();
+            let table = otfcc_read_tsi5(&packet).unwrap();
             assert_eq!(table.classes, vec![5, 300]);
             assert_eq!(table.glyphs.len(), 2);
         }
@@ -166,7 +161,7 @@ mod otfcc_read_tsi5_tests {
         let data = vec![0x00, 0x05, 0xFF]; // one full entry + one stray byte
         unsafe {
             let packet = packet_with_tsi5(data);
-            let table = otfcc_read_tsi5(&packet, ::core::ptr::null()).unwrap();
+            let table = otfcc_read_tsi5(&packet).unwrap();
             assert_eq!(table.classes, vec![5]);
         }
     }
@@ -175,7 +170,7 @@ mod otfcc_read_tsi5_tests {
     fn empty_table_produces_an_empty_class_def() {
         unsafe {
             let packet = packet_with_tsi5(Vec::new());
-            let table = otfcc_read_tsi5(&packet, ::core::ptr::null()).unwrap();
+            let table = otfcc_read_tsi5(&packet).unwrap();
             assert!(table.classes.is_empty());
         }
     }

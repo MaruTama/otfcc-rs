@@ -262,7 +262,6 @@ pub unsafe fn otfcc_parse_vhea(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_vhea(
     vhea: Option<&VheaTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let vhea = match vhea {
         Some(v) => v as *const VheaTable,

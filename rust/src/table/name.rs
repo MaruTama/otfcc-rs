@@ -356,7 +356,6 @@ pub unsafe fn otfcc_parse_name(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_name(
     name: Option<&NameTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let name = match name {
         Some(n) => n,

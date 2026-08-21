@@ -240,7 +240,6 @@ pub unsafe fn otfcc_parse_hhea(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_hhea(
     hhea: Option<&HheaTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let hhea = match hhea {
         Some(h) => h as *const HheaTable,

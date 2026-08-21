@@ -157,7 +157,6 @@ unsafe fn consolidate_glyph_references(
 }
 unsafe fn consolidate_glyph_hints(
     mut g: *mut Glyph,
-    mut _options: *const Options,
 ) {
     if !(*g).stem_h.is_empty() {
         let stem_h: &mut Vec<PostscriptStemDef> = &mut (*g).stem_h;
@@ -313,7 +312,7 @@ pub unsafe fn consolidate_glyph(
 ) {
     consolidate_glyph_contours(g, options);
     consolidate_glyph_references(g, font, options);
-    consolidate_glyph_hints(g, options);
+    consolidate_glyph_hints(g);
     consolidate_fd_select(&raw mut (*g).fd_select, (*font).cff.as_deref_mut().map_or(::core::ptr::null_mut(), |c| c as *mut CffTable), options, &(*g).name);
 }
 pub unsafe fn get_point_coordinates(

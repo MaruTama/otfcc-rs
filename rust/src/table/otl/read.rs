@@ -32,22 +32,22 @@ pub unsafe fn otfcc_read_otl_subtable(
 ) -> *mut Subtable {
     match lookup_type {
         OTL_TYPE_GSUB_SINGLE => {
-            return otl_read_gsub_single(data, table_length, subtable_offset, max_glyphs, options);
+            return otl_read_gsub_single(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GSUB_MULTIPLE => {
-            return otl_read_gsub_multi(data, table_length, subtable_offset, max_glyphs, options);
+            return otl_read_gsub_multi(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GSUB_ALTERNATE => {
-            return otl_read_gsub_multi(data, table_length, subtable_offset, max_glyphs, options);
+            return otl_read_gsub_multi(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GSUB_LIGATURE => {
-            return otl_read_gsub_ligature(data, table_length, subtable_offset, max_glyphs, options);
+            return otl_read_gsub_ligature(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GSUB_CHAINING => {
             return otl_read_chaining(data, table_length, subtable_offset, max_glyphs, options);
         }
         OTL_TYPE_GSUB_REVERSE => {
-            return otl_read_gsub_reverse(data, table_length, subtable_offset, max_glyphs, options);
+            return otl_read_gsub_reverse(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GPOS_CHAINING => {
             return otl_read_chaining(data, table_length, subtable_offset, max_glyphs, options);
@@ -59,13 +59,13 @@ pub unsafe fn otfcc_read_otl_subtable(
             return otl_read_contextual(data, table_length, subtable_offset, max_glyphs, options);
         }
         OTL_TYPE_GPOS_SINGLE => {
-            return otl_read_gpos_single(data, table_length, subtable_offset, max_glyphs, options);
+            return otl_read_gpos_single(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GPOS_PAIR => {
-            return otl_read_gpos_pair(data, table_length, subtable_offset, max_glyphs, options);
+            return otl_read_gpos_pair(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GPOS_CURSIVE => {
-            return otl_read_gpos_cursive(data, table_length, subtable_offset, max_glyphs, options);
+            return otl_read_gpos_cursive(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GPOS_MARK_TO_BASE => {
             return otl_read_gpos_mark_to_single(
@@ -73,7 +73,6 @@ pub unsafe fn otfcc_read_otl_subtable(
                 table_length,
                 subtable_offset,
                 max_glyphs,
-                options,
             );
         }
         OTL_TYPE_GPOS_MARK_TO_MARK => {
@@ -82,7 +81,6 @@ pub unsafe fn otfcc_read_otl_subtable(
                 table_length,
                 subtable_offset,
                 max_glyphs,
-                options,
             );
         }
         OTL_TYPE_GPOS_MARK_TO_LIGATURE => {
@@ -91,7 +89,6 @@ pub unsafe fn otfcc_read_otl_subtable(
                 table_length,
                 subtable_offset,
                 max_glyphs,
-                options,
             );
         }
         OTL_TYPE_GSUB_EXTEND => {

@@ -87,7 +87,6 @@ impl FontSerializer for OtfSerializer {
             otfcc_build_glyf(
                 (*font).glyf.as_ref(),
                 (*font).head.as_deref_mut().map_or(::core::ptr::null_mut(), |h| h as *mut HeadTable),
-                options,
             );
         otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_GLYF, pair.glyf);
         otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_LOCA, pair.loca);
@@ -105,32 +104,32 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_HEAD,
-        otfcc_build_head((*font).head.as_deref(), options),
+        otfcc_build_head((*font).head.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_HHEA,
-        otfcc_build_hhea((*font).hhea.as_deref(), options),
+        otfcc_build_hhea((*font).hhea.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_OS_2,
-        otfcc_build_os_2((*font).os_2.as_deref(), options),
+        otfcc_build_os_2((*font).os_2.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_MAXP,
-        otfcc_build_maxp((*font).maxp.as_deref(), options),
+        otfcc_build_maxp((*font).maxp.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_NAME,
-        otfcc_build_name((*font).name.as_ref(), options),
+        otfcc_build_name((*font).name.as_ref()),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_META,
-        otfcc_build_meta((*font).meta.as_deref(), options),
+        otfcc_build_meta((*font).meta.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
         builder,
@@ -138,7 +137,6 @@ impl FontSerializer for OtfSerializer {
         otfcc_build_post(
             (*font).post.as_deref(),
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
-            options,
         ),
     );
     otfcc_sfnt_builder_push_table(
@@ -149,33 +147,33 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_GASP,
-        otfcc_build_gasp((*font).gasp.as_deref(), options),
+        otfcc_build_gasp((*font).gasp.as_deref()),
     );
     if (*font).subtype == FontSubtype::Ttf {
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_FPGM,
-            otfcc_build_fpgm_prep((*font).fpgm.as_deref(), options),
+            otfcc_build_fpgm_prep((*font).fpgm.as_deref()),
         );
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_PREP,
-            otfcc_build_fpgm_prep((*font).prep.as_deref(), options),
+            otfcc_build_fpgm_prep((*font).prep.as_deref()),
         );
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_CVT,
-            otfcc_build_cvt((*font).cvt_.as_deref(), options),
+            otfcc_build_cvt((*font).cvt_.as_deref()),
         );
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_LTSH,
-            otfcc_build_ltsh((*font).ltsh.as_deref(), options),
+            otfcc_build_ltsh((*font).ltsh.as_deref()),
         );
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_VDMX,
-            otfcc_build_vdmx((*font).vdmx.as_deref(), options),
+            otfcc_build_vdmx((*font).vdmx.as_deref()),
         );
     }
     if (*font).hhea.is_some() && (*font).maxp.is_some() && (*font).hmtx.is_some() {
@@ -190,14 +188,13 @@ impl FontSerializer for OtfSerializer {
                 (*font).hmtx.as_deref(),
                 hmtx_counta as GlyphId,
                 hmtx_countk as GlyphId,
-                options,
             ),
         );
     }
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_VHEA,
-        otfcc_build_vhea((*font).vhea.as_deref(), options),
+        otfcc_build_vhea((*font).vhea.as_deref()),
     );
     if (*font).vhea.is_some() && (*font).maxp.is_some() && (*font).vmtx.is_some() {
         let mut vmtx_counta: u16 = (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics;
@@ -211,14 +208,13 @@ impl FontSerializer for OtfSerializer {
                 (*font).vmtx.as_deref(),
                 vmtx_counta as GlyphId,
                 vmtx_countk as GlyphId,
-                options,
             ),
         );
     }
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_VORG,
-        otfcc_build_vorg((*font).vorg.as_deref(), options),
+        otfcc_build_vorg((*font).vorg.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
         builder,
@@ -241,39 +237,39 @@ impl FontSerializer for OtfSerializer {
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_GDEF,
-        otfcc_build_gdef((*font).gdef.as_deref(), options),
+        otfcc_build_gdef((*font).gdef.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_BASE,
-        otfcc_build_base((*font).base.as_deref(), options),
+        otfcc_build_base((*font).base.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_CPAL,
-        otfcc_build_cpal((*font).cpal.as_deref(), options),
+        otfcc_build_cpal((*font).cpal.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_COLR,
-        otfcc_build_colr((*font).colr.as_ref(), options),
+        otfcc_build_colr((*font).colr.as_ref()),
     );
     otfcc_sfnt_builder_push_table(
         builder,
         crate::tag::TAG_SVG,
-        otfcc_build_svg((*font).svg.as_ref(), options),
+        otfcc_build_svg((*font).svg.as_ref()),
     );
-    let mut target: TsiBuildTarget = otfcc_build_tsi((*font).tsi_01.as_ref(), options);
+    let mut target: TsiBuildTarget = otfcc_build_tsi((*font).tsi_01.as_ref());
     otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI0, target.index_part);
     otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI1, target.text_part);
-    let mut target_0: TsiBuildTarget = otfcc_build_tsi((*font).tsi_23.as_ref(), options);
+    let mut target_0: TsiBuildTarget = otfcc_build_tsi((*font).tsi_23.as_ref());
     otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI2, target_0.index_part);
     otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI3, target_0.text_part);
     if let Some(glyf) = (*font).glyf.as_ref() {
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_TSI5,
-            otfcc_build_tsi5((*font).tsi5.as_deref(), options, glyf.len() as GlyphId),
+            otfcc_build_tsi5((*font).tsi5.as_deref(), glyf.len() as GlyphId),
         );
     }
     if (*options).dummy_dsig {
@@ -285,7 +281,7 @@ impl FontSerializer for OtfSerializer {
     }
     let mut otf: *mut Buffer = otfcc_sfnt_builder_serialize(builder);
     otfcc_delete_sfnt_builder(builder);
-    otfcc_unstat_font(font, options);
+    otfcc_unstat_font(font);
     return otf as *mut ::core::ffi::c_void;
     }
 }

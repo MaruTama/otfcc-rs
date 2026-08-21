@@ -44,7 +44,6 @@ pub unsafe fn otl_read_gpos_single(
     table_length: u32,
     offset: u32,
     _max_glyphs: GlyphId,
-    _options: *const Options,
 ) -> *mut Subtable {
     let subtable: *mut GposSingleSubtable = subtable_gpos_single_create();
     let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
@@ -209,10 +208,6 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
 mod otl_read_gpos_single_tests {
     use super::*;
 
-    fn zeroed_options() -> Options {
-        unsafe { ::core::mem::zeroed() }
-    }
-
     #[test]
     fn format1_applies_one_shared_value_to_every_glyph() {
         let mut data = Vec::new();
@@ -224,9 +219,8 @@ mod otl_read_gpos_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&9u16.to_be_bytes());
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
             let Subtable::GposSingle(entries) = &*boxed else { unreachable!() };
@@ -248,9 +242,8 @@ mod otl_read_gpos_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
             let Subtable::GposSingle(entries) = &*boxed else { unreachable!() };

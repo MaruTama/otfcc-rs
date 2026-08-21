@@ -76,7 +76,6 @@ pub unsafe fn otl_read_gsub_reverse(
     table_length: u32,
     offset: u32,
     _max_glyphs: GlyphId,
-    _options: *const Options,
 ) -> *mut Subtable {
     let subtable: *mut GsubReverseSubtable = subtable_gsub_reverse_create();
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
@@ -296,10 +295,6 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
 mod otl_read_gsub_reverse_tests {
     use super::*;
 
-    fn zeroed_options() -> Options {
-        unsafe { ::core::mem::zeroed() }
-    }
-
     #[test]
     fn well_formed_table_builds_match_0_in_backtrack_input_forward_order() {
         let mut data = [0u8; 26];
@@ -317,9 +312,8 @@ mod otl_read_gsub_reverse_tests {
         data[20..22].copy_from_slice(&1u16.to_be_bytes());
         data[22..24].copy_from_slice(&1u16.to_be_bytes());
         data[24..26].copy_from_slice(&21u16.to_be_bytes());
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gsub_reverse(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gsub_reverse(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
             let Subtable::GsubReverse(subtable) = &*boxed else { unreachable!() };
@@ -348,9 +342,8 @@ mod otl_read_gsub_reverse_tests {
         let n_replacement_pos = n_forward_pos + 2 + 2;
         data[n_replacement_pos..n_replacement_pos + 2].copy_from_slice(&0u16.to_be_bytes()); // glyphCount
         assert_eq!(data.len(), n_replacement_pos + 2);
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gsub_reverse(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gsub_reverse(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(raw.is_null());
         }
     }

@@ -380,7 +380,7 @@ impl FontBuilder for JsonReader {
         options,
         b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    (*font).tsi5 = otfcc_parse_tsi5(root, options);
+    (*font).tsi5 = otfcc_parse_tsi5(root);
     return font as *mut ::core::ffi::c_void;
     }
 }

@@ -571,7 +571,6 @@ pub unsafe fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_base(
     base: Option<&BaseTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let base = match base {
         Some(b) => b as *const BaseTable,

@@ -95,7 +95,6 @@ pub unsafe fn otl_read_gpos_pair(
     table_length: u32,
     offset: u32,
     _max_glyphs: GlyphId,
-    _options: *const Options,
 ) -> *mut Subtable {
     let subtable: *mut GposPairSubtable = subtable_gpos_pair_create();
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
@@ -697,10 +696,6 @@ pub unsafe extern "C" fn otfcc_build_gpos_pair(
 mod otl_read_gpos_pair_tests {
     use super::*;
 
-    fn zeroed_options() -> Options {
-        unsafe { ::core::mem::zeroed() }
-    }
-
     #[test]
     fn format1_reads_one_pair_and_synthesizes_the_second_class_def() {
         let mut data = [0u8; 24];
@@ -718,9 +713,8 @@ mod otl_read_gpos_pair_tests {
         data[18..20].copy_from_slice(&1u16.to_be_bytes());
         data[20..22].copy_from_slice(&20i16.to_be_bytes());
         data[22..24].copy_from_slice(&50i16.to_be_bytes());
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
             let Subtable::GposPair(subtable) = &*boxed else { unreachable!() };
@@ -740,9 +734,8 @@ mod otl_read_gpos_pair_tests {
         // 2` -- just the 2-byte format field itself -- so a table this
         // short claiming format 1 read straight past its own end.
         let data = [0u8, 1]; // format = 1, nothing else
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(raw.is_null());
         }
     }
@@ -774,9 +767,8 @@ mod otl_read_gpos_pair_tests {
         data[40..42].copy_from_slice(&20u16.to_be_bytes());
         data[42..44].copy_from_slice(&1u16.to_be_bytes());
         data[44..46].copy_from_slice(&1u16.to_be_bytes());
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
             let Subtable::GposPair(subtable) = &*boxed else { unreachable!() };
@@ -820,9 +812,8 @@ mod otl_read_gpos_pair_tests {
         data[36..38].copy_from_slice(&20u16.to_be_bytes());
         data[38..40].copy_from_slice(&20u16.to_be_bytes());
         data[40..42].copy_from_slice(&(u16::MAX - 1).to_be_bytes());
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(raw.is_null());
         }
     }

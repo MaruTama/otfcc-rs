@@ -70,7 +70,6 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
     table_length: u32,
     offset: u32,
     _max_glyphs: GlyphId,
-    _options: *const Options,
 ) -> *mut Subtable {
     let subtable: *mut GposMarkToLigatureSubtable = subtable_gpos_mark_to_ligature_create();
     let mut marks: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
@@ -351,7 +350,7 @@ pub unsafe extern "C" fn otl_gpos_parse_mark_to_ligature(
     }
     let mut st: *mut GposMarkToLigatureSubtable = subtable_gpos_mark_to_ligature_create();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
-    otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h, options);
+    otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h);
     (*st).class_count = h.len() as GlyphClass;
     parse_bases(_bases, st, &raw mut h, options);
     return subtable_from_raw(st, Subtable::GposMarkToLigature);
@@ -427,10 +426,6 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
 mod otl_read_gpos_mark_to_ligature_tests {
     use super::*;
 
-    fn zeroed_options() -> Options {
-        unsafe { ::core::mem::zeroed() }
-    }
-
     // format(2)@0, marksOffset(2)@2 -> 12, ligatureOffset(2)@4 -> 18,
     // classCount(2)@6, markArrayOffset(2)@8 -> 24, ligatureArrayOffset(2)
     // @10 -> 26; marks coverage @12 (glyph 5); ligature coverage @18
@@ -462,14 +457,12 @@ mod otl_read_gpos_mark_to_ligature_tests {
     #[test]
     fn well_formed_table_reads_the_ligature_array() {
         let data = well_formed_data();
-        let options = zeroed_options();
         unsafe {
             let raw = otl_read_gpos_mark_to_ligature(
                 data.as_ptr() as FontFilePointer,
                 data.len() as u32,
                 0,
                 0,
-                &options as *const Options,
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
@@ -486,14 +479,12 @@ mod otl_read_gpos_mark_to_ligature_tests {
     fn ligature_count_mismatch_with_coverage_is_rejected() {
         let mut data = well_formed_data();
         data[26..28].copy_from_slice(&2u16.to_be_bytes()); // ligatureCount claims 2, coverage has only 1
-        let options = zeroed_options();
         unsafe {
             let raw = otl_read_gpos_mark_to_ligature(
                 data.as_ptr() as FontFilePointer,
                 data.len() as u32,
                 0,
                 0,
-                &options as *const Options,
             );
             assert!(raw.is_null());
         }
@@ -511,14 +502,12 @@ mod otl_read_gpos_mark_to_ligature_tests {
         let mut data = well_formed_data();
         data[6..8].copy_from_slice(&u16::MAX.to_be_bytes()); // classCount
         data[30..32].copy_from_slice(&u16::MAX.to_be_bytes()); // componentCount
-        let options = zeroed_options();
         unsafe {
             let raw = otl_read_gpos_mark_to_ligature(
                 data.as_ptr() as FontFilePointer,
                 data.len() as u32,
                 0,
                 0,
-                &options as *const Options,
             );
             assert!(raw.is_null());
         }

@@ -74,7 +74,6 @@ pub unsafe fn otfcc_build_vmtx(
     vmtx: Option<&VmtxTable>,
     mut count_a: GlyphId,
     mut count_k: GlyphId,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let mut buf: *mut Buffer = bufnew();
     let vmtx = match vmtx {

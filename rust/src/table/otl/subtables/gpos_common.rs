@@ -10,7 +10,6 @@ use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHa
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
 
 use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos};
 use crate::vendor::json::{JsonType};
 use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_push};
@@ -80,7 +79,6 @@ pub unsafe fn otl_parse_mark_array(
     mut _marks: *const ParsedValue,
     mut array: *mut MarkArray,
     mut h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
-    mut _options: *const Options,
 ) {
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < json_obj_len(_marks) {
