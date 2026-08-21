@@ -21,7 +21,7 @@ use crate::libcff::cff_fdselect::{CffFdSelect, CffFdSelectRangeFormat3};
 use crate::libcff::cff_index::{CffIndexCountType, CffIndex};
 use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
 use crate::libcff::charstring_il::{CffCharstringIl};
-use crate::libcff::subr::{CffSubrGraph, CffSubrRule};
+use crate::libcff::subr::{CffSubrGraph};
 use crate::support::{FALSE_0, TRUE_0};
 use crate::table::fvar::{FvarTable};
 use crate::table::glyf::{Contour, Glyph, MaskList, Point, PostscriptHintMask, PostscriptStemDef, StemDefList, GlyfTable};
@@ -2450,14 +2450,7 @@ unsafe fn writecff_cid_keyed(
         default_width: 0,
         nominal_width_x: 0,
         options: ::core::ptr::null::<Options>(),
-        graph: CffSubrGraph {
-            root: ::core::ptr::null_mut::<CffSubrRule>(),
-            last: ::core::ptr::null_mut::<CffSubrRule>(),
-            diagram_index: std::collections::HashMap::new(),
-            total_rules: 0,
-            total_char_strings: 0,
-            do_subroutinize: false,
-        },
+        graph: CffSubrGraph::default(),
     };
     g2c_context.glyf = glyf;
     g2c_context.default_width = (*cff).private_dict.as_deref().unwrap().default_width_x as u16;
