@@ -38,7 +38,8 @@ use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use otfcc_rust::font::caryll_font::{otfcc_font_free};
 use otfcc_rust::consolidate::{otfcc_consolidate_font};
 use otfcc_rust::json_reader::{read_json};
-use otfcc_rust::logger::{otfcc_new_logger, otfcc_new_std_err_target};
+use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
+use std::cell::RefCell;
 use otfcc_rust::otf_writer::{serialize_to_otf};
 use otfcc_rust::support::buffer::{buffree, buflen};
 use otfcc_rust::support::options::{otfcc_options_optimize_to, otfcc_delete_options, otfcc_new_options};
@@ -195,9 +196,9 @@ unsafe fn main_0(
     let mut option_index: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut c: ::core::ffi::c_int = 0;
     let mut options: *mut Options = otfcc_new_options();
-    (*options).logger = otfcc_new_logger(otfcc_new_std_err_target());
+    (*options).logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
     logger_indent(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
     otfcc_options_optimize_to(options, 1 as u8);
@@ -514,7 +515,7 @@ unsafe fn main_0(
         }
     }
     logger_set_verbosity(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         (if (*options).quiet as ::core::ffi::c_int != 0 {
             0 as ::core::ffi::c_int
         } else if (*options).verbose as ::core::ffi::c_int != 0 {
@@ -539,7 +540,7 @@ unsafe fn main_0(
     }
     if outputPath.is_none() {
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_CRITICAL,
             LoggerType::Error,
             otfcc_rust::bytesbuild!(b"Unable to build OpenType font tile : output path not specified. Exit.\n",
@@ -551,14 +552,14 @@ unsafe fn main_0(
     let mut buffer: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut length: ::core::ffi::c_long = 0;
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Load file"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         if let Some(ref in_path) = inPath {
             logger_start_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 otfcc_rust::bytesbuild!(b"Load from file ", in_path.as_bytes()),
             );
             let mut ___loggedstep_v_0: bool = true;
@@ -578,12 +579,12 @@ unsafe fn main_0(
                 // needed all along.
                 ___loggedstep_v_0 = false;
                 logger_finish(
-                    (*options).logger
+                    &mut *(*options).logger.borrow_mut()
                 );
             }
         } else {
             logger_start_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 otfcc_rust::bytesbuild!(b"Load from stdin"),
             );
             let mut ___loggedstep_v_1: bool = true;
@@ -591,22 +592,22 @@ unsafe fn main_0(
                 readEntireStdin(&raw mut buffer, &raw mut length);
                 ___loggedstep_v_1 = false;
                 logger_finish(
-                    (*options).logger
+                    &mut *(*options).logger.borrow_mut()
                 );
             }
         }
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     let mut json_root: *mut ParsedValue = ::core::ptr::null_mut::<ParsedValue>();
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Parse into JSON"),
     );
     let mut ___loggedstep_v_2: bool = true;
@@ -614,14 +615,14 @@ unsafe fn main_0(
         json_root = json_parse(buffer, length as usize);
         free(buffer as *mut ::core::ffi::c_void);
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         if json_root.is_null() {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Cannot parse JSON file \"",
@@ -632,11 +633,11 @@ unsafe fn main_0(
             exit(EXIT_FAILURE);
         }
         ___loggedstep_v_2 = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     let mut font: *mut Font = ::core::ptr::null_mut::<Font>();
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Parse"),
     );
     let mut ___loggedstep_v_3: bool = true;
@@ -644,7 +645,7 @@ unsafe fn main_0(
         font = read_json(json_root as *mut ::core::ffi::c_void, 0 as u32, &*options);
         if font.is_null() {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Cannot parse JSON file \"",
@@ -656,39 +657,39 @@ unsafe fn main_0(
         }
         json_value_free(json_root);
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_3 = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Consolidate"),
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
         otfcc_consolidate_font(font, &*options);
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_4 = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Build"),
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
         let mut otf: *mut Buffer = serialize_to_otf(font, &*options) as *mut Buffer;
         logger_start_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             otfcc_rust::bytesbuild!(b"Write to file"),
         );
         let mut ___loggedstep_v_6: bool = true;
@@ -702,7 +703,7 @@ unsafe fn main_0(
             ) as *mut FILE;
             if outfile.is_null() {
                 logger_log_sds(
-                    (*options).logger,
+                    &mut *(*options).logger.borrow_mut(),
                     LOG_VL_CRITICAL,
                     LoggerType::Error,
                     otfcc_rust::bytesbuild!(b"Cannot write to file \"",
@@ -721,11 +722,11 @@ unsafe fn main_0(
             fclose(outfile);
             ___loggedstep_v_6 = false;
             logger_finish(
-                (*options).logger
+                &mut *(*options).logger.borrow_mut()
             );
         }
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
@@ -736,7 +737,7 @@ unsafe fn main_0(
         // their own at the end of this function's scope, no explicit
         // free needed.
         ___loggedstep_v_5 = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     otfcc_delete_options(options);
     return 0 as ::core::ffi::c_int;

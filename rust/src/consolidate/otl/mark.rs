@@ -52,7 +52,7 @@ unsafe fn consolidate_mark_array(
             &raw mut (&mut (*mark_array))[k as usize].glyph,
         ) {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
@@ -74,7 +74,7 @@ unsafe fn consolidate_mark_array(
                 }
                 _ => {
                     logger_log_sds(
-                        options.logger,
+                        &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored invalid or double-mapping mark definition for /",
@@ -122,7 +122,7 @@ unsafe fn consolidate_base_array(
             &raw mut (&mut (*base_array))[k as usize].glyph,
         ) {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
@@ -141,7 +141,7 @@ unsafe fn consolidate_base_array(
                 }
                 Entry::Occupied(_) => {
                     logger_log_sds(
-                        options.logger,
+                        &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored anchor double-definition for /",
@@ -182,7 +182,7 @@ unsafe fn consolidate_lig_array(
             &raw mut (&mut (*lig_array))[k as usize].glyph,
         ) {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
@@ -202,7 +202,7 @@ unsafe fn consolidate_lig_array(
                 }
                 Entry::Occupied(_) => {
                     logger_log_sds(
-                        options.logger,
+                        &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored anchor double-definition for /",

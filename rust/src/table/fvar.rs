@@ -365,7 +365,7 @@ pub unsafe fn otfcc_read_fvar(
                         }
                     }
                     logger_log_sds(
-                        options.logger,
+                        &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"table 'fvar' corrupted.\n"),
@@ -395,7 +395,7 @@ pub unsafe fn otfcc_dump_fvar(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"fvar"),
     );
     let axes: &Vec<VfAxis> = &(*table).axes;
@@ -505,7 +505,7 @@ pub unsafe fn otfcc_dump_fvar(
             t,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn json_new_vq_segment(

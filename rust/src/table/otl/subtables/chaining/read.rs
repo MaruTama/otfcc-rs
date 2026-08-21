@@ -569,7 +569,7 @@ pub unsafe fn otl_read_contextual(
         return subtable_from_raw(subtable, Subtable::Chaining);
     }
     logger_log_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
@@ -1026,7 +1026,7 @@ pub unsafe fn otl_read_chaining(
         return subtable_from_raw(subtable, Subtable::Chaining);
     }
     logger_log_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
@@ -1049,7 +1049,7 @@ mod chaining_read_tests {
     use super::*;
 
     fn zeroed_options() -> Options {
-        unsafe { ::core::mem::zeroed() }
+        Options::default()
     }
 
     unsafe fn glyphs_of(cov: &Coverage) -> Vec<GlyphId> {
@@ -1308,10 +1308,12 @@ mod chaining_read_tests {
     #[test]
     fn unsupported_format_logs_and_returns_null() {
         let data = [0u8, 9]; // format = 9
-        let mut options = zeroed_options();
+        // This path logs unconditionally, so `options.logger` must be a
+        // real, usable `Logger`, not null -- automatic now that `Options::
+        // default()`'s `logger` is a real (if `LoggerTarget::Empty`, i.e.
+        // no-op-push) `Logger` rather than a null pointer.
+        let options = Options::default();
         unsafe {
-            options.logger =
-                crate::logger::otfcc_new_logger(crate::logger::otfcc_new_empty_target());
             let raw = otl_read_contextual(
                 data.as_ptr() as FontFilePointer,
                 data.len() as u32,
@@ -1320,7 +1322,6 @@ mod chaining_read_tests {
                 &options,
             );
             assert!(raw.is_null());
-            crate::logger::logger_dispose(options.logger);
         }
     }
 }

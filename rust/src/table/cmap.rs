@@ -464,7 +464,7 @@ pub unsafe fn otfcc_read_cmap(
         Ok(cmap) => Some(cmap),
         Err(_) => {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'cmap' corrupted.\n"),
@@ -484,7 +484,7 @@ pub unsafe fn otfcc_dump_cmap(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -543,7 +543,7 @@ pub unsafe fn otfcc_dump_cmap(
             );
         }
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 // `unicode_str` borrows `json_obj_key_at`'s pointer directly rather than
@@ -590,7 +590,7 @@ unsafe fn parse_cmap_unicodes(
                 let mut current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup(cmap, unicode as ::core::ffi::c_int) as *mut GlyphHandle;
                 logger_log_sds(
-                    options.logger,
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"U+",
@@ -651,7 +651,7 @@ unsafe fn parse_cmap_uvs(
                 let mut current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup_uvs(cmap, k) as *mut GlyphHandle;
                 logger_log_sds(
-                    options.logger,
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"UVS U+",
@@ -684,7 +684,7 @@ pub unsafe fn otfcc_parse_cmap(
     });
     let cmap: *mut CmapTable = cmap_box.as_mut() as *mut CmapTable;
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"cmap"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -699,10 +699,10 @@ pub unsafe fn otfcc_parse_cmap(
             options,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"cmap_uvs"),
     );
     let mut ___loggedstep_v_0: bool = true;
@@ -717,7 +717,7 @@ pub unsafe fn otfcc_parse_cmap(
             options,
         );
         ___loggedstep_v_0 = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     return Some(cmap_box);
 }

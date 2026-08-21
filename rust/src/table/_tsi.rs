@@ -180,7 +180,7 @@ pub unsafe fn otfcc_dump_tsi(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(tag),
     );
     let entries: &Vec<TsiEntry> = tsi;
@@ -265,7 +265,7 @@ pub unsafe fn otfcc_dump_tsi(
         );
         json_object_push(root, tag, _tsi);
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 #[allow(improper_ctypes_definitions)]
@@ -281,7 +281,7 @@ pub unsafe fn otfcc_parse_tsi(
     }
     let mut tsi: TsiTable = Vec::new();
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
@@ -371,7 +371,7 @@ pub unsafe fn otfcc_parse_tsi(
             }
         }
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     return Some(tsi);
 }

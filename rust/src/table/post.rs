@@ -409,7 +409,7 @@ pub unsafe fn otfcc_read_post(
         Ok(parsed) => parsed,
         Err(_) => {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'post' corrupted.\n"),
@@ -449,7 +449,7 @@ pub unsafe fn otfcc_dump_post(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"post"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -506,7 +506,7 @@ pub unsafe fn otfcc_dump_post(
             post,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn otfcc_parse_post(
@@ -529,7 +529,7 @@ pub unsafe fn otfcc_parse_post(
     );
     if !table.is_null() {
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"post"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -576,7 +576,7 @@ pub unsafe fn otfcc_parse_post(
             ) as u32;
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
     }

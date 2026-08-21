@@ -193,7 +193,7 @@ pub unsafe fn otfcc_read_os_2(
         Ok(os2) => Some(Box::new(os2)),
         Err(_) => {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'OS/2' corrupted.\n"),
@@ -436,7 +436,7 @@ pub unsafe fn otfcc_dump_os_2(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"OS/2"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -676,7 +676,7 @@ pub unsafe fn otfcc_dump_os_2(
             os_2,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn otfcc_parse_os_2(
@@ -699,7 +699,7 @@ pub unsafe fn otfcc_parse_os_2(
     );
     if !table.is_null() {
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"OS/2"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -952,7 +952,7 @@ pub unsafe fn otfcc_parse_os_2(
             }
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
     }

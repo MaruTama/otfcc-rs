@@ -345,7 +345,7 @@ pub unsafe fn otfcc_dump_gdef(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"GDEF"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -378,7 +378,7 @@ pub unsafe fn otfcc_dump_gdef(
             _gdef,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 unsafe fn lig_caret_from_json(
@@ -460,7 +460,7 @@ pub unsafe fn otfcc_parse_gdef(
     );
     if !table.is_null() {
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"GDEF"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -489,7 +489,7 @@ pub unsafe fn otfcc_parse_gdef(
             );
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
     }

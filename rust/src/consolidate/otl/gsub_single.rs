@@ -41,7 +41,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             &raw mut (&mut (*subtable))[k as usize].from,
         ) {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
@@ -54,7 +54,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             &raw mut (&mut (*subtable))[k as usize].to,
         ) {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
@@ -66,7 +66,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             let fromid: i32 = (&(*subtable))[k as usize].from.index as i32;
             if seen.contains_key(&fromid) {
                 logger_log_sds(
-                    (*options).logger,
+                    &mut *(*options).logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Double-mapping a glyph in a single substitution /",
@@ -85,7 +85,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
     }
     if seen.len() != (*subtable).len() {
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Consolidate] In this lookup, some mappings are ignored.\n",

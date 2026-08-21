@@ -932,6 +932,94 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-b: `Options` owns its `Logger` inline, via `RefCell`, instead
+  of pointing at a second heap allocation.** `Options.logger` was `*mut
+  Logger`, built by a separate `otfcc_new_logger` allocation and freed by
+  a separate `logger_dispose` -- both removed; `Logger::new(target)` now
+  just builds the value, and disposal is whatever `Drop` already does.
+  - **The design fork this stage didn't have before Stage 7-2-a**: the
+    plan wrote this stage assuming `Options` was still passed as a raw
+    pointer everywhere, where getting `*mut Logger` out of a `*const
+    Options` is free (raw pointers ignore aliasing rules). Once 7-2-a
+    converted essentially every call site to a real `&Options`, "just own
+    `Logger` by value" would have forced every logging call site back to
+    needing `&mut Options` -- undoing 7-2-a's entire conversion, since
+    Rust's aliasing rules don't let you get `&mut` access to one field
+    while the surrounding struct is only borrowed shared. `RefCell<Logger>`
+    is the standard answer to exactly this shape of problem (shared
+    read-mostly context, one field needs interior mutability) in a
+    single-threaded crate (`Mutex` would add locking overhead for nothing;
+    `Cell` doesn't work since `Logger` isn't `Copy`). Every existing call
+    site already logs with one short-lived `borrow_mut()` per statement,
+    immediately released, never nested into another borrow of the same
+    `Logger` -- confirmed by the full pipeline and Miri both staying green
+    (a real double-borrow would panic, not silently misbehave).
+  - **The calloc hazard, generalized further**: `otfcc_new_options` calloc's
+    the whole `Options` struct in one shot (`__caryll_allocate_clean`), same
+    as `otfcc_new_logger` used to for `Logger` alone. An all-zero `RefCell<
+    Logger>` is exactly as invalid as an all-zero `Logger` was (`indents:
+    Vec<Vec<u8>>` needs a dangling non-null sentinel, not a null one) --
+    same `ptr::write`-not-`=` treatment applies, now at the `Options` level
+    instead of the `Logger` level. The new wrinkle: `otfcc_delete_options`
+    still does a raw `free()`, not `Box`-based drop (that's Stage 7-2-d's
+    job, not this stage's), so raw `free()` alone would leak `Logger.
+    indents`' heap buffer, exactly like `glyph_name_prefix` always needed
+    explicit freeing for the same reason. Fixed the same way: `mem::replace`
+    the field with a fresh, non-allocating empty `Logger` and let the
+    replaced value's `Drop` run, before the raw `free()` reclaims the
+    struct's own memory.
+  - **`Options` lost `#[derive(Copy, Clone)]`**: `RefCell` is never `Copy`
+    regardless of its contents. Audited first (grep for `: Options` and
+    `*options` used as a value rather than through `&`/`*const`/`*mut`) --
+    the only genuine by-value use anywhere was test code already using
+    `mem::zeroed()`, itself made obsolete by this same stage: `Options`
+    gained `#[derive(Default)]` instead (`Logger: Default` delegates to
+    `Logger::new(LoggerTarget::Empty)`), used by 5 `mem::zeroed()`/
+    `zeroed_options()`-named test helpers across `cff_parser.rs`, `subr.rs`,
+    `glyf/read.rs`, `otl/read.rs`, `chaining/read.rs`. Two of those files
+    (`subr.rs`, `chaining/read.rs`) had gone further and manually installed
+    a real `otfcc_new_logger`-built `Logger` after zeroing, because the
+    function under test logs unconditionally and a null `*mut Logger`
+    would have segfaulted -- `Options::default()`'s `logger` is already a
+    real (if `LoggerTarget::Empty`, i.e. no-op-push) `Logger`, so that
+    workaround construction and its matching `logger_dispose` call both
+    just disappeared.
+  - **Mechanical ripple**: ~314 call sites across 54 files change from
+    `options.logger`/`(*options).logger` (a `Copy` raw-pointer field read)
+    to `&mut *options.logger.borrow_mut()`/`&mut *(*options).logger.
+    borrow_mut()`. Done as one uniform, script-driven text substitution
+    across the whole tree rather than by hand or by per-directory agent
+    batches (unlike Stage 7-2-a) -- the pattern has no legitimate
+    variation to reason about per call site. The one place a blind
+    substitution went wrong: `otfcc_new_options`'s `ptr::write(&raw mut
+    (*options).logger, ...)` and `otfcc_delete_options`'s `mem::replace(
+    &mut (*options).logger, ...)` are *place* expressions (the destination
+    being written/swapped), not value reads -- the naive regex rewrote
+    both into nonsense (`&raw mut &mut *(*options).logger.borrow_mut()`,
+    ill-typed and caught immediately by `cargo build`) before being hand-
+    fixed back to the plain field place. A useful reminder that "every
+    occurrence of this exact token sequence means the same thing" is a
+    hypothesis to verify against the build, not something to trust from
+    the shape of the match alone.
+  - **`rust/fuzz/fuzz_targets/otf_parse.rs` needed the same treatment**
+    as its two other `Options`-touching lines already got in Stage 7-2-a's
+    tail. `rust/fuzz/` is a separate cargo workspace member the normal
+    `cargo build`/`test`/`clippy` pipeline never compiles (see Stage
+    7-2-a's entry below for how that bit there); checked proactively this
+    time with `cd rust/fuzz && cargo check --bin otf_parse --bin
+    json_build` before this stage's verification pipeline ran, rather than
+    discovered only after a CI-only build failure.
+  - **Verification**: full pipeline green -- build, 244/244 tests (no
+    `RefCell` double-borrow panics anywhere in the suite), clippy clean,
+    ABI unchanged, golden bytes and log output unchanged byte-for-byte
+    (the strongest evidence this is a pure representation change, not a
+    behavior change -- log *content* would shift immediately if borrow
+    timing or drop order changed anything observable), round-trips 10/10,
+    lookup-alias regression clean, `cargo miri test` 224/0/20 identical to
+    baseline, both fuzz targets `cargo check`-clean. `survey-unsafe.sh`:
+    raw pointer types 5935→5924, `unsafe` blocks 289→286, `is_null()`
+    413→411.
+
 - **Stage 7-2-a (part 2): `*const Options` → `&Options`, the ~153
   actually-used parameters part 1 (below) left alone.** Done as 4 batches
   by subsystem rather than one large PR, since a reference conversion can

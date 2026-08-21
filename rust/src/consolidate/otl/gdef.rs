@@ -106,7 +106,7 @@ pub unsafe fn consolidate_gdef(
                 let gid: i32 = lig_carets[j as usize].glyph.index as i32;
                 if seen.contains_key(&gid) {
                     logger_log_sds(
-                        options.logger,
+                        &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Detected caret value double-mapping about glyph ",

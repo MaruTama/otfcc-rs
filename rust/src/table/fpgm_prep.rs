@@ -82,7 +82,7 @@ pub unsafe fn table_dump_table_fpgm_prep(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(tag),
     );
     let mut ___loggedstep_v: bool = true;
@@ -93,7 +93,7 @@ pub unsafe fn table_dump_table_fpgm_prep(
             dump_ttinstr((*table).bytes, (*table).length, options),
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe extern "C" fn make_fpgm_prep_instr(
@@ -121,7 +121,7 @@ pub unsafe fn otfcc_parse_fpgm_prep(
     table = json_obj_get(root, tag);
     if !table.is_null() {
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(tag),
         );
         let mut ___loggedstep_v: bool = true;
@@ -154,7 +154,7 @@ pub unsafe fn otfcc_parse_fpgm_prep(
             t = Some(boxed);
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
     }

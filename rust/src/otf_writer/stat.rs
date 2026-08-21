@@ -91,7 +91,7 @@ pub unsafe fn stat_single_glyph(
     }
     if *stated.offset(j as isize) == StatStatus::Doing {
         logger_log_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Stat] Circular glyph reference found in gid ",

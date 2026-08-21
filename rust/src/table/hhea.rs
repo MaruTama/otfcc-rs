@@ -63,7 +63,7 @@ pub unsafe fn otfcc_read_hhea(
         Ok(hhea) => Some(Box::new(hhea)),
         Err(_) => {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'hhea' corrupted.\n"),
@@ -83,7 +83,7 @@ pub unsafe fn otfcc_dump_hhea(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"hhea"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -150,7 +150,7 @@ pub unsafe fn otfcc_dump_hhea(
             hhea,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn otfcc_parse_hhea(
@@ -169,7 +169,7 @@ pub unsafe fn otfcc_parse_hhea(
     );
     if !table.is_null() {
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"hhea"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -231,7 +231,7 @@ pub unsafe fn otfcc_parse_hhea(
             ) as i16;
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
     }

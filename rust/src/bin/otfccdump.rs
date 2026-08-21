@@ -79,7 +79,8 @@ use otfcc_rust::font::caryll_font::{otfcc_font_free};
 use otfcc_rust::consolidate::{otfcc_consolidate_font};
 use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt};
 use otfcc_rust::json_writer::{serialize_to_json};
-use otfcc_rust::logger::{otfcc_new_logger, otfcc_new_std_err_target};
+use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
+use std::cell::RefCell;
 use otfcc_rust::otf_reader::{read_otf};
 use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
@@ -258,9 +259,9 @@ unsafe fn main_0(
         },
     ];
     let mut options: *mut Options = otfcc_new_options();
-    (*options).logger = otfcc_new_logger(otfcc_new_std_err_target());
+    (*options).logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
     logger_indent(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         b"otfccdump\0" as *const u8 as *const ::core::ffi::c_char,
     );
     (*options).decimal_cmap = true;
@@ -405,7 +406,7 @@ unsafe fn main_0(
         getchar();
     }
     logger_set_verbosity(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         (if (*options).quiet as ::core::ffi::c_int != 0 {
             0 as ::core::ffi::c_int
         } else if (*options).verbose as ::core::ffi::c_int != 0 {
@@ -425,7 +426,7 @@ unsafe fn main_0(
     }
     if optind >= argc {
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_CRITICAL,
             LoggerType::Error,
             otfcc_rust::bytesbuild!(b"Expected argument for input file name.\n"),
@@ -443,13 +444,13 @@ unsafe fn main_0(
     let mut sfnt: *mut SplineFontContainer =
         ::core::ptr::null_mut::<SplineFontContainer>();
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Read SFNT"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             otfcc_rust::bytesbuild!(b"From file ", inPath.as_bytes()),
@@ -461,7 +462,7 @@ unsafe fn main_0(
         sfnt = otfcc_read_sfnt(file);
         if sfnt.is_null() || (*sfnt).count == 0 as u32 {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Cannot read SFNT file \"",
@@ -473,7 +474,7 @@ unsafe fn main_0(
         }
         if ttcindex >= (*sfnt).count {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Subfont index ",
@@ -488,17 +489,17 @@ unsafe fn main_0(
             exit(EXIT_FAILURE);
         }
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     let mut font: *mut Font = ::core::ptr::null_mut::<Font>();
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Read Font"),
     );
     let mut ___loggedstep_v_0: bool = true;
@@ -506,7 +507,7 @@ unsafe fn main_0(
         font = read_otf(sfnt as *mut ::core::ffi::c_void, ttcindex, &*options);
         if font.is_null() {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Font structure broken or corrupted \"",
@@ -520,33 +521,33 @@ unsafe fn main_0(
             otfcc_delete_sfnt(sfnt);
         }
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_0 = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Consolidate"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
         otfcc_consolidate_font(font, &*options);
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_1 = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     let mut root: *mut BuiltValue = ::core::ptr::null_mut::<BuiltValue>();
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Dump"),
     );
     let mut ___loggedstep_v_2: bool = true;
@@ -554,7 +555,7 @@ unsafe fn main_0(
         root = serialize_to_json(font, &*options) as *mut BuiltValue;
         if root.is_null() {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(b"Font structure broken or corrupted \"",
@@ -565,17 +566,17 @@ unsafe fn main_0(
             exit(EXIT_FAILURE);
         }
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_2 = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     let mut buf: Vec<u8> = Vec::new();
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Serialize to JSON"),
     );
     let mut ___loggedstep_v_3: bool = true;
@@ -598,16 +599,16 @@ unsafe fn main_0(
         }
         buf = json_serialize_ex(&*root, jsonOptions);
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_3 = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Output"),
     );
     let mut ___loggedstep_v_4: bool = true;
@@ -619,7 +620,7 @@ unsafe fn main_0(
             ) as *mut FILE;
             if outputFile.is_null() {
                 logger_log_sds(
-                    (*options).logger,
+                    &mut *(*options).logger.borrow_mut(),
                     LOG_VL_CRITICAL,
                     LoggerType::Error,
                     otfcc_rust::bytesbuild!(b"Cannot write to file \"",
@@ -655,16 +656,16 @@ unsafe fn main_0(
             );
         }
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_4 = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     logger_start_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Finalize"),
     );
     let mut ___loggedstep_v_5: bool = true;
@@ -679,13 +680,13 @@ unsafe fn main_0(
         // both drop on their own at the end of this function's scope, no
         // explicit free needed.
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_5 = false;
-        logger_finish((*options).logger);
+        logger_finish(&mut *(*options).logger.borrow_mut());
     }
     otfcc_delete_options(options);
     return 0 as ::core::ffi::c_int;

@@ -62,7 +62,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
             &raw mut (&mut (*subtable))[k as usize].to,
         ) {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
@@ -82,7 +82,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
             );
             if (&(*subtable))[k as usize].from.is_empty() {
                 logger_log_sds(
-                    (*options).logger,
+                    &mut *(*options).logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignoring empty ligature substitution to glyph /",

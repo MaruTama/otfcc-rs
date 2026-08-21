@@ -68,7 +68,7 @@ pub unsafe fn otfcc_read_head(
         Ok(head) => Some(Box::new(head)),
         Err(_) => {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'head' corrupted.\n"),
@@ -114,7 +114,7 @@ pub unsafe fn otfcc_dump_head(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"head"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -207,7 +207,7 @@ pub unsafe fn otfcc_dump_head(
             head,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn otfcc_parse_head(
@@ -232,7 +232,7 @@ pub unsafe fn otfcc_parse_head(
     );
     if !table.is_null() {
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"head"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -315,7 +315,7 @@ pub unsafe fn otfcc_parse_head(
             ) as i16;
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
     }

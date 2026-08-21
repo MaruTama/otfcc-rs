@@ -69,7 +69,7 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
             &raw mut (&mut (*subtable))[k as usize].target,
         ) {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
@@ -81,7 +81,7 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
             let fromid: i32 = (&(*subtable))[k as usize].target.index as i32;
             if seen.contains_key(&fromid) {
                 logger_log_sds(
-                    (*options).logger,
+                    &mut *(*options).logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Double-mapping a glyph in a cursive positioning /",

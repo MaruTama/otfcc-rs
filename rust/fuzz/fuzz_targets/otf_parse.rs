@@ -27,9 +27,10 @@
 use libfuzzer_sys::fuzz_target;
 use otfcc_rust::font::caryll_font::otfcc_font_free;
 use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt};
-use otfcc_rust::logger::{otfcc_new_empty_target, otfcc_new_logger};
+use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
+use std::cell::RefCell;
 
 fuzz_target!(|data: &[u8]| {
     // fmemopen requires a non-empty buffer on some libc implementations
@@ -72,7 +73,7 @@ fuzz_target!(|data: &[u8]| {
         }
 
         let options = otfcc_new_options();
-        (*options).logger = otfcc_new_logger(otfcc_new_empty_target());
+        (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
         // Subfont index 0 always exists once `count > 0` -- fuzzing which
         // TTC subfont gets selected would mostly re-exercise the same

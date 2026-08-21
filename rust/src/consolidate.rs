@@ -111,7 +111,7 @@ unsafe fn consolidate_glyph_contours(
         let keep = !contour.is_empty();
         if !keep {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Removed empty contour #",
@@ -138,7 +138,7 @@ unsafe fn consolidate_glyph_references(
         );
         if !ok {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored absent glyph component reference /",
@@ -289,7 +289,7 @@ unsafe fn consolidate_fd_select(
         }
         if !found {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] CID Subfont ",
@@ -420,7 +420,7 @@ pub unsafe fn consolidate_anchor_ref(
         || (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingXy
     {
         logger_log_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Found circular reference of out-of-range point reference in anchored reference.",
@@ -470,7 +470,7 @@ pub unsafe fn consolidate_anchor_ref(
     );
     if !s1 {
         logger_log_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Failed to access point ",
@@ -481,7 +481,7 @@ pub unsafe fn consolidate_anchor_ref(
     }
     if !s2 {
         logger_log_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Failed to access point ",
@@ -523,7 +523,7 @@ pub unsafe fn consolidate_anchor_ref(
             ) > 0.5f64
         {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Anchored reference to ",
@@ -565,7 +565,7 @@ pub unsafe fn consolidate_glyf(
     while (j_0 as usize) < (*glyf).len() {
         let g: *mut Glyph = &raw mut **(&mut (*glyf))[j_0 as usize].as_mut().unwrap();
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(&(*g).name),
         );
         let mut ___loggedstep_v: bool = true;
@@ -586,7 +586,7 @@ pub unsafe fn consolidate_glyf(
             // dispose call is needed.
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
         j_0 = j_0.wrapping_add(1);
@@ -610,7 +610,7 @@ pub unsafe fn consolidate_cmap(
                 glyph_order, glyph as *mut GlyphHandle
             ) {
                 logger_log_sds(
-                    options.logger,
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignored mapping U+",
@@ -630,7 +630,7 @@ pub unsafe fn consolidate_cmap(
                 glyph_order, glyph as *mut GlyphHandle
             ) {
                 logger_log_sds(
-                    options.logger,
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignored UVS mapping [U+",
@@ -662,7 +662,7 @@ unsafe fn __declare_otl_consolidation(
         return;
     }
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(&(*lookup).name),
     );
     let mut ___loggedstep_v: bool = true;
@@ -671,7 +671,7 @@ unsafe fn __declare_otl_consolidation(
         while (j as usize) < (*lookup).subtables.len() {
             if (&(*lookup).subtables)[j as usize].is_none() {
                 logger_log_sds(
-                    options.logger,
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignored empty subtable ",
@@ -705,7 +705,7 @@ unsafe fn __declare_otl_consolidation(
                     // pointer, no separate explicit `Box::from_raw`.
                     (&mut (*lookup).subtables)[j as usize] = None;
                     logger_log_sds(
-                        options.logger,
+                        &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored empty subtable ",
@@ -740,7 +740,7 @@ unsafe fn __declare_otl_consolidation(
         (*lookup).subtables.truncate(k as usize);
         if k == 0 {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Lookup ",
@@ -750,7 +750,7 @@ unsafe fn __declare_otl_consolidation(
             );
         }
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn otfcc_consolidate_lookup(
@@ -1075,27 +1075,27 @@ unsafe fn consolidate_otl_table(
 }
 unsafe fn consolidate_otl(mut font: *mut Font, mut options: &Options) {
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"GSUB"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         consolidate_otl_table(font, (*font).gsub.as_deref_mut().map_or(::core::ptr::null_mut(), |t| t as *mut OtlTable), options);
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"GPOS"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
         consolidate_otl_table(font, (*font).gpos.as_deref_mut().map_or(::core::ptr::null_mut(), |t| t as *mut OtlTable), options);
         ___loggedstep_v_0 = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"GDEF"),
     );
     let mut ___loggedstep_v_1: bool = true;
@@ -1106,7 +1106,7 @@ unsafe fn consolidate_otl(mut font: *mut Font, mut options: &Options) {
             options,
         );
         ___loggedstep_v_1 = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 unsafe fn consolidate_colr(mut font: *mut Font, mut options: &Options) {
@@ -1128,7 +1128,7 @@ unsafe fn consolidate_colr(mut font: *mut Font, mut options: &Options) {
                 glyph_order, &raw mut mapping.glyph
             ) {
                 logger_log_sds(
-                    options.logger,
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignored missing glyph of /",
@@ -1158,7 +1158,7 @@ unsafe fn consolidate_colr(mut font: *mut Font, mut options: &Options) {
                             &raw mut layer.glyph,
                         ) {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph of /",
@@ -1177,7 +1177,7 @@ unsafe fn consolidate_colr(mut font: *mut Font, mut options: &Options) {
                     consolidated.push(m);
                 } else {
                     logger_log_sds(
-                        options.logger,
+                        &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] COLR decomposition for /",
@@ -1235,7 +1235,7 @@ unsafe fn consolidate_tsi(
                         Some(::core::mem::take(&mut (*entry).content));
                 } else {
                     logger_log_sds(
-                        options.logger,
+                        &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored missing glyph of /",
@@ -1318,7 +1318,7 @@ pub unsafe fn otfcc_consolidate_font(
             if !otfcc_set_glyph_order_by_name(go, name.clone(), j)
             {
                 logger_log_sds(
-                    options.logger,
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Glyph name ",
@@ -1337,7 +1337,7 @@ pub unsafe fn otfcc_consolidate_font(
                         suffix = suffix.wrapping_add(1 as u32);
                     } else {
                         logger_log_sds(
-                            options.logger,
+                            &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"[Consolidate] Glyph ",
@@ -1360,60 +1360,60 @@ pub unsafe fn otfcc_consolidate_font(
         (*font).glyph_order = Some(go_box);
     }
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"glyf"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         consolidate_glyf(font, options);
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"cmap"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
         consolidate_cmap(font, options);
         ___loggedstep_v_0 = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     if !glyf.is_null() {
         consolidate_otl(font, options);
     }
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"COLR"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
         consolidate_colr(font, options);
         ___loggedstep_v_1 = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"TSI_01"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
         consolidate_tsi(font, &raw mut (*font).tsi_01, options);
         ___loggedstep_v_2 = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"TSI_23"),
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
         consolidate_tsi(font, &raw mut (*font).tsi_23, options);
         ___loggedstep_v_3 = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"TSI5"),
     );
     let mut ___loggedstep_v_4: bool = true;
@@ -1424,6 +1424,6 @@ pub unsafe fn otfcc_consolidate_font(
             options,
         );
         ___loggedstep_v_4 = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }

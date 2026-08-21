@@ -138,7 +138,7 @@ pub unsafe fn otfcc_sfnt_builder_push_table(
     let entry = create_segment(tag, buffer);
     (*builder).tables.insert(tag as ::core::ffi::c_int, entry);
     logger_log_sds(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         LOG_VL_PROGRESS,
         LoggerType::Progress,
         crate::bytesbuild!(b"OpenType table ",

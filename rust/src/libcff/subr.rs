@@ -806,7 +806,7 @@ pub unsafe fn cff_il_graph_to_buffers(
     cff_stat_height(g, root, 0 as u32);
     let mut max_subroutines: u32 = cff_number_subroutines(g);
     logger_log_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         LOG_VL_PROGRESS,
         LoggerType::Progress,
         crate::bytesbuild!(b"[libcff] Total ", max_subroutines, b" subroutines extracted."),
@@ -920,10 +920,6 @@ mod subr_graph_tests {
     use crate::libcff::cff_index::{cff_index_create, extract_index};
     use crate::libcff::{OP_HLINETO, OP_RMOVETO};
 
-    fn zeroed_options() -> Options {
-        unsafe { ::core::mem::zeroed() }
-    }
-
     unsafe fn simple_glyph_il(x: f64, y: f64) -> CffCharstringIl {
         let mut il = CffCharstringIl { instr: Vec::new() };
         let il_ptr = &raw mut il;
@@ -958,12 +954,12 @@ mod subr_graph_tests {
             cff_insert_il_to_graph(&raw mut g, &raw mut il);
         }
         // `cff_il_graph_to_buffers` always logs a progress message
-        // unconditionally, so `options.logger` must be a real one, not a
-        // zeroed (null) one -- same requirement as `chaining/read.rs`'s
-        // own unsupported-format-log test.
-        let mut options = zeroed_options();
-        options.logger =
-            crate::logger::otfcc_new_logger(crate::logger::otfcc_new_empty_target());
+        // unconditionally, so `options.logger` must be a real, usable
+        // `Logger`, not null -- automatic now that `Options::default()`'s
+        // `logger` is a real (if `LoggerTarget::Empty`, i.e. no-op-push)
+        // `Logger` rather than a null pointer; no separate construction or
+        // disposal needed the way the old raw-pointer field required.
+        let options = Options::default();
         let mut s: *mut Buffer = ::core::ptr::null_mut();
         let mut gs: *mut Buffer = ::core::ptr::null_mut();
         let mut ls: *mut Buffer = ::core::ptr::null_mut();
@@ -975,7 +971,6 @@ mod subr_graph_tests {
             &options,
         );
         cff_subr_graph_dispose(&raw mut g);
-        crate::logger::logger_dispose(options.logger);
         (s, gs, ls)
     }
 

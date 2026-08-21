@@ -1699,7 +1699,7 @@ pub unsafe fn otfcc_dump_cff(
         return;
     }
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"CFF"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -1710,7 +1710,7 @@ pub unsafe fn otfcc_dump_cff(
             fd_to_json(table),
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 unsafe fn pd_delta_from_json(dump: *const ParsedValue) -> Vec<::core::ffi::c_double> {
@@ -1965,7 +1965,7 @@ pub unsafe fn otfcc_parse_cff(
     } else {
         let mut cff: *mut CffTable = ::core::ptr::null_mut::<CffTable>();
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"CFF"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -1973,7 +1973,7 @@ pub unsafe fn otfcc_parse_cff(
             cff = fd_from_json(dump, options, true);
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
         return unwrap_cff_table(cff);

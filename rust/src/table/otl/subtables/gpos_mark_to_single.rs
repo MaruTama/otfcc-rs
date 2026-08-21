@@ -283,7 +283,7 @@ unsafe fn parse_bases(
                 match (*h).get(&class_name) {
                     None => {
                         logger_log_sds(
-                            options.logger,
+                            &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"[OTFCC-fea] Invalid anchor class name <",

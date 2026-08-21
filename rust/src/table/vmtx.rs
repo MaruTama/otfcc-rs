@@ -60,7 +60,7 @@ pub unsafe fn otfcc_read_vmtx(
         Ok(vmtx) => Some(Box::new(vmtx)),
         Err(_) => {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Table 'vmtx' corrupted.\n"),
