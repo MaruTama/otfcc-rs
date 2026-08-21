@@ -529,6 +529,33 @@ pub unsafe fn cff_parse_subr(
     return fd;
 }
 #[inline]
+// The subroutine index a `callsubr`/`callgsubr` operator uses is an
+// entirely attacker-controlled Type2 CharString operand (a stack value,
+// popped and cast to `u32`). The original indexed `gsubr`/`lsubr`'s own
+// offset array with it via raw `.offset()` arithmetic and no bounds
+// check at all, then used the (possibly garbage) result to derive a
+// *pointer and length* for a *recursive* `cff_parse_outline` call -- a
+// malformed subroutine index could recurse into arbitrary memory.
+// `extract_index` (`libcff/cff_index.rs`) only validates an INDEX's
+// *last* offset entry against the wraparound-to-4GB bug; intermediate
+// entries can still be zero or non-monotonic, so this also re-validates
+// the specific pair this call needs (both in bounds, and consistent with
+// each other and with the INDEX's own data length), not just that
+// `offset.get(idx)` succeeds.
+unsafe fn locate_subr(subr_index: &CffIndex, bias: u16, subr: u32) -> Option<(*const u8, u32)> {
+    let idx = (bias as u32).checked_add(subr)? as usize;
+    let start = *subr_index.offset.get(idx)?;
+    let end = *subr_index.offset.get(idx.checked_add(1)?)?;
+    if start < 1 || end < start {
+        return None;
+    }
+    let data_offset = (start - 1) as usize;
+    let data_len = end - start;
+    if data_offset.checked_add(data_len as usize)? > subr_index.data.len() {
+        return None;
+    }
+    Some((subr_index.data.as_ptr().add(data_offset), data_len))
+}
 unsafe fn compute_subr_bias(mut cnt: u16) -> u16 {
     if (cnt as ::core::ffi::c_int) < 1240 as ::core::ffi::c_int {
         return 107 as u16;
@@ -2405,38 +2432,35 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             (*stack).index = (*stack).index.wrapping_sub(1);
-                            let mut subr: u32 =
+                            let subr: u32 =
                                 (*(*stack).stack.as_mut_ptr().offset((*stack).index as isize))
                                     .c2rust_unnamed
                                     .d as u32;
-                            cff_parse_outline(
-                                (lsubr
-                                    .data.as_ptr() as *mut u8)
-                                    .offset(
-                                        *lsubr
-                                            .offset.as_ptr()
-                                            .offset((lsubr_bias as u32).wrapping_add(subr)
-                                                as isize)
-                                            as isize,
-                                    )
-                                    .offset(-(1 as ::core::ffi::c_int as isize)),
-                                (*lsubr.offset.as_ptr().offset(
-                                    (lsubr_bias as u32)
-                                        .wrapping_add(subr)
-                                        .wrapping_add(1 as u32)
-                                        as isize,
-                                ))
-                                .wrapping_sub(
-                                    *lsubr.offset.as_ptr().offset(
-                                        (lsubr_bias as u32).wrapping_add(subr) as isize,
+                            if let Some((sub_data, sub_len)) =
+                                locate_subr(lsubr, lsubr_bias, subr)
+                            {
+                                cff_parse_outline(
+                                    sub_data as *mut u8,
+                                    sub_len,
+                                    gsubr,
+                                    lsubr,
+                                    stack,
+                                    outline,
+                                    options,
+                                );
+                            } else {
+                                logger_log_sds(
+                                    (*options).logger,
+                                    LOG_VL_IMPORTANT,
+                                    LoggerType::Warning,
+                                    crate::bytesbuild!(b"[libcff] Invalid local subroutine index for ",
+                                        b"op_callsubr\0" as *const u8 as *const ::core::ffi::c_char,
+                                        b" (",
+                                        Hex4(OP_CALLSUBR.0 as u32),
+                                        b"). This call is ignored.\n",
                                     ),
-                                ),
-                                gsubr,
-                                lsubr,
-                                stack,
-                                outline,
-                                options,
-                            );
+                                );
+                            }
                         }
                     }
                     29 => {
@@ -2454,34 +2478,35 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             (*stack).index = (*stack).index.wrapping_sub(1);
-                            let mut subr_0: u32 =
+                            let subr_0: u32 =
                                 (*(*stack).stack.as_mut_ptr().offset((*stack).index as isize))
                                     .c2rust_unnamed
                                     .d as u32;
-                            cff_parse_outline(
-                                (gsubr
-                                    .data.as_ptr() as *mut u8)
-                                    .offset(*gsubr.offset.as_ptr().offset(
-                                        (gsubr_bias as u32).wrapping_add(subr_0) as isize,
-                                    ) as isize)
-                                    .offset(-(1 as ::core::ffi::c_int as isize)),
-                                (*gsubr.offset.as_ptr().offset(
-                                    (gsubr_bias as u32)
-                                        .wrapping_add(subr_0)
-                                        .wrapping_add(1 as u32)
-                                        as isize,
-                                ))
-                                .wrapping_sub(
-                                    *gsubr.offset.as_ptr().offset(
-                                        (gsubr_bias as u32).wrapping_add(subr_0) as isize,
+                            if let Some((sub_data, sub_len)) =
+                                locate_subr(gsubr, gsubr_bias, subr_0)
+                            {
+                                cff_parse_outline(
+                                    sub_data as *mut u8,
+                                    sub_len,
+                                    gsubr,
+                                    lsubr,
+                                    stack,
+                                    outline,
+                                    options,
+                                );
+                            } else {
+                                logger_log_sds(
+                                    (*options).logger,
+                                    LOG_VL_IMPORTANT,
+                                    LoggerType::Warning,
+                                    crate::bytesbuild!(b"[libcff] Invalid global subroutine index for ",
+                                        b"op_callgsubr\0" as *const u8 as *const ::core::ffi::c_char,
+                                        b" (",
+                                        Hex4(OP_CALLGSUBR.0 as u32),
+                                        b"). This call is ignored.\n",
                                     ),
-                                ),
-                                gsubr,
-                                lsubr,
-                                stack,
-                                outline,
-                                options,
-                            );
+                                );
+                            }
                         }
                     }
                     _ => {
@@ -2590,6 +2615,84 @@ mod cff_header_and_encoding_tests {
             let mut cff = cff_file_over(&data);
             let result = parse_encoding(&raw mut cff, -5);
             assert!(matches!(result, CffEncoding::Unspecified));
+        }
+    }
+}
+
+#[cfg(test)]
+mod locate_subr_tests {
+    use super::*;
+    use crate::libcff::cff_index::CffIndexCountType;
+
+    fn subr_index(offset: Vec<u32>, data: Vec<u8>) -> CffIndex {
+        CffIndex {
+            count_type: CffIndexCountType::U16,
+            count: (offset.len().saturating_sub(1)) as Arity,
+            off_size: 1,
+            offset,
+            data,
+        }
+    }
+
+    #[test]
+    fn finds_the_first_and_second_subroutine() {
+        let idx = subr_index(vec![1, 3, 5], vec![0xAA, 0xBB, 0xCC, 0xDD]);
+        unsafe {
+            let (p0, len0) = locate_subr(&idx, 0, 0).unwrap();
+            assert_eq!(len0, 2);
+            assert_eq!(::core::slice::from_raw_parts(p0, len0 as usize), &[0xAA, 0xBB]);
+
+            let (p1, len1) = locate_subr(&idx, 0, 1).unwrap();
+            assert_eq!(len1, 2);
+            assert_eq!(::core::slice::from_raw_parts(p1, len1 as usize), &[0xCC, 0xDD]);
+        }
+    }
+
+    #[test]
+    fn subroutine_index_past_the_end_is_rejected_instead_of_reading_oob() {
+        // The original indexed the offset array with a raw, unchecked
+        // `.offset()` -- a `callsubr`/`callgsubr` operand large enough to
+        // run past it read (and then recursed into) arbitrary memory.
+        let idx = subr_index(vec![1, 3, 5], vec![0xAA, 0xBB, 0xCC, 0xDD]);
+        unsafe {
+            assert!(locate_subr(&idx, 0, 5).is_none());
+        }
+    }
+
+    #[test]
+    fn bias_plus_subr_overflow_is_rejected() {
+        let idx = subr_index(vec![1, 3], vec![0xAA, 0xBB]);
+        unsafe {
+            assert!(locate_subr(&idx, u16::MAX, u32::MAX).is_none());
+        }
+    }
+
+    #[test]
+    fn a_zero_intermediate_offset_is_rejected() {
+        // `extract_index` only validates the INDEX's *last* offset entry
+        // against the wraparound bug -- an intermediate entry of 0 (not
+        // a valid 1-based offset) was never checked here at all.
+        let idx = subr_index(vec![1, 0, 5], vec![0xAA, 0xBB, 0xCC, 0xDD]);
+        unsafe {
+            assert!(locate_subr(&idx, 0, 0).is_none());
+        }
+    }
+
+    #[test]
+    fn a_non_monotonic_offset_pair_is_rejected() {
+        let idx = subr_index(vec![5, 1], vec![0xAA, 0xBB, 0xCC, 0xDD]);
+        unsafe {
+            assert!(locate_subr(&idx, 0, 0).is_none());
+        }
+    }
+
+    #[test]
+    fn a_range_past_the_actual_data_length_is_rejected_instead_of_reading_oob() {
+        // The offsets are internally consistent (monotonic, both >= 1)
+        // but claim more data than `subr_index.data` actually holds.
+        let idx = subr_index(vec![1, 100], vec![0xAA, 0xBB]);
+        unsafe {
+            assert!(locate_subr(&idx, 0, 0).is_none());
         }
     }
 }
