@@ -240,7 +240,7 @@ unsafe fn place_order_entries_from_subtable(
 }
 unsafe fn parse_glyph_order(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> Option<Box<GlyphOrder>> {
     // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
     // (`malloc`) + `Box::from_raw` -- see the matching note in
@@ -279,7 +279,7 @@ unsafe fn parse_glyph_order(
             JsonType::Array,
         );
         if !table.is_null() {
-            let mut ignore_glyph_order: bool = (*options).ignore_glyph_order;
+            let mut ignore_glyph_order: bool = options.ignore_glyph_order;
             if ignore_glyph_order as ::core::ffi::c_int != 0
                 && !json_obj_get_type(
                     root,
@@ -289,7 +289,7 @@ unsafe fn parse_glyph_order(
                 .is_null()
             {
                 logger_log_sds(
-                    (*options).logger,
+                    options.logger,
                     LOG_VL_NOTICE,
                     LoggerType::Info,
                     crate::bytesbuild!(b"OpenType SVG table detected. Glyph order is preserved.",
@@ -310,7 +310,7 @@ impl FontBuilder for JsonReader {
     mut _index: u32,
     options: *const ::core::ffi::c_void,
 ) -> *mut ::core::ffi::c_void {
-    let options = options as *const Options;
+    let options: &Options = &*(options as *const Options);
     let mut root: *const ParsedValue = _root as *const ParsedValue;
     let mut font: *mut Font = (
         otfcc_font_create)();
@@ -322,62 +322,62 @@ impl FontBuilder for JsonReader {
     (*font).glyf = otfcc_parse_glyf(
         root,
         (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
-        &*options,
+        options,
     );
-    (*font).cff = otfcc_parse_cff(root, &*options);
-    (*font).head = otfcc_parse_head(root, &*options);
-    (*font).hhea = otfcc_parse_hhea(root, &*options);
-    (*font).os_2 = otfcc_parse_os_2(root, &*options);
-    (*font).maxp = otfcc_parse_maxp(root, &*options);
-    (*font).post = otfcc_parse_post(root, &*options);
-    (*font).name = otfcc_parse_name(root, &*options);
-    (*font).meta = otfcc_parse_meta(root, &*options);
-    (*font).cmap = otfcc_parse_cmap(root, &*options);
-    if !(*options).ignore_hints {
+    (*font).cff = otfcc_parse_cff(root, options);
+    (*font).head = otfcc_parse_head(root, options);
+    (*font).hhea = otfcc_parse_hhea(root, options);
+    (*font).os_2 = otfcc_parse_os_2(root, options);
+    (*font).maxp = otfcc_parse_maxp(root, options);
+    (*font).post = otfcc_parse_post(root, options);
+    (*font).name = otfcc_parse_name(root, options);
+    (*font).meta = otfcc_parse_meta(root, options);
+    (*font).cmap = otfcc_parse_cmap(root, options);
+    if !options.ignore_hints {
         (*font).fpgm = otfcc_parse_fpgm_prep(
             root,
-            &*options,
+            options,
             b"fpgm\0" as *const u8 as *const ::core::ffi::c_char,
         );
         (*font).prep = otfcc_parse_fpgm_prep(
             root,
-            &*options,
+            options,
             b"prep\0" as *const u8 as *const ::core::ffi::c_char,
         );
         (*font).cvt_ = otfcc_parse_cvt(
             root,
-            &*options,
+            options,
             b"cvt_\0" as *const u8 as *const ::core::ffi::c_char,
         );
-        (*font).gasp = otfcc_parse_gasp(root, &*options);
+        (*font).gasp = otfcc_parse_gasp(root, options);
     }
-    (*font).vdmx = otfcc_parse_vdmx(root, &*options);
-    (*font).vhea = otfcc_parse_vhea(root, &*options);
+    (*font).vdmx = otfcc_parse_vdmx(root, options);
+    (*font).vhea = otfcc_parse_vhea(root, options);
     if (*font).glyf.is_some() {
         (*font).gsub = otfcc_parse_otl(
             root,
-            &*options,
+            options,
             b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
         );
         (*font).gpos = otfcc_parse_otl(
             root,
-            &*options,
+            options,
             b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
         );
-        (*font).gdef = otfcc_parse_gdef(root, &*options);
+        (*font).gdef = otfcc_parse_gdef(root, options);
     }
-    (*font).base = otfcc_parse_base(root, &*options);
-    (*font).cpal = otfcc_parse_cpal(root, &*options);
-    (*font).colr = otfcc_parse_colr(root, &*options);
-    (*font).svg = otfcc_parse_svg(root, &*options);
+    (*font).base = otfcc_parse_base(root, options);
+    (*font).cpal = otfcc_parse_cpal(root, options);
+    (*font).colr = otfcc_parse_colr(root, options);
+    (*font).svg = otfcc_parse_svg(root, options);
     (*font).tsi_01 = otfcc_parse_tsi(
         root,
-        &*options,
+        options,
         b"TSI_01\0" as *const u8 as *const ::core::ffi::c_char,
     );
     (*font).tsi_23 = otfcc_parse_tsi(
         root,
-        &*options,
+        options,
         b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
     );
     (*font).tsi5 = otfcc_parse_tsi5(root);
@@ -387,8 +387,8 @@ impl FontBuilder for JsonReader {
 pub unsafe fn read_json(
     mut _root: *mut ::core::ffi::c_void,
     mut _index: u32,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Font {
-    <JsonReader as FontBuilder>::read(_root, _index, options as *const ::core::ffi::c_void)
+    <JsonReader as FontBuilder>::read(_root, _index, options as *const Options as *const ::core::ffi::c_void)
         as *mut Font
 }

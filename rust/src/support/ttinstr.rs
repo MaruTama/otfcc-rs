@@ -805,9 +805,9 @@ unsafe fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int {
 pub unsafe fn dump_ttinstr(
     mut instructions: *mut u8,
     mut length: u32,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut BuiltValue {
-    if (*options).instr_as_bytes {
+    if options.instr_as_bytes {
         let mut len: usize = 0 as usize;
         let buf: *mut u8 = base64_encode(instructions, length as usize, &raw mut len);
         // `json_string_new_length` copies `buf`'s bytes into a fresh `Vec`

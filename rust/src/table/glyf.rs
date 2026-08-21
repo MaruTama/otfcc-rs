@@ -618,7 +618,7 @@ unsafe fn glyf_dump_glyph(
                 dump_ttinstr(
                     (*g).instructions,
                     (*g).instructions_length as u32,
-                    options as *const Options,
+                    options,
                 ),
             );
         }

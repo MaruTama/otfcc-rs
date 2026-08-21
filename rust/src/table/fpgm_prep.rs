@@ -90,7 +90,7 @@ pub unsafe fn table_dump_table_fpgm_prep(
         json_object_push(
             root,
             tag,
-            dump_ttinstr((*table).bytes, (*table).length, options as *const Options),
+            dump_ttinstr((*table).bytes, (*table).length, options),
         );
         ___loggedstep_v = false;
         logger_finish(options.logger);

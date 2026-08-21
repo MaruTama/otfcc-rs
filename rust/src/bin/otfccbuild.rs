@@ -641,7 +641,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
-        font = read_json(json_root as *mut ::core::ffi::c_void, 0 as u32, options);
+        font = read_json(json_root as *mut ::core::ffi::c_void, 0 as u32, &*options);
         if font.is_null() {
             logger_log_sds(
                 (*options).logger,
@@ -670,7 +670,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
-        otfcc_consolidate_font(font, options);
+        otfcc_consolidate_font(font, &*options);
         logger_log_sds(
             (*options).logger,
             LOG_VL_PROGRESS,
@@ -686,7 +686,7 @@ unsafe fn main_0(
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
-        let mut otf: *mut Buffer = serialize_to_otf(font, options) as *mut Buffer;
+        let mut otf: *mut Buffer = serialize_to_otf(font, &*options) as *mut Buffer;
         logger_start_sds(
             (*options).logger,
             otfcc_rust::bytesbuild!(b"Write to file"),
