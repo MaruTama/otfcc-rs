@@ -766,3 +766,183 @@ pub unsafe fn cff_il_graph_to_buffers(
     cff_index_free(igs);
     cff_index_free(ils);
 }
+
+// Safety-net coverage for the intrusive doubly-linked-list subroutinizer
+// above, added *before* any structural change to it (per the plan's own
+// note that this file -- the CFF subroutinize build path -- needs tests
+// in place first: `-O2` subroutinize is otherwise covered only by
+// `KRName-Regular-O2.otf`'s golden checksum, one payload, exercised only
+// end-to-end). These pin the current (still raw-pointer/intrusive-list)
+// behavior at the two public entry points `table/cff.rs` actually calls
+// (`cff_insert_il_to_graph`, `cff_il_graph_to_buffers`), independent of
+// how the graph ends up represented internally.
+#[cfg(test)]
+mod subr_graph_tests {
+    use super::*;
+    use crate::libcff::charstring_il::{CffCharstringIl, il_push_op, il_push_operand};
+    use crate::libcff::cff_index::{cff_index_create, extract_index};
+    use crate::libcff::{OP_HLINETO, OP_RMOVETO};
+
+    fn zeroed_options() -> Options {
+        unsafe { ::core::mem::zeroed() }
+    }
+
+    unsafe fn simple_glyph_il(x: f64, y: f64) -> CffCharstringIl {
+        let mut il = CffCharstringIl { instr: Vec::new() };
+        let il_ptr = &raw mut il;
+        il_push_operand(il_ptr, x);
+        il_push_op(il_ptr, OP_RMOVETO);
+        il_push_operand(il_ptr, y);
+        il_push_op(il_ptr, OP_HLINETO);
+        il_push_op(il_ptr, OP_ENDCHAR);
+        il
+    }
+
+    unsafe fn index_count(buf: *mut Buffer) -> u32 {
+        let idx = cff_index_create();
+        extract_index((*buf).data, (*buf).size as u32, 0, idx);
+        let count = (*idx).count;
+        cff_index_free(idx);
+        count
+    }
+
+    unsafe fn build(
+        glyphs: &[CffCharstringIl],
+        do_subroutinize: bool,
+    ) -> (*mut Buffer, *mut Buffer, *mut Buffer) {
+        // Built as a proper Rust struct literal, not `mem::zeroed()` --
+        // `diagram_index: HashMap` is not a valid all-zero bit pattern,
+        // the same "calloc'd struct + plain `=` onto an owned field is
+        // UB" hazard `otfcc-vec-field-assign-needs-calloc` flags
+        // elsewhere. Matches `table/cff.rs`'s own construction of this
+        // same struct exactly, immediately before it too calls
+        // `cff_subr_graph_init` on an already-valid value.
+        let mut g = CffSubrGraph {
+            root: ::core::ptr::null_mut::<CffSubrRule>(),
+            last: ::core::ptr::null_mut::<CffSubrRule>(),
+            diagram_index: std::collections::HashMap::new(),
+            total_rules: 0,
+            total_char_strings: 0,
+            do_subroutinize: false,
+        };
+        cff_subr_graph_init(&raw mut g);
+        g.do_subroutinize = do_subroutinize;
+        for il in glyphs {
+            let mut il = il.clone();
+            cff_insert_il_to_graph(&raw mut g, &raw mut il);
+        }
+        // `cff_il_graph_to_buffers` always logs a progress message
+        // unconditionally, so `options.logger` must be a real one, not a
+        // zeroed (null) one -- same requirement as `chaining/read.rs`'s
+        // own unsupported-format-log test.
+        let mut options = zeroed_options();
+        options.logger =
+            crate::logger::otfcc_new_logger(crate::logger::otfcc_new_empty_target());
+        let mut s: *mut Buffer = ::core::ptr::null_mut();
+        let mut gs: *mut Buffer = ::core::ptr::null_mut();
+        let mut ls: *mut Buffer = ::core::ptr::null_mut();
+        cff_il_graph_to_buffers(
+            &raw mut g,
+            &raw mut s,
+            &raw mut gs,
+            &raw mut ls,
+            &options as *const Options,
+        );
+        cff_subr_graph_dispose(&raw mut g);
+        crate::logger::logger_dispose(options.logger);
+        (s, gs, ls)
+    }
+
+    #[test]
+    fn empty_graph_produces_an_empty_char_strings_index() {
+        unsafe {
+            let (s, gs, ls) = build(&[], false);
+            assert_eq!(index_count(s), 0);
+            assert_eq!(index_count(gs), 0);
+            assert_eq!(index_count(ls), 0);
+            buffree(s);
+            buffree(gs);
+            buffree(ls);
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri")]
+    fn one_glyph_with_subroutinize_off_produces_one_char_string_and_no_subroutines() {
+        unsafe {
+            let il = simple_glyph_il(10.0, 20.0);
+            let (s, gs, ls) = build(&[il], false);
+            assert_eq!(index_count(s), 1);
+            assert_eq!(index_count(gs), 0);
+            assert_eq!(index_count(ls), 0);
+            buffree(s);
+            buffree(gs);
+            buffree(ls);
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri")]
+    fn two_identical_glyphs_with_subroutinize_on_extract_a_shared_subroutine() {
+        unsafe {
+            let il1 = simple_glyph_il(10.0, 20.0);
+            let il2 = simple_glyph_il(10.0, 20.0);
+            let (s, gs, ls) = build(&[il1, il2], true);
+            assert_eq!(index_count(s), 2);
+            // The identical [rmoveto, hlineto] pair repeated across both
+            // glyphs is exactly the doublet `append_node_to_graph` checks
+            // for on every append -- it should be extracted into one
+            // shared subroutine (local or global depending on the
+            // max_l_subrs/max_g_subrs split, so check both).
+            assert!(index_count(gs) + index_count(ls) >= 1);
+            buffree(s);
+            buffree(gs);
+            buffree(ls);
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri")]
+    fn two_identical_glyphs_subroutinized_have_a_smaller_char_strings_index() {
+        // The *total* size (char strings + subr indexes) isn't guaranteed
+        // to shrink for an example this tiny -- the subr INDEX header and
+        // the CALLSUBR/CALLGSUBR bytes are overhead that can outweigh the
+        // savings for just two short glyphs; that's expected, not a bug.
+        // What subroutinization does guarantee is that the *char strings*
+        // themselves get smaller once the duplicated sequence is replaced
+        // by a short subroutine call in each glyph.
+        unsafe {
+            let il1 = simple_glyph_il(10.0, 20.0);
+            let il2 = simple_glyph_il(10.0, 20.0);
+            let (s_on, gs_on, ls_on) = build(&[il1.clone(), il2.clone()], true);
+            let char_strings_on = (*s_on).size;
+            buffree(s_on);
+            buffree(gs_on);
+            buffree(ls_on);
+
+            let (s_off, gs_off, ls_off) = build(&[il1, il2], false);
+            let char_strings_off = (*s_off).size;
+            buffree(s_off);
+            buffree(gs_off);
+            buffree(ls_off);
+
+            assert!(char_strings_on < char_strings_off);
+        }
+    }
+
+    #[test]
+    #[cfg_attr(miri, ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri")]
+    fn two_different_glyphs_with_subroutinize_on_extract_no_subroutine() {
+        unsafe {
+            let il1 = simple_glyph_il(10.0, 20.0);
+            let il2 = simple_glyph_il(30.0, 40.0);
+            let (s, gs, ls) = build(&[il1, il2], true);
+            assert_eq!(index_count(s), 2);
+            assert_eq!(index_count(gs), 0);
+            assert_eq!(index_count(ls), 0);
+            buffree(s);
+            buffree(gs);
+            buffree(ls);
+        }
+    }
+}

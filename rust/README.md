@@ -932,6 +932,65 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-g prerequisite: `libcff/subr.rs` unit tests, no production
+  code changed.** The plan flags `subr.rs`'s intrusive doubly-linked-list
+  CFF subroutinizer (`CffSubrNode`/`CffSubrRule`/`CffSubrGraph`, headed
+  for an arena + index conversion) as the single hardest remaining piece,
+  and says explicitly to add fuzz/unit test coverage *before* starting --
+  the `-O2` subroutinize build path was previously exercised by exactly
+  one payload (`KRName-Regular-O2.otf`'s golden checksum), end-to-end
+  only, with no isolated coverage of the graph algorithm itself. This PR
+  is that prerequisite: 5 new tests against the two entry points
+  `table/cff.rs` actually calls (`cff_insert_il_to_graph`,
+  `cff_il_graph_to_buffers`), independent of how the graph ends up
+  represented internally, so they keep pinning behavior across the
+  upcoming conversion rather than needing to be rewritten alongside it.
+  - **Coverage**: an empty graph produces empty indexes; one glyph with
+    subroutinize off produces exactly one char string and no subroutines;
+    two glyphs with an identical repeated `[rmoveto, hlineto]` doublet
+    and subroutinize on get it extracted into one shared subroutine
+    (confirmed both by a direct subroutine-count assertion and by the
+    char-strings index shrinking relative to the unsubroutinized case);
+    two glyphs with *different* content extract no subroutine (no false
+    positives).
+  - **One real bug found, in the test harness, not in `subr.rs`
+    itself**: the first version of this suite segfaulted on every test,
+    including the trivial empty-graph one. Root cause was a mismatch
+    between two already-known hazards from earlier in this migration,
+    stacked on each other in a new test file: `cff_il_graph_to_buffers`
+    logs an unconditional progress message, so `Options.logger` must be a
+    real logger, not the null one `mem::zeroed()` gives -- exactly the
+    hazard `chaining/read.rs`'s own "unsupported format" test already
+    had to work around, just missed here on the first pass. A second,
+    separate near-miss caught before it became a Miri failure: the test
+    harness's own `CffSubrGraph` construction initially used
+    `mem::zeroed()` too, which is invalid for its `HashMap` field --
+    `otfcc-vec-field-assign-needs-calloc`'s exact hazard, this time on a
+    `HashMap` rather than a `Vec`. Fixed by building the struct as a
+    proper Rust literal (`diagram_index: HashMap::new()` set directly),
+    matching how `table/cff.rs` itself already constructs this same
+    struct.
+  - Miri coverage is partial: `cff_merge_cs2_operand` calls `libc::modf`
+    (an unsupported foreign function on macOS under Miri, the same
+    category as `strtod`/`snprintf` already excluded elsewhere in this
+    crate), so the 4 tests that encode any glyph content are `#[cfg_attr(
+    miri, ignore)]`'d; only the empty-graph test runs under Miri today.
+    Still real coverage: it exercises the full init/dispose lifecycle of
+    `CffSubrGraph` (including the `HashMap` construction this PR's own
+    near-miss was about) cleanly.
+  - No behavior change: this PR touches no production code at all, only
+    adds a `#[cfg(test)]` module.
+  - Verified with the standard pipeline on macOS (arm64 native): 0
+    warnings, 244 tests (was 239 -- 5 new), clippy clean, ABI export
+    guard, all golden fixtures byte-identical (unaffected, as expected
+    for a test-only change), all round-trip payloads stable, issue #1's
+    lookup-alias regression still passes, `cargo miri test` clean locally
+    before pushing (224 passed, 0 failed, 20 ignored -- 16 pre-existing
+    plus this PR's 4 `modf` ignores).
+  - Next: the actual arena + index conversion of `CffSubrNode`/
+    `CffSubrRule`/`CffSubrGraph`'s intrusive linked lists, now that this
+    safety net is in place.
+
 - **Stage 7-1 follow-up: `libcff/cff_parser.rs`'s `callsubr`/`callgsubr`
   subroutine index bounds -- the other concrete gap flagged when
   `cff_parse_outline` was first scoped out.** The subroutine index these
