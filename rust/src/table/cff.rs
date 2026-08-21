@@ -842,7 +842,7 @@ pub(crate) unsafe fn callback_draw_getrand(
 unsafe fn build_outline(
     mut i: GlyphId,
     mut context: *mut CffExtractContext,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
     let mut f: *mut CffFile = (*context).cff_file;
     // `g` keeps pointing at the same heap allocation for the rest of this
@@ -1201,7 +1201,7 @@ unsafe fn apply_cff_matrix(
 }
 pub unsafe fn otfcc_read_cff_and_glyf_tables(
     packet: &Packet,
-    mut options: *const Options,
+    mut options: &Options,
     mut head: *const HeadTable,
 ) -> CffAndGlyf {
     let mut ret: CffAndGlyf = CffAndGlyf {
@@ -1692,14 +1692,14 @@ unsafe fn fd_to_json(mut table: *const CffTable) -> *mut BuiltValue {
 pub unsafe fn otfcc_dump_cff(
     mut table: Option<&CffTable>,
     mut root: *mut BuiltValue,
-    mut options: *const Options,
+    mut options: &Options,
 ) {
     let table: *const CffTable = table.map_or(::core::ptr::null(), |t| t as *const CffTable);
     if table.is_null() {
         return;
     }
     logger_start_sds(
-        (*options).logger,
+        options.logger,
         crate::bytesbuild!(b"CFF"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -1710,7 +1710,7 @@ pub unsafe fn otfcc_dump_cff(
             fd_to_json(table),
         );
         ___loggedstep_v = false;
-        logger_finish((*options).logger);
+        logger_finish(options.logger);
     }
 }
 unsafe fn pd_delta_from_json(dump: *const ParsedValue) -> Vec<::core::ffi::c_double> {
@@ -1789,7 +1789,7 @@ unsafe fn pd_from_json(mut dump: *const ParsedValue) -> Option<Box<CffPrivateDic
 }
 unsafe fn fd_from_json(
     mut dump: *const ParsedValue,
-    mut options: *const Options,
+    mut options: &Options,
     mut top_level: bool,
 ) -> *mut CffTable {
     let mut table: *mut CffTable = (
@@ -1928,7 +1928,7 @@ unsafe fn fd_from_json(
         (*table).private_dict = Some(otfcc_new_cff_private());
     }
     if top_level as ::core::ffi::c_int != 0
-        && (*options).force_cid as ::core::ffi::c_int != 0
+        && options.force_cid as ::core::ffi::c_int != 0
         && (*table).fd_array.is_empty()
     {
         let mut fd0_box: Box<CffTable> = unwrap_cff_table(
@@ -1953,7 +1953,7 @@ unsafe fn fd_from_json(
 }
 pub unsafe fn otfcc_parse_cff(
     mut root: *const ParsedValue,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> Option<Box<CffTable>> {
     let mut dump: *const ParsedValue = json_obj_get_type(
         root,
@@ -1965,7 +1965,7 @@ pub unsafe fn otfcc_parse_cff(
     } else {
         let mut cff: *mut CffTable = ::core::ptr::null_mut::<CffTable>();
         logger_start_sds(
-            (*options).logger,
+            options.logger,
             crate::bytesbuild!(b"CFF"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -1973,7 +1973,7 @@ pub unsafe fn otfcc_parse_cff(
             cff = fd_from_json(dump, options, true);
             ___loggedstep_v = false;
             logger_finish(
-                (*options).logger
+                options.logger
             );
         }
         return unwrap_cff_table(cff);
@@ -1995,13 +1995,13 @@ unsafe fn cff_make_charstrings(
             (*context).default_width,
             (*context).nominal_width_x,
         );
-        cff_optimize_il(il, (*context).options);
+        cff_optimize_il(il, &*(*context).options);
         cff_insert_il_to_graph(&raw mut (*context).graph, il);
         drop(Box::from_raw(il));
         il = ::core::ptr::null_mut::<CffCharstringIl>();
         j = j.wrapping_add(1);
     }
-    cff_il_graph_to_buffers(&raw mut (*context).graph, s, gs, ls, (*context).options);
+    cff_il_graph_to_buffers(&raw mut (*context).graph, s, gs, ls, &*(*context).options);
 }
 // Deduplicates by string content, first registration wins -- returns the
 // existing SID if the string was already registered, otherwise assigns
@@ -2408,7 +2408,7 @@ unsafe fn cff_make_fdarray(
 unsafe fn writecff_cid_keyed(
     mut cff: *mut CffTable,
     mut glyf: *mut GlyfTable,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Buffer {
     let mut blob: *mut Buffer = bufnew();
     let mut string_hash: indexmap::IndexMap<Vec<u8>, Vec<u8>> = indexmap::IndexMap::new();
@@ -2455,9 +2455,9 @@ unsafe fn writecff_cid_keyed(
     g2c_context.glyf = glyf;
     g2c_context.default_width = (*cff).private_dict.as_deref().unwrap().default_width_x as u16;
     g2c_context.nominal_width_x = (*cff).private_dict.as_deref().unwrap().nominal_width_x as u16;
-    g2c_context.options = options;
+    g2c_context.options = options as *const Options;
     cff_subr_graph_init(&raw mut g2c_context.graph);
-    g2c_context.graph.do_subroutinize = (*options).cff_do_subroutinize;
+    g2c_context.graph.do_subroutinize = options.cff_do_subroutinize;
     cff_make_charstrings(&raw mut g2c_context, &raw mut s, &raw mut gs, &raw mut ls);
     cff_subr_graph_dispose(&raw mut g2c_context.graph);
     let mut additional_top_dict_ops_size: u32 = 0 as u32;
@@ -2645,7 +2645,7 @@ unsafe fn writecff_cid_keyed(
 }
 pub unsafe fn otfcc_build_cff(
     cff_and_glyf: CffAndGlyf,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Buffer {
     return writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options);
 }

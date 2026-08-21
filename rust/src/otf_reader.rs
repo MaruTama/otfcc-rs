@@ -146,7 +146,7 @@ impl FontBuilder for OtfReader {
             let mut cffpr: CffAndGlyf =
                 otfcc_read_cff_and_glyf_tables(
                     packet,
-                    options,
+                    &*options,
                     (*font).head.as_deref().map_or(::core::ptr::null(), |h| h as *const HeadTable),
                 );
             (*font).cff = unwrap_cff_table(cffpr.meta);

@@ -932,6 +932,60 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-a (part 2, batch 1 of 4 — `libcff`/`table/cff.rs`): first
+  batch of `*const Options` → `&Options` conversions.** Part 1 (above)
+  deleted every unused `Options` parameter; the remaining ~153 actually-
+  used ones are being converted to real references file-family by
+  file-family rather than in one large PR, since a `&Options` conversion
+  can in principle hit borrow-checker fallout that a plain deletion can't
+  — smaller batches keep each PR's risk legible. This batch covers the
+  CFF subsystem: `libcff/cff_parser.rs` (`parse_cff_bytecode`,
+  `cff_open_stream`, `cff_parse_outline` — the last being the ~1,900-line
+  Type2 charstring interpreter, so this is the riskiest function in the
+  batch by sheer size even though the conversion itself is mechanical),
+  `libcff/charstring_il.rs` (`cff_optimize_il`), `libcff/subr.rs`
+  (`cff_il_graph_to_buffers`), and `table/cff.rs` (7 functions including
+  `otfcc_build_cff`/`otfcc_parse_cff`, the public read/write entry points).
+  - Turned out fully mechanical: no borrow-checker conflicts, no dispatch-
+    table constraints (unlike part 1's 8 skipped OTL parser functions —
+    `libcff`/`table/cff.rs` don't stash `Options` behind any `extern "C"`
+    function-pointer table). `(*options).field` became `options.field`
+    throughout (auto-deref through the reference), and callers outside
+    the 4 files that still hold a raw `*const Options` (`otf_reader.rs`,
+    `otf_writer.rs`, `json_reader.rs`, `json_writer.rs`) got their call
+    sites adjusted to `&*options` without touching those files' own
+    signatures — that's this batch's job, not theirs.
+  - **One deliberate exception, structural not accidental**:
+    `CffCharstringBuilderContext.options` (`table/cff.rs`) is a *struct
+    field*, not a function parameter, so it stays `*const Options` — the
+    struct is a stack-local, short-lived scratch context threaded through
+    `cff_make_charstrings`/`writecff_cid_keyed`, and re-deriving a
+    `*const Options` from the incoming `&Options` at that one field-
+    assignment (`options as *const Options`) is sound and simpler than
+    threading a lifetime parameter through the whole context struct for a
+    single call chain.
+  - **One test fix, not a behavior change**: `cff_parser.rs`'s truncated-
+    header test used to pass a null `*const Options` on a code path that
+    provably never dereferences it (header too short means `name.count ==
+    top_dict.count == 0`, so the only `options`-reading branch — the
+    mismatch-count warning — never runs). A real `&Options` can't be null,
+    so the test now passes a `mem::zeroed()` `Options` local instead; this
+    is sound here specifically because `Options` (`support/options.rs`) is
+    `#[derive(Copy, Clone)]` over only `bool` and raw-pointer fields —
+    no `Vec`/`Box`/`HashMap` niche-typed fields — so the all-zero bit
+    pattern is a fully valid value, unlike the `otfcc-vec-field-assign-
+    needs-calloc`-shaped traps found earlier in this migration.
+  - **Verification**: full pipeline green (build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged (including
+    `KRName-Regular-O2.otf`'s subroutine-count line), round-trips 10/10,
+    `cargo miri test` 224/0/20 — identical to baseline). `survey-
+    unsafe.sh`: raw pointer types 6088→6076.
+  - Remaining Stage 7-2-a batches, by rough function count: `table/otl/*`
+    + `consolidate/otl/*` (40), other `table/*.rs` files (68, likely needs
+    its own further split), top-level orchestration — `font/*`,
+    `json_reader.rs`/`json_writer.rs`, `otf_reader.rs`/`otf_writer.rs`,
+    `consolidate.rs`, `support/ttinstr.rs` (33).
+
 - **Stage 7-2-a (part 1 of 2): removed 51 dead `_options: *const Options`
   parameters.** The plan flagged ~62 of these as pure C-signature inertia
   (never read, never dereferenced) across `rust/src/`; a fresh survey found

@@ -72,7 +72,7 @@ impl FontSerializer for JsonSerializer {
     otfcc_dump_name((*font).name.as_ref(), root, options);
     otfcc_dump_meta((*font).meta.as_deref(), root, options);
     otfcc_dump_cmap((*font).cmap.as_deref(), root, options);
-    otfcc_dump_cff((*font).cff.as_deref(), root, options);
+    otfcc_dump_cff((*font).cff.as_deref(), root, &*options);
     let mut ctx: GlyfIOContext = GlyfIOContext {
         loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
         num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,

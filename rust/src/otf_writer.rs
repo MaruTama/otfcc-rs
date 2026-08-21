@@ -98,7 +98,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_CFF,
-            otfcc_build_cff(r, options),
+            otfcc_build_cff(r, &*options),
         );
     }
     otfcc_sfnt_builder_push_table(
