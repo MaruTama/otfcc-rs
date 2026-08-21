@@ -51,7 +51,6 @@ pub static WHITE: CpalColor = CpalColor {
 };
 pub unsafe fn otfcc_read_cpal(
     packet: &Packet,
-    mut _options: *const Options,
 ) -> Option<Box<CpalTable>> {
     let mut version: u16 = 0;
     let mut table_header_length: u32 = 0;
@@ -645,7 +644,6 @@ unsafe fn build_palette_entry_label(mut cpal: *const CpalTable) -> *mut BkBlock 
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_cpal(
     cpal: Option<&CpalTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let cpal = match cpal {
         Some(c) => c as *const CpalTable,

@@ -82,7 +82,6 @@ pub unsafe fn otfcc_read_ltsh(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_ltsh(
     ltsh: Option<&LtshTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let ltsh = match ltsh {
         Some(l) => l,

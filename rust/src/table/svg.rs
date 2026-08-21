@@ -64,7 +64,6 @@ unsafe fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_read_svg(
     packet: &Packet,
-    mut _options: *const Options,
 ) -> Option<SvgTable> {
     let mut offset_to_svg_doc_index: u32 = 0;
     let mut num_entries: u16 = 0;
@@ -333,7 +332,6 @@ pub unsafe fn otfcc_parse_svg(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_svg(
     _svg: Option<&SvgTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let _svg = match _svg {
         Some(s) if !s.is_empty() => s,

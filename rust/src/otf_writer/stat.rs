@@ -383,7 +383,7 @@ pub unsafe fn stat_maxp(mut font: *mut Font) {
     (*maxp).max_component_elements = n_components;
     (*maxp).max_size_of_instructions = inst_size;
 }
-unsafe fn stat_hmtx(mut font: *mut Font, mut _options: *const Options) {
+unsafe fn stat_hmtx(mut font: *mut Font) {
     if (*font).glyf.is_none() {
         return;
     }
@@ -1096,7 +1096,7 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
     }
     return maxc;
 }
-unsafe fn stat_max_context(mut font: *mut Font, mut _options: *const Options) {
+unsafe fn stat_max_context(mut font: *mut Font) {
     let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
     let mut maxc: u16 = 1 as u16;
     if let Some(gsub) = (*font).gsub.as_deref() {
@@ -1116,7 +1116,7 @@ unsafe fn stat_max_context(mut font: *mut Font, mut _options: *const Options) {
 unsafe fn stat_os_2(mut font: *mut Font, mut options: *const Options) {
     stat_os_2_unicode_ranges(font, options);
     stat_os_2_average_width(font, options);
-    stat_max_context(font, options);
+    stat_max_context(font);
 }
 pub const MAX_STAT_METRIC: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
 unsafe fn stat_cff_widths(mut font: *mut Font) {
@@ -1379,7 +1379,7 @@ pub unsafe fn otfcc_stat_font(
         (*maxp).version = 0x5000 as ::core::ffi::c_int as F16Dot16;
     }
     if !glyf.is_null() && (*font).hhea.is_some() {
-        stat_hmtx(font, options);
+        stat_hmtx(font);
     }
     if !glyf.is_null() && (*font).vhea.is_some() {
         stat_vmtx(font, options);
@@ -1389,7 +1389,6 @@ pub unsafe fn otfcc_stat_font(
 }
 pub unsafe fn otfcc_unstat_font(
     mut font: *mut Font,
-    mut _options: *const Options,
 ) {
     delete_font_table(font, crate::tag::TAG_HDMX);
     delete_font_table(font, crate::tag::TAG_HMTX);

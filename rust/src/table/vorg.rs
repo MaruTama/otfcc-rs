@@ -131,7 +131,6 @@ pub unsafe fn otfcc_read_vorg(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_vorg(
     table: Option<&VorgTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let table = match table {
         Some(t) => t,

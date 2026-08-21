@@ -273,7 +273,6 @@ pub unsafe fn otfcc_parse_maxp(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_maxp(
     maxp: Option<&MaxpTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let maxp = match maxp {
         Some(m) => m as *const MaxpTable,

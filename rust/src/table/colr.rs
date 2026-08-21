@@ -371,7 +371,6 @@ pub unsafe fn otfcc_parse_colr(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_colr(
     _colr: Option<&ColrTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let src = match _colr {
         Some(c) if !c.is_empty() => c,

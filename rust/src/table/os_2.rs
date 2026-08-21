@@ -964,7 +964,6 @@ pub unsafe fn otfcc_parse_os_2(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_os_2(
     os_2: Option<&Os2Table>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let os_2 = match os_2 {
         Some(o) => o as *const Os2Table,

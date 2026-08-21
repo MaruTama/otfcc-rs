@@ -56,7 +56,6 @@ impl Drop for FpgmPrepTable {
 // precedent -- not a safety fix.
 pub unsafe fn otfcc_read_fpgm_prep(
     packet: &Packet,
-    mut _options: *const Options,
     mut tag: u32,
 ) -> Option<Box<FpgmPrepTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == tag)?;
@@ -164,7 +163,6 @@ pub unsafe fn otfcc_parse_fpgm_prep(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_fpgm_prep(
     table: Option<&FpgmPrepTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let table = match table {
         Some(t) => t,

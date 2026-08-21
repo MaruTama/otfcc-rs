@@ -9,7 +9,6 @@ unsafe extern "C" {
 use crate::support::binio::{pos_to_u16};
 
 use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
 use crate::support::primitives::{GlyphId, ShapeId};
 
 
@@ -278,7 +277,6 @@ unsafe fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
 pub unsafe fn otfcc_build_glyf(
     table: Option<&GlyfTable>,
     mut head: *mut HeadTable,
-    mut _options: *const Options,
 ) -> GlyfAndLocaBuffers {
     let table: *const GlyfTable = table.map_or(::core::ptr::null(), |t| t as *const GlyfTable);
     let mut bufglyf: *mut Buffer = bufnew();

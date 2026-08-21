@@ -44,7 +44,6 @@ pub unsafe fn otl_read_gpos_cursive(
     table_length: u32,
     offset: u32,
     _max_glyphs: GlyphId,
-    _options: *const Options,
 ) -> *mut Subtable {
     let subtable: *mut GposCursiveSubtable = subtable_gpos_cursive_create();
     let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
@@ -186,10 +185,6 @@ pub unsafe extern "C" fn otfcc_build_gpos_cursive(
 mod otl_read_gpos_cursive_tests {
     use super::*;
 
-    fn zeroed_options() -> Options {
-        unsafe { ::core::mem::zeroed() }
-    }
-
     #[test]
     fn well_formed_table_with_absent_anchors_reads_the_target() {
         let mut data = Vec::new();
@@ -202,9 +197,8 @@ mod otl_read_gpos_cursive_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gpos_cursive(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gpos_cursive(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
             let Subtable::GposCursive(entries) = &*boxed else { unreachable!() };
@@ -227,9 +221,8 @@ mod otl_read_gpos_cursive_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gpos_cursive(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gpos_cursive(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(raw.is_null());
         }
     }

@@ -52,7 +52,6 @@ pub unsafe fn otl_read_gsub_multi(
     table_length: u32,
     offset: u32,
     _max_glyphs: GlyphId,
-    _options: *const Options,
 ) -> *mut Subtable {
     let subtable: *mut GsubMultiSubtable = subtable_gsub_multi_create();
     let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
@@ -230,10 +229,6 @@ pub unsafe fn otfcc_build_gsub_multi_subtable(
 mod otl_read_gsub_multi_tests {
     use super::*;
 
-    fn zeroed_options() -> Options {
-        unsafe { ::core::mem::zeroed() }
-    }
-
     fn well_formed_data() -> Vec<u8> {
         let mut data = Vec::new();
         data.extend_from_slice(&0u16.to_be_bytes()); // format
@@ -254,9 +249,8 @@ mod otl_read_gsub_multi_tests {
     #[test]
     fn well_formed_table_reads_the_sequence() {
         let data = well_formed_data();
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
             let Subtable::GsubMulti(entries) = &*boxed else { unreachable!() };
@@ -275,9 +269,8 @@ mod otl_read_gsub_multi_tests {
         // many glyph IDs.
         let mut data = well_formed_data();
         data[14..16].copy_from_slice(&100u16.to_be_bytes()); // glyphCount claims 100, far more than fits
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(raw.is_null());
         }
     }
@@ -286,9 +279,8 @@ mod otl_read_gsub_multi_tests {
     fn sequence_offset_past_the_table_end_is_rejected_instead_of_reading_oob() {
         let mut data = well_formed_data();
         data[6..8].copy_from_slice(&9000u16.to_be_bytes()); // sequenceOffsets[0]: far past the table
-        let options = zeroed_options();
         unsafe {
-            let raw = otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0, &options as *const Options);
+            let raw = otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(raw.is_null());
         }
     }

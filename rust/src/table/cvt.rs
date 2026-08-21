@@ -44,7 +44,6 @@ impl Drop for CvtTable {
 // `.offset()`), not because it fixes a bug.
 pub unsafe fn otfcc_read_cvt(
     packet: &Packet,
-    mut _options: *const Options,
     mut tag: u32,
 ) -> Option<Box<CvtTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == tag)?;
@@ -177,7 +176,6 @@ pub unsafe fn otfcc_parse_cvt(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_cvt(
     table: Option<&CvtTable>,
-    mut _options: *const Options,
 ) -> *mut Buffer {
     let table = match table {
         Some(t) => t,
