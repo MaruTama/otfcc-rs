@@ -289,7 +289,7 @@ unsafe fn parse_glyph_order(
                 .is_null()
             {
                 logger_log_sds(
-                    options.logger,
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_NOTICE,
                     LoggerType::Info,
                     crate::bytesbuild!(b"OpenType SVG table detected. Glyph order is preserved.",

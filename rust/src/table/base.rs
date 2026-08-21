@@ -282,7 +282,7 @@ pub unsafe fn otfcc_read_base(
                     let mut table_length: u32 = table.length;
                     if table_length < 8 as u32 {
                         logger_log_sds(
-                            options.logger,
+                            &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Table 'BASE' Corrupted"),
@@ -368,7 +368,7 @@ pub unsafe fn otfcc_dump_base(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"BASE"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -394,7 +394,7 @@ pub unsafe fn otfcc_dump_base(
             _base,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 /// Returns `(default_baseline_tag, base_values)`, the JSON-side twin of
@@ -466,7 +466,7 @@ pub unsafe fn otfcc_parse_base(
     );
     if !table.is_null() {
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"BASE"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -484,7 +484,7 @@ pub unsafe fn otfcc_parse_base(
             base = Some(Box::new(BaseTable { horizontal, vertical }));
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
     }

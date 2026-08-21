@@ -1,11 +1,12 @@
 use libc::{free};
+use std::cell::RefCell;
 
 
 use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{Logger, logger_dispose};
+use crate::logger::{Logger, LoggerTarget};
 
 
-#[derive(Copy, Clone)]
+#[derive(Default)]
 #[repr(C)]
 pub struct Options {
     pub debug_wait_on_start: bool,
@@ -32,16 +33,44 @@ pub struct Options {
     pub name_glyphs_by_hash: bool,
     pub name_glyphs_by_gid: bool,
     pub glyph_name_prefix: *mut ::core::ffi::c_char,
-    pub logger: *mut Logger,
+    // Was `*mut Logger`, a second heap allocation `Options` merely pointed
+    // at (built via the now-removed `otfcc_new_logger`, freed via the
+    // now-removed `logger_dispose`). `Options` owns its `Logger` inline
+    // now; `RefCell` gives every call site holding only `&Options` (the
+    // norm since Stage 7-2-a) a way to still get `&mut Logger` out to log
+    // with, without needing `&mut Options` threaded through every read/
+    // dump/build/parse function purely for logging. Every existing call
+    // site already logs with a single short-lived borrow per statement
+    // (`logger_log_sds(&mut *options.logger.borrow_mut(), ...)`, immediately
+    // released), never nested re-entrantly into another borrow of the same
+    // `Logger` -- confirmed by full pipeline + Miri after the conversion,
+    // which would surface a `RefCell` double-borrow as a panic, not silent
+    // UB. Single-threaded throughout (this crate has no threading), so
+    // `RefCell` over `Mutex` costs nothing and needs no `Sync` bound.
+    pub logger: RefCell<Logger>,
 }
 pub unsafe fn otfcc_new_options() -> *mut Options {
-    let mut options: *mut Options = ::core::ptr::null_mut::<Options>();
-    options = unsafe {
+    let options: *mut Options = unsafe {
         __caryll_allocate_clean(
             ::core::mem::size_of::<Options>() as usize,
             6 as ::core::ffi::c_ulong,
         )
     } as *mut Options;
+    // `__caryll_allocate_clean` calloc's the struct: every all-zero `bool`
+    // and the null `glyph_name_prefix` are valid as-is, but an all-zero
+    // `RefCell<Logger>` is not -- `Logger.indents: Vec<Vec<u8>>` needs a
+    // dangling *non-null* sentinel at zero capacity, not a null one (the
+    // same calloc-then-`ptr::write` hazard `logger_indent_sds`'s old
+    // `otfcc_new_logger` counterpart used to guard against; see [[otfcc-
+    // vec-field-assign-needs-calloc]]). A plain `=` here would drop the
+    // invalid zeroed place first -- UB the instant that typed value exists,
+    // independent of whether anything then dereferences it.
+    unsafe {
+        ::core::ptr::write(
+            &raw mut (*options).logger,
+            RefCell::new(Logger::new(LoggerTarget::Empty)),
+        );
+    }
     return options;
 }
 pub unsafe fn otfcc_delete_options(mut options: *mut Options) {
@@ -49,11 +78,22 @@ pub unsafe fn otfcc_delete_options(mut options: *mut Options) {
         if !options.is_null() {
             free((*options).glyph_name_prefix as *mut ::core::ffi::c_void);
             (*options).glyph_name_prefix = ::core::ptr::null_mut::<::core::ffi::c_char>();
-            if !(*options).logger.is_null() {
-                logger_dispose(
-                    (*options).logger
-                );
-            }
+            // `otfcc_new_options`/here both use the manual calloc/`free`
+            // pair, not `Box` (that's Stage 7-2-d's job, across every
+            // `_create()`-shaped allocator, not just this one) -- so the
+            // raw `free()` below does NOT run `Options`'s field destructors
+            // the way dropping a `Box<Options>` would. `glyph_name_prefix`
+            // was always handled by hand for the same reason (see the
+            // `free()` two lines up); `logger`'s `Vec<Vec<u8>>` needs the
+            // same explicit treatment now that it's owned inline instead of
+            // being a raw pointer with nothing to drop. Swap in a fresh,
+            // non-allocating empty `Logger` (`Vec::new()` never allocates)
+            // and let the replaced one's `Drop` run here, before the raw
+            // `free()` reclaims the struct's own memory out from under it.
+            drop(::core::mem::replace(
+                &mut (*options).logger,
+                RefCell::new(Logger::new(LoggerTarget::Empty)),
+            ));
         }
         free(options as *mut ::core::ffi::c_void);
     }

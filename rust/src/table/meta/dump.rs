@@ -21,7 +21,7 @@ pub unsafe fn otfcc_dump_meta(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"meta"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -99,7 +99,7 @@ pub unsafe fn otfcc_dump_meta(
             _meta,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 #[inline]

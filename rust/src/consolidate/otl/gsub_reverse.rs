@@ -68,7 +68,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
         let fromid: i32 = (&(*from))[k].index as i32;
         if seen.contains_key(&fromid) {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
@@ -87,7 +87,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
     let count: usize = seen.len();
     if count != (*from).len() || count != (*to).len() {
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n",

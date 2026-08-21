@@ -60,7 +60,7 @@ pub unsafe fn otfcc_read_vdmx(
         Ok(vdmx) => Some(Box::new(vdmx)),
         Err(_) => {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Table 'VDMX' corrupted.\n"),
@@ -80,7 +80,7 @@ pub unsafe fn otfcc_dump_vdmx(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"VDMX"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -169,7 +169,7 @@ pub unsafe fn otfcc_dump_vdmx(
             _vdmx,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn otfcc_parse_vdmx(
@@ -187,7 +187,7 @@ pub unsafe fn otfcc_parse_vdmx(
     }
     let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable { version: 0, ratios: Vec::new() });
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"VDMX"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -264,7 +264,7 @@ pub unsafe fn otfcc_parse_vdmx(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     return Some(vdmx);
 }

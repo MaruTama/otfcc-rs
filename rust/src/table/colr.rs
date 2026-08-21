@@ -192,7 +192,7 @@ pub unsafe fn otfcc_read_colr(
                         }
                     }
                     logger_log_sds(
-                        options.logger,
+                        &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"Table 'COLR' corrupted.\n"),
@@ -223,7 +223,7 @@ pub unsafe fn otfcc_dump_colr(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"COLR"),
     );
     let mappings: &Vec<ColrMapping> = colr;
@@ -281,7 +281,7 @@ pub unsafe fn otfcc_dump_colr(
             _colr,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 #[allow(improper_ctypes_definitions)]
@@ -300,7 +300,7 @@ pub unsafe fn otfcc_parse_colr(
     }
     let mut colr: ColrTable = Vec::new();
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"COLR"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -364,7 +364,7 @@ pub unsafe fn otfcc_parse_colr(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     return Some(colr);
 }

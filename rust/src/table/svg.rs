@@ -188,7 +188,7 @@ pub unsafe fn otfcc_dump_svg(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"SVG "),
     );
     let entries: &Vec<SvgAssignment> = svg;
@@ -257,7 +257,7 @@ pub unsafe fn otfcc_dump_svg(
             _svg,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 #[allow(improper_ctypes_definitions)]
@@ -276,7 +276,7 @@ pub unsafe fn otfcc_parse_svg(
     }
     let mut svg: SvgTable = Vec::new();
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"SVG "),
     );
     let mut ___loggedstep_v: bool = true;
@@ -325,7 +325,7 @@ pub unsafe fn otfcc_parse_svg(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     return Some(svg);
 }

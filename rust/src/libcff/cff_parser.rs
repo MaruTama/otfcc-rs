@@ -144,7 +144,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
     );
     if (*cff).name.count != (*cff).top_dict.count {
         logger_log_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[libcff] Bad CFF font: (",
@@ -214,7 +214,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
         } else {
             empty_index(&raw mut (*cff).char_strings);
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[libcff] Bad CFF font: no any glyph data.\n"),
@@ -768,7 +768,7 @@ pub unsafe fn cff_parse_outline(
                     4 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -805,7 +805,7 @@ pub unsafe fn cff_parse_outline(
                     21 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -846,7 +846,7 @@ pub unsafe fn cff_parse_outline(
                     22 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1543,7 +1543,7 @@ pub unsafe fn cff_parse_outline(
                     3106 => {
                         if (*stack).index < 7 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1594,7 +1594,7 @@ pub unsafe fn cff_parse_outline(
                     3107 => {
                         if (*stack).index < 12 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1653,7 +1653,7 @@ pub unsafe fn cff_parse_outline(
                     3108 => {
                         if (*stack).index < 9 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1714,7 +1714,7 @@ pub unsafe fn cff_parse_outline(
                     3109 => {
                         if (*stack).index < 11 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1812,7 +1812,7 @@ pub unsafe fn cff_parse_outline(
                     3075 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1848,7 +1848,7 @@ pub unsafe fn cff_parse_outline(
                     3076 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1884,7 +1884,7 @@ pub unsafe fn cff_parse_outline(
                     3077 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1910,7 +1910,7 @@ pub unsafe fn cff_parse_outline(
                     3081 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1936,7 +1936,7 @@ pub unsafe fn cff_parse_outline(
                     3082 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -1968,7 +1968,7 @@ pub unsafe fn cff_parse_outline(
                     3083 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2000,7 +2000,7 @@ pub unsafe fn cff_parse_outline(
                     3084 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2032,7 +2032,7 @@ pub unsafe fn cff_parse_outline(
                     3086 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2058,7 +2058,7 @@ pub unsafe fn cff_parse_outline(
                     3087 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2090,7 +2090,7 @@ pub unsafe fn cff_parse_outline(
                     3090 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2107,7 +2107,7 @@ pub unsafe fn cff_parse_outline(
                     3092 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2139,7 +2139,7 @@ pub unsafe fn cff_parse_outline(
                     3093 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2169,7 +2169,7 @@ pub unsafe fn cff_parse_outline(
                     3094 => {
                         if (*stack).index < 4 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2218,7 +2218,7 @@ pub unsafe fn cff_parse_outline(
                     3096 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2250,7 +2250,7 @@ pub unsafe fn cff_parse_outline(
                     3098 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2276,7 +2276,7 @@ pub unsafe fn cff_parse_outline(
                     3099 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2296,7 +2296,7 @@ pub unsafe fn cff_parse_outline(
                     3100 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2332,7 +2332,7 @@ pub unsafe fn cff_parse_outline(
                     3101 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2358,7 +2358,7 @@ pub unsafe fn cff_parse_outline(
                     3102 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2381,7 +2381,7 @@ pub unsafe fn cff_parse_outline(
                             .d as u32;
                             if (*stack).index < (2 as u32).wrapping_add(n_0) {
                                 logger_log_sds(
-                                    options.logger,
+                                    &mut *options.logger.borrow_mut(),
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2420,7 +2420,7 @@ pub unsafe fn cff_parse_outline(
                     10 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2450,7 +2450,7 @@ pub unsafe fn cff_parse_outline(
                                 );
                             } else {
                                 logger_log_sds(
-                                    options.logger,
+                                    &mut *options.logger.borrow_mut(),
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::bytesbuild!(b"[libcff] Invalid local subroutine index for ",
@@ -2466,7 +2466,7 @@ pub unsafe fn cff_parse_outline(
                     29 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                options.logger,
+                                &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
@@ -2496,7 +2496,7 @@ pub unsafe fn cff_parse_outline(
                                 );
                             } else {
                                 logger_log_sds(
-                                    options.logger,
+                                    &mut *options.logger.borrow_mut(),
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::bytesbuild!(b"[libcff] Invalid global subroutine index for ",
@@ -2511,7 +2511,7 @@ pub unsafe fn cff_parse_outline(
                     }
                     _ => {
                         logger_log_sds(
-                            options.logger,
+                            &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Warning: unknown operator ",
@@ -2579,10 +2579,10 @@ mod cff_header_and_encoding_tests {
             // Never dereferenced on this path: `name.count == top_dict.count`
             // (both 0 for a header this short), so the only place this
             // function reads `options` -- the mismatch-count warning log --
-            // is never reached. A zeroed `Options` stands in for "never
+            // is never reached. A default `Options` stands in for "never
             // used" now that the parameter is a real reference and can't be
             // null the way the old raw pointer could.
-            let options: Options = ::core::mem::zeroed();
+            let options: Options = Options::default();
             parse_cff_bytecode(cff_ptr, &options);
             assert_eq!(cff.head.major, 1);
             assert_eq!(cff.head.minor, 0);

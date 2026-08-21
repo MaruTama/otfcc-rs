@@ -10,7 +10,8 @@ use crate::font::caryll_font::{Font};
 use crate::font::caryll_font::{otfcc_font_free};
 use crate::consolidate::{otfcc_consolidate_font};
 use crate::json_reader::{read_json};
-use crate::logger::{otfcc_new_empty_target, otfcc_new_logger, logger_indent};
+use crate::logger::{otfcc_new_empty_target, logger_indent, Logger};
+use std::cell::RefCell;
 use crate::otf_writer::{serialize_to_otf};
 use crate::support::buffer::{buffree};
 use crate::support::options::{otfcc_options_optimize_to, otfcc_new_options, otfcc_delete_options};
@@ -60,9 +61,9 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     mut for_webfont: bool,
 ) -> *mut Buffer {
     let mut options: *mut Options = otfcc_new_options();
-    (*options).logger = otfcc_new_logger(otfcc_new_empty_target());
+    (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
     logger_indent(
-        (*options).logger,
+        &mut *(*options).logger.borrow_mut(),
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
     otfcc_options_optimize_to(options, olevel);
@@ -146,8 +147,8 @@ mod tests {
     // `memset`-zero, `font/caryll_font.rs:init_font`), and `read_json`'s
     // field-by-field `(*font).x = ...` writes over that zeroed memory are
     // the same "drop-before-write on an invalid niche-optimized bit
-    // pattern" UB class documented on `otfcc_new_logger`
-    // (`logger.rs:otfcc_new_logger`) -- except `Font` has this on
+    // pattern" UB class documented on `otfcc_new_options`
+    // (`support/options.rs:otfcc_new_options`) -- except `Font` has this on
     // essentially every pointer-containing field, not just one, discovered
     // while wiring up `cargo miri test` in rust/fuzz's sibling
     // infrastructure PR. Fixing `Font`'s construction path is real,

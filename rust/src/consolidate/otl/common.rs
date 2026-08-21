@@ -58,7 +58,7 @@ pub unsafe fn fontop_consolidate_coverage(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder), h as *mut GlyphHandle
         ) {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
@@ -86,7 +86,7 @@ pub unsafe fn fontop_consolidate_class_def(
             (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder), h as *mut GlyphHandle
         ) {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",

@@ -703,7 +703,7 @@ pub unsafe fn otfcc_dump_glyf(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"glyf"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -728,7 +728,7 @@ pub unsafe fn otfcc_dump_glyf(
             otfcc_dump_glyphorder(table, root);
         }
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 unsafe fn glyf_parse_point(mut pointdump: *const ParsedValue) -> Point {
@@ -1191,7 +1191,7 @@ pub unsafe fn otfcc_parse_glyf(
     );
     if !table.is_null() {
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"glyf"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -1219,7 +1219,7 @@ pub unsafe fn otfcc_parse_glyf(
             glyf = Some(glyf_val);
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
         return glyf;

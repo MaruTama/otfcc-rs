@@ -124,7 +124,7 @@ pub unsafe fn otfcc_read_name(
         Ok(name) => Some(name),
         Err(_) => {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'name' corrupted.\n"),
@@ -144,7 +144,7 @@ pub unsafe fn otfcc_dump_name(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"name"),
     );
     let records: &Vec<NameRecord> = name;
@@ -192,7 +192,7 @@ pub unsafe fn otfcc_dump_name(
             _name,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 #[allow(improper_ctypes_definitions)]
@@ -209,7 +209,7 @@ pub unsafe fn otfcc_parse_name(
     );
     if !table.is_null() {
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"name"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -228,7 +228,7 @@ pub unsafe fn otfcc_parse_name(
                     .is_null()
                     {
                         logger_log_sds(
-                            options.logger,
+                            &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid platformID for name entry ",
@@ -244,7 +244,7 @@ pub unsafe fn otfcc_parse_name(
                     .is_null()
                     {
                         logger_log_sds(
-                            options.logger,
+                            &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid encodingID for name entry ",
@@ -260,7 +260,7 @@ pub unsafe fn otfcc_parse_name(
                     .is_null()
                     {
                         logger_log_sds(
-                            options.logger,
+                            &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid languageID for name entry ",
@@ -276,7 +276,7 @@ pub unsafe fn otfcc_parse_name(
                     .is_null()
                     {
                         logger_log_sds(
-                            options.logger,
+                            &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid nameID for name entry ",
@@ -292,7 +292,7 @@ pub unsafe fn otfcc_parse_name(
                     .is_null()
                     {
                         logger_log_sds(
-                            options.logger,
+                            &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(b"Missing or invalid name string for name entry ",
@@ -347,7 +347,7 @@ pub unsafe fn otfcc_parse_name(
             });
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
     }

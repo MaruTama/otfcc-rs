@@ -25,7 +25,7 @@ pub unsafe extern "C" fn consolidate_chaining(
     let subtable: *mut ChainingSubtable = mut_subtable;
     if !chaining_is_canonical(subtable) {
         logger_log_sds(
-            (*options).logger,
+            &mut *(*options).logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Consolidate] Ignoring non-canonical chaining subtable."),
@@ -86,7 +86,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             }
             if !found_lookup && !(&(*rule).apply)[j_0 as usize].lookup.name.is_empty() {
                 logger_log_sds(
-                    (*options).logger,
+                    &mut *(*options).logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Quoting an invalid lookup ",
@@ -102,7 +102,7 @@ pub unsafe extern "C" fn consolidate_chaining(
         {
             if (*h).index as usize >= (*table).lookups.len() {
                 logger_log_sds(
-                    (*options).logger,
+                    &mut *(*options).logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Quoting an invalid lookup #",

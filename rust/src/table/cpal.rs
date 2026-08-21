@@ -426,7 +426,7 @@ pub unsafe fn otfcc_dump_cpal(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"CPAL"),
     );
     let palettes: &Vec<CpalPalette> = &(*table).palettes;
@@ -458,7 +458,7 @@ pub unsafe fn otfcc_dump_cpal(
             _t,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 #[inline]
@@ -511,7 +511,7 @@ pub unsafe fn otfcc_parse_cpal(
     }
     let mut cpal: Option<Box<CpalTable>> = None;
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"CPAL"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -568,7 +568,7 @@ pub unsafe fn otfcc_parse_cpal(
             j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     return cpal;
 }

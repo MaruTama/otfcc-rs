@@ -503,7 +503,7 @@ mod parse_otl_common_tests {
     use super::*;
 
     fn zeroed_options() -> Options {
-        unsafe { ::core::mem::zeroed() }
+        Options::default()
     }
 
     // A minimal but complete GSUB-shaped table: one lookup (0 subtables,

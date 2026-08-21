@@ -93,7 +93,7 @@ pub unsafe fn otfcc_read_maxp(
         Ok(maxp) => Some(Box::new(maxp)),
         Err(_) => {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'maxp' corrupted.\n"),
@@ -113,7 +113,7 @@ pub unsafe fn otfcc_dump_maxp(
         None => return,
     };
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"maxp"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -200,7 +200,7 @@ pub unsafe fn otfcc_dump_maxp(
             maxp,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn otfcc_parse_maxp(
@@ -225,7 +225,7 @@ pub unsafe fn otfcc_parse_maxp(
     );
     if !table.is_null() {
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"maxp"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -264,7 +264,7 @@ pub unsafe fn otfcc_parse_maxp(
             ) as u16;
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
     }

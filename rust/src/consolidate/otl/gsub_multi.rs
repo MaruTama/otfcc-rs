@@ -71,7 +71,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
             &raw mut (&mut (*subtable))[k as usize].from,
         ) {
             logger_log_sds(
-                (*options).logger,
+                &mut *(*options).logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
@@ -91,7 +91,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
             );
             if (&(*subtable))[k as usize].to.is_empty() {
                 logger_log_sds(
-                    (*options).logger,
+                    &mut *(*options).logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /",

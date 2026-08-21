@@ -86,7 +86,7 @@ pub unsafe fn otfcc_read_vhea(
         Ok(vhea) => Some(Box::new(vhea)),
         Err(_) => {
             logger_log_sds(
-                options.logger,
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Table 'vhea' corrupted."),
@@ -107,7 +107,7 @@ pub unsafe fn otfcc_dump_vhea(
     };
     let mut vhea: *mut BuiltValue = json_object_new(11 as usize);
     logger_start_sds(
-        options.logger,
+        &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"vhea"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -173,7 +173,7 @@ pub unsafe fn otfcc_dump_vhea(
             vhea,
         );
         ___loggedstep_v = false;
-        logger_finish(options.logger);
+        logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn otfcc_parse_vhea(
@@ -192,7 +192,7 @@ pub unsafe fn otfcc_parse_vhea(
         vhea_box = Some(Box::new(::core::mem::zeroed()));
         vhea = vhea_box.as_deref_mut().unwrap() as *mut VheaTable;
         logger_start_sds(
-            options.logger,
+            &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"vhea"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -253,7 +253,7 @@ pub unsafe fn otfcc_parse_vhea(
             ) as i16;
             ___loggedstep_v = false;
             logger_finish(
-                options.logger
+                &mut *options.logger.borrow_mut()
             );
         }
     }
