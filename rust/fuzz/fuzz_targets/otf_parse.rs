@@ -78,7 +78,7 @@ fuzz_target!(|data: &[u8]| {
         // TTC subfont gets selected would mostly re-exercise the same
         // per-table readers this target already drives, at the cost of a
         // second dimension in the corpus.
-        let font = read_otf(sfnt as *mut libc::c_void, 0, options);
+        let font = read_otf(sfnt as *mut libc::c_void, 0, &*options);
         otfcc_delete_sfnt(sfnt);
 
         if !font.is_null() {
