@@ -1,9 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{memcpy};
 
 use crate::support::handle::{handle_from_index, GlyphHandle};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::font_reader::{FontReader};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 use crate::support::options::{Options};
@@ -119,20 +117,7 @@ unsafe fn otfcc_read_simple_glyph(
     }
     let instruction_length: u16 = r.u16().ok()?;
     let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
-    let mut instructions: *mut u8 = ::core::ptr::null_mut::<u8>();
-    if instruction_length > 0 {
-        instructions = __caryll_allocate_clean(
-            (::core::mem::size_of::<u8>() as usize).wrapping_mul(instruction_length as usize),
-            31 as ::core::ffi::c_ulong,
-        ) as *mut u8;
-        memcpy(
-            instructions as *mut ::core::ffi::c_void,
-            instruction_bytes.as_ptr() as *const ::core::ffi::c_void,
-            (::core::mem::size_of::<u8>() as usize).wrapping_mul(instruction_length as usize),
-        );
-    }
-    (*g).instructions_length = instruction_length;
-    (*g).instructions = instructions;
+    (*g).instructions = instruction_bytes.to_vec();
     // A local `Vec<u8>` now, not a `__caryll_allocate_clean`'d/`free`'d
     // buffer -- dropped automatically at the end of this function.
     let mut flags: Vec<u8> = vec![0u8; points_in_glyph as usize];
@@ -326,25 +311,9 @@ unsafe fn otfcc_read_composite_glyph(
     if glyph_has_instruction {
         let instruction_length: u16 = r.u16().ok()?;
         let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
-        let mut instructions: FontFilePointer = ::core::ptr::null_mut::<u8>();
-        if instruction_length > 0 {
-            instructions = __caryll_allocate_clean(
-                (::core::mem::size_of::<u8>() as usize)
-                    .wrapping_mul(instruction_length as usize),
-                201 as ::core::ffi::c_ulong,
-            ) as FontFilePointer;
-            memcpy(
-                instructions as *mut ::core::ffi::c_void,
-                instruction_bytes.as_ptr() as *const ::core::ffi::c_void,
-                (::core::mem::size_of::<u8>() as usize)
-                    .wrapping_mul(instruction_length as usize),
-            );
-        }
-        (*g).instructions_length = instruction_length;
-        (*g).instructions = instructions as *mut u8;
+        (*g).instructions = instruction_bytes.to_vec();
     } else {
-        (*g).instructions_length = 0 as u16;
-        (*g).instructions = ::core::ptr::null_mut::<u8>();
+        (*g).instructions = Vec::new();
     }
     Some(g)
 }

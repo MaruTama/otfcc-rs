@@ -201,8 +201,8 @@ pub unsafe fn name_glyph_by_hash(
     }
     bufwrite8(buf, ')' as i32 as u8);
     bufwrite8(buf, 'I' as i32 as u8);
-    bufwrite32b(buf, (*g).instructions_length as u32);
-    bufwrite_bytes(buf, (*g).instructions_length as usize, (*g).instructions);
+    bufwrite32b(buf, (*g).instructions.len() as u32);
+    bufwrite_bytes(buf, (*g).instructions.len(), (*g).instructions.as_ptr());
     let mut ctx: Sha1Ctx = Sha1Ctx {
         data: [0; 64],
         datalen: 0,

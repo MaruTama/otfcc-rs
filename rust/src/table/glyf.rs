@@ -116,15 +116,14 @@ pub struct Glyph {
     pub stem_v: StemDefList,
     pub hint_masks: MaskList,
     pub contour_masks: MaskList,
-    pub instructions_length: u16,
-    pub instructions: *mut u8,
+    pub instructions: Vec<u8>,
     pub y_pel: u8,
     pub fd_select: FdHandle,
     pub cid: GlyphId,
     pub stat: GlyphStat,
 }
-/// Only `instructions` needs manual teardown here now -- `name` (a
-/// `Vec<u8>` since the `sds` sweep reached this field) already tears down
+/// `instructions` is now a plain `Vec<u8>` (Stage 7-2-c), same as `name` (a
+/// `Vec<u8>` since the `sds` sweep reached that field) -- both tear down
 /// for free, and everything else either has no allocation of its own
 /// (`stat`, `cid`, ...) or is already a real Rust owner that auto-drops
 /// correctly on its own: `horizontal_origin`/`advance_width`/
@@ -137,17 +136,12 @@ pub struct Glyph {
 /// has owned its `name` and had a real `Drop` impl since the crate-wide
 /// `Handle` conversion -- calling `otfcc_handle_dispose` on it here too,
 /// the way the old manual `otfcc_delete_glyf_glyph` did, would be
-/// redundant with that, not wrong).
-impl Drop for Glyph {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.instructions.is_null() {
-                free(self.instructions as *mut ::core::ffi::c_void);
-                self.instructions = ::core::ptr::null_mut::<u8>();
-            }
-        }
-    }
-}
+/// redundant with that, not wrong). No field needs manual teardown any
+/// more, so the `Drop` impl that used to free `instructions` by hand is
+/// gone -- `#[derive(Clone)]` above is also sound now: every field
+/// (`instructions` included) is a real deep-copying Rust owner, so cloning
+/// a `Glyph` wholesale no longer aliases a raw pointer between the
+/// original and the copy the way the old `*mut u8` did.
 pub type GlyphPtr = *mut Glyph;
 /// The font's glyph table: an array of owned glyphs, indexed by GID. Unlike
 /// the other three containers in this "owned pointer array" group
@@ -299,8 +293,7 @@ pub unsafe fn otfcc_new_glyf_glyph() -> Box<Glyph> {
         stem_v: Vec::new(),
         hint_masks: Vec::new(),
         contour_masks: Vec::new(),
-        instructions_length: 0 as u16,
-        instructions: ::core::ptr::null_mut::<u8>(),
+        instructions: Vec::new(),
         y_pel: 0 as u8,
         fd_select: otfcc_handle_empty() as FdHandle,
         cid: 0 as GlyphId,
@@ -611,13 +604,13 @@ unsafe fn glyf_dump_glyph(
         );
     }
     if !options.ignore_hints {
-        if !(*g).instructions.is_null() && (*g).instructions_length as ::core::ffi::c_int != 0 {
+        if !(*g).instructions.is_empty() {
             json_object_push(
                 glyph,
                 b"instructions\0" as *const u8 as *const ::core::ffi::c_char,
                 dump_ttinstr(
-                    (*g).instructions,
-                    (*g).instructions_length as u32,
+                    (*g).instructions.as_ptr() as *mut u8,
+                    (*g).instructions.len() as u32,
                     options,
                 ),
             );
@@ -907,13 +900,11 @@ unsafe fn glyf_parse_references(mut col: *const ParsedValue, mut g: *mut Glyph) 
         j = j.wrapping_add(1);
     }
 }
-unsafe extern "C" fn make_instrs_for_glyph(
+unsafe fn make_instrs_for_glyph(
     mut _g: *mut ::core::ffi::c_void,
-    mut instrs: *mut u8,
-    mut len: u32,
+    instrs: Vec<u8>,
 ) {
     let mut g: *mut Glyph = _g as *mut Glyph;
-    (*g).instructions_length = len as u16;
     (*g).instructions = instrs;
 }
 unsafe extern "C" fn wrong_instrs_for_glyph(
@@ -1112,7 +1103,7 @@ unsafe fn otfcc_glyf_parse_glyph(
             (&raw mut *g) as *mut ::core::ffi::c_void,
             Some(
                 make_instrs_for_glyph
-                    as unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut u8, u32) -> (),
+                    as unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> (),
             ),
             Some(
                 wrong_instrs_for_glyph

@@ -1,9 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
-
 
 use crate::support::parsed_json::{ParsedValue, json_obj_get};
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::{Buffer};
 use crate::support::options::{Options};
@@ -23,27 +20,14 @@ use crate::support::built_json::{BuiltValue, json_object_push};
 // walk up if the caller itself is unreached" check used throughout this
 // migration (only `font/caryll_font.rs` uses this table's vtable, and
 // only through `.free`) -- so it's deleted rather than made unsound.
+//
+// Stage 7-2-c: `bytes` is now a `Vec<u8>` -- `length` (redundant with
+// `.bytes.len()`) is dropped along with the manual `Drop` impl below;
+// `Vec`'s own drop glue frees the buffer.
 #[repr(C)]
 pub struct FpgmPrepTable {
     pub tag: Vec<u8>,
-    pub length: u32,
-    pub bytes: *mut u8,
-}
-// Stage 6-4 "Box化": `bytes` is the only allocation this struct owns, same
-// shape as `LtshTable`/`VorgTable`/`CvtTable`. The entire vtable is
-// deleted: `.copy` was already confirmed dead (see the comment above),
-// and grepping confirms only `.free` was ever called from outside this
-// file (from `caryll_font.rs`'s table disposal, for both the `fpgm` and
-// `prep` fields, which share this type).
-impl Drop for FpgmPrepTable {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.bytes.is_null() {
-                free(self.bytes as *mut ::core::ffi::c_void);
-                self.bytes = ::core::ptr::null_mut::<u8>();
-            }
-        }
-    }
+    pub bytes: Vec<u8>,
 }
 // Unlike most of this batch, this was already memory-safe without a
 // separate length guard: it copies the table's own `PacketPiece.data`
@@ -51,24 +35,16 @@ impl Drop for FpgmPrepTable {
 // bytes long, per `font/caryll_sfnt.rs`'s invariant), so there is no
 // declared-length-vs-actual-data mismatch to exploit -- and no field
 // structure to parse, so there is nothing here for `FontReader` itself to
-// add. Still dropped `__fortable_*`/the raw pointer for consistency with
-// the rest of this stage, matching `table/cvt.rs::otfcc_read_cvt`'s
-// precedent -- not a safety fix.
+// add. `table.data` is already an owned `Vec<u8>` (`PacketPiece::data`),
+// so this just clones it rather than routing through
+// `__caryll_allocate_clean`/`copy_nonoverlapping` the way the raw-pointer
+// version did.
 pub unsafe fn otfcc_read_fpgm_prep(
     packet: &Packet,
     mut tag: u32,
 ) -> Option<Box<FpgmPrepTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == tag)?;
-    let length = table.data.len() as u32;
-    let bytes = __caryll_allocate_clean(
-        (::core::mem::size_of::<u8>() as usize).wrapping_mul(length as usize),
-        22 as ::core::ffi::c_ulong,
-    ) as *mut u8;
-    if bytes.is_null() {
-        return None;
-    }
-    ::core::ptr::copy_nonoverlapping(table.data.as_ptr(), bytes, length as usize);
-    Some(Box::new(FpgmPrepTable { tag: Vec::new(), length, bytes }))
+    Some(Box::new(FpgmPrepTable { tag: Vec::new(), bytes: table.data.clone() }))
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn table_dump_table_fpgm_prep(
@@ -90,19 +66,21 @@ pub unsafe fn table_dump_table_fpgm_prep(
         json_object_push(
             root,
             tag,
-            dump_ttinstr((*table).bytes, (*table).length, options),
+            dump_ttinstr(
+                (*table).bytes.as_ptr() as *mut u8,
+                (*table).bytes.len() as u32,
+                options,
+            ),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-pub unsafe extern "C" fn make_fpgm_prep_instr(
+pub unsafe fn make_fpgm_prep_instr(
     mut _t: *mut ::core::ffi::c_void,
-    mut instrs: *mut u8,
-    mut length: u32,
+    instrs: Vec<u8>,
 ) {
     let mut t: *mut FpgmPrepTable = _t as *mut FpgmPrepTable;
-    (*t).length = length;
     (*t).bytes = instrs;
 }
 pub unsafe extern "C" fn wrong_fpgm_prep_instr(
@@ -128,18 +106,16 @@ pub unsafe fn otfcc_parse_fpgm_prep(
         while ___loggedstep_v {
             let mut boxed = Box::new(FpgmPrepTable {
                 tag: ::core::ffi::CStr::from_ptr(tag).to_bytes().to_vec(),
-                length: 0,
-                bytes: ::core::ptr::null_mut::<u8>(),
+                bytes: Vec::new(),
             });
             parse_ttinstr(
                 table,
                 boxed.as_mut() as *mut FpgmPrepTable as *mut ::core::ffi::c_void,
                 Some(
                     make_fpgm_prep_instr
-                        as unsafe extern "C" fn(
+                        as unsafe fn(
                             *mut ::core::ffi::c_void,
-                            *mut u8,
-                            u32,
+                            Vec<u8>,
                         ) -> (),
                 ),
                 Some(
@@ -169,6 +145,6 @@ pub unsafe fn otfcc_build_fpgm_prep(
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
     let mut buf: *mut Buffer = bufnew();
-    bufwrite_bytes(buf, (*table).length as usize, (*table).bytes);
+    bufwrite_bytes(buf, (*table).bytes.len(), (*table).bytes.as_ptr());
     return buf;
 }

@@ -3,8 +3,6 @@ use libc::{free, memcpy, snprintf, strlen, strtol};
 
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_int_val, json_str_len, json_str_ptr, json_type_of};
 
-use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-
 use crate::support::options::{Options};
 use crate::vendor::json::{JsonType};
 
@@ -345,7 +343,6 @@ unsafe fn strnmatch(
 }
 unsafe fn parse_instrs(
     mut text: *mut ::core::ffi::c_char,
-    mut len: *mut ::core::ffi::c_int,
     mut context: *mut ::core::ffi::c_void,
     mut iv_error: Option<
         unsafe extern "C" fn(
@@ -354,7 +351,7 @@ unsafe fn parse_instrs(
             ::core::ffi::c_int,
         ) -> (),
     >,
-) -> *mut u8 {
+) -> Option<Vec<u8>> {
     let mut numberstack: [::core::ffi::c_short; 256] = [0; 256];
     let mut npos: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut nread: ::core::ffi::c_int = 0;
@@ -365,14 +362,9 @@ unsafe fn parse_instrs(
     let mut end: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut bend: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut brack: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut icnt: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut imax: ::core::ffi::c_int = strlen(text) as ::core::ffi::c_int;
     let mut val: ::core::ffi::c_int = 0;
-    let mut instrs: *mut u8 = ::core::ptr::null_mut::<u8>();
-    instrs = __caryll_allocate_clean(
-        (::core::mem::size_of::<u8>() as usize).wrapping_mul(imax as usize),
-        444 as ::core::ffi::c_ulong,
-    ) as *mut u8;
+    let mut instrs: Vec<u8> = Vec::with_capacity(imax as usize);
     pt = text;
     while *pt != 0 {
         npos = 0 as ::core::ffi::c_int;
@@ -396,7 +388,7 @@ unsafe fn parse_instrs(
                         as *mut ::core::ffi::c_char,
                     pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                 );
-                return ::core::ptr::null_mut::<u8>();
+                return None;
             }
             pt = end;
             let fresh0 = npos;
@@ -433,13 +425,10 @@ unsafe fn parse_instrs(
                             as *mut ::core::ffi::c_char,
                         pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                     );
-                    return ::core::ptr::null_mut::<u8>();
+                    return None;
                 } else {
                     nread = 1 as ::core::ffi::c_int;
-                    let fresh1 = icnt;
-                    icnt = icnt + 1;
-                    *instrs.offset(fresh1 as isize) =
-                        numberstack[0 as ::core::ffi::c_int as usize] as u8;
+                    instrs.push(numberstack[0 as ::core::ffi::c_int as usize] as u8);
                     push_left = numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int;
                 }
             }
@@ -456,22 +445,20 @@ unsafe fn parse_instrs(
                         as *mut ::core::ffi::c_char,
                     pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                 );
-                return ::core::ptr::null_mut::<u8>();
+                return None;
             }
             while push_left > 0 as ::core::ffi::c_int && nread < npos {
                 if push_size == 2 as ::core::ffi::c_int {
-                    let fresh2 = icnt;
-                    icnt = icnt + 1;
-                    *instrs.offset(fresh2 as isize) =
+                    instrs.push(
                         (numberstack[nread as usize] as ::core::ffi::c_int
-                            >> 8 as ::core::ffi::c_int) as u8;
+                            >> 8 as ::core::ffi::c_int) as u8,
+                    );
                     let fresh3 = nread;
                     nread = nread + 1;
-                    let fresh4 = icnt;
-                    icnt = icnt + 1;
-                    *instrs.offset(fresh4 as isize) =
+                    instrs.push(
                         (numberstack[fresh3 as usize] as ::core::ffi::c_int
-                            & 0xff as ::core::ffi::c_int) as u8;
+                            & 0xff as ::core::ffi::c_int) as u8,
+                    );
                 } else if numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
                     > 255 as ::core::ffi::c_int
                     || (numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
@@ -484,13 +471,11 @@ unsafe fn parse_instrs(
                             as *mut ::core::ffi::c_char,
                         pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                     );
-                    return ::core::ptr::null_mut::<u8>();
+                    return None;
                 } else {
                     let fresh5 = nread;
                     nread = nread + 1;
-                    let fresh6 = icnt;
-                    icnt = icnt + 1;
-                    *instrs.offset(fresh6 as isize) = numberstack[fresh5 as usize] as u8;
+                    instrs.push(numberstack[fresh5 as usize] as u8);
                 }
                 push_left -= 1;
             }
@@ -506,7 +491,7 @@ unsafe fn parse_instrs(
                         as *mut ::core::ffi::c_char,
                     pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                 );
-                return ::core::ptr::null_mut::<u8>();
+                return None;
             }
             if !(*pt as ::core::ffi::c_int == '\r' as i32
                 || *pt as ::core::ffi::c_int == '\n' as i32
@@ -519,7 +504,7 @@ unsafe fn parse_instrs(
                             as *mut ::core::ffi::c_char,
                         pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                     );
-                    return ::core::ptr::null_mut::<u8>();
+                    return None;
                 }
                 while nread < npos {
                     i = nread;
@@ -536,28 +521,18 @@ unsafe fn parse_instrs(
                             i += 1;
                         }
                         if i - nread <= 8 as ::core::ffi::c_int {
-                            let fresh7 = icnt;
-                            icnt = icnt + 1;
-                            *instrs.offset(fresh7 as isize) = (TTF_PUSHB as ::core::ffi::c_int
+                            instrs.push((TTF_PUSHB as ::core::ffi::c_int
                                 + (i - nread)
                                 - 1 as ::core::ffi::c_int)
-                                as u8;
+                                as u8);
                         } else {
-                            let fresh8 = icnt;
-                            icnt = icnt + 1;
-                            *instrs.offset(fresh8 as isize) =
-                                TTF_NPUSHB;
-                            let fresh9 = icnt;
-                            icnt = icnt + 1;
-                            *instrs.offset(fresh9 as isize) = (i - nread) as u8;
+                            instrs.push(TTF_NPUSHB);
+                            instrs.push((i - nread) as u8);
                         }
                         while nread < i {
                             let fresh10 = nread;
                             nread = nread + 1;
-                            let fresh11 = icnt;
-                            icnt = icnt + 1;
-                            *instrs.offset(fresh11 as isize) =
-                                numberstack[fresh10 as usize] as u8;
+                            instrs.push(numberstack[fresh10 as usize] as u8);
                         }
                     } else {
                         while i < npos
@@ -569,36 +544,25 @@ unsafe fn parse_instrs(
                             i += 1;
                         }
                         if i - nread <= 8 as ::core::ffi::c_int {
-                            let fresh12 = icnt;
-                            icnt = icnt + 1;
-                            *instrs.offset(fresh12 as isize) = (TTF_PUSHW as ::core::ffi::c_int
+                            instrs.push((TTF_PUSHW as ::core::ffi::c_int
                                 + (i - nread)
                                 - 1 as ::core::ffi::c_int)
-                                as u8;
+                                as u8);
                         } else {
-                            let fresh13 = icnt;
-                            icnt = icnt + 1;
-                            *instrs.offset(fresh13 as isize) =
-                                TTF_NPUSHW;
-                            let fresh14 = icnt;
-                            icnt = icnt + 1;
-                            *instrs.offset(fresh14 as isize) = (i - nread) as u8;
+                            instrs.push(TTF_NPUSHW);
+                            instrs.push((i - nread) as u8);
                         }
                         while nread < i {
-                            let fresh15 = icnt;
-                            icnt = icnt + 1;
-                            *instrs.offset(fresh15 as isize) = (numberstack[nread as usize]
+                            instrs.push((numberstack[nread as usize]
                                 as ::core::ffi::c_int
                                 >> 8 as ::core::ffi::c_int)
-                                as u8;
+                                as u8);
                             let fresh16 = nread;
                             nread = nread + 1;
-                            let fresh17 = icnt;
-                            icnt = icnt + 1;
-                            *instrs.offset(fresh17 as isize) = (numberstack[fresh16 as usize]
+                            instrs.push((numberstack[fresh16 as usize]
                                 as ::core::ffi::c_int
                                 & 0xff as ::core::ffi::c_int)
-                                as u8;
+                                as u8);
                         }
                     }
                 }
@@ -665,7 +629,7 @@ unsafe fn parse_instrs(
                                 as *mut ::core::ffi::c_char,
                             pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                         );
-                        return ::core::ptr::null_mut::<u8>();
+                        return None;
                     }
                     if val >= 32 as ::core::ffi::c_int {
                         iv_error.expect("non-null function pointer")(
@@ -675,14 +639,12 @@ unsafe fn parse_instrs(
                                 as *mut ::core::ffi::c_char,
                             pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
                         );
-                        return ::core::ptr::null_mut::<u8>();
+                        return None;
                     }
                     i += val;
                 }
                 pt = end;
-                let fresh18 = icnt;
-                icnt = icnt + 1;
-                *instrs.offset(fresh18 as isize) = i as u8;
+                instrs.push(i as u8);
                 if i == TTF_NPUSHB as ::core::ffi::c_int
                     || i == TTF_NPUSHW as ::core::ffi::c_int
                     || i >= TTF_PUSHB as ::core::ffi::c_int
@@ -715,19 +677,7 @@ unsafe fn parse_instrs(
         }
         pt = pt.offset(1);
     }
-    *len = icnt;
-    instrs = __caryll_reallocate(
-        instrs as *mut ::core::ffi::c_void,
-        (::core::mem::size_of::<u8>() as usize).wrapping_mul(
-            (if icnt == 0 as ::core::ffi::c_int {
-                1 as ::core::ffi::c_int
-            } else {
-                icnt
-            }) as usize,
-        ),
-        573 as ::core::ffi::c_ulong,
-    ) as *mut u8;
-    return instrs;
+    Some(instrs)
 }
 unsafe fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int {
     let mut i: ::core::ffi::c_int = 0;
@@ -862,7 +812,7 @@ pub unsafe fn dump_ttinstr(
 pub unsafe fn parse_ttinstr(
     mut col: *const ParsedValue,
     mut context: *mut ::core::ffi::c_void,
-    mut make: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, *mut u8, u32) -> ()>,
+    mut make: Option<unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()>,
     mut wrong: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
@@ -872,20 +822,29 @@ pub unsafe fn parse_ttinstr(
     >,
 ) {
     if col.is_null() {
-        make.expect("non-null function pointer")(
-            context,
-            ::core::ptr::null_mut::<u8>(),
-            0 as u32,
-        );
+        make.expect("non-null function pointer")(context, Vec::new());
     } else if json_type_of(col) == JsonType::String
     {
         let mut instrlen: usize = 0;
-        let mut instructions: *mut u8 = base64_decode(
+        let instructions: *mut u8 = base64_decode(
             json_str_ptr(col) as *mut u8,
             json_str_len(col) as usize,
             &raw mut instrlen,
         );
-        make.expect("non-null function pointer")(context, instructions, instrlen as u32);
+        // `base64_decode` hands back a `malloc`ed buffer (or null on a
+        // decode failure/empty input) -- copy it into an owned `Vec` and
+        // free the original, rather than growing `base64_decode` itself
+        // into a `Vec`-returning function (out of scope for this
+        // conversion; it has its own unrelated call sites).
+        let instructions_vec: Vec<u8> = if instructions.is_null() || instrlen == 0 {
+            Vec::new()
+        } else {
+            ::core::slice::from_raw_parts(instructions, instrlen).to_vec()
+        };
+        if !instructions.is_null() {
+            free(instructions as *mut ::core::ffi::c_void);
+        }
+        make.expect("non-null function pointer")(context, instructions_vec);
     } else if json_type_of(col) == JsonType::Array
     {
         let mut istrlen: usize = 0 as usize;
@@ -902,11 +861,7 @@ pub unsafe fn parse_ttinstr(
                 istrlen = istrlen
                     .wrapping_add((1 as ::core::ffi::c_int + 20 as ::core::ffi::c_int) as usize);
             } else {
-                make.expect("non-null function pointer")(
-                    context,
-                    ::core::ptr::null_mut::<u8>(),
-                    0 as u32,
-                );
+                make.expect("non-null function pointer")(context, Vec::new());
                 return;
             }
             j = j.wrapping_add(1);
@@ -945,32 +900,21 @@ pub unsafe fn parse_ttinstr(
             head = head.offset(1);
             j_0 = j_0.wrapping_add(1);
         }
-        let mut instr_length: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-        let mut instructions_0: *mut u8 = parse_instrs(
+        let instructions_0: Option<Vec<u8>> = parse_instrs(
             instr_string.as_mut_ptr() as *mut ::core::ffi::c_char,
-            &raw mut instr_length,
             context,
             wrong,
         );
-        if !instructions_0.is_null() && instr_length != 0 {
-            make.expect("non-null function pointer")(
-                context,
-                instructions_0,
-                instr_length as u32,
-            );
-        } else {
-            make.expect("non-null function pointer")(
-                context,
-                ::core::ptr::null_mut::<u8>(),
-                0 as u32,
-            );
+        match instructions_0 {
+            Some(v) if !v.is_empty() => {
+                make.expect("non-null function pointer")(context, v);
+            }
+            _ => {
+                make.expect("non-null function pointer")(context, Vec::new());
+            }
         }
     } else {
-        make.expect("non-null function pointer")(
-            context,
-            ::core::ptr::null_mut::<u8>(),
-            0 as u32,
-        );
+        make.expect("non-null function pointer")(context, Vec::new());
     };
 }
 
