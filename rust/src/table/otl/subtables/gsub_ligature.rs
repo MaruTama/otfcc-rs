@@ -1,6 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc};
-
 
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of};
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
@@ -29,8 +27,12 @@ pub(crate) unsafe fn subtable_gsub_ligature_free(x: *mut GsubLigatureSubtable) {
     if x.is_null() {
         return;
     }
-    dispose_gsub_ligature_subtable(x);
-    free(x as *mut ::core::ffi::c_void);
+    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
+    // and runs the `Vec`'s own drop glue -- no separate dispose-then-`free`
+    // needed (Stage 7-2-d; `dispose_gsub_ligature_subtable` stays, it is
+    // still used by `table/otl.rs`'s `Drop for Subtable` and this file's own
+    // `subtable_gsub_ligature_replace`, just no longer from here).
+    drop(Box::from_raw(x));
 }
 /// The one live `.replace` among all the `Subtable`-union-blocked
 /// containers: `consolidate_gsub_ligature` builds a fresh, empty `nt`,
@@ -47,11 +49,7 @@ pub(crate) unsafe fn subtable_gsub_ligature_replace(
     *dst = src;
 }
 unsafe fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
-    let x: *mut GsubLigatureSubtable =
-        malloc(::core::mem::size_of::<GsubLigatureSubtable>() as usize)
-            as *mut GsubLigatureSubtable;
-    x.write(Vec::new());
-    x
+    Box::into_raw(Box::new(Vec::new()))
 }
 // Also fixes a real (if minor) pre-existing leak, same shape as
 // `gpos_mark_to_single.rs`'s: the original only freed `start_coverage`

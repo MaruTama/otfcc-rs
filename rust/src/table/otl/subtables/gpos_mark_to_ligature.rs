@@ -1,12 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
-
 
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::font_reader::{FontReader};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 use crate::support::buffer::{Buffer};
@@ -29,33 +26,24 @@ use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, js
 pub(crate) unsafe fn dispose_lig_array(arr: *mut LigatureArray) {
     *arr = Vec::new();
 }
-unsafe fn init_mark_to_ligature(subtable: *mut GposMarkToLigatureSubtable) {
-    // `.write()`, not `=`: `subtable` is fresh from `__caryll_allocate_clean`
-    // (calloc'd, all zero bits), so a plain assignment would drop the
-    // all-zero `Vec` "already there" first -- UB per miri, the same bug
-    // `init_mark_to_single` in the sibling file had (see its comment and
-    // `otfcc-vec-field-assign-needs-calloc` in this repo's memory notes).
-    (&raw mut (*subtable).mark_array).write(Vec::new());
-    (&raw mut (*subtable).lig_array).write(Vec::new());
-}
 pub(crate) unsafe fn subtable_gpos_mark_to_ligature_free(x: *mut GposMarkToLigatureSubtable) {
     if x.is_null() {
         return;
     }
-    // `mark_array`/`lig_array` both self-drop; `ptr::read` moves the whole
-    // value out of the malloc'd shell so `drop` can run that field-by-field
-    // teardown, then `free` releases the now-empty shell -- the same
-    // "unwrap_X_table" idiom used throughout Stage 6-4.
-    drop(::core::ptr::read(x));
-    free(x as *mut ::core::ffi::c_void);
+    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
+    // and runs `mark_array`/`lig_array`'s own drop glue directly -- no more
+    // `ptr::read`-then-`free` shell dance (Stage 7-2-d): that idiom was only
+    // ever needed to avoid mixing a `__caryll_allocate_clean`'d (`calloc`)
+    // shell with a `Box`'s own drop glue, and `_create()` no longer produces
+    // one. `init_mark_to_ligature` had no other callers, so it's gone too.
+    drop(Box::from_raw(x));
 }
 unsafe fn subtable_gpos_mark_to_ligature_create() -> *mut GposMarkToLigatureSubtable {
-    let x: *mut GposMarkToLigatureSubtable = __caryll_allocate_clean(
-        ::core::mem::size_of::<GposMarkToLigatureSubtable>() as usize,
-        0,
-    ) as *mut GposMarkToLigatureSubtable;
-    init_mark_to_ligature(x);
-    x
+    Box::into_raw(Box::new(GposMarkToLigatureSubtable {
+        class_count: 0,
+        mark_array: Vec::new(),
+        lig_array: Vec::new(),
+    }))
 }
 // `2 * component_count * class_count` (the LigatureAttach's byte-length
 // guard) is the same overflow-defeats-guard shape as

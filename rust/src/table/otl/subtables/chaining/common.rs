@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc};
+use libc::{free};
 
 use crate::table::otl::{ChainingRule, ChainingRuleSet, ChainingSubtable};
 
@@ -75,6 +75,22 @@ pub(crate) unsafe fn chaining_is_classified(subtable: *const ChainingSubtable) -
 pub(crate) unsafe fn chaining_is_canonical(subtable: *const ChainingSubtable) -> bool {
     matches!(&*subtable, ChainingSubtable::Canonical(_))
 }
+/// Frees a `*mut ChainingSubtable` allocated with `__caryll_allocate_clean`
+/// (`calloc`) -- **not** one of `subtable_chaining_create()`'s own `Box`-
+/// allocated results (Stage 7-2-d changed only that function's own
+/// allocation strategy, not this one, precisely because this free function
+/// is still needed unchanged for a genuinely different allocation origin).
+/// `chaining/classifier.rs`'s `try_classify_around` builds its replacement
+/// subtable with `__caryll_allocate_clean` directly (a still-malloc-shaped
+/// intermediate, out of this stage's scope) and frees it here when
+/// `otfcc_classified_build_chaining` swaps it back out -- that `calloc`/
+/// `free` pairing is exactly what this function still does. A `Box`-derived
+/// `ChainingSubtable` (from `subtable_chaining_create()`, e.g. the read-path
+/// error handling in `chaining/read.rs`) must instead be reclaimed with
+/// `drop(Box::from_raw(x))` directly, matching `subtable_from_raw`'s own
+/// `Box::from_raw` -- mixing `Box`-allocated memory into this `free()` would
+/// be exactly the allocator-mismatch hazard Stage 7-2-d elsewhere converts
+/// away from.
 #[inline]
 pub(crate) unsafe fn subtable_chaining_free(mut x: *mut ChainingSubtable) {
     if x.is_null() {
@@ -88,13 +104,18 @@ unsafe fn subtable_chaining_dispose(mut x: *mut ChainingSubtable) {
     otl_dispose_chaining(x);
 }
 #[inline]
-unsafe fn subtable_chaining_init(mut x: *mut ChainingSubtable) {
-    otl_init_chaining(x);
-}
-#[inline]
 pub(crate) unsafe fn subtable_chaining_create() -> *mut ChainingSubtable {
-    let mut x: *mut ChainingSubtable =
-        malloc(::core::mem::size_of::<ChainingSubtable>() as usize) as *mut ChainingSubtable;
-    subtable_chaining_init(x);
-    return x;
+    // A real Rust allocation now, not a `malloc`'d shell (Stage 7-2-d):
+    // `Box::into_raw` gives back a pointer with the same shape (`*mut
+    // ChainingSubtable`) every caller already expects -- `otl_read_contextual`/
+    // `otl_read_chaining` immediately thread it through several raw-pointer
+    // helpers (`read_contextual_format1`/`2`, `read_chaining_format1`/`2`)
+    // before it ever reaches `subtable_from_raw`, so it stays `*mut T`-shaped
+    // rather than becoming `Box<ChainingSubtable>` at the API boundary the
+    // way the simpler, single-function subtable `_create()`s in this
+    // directory now do. It must from here on only ever be reclaimed with
+    // `Box::from_raw` (`subtable_from_raw`, or a direct `drop(Box::from_raw(
+    // ..))` on an error path in `chaining/read.rs`), **never**
+    // `subtable_chaining_free` -- see that function's doc comment for why.
+    Box::into_raw(Box::new(ChainingSubtable::Canonical(ChainingRule::default())))
 }

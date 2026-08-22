@@ -12,7 +12,7 @@ use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 
 use crate::support::{NULL};
 use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Subtable, ChainingSubtable, subtable_from_raw};
-use crate::table::otl::subtables::chaining::common::{subtable_chaining_create, subtable_chaining_free, chaining_ruleset_mut};
+use crate::table::otl::subtables::chaining::common::{subtable_chaining_create, chaining_ruleset_mut};
 pub type CoverageReaderHandler = Option<
     unsafe extern "C" fn(
         FontFilePointer,
@@ -385,7 +385,11 @@ unsafe fn read_contextual_format1(
     if result.is_some() {
         return subtable;
     }
-    subtable_chaining_free(subtable);
+    // `subtable` is `subtable_chaining_create()`'s own `Box`-allocated
+    // result (Stage 7-2-d), not `subtable_chaining_free`'s
+    // `__caryll_allocate_clean`'d one -- reclaim it with `Box::from_raw`
+    // directly, matching `subtable_from_raw`'s own reclamation.
+    drop(Box::from_raw(subtable));
     ::core::ptr::null_mut::<ChainingSubtable>()
 }
 unsafe fn read_contextual_format2(
@@ -523,7 +527,11 @@ unsafe fn read_contextual_format2(
     if result.is_some() {
         return subtable;
     }
-    subtable_chaining_free(subtable);
+    // `subtable` is `subtable_chaining_create()`'s own `Box`-allocated
+    // result (Stage 7-2-d), not `subtable_chaining_free`'s
+    // `__caryll_allocate_clean`'d one -- reclaim it with `Box::from_raw`
+    // directly, matching `subtable_from_raw`'s own reclamation.
+    drop(Box::from_raw(subtable));
     ::core::ptr::null_mut::<ChainingSubtable>()
 }
 pub unsafe fn otl_read_contextual(
@@ -589,7 +597,10 @@ pub unsafe fn otl_read_contextual(
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
-    subtable_chaining_free(subtable);
+    // Same reasoning as the format1/format2 helpers' own error paths: this
+    // is `subtable_chaining_create()`'s own `Box`-allocated result, reclaim
+    // with `Box::from_raw`, not `subtable_chaining_free`.
+    drop(Box::from_raw(subtable));
     return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe fn general_read_chaining_rule(
@@ -838,7 +849,11 @@ unsafe fn read_chaining_format1(
     if result.is_some() {
         return subtable;
     }
-    subtable_chaining_free(subtable);
+    // `subtable` is `subtable_chaining_create()`'s own `Box`-allocated
+    // result (Stage 7-2-d), not `subtable_chaining_free`'s
+    // `__caryll_allocate_clean`'d one -- reclaim it with `Box::from_raw`
+    // directly, matching `subtable_from_raw`'s own reclamation.
+    drop(Box::from_raw(subtable));
     ::core::ptr::null_mut::<ChainingSubtable>()
 }
 unsafe fn read_chaining_format2(
@@ -976,7 +991,11 @@ unsafe fn read_chaining_format2(
     if result.is_some() {
         return subtable;
     }
-    subtable_chaining_free(subtable);
+    // `subtable` is `subtable_chaining_create()`'s own `Box`-allocated
+    // result (Stage 7-2-d), not `subtable_chaining_free`'s
+    // `__caryll_allocate_clean`'d one -- reclaim it with `Box::from_raw`
+    // directly, matching `subtable_from_raw`'s own reclamation.
+    drop(Box::from_raw(subtable));
     ::core::ptr::null_mut::<ChainingSubtable>()
 }
 pub unsafe fn otl_read_chaining(
@@ -1038,7 +1057,10 @@ pub unsafe fn otl_read_chaining(
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
     );
-    subtable_chaining_free(subtable);
+    // Same reasoning as the format1/format2 helpers' own error paths: this
+    // is `subtable_chaining_create()`'s own `Box`-allocated result, reclaim
+    // with `Box::from_raw`, not `subtable_chaining_free`.
+    drop(Box::from_raw(subtable));
     return ::core::ptr::null_mut::<Subtable>();
 }
 #[inline]

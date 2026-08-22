@@ -8,8 +8,6 @@ pub mod parse;
 pub mod read;
 pub mod subtables;
 
-use libc::{free};
-
 use crate::table::otl::classdef::{ClassDef};
 use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{GlyphHandle, LookupHandle};
@@ -189,12 +187,13 @@ impl Drop for Subtable {
                 Subtable::Chaining(_) => {}
                 // `match_0: Vec<Coverage>` and `to: Coverage` both self-drop
                 // -- no manual dispose left to call, same reasoning as the
-                // `GposMarkTo*` arms above. `dispose_gsub_reverse` still
-                // exists and is still needed, but only for the
-                // not-yet-adopted-into-the-enum malloc'd intermediate a
-                // `*mut GsubReverseSubtable` is between `_create()` and
-                // `subtable_from_raw` -- a raw `free()` there would skip
-                // `Vec`'s own drop glue entirely, unlike here.
+                // `GposMarkTo*` arms above. The not-yet-adopted-into-the-enum
+                // intermediate a `*mut GsubReverseSubtable` is between
+                // `_create()` and `subtable_from_raw` no longer needs its own
+                // `dispose_gsub_reverse` either (Stage 7-2-d): `_create()` now
+                // allocates via `Box::into_raw`, so `subtable_gsub_reverse_
+                // free`'s `Box::from_raw` runs this same enum-field drop glue
+                // directly, and a raw `free()` there would have skipped it.
                 Subtable::GsubReverse(_) => {}
                 Subtable::GposSingle(x) => dispose_gpos_single_subtable(x as *mut GposSingleSubtable),
                 // `first`/`second: Option<Box<ClassDef>>` and
@@ -230,27 +229,28 @@ impl Drop for Subtable {
 }
 /// Adopt a vtable-`create()`d raw pointer into a heap-allocated `Subtable`.
 ///
-/// Reuses the "unwrap_X_table" idiom this migration's Stage 6-4 Box-ified
-/// every other malloc'd C-shaped struct with (see `cff::unwrap_cff_table`):
-/// `ptr::read` moves the value out of `raw` (a shallow copy -- any nested
-/// `Vec`s/pointers move with it, not duplicate), `free` releases only the
-/// now-empty outer shell (not through the type's own dispose helper, which
-/// would double-drop the fields just moved out), and the result is wrapped
-/// into the specific variant by `wrap` (a tuple-variant constructor, e.g.
-/// `Subtable::GsubSingle`) and boxed. Every subtable's own `_create()`
-/// function is unaffected -- this only changes what happens to its result at
-/// the point each read/parse function used to just cast it `as *mut
-/// Subtable`, which relied on `Subtable` being a union with no discriminant
-/// to disturb; that cast is unsound now that it is an enum. Null-safe --
-/// several callers' `_create()` result can still be null on a read error
-/// (`table_length` too short partway through), and the old `as *mut
-/// Subtable` cast propagated a null exactly the same way.
+/// Every subtable's own `_create()` now allocates with `Box::into_raw(Box::
+/// new(..))` instead of `malloc` (Stage 7-2-d), so `raw` -- whether it comes
+/// straight back from `_create()` or via one of the `ChainingSubtable`
+/// read-helpers that thread the same pointer through in place
+/// (`read_contextual_format1`/`2`, `read_chaining_format1`/`2`) -- is always
+/// that same Rust allocation. `Box::from_raw` reclaims it directly (no more
+/// `ptr::read`-then-`free` shell dance: that was only ever needed to avoid
+/// mixing a `malloc`'d shell with a `Box`'s own drop glue), and the moved-out
+/// value is wrapped into the specific variant by `wrap` (a tuple-variant
+/// constructor, e.g. `Subtable::GsubSingle`) and boxed. This only changes
+/// what happens to `_create()`'s result at the point each read/parse
+/// function used to just cast it `as *mut Subtable`, which relied on
+/// `Subtable` being a union with no discriminant to disturb; that cast is
+/// unsound now that it is an enum. Null-safe -- several callers' result can
+/// still be null on a read error (`table_length` too short partway through,
+/// or a `ChainingSubtable` helper freeing it and returning null), and the
+/// old `as *mut Subtable` cast propagated a null exactly the same way.
 pub(crate) unsafe fn subtable_from_raw<T>(raw: *mut T, wrap: fn(T) -> Subtable) -> *mut Subtable {
     if raw.is_null() {
         return ::core::ptr::null_mut();
     }
-    let value = ::core::ptr::read(raw);
-    free(raw as *mut ::core::ffi::c_void);
+    let value = *Box::from_raw(raw);
     Box::into_raw(Box::new(wrap(value)))
 }
 /// Adopt an already-heap-allocated `*mut Subtable` (e.g. a
