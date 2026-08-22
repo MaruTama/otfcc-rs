@@ -93,9 +93,11 @@ pub struct GlyphOrder {
 // manual walk-and-free disposal go away entirely.
 //
 // This type is still constructed and freed as a bare `*mut GlyphOrder` in
-// many places that are *not* `Font.glyph_order` (`PostTable.post_name_map`,
-// the `aglfn`/`gord` locals in `otf_reader/unconsolidate.rs`) -- those keep
-// going through `otfcc_glyph_order_create`/`otfcc_glyph_order_free` unchanged:
+// other places that are *not* `Font.glyph_order` (the `aglfn`/`gord` locals
+// in `otf_reader/unconsolidate.rs`; `PostTable.post_name_map` was migrated
+// off this path to an owned `Option<Box<GlyphOrder>>`, matching
+// `Font.glyph_order`) -- those keep going through
+// `otfcc_glyph_order_create`/`otfcc_glyph_order_free` unchanged:
 // `dispose_glyph_order` resets `entries`/`by_gid`/`by_name` by field
 // reassignment (which drops each old value in place, same idiom it
 // already used for `by_gid`/`by_name` before this PR) before the malloc'd

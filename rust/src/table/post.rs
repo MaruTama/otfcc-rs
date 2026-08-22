@@ -10,9 +10,7 @@ use crate::font::caryll_sfnt::{Packet};
 use crate::support::glyph_order::{GlyphOrder};
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getbool, json_obj_getnum};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
-use crate::support::glyph_order::{
-    otfcc_glyph_order_create, otfcc_glyph_order_free, otfcc_set_glyph_order_by_gid,
-};
+use crate::support::glyph_order::{otfcc_set_glyph_order_by_gid};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::support::built_json::{BuiltValue, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push};
 
@@ -27,29 +25,22 @@ pub struct PostTable {
     pub max_mem_type42: u32,
     pub min_mem_type1: u32,
     pub max_mem_type1: u32,
-    pub post_name_map: *mut GlyphOrder,
+    pub post_name_map: Option<Box<GlyphOrder>>,
 }
-// Stage 6-4 "Box化": `post_name_map` (populated only for a version-2.0
-// 'post' table, during OTF read) is the only allocation this struct owns --
-// left as a raw pointer (its own Box化 depends on how `Font.glyph_order`,
-// the same `GlyphOrder` type, is eventually represented), freed the same
-// way `dispose_post` always did via the `OTFCC_PKG_GLYPH_ORDER` package's
-// `.free`. `Copy`/`Clone` dropped, matching `LtshTable`/`VorgTable`.
+// `post_name_map` (populated only for a version-2.0 'post' table, during
+// OTF read) is an owned `GlyphOrder`, built directly via `Box::new` --
+// matching `Font.glyph_order`'s "accumulator is `Option<Box<X>>` from the
+// start" idiom (see `consolidate.rs`/`json_reader.rs`). `GlyphOrder` itself
+// has no `Drop` impl (its own `Vec`/`BTreeMap`/`HashMap` fields' drop glue
+// is sufficient -- see `support/glyph_order.rs`), so `Box`'s own drop glue
+// is enough here too and `PostTable` needs no `Drop` impl of its own: it
+// owns no other raw allocation.
 //
 // `post_name_map` is a standalone allocation, not an alias into
 // `Font.glyph_order`: `otf_reader/unconsolidate.rs`'s `create_glyph_order`
 // only ever *reads* from it (to backfill glyph names from a version-2.0
-// 'post' table) and never stores the pointer anywhere else, so there is no
-// other owner to worry about aliasing with.
-impl Drop for PostTable {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.post_name_map.is_null() {
-                otfcc_glyph_order_free(self.post_name_map);
-            }
-        }
-    }
-}
+// 'post' table) and never stores it anywhere else, so there is no other
+// owner to worry about aliasing with.
 static STANDARD_MAC_NAMES: [&::core::ffi::CStr; 258] = [
     c".notdef",
     c".null",
@@ -427,14 +418,19 @@ pub unsafe fn otfcc_read_post(
         max_mem_type42: parsed.fixed.max_mem_type42,
         min_mem_type1: parsed.fixed.min_mem_type1,
         max_mem_type1: parsed.fixed.max_mem_type1,
-        post_name_map: ::core::ptr::null_mut::<GlyphOrder>(),
+        post_name_map: None,
     };
     if let Some(names) = parsed.names {
-        let map = otfcc_glyph_order_create();
+        let mut go_box: Box<GlyphOrder> = Box::new(GlyphOrder {
+            entries: Vec::new(),
+            by_gid: ::std::collections::BTreeMap::new(),
+            by_name: ::std::collections::HashMap::new(),
+        });
+        let go: *mut GlyphOrder = go_box.as_mut() as *mut GlyphOrder;
         for (gid, name) in names {
-            otfcc_set_glyph_order_by_gid(map, gid, name);
+            otfcc_set_glyph_order_by_gid(go, gid, name);
         }
-        post_val.post_name_map = map;
+        post_val.post_name_map = Some(go_box);
     }
     Some(Box::new(post_val))
 }
@@ -516,7 +512,9 @@ pub unsafe fn otfcc_parse_post(
     // `.version`'s `0x30000` default carries through if the "post" JSON key
     // is absent (never overwritten below in that case, unlike every other
     // field); `post_name_map` is never touched here regardless, so its
-    // zeroed null is already the old `init_post`'s default.
+    // zeroed-to-`None` value (a valid bit pattern for `Option<Box<T>>` via
+    // the null-pointer niche optimization) is already the old `init_post`'s
+    // default.
     let mut post_val: PostTable = ::core::mem::zeroed();
     post_val.version = 0x30000 as ::core::ffi::c_int as F16Dot16;
     let mut post_box: Box<PostTable> = Box::new(post_val);

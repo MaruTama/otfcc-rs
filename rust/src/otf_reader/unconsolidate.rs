@@ -288,18 +288,17 @@ unsafe fn create_glyph_order(
             }
         }
     }
-    let post_name_map: *mut GlyphOrder = (*font)
+    let post_name_map: Option<&GlyphOrder> = (*font)
         .post
         .as_deref()
-        .map_or(::core::ptr::null_mut(), |p| p.post_name_map);
-    if !post_name_map.is_null()
-        && !options.ignore_glyph_order
-        && !options.name_glyphs_by_gid
-    {
-        for (_, &idx) in (*post_name_map).by_gid.iter() {
-            let entry = &(&(*post_name_map).entries)[idx];
-            let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &entry.name);
-            otfcc_set_glyph_order_by_gid(glyph_order, entry.gid, gname_1);
+        .and_then(|p| p.post_name_map.as_deref());
+    if let Some(post_name_map) = post_name_map {
+        if !options.ignore_glyph_order && !options.name_glyphs_by_gid {
+            for (_, &idx) in post_name_map.by_gid.iter() {
+                let entry = &post_name_map.entries[idx];
+                let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &entry.name);
+                otfcc_set_glyph_order_by_gid(glyph_order, entry.gid, gname_1);
+            }
         }
     }
     if (*font).cmap.is_some() && !options.name_glyphs_by_gid {
