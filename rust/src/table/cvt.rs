@@ -3,7 +3,6 @@ use libc::{free};
 
 
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get_type, json_str_len, json_str_ptr, json_type_of};
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{read_16u};
 use crate::support::font_reader::{FontReader};
 use crate::logger::{logger_finish, logger_start_sds};
@@ -15,24 +14,16 @@ use crate::support::base64::{base64_decode};
 use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_push};
 
+// Stage 7-2-c "inner Vec化": `words` was the only allocation this struct
+// owned (Stage 6-4 already Box-ified the outer `CvtTable` itself), so
+// `Vec<u16>` plus its own drop glue replaces the manual `free`-based `impl
+// Drop` that used to live here. `length` is gone too -- it always equaled
+// `words.len()` at every construction site (the allocation size and the
+// read/write loop bound were always derived from the same count), so every
+// former read of `(*table).length` below now reads `.words.len()` instead.
 #[repr(C)]
 pub struct CvtTable {
-    pub length: u32,
-    pub words: *mut u16,
-}
-// Stage 6-4 "Box化": `words` is the only allocation this struct owns, same
-// shape as `LtshTable`/`VorgTable`. Grepping confirmed only `.free` was
-// ever called from outside this file (from `caryll_font.rs`'s table
-// disposal); the entire vtable is deleted.
-impl Drop for CvtTable {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.words.is_null() {
-                free(self.words as *mut ::core::ffi::c_void);
-                self.words = ::core::ptr::null_mut::<u16>();
-            }
-        }
-    }
+    pub words: Vec<u16>,
 }
 // Unlike every other table in this batch, the original C (and the first
 // Rust translation) here was already memory-safe without a separate length
@@ -48,18 +39,15 @@ pub unsafe fn otfcc_read_cvt(
 ) -> Option<Box<CvtTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == tag)?;
     let table_length = (table.data.len() / 2) as u32;
-    let words = __caryll_allocate_clean(
-        (::core::mem::size_of::<u16>() as usize)
-            .wrapping_mul(table_length.wrapping_add(1 as u32) as usize),
-        18 as ::core::ffi::c_ulong,
-    ) as *mut u16;
+    let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);
     let mut r = FontReader::new(&table.data);
-    for j in 0..table_length as usize {
-        *words.offset(j as isize) = r
-            .u16()
-            .expect("table_length is derived from data.len(), so table_length u16 reads always fit");
+    for _ in 0..table_length as usize {
+        words.push(
+            r.u16()
+                .expect("table_length is derived from data.len(), so table_length u16 reads always fit"),
+        );
     }
-    Some(Box::new(CvtTable { length: table_length, words }))
+    Some(Box::new(CvtTable { words }))
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_cvt(
@@ -78,14 +66,9 @@ pub unsafe fn otfcc_dump_cvt(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut arr: *mut BuiltValue = json_array_new((*table).length as usize);
-        let mut j: u16 = 0 as u16;
-        while (j as u32) < (*table).length {
-            json_array_push(
-                arr,
-                json_integer_new(*(*table).words.offset(j as isize) as i64),
-            );
-            j = j.wrapping_add(1);
+        let mut arr: *mut BuiltValue = json_array_new(table.words.len());
+        for &w in &table.words {
+            json_array_push(arr, json_integer_new(w as i64));
         }
         json_object_push(root, tag, arr);
         ___loggedstep_v = false;
@@ -108,26 +91,22 @@ pub unsafe fn otfcc_parse_cvt(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             let table_length = json_arr_len(table);
-            let words = __caryll_allocate_clean(
-                (::core::mem::size_of::<u16>() as usize)
-                    .wrapping_mul(table_length.wrapping_add(1 as u32) as usize),
-                46 as ::core::ffi::c_ulong,
-            ) as *mut u16;
+            let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);
             let mut j: u16 = 0 as u16;
             while (j as u32) < table_length {
                 let mut record: *const ParsedValue = json_arr_at(table, j as u32);
                 if json_type_of(record) == JsonType::Integer
                 {
-                    *words.offset(j as isize) = json_int_val(record) as u16;
+                    words.push(json_int_val(record) as u16);
                 } else if json_type_of(record) == JsonType::Double
                 {
-                    *words.offset(j as isize) = json_dbl_val(record) as u16;
+                    words.push(json_dbl_val(record) as u16);
                 } else {
-                    *words.offset(j as isize) = 0 as u16;
+                    words.push(0 as u16);
                 }
                 j = j.wrapping_add(1);
             }
-            t = Some(Box::new(CvtTable { length: table_length, words }));
+            t = Some(Box::new(CvtTable { words }));
             ___loggedstep_v = false;
             logger_finish(
                 &mut *options.logger.borrow_mut()
@@ -149,21 +128,17 @@ pub unsafe fn otfcc_parse_cvt(
                     &raw mut len,
                 );
                 let table_length = (len >> 1 as ::core::ffi::c_int) as u32;
-                let words = __caryll_allocate_clean(
-                    (::core::mem::size_of::<u16>() as usize)
-                        .wrapping_mul(table_length.wrapping_add(1 as u32) as usize),
-                    66 as ::core::ffi::c_ulong,
-                ) as *mut u16;
+                let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);
                 let mut j_0: u16 = 0 as u16;
                 while (j_0 as u32) < table_length {
-                    *words.offset(j_0 as isize) = read_16u(
+                    words.push(read_16u(
                         raw.offset((2 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize),
-                    );
+                    ));
                     j_0 = j_0.wrapping_add(1);
                 }
                 free(raw as *mut ::core::ffi::c_void);
                 raw = ::core::ptr::null_mut::<u8>();
-                t = Some(Box::new(CvtTable { length: table_length, words }));
+                t = Some(Box::new(CvtTable { words }));
                 ___loggedstep_v_0 = false;
                 logger_finish(
                     &mut *options.logger.borrow_mut()
@@ -182,10 +157,8 @@ pub unsafe fn otfcc_build_cvt(
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
     let mut buf: *mut Buffer = bufnew();
-    let mut j: u16 = 0 as u16;
-    while (j as u32) < (*table).length {
-        bufwrite16b(buf, *(*table).words.offset(j as isize));
-        j = j.wrapping_add(1);
+    for &w in &table.words {
+        bufwrite16b(buf, w);
     }
     return buf;
 }

@@ -1,8 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
 
-
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
@@ -13,32 +10,21 @@ use crate::font::caryll_sfnt::{Packet};
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite8};
 
 
+// Stage 6-4 pilot for `Font`'s `*mut X`-typed table fields Box-ified the
+// outer `LtshTable` itself; Stage 7-2-c "inner Vec化" finishes the job here:
+// `y_pels` was the only allocation this struct owned, so `Vec<u8>` plus its
+// own drop glue replaces the manual `free`-based `impl Drop` that used to
+// live here (which itself had replaced the entire
+// `LtshTableElementInterface` vtable). `num_glyphs` is kept as a real field
+// (not collapsed into `y_pels.len()`, unlike `CvtTable.length`): besides
+// sizing `y_pels`, it is independently compared against `Glyf`'s glyph
+// count at `otf_reader/unconsolidate.rs`'s `merge_ltsh` (a `.min()` clamp),
+// so it carries information beyond a plain redundant length.
 #[repr(C)]
 pub struct LtshTable {
     pub version: u16,
     pub num_glyphs: GlyphId,
-    pub y_pels: *mut u8,
-}
-// Stage 6-4 pilot for `Font`'s `*mut X`-typed table fields: `y_pels` is the
-// only allocation this struct owns, so `Box<LtshTable>` (via `Font.ltsh:
-// Option<Box<LtshTable>>`) plus this `Drop` impl replaces the entire
-// `LtshTableElementInterface` vtable that used to exist here -- grepping
-// confirmed only `.free` was ever called from outside this file (from
-// `font/caryll_font.rs`'s table disposal), and `.init`/`.copy`/`.create`/
-// `.dispose` were never called at all (`otfcc_read_ltsh`/`stat_ltsh`
-// already built via `__caryll_allocate_clean` directly, not through the
-// vtable's `.create`). `Copy`/`Clone` dropped: a `Drop` impl and `Copy`
-// are mutually exclusive, and `y_pels` needing single ownership means
-// `Copy` was already semantically wrong before this PR, just unenforced.
-impl Drop for LtshTable {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.y_pels.is_null() {
-                free(self.y_pels as *mut ::core::ffi::c_void);
-                self.y_pels = ::core::ptr::null_mut::<u8>();
-            }
-        }
-    }
+    pub y_pels: Vec<u8>,
 }
 // Parses into owned values only -- no allocation happens until every read
 // has already succeeded, so an `Err` here never leaves a partial `y_pels`
@@ -68,11 +54,7 @@ pub unsafe fn otfcc_read_ltsh(
             return None;
         }
     };
-    let y_pels = __caryll_allocate_clean(
-        (::core::mem::size_of::<u8>() as usize).wrapping_mul(num_glyphs as usize),
-        18 as ::core::ffi::c_ulong,
-    ) as *mut u8;
-    ::core::ptr::copy_nonoverlapping(pels.as_ptr(), y_pels, num_glyphs as usize);
+    let y_pels = pels.to_vec();
     Some(Box::new(LtshTable { version, num_glyphs, y_pels }))
 }
 // `Option<&LtshTable>`, not `*const LtshTable`: internal-only call (never
@@ -92,7 +74,7 @@ pub unsafe fn otfcc_build_ltsh(
     bufwrite16b(buf, ltsh.num_glyphs as u16);
     let mut j: u16 = 0 as u16;
     while (j as ::core::ffi::c_int) < ltsh.num_glyphs as ::core::ffi::c_int {
-        bufwrite8(buf, *ltsh.y_pels.offset(j as isize));
+        bufwrite8(buf, ltsh.y_pels[j as usize]);
         j = j.wrapping_add(1);
     }
     return buf;

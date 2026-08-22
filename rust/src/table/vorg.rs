@@ -1,8 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
 
-
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::binio::{pos_to_u16, read_16u, read_16s};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 use crate::support::buffer::{Buffer};
@@ -21,30 +18,19 @@ pub struct VorgEntry {
 pub struct VorgTable {
     pub num_vert_origin_y_metrics: GlyphId,
     pub default_vertical_origin: Pos,
-    pub entries: *mut VorgEntry,
+    pub entries: Vec<VorgEntry>,
 }
-// Stage 6-4 "Box化": `entries` is the only allocation this struct owns, so
-// `Box<VorgTable>` (via `Font.vorg: Option<Box<VorgTable>>`) plus this
-// `Drop` impl replaces the entire `VorgTableElementInterface` vtable that
-// used to exist here -- same shape as the `LtshTable` pilot. Grepping
-// confirmed only `.free` was ever called from outside this file (from
-// `font/caryll_font.rs`'s table disposal and `otf_reader/unconsolidate.rs`'s
-// merge step); `.init`/`.copy`/`.create`/`.dispose` were never called at all
-// (`otfcc_read_vorg`/`stat_vorg` already built via `__caryll_allocate_clean`
-// directly, not through the vtable's `.create`). `Copy`/`Clone` dropped:
-// a `Drop` impl and `Copy` are mutually exclusive, and `entries` needing
-// single ownership means `Copy` was already semantically wrong before this
-// PR, just unenforced.
-impl Drop for VorgTable {
-    fn drop(&mut self) {
-        unsafe {
-            if !self.entries.is_null() {
-                free(self.entries as *mut ::core::ffi::c_void);
-                self.entries = ::core::ptr::null_mut::<VorgEntry>();
-            }
-        }
-    }
-}
+// Stage 6-4 "Box化" Box-ified the outer `VorgTable` itself (replacing the
+// entire `VorgTableElementInterface` vtable); Stage 7-2-c "inner Vec化"
+// finishes the job here: `entries` was the only allocation this struct
+// owned, so `Vec<VorgEntry>` plus its own drop glue replaces the manual
+// `free`-based `impl Drop` that used to live here. `num_vert_origin_y_metrics`
+// is kept as a real field (not collapsed into `entries.len()`, unlike
+// `CvtTable.length`): it is read independently at
+// `otf_reader/unconsolidate.rs`'s `merge_vmtx` as the loop bound, and always
+// equals `entries.len()` by construction at every write site, so keeping it
+// is a conservative choice that changes no call site beyond the storage
+// mechanism.
 pub unsafe fn otfcc_read_vorg(
     packet: &Packet,
     options: &Options,
@@ -77,23 +63,20 @@ pub unsafe fn otfcc_read_vorg(
                             let default_vertical_origin = read_16s(
                                 data.offset(4 as ::core::ffi::c_int as isize) as *const u8,
                             ) as Pos;
-                            let entries = __caryll_allocate_clean(
-                                (::core::mem::size_of::<VorgEntry>() as usize)
-                                    .wrapping_mul(num_vert_origin_y_metrics as usize),
-                                22 as ::core::ffi::c_ulong,
-                            ) as *mut VorgEntry;
+                            let mut entries: Vec<VorgEntry> =
+                                Vec::with_capacity(num_vert_origin_y_metrics as usize);
                             let mut j: u16 = 0 as u16;
                             while (j as ::core::ffi::c_int)
                                 < num_vert_origin_y_metrics as ::core::ffi::c_int
                             {
-                                (*entries.offset(j as isize)).gid = read_16u(
+                                let gid = read_16u(
                                     data.offset(8 as ::core::ffi::c_int as isize).offset(
                                         (4 as ::core::ffi::c_int * j as ::core::ffi::c_int)
                                             as isize,
                                     ) as *const u8,
                                 )
                                     as GlyphId;
-                                (*entries.offset(j as isize)).vertical_origin = read_16s(
+                                let vertical_origin = read_16s(
                                     data.offset(8 as ::core::ffi::c_int as isize)
                                         .offset(
                                             (4 as ::core::ffi::c_int * j as ::core::ffi::c_int)
@@ -102,6 +85,7 @@ pub unsafe fn otfcc_read_vorg(
                                         .offset(2 as ::core::ffi::c_int as isize)
                                         as *const u8,
                                 );
+                                entries.push(VorgEntry { gid, vertical_origin });
                                 j = j.wrapping_add(1);
                             }
                             return Some(Box::new(VorgTable {
@@ -143,11 +127,8 @@ pub unsafe fn otfcc_build_vorg(
     bufwrite16b(buf, (*table).num_vert_origin_y_metrics as u16);
     let mut j: u16 = 0 as u16;
     while (j as ::core::ffi::c_int) < (*table).num_vert_origin_y_metrics as ::core::ffi::c_int {
-        bufwrite16b(buf, (*(*table).entries.offset(j as isize)).gid as u16);
-        bufwrite16b(
-            buf,
-            (*(*table).entries.offset(j as isize)).vertical_origin as u16,
-        );
+        bufwrite16b(buf, (*table).entries[j as usize].gid as u16);
+        bufwrite16b(buf, (*table).entries[j as usize].vertical_origin as u16);
         j = j.wrapping_add(1);
     }
     return buf;

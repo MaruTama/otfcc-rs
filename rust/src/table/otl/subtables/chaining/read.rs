@@ -1,11 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
 
-use crate::table::otl::classdef::{ClassDef, otl_class_def_free, read_class_def};
+use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphHandle, LookupHandle};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::support::font_reader::{FontReader};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
@@ -26,12 +24,23 @@ pub type CoverageReaderHandler = Option<
         *mut ::core::ffi::c_void,
     ) -> *mut Coverage,
 >;
-#[derive(Copy, Clone)]
-#[repr(C)]
+// Stage 7-2-c "inner Box化": `bc`/`ic`/`fc` become `Option<Box<ClassDef>>`,
+// the same shape `table/otl.rs`'s `ChainingRuleSet.bc`/`.ic`/`.fc` (a
+// *different* struct, despite the identical field shape -- that one is the
+// long-lived, publicly stored classification result; this one is a
+// transient scratch struct used only as `class_coverage`'s `void*`
+// userdata for the duration of a single `read_contextual_format2`/
+// `read_chaining_format2` call) already use for this same `ClassDef` type.
+// `Copy`/`Clone` dropped: `Box` isn't `Copy`, and a grep of every `.bc`/
+// `.ic`/`.fc`/`ClassDefs` touch site in this file (the only file that
+// mentions this type) confirmed none of them ever copied the struct by
+// value in the first place -- every access already went through a raw
+// pointer (`cds: *mut ClassDefs` / `defs: *mut ClassDefs`), so dropping the
+// derive changes no call site's shape, only what `bc`/`ic`/`fc` own.
 pub struct ClassDefs {
-    pub bc: *mut ClassDef,
-    pub ic: *mut ClassDef,
-    pub fc: *mut ClassDef,
+    pub bc: Option<Box<ClassDef>>,
+    pub ic: Option<Box<ClassDef>>,
+    pub fc: Option<Box<ClassDef>>,
 }
 pub unsafe extern "C" fn single_coverage(
     mut _data: FontFilePointer,
@@ -55,14 +64,24 @@ pub unsafe extern "C" fn class_coverage(
     max_glyphs: GlyphId,
     mut _classdefs: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
-    let mut defs: *mut ClassDefs = _classdefs as *mut ClassDefs;
-    let mut cd: *mut ClassDef = if kind as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
-        (*defs).bc
+    let defs: *mut ClassDefs = _classdefs as *mut ClassDefs;
+    // `.expect()`, not a null-pointer deref: every caller that reaches here
+    // (`general_read_contextual_rule`/`general_read_chaining_rule` via
+    // `class_coverage`'s `fn_0` slot) only ever asks for a `kind` whose
+    // matching field was populated by `read_contextual_format2`/
+    // `read_chaining_format2` beforehand -- `read_class_def` itself never
+    // returns null, so this can't actually fail; panicking instead of a
+    // would-be null deref matches this migration's general "UB becomes a
+    // panic" idiom (see e.g. `general_read_contextual_rule`'s own
+    // `.expect()` calls above).
+    let cd: *const ClassDef = if kind as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
+        (*defs).bc.as_deref()
     } else if kind as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-        (*defs).ic
+        (*defs).ic.as_deref()
     } else {
-        (*defs).fc
-    };
+        (*defs).fc.as_deref()
+    }
+    .expect("class_coverage: ClassDefs field for this `kind` was not populated");
     let cov: *mut Coverage = otl_coverage_create();
     let mut count: GlyphId = 0 as GlyphId;
     if cls as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
@@ -395,17 +414,15 @@ unsafe fn read_contextual_format2(
             break 'parse None;
         }
 
-        cds = __caryll_allocate_clean(
-            ::core::mem::size_of::<ClassDefs>() as usize,
-            172 as ::core::ffi::c_ulong,
-        ) as *mut ClassDefs;
-        (*cds).bc = ::core::ptr::null_mut::<ClassDef>();
-        (*cds).ic = read_class_def(
-            data as *const u8,
-            table_length,
-            offset.wrapping_add(ic_rel as u32),
-        );
-        (*cds).fc = ::core::ptr::null_mut::<ClassDef>();
+        cds = Box::into_raw(Box::new(ClassDefs {
+            bc: None,
+            ic: classdef_from_raw(read_class_def(
+                data as *const u8,
+                table_length,
+                offset.wrapping_add(ic_rel as u32),
+            )),
+            fc: None,
+        }));
 
         // First pass: validate every non-empty ClassSet's own header +
         // rule-offset array. The original had NO guard at all here -- every
@@ -492,18 +509,16 @@ unsafe fn read_contextual_format2(
     // `cds` cleanup, run exactly once regardless of outcome -- this is the
     // fallthrough-leak fix that was already present (as a second, duplicated
     // copy of this same block) before this conversion; consolidated into
-    // one unconditional cleanup rather than newly discovered here.
+    // one unconditional cleanup rather than newly discovered here. Dropping
+    // the reclaimed `Box<ClassDefs>` drops `bc`/`ic`/`fc` first (each an
+    // `Option<Box<ClassDef>>`, self-dropping), then deallocates the shell --
+    // exactly what the manual `otl_class_def_free` * 3 + `free` sequence
+    // used to do by hand. `class_coverage` only ever *reads* through `cds`
+    // during the loop above (via the raw pointer handed to it as `fn_0`'s
+    // userdata); it never takes ownership away, so there is exactly one
+    // owner to drop here, not two -- no double free.
     if !cds.is_null() {
-        if !(*cds).bc.is_null() {
-            otl_class_def_free((*cds).bc);
-        }
-        if !(*cds).ic.is_null() {
-            otl_class_def_free((*cds).ic);
-        }
-        if !(*cds).fc.is_null() {
-            otl_class_def_free((*cds).fc);
-        }
-        free(cds as *mut ::core::ffi::c_void);
+        drop(Box::from_raw(cds));
     }
     if result.is_some() {
         return subtable;
@@ -850,25 +865,23 @@ unsafe fn read_chaining_format2(
             break 'parse None;
         }
 
-        cds = __caryll_allocate_clean(
-            ::core::mem::size_of::<ClassDefs>() as usize,
-            349 as ::core::ffi::c_ulong,
-        ) as *mut ClassDefs;
-        (*cds).bc = read_class_def(
-            data as *const u8,
-            table_length,
-            offset.wrapping_add(bc_rel as u32),
-        );
-        (*cds).ic = read_class_def(
-            data as *const u8,
-            table_length,
-            offset.wrapping_add(ic_rel as u32),
-        );
-        (*cds).fc = read_class_def(
-            data as *const u8,
-            table_length,
-            offset.wrapping_add(fc_rel as u32),
-        );
+        cds = Box::into_raw(Box::new(ClassDefs {
+            bc: classdef_from_raw(read_class_def(
+                data as *const u8,
+                table_length,
+                offset.wrapping_add(bc_rel as u32),
+            )),
+            ic: classdef_from_raw(read_class_def(
+                data as *const u8,
+                table_length,
+                offset.wrapping_add(ic_rel as u32),
+            )),
+            fc: classdef_from_raw(read_class_def(
+                data as *const u8,
+                table_length,
+                offset.wrapping_add(fc_rel as u32),
+            )),
+        }));
 
         // First pass: validate every non-empty ClassSet's own header +
         // rule-offset array. The original had NO guard at all here (same
@@ -954,17 +967,11 @@ unsafe fn read_chaining_format2(
     // `cds` cleanup, run exactly once regardless of outcome -- same
     // consolidation as `read_contextual_format2` (the fallthrough-leak fix
     // was already present as a duplicated block before this conversion).
+    // See that function's comment for why a single `Box` drop is the exact
+    // replacement for the old manual `otl_class_def_free` * 3 + `free`
+    // sequence, with no double-free risk.
     if !cds.is_null() {
-        if !(*cds).bc.is_null() {
-            otl_class_def_free((*cds).bc);
-        }
-        if !(*cds).ic.is_null() {
-            otl_class_def_free((*cds).ic);
-        }
-        if !(*cds).fc.is_null() {
-            otl_class_def_free((*cds).fc);
-        }
-        free(cds as *mut ::core::ffi::c_void);
+        drop(Box::from_raw(cds));
     }
     if result.is_some() {
         return subtable;

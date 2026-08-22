@@ -7,7 +7,6 @@ unsafe extern "C" {
 
 use crate::support::handle::{HandleState, handle_from_index, GlyphHandle, Handle, otfcc_handle_replace};
 
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
 use crate::support::options::{Options};
@@ -1209,19 +1208,13 @@ unsafe fn stat_vorg(mut font: *mut Font) {
             n_vert_origs = (n_vert_origs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
         }
     }
-    let entries = __caryll_allocate_clean(
-        (::core::mem::size_of::<VorgEntry>() as usize).wrapping_mul(n_vert_origs as usize),
-        587 as ::core::ffi::c_ulong,
-    ) as *mut VorgEntry;
-    let mut jj: GlyphId = 0 as GlyphId;
+    let mut entries: Vec<VorgEntry> = Vec::with_capacity(n_vert_origs as usize);
     for j_2 in 0..(*glyf).len() as GlyphId {
         let vori_1: Pos = vq_get_still(
             (&(*glyf))[j_2 as usize].as_deref().unwrap().vertical_origin.clone(),
         ) as Pos;
         if vori_1 != maxj as ::core::ffi::c_int as Pos {
-            (*entries.offset(jj as isize)).gid = j_2;
-            (*entries.offset(jj as isize)).vertical_origin = vori_1 as i16;
-            jj = (jj as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+            entries.push(VorgEntry { gid: j_2, vertical_origin: vori_1 as i16 });
         }
     }
     (*font).vorg = Some(Box::new(VorgTable {
@@ -1247,12 +1240,9 @@ unsafe fn stat_ltsh(mut font: *mut Font) {
         return;
     }
     let num_glyphs = (*glyf).len() as GlyphId;
-    let y_pels = __caryll_allocate_clean(
-        (::core::mem::size_of::<u8>() as usize).wrapping_mul(num_glyphs as usize),
-        612 as ::core::ffi::c_ulong,
-    ) as *mut u8;
+    let mut y_pels: Vec<u8> = Vec::with_capacity(num_glyphs as usize);
     for j_0 in 0..(*glyf).len() as GlyphId {
-        *y_pels.offset(j_0 as isize) = (&(*glyf))[j_0 as usize].as_deref().unwrap().y_pel;
+        y_pels.push((&(*glyf))[j_0 as usize].as_deref().unwrap().y_pel);
     }
     (*font).ltsh = Some(Box::new(LtshTable { version: 0, num_glyphs, y_pels }));
 }
