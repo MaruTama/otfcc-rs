@@ -932,6 +932,34 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-3 begins: `support/alloc.rs`'s OOM `exit()` → `handle_alloc_error`.**
+  `__caryll_allocate_clean`/`__caryll_reallocate` (the crate's shared
+  calloc/realloc wrappers) printed a custom `"[<line>]Out of memory(N
+  bytes)"` message and called `libc::exit(EXIT_FAILURE)` on a null
+  return from `calloc`/`realloc`. Replaced with `std::alloc::
+  handle_alloc_error(Layout::from_size_align(n, 1).unwrap())`, the
+  standard-library idiom for exactly this situation (a manual allocation
+  that failed and can't be recovered from) -- same "log then abort,
+  can't continue" behavior, minus the per-call-site line number in the
+  message (now reports the failed allocation's size instead, via the
+  standard "memory allocation of N bytes failed" abort message).
+  - Checked first, per this migration's discipline of verifying a
+    plan item is still accurate before touching it: the plan named 3 more
+    `exit()` sites for this stage (`ffi/dll.rs`'s `Options` leak,
+    `font/caryll_sfnt.rs:229,248`'s short-read `exit()`s,
+    `table/_tsi.rs:381`'s c2rust-residue `panic!`) -- the `ffi/dll.rs`
+    leak turned out already fixed (in earlier, pre-Stage-7 work, per its
+    own in-file comment), so this PR covers only the still-open
+    `support/alloc.rs` item; the other two remain for follow-up PRs.
+  - `line: c_ulong` kept as a parameter (renamed `_line`) rather than
+    removed from every one of the ~50 call sites across the crate that
+    still pass one -- the same choice `bk/bkgraph.rs`'s
+    `compute_block_offsets` made for its own now-vestigial `_line`.
+  - **Verification**: full pipeline green -- build, 244/244 tests,
+    clippy clean, ABI unchanged, golden bytes and log output unchanged,
+    round-trips 10/10, lookup-alias regression clean, `cargo miri test`
+    identical to baseline, both fuzz targets `cargo check`-clean.
+
 - **Stage 7-2-f, the last item: `BkBlock`/`BkCellValue::Ptr` Box化.** A
   focused survey (`bk/bkblock.rs`, `bk/bkgraph.rs`, and every `table/*.rs`
   file touching `*mut BkBlock` -- 21 files, ~128 occurrences) found this was
