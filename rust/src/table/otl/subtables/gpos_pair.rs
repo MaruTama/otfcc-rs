@@ -431,9 +431,9 @@ pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *
     );
     return st;
 }
-pub unsafe extern "C" fn otl_gpos_parse_pair(
+pub unsafe fn otl_gpos_parse_pair(
     mut _subtable: *const ParsedValue,
-    mut _options: *const Options,
+    mut _options: &Options,
 ) -> *mut Subtable {
     let mut class1_count: GlyphClass = 0;
     let mut class2_count: GlyphClass = 0;

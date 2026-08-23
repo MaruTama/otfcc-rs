@@ -153,9 +153,9 @@ pub unsafe extern "C" fn otl_gsub_dump_single(mut _subtable: *const Subtable) ->
     }
     return st;
 }
-pub unsafe extern "C" fn otl_gsub_parse_single(
+pub unsafe fn otl_gsub_parse_single(
     mut _subtable: *const ParsedValue,
-    mut _options: *const Options,
+    mut _options: &Options,
 ) -> *mut Subtable {
     let subtable: *mut GsubSingleSubtable = subtable_gsub_single_create();
     let mut j: GlyphId = 0 as GlyphId;

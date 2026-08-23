@@ -16,11 +16,11 @@ use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
 use crate::table::otl::subtables::gsub_multi::dispose_gsub_multi_subtable;
 
-pub unsafe extern "C" fn consolidate_gsub_multi(
+pub unsafe fn consolidate_gsub_multi(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> bool {
     let Subtable::GsubMulti(mut_subtable) = &mut *_subtable else {
         unreachable!()
@@ -46,7 +46,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
             &raw mut (&mut (*subtable))[k as usize].from,
         ) {
             logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
@@ -59,7 +59,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
             fontop_consolidate_coverage(
                 font,
                 &mut (&mut (*subtable))[k as usize].to as *mut Coverage,
-                &*options,
+                options,
             );
             shrink_coverage(
                 &mut (&mut (*subtable))[k as usize].to as *mut Coverage,
@@ -67,7 +67,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
             );
             if (&(*subtable))[k as usize].to.is_empty() {
                 logger_log_sds(
-                    &mut *(*options).logger.borrow_mut(),
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /",
@@ -99,11 +99,11 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
     }
     return (*subtable).len() == 0 as usize;
 }
-pub unsafe extern "C" fn consolidate_gsub_alternative(
+pub unsafe fn consolidate_gsub_alternative(
     mut font: *mut Font,
     mut table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> bool {
     return consolidate_gsub_multi(font, table, _subtable, options);
 }

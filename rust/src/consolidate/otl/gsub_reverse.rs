@@ -13,11 +13,11 @@ use crate::table::otl::{GsubReverseSubtable, OtlTable, Subtable};
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 
-pub unsafe extern "C" fn consolidate_gsub_reverse(
+pub unsafe fn consolidate_gsub_reverse(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> bool {
     let Subtable::GsubReverse(mut_subtable) = &mut *_subtable else {
         unreachable!()
@@ -28,11 +28,11 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
         fontop_consolidate_coverage(
             font,
             &mut (&mut (*subtable).match_0)[j as usize] as *mut Coverage,
-            &*options,
+            options,
         );
         j = j.wrapping_add(1);
     }
-    fontop_consolidate_coverage(font, &mut (*subtable).to as *mut Coverage, &*options);
+    fontop_consolidate_coverage(font, &mut (*subtable).to as *mut Coverage, options);
     if (*subtable).input_index as ::core::ffi::c_int
         >= (*subtable).match_count as ::core::ffi::c_int
     {
@@ -71,7 +71,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
         let fromid: i32 = (&(*from))[k].index as i32;
         if seen.contains_key(&fromid) {
             logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
@@ -91,7 +91,7 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
     let count: usize = seen.len();
     if count != (*from).len() || count != (*to).len() {
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(

@@ -13,11 +13,11 @@ use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
 use crate::table::otl::subtables::gsub_ligature::subtable_gsub_ligature_replace;
 use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, OtlTable, Subtable};
 
-pub unsafe extern "C" fn consolidate_gsub_ligature(
+pub unsafe fn consolidate_gsub_ligature(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> bool {
     let Subtable::GsubLigature(mut_subtable) = &mut *_subtable else {
         unreachable!()
@@ -34,7 +34,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
             &raw mut (&mut (*subtable))[k as usize].to,
         ) {
             logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
@@ -47,7 +47,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
             fontop_consolidate_coverage(
                 font,
                 &mut (&mut (*subtable))[k as usize].from as *mut Coverage,
-                &*options,
+                options,
             );
             shrink_coverage(
                 &mut (&mut (*subtable))[k as usize].from as *mut Coverage,
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn consolidate_gsub_ligature(
             );
             if (&(*subtable))[k as usize].from.is_empty() {
                 logger_log_sds(
-                    &mut *(*options).logger.borrow_mut(),
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(

@@ -13,11 +13,11 @@ use crate::table::otl::{GsubSingleEntry, GsubSingleSubtable, OtlTable, Subtable}
 use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
 use crate::table::otl::subtables::gsub_single::dispose_gsub_single_subtable;
 
-pub unsafe extern "C" fn consolidate_gsub_single(
+pub unsafe fn consolidate_gsub_single(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> bool {
     let glyph_order: *mut GlyphOrder = (*font)
         .glyph_order
@@ -41,7 +41,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
         if !otfcc_gord_consolidate_handle(glyph_order, &raw mut (&mut (*subtable))[k as usize].from)
         {
             logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
@@ -55,7 +55,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             &raw mut (&mut (*subtable))[k as usize].to,
         ) {
             logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
@@ -68,7 +68,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             let fromid: i32 = (&(*subtable))[k as usize].from.index as i32;
             if seen.contains_key(&fromid) {
                 logger_log_sds(
-                    &mut *(*options).logger.borrow_mut(),
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(
@@ -88,7 +88,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
     }
     if seen.len() != (*subtable).len() {
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Consolidate] In this lookup, some mappings are ignored.\n",),

@@ -133,9 +133,9 @@ pub unsafe extern "C" fn otl_gsub_dump_multi(mut _subtable: *const Subtable) -> 
     }
     return st;
 }
-pub unsafe extern "C" fn otl_gsub_parse_multi(
+pub unsafe fn otl_gsub_parse_multi(
     mut _subtable: *const ParsedValue,
-    mut _options: *const Options,
+    mut _options: &Options,
 ) -> *mut Subtable {
     let st: *mut GsubMultiSubtable = subtable_gsub_multi_create();
     for k in 0..json_obj_len(_subtable) as GlyphId {

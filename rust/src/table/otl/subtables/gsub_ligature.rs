@@ -192,9 +192,9 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) 
     );
     return ret;
 }
-pub unsafe extern "C" fn otl_gsub_parse_ligature(
+pub unsafe fn otl_gsub_parse_ligature(
     mut _subtable: *const ParsedValue,
-    mut _options: *const Options,
+    mut _options: &Options,
 ) -> *mut Subtable {
     if !json_obj_get_type(
         _subtable,

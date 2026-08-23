@@ -96,10 +96,7 @@ unsafe fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_SINGLE,
-            Some(
-                otl_gsub_parse_single
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
-            ),
+            Some(otl_gsub_parse_single as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
             lookup,
             lookup_name,
             options,
@@ -109,10 +106,7 @@ unsafe fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_MULTIPLE,
-            Some(
-                otl_gsub_parse_multi
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
-            ),
+            Some(otl_gsub_parse_multi as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
             lookup,
             lookup_name,
             options,
@@ -122,10 +116,7 @@ unsafe fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_ALTERNATE,
-            Some(
-                otl_gsub_parse_multi
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
-            ),
+            Some(otl_gsub_parse_multi as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
             lookup,
             lookup_name,
             options,
@@ -136,8 +127,7 @@ unsafe fn _parse_lookup(
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_LIGATURE,
             Some(
-                otl_gsub_parse_ligature
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
+                otl_gsub_parse_ligature as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
             ),
             lookup,
             lookup_name,
@@ -148,10 +138,7 @@ unsafe fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_CHAINING,
-            Some(
-                otl_parse_chaining
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
-            ),
+            Some(otl_parse_chaining as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
             lookup,
             lookup_name,
             options,
@@ -162,8 +149,7 @@ unsafe fn _parse_lookup(
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_REVERSE,
             Some(
-                otl_gsub_parse_reverse
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
+                otl_gsub_parse_reverse as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
             ),
             lookup,
             lookup_name,
@@ -174,10 +160,7 @@ unsafe fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_SINGLE,
-            Some(
-                otl_gpos_parse_single
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
-            ),
+            Some(otl_gpos_parse_single as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
             lookup,
             lookup_name,
             options,
@@ -187,10 +170,7 @@ unsafe fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_PAIR,
-            Some(
-                otl_gpos_parse_pair
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
-            ),
+            Some(otl_gpos_parse_pair as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
             lookup,
             lookup_name,
             options,
@@ -201,8 +181,7 @@ unsafe fn _parse_lookup(
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_CURSIVE,
             Some(
-                otl_gpos_parse_cursive
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
+                otl_gpos_parse_cursive as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
             ),
             lookup,
             lookup_name,
@@ -213,10 +192,7 @@ unsafe fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_CHAINING,
-            Some(
-                otl_parse_chaining
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
-            ),
+            Some(otl_parse_chaining as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
             lookup,
             lookup_name,
             options,
@@ -228,7 +204,7 @@ unsafe fn _parse_lookup(
             OTL_TYPE_GPOS_MARK_TO_BASE,
             Some(
                 otl_gpos_parse_mark_to_single
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
+                    as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
             ),
             lookup,
             lookup_name,
@@ -241,7 +217,7 @@ unsafe fn _parse_lookup(
             OTL_TYPE_GPOS_MARK_TO_MARK,
             Some(
                 otl_gpos_parse_mark_to_single
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
+                    as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
             ),
             lookup,
             lookup_name,
@@ -254,7 +230,7 @@ unsafe fn _parse_lookup(
             OTL_TYPE_GPOS_MARK_TO_LIGATURE,
             Some(
                 otl_gpos_parse_mark_to_ligature
-                    as unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable,
+                    as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
             ),
             lookup,
             lookup_name,
@@ -266,7 +242,7 @@ unsafe fn _parse_lookup(
 }
 unsafe fn _declare_lookup_parser(
     mut llt: LookupType,
-    mut parser: Option<unsafe extern "C" fn(*const ParsedValue, *const Options) -> *mut Subtable>,
+    mut parser: Option<unsafe fn(*const ParsedValue, &Options) -> *mut Subtable>,
     mut _lookup: *const ParsedValue,
     mut lookup_name: *mut ::core::ffi::c_char,
     mut options: &Options,
@@ -353,10 +329,8 @@ unsafe fn _declare_lookup_parser(
         while (j as ::core::ffi::c_int) < subtable_count as ::core::ffi::c_int {
             let mut _subtable: *const ParsedValue = json_arr_at(_subtables, j as u32);
             if !_subtable.is_null() && json_type_of(_subtable) == JsonType::Object {
-                let mut _st: *mut Subtable = parser.expect("non-null function pointer")(
-                    _subtable,
-                    options as *const Options,
-                );
+                let mut _st: *mut Subtable =
+                    parser.expect("non-null function pointer")(_subtable, options);
                 (*lookup).subtables.push(subtable_list_slot(_st));
             }
             j = j.wrapping_add(1);

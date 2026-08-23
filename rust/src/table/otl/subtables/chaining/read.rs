@@ -24,7 +24,7 @@ use crate::table::otl::{
     subtable_from_raw,
 };
 pub type CoverageReaderHandler = Option<
-    unsafe extern "C" fn(
+    unsafe fn(
         FontFilePointer,
         u32,
         u16,
@@ -52,7 +52,7 @@ pub struct ClassDefs {
     pub ic: Option<Box<ClassDef>>,
     pub fc: Option<Box<ClassDef>>,
 }
-pub unsafe extern "C" fn single_coverage(
+pub unsafe fn single_coverage(
     mut _data: FontFilePointer,
     mut _table_length: u32,
     mut gid: u16,
@@ -65,7 +65,7 @@ pub unsafe extern "C" fn single_coverage(
     push_to_coverage(cov, handle_from_index(gid) as GlyphHandle);
     return cov;
 }
-pub unsafe extern "C" fn class_coverage(
+pub unsafe fn class_coverage(
     mut _data: FontFilePointer,
     mut _table_length: u32,
     mut cls: u16,
@@ -163,7 +163,7 @@ pub unsafe extern "C" fn class_coverage(
     }
     return cov;
 }
-pub unsafe extern "C" fn format3_coverage(
+pub unsafe fn format3_coverage(
     mut data: FontFilePointer,
     mut table_length: u32,
     mut shift: u16,
@@ -369,7 +369,7 @@ unsafe fn read_contextual_format1(
                     true,
                     Some(
                         single_coverage
-                            as unsafe extern "C" fn(
+                            as unsafe fn(
                                 FontFilePointer,
                                 u32,
                                 u16,
@@ -505,7 +505,7 @@ unsafe fn read_contextual_format2(
                     true,
                     Some(
                         class_coverage
-                            as unsafe extern "C" fn(
+                            as unsafe fn(
                                 FontFilePointer,
                                 u32,
                                 u16,
@@ -589,7 +589,7 @@ pub unsafe fn otl_read_contextual(
             false,
             Some(
                 format3_coverage
-                    as unsafe extern "C" fn(
+                    as unsafe fn(
                         FontFilePointer,
                         u32,
                         u16,
@@ -846,7 +846,7 @@ unsafe fn read_chaining_format1(
                     true,
                     Some(
                         single_coverage
-                            as unsafe extern "C" fn(
+                            as unsafe fn(
                                 FontFilePointer,
                                 u32,
                                 u16,
@@ -990,7 +990,7 @@ unsafe fn read_chaining_format2(
                     true,
                     Some(
                         class_coverage
-                            as unsafe extern "C" fn(
+                            as unsafe fn(
                                 FontFilePointer,
                                 u32,
                                 u16,
@@ -1065,7 +1065,7 @@ pub unsafe fn otl_read_chaining(
             false,
             Some(
                 format3_coverage
-                    as unsafe extern "C" fn(
+                    as unsafe fn(
                         FontFilePointer,
                         u32,
                         u16,
@@ -1362,7 +1362,7 @@ mod chaining_read_tests {
                 true,
                 Some(
                     single_coverage
-                        as unsafe extern "C" fn(
+                        as unsafe fn(
                             FontFilePointer,
                             u32,
                             u16,
