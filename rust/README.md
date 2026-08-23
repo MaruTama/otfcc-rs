@@ -932,6 +932,51 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-f, the last item: `BkBlock`/`BkCellValue::Ptr` Box化.** A
+  focused survey (`bk/bkblock.rs`, `bk/bkgraph.rs`, and every `table/*.rs`
+  file touching `*mut BkBlock` -- 21 files, ~128 occurrences) found this was
+  actually smaller and lower-risk than the already-completed `libcff/subr.rs`
+  arena conversion, contrary to earlier surveys' assumption. Every `BkBlock`
+  is single-parent-owned: real call sites always finish building a child
+  completely (via `bk_new_block`/`bk_push`) before splicing it into a
+  parent, no `BkBlock` is ever shared across two `BkGraph`s (`gpos_pair.rs`'s
+  two-graph case builds fully independent trees and always deletes one
+  entirely before touching the other), no cycle is constructible (there's no
+  API for a child to reference an ancestor while the ancestor is still being
+  built), and teardown is centralized to exactly two places
+  (`bk_delete_graph`'s flat walk over an already-built tree, and
+  `bkpushitems`'s `Embed` arm, which frees a block immediately after copying
+  its cells). That ownership discipline means `BkCellValue::Ptr(*mut
+  BkBlock)` **stays a raw pointer** rather than becoming an arena index --
+  `libcff/subr.rs`'s tombstoned-arena template is only needed where slots
+  get deleted and revisited mid-algorithm, which never happens here. Instead:
+  `BkBlock.cells: *mut BkCell` (hand-managed with `length`/`free` slack
+  bookkeeping, grown via raw `realloc`) becomes `Vec<BkCell>`, and `BkBlock`
+  itself moves from `__caryll_allocate_clean`/raw `free` to
+  `Box::into_raw`/`Box::from_raw`, the same malloc-shell removal every other
+  `_create()` in this migration has had.
+  - **Zero external files needed changes.** Every one of the 21 files
+    touching `*mut BkBlock` outside `bk/` (`table/base.rs`, `table/cmap.rs`,
+    `table/colr.rs`, `table/cpal.rs`, `table/gdef.rs`, `table/svg.rs`,
+    `table/otl/build.rs`, `table/vdmx/funcs.rs`, `table/meta/build.rs`, 9
+    `table/otl/subtables/*.rs` files, `table/otl/subtables/chaining/
+    build.rs`) only ever calls the opaque `bk_new_block`/`bk_push`/`bk_ptr`/
+    `bk_int`/`bk_build_block`/etc. API and passes `*mut BkBlock`/`*mut
+    BkGraph` around as an opaque handle -- confirmed by grep before writing
+    any code, not assumed. `bk_cell_is_pointer` changed from `*mut BkCell`
+    to `&BkCell` (no longer even needs `unsafe`) since nothing outside `bk/`
+    called it either. This PR is confined to `bk/bkblock.rs` and
+    `bk/bkgraph.rs`.
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean (including the `dangerous_implicit_autorefs` lint on `Vec`-index
+    writes through a raw-pointer field, fixed with an explicit `&mut
+    Vec<BkCell>` local the same way `support/buffer.rs`/`table/glyf/
+    build.rs` needed it earlier), ABI unchanged, golden bytes and log output
+    unchanged (exercises `bk_untangle_graph`'s Sp16/Sp32 promotion path,
+    the part of this rewrite most likely to have an off-by-one), round-trips
+    10/10, lookup-alias regression clean, `cargo miri test` 226/0/18
+    identical to baseline, both fuzz targets `cargo check`-clean.
+
 - **Fixed the `caryll_sfnt_builder.rs` checksum alignment UB surfaced by the
   `Font` Box化 fix above.** `buf_checksum`/`create_segment` cast a
   `Buffer.data: Vec<u8>` pointer (1-byte aligned) to `*mut u32` and
