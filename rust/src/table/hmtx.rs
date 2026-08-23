@@ -1,15 +1,15 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::binio::{pos_to_u16};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::support::binio::pos_to_u16;
+use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
+use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Length, Pos};
-use crate::font::caryll_sfnt::{Packet};
 
-use crate::table::hhea::{HheaTable};
-use crate::table::maxp::{MaxpTable};
 use crate::support::buffer::{bufnew, bufwrite16b};
+use crate::table::hhea::HheaTable;
+use crate::table::maxp::MaxpTable;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct HorizontalMetric {
@@ -41,7 +41,10 @@ fn parse_hmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<HmtxTable, 
     for _ in 0..count_k {
         left_side_bearing.push(r.i16()? as Pos);
     }
-    Ok(HmtxTable { metrics, left_side_bearing })
+    Ok(HmtxTable {
+        metrics,
+        left_side_bearing,
+    })
 }
 pub unsafe fn otfcc_read_hmtx(
     packet: &Packet,
@@ -52,11 +55,15 @@ pub unsafe fn otfcc_read_hmtx(
     if hhea.is_null()
         || maxp.is_null()
         || (*hhea).number_of_metrics == 0
-        || ((*maxp).num_glyphs as ::core::ffi::c_int) < (*hhea).number_of_metrics as ::core::ffi::c_int
+        || ((*maxp).num_glyphs as ::core::ffi::c_int)
+            < (*hhea).number_of_metrics as ::core::ffi::c_int
     {
         return None;
     }
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_HMTX)?;
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_HMTX)?;
     let count_a = (*hhea).number_of_metrics as usize;
     let count_k = (*maxp).num_glyphs as usize - count_a;
     match parse_hmtx(&table.data, count_a, count_k) {

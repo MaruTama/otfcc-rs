@@ -10,8 +10,11 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use otfcc_rust::support::stdio::{stderr, stdin, stdout, FILE};
-use libc::{SEEK_SET, exit, fclose, feof, fgets, fopen, fprintf, fread, free, fseek, ftell, fwrite, malloc, realloc, strcmp, strlen, strtol};
+use libc::{
+    SEEK_SET, exit, fclose, feof, fgets, fopen, fprintf, fread, free, fseek, ftell, fwrite, malloc,
+    realloc, strcmp, strlen, strtol,
+};
+use otfcc_rust::support::stdio::{FILE, stderr, stdin, stdout};
 unsafe extern "C" {
     static mut optarg: *mut ::core::ffi::c_char;
     static mut optind: ::core::ffi::c_int;
@@ -24,63 +27,32 @@ unsafe extern "C" {
     ) -> ::core::ffi::c_int;
 }
 
-use otfcc_rust::logger::{LoggerType, logger_finish, logger_indent, logger_log_sds, logger_set_verbosity, logger_start_sds};
-use otfcc_rust::support::buffer::{Buffer};
-use otfcc_rust::support::options::{Options};
+use otfcc_rust::logger::{
+    LoggerType, logger_finish, logger_indent, logger_log_sds, logger_set_verbosity,
+    logger_start_sds,
+};
+use otfcc_rust::support::buffer::Buffer;
+use otfcc_rust::support::options::Options;
 
-use otfcc_rust::support::parsed_json::{ParsedValue};
-use otfcc_rust::font::caryll_font::{Font};
-use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
-use otfcc_rust::support::{EXIT_FAILURE, NULL};
 use libc::timespec;
-use otfcc_rust::support::getopt::{NO_ARGUMENT, LongOption, REQUIRED_ARGUMENT};
-use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
-use otfcc_rust::font::caryll_font::{otfcc_font_free};
-use otfcc_rust::consolidate::{otfcc_consolidate_font};
-use otfcc_rust::json_reader::{read_json};
+use otfcc_rust::consolidate::otfcc_consolidate_font;
+use otfcc_rust::font::caryll_font::Font;
+use otfcc_rust::font::caryll_font::otfcc_font_free;
+use otfcc_rust::json_reader::read_json;
+use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
-use std::cell::RefCell;
-use otfcc_rust::otf_writer::{serialize_to_otf};
+use otfcc_rust::otf_writer::serialize_to_otf;
 use otfcc_rust::support::buffer::{buffree, buflen};
-use otfcc_rust::support::options::{otfcc_options_optimize_to, otfcc_delete_options, otfcc_new_options};
-use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
+use otfcc_rust::support::getopt::{LongOption, NO_ARGUMENT, REQUIRED_ARGUMENT};
+use otfcc_rust::support::options::{
+    otfcc_delete_options, otfcc_new_options, otfcc_options_optimize_to,
+};
+use otfcc_rust::support::parsed_json::ParsedValue;
 use otfcc_rust::support::parsed_json::{json_parse, json_value_free};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
+use otfcc_rust::support::{EXIT_FAILURE, NULL};
+use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
+use std::cell::RefCell;
 
 pub const SEEK_END: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
@@ -543,7 +515,8 @@ unsafe fn main_0(
             &mut *(*options).logger.borrow_mut(),
             LOG_VL_CRITICAL,
             LoggerType::Error,
-            otfcc_rust::bytesbuild!(b"Unable to build OpenType font tile : output path not specified. Exit.\n",
+            otfcc_rust::bytesbuild!(
+                b"Unable to build OpenType font tile : output path not specified. Exit.\n",
             ),
         );
         printHelp();
@@ -578,9 +551,7 @@ unsafe fn main_0(
                 // the end, which is exactly what those later reads
                 // needed all along.
                 ___loggedstep_v_0 = false;
-                logger_finish(
-                    &mut *(*options).logger.borrow_mut()
-                );
+                logger_finish(&mut *(*options).logger.borrow_mut());
             }
         } else {
             logger_start_sds(
@@ -591,9 +562,7 @@ unsafe fn main_0(
             while ___loggedstep_v_1 {
                 readEntireStdin(&raw mut buffer, &raw mut length);
                 ___loggedstep_v_1 = false;
-                logger_finish(
-                    &mut *(*options).logger.borrow_mut()
-                );
+                logger_finish(&mut *(*options).logger.borrow_mut());
             }
         }
         logger_log_sds(
@@ -625,7 +594,8 @@ unsafe fn main_0(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::bytesbuild!(b"Cannot parse JSON file \"",
+                otfcc_rust::bytesbuild!(
+                    b"Cannot parse JSON file \"",
                     inPath.as_ref().map_or(::core::ptr::null(), |p| p.as_ptr()),
                     b"\". Exit.\n",
                 ),
@@ -648,7 +618,8 @@ unsafe fn main_0(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::bytesbuild!(b"Cannot parse JSON file \"",
+                otfcc_rust::bytesbuild!(
+                    b"Cannot parse JSON file \"",
                     inPath.as_ref().map_or(::core::ptr::null(), |p| p.as_ptr()),
                     b"\" as a font. Exit.\n",
                 ),
@@ -706,7 +677,8 @@ unsafe fn main_0(
                     &mut *(*options).logger.borrow_mut(),
                     LOG_VL_CRITICAL,
                     LoggerType::Error,
-                    otfcc_rust::bytesbuild!(b"Cannot write to file \"",
+                    otfcc_rust::bytesbuild!(
+                        b"Cannot write to file \"",
                         output_path.as_bytes(),
                         b"\". Exit.\n",
                     ),
@@ -721,9 +693,7 @@ unsafe fn main_0(
             );
             fclose(outfile);
             ___loggedstep_v_6 = false;
-            logger_finish(
-                &mut *(*options).logger.borrow_mut()
-            );
+            logger_finish(&mut *(*options).logger.borrow_mut());
         }
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),

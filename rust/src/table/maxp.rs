@@ -1,15 +1,19 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum};
-use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{F16Dot16};
-use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
+use crate::support::built_json::{
+    BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
+};
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::support::options::Options;
+use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum};
+use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
-use crate::support::built_json::{BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push};
+use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -45,7 +49,10 @@ pub struct MaxpTable {
 // would have done unconditionally once past the length check.
 fn parse_maxp(data: &[u8]) -> Result<MaxpTable, ReadError> {
     if data.len() != 32 && data.len() != 6 {
-        return Err(ReadError { needed: 32, available: data.len() });
+        return Err(ReadError {
+            needed: 32,
+            available: data.len(),
+        });
     }
     let mut r = FontReader::new(data);
     let version = r.i32()? as F16Dot16;
@@ -84,11 +91,11 @@ fn parse_maxp(data: &[u8]) -> Result<MaxpTable, ReadError> {
     }
     Ok(maxp)
 }
-pub unsafe fn otfcc_read_maxp(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<MaxpTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_MAXP)?;
+pub unsafe fn otfcc_read_maxp(packet: &Packet, options: &Options) -> Option<Box<MaxpTable>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_MAXP)?;
     match parse_maxp(&table.data) {
         Ok(maxp) => Some(Box::new(maxp)),
         Err(_) => {
@@ -263,17 +270,13 @@ pub unsafe fn otfcc_parse_maxp(
                 b"maxStackElements\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
             ___loggedstep_v = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
     return Some(maxp_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_maxp(
-    maxp: Option<&MaxpTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_maxp(maxp: Option<&MaxpTable>) -> *mut Buffer {
     let maxp = match maxp {
         Some(m) => m as *const MaxpTable,
         None => return ::core::ptr::null_mut::<Buffer>(),

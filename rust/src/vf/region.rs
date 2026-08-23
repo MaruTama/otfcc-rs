@@ -1,11 +1,10 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, memcpy, strncmp};
 
-
-use crate::support::alloc::{__caryll_allocate_clean};
+use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::primitives::{Pos, ShapeId};
 
-use crate::vf::vv::{VV};
+use crate::vf::vv::VV;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VqAxisSpan {
@@ -60,8 +59,7 @@ pub unsafe fn vq_compare_region(
         a as *const ::core::ffi::c_char,
         b as *const ::core::ffi::c_char,
         (::core::mem::size_of::<VqRegion>() as usize).wrapping_add(
-            (::core::mem::size_of::<VqAxisSpan>() as usize)
-                .wrapping_mul((*a).dimensions as usize),
+            (::core::mem::size_of::<VqAxisSpan>() as usize).wrapping_mul((*a).dimensions as usize),
         ),
     );
 }

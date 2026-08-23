@@ -16,7 +16,9 @@
 // category unchecked-arithmetic UB fuzzing is good at finding.
 
 use libfuzzer_sys::fuzz_target;
-use otfcc_rust::ffi::dll::{otfcc_get_buf_data, otfcc_get_buf_len, otfccbuild_free_otfbuf, otfccbuild_json_otf};
+use otfcc_rust::ffi::dll::{
+    otfcc_get_buf_data, otfcc_get_buf_len, otfccbuild_free_otfbuf, otfccbuild_json_otf,
+};
 
 fuzz_target!(|data: &[u8]| {
     if data.is_empty() {

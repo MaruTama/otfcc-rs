@@ -1,14 +1,15 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
+use libc::free;
 
-
-use crate::support::alloc::{__caryll_allocate_clean};
-use crate::logger::{LoggerType, LOG_VL_PROGRESS, logger_log_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::vendor::sds::Byte;
+use crate::logger::{LOG_VL_PROGRESS, LoggerType, logger_log_sds};
+use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::binio::{EndianProbe16, EndianProbe32};
-use crate::support::buffer::{buffree, buflen, buflongalign, bufnew, bufseek, bufwrite16b, bufwrite32b, bufwrite_buf};
+use crate::support::buffer::Buffer;
+use crate::support::buffer::{
+    buffree, buflen, buflongalign, bufnew, bufseek, bufwrite_buf, bufwrite16b, bufwrite32b,
+};
+use crate::support::options::Options;
+use crate::vendor::sds::Byte;
 pub struct SfntTableEntry {
     pub tag: ::core::ffi::c_int,
     pub length: u32,
@@ -50,8 +51,7 @@ unsafe fn buf_checksum(mut buffer: *mut Buffer) -> u32 {
     let mut sum: u32 = 0 as u32;
     let mut start: *mut u32 = (*buffer).data as *mut u32;
     let mut end: *mut u32 = start.offset(
-        ((actual_length.wrapping_add(3 as u32) & !(3 as ::core::ffi::c_int) as u32)
-            as usize)
+        ((actual_length.wrapping_add(3 as u32) & !(3 as ::core::ffi::c_int) as u32) as usize)
             .wrapping_div(::core::mem::size_of::<u32>()) as isize,
     );
     while start < end {
@@ -82,10 +82,7 @@ unsafe fn create_segment(tag: u32, buffer: *mut Buffer) -> SfntTableEntry {
         buffer,
     }
 }
-pub unsafe fn otfcc_new_sfnt_builder(
-    mut header: u32,
-    mut options: &Options,
-) -> *mut SfntBuilder {
+pub unsafe fn otfcc_new_sfnt_builder(mut header: u32, mut options: &Options) -> *mut SfntBuilder {
     let mut builder: *mut SfntBuilder = __caryll_allocate_clean(
         ::core::mem::size_of::<SfntBuilder>() as usize,
         40 as ::core::ffi::c_ulong,
@@ -97,7 +94,10 @@ pub unsafe fn otfcc_new_sfnt_builder(
     // guarantee that an all-zero-bytes value is a safe-to-drop empty map)
     // gets `ptr::write`, not a plain assignment, so the calloc'd garbage
     // sitting here is never read or dropped.
-    ::core::ptr::write(&raw mut (*builder).tables, std::collections::BTreeMap::new());
+    ::core::ptr::write(
+        &raw mut (*builder).tables,
+        std::collections::BTreeMap::new(),
+    );
     (*builder).options = options;
     return builder;
 }
@@ -141,7 +141,8 @@ pub unsafe fn otfcc_sfnt_builder_push_table(
         &mut *(*options).logger.borrow_mut(),
         LOG_VL_PROGRESS,
         LoggerType::Progress,
-        crate::bytesbuild!(b"OpenType table ",
+        crate::bytesbuild!(
+            b"OpenType table ",
             Byte((tag >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
             Byte((tag >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
             Byte((tag >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
@@ -150,16 +151,13 @@ pub unsafe fn otfcc_sfnt_builder_push_table(
         ),
     );
 }
-pub unsafe fn otfcc_sfnt_builder_serialize(
-    mut builder: *mut SfntBuilder,
-) -> *mut Buffer {
+pub unsafe fn otfcc_sfnt_builder_serialize(mut builder: *mut SfntBuilder) -> *mut Buffer {
     let mut buffer: *mut Buffer = bufnew();
     if builder.is_null() {
         return buffer;
     }
     let n_tables: u16 = (*builder).tables.len() as u16;
-    let mut search_range: u16 = ((if (n_tables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int
-    {
+    let mut search_range: u16 = ((if (n_tables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int {
         8 as ::core::ffi::c_int
     } else {
         if (n_tables as ::core::ffi::c_int) < 32 as ::core::ffi::c_int {

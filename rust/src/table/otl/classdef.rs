@@ -1,14 +1,21 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::parsed_json::{ParsedValue, json_dbl_val, json_int_val, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
-use crate::table::otl::coverage::{Coverage};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
+use crate::support::handle::{
+    GlyphHandle, Handle, handle_from_index, handle_from_name, otfcc_handle_dispose,
+};
+use crate::support::parsed_json::{
+    ParsedValue, json_dbl_val, json_int_val, json_obj_key_bytes_at, json_obj_len, json_obj_val_at,
+    json_type_of,
+};
+use crate::table::otl::coverage::Coverage;
 
-use crate::support::font_reader::{FontReader};
-use crate::support::buffer::{Buffer};
+use crate::support::buffer::Buffer;
+use crate::support::buffer::{bufnew, bufwrite_bufdel, bufwrite16b};
+use crate::support::built_json::{
+    BuiltValue, json_integer_new, json_object_new, json_object_push_bytes_key, preserialize,
+};
+use crate::support::font_reader::FontReader;
 use crate::support::primitives::{GlyphClass, GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite_bufdel};
-use crate::support::built_json::{BuiltValue, json_integer_new, json_object_new, json_object_push_bytes_key, preserialize};
+use crate::vendor::json::JsonType;
 /// `glyphs`/`classes` were a hand-rolled `malloc`/`realloc` pair of parallel
 /// arrays (grown, pushed to, and truncated only ever together -- confirmed
 /// by survey before this conversion), now `Vec<GlyphHandle>`/
@@ -80,7 +87,11 @@ pub(crate) unsafe fn push_class_def(cd: *mut ClassDef, h: GlyphHandle, cls: Glyp
 }
 // Same `data`/`table_length` trustworthiness and overflow-defeats-guard
 // reasoning as `coverage.rs::read_coverage` (see its comment).
-pub(crate) unsafe fn read_class_def(data: *const u8, table_length: u32, offset: u32) -> *mut ClassDef {
+pub(crate) unsafe fn read_class_def(
+    data: *const u8,
+    table_length: u32,
+    offset: u32,
+) -> *mut ClassDef {
     let cd = otl_class_def_create();
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
@@ -174,9 +185,7 @@ pub(crate) unsafe fn dump_class_def(cd: *const ClassDef) -> *mut BuiltValue {
     return preserialize(a);
 }
 pub(crate) unsafe fn parse_class_def(mut _cd: *const ParsedValue) -> *mut ClassDef {
-    if _cd.is_null()
-        || json_type_of(_cd) != JsonType::Object
-    {
+    if _cd.is_null() || json_type_of(_cd) != JsonType::Object {
         return ::core::ptr::null_mut::<ClassDef>();
     }
     let mut cd: *mut ClassDef = otl_class_def_create();
@@ -184,14 +193,11 @@ pub(crate) unsafe fn parse_class_def(mut _cd: *const ParsedValue) -> *mut ClassD
     while (j as ::core::ffi::c_uint) < json_obj_len(_cd) {
         let mut h: GlyphHandle =
             handle_from_name(Some(json_obj_key_bytes_at(_cd, j as u32))) as GlyphHandle;
-        let mut _cid: *const ParsedValue =
-            json_obj_val_at(_cd, j as u32);
+        let mut _cid: *const ParsedValue = json_obj_val_at(_cd, j as u32);
         let mut cls: GlyphClass = 0 as GlyphClass;
-        if json_type_of(_cid) == JsonType::Integer
-        {
+        if json_type_of(_cid) == JsonType::Integer {
             cls = json_int_val(_cid) as GlyphClass;
-        } else if json_type_of(_cid) == JsonType::Double
-        {
+        } else if json_type_of(_cid) == JsonType::Double {
             cls = json_dbl_val(_cid) as GlyphClass;
         }
         push_class_def(cd, h as GlyphHandle, cls);
@@ -236,8 +242,7 @@ pub(crate) unsafe fn build_class_def(mut cd: *const ClassDef) -> *mut Buffer {
         if !(current as ::core::ffi::c_int <= last_gid as ::core::ffi::c_int) {
             if current as ::core::ffi::c_int
                 == end_gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int
-                && r[j_0 as usize].cid as ::core::ffi::c_int
-                    == last_class as ::core::ffi::c_int
+                && r[j_0 as usize].cid as ::core::ffi::c_int == last_class as ::core::ffi::c_int
             {
                 end_gid = current;
             } else {
@@ -296,7 +301,10 @@ mod read_class_def_tests {
         unsafe {
             let raw = read_class_def(data.as_ptr(), data.len() as u32, 0);
             let cd = classdef_from_raw(raw).unwrap();
-            assert_eq!(cd.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(), vec![10, 11]);
+            assert_eq!(
+                cd.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(),
+                vec![10, 11]
+            );
             assert_eq!(cd.classes, vec![3, 4]);
         }
     }
@@ -317,7 +325,10 @@ mod read_class_def_tests {
             let cd = classdef_from_raw(raw).unwrap();
             // Sorted by class value ascending: class 1 (gid 10) then class 5 (gid 20).
             assert_eq!(cd.classes, vec![1, 5]);
-            assert_eq!(cd.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(), vec![10, 20]);
+            assert_eq!(
+                cd.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(),
+                vec![10, 20]
+            );
         }
     }
 

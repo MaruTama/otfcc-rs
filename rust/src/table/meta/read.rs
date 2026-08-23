@@ -1,7 +1,7 @@
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
-use crate::support::options::{Options};
-use crate::font::caryll_sfnt::{Packet};
+use crate::support::options::Options;
 
 use crate::table::meta::types::{MetaEntry, MetaTable};
 // The original guarded the entry array with `table.length <
@@ -36,16 +36,23 @@ fn parse_meta(data: &[u8]) -> Result<MetaTable, ReadError> {
             .sub(offset as usize, length as usize)
             .and_then(|mut sr| sr.bytes(length as usize))
         {
-            entries.push(MetaEntry { tag, data: bytes.to_vec() });
+            entries.push(MetaEntry {
+                tag,
+                data: bytes.to_vec(),
+            });
         }
     }
-    Ok(MetaTable { version, flags, entries })
+    Ok(MetaTable {
+        version,
+        flags,
+        entries,
+    })
 }
-pub unsafe fn otfcc_read_meta(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<MetaTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_META)?;
+pub unsafe fn otfcc_read_meta(packet: &Packet, options: &Options) -> Option<Box<MetaTable>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_META)?;
     match parse_meta(&table.data) {
         Ok(meta) => Some(Box::new(meta)),
         Err(_) => {

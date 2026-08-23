@@ -1,47 +1,17 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::handle::{Handle, HandleState, GlyphHandle};
+use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::support::options::{Options};
-use crate::support::primitives::{GlyphId};
-use crate::font::caryll_font::{Font};
+use crate::font::caryll_font::Font;
+use crate::support::options::Options;
+use crate::support::primitives::GlyphId;
 
+use crate::table::otl::{GposSingleEntry, GposSingleSubtable, OtlTable, PositionValue, Subtable};
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-use crate::table::otl::{GposSingleEntry, PositionValue, Subtable, GposSingleSubtable, OtlTable};
-
-
-
-
-
-use crate::support::glyph_order::{otfcc_gord_consolidate_handle, GlyphOrder};
-use crate::table::otl::subtables::gpos_single::{dispose_gpos_single_subtable};
-
-
-
+use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
+use crate::table::otl::subtables::gpos_single::dispose_gpos_single_subtable;
 
 pub unsafe extern "C" fn consolidate_gpos_single(
     mut font: *mut Font,
@@ -49,7 +19,9 @@ pub unsafe extern "C" fn consolidate_gpos_single(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let Subtable::GposSingle(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let Subtable::GposSingle(mut_subtable) = &mut *_subtable else {
+        unreachable!()
+    };
     let subtable: *mut GposSingleSubtable = mut_subtable;
     // Deduplicates by `target`'s glyph id, first occurrence wins -- a later
     // duplicate is logged as a warning and dropped, not merged. `BTreeMap`,
@@ -65,14 +37,18 @@ pub unsafe extern "C" fn consolidate_gpos_single(
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).len() {
         if !otfcc_gord_consolidate_handle(
-            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
+            (*font)
+                .glyph_order
+                .as_deref_mut()
+                .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*subtable))[k as usize].target,
         ) {
             logger_log_sds(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(
+                    b"[Consolidate] Ignored missing glyph /",
                     &(&(*subtable))[k as usize].target.name,
                     b".\n",
                 ),
@@ -84,7 +60,8 @@ pub unsafe extern "C" fn consolidate_gpos_single(
                     &mut *(*options).logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::bytesbuild!(b"[Consolidate] Detected glyph double-mapping about /",
+                    crate::bytesbuild!(
+                        b"[Consolidate] Detected glyph double-mapping about /",
                         &(&(*subtable))[k as usize].target.name,
                         b".\n",
                     ),

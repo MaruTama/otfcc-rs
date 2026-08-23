@@ -1,23 +1,39 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
-use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{
+    GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
+};
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at,
+    json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of,
+};
+use crate::table::otl::coverage::{
+    Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
+};
 
-use crate::support::font_reader::{FontReader};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
+use crate::bk::bkblock::bk_new_block_from_buffer;
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::bkgraph::bk_build_block;
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::support::buffer::Buffer;
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
+    json_object_push, json_object_push_bytes_key, json_string_new_from_bytes, preserialize,
+};
+use crate::support::font_reader::FontReader;
+use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::table::otl::{Anchor, LigatureArray, LigatureBaseRecord, Subtable, GposMarkToLigatureSubtable, subtable_from_raw};
-use crate::table::otl::subtables::{BuildHeuristics};
-use crate::bk::bkblock::{bk_new_block_from_buffer};
-use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::coverage::{build_coverage};
-use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_parse_mark_array, otl_parse_anchor, otl_read_mark_array, otl_read_anchor};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes, preserialize};
+use crate::table::otl::coverage::build_coverage;
+use crate::table::otl::subtables::BuildHeuristics;
+use crate::table::otl::subtables::gpos_common::{
+    bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array, otl_read_anchor,
+    otl_read_mark_array,
+};
+use crate::table::otl::{
+    Anchor, GposMarkToLigatureSubtable, LigatureArray, LigatureBaseRecord, Subtable,
+    subtable_from_raw,
+};
+use crate::vendor::json::JsonType;
 // `LigatureBaseRecord.anchors` is a plain `Vec<Vec<Anchor>>` now and
 // `glyph: GlyphHandle` already has its own `Drop`, so a `LigatureArray`
 // (`Vec<LigatureBaseRecord>`) fully self-drops -- clearing it (still needed:
@@ -72,11 +88,21 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
         if header.skip(2).is_err() {
             break 'parse; // format, unused
         }
-        let Ok(marks_rel) = header.u16() else { break 'parse };
-        let Ok(bases_rel) = header.u16() else { break 'parse };
-        let Ok(class_count) = header.u16() else { break 'parse };
-        let Ok(mark_array_rel) = header.u16() else { break 'parse };
-        let Ok(lig_array_rel) = header.u16() else { break 'parse };
+        let Ok(marks_rel) = header.u16() else {
+            break 'parse;
+        };
+        let Ok(bases_rel) = header.u16() else {
+            break 'parse;
+        };
+        let Ok(class_count) = header.u16() else {
+            break 'parse;
+        };
+        let Ok(mark_array_rel) = header.u16() else {
+            break 'parse;
+        };
+        let Ok(lig_array_rel) = header.u16() else {
+            break 'parse;
+        };
 
         marks = read_coverage(data, table_length, offset.wrapping_add(marks_rel as u32));
         bases = read_coverage(data, table_length, offset.wrapping_add(bases_rel as u32));
@@ -86,11 +112,21 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
 
         (*subtable).class_count = class_count as GlyphClass;
         let mark_array_offset = offset.wrapping_add(mark_array_rel as u32);
-        otl_read_mark_array(&raw mut (*subtable).mark_array, marks, data, table_length, mark_array_offset);
+        otl_read_mark_array(
+            &raw mut (*subtable).mark_array,
+            marks,
+            data,
+            table_length,
+            mark_array_offset,
+        );
 
         let lig_array_offset = offset.wrapping_add(lig_array_rel as u32);
-        let Ok(mut lr) = FontReader::new(slice).at(lig_array_offset as usize) else { break 'parse };
-        let Ok(lig_count) = lr.u16() else { break 'parse };
+        let Ok(mut lr) = FontReader::new(slice).at(lig_array_offset as usize) else {
+            break 'parse;
+        };
+        let Ok(lig_count) = lr.u16() else {
+            break 'parse;
+        };
         if lig_count as usize != (*bases).len() {
             break 'parse;
         }
@@ -103,9 +139,14 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
         }
 
         for (j, &lig_attach_offset) in lig_attach_offsets.iter().enumerate() {
-            let Ok(mut ar) = FontReader::new(slice).at(lig_attach_offset as usize) else { break 'parse };
-            let Ok(component_count) = ar.u16() else { break 'parse };
-            let Some(total_anchors) = (component_count as usize).checked_mul(class_count as usize) else {
+            let Ok(mut ar) = FontReader::new(slice).at(lig_attach_offset as usize) else {
+                break 'parse;
+            };
+            let Ok(component_count) = ar.u16() else {
+                break 'parse;
+            };
+            let Some(total_anchors) = (component_count as usize).checked_mul(class_count as usize)
+            else {
                 break 'parse;
             };
             if ar.require_room(total_anchors, 2).is_err() {
@@ -121,7 +162,11 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
                 for _ in 0..class_count {
                     let anchor_rel = ar.u16().unwrap();
                     if anchor_rel != 0 {
-                        component.push(otl_read_anchor(data, table_length, lig_attach_offset.wrapping_add(anchor_rel as u32)));
+                        component.push(otl_read_anchor(
+                            data,
+                            table_length,
+                            lig_attach_offset.wrapping_add(anchor_rel as u32),
+                        ));
                     } else {
                         component.push(otl_anchor_absent());
                     }
@@ -151,7 +196,9 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
 pub unsafe extern "C" fn otl_gpos_dump_mark_to_ligature(
     mut st: *const Subtable,
 ) -> *mut BuiltValue {
-    let Subtable::GposMarkToLigature(mut_subtable) = &*st else { unreachable!() };
+    let Subtable::GposMarkToLigature(mut_subtable) = &*st else {
+        unreachable!()
+    };
     let subtable: *const GposMarkToLigatureSubtable = mut_subtable;
     let mut _subtable: *mut BuiltValue = json_object_new(3 as usize);
     let mut _marks: *mut BuiltValue = json_object_new((*subtable).mark_array.len());
@@ -187,7 +234,8 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_ligature(
     }
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).lig_array.len() {
-        let base: *const LigatureBaseRecord = &(&(*subtable).lig_array)[j_0 as usize] as *const LigatureBaseRecord;
+        let base: *const LigatureBaseRecord =
+            &(&(*subtable).lig_array)[j_0 as usize] as *const LigatureBaseRecord;
         let base_anchors: &Vec<Vec<Anchor>> = &(*base).anchors;
         let mut _base: *mut BuiltValue = json_array_new((*base).component_count as usize);
         let mut k: GlyphId = 0 as GlyphId;
@@ -200,18 +248,15 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_ligature(
                     json_object_push(
                         _anchor,
                         b"x\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_integer_new(
-                            base_anchors[k as usize][m as usize].x as i64,
-                        ),
+                        json_integer_new(base_anchors[k as usize][m as usize].x as i64),
                     );
                     json_object_push(
                         _anchor,
                         b"y\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_integer_new(
-                            base_anchors[k as usize][m as usize].y as i64,
-                        ),
+                        json_integer_new(base_anchors[k as usize][m as usize].y as i64),
                     );
-                    let mark_class_name_0: Vec<u8> = crate::bytesbuild!(b"ac_", m as ::core::ffi::c_int);
+                    let mark_class_name_0: Vec<u8> =
+                        crate::bytesbuild!(b"ac_", m as ::core::ffi::c_int);
                     json_object_push_bytes_key(_bk, &mark_class_name_0, _anchor);
                 }
                 m = m.wrapping_add(1);
@@ -262,9 +307,7 @@ unsafe fn parse_bases(
         lig.anchors = Vec::new();
         lig.glyph = handle_from_name(Some(json_obj_key_bytes_at(_bases, j as u32))) as GlyphHandle;
         let mut base_record: *const ParsedValue = json_obj_val_at(_bases, j as u32);
-        if base_record.is_null()
-            || json_type_of(base_record) != JsonType::Array
-        {
+        if base_record.is_null() || json_type_of(base_record) != JsonType::Array {
             (*subtable).lig_array.push(lig);
         } else {
             lig.component_count = json_arr_len(base_record) as GlyphId;
@@ -275,7 +318,8 @@ unsafe fn parse_bases(
                 // Indexed by `class_id` below, out of JSON key order --
                 // pre-sized and filled with "absent" rather than built with
                 // `.push()`.
-                lig.anchors.push(vec![otl_anchor_absent(); class_count as usize]);
+                lig.anchors
+                    .push(vec![otl_anchor_absent(); class_count as usize]);
                 if !(_component_record.is_null()
                     || json_type_of(_component_record) != JsonType::Object)
                 {
@@ -294,7 +338,8 @@ unsafe fn parse_bases(
                                     &mut *options.logger.borrow_mut(),
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
-                                    crate::bytesbuild!(b"[OTFCC-fea] Invalid anchor class name <",
+                                    crate::bytesbuild!(
+                                        b"[OTFCC-fea] Invalid anchor class name <",
                                         name_ptr,
                                         b"> for /",
                                         gname,
@@ -303,10 +348,9 @@ unsafe fn parse_bases(
                                 );
                             }
                             Some(&class_id) => {
-                                lig.anchors[k as usize][class_id as usize] =
-                                    otl_parse_anchor(
-                                        json_obj_val_at(_component_record, m_0 as u32),
-                                    );
+                                lig.anchors[k as usize][class_id as usize] = otl_parse_anchor(
+                                    json_obj_val_at(_component_record, m_0 as u32),
+                                );
                             }
                         }
                         m_0 = m_0.wrapping_add(1);
@@ -347,16 +391,17 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let Subtable::GposMarkToLigature(mut_subtable) = &*_subtable else { unreachable!() };
+    let Subtable::GposMarkToLigature(mut_subtable) = &*_subtable else {
+        unreachable!()
+    };
     let mut subtable: *const GposMarkToLigatureSubtable = mut_subtable;
     let mut marks: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).mark_array.len() {
         push_to_coverage(
             marks,
-            otfcc_handle_dup(
-                (&(*subtable).mark_array)[j as usize].glyph.clone() as Handle,
-            ) as GlyphHandle,
+            otfcc_handle_dup((&(*subtable).mark_array)[j as usize].glyph.clone() as Handle)
+                as GlyphHandle,
         );
         j = j.wrapping_add(1);
     }
@@ -365,38 +410,73 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
     while (j_0 as usize) < (*subtable).lig_array.len() {
         push_to_coverage(
             bases,
-            otfcc_handle_dup(
-                (&(*subtable).lig_array)[j_0 as usize].glyph.clone() as Handle,
-            ) as GlyphHandle,
+            otfcc_handle_dup((&(*subtable).lig_array)[j_0 as usize].glyph.clone() as Handle)
+                as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
-            marks,
-        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
-            bases,
-        ))), bk_int(BkCellType::B16, ((*subtable).class_count as ::core::ffi::c_int) as u32)]);
-    let mut mark_array: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*subtable).mark_array.len()) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[
+        bk_int(BkCellType::B16, 1 as u32),
+        bk_ptr(
+            BkCellType::P16,
+            bk_new_block_from_buffer(build_coverage(marks)),
+        ),
+        bk_ptr(
+            BkCellType::P16,
+            bk_new_block_from_buffer(build_coverage(bases)),
+        ),
+        bk_int(
+            BkCellType::B16,
+            ((*subtable).class_count as ::core::ffi::c_int) as u32,
+        ),
+    ]);
+    let mut mark_array: *mut BkBlock = bk_new_block(&[bk_int(
+        BkCellType::B16,
+        ((*subtable).mark_array.len()) as u32,
+    )]);
     let mut j_1: GlyphId = 0 as GlyphId;
     while (j_1 as usize) < (*subtable).mark_array.len() {
-        bk_push(mark_array, &[bk_int(BkCellType::B16, ((&(*subtable).mark_array)[j_1 as usize].mark_class as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_from_anchor((&(*subtable).mark_array)[j_1 as usize].anchor))]);
+        bk_push(
+            mark_array,
+            &[
+                bk_int(
+                    BkCellType::B16,
+                    ((&(*subtable).mark_array)[j_1 as usize].mark_class as ::core::ffi::c_int)
+                        as u32,
+                ),
+                bk_ptr(
+                    BkCellType::P16,
+                    bk_from_anchor((&(*subtable).mark_array)[j_1 as usize].anchor),
+                ),
+            ],
+        );
         j_1 = j_1.wrapping_add(1);
     }
-    let mut ligature_array: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*subtable).lig_array.len()) as u32)]);
+    let mut ligature_array: *mut BkBlock = bk_new_block(&[bk_int(
+        BkCellType::B16,
+        ((*subtable).lig_array.len()) as u32,
+    )]);
     let mut j_2: GlyphId = 0 as GlyphId;
     while (j_2 as usize) < (*subtable).lig_array.len() {
-        let mut attach: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((&(*subtable).lig_array)[j_2 as usize].component_count as ::core::ffi::c_int) as u32)]);
+        let mut attach: *mut BkBlock = bk_new_block(&[bk_int(
+            BkCellType::B16,
+            ((&(*subtable).lig_array)[j_2 as usize].component_count as ::core::ffi::c_int) as u32,
+        )]);
         let mut k: GlyphId = 0 as GlyphId;
         while (k as ::core::ffi::c_int)
-            < (&(*subtable).lig_array)[j_2 as usize].component_count
-                as ::core::ffi::c_int
+            < (&(*subtable).lig_array)[j_2 as usize].component_count as ::core::ffi::c_int
         {
             let mut m: GlyphClass = 0 as GlyphClass;
             while (m as ::core::ffi::c_int) < (*subtable).class_count as ::core::ffi::c_int {
-                bk_push(attach, &[bk_ptr(BkCellType::P16, bk_from_anchor(
-                        (&(*subtable).lig_array)[j_2 as usize]
-                            .anchors[k as usize][m as usize],
-                    ))]);
+                bk_push(
+                    attach,
+                    &[bk_ptr(
+                        BkCellType::P16,
+                        bk_from_anchor(
+                            (&(*subtable).lig_array)[j_2 as usize].anchors[k as usize][m as usize],
+                        ),
+                    )],
+                );
                 m = m.wrapping_add(1);
             }
             k = k.wrapping_add(1);
@@ -404,7 +484,13 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
         bk_push(ligature_array, &[bk_ptr(BkCellType::P16, attach)]);
         j_2 = j_2.wrapping_add(1);
     }
-    bk_push(root, &[bk_ptr(BkCellType::P16, mark_array), bk_ptr(BkCellType::P16, ligature_array)]);
+    bk_push(
+        root,
+        &[
+            bk_ptr(BkCellType::P16, mark_array),
+            bk_ptr(BkCellType::P16, ligature_array),
+        ],
+    );
     otl_coverage_free(marks);
     otl_coverage_free(bases);
     return bk_build_block(root);
@@ -454,7 +540,9 @@ mod otl_read_gpos_mark_to_ligature_tests {
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
-            let Subtable::GposMarkToLigature(subtable) = &*boxed else { unreachable!() };
+            let Subtable::GposMarkToLigature(subtable) = &*boxed else {
+                unreachable!()
+            };
             assert_eq!(subtable.class_count, 1);
             assert_eq!(subtable.lig_array.len(), 1);
             assert_eq!(subtable.lig_array[0].glyph.index, 6);

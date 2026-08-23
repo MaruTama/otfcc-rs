@@ -1,46 +1,21 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::handle::{Handle, HandleState, GlyphHandle};
+use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::support::options::{Options};
-use crate::support::primitives::{GlyphId};
+use crate::support::options::Options;
+use crate::support::primitives::GlyphId;
 
-use crate::font::caryll_font::{Font};
-
-
-
+use crate::font::caryll_font::Font;
 
 use crate::table::gdef::{CaretValueList, CaretValueRecord, GdefTable, clear_lig_carets};
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 use crate::table::otl::classdef::ClassDef;
 
-
-
-
-use crate::consolidate::otl::common::{fontop_consolidate_class_def};
-use crate::support::glyph_order::{otfcc_gord_consolidate_handle, GlyphOrder};
-use crate::table::otl::classdef::{shrink_class_def};
+use crate::consolidate::otl::common::fontop_consolidate_class_def;
+use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
+use crate::table::otl::classdef::shrink_class_def;
 
 pub unsafe fn consolidate_gdef(
     mut font: *mut Font,
@@ -102,17 +77,15 @@ pub unsafe fn consolidate_gdef(
             std::collections::BTreeMap::new();
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < lig_carets.len() {
-            if otfcc_gord_consolidate_handle(
-                glyph_order,
-                &raw mut lig_carets[j as usize].glyph,
-            ) {
+            if otfcc_gord_consolidate_handle(glyph_order, &raw mut lig_carets[j as usize].glyph) {
                 let gid: i32 = lig_carets[j as usize].glyph.index as i32;
                 if seen.contains_key(&gid) {
                     logger_log_sds(
                         &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::bytesbuild!(b"[Consolidate] Detected caret value double-mapping about glyph ",
+                        crate::bytesbuild!(
+                            b"[Consolidate] Detected caret value double-mapping about glyph ",
                             &lig_carets[j as usize].glyph.name,
                         ),
                     );

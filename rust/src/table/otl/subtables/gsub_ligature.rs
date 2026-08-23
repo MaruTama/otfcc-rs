@@ -1,22 +1,31 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of};
-use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
+use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_bytes_at, json_obj_len,
+    json_obj_val_at, json_str_bytes, json_type_of,
+};
+use crate::table::otl::coverage::{
+    Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage,
+    read_coverage,
+};
 
-use crate::support::font_reader::{FontReader};
+use crate::support::font_reader::FontReader;
 
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
+use crate::bk::bkblock::bk_new_block_from_buffer;
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::bkgraph::bk_build_block;
+use crate::support::buffer::Buffer;
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_object_new, json_object_push,
+    json_string_new_from_bytes, preserialize,
+};
+use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::table::otl::{GsubLigatureEntry, Subtable, GsubLigatureSubtable, subtable_from_raw};
-use crate::table::otl::subtables::{BuildHeuristics};
-use crate::bk::bkblock::{bk_new_block_from_buffer};
-use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::coverage::{dump_coverage, parse_coverage, build_coverage};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_object_new, json_object_push, json_string_new_from_bytes, preserialize};
+use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
+use crate::table::otl::subtables::BuildHeuristics;
+use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, Subtable, subtable_from_raw};
+use crate::vendor::json::JsonType;
 // `from: Coverage` and `to: GlyphHandle` both self-drop now, so a
 // `GsubLigatureSubtable` (`Vec<GsubLigatureEntry>`) fully self-drops -- no
 // per-element dtor needed anymore.
@@ -74,8 +83,12 @@ pub unsafe fn otl_read_gsub_ligature(
         if header.skip(2).is_err() {
             break 'parse; // format, unused
         }
-        let Ok(cov_rel) = header.u16() else { break 'parse };
-        let Ok(set_count) = header.u16() else { break 'parse };
+        let Ok(cov_rel) = header.u16() else {
+            break 'parse;
+        };
+        let Ok(set_count) = header.u16() else {
+            break 'parse;
+        };
 
         start_coverage = read_coverage(data, table_length, offset.wrapping_add(cov_rel as u32));
         if start_coverage.is_null() {
@@ -93,8 +106,12 @@ pub unsafe fn otl_read_gsub_ligature(
         }
 
         for (j, &set_offset) in set_offsets.iter().enumerate() {
-            let Ok(mut sr) = FontReader::new(slice).at(set_offset as usize) else { break 'parse };
-            let Ok(lig_count) = sr.u16() else { break 'parse };
+            let Ok(mut sr) = FontReader::new(slice).at(set_offset as usize) else {
+                break 'parse;
+            };
+            let Ok(lig_count) = sr.u16() else {
+                break 'parse;
+            };
             if sr.require_room(lig_count as usize, 2).is_err() {
                 break 'parse;
             }
@@ -104,16 +121,31 @@ pub unsafe fn otl_read_gsub_ligature(
             }
 
             for &lig_offset in &lig_offsets {
-                let Ok(mut lr) = FontReader::new(slice).at(lig_offset as usize) else { break 'parse };
-                let Ok(lig_glyph) = lr.u16() else { break 'parse };
-                let Ok(lig_components) = lr.u16() else { break 'parse };
-                if lr.require_room((lig_components as usize).saturating_sub(1), 2).is_err() {
+                let Ok(mut lr) = FontReader::new(slice).at(lig_offset as usize) else {
+                    break 'parse;
+                };
+                let Ok(lig_glyph) = lr.u16() else {
+                    break 'parse;
+                };
+                let Ok(lig_components) = lr.u16() else {
+                    break 'parse;
+                };
+                if lr
+                    .require_room((lig_components as usize).saturating_sub(1), 2)
+                    .is_err()
+                {
                     break 'parse;
                 }
                 let cov: *mut Coverage = otl_coverage_create();
-                push_to_coverage(cov, handle_from_index((&(*start_coverage))[j].index) as GlyphHandle);
+                push_to_coverage(
+                    cov,
+                    handle_from_index((&(*start_coverage))[j].index) as GlyphHandle,
+                );
                 for _ in 1..lig_components {
-                    push_to_coverage(cov, handle_from_index(lr.u16().unwrap() as GlyphId) as GlyphHandle);
+                    push_to_coverage(
+                        cov,
+                        handle_from_index(lr.u16().unwrap() as GlyphId) as GlyphHandle,
+                    );
                 }
                 (*subtable).push(GsubLigatureEntry {
                     from: coverage_from_raw(cov),
@@ -130,10 +162,10 @@ pub unsafe fn otl_read_gsub_ligature(
     }
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe extern "C" fn otl_gsub_dump_ligature(
-    mut _subtable: *const Subtable,
-) -> *mut BuiltValue {
-    let Subtable::GsubLigature(mut_subtable) = &*_subtable else { unreachable!() };
+pub unsafe extern "C" fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) -> *mut BuiltValue {
+    let Subtable::GsubLigature(mut_subtable) = &*_subtable else {
+        unreachable!()
+    };
     let subtable: *const GsubLigatureSubtable = mut_subtable;
     let mut st: *mut BuiltValue = json_array_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
@@ -142,9 +174,7 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(
         json_object_push(
             entry,
             b"from\0" as *const u8 as *const ::core::ffi::c_char,
-            dump_coverage(
-                &(&(*subtable))[j as usize].from as *const Coverage,
-            ),
+            dump_coverage(&(&(*subtable))[j as usize].from as *const Coverage),
         );
         json_object_push(
             entry,
@@ -195,9 +225,7 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
             );
             if !(_from.is_null() || _to.is_null()) {
                 (*st).push(GsubLigatureEntry {
-                    from: coverage_from_raw(
-                        parse_coverage(_from),
-                    ),
+                    from: coverage_from_raw(parse_coverage(_from)),
                     to: handle_from_name(Some(json_str_bytes(_to))) as GlyphHandle,
                 });
             }
@@ -210,14 +238,11 @@ pub unsafe extern "C" fn otl_gsub_parse_ligature(
         let mut k_0: GlyphId = 0 as GlyphId;
         while (k_0 as ::core::ffi::c_int) < n_0 as ::core::ffi::c_int {
             let mut _from_0: *const ParsedValue = json_obj_val_at(_subtable, k_0 as u32);
-            if !(_from_0.is_null()
-                || json_type_of(_from_0) != JsonType::Array)
-            {
+            if !(_from_0.is_null() || json_type_of(_from_0) != JsonType::Array) {
                 (*st_0).push(GsubLigatureEntry {
-                    from: coverage_from_raw(
-                        parse_coverage(_from_0),
-                    ),
-                    to: handle_from_name(Some(json_obj_key_bytes_at(_subtable, k_0 as u32))) as GlyphHandle,
+                    from: coverage_from_raw(parse_coverage(_from_0)),
+                    to: handle_from_name(Some(json_obj_key_bytes_at(_subtable, k_0 as u32)))
+                        as GlyphHandle,
                 });
             }
             k_0 = k_0.wrapping_add(1);
@@ -239,54 +264,73 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let Subtable::GsubLigature(mut_subtable) = &*_subtable else { unreachable!() };
+    let Subtable::GsubLigature(mut_subtable) = &*_subtable else {
+        unreachable!()
+    };
     let subtable: *const GsubLigatureSubtable = mut_subtable;
     let n_ligatures: GlyphId = (*subtable).len() as GlyphId;
-    let mut start_gids: std::collections::BTreeSet<::core::ffi::c_int> = std::collections::BTreeSet::new();
+    let mut start_gids: std::collections::BTreeSet<::core::ffi::c_int> =
+        std::collections::BTreeSet::new();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-        let sgid: ::core::ffi::c_int = (&(*subtable))[j as usize].from[0].index as ::core::ffi::c_int;
+        let sgid: ::core::ffi::c_int =
+            (&(*subtable))[j as usize].from[0].index as ::core::ffi::c_int;
         start_gids.insert(sgid);
         j = j.wrapping_add(1);
     }
     let mut startcov: *mut Coverage = otl_coverage_create();
     for &gid in start_gids.iter() {
-        push_to_coverage(
-            startcov,
-            handle_from_index(gid as GlyphId) as GlyphHandle,
-        );
+        push_to_coverage(startcov, handle_from_index(gid as GlyphId) as GlyphHandle);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
-            startcov,
-        ))), bk_int(BkCellType::B16, ((*startcov).len() as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[
+        bk_int(BkCellType::B16, 1 as u32),
+        bk_ptr(
+            BkCellType::P16,
+            bk_new_block_from_buffer(build_coverage(startcov)),
+        ),
+        bk_int(
+            BkCellType::B16,
+            ((*startcov).len() as ::core::ffi::c_int) as u32,
+        ),
+    ]);
     for &gid in start_gids.iter() {
         let mut n_ligs_here: GlyphId = 0 as GlyphId;
         let mut j_0: GlyphId = 0 as GlyphId;
         while (j_0 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-            if (&(*subtable))[j_0 as usize].from[0]
-            .index as ::core::ffi::c_int
-                == gid
-            {
+            if (&(*subtable))[j_0 as usize].from[0].index as ::core::ffi::c_int == gid {
                 n_ligs_here = n_ligs_here.wrapping_add(1);
             }
             j_0 = j_0.wrapping_add(1);
         }
-        let mut ligset: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (n_ligs_here as ::core::ffi::c_int) as u32)]);
+        let mut ligset: *mut BkBlock = bk_new_block(&[bk_int(
+            BkCellType::B16,
+            (n_ligs_here as ::core::ffi::c_int) as u32,
+        )]);
         let mut j_1: GlyphId = 0 as GlyphId;
         while (j_1 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-            if (&(*subtable))[j_1 as usize].from[0]
-            .index as ::core::ffi::c_int
-                == gid
-            {
-                let mut ligdef: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((&(*subtable))[j_1 as usize].to.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((&(*subtable))[j_1 as usize].from.len()
-                        as ::core::ffi::c_int) as u32)]);
+            if (&(*subtable))[j_1 as usize].from[0].index as ::core::ffi::c_int == gid {
+                let mut ligdef: *mut BkBlock = bk_new_block(&[
+                    bk_int(
+                        BkCellType::B16,
+                        ((&(*subtable))[j_1 as usize].to.index as ::core::ffi::c_int) as u32,
+                    ),
+                    bk_int(
+                        BkCellType::B16,
+                        ((&(*subtable))[j_1 as usize].from.len() as ::core::ffi::c_int) as u32,
+                    ),
+                ]);
                 let mut m: GlyphId = 1 as GlyphId;
                 while (m as ::core::ffi::c_int)
-                    < (&(*subtable))[j_1 as usize].from.len()
-                        as ::core::ffi::c_int
+                    < (&(*subtable))[j_1 as usize].from.len() as ::core::ffi::c_int
                 {
-                    bk_push(ligdef, &[bk_int(BkCellType::B16, ((&(*subtable))[j_1 as usize].from[m as usize]
-                        .index as ::core::ffi::c_int) as u32)]);
+                    bk_push(
+                        ligdef,
+                        &[bk_int(
+                            BkCellType::B16,
+                            ((&(*subtable))[j_1 as usize].from[m as usize].index
+                                as ::core::ffi::c_int) as u32,
+                        )],
+                    );
                     m = m.wrapping_add(1);
                 }
                 bk_push(ligset, &[bk_ptr(BkCellType::P16, ligdef)]);
@@ -321,12 +365,18 @@ mod otl_read_gsub_ligature_tests {
         data[20..22].copy_from_slice(&2u16.to_be_bytes());
         data[22..24].copy_from_slice(&20u16.to_be_bytes());
         unsafe {
-            let raw = otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
+            let raw =
+                otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
-            let Subtable::GsubLigature(entries) = &*boxed else { unreachable!() };
+            let Subtable::GsubLigature(entries) = &*boxed else {
+                unreachable!()
+            };
             assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].from.iter().map(|h| h.index).collect::<Vec<_>>(), vec![10, 20]);
+            assert_eq!(
+                entries[0].from.iter().map(|h| h.index).collect::<Vec<_>>(),
+                vec![10, 20]
+            );
             assert_eq!(entries[0].to.index, 30);
         }
     }
@@ -342,7 +392,8 @@ mod otl_read_gsub_ligature_tests {
         data[10..12].copy_from_slice(&1u16.to_be_bytes());
         data[12..14].copy_from_slice(&10u16.to_be_bytes());
         unsafe {
-            let raw = otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
+            let raw =
+                otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(raw.is_null());
         }
     }

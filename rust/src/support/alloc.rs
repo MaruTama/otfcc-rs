@@ -6,7 +6,7 @@
 // already reviewed for the idiomatization pass) have been migrated to use
 // this module so far; the remaining ~47 files still carry their own private
 // copy pending a future, wider pass.
-use crate::support::stdio::{stderr};
+use crate::support::stdio::stderr;
 
 use libc::{calloc, exit, fprintf, free, realloc};
 

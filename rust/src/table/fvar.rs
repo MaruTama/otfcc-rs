@@ -1,20 +1,26 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
 use crate::support::built_json::{json_new_position, json_object_push_tag, preserialize};
+use crate::support::options::Options;
 use crate::support::parsed_json::{ParsedValue, json_numof};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::options::{Options};
 use crate::support::primitives::{F16Dot16, FontFilePointer, Pos};
 
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new,
+    json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key,
+    json_object_push_length, json_string_new, json_string_new_from_bytes,
+};
+use crate::support::primitives::otfcc_from_fixed;
 use crate::vf::axis::{VfAxes, VfAxis};
 use crate::vf::region::{VqAxisSpan, VqRegion};
-use crate::vf::vq::{VQ, VqSegment};
-use crate::vf::vv::VV;
-use crate::support::primitives::{otfcc_from_fixed};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_object_push_length, json_string_new, json_string_new_from_bytes};
 use crate::vf::region::{vq_axis_span_is_one, vq_delete_region};
+use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vq::{vq_create_still, vq_get_still};
+use crate::vf::vv::VV;
 pub struct FvarInstance {
     pub subfamily_name_id: u16,
     pub flags: u16,
@@ -171,10 +177,7 @@ unsafe fn fvar_find_master_by_region(
         None => ::core::ptr::null::<FvarMaster>(),
     }
 }
-pub unsafe fn otfcc_read_fvar(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<FvarTable>> {
+pub unsafe fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTable>> {
     let mut header: *mut FVARHeader = ::core::ptr::null_mut::<FVARHeader>();
     let mut n_axes: u16 = 0;
     let mut instance_size_without_psnid: u16 = 0;
@@ -223,11 +226,14 @@ pub unsafe fn otfcc_read_fvar(
                                             instance_size_with_psnid = (2 as ::core::ffi::c_int
                                                 + instance_size_without_psnid as ::core::ffi::c_int)
                                                 as u16;
-                                            if !(be16((*header).instance_size) as ::core::ffi::c_int
-                                                != instance_size_without_psnid as ::core::ffi::c_int
+                                            if !(be16((*header).instance_size)
+                                                as ::core::ffi::c_int
+                                                != instance_size_without_psnid
+                                                    as ::core::ffi::c_int
                                                 && be16((*header).instance_size)
                                                     as ::core::ffi::c_int
-                                                    != instance_size_with_psnid as ::core::ffi::c_int)
+                                                    != instance_size_with_psnid
+                                                        as ::core::ffi::c_int)
                                             {
                                                 if !((table.length as usize)
                                                     < (be16((*header).axes_array_offset) as usize)
@@ -236,7 +242,7 @@ pub unsafe fn otfcc_read_fvar(
                                                                 VariationAxisRecord,
                                                             >(
                                                             )
-                                                                .wrapping_mul(n_axes as usize),
+                                                            .wrapping_mul(n_axes as usize),
                                                         )
                                                         .wrapping_add(
                                                             (be16((*header).instance_size)
@@ -246,19 +252,22 @@ pub unsafe fn otfcc_read_fvar(
                                                                 as usize,
                                                         ))
                                                 {
-                                                    let mut fvar_box: Box<FvarTable> = Box::new(FvarTable {
-                                                        major_version: 0,
-                                                        minor_version: 0,
-                                                        axes: Vec::new(),
-                                                        instances: Vec::new(),
-                                                        masters: indexmap::IndexMap::new(),
-                                                    });
-                                                    let fvar: *mut FvarTable = fvar_box.as_mut() as *mut FvarTable;
-                                                    axis_record =
-                                                        data.offset(be16((*header).axes_array_offset)
-                                                            as ::core::ffi::c_int
-                                                            as isize)
-                                                            as *mut VariationAxisRecord;
+                                                    let mut fvar_box: Box<FvarTable> =
+                                                        Box::new(FvarTable {
+                                                            major_version: 0,
+                                                            minor_version: 0,
+                                                            axes: Vec::new(),
+                                                            instances: Vec::new(),
+                                                            masters: indexmap::IndexMap::new(),
+                                                        });
+                                                    let fvar: *mut FvarTable =
+                                                        fvar_box.as_mut() as *mut FvarTable;
+                                                    axis_record = data.offset(be16(
+                                                        (*header).axes_array_offset,
+                                                    )
+                                                        as ::core::ffi::c_int
+                                                        as isize)
+                                                        as *mut VariationAxisRecord;
                                                     let mut j: u16 = 0 as u16;
                                                     while (j as ::core::ffi::c_int)
                                                         < n_axes as ::core::ffi::c_int
@@ -271,8 +280,7 @@ pub unsafe fn otfcc_read_fvar(
                                                                 as F16Dot16)
                                                                 as Pos,
                                                             default_value: otfcc_from_fixed(be32(
-                                                                (*axis_record).default_value
-                                                                    as u32,
+                                                                (*axis_record).default_value as u32,
                                                             )
                                                                 as F16Dot16)
                                                                 as Pos,
@@ -301,13 +309,12 @@ pub unsafe fn otfcc_read_fvar(
                                                     while (j_0 as ::core::ffi::c_int)
                                                         < n_instances as ::core::ffi::c_int
                                                     {
-                                                        let mut inst: FvarInstance =
-                                                            FvarInstance {
-                                                                subfamily_name_id: 0,
-                                                                flags: 0,
-                                                                coordinates: Vec::new(),
-                                                                post_script_name_id: 0,
-                                                            };
+                                                        let mut inst: FvarInstance = FvarInstance {
+                                                            subfamily_name_id: 0,
+                                                            flags: 0,
+                                                            coordinates: Vec::new(),
+                                                            post_script_name_id: 0,
+                                                        };
                                                         // `FVAR_I_INSTANCE.init` deleted: it only
                                                         // (re-)zeroed fields the literal above
                                                         // already set, field for field -- fully
@@ -539,9 +546,7 @@ pub unsafe fn json_new_vq_segment(
 }
 pub unsafe fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *mut BuiltValue {
     if z.shift.is_empty() {
-        return preserialize(json_new_position(vq_get_still(
-            z
-        )));
+        return preserialize(json_new_position(vq_get_still(z)));
     } else {
         let mut a: *mut BuiltValue = json_array_new(z.shift.len().wrapping_add(1 as usize));
         json_array_push(a, json_new_position(z.kernel));
@@ -561,10 +566,7 @@ pub unsafe fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *mut BuiltVa
 // prior target's dead vtable-adjacent duplicate -- and deleted outright
 // rather than ported (it would need `x: VV` to become `x: Vec<Pos>`, moving
 // or cloning the caller's coordinates for no live caller).
-pub unsafe fn json_new_v_vp(
-    x: *const VV,
-    fvar: *const FvarTable,
-) -> *mut BuiltValue {
+pub unsafe fn json_new_v_vp(x: *const VV, fvar: *const FvarTable) -> *mut BuiltValue {
     let axes: &Vec<VfAxis> = &(*fvar).axes;
     let coords: &Vec<Pos> = &*x;
     if axes.len() == coords.len() {
@@ -577,8 +579,7 @@ pub unsafe fn json_new_v_vp(
                     as ::core::ffi::c_char,
                 (((*axis).tag & 0xff0000 as u32) >> 16 as ::core::ffi::c_int)
                     as ::core::ffi::c_char,
-                (((*axis).tag & 0xff00 as u32) >> 8 as ::core::ffi::c_int)
-                    as ::core::ffi::c_char,
+                (((*axis).tag & 0xff00 as u32) >> 8 as ::core::ffi::c_int) as ::core::ffi::c_char,
                 ((*axis).tag & 0xff as u32) as ::core::ffi::c_char,
             ];
             json_object_push_length(

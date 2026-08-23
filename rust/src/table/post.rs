@@ -1,18 +1,25 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::buffer::Buffer;
+use crate::support::buffer::{bufnew, bufwrite_bytes, bufwrite8, bufwrite16b, bufwrite32b};
+use crate::support::built_json::{
+    BuiltValue, json_boolean_new, json_double_new, json_integer_new, json_object_new,
+    json_object_push,
+};
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
+use crate::support::glyph_order::GlyphOrder;
+use crate::support::glyph_order::otfcc_set_glyph_order_by_gid;
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_obj_get_type, json_obj_getbool, json_obj_getnum,
+};
 use crate::support::primitives::{F16Dot16, GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet};
-use crate::support::glyph_order::{GlyphOrder};
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getbool, json_obj_getnum};
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
-use crate::support::glyph_order::{otfcc_set_glyph_order_by_gid};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
-use crate::support::built_json::{BuiltValue, json_boolean_new, json_double_new, json_integer_new, json_object_new, json_object_push};
+use crate::vendor::json::JsonType;
 
 #[repr(C)]
 pub struct PostTable {
@@ -391,11 +398,11 @@ fn parse_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
     })
 }
 
-pub unsafe fn otfcc_read_post(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<PostTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_POST)?;
+pub unsafe fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<PostTable>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_POST)?;
     let parsed = match parse_post(&table.data) {
         Ok(parsed) => parsed,
         Err(_) => {
@@ -573,9 +580,7 @@ pub unsafe fn otfcc_parse_post(
                 b"maxMemType1\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u32;
             ___loggedstep_v = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
     return Some(post_box);

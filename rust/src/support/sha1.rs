@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{memset};
+use libc::memset;
 pub type BYTE = ::core::ffi::c_uchar;
 pub type WORD = ::core::ffi::c_uint;
 #[derive(Copy, Clone)]
@@ -134,11 +134,7 @@ pub unsafe fn sha1_init(mut ctx: *mut Sha1Ctx) {
     (*ctx).k[2 as ::core::ffi::c_int as usize] = 0x8f1bbcdc as ::core::ffi::c_uint as WORD;
     (*ctx).k[3 as ::core::ffi::c_int as usize] = 0xca62c1d6 as ::core::ffi::c_uint as WORD;
 }
-pub unsafe fn sha1_update(
-    mut ctx: *mut Sha1Ctx,
-    mut data: *const BYTE,
-    mut len: usize,
-) {
+pub unsafe fn sha1_update(mut ctx: *mut Sha1Ctx, mut data: *const BYTE, mut len: usize) {
     let mut i: usize = 0;
     i = 0 as usize;
     while i < len {

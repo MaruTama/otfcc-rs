@@ -1,49 +1,31 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
+use crate::font::caryll_font::Font;
+use crate::support::buffer::Buffer;
+use crate::support::glyph_order::GlyphOrder;
+use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos};
-use crate::vendor::sds::{Hex2Upper, Hex4Upper, SdsPart};
-use crate::font::caryll_font::{Font};
-use crate::support::glyph_order::{GlyphOrder};
 use crate::support::sha1::{BYTE, Sha1Ctx};
+use crate::vendor::sds::{Hex2Upper, Hex4Upper, SdsPart};
 
+use crate::table::glyf::{ComponentReference, Contour, GlyfTable, Glyph};
 
+use crate::table::otl::{
+    ChainingRule, ChainingSubtable, Lookup, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING,
+    OtlTable, Subtable, SubtableList,
+};
 
-
-
-
-
-
-
-
-
-
-
-
-use crate::table::glyf::{ComponentReference, Contour, Glyph, GlyfTable};
-
-
-
-
-
-
-use crate::table::otl::{ChainingRule, ChainingSubtable, Lookup, Subtable, SubtableList, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING, OtlTable};
-
-
-
-
-
-
-use crate::vf::region::{VqAxisSpan};
-use crate::vf::vq::{VQ, VqSegment};
-use crate::support::aglfn::{aglfn_setup_names};
-use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_bytes};
+use crate::support::aglfn::aglfn_setup_names;
+use crate::support::buffer::{
+    buffree, buflen, bufnew, bufwrite_bytes, bufwrite8, bufwrite16b, bufwrite32b,
+};
 use crate::support::glyph_order::{
     gord_lookup_name, otfcc_glyph_order_create, otfcc_glyph_order_free,
     otfcc_gord_name_a_field_shared, otfcc_set_glyph_order_by_gid,
 };
 use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
 use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
+use crate::vf::region::VqAxisSpan;
+use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vq::{vq_create_still, vq_inplace_plus};
 
 #[derive(Copy, Clone)]
@@ -55,10 +37,7 @@ unsafe fn hash_vqs(buf: *mut Buffer, s: VqSegment) {
     bufwrite8(buf, s.discriminant_byte());
     match s {
         VqSegment::Still(still) => {
-            bufwrite32b(
-                buf,
-                otfcc_to_fixed(still as ::core::ffi::c_double) as u32,
-            );
+            bufwrite32b(buf, otfcc_to_fixed(still as ::core::ffi::c_double) as u32);
         }
         VqSegment::Delta(delta) => {
             bufwrite32b(
@@ -68,8 +47,7 @@ unsafe fn hash_vqs(buf: *mut Buffer, s: VqSegment) {
             bufwrite32b(buf, (*delta.region).dimensions as u32);
             for j in 0..(*delta.region).dimensions as usize {
                 let span: *const VqAxisSpan =
-                    (&raw const (*delta.region).spans as *const VqAxisSpan)
-                        .offset(j as isize);
+                    (&raw const (*delta.region).spans as *const VqAxisSpan).offset(j as isize);
                 bufwrite32b(
                     buf,
                     otfcc_to_f2dot14((*span).start as ::core::ffi::c_double) as u32,
@@ -96,10 +74,7 @@ unsafe fn hash_vq(buf: *mut Buffer, x: VQ) {
         hash_vqs(buf, x.shift[j]);
     }
 }
-pub unsafe fn name_glyph_by_hash(
-    mut g: *const Glyph,
-    mut glyf: *const GlyfTable,
-) -> GlyphHash {
+pub unsafe fn name_glyph_by_hash(mut g: *const Glyph, mut glyf: *const GlyfTable) -> GlyphHash {
     let buf: *mut Buffer = bufnew();
     bufwrite8(buf, 'H' as i32 as u8);
     hash_vq(buf, (*g).advance_width.clone());
@@ -131,11 +106,7 @@ pub unsafe fn name_glyph_by_hash(
             (&(*glyf))[(*r).glyph.index as usize].as_deref().unwrap() as *const Glyph,
             glyf,
         );
-        bufwrite_bytes(
-            buf,
-            SHA1_BLOCK_SIZE as usize,
-            &raw mut h.hash as *mut u8,
-        );
+        bufwrite_bytes(buf, SHA1_BLOCK_SIZE as usize, &raw mut h.hash as *mut u8);
         hash_vq(buf, (*r).x.clone());
         hash_vq(buf, (*r).y.clone());
         bufwrite32b(
@@ -160,16 +131,28 @@ pub unsafe fn name_glyph_by_hash(
     bufwrite8(buf, 'H' as i32 as u8);
     bufwrite8(buf, '(' as i32 as u8);
     for stem in (*g).stem_h.iter() {
-        bufwrite32b(buf, otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32);
-        bufwrite32b(buf, otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32);
+        bufwrite32b(
+            buf,
+            otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32,
+        );
+        bufwrite32b(
+            buf,
+            otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32,
+        );
     }
     bufwrite8(buf, ')' as i32 as u8);
     bufwrite8(buf, 's' as i32 as u8);
     bufwrite8(buf, 'V' as i32 as u8);
     bufwrite8(buf, '(' as i32 as u8);
     for stem in (*g).stem_v.iter() {
-        bufwrite32b(buf, otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32);
-        bufwrite32b(buf, otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32);
+        bufwrite32b(
+            buf,
+            otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32,
+        );
+        bufwrite32b(
+            buf,
+            otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32,
+        );
     }
     bufwrite8(buf, ')' as i32 as u8);
     bufwrite8(buf, 'm' as i32 as u8);
@@ -221,13 +204,8 @@ pub unsafe fn name_glyph_by_hash(
     buffree(buf);
     return h_0;
 }
-unsafe fn create_glyph_order(
-    mut font: *mut Font,
-    mut options: &Options,
-) -> *mut GlyphOrder {
-    let mut glyph_order: *mut GlyphOrder =
-        (
-            otfcc_glyph_order_create)();
+unsafe fn create_glyph_order(mut font: *mut Font, mut options: &Options) -> *mut GlyphOrder {
+    let mut glyph_order: *mut GlyphOrder = (otfcc_glyph_order_create)();
     // Only ever called (from `otfcc_unconsolidate_font`) under a
     // `.glyf.is_some()` guard.
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
@@ -249,8 +227,7 @@ unsafe fn create_glyph_order(
                 Hex2Upper((h.hash[j_0 as usize] as ::core::ffi::c_int) as u32)
                     .append_to_vec(&mut gname);
             }
-            if gord_lookup_name(glyph_order, gname.clone())
-            {
+            if gord_lookup_name(glyph_order, gname.clone()) {
                 let mut n: GlyphId = 2 as GlyphId;
                 let mut still_in: bool = false;
                 loop {
@@ -259,31 +236,23 @@ unsafe fn create_glyph_order(
                     }
                     let newname: Vec<u8> =
                         crate::bytesbuild!(&gname, b"-", &prefix, n as ::core::ffi::c_int);
-                    still_in = gord_lookup_name(
-                        glyph_order, newname
-                    );
+                    still_in = gord_lookup_name(glyph_order, newname);
                     if !still_in {
                         break;
                     }
                 }
                 let newname_0: Vec<u8> =
                     crate::bytesbuild!(&gname, b"-", &prefix, n as ::core::ffi::c_int);
-                let shared_name: Vec<u8> = otfcc_set_glyph_order_by_gid(
-                    glyph_order, j, newname_0
-                );
+                let shared_name: Vec<u8> = otfcc_set_glyph_order_by_gid(glyph_order, j, newname_0);
                 (*g).name = shared_name;
             } else {
-                let shared_name_0: Vec<u8> = otfcc_set_glyph_order_by_gid(
-                    glyph_order, j, gname
-                );
+                let shared_name_0: Vec<u8> = otfcc_set_glyph_order_by_gid(glyph_order, j, gname);
                 (*g).name = shared_name_0;
             }
         } else if !(options.ignore_glyph_order || options.name_glyphs_by_gid) {
             if !(*g).name.is_empty() {
                 let gname_0: Vec<u8> = crate::bytesbuild!(&prefix, &(*g).name);
-                let shared_name_1: Vec<u8> = otfcc_set_glyph_order_by_gid(
-                    glyph_order, j, gname_0
-                );
+                let shared_name_1: Vec<u8> = otfcc_set_glyph_order_by_gid(glyph_order, j, gname_0);
                 (*g).name = shared_name_1;
             }
         }
@@ -302,21 +271,13 @@ unsafe fn create_glyph_order(
         }
     }
     if (*font).cmap.is_some() && !options.name_glyphs_by_gid {
-        let mut aglfn: *mut GlyphOrder =
-            (
-                otfcc_glyph_order_create)();
+        let mut aglfn: *mut GlyphOrder = (otfcc_glyph_order_create)();
         aglfn_setup_names(aglfn);
         for (&unicode, glyph) in (*font).cmap.as_ref().unwrap().unicodes.iter() {
             if glyph.index as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
                 let mut name_bytes: Vec<u8> = Vec::new();
-                if unicode > 0 as ::core::ffi::c_int
-                    && unicode < 0xffff as ::core::ffi::c_int
-                {
-                    otfcc_gord_name_a_field_shared(
-                        aglfn,
-                        unicode as GlyphId,
-                        &raw mut name_bytes,
-                    );
+                if unicode > 0 as ::core::ffi::c_int && unicode < 0xffff as ::core::ffi::c_int {
+                    otfcc_gord_name_a_field_shared(aglfn, unicode as GlyphId, &raw mut name_bytes);
                 }
                 let name: Vec<u8>;
                 if name_bytes.is_empty() {
@@ -324,9 +285,7 @@ unsafe fn create_glyph_order(
                 } else {
                     name = crate::bytesbuild!(&prefix, &name_bytes);
                 }
-                otfcc_set_glyph_order_by_gid(
-                    glyph_order, glyph.index, name
-                );
+                otfcc_set_glyph_order_by_gid(glyph_order, glyph.index, name);
             }
         }
         otfcc_glyph_order_free(aglfn);
@@ -337,12 +296,16 @@ unsafe fn create_glyph_order(
             name_0 = crate::bytesbuild!(&prefix, b"glyph", j_1 as ::core::ffi::c_int);
         } else if j_1 == 1 {
             if (&(*glyf))[1 as usize].is_some()
-                && (&(*glyf))[1 as usize].as_deref().unwrap()
-                .contours
-                .is_empty()
-                && (&(*glyf))[1 as usize].as_deref().unwrap()
-                .references
-                .is_empty()
+                && (&(*glyf))[1 as usize]
+                    .as_deref()
+                    .unwrap()
+                    .contours
+                    .is_empty()
+                && (&(*glyf))[1 as usize]
+                    .as_deref()
+                    .unwrap()
+                    .references
+                    .is_empty()
             {
                 name_0 = crate::bytesbuild!(&prefix, b".null");
             } else {
@@ -369,11 +332,7 @@ unsafe fn name_glyphs(mut font: *mut Font, mut gord: *mut GlyphOrder) {
         (*g).name = glyph_name;
     }
 }
-unsafe fn unconsolidate_chaining(
-    _font: *mut Font,
-    lookup: *mut Lookup,
-    _table: *mut OtlTable,
-) {
+unsafe fn unconsolidate_chaining(_font: *mut Font, lookup: *mut Lookup, _table: *mut OtlTable) {
     // The original C (c/lib/otf-reader/unconsolidate.c) computes a
     // `total_rules` count in a first pass over the subtables and never uses
     // it afterward (no capacity-reservation call, no other reference) --
@@ -392,7 +351,9 @@ unsafe fn unconsolidate_chaining(
         let Some(mut sub_box) = (&mut (*lookup).subtables)[j].take() else {
             continue;
         };
-        let Subtable::Chaining(sub_chaining) = &mut *sub_box else { unreachable!() };
+        let Subtable::Chaining(sub_chaining) = &mut *sub_box else {
+            unreachable!()
+        };
         match sub_chaining {
             ChainingSubtable::Poly(ruleset) => {
                 // `None` would only appear here if the original binary read
@@ -485,10 +446,7 @@ unsafe fn merge_hmtx(font: *mut Font) {
         } else {
             hmtx.left_side_bearing[(j as u32).wrapping_sub(count_a) as usize]
         };
-        vq_inplace_plus(
-            &raw mut (*g).advance_width,
-            vq_create_still(adw) as VQ,
-        );
+        vq_inplace_plus(&raw mut (*g).advance_width, vq_create_still(adw) as VQ);
         vq_inplace_plus(
             &raw mut (*g).horizontal_origin,
             vq_create_still(-lsb + (*g).stat.x_min) as VQ,
@@ -526,10 +484,7 @@ unsafe fn merge_vmtx(font: *mut Font) {
         } else {
             vmtx.top_side_bearing[(j_1 as u32).wrapping_sub(count_a) as usize]
         };
-        vq_inplace_plus(
-            &raw mut (*g).advance_height,
-            vq_create_still(adh) as VQ,
-        );
+        vq_inplace_plus(&raw mut (*g).advance_height, vq_create_still(adh) as VQ);
         vq_inplace_plus(
             &raw mut (*g).vertical_origin,
             vq_create_still(if let Some(v) = &vorgs {
@@ -546,16 +501,12 @@ unsafe fn merge_ltsh(font: *mut Font) {
         if let Some(ltsh) = &(*font).ltsh {
             let n = ((*glyf).len() as GlyphId).min(ltsh.num_glyphs);
             for j in 0..n {
-                (&mut (*glyf))[j as usize].as_mut().unwrap().y_pel =
-                    ltsh.y_pels[j as usize];
+                (&mut (*glyf))[j as usize].as_mut().unwrap().y_pel = ltsh.y_pels[j as usize];
             }
         }
     }
 }
-pub unsafe fn otfcc_unconsolidate_font(
-    mut font: *mut Font,
-    mut options: &Options,
-) {
+pub unsafe fn otfcc_unconsolidate_font(mut font: *mut Font, mut options: &Options) {
     merge_hmtx(font);
     merge_vmtx(font);
     merge_ltsh(font);

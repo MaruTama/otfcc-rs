@@ -1,18 +1,28 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
+use crate::support::handle::{
+    GlyphHandle, Handle, LookupHandle, handle_from_index, otfcc_handle_dup,
+};
 use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
-use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_index, otfcc_handle_dup, Handle, GlyphHandle, LookupHandle};
+use crate::table::otl::coverage::{
+    Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage,
+    read_coverage,
+};
 
-use crate::support::font_reader::{FontReader};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::support::font_reader::FontReader;
 
-use crate::support::options::{Options};
+use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 
-use crate::support::{NULL};
-use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingRuleSet, Subtable, ChainingSubtable, subtable_from_raw};
-use crate::table::otl::subtables::chaining::common::{subtable_chaining_create, chaining_ruleset_mut};
+use crate::support::NULL;
+use crate::table::otl::subtables::chaining::common::{
+    chaining_ruleset_mut, subtable_chaining_create,
+};
+use crate::table::otl::{
+    ChainLookupApplication, ChainingRule, ChainingRuleSet, ChainingSubtable, Subtable,
+    subtable_from_raw,
+};
 pub type CoverageReaderHandler = Option<
     unsafe extern "C" fn(
         FontFilePointer,
@@ -108,9 +118,7 @@ pub unsafe extern "C" fn class_coverage(
     } else {
         let mut j_0: GlyphId = 0 as GlyphId;
         while (j_0 as usize) < (*cd).glyphs.len() {
-            if (&(*cd).classes)[j_0 as usize] as ::core::ffi::c_int
-                == cls as ::core::ffi::c_int
-            {
+            if (&(*cd).classes)[j_0 as usize] as ::core::ffi::c_int == cls as ::core::ffi::c_int {
                 count = count.wrapping_add(1);
             }
             j_0 = j_0.wrapping_add(1);
@@ -125,8 +133,7 @@ pub unsafe extern "C" fn class_coverage(
             let mut found_0: bool = false;
             let mut j_1: GlyphId = 0 as GlyphId;
             while (j_1 as usize) < (*cd).glyphs.len() {
-                if (&(*cd).classes)[j_1 as usize] as ::core::ffi::c_int
-                    > 0 as ::core::ffi::c_int
+                if (&(*cd).classes)[j_1 as usize] as ::core::ffi::c_int > 0 as ::core::ffi::c_int
                     && (&(*cd).glyphs)[j_1 as usize].index as ::core::ffi::c_int
                         == k_0 as ::core::ffi::c_int
                 {
@@ -144,12 +151,11 @@ pub unsafe extern "C" fn class_coverage(
     } else {
         let mut j_2: GlyphId = 0 as GlyphId;
         while (j_2 as usize) < (*cd).glyphs.len() {
-            if (&(*cd).classes)[j_2 as usize] as ::core::ffi::c_int
-                == cls as ::core::ffi::c_int
-            {
+            if (&(*cd).classes)[j_2 as usize] as ::core::ffi::c_int == cls as ::core::ffi::c_int {
                 push_to_coverage(
                     cov,
-                    otfcc_handle_dup((&(*cd).glyphs)[j_2 as usize].clone() as Handle) as GlyphHandle,
+                    otfcc_handle_dup((&(*cd).glyphs)[j_2 as usize].clone() as Handle)
+                        as GlyphHandle,
                 );
             }
             j_2 = j_2.wrapping_add(1);
@@ -169,9 +175,7 @@ pub unsafe extern "C" fn format3_coverage(
     return read_coverage(
         data as *const u8,
         table_length,
-        _offset
-            .wrapping_add(shift as u32)
-            .wrapping_sub(2 as u32),
+        _offset.wrapping_add(shift as u32).wrapping_sub(2 as u32),
     );
 }
 // Every guard below is expressed as a `FontReader` read or `require_room`
@@ -227,15 +231,16 @@ pub unsafe fn general_read_contextual_rule(
     // ever used as that index).
     rule.match_0 = Vec::with_capacity(rule.match_count as usize);
     if minus_one {
-        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-            data,
-            table_length,
-            start_gid,
-            offset,
-            2 as u16,
-            max_glyphs,
-            userdata,
-        )));
+        rule.match_0
+            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+                data,
+                table_length,
+                start_gid,
+                offset,
+                2 as u16,
+                max_glyphs,
+                userdata,
+            )));
     }
     // `n_input - minus_one_q` in the original ran in signed `c_int`
     // arithmetic, so a malformed `n_input < minus_one_q` (possible: the
@@ -250,15 +255,16 @@ pub unsafe fn general_read_contextual_rule(
             .unwrap()
             .u16()
             .unwrap();
-        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-            data,
-            table_length,
-            gid,
-            offset,
-            2 as u16,
-            max_glyphs,
-            userdata,
-        )));
+        rule.match_0
+            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+                data,
+                table_length,
+                gid,
+                offset,
+                2 as u16,
+                max_glyphs,
+                userdata,
+            )));
     }
 
     rule.apply = Vec::with_capacity(n_apply as usize);
@@ -290,7 +296,9 @@ unsafe fn read_contextual_format1(
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
             break 'parse None;
         };
-        let Ok(cov_rel) = header.u16() else { break 'parse None };
+        let Ok(cov_rel) = header.u16() else {
+            break 'parse None;
+        };
         let Ok(chain_sub_rule_set_count) = header.u16() else {
             break 'parse None;
         };
@@ -301,7 +309,10 @@ unsafe fn read_contextual_format1(
         if chain_sub_rule_set_count as usize != (*first_coverage).len() {
             break 'parse None;
         }
-        if header.require_room(chain_sub_rule_set_count as usize, 2).is_err() {
+        if header
+            .require_room(chain_sub_rule_set_count as usize, 2)
+            .is_err()
+        {
             break 'parse None;
         }
 
@@ -366,8 +377,7 @@ unsafe fn read_contextual_format1(
                                 u16,
                                 GlyphId,
                                 *mut ::core::ffi::c_void,
-                            )
-                                -> *mut Coverage,
+                            ) -> *mut Coverage,
                     ),
                     max_glyphs,
                     NULL,
@@ -406,7 +416,9 @@ unsafe fn read_contextual_format2(
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 4) else {
             break 'parse None;
         };
-        let Ok(ic_rel) = header.u16() else { break 'parse None };
+        let Ok(ic_rel) = header.u16() else {
+            break 'parse None;
+        };
         let Ok(chain_sub_class_set_cnt) = header.u16() else {
             break 'parse None;
         };
@@ -414,7 +426,10 @@ unsafe fn read_contextual_format2(
         // beyond what the `classSetOffset` array at `offset+8` actually
         // needs (`offset+8+2*count`) -- always-safe over-conservative slop,
         // now exactly the array's real requirement.
-        if header.require_room(chain_sub_class_set_cnt as usize, 2).is_err() {
+        if header
+            .require_room(chain_sub_class_set_cnt as usize, 2)
+            .is_err()
+        {
             break 'parse None;
         }
 
@@ -498,8 +513,7 @@ unsafe fn read_contextual_format2(
                                 u16,
                                 GlyphId,
                                 *mut ::core::ffi::c_void,
-                            )
-                                -> *mut Coverage,
+                            ) -> *mut Coverage,
                     ),
                     max_glyphs,
                     cds as *mut ::core::ffi::c_void,
@@ -667,26 +681,28 @@ pub unsafe fn general_read_chaining_rule(
             .unwrap()
             .u16()
             .unwrap();
-        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-            data,
-            table_length,
-            gid,
-            offset,
-            1 as u16,
-            max_glyphs,
-            userdata,
-        )));
+        rule.match_0
+            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+                data,
+                table_length,
+                gid,
+                offset,
+                1 as u16,
+                max_glyphs,
+                userdata,
+            )));
     }
     if minus_one {
-        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-            data,
-            table_length,
-            start_gid,
-            offset,
-            2 as u16,
-            max_glyphs,
-            userdata,
-        )));
+        rule.match_0
+            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+                data,
+                table_length,
+                start_gid,
+                offset,
+                2 as u16,
+                max_glyphs,
+                userdata,
+            )));
     }
     // Array positions derived the same way `header`'s cursor validated
     // them above (cumulative `usize` addition on the *reduced* counts),
@@ -702,15 +718,16 @@ pub unsafe fn general_read_chaining_rule(
             .unwrap()
             .u16()
             .unwrap();
-        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-            data,
-            table_length,
-            gid,
-            offset,
-            2 as u16,
-            max_glyphs,
-            userdata,
-        )));
+        rule.match_0
+            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+                data,
+                table_length,
+                gid,
+                offset,
+                2 as u16,
+                max_glyphs,
+                userdata,
+            )));
     }
     let lookaround_base = input_base + 2 * n_input_read as usize + 2;
     for j1 in 0..n_lookaround {
@@ -719,15 +736,16 @@ pub unsafe fn general_read_chaining_rule(
             .unwrap()
             .u16()
             .unwrap();
-        rule.match_0.push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-            data,
-            table_length,
-            gid,
-            offset,
-            3 as u16,
-            max_glyphs,
-            userdata,
-        )));
+        rule.match_0
+            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
+                data,
+                table_length,
+                gid,
+                offset,
+                3 as u16,
+                max_glyphs,
+                userdata,
+            )));
     }
 
     rule.apply = Vec::with_capacity(n_apply as usize);
@@ -759,7 +777,9 @@ unsafe fn read_chaining_format1(
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
             break 'parse None;
         };
-        let Ok(cov_rel) = header.u16() else { break 'parse None };
+        let Ok(cov_rel) = header.u16() else {
+            break 'parse None;
+        };
         let Ok(chain_sub_rule_set_count) = header.u16() else {
             break 'parse None;
         };
@@ -770,7 +790,10 @@ unsafe fn read_chaining_format1(
         if chain_sub_rule_set_count as usize != (*first_coverage).len() {
             break 'parse None;
         }
-        if header.require_room(chain_sub_rule_set_count as usize, 2).is_err() {
+        if header
+            .require_room(chain_sub_rule_set_count as usize, 2)
+            .is_err()
+        {
             break 'parse None;
         }
 
@@ -831,8 +854,7 @@ unsafe fn read_chaining_format1(
                                 u16,
                                 GlyphId,
                                 *mut ::core::ffi::c_void,
-                            )
-                                -> *mut Coverage,
+                            ) -> *mut Coverage,
                     ),
                     max_glyphs,
                     NULL,
@@ -870,13 +892,22 @@ unsafe fn read_chaining_format2(
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 4) else {
             break 'parse None;
         };
-        let Ok(bc_rel) = header.u16() else { break 'parse None };
-        let Ok(ic_rel) = header.u16() else { break 'parse None };
-        let Ok(fc_rel) = header.u16() else { break 'parse None };
+        let Ok(bc_rel) = header.u16() else {
+            break 'parse None;
+        };
+        let Ok(ic_rel) = header.u16() else {
+            break 'parse None;
+        };
+        let Ok(fc_rel) = header.u16() else {
+            break 'parse None;
+        };
         let Ok(chain_sub_class_set_cnt) = header.u16() else {
             break 'parse None;
         };
-        if header.require_room(chain_sub_class_set_cnt as usize, 2).is_err() {
+        if header
+            .require_room(chain_sub_class_set_cnt as usize, 2)
+            .is_err()
+        {
             break 'parse None;
         }
 
@@ -967,8 +998,7 @@ unsafe fn read_chaining_format2(
                                 u16,
                                 GlyphId,
                                 *mut ::core::ffi::c_void,
-                            )
-                                -> *mut Coverage,
+                            ) -> *mut Coverage,
                     ),
                     max_glyphs,
                     cds as *mut ::core::ffi::c_void,
@@ -1109,8 +1139,12 @@ mod chaining_read_tests {
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
-            let Subtable::Chaining(sub) = &*boxed else { unreachable!() };
-            let ChainingSubtable::Poly(ruleset) = sub else { unreachable!() };
+            let Subtable::Chaining(sub) = &*boxed else {
+                unreachable!()
+            };
+            let ChainingSubtable::Poly(ruleset) = sub else {
+                unreachable!()
+            };
             assert_eq!(ruleset.rules.len(), 1);
             let rule = ruleset.rules[0].as_ref().unwrap();
             assert_eq!(rule.match_0.len(), 1);
@@ -1149,8 +1183,12 @@ mod chaining_read_tests {
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
-            let Subtable::Chaining(sub) = &*boxed else { unreachable!() };
-            let ChainingSubtable::Poly(ruleset) = sub else { unreachable!() };
+            let Subtable::Chaining(sub) = &*boxed else {
+                unreachable!()
+            };
+            let ChainingSubtable::Poly(ruleset) = sub else {
+                unreachable!()
+            };
             assert_eq!(ruleset.rules.len(), 1);
             let rule = ruleset.rules[0].as_ref().unwrap();
             assert_eq!(rule.match_count, 1);
@@ -1229,8 +1267,12 @@ mod chaining_read_tests {
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
-            let Subtable::Chaining(sub) = &*boxed else { unreachable!() };
-            let ChainingSubtable::Poly(ruleset) = sub else { unreachable!() };
+            let Subtable::Chaining(sub) = &*boxed else {
+                unreachable!()
+            };
+            let ChainingSubtable::Poly(ruleset) = sub else {
+                unreachable!()
+            };
             assert!(ruleset.rules.is_empty());
         }
     }
@@ -1273,14 +1315,21 @@ mod chaining_read_tests {
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
-            let Subtable::Chaining(sub) = &*boxed else { unreachable!() };
-            let ChainingSubtable::Poly(ruleset) = sub else { unreachable!() };
+            let Subtable::Chaining(sub) = &*boxed else {
+                unreachable!()
+            };
+            let ChainingSubtable::Poly(ruleset) = sub else {
+                unreachable!()
+            };
             assert_eq!(ruleset.rules.len(), 1);
             let rule = ruleset.rules[0].as_ref().unwrap();
             // backtrack is stored reversed; here there's only one entry so
             // the order is unaffected.
             assert_eq!(
-                rule.match_0.iter().map(|c| glyphs_of(c)).collect::<Vec<_>>(),
+                rule.match_0
+                    .iter()
+                    .map(|c| glyphs_of(c))
+                    .collect::<Vec<_>>(),
                 vec![vec![1], vec![2], vec![3]]
             );
             assert_eq!(rule.input_begins, 1);

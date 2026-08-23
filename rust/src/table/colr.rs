@@ -1,19 +1,30 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint_fallback, json_str_bytes, json_type_of};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_move, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{
+    GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, otfcc_handle_dup,
+    otfcc_handle_move,
+};
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint_fallback,
+    json_str_bytes, json_type_of,
+};
 
-use crate::support::binio::{read_16u, read_32u};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{ColorId, GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::binio::{read_16u, read_32u};
+use crate::support::buffer::Buffer;
+use crate::support::options::Options;
+use crate::support::primitives::{ColorId, GlyphId};
+use crate::vendor::json::JsonType;
 
-use crate::bk::bkgraph::{bk_build_block};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_from_bytes, preserialize};
+use crate::bk::bkgraph::bk_build_block;
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
+    json_object_push, json_string_new_from_bytes, preserialize,
+};
 #[derive(Clone)]
 #[repr(C)]
 pub struct ColrLayer {
@@ -53,10 +64,7 @@ fn colr_mapping_dup(m: &ColrMapping) -> ColrMapping {
 static BASE_GLYPH_REC_LENGTH: usize = 6 as usize;
 static LAYER_REC_LENGTH: usize = 4 as usize;
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_read_colr(
-    packet: &Packet,
-    options: &Options,
-) -> Option<ColrTable> {
+pub unsafe fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<ColrTable> {
     let mut num_base_glyph_records: u16 = 0;
     let mut num_layer_records: u16 = 0;
     let mut offset_base_glyph_record: u32 = 0;
@@ -78,8 +86,12 @@ pub unsafe fn otfcc_read_colr(
                     if !(table.length < 14 as u32) {
                         num_base_glyph_records =
                             read_16u(table.data.as_ptr().offset(2 as ::core::ffi::c_int as isize));
-                        num_layer_records =
-                            read_16u(table.data.as_ptr().offset(12 as ::core::ffi::c_int as isize));
+                        num_layer_records = read_16u(
+                            table
+                                .data
+                                .as_ptr()
+                                .offset(12 as ::core::ffi::c_int as isize),
+                        );
                         offset_base_glyph_record =
                             read_32u(table.data.as_ptr().offset(4 as ::core::ffi::c_int as isize));
                         offset_layer_record =
@@ -101,21 +113,24 @@ pub unsafe fn otfcc_read_colr(
                                     < num_layer_records as ::core::ffi::c_int
                                 {
                                     gids.push(read_16u(
-                                        table.data.as_ptr().offset(offset_layer_record as isize).offset(
-                                            LAYER_REC_LENGTH.wrapping_mul(j as usize) as isize,
-                                        ),
-                                    )
-                                        as GlyphId);
-                                    colors.push(
-                                        read_16u(
-                                            table
-                                                .data.as_ptr()
-                                                .offset(offset_layer_record as isize)
-                                                .offset(LAYER_REC_LENGTH.wrapping_mul(j as usize)
-                                                    as isize)
-                                                .offset(2 as ::core::ffi::c_int as isize),
-                                        ) as ColorId,
-                                    );
+                                        table
+                                            .data
+                                            .as_ptr()
+                                            .offset(offset_layer_record as isize)
+                                            .offset(
+                                                LAYER_REC_LENGTH.wrapping_mul(j as usize) as isize
+                                            ),
+                                    ) as GlyphId);
+                                    colors.push(read_16u(
+                                        table
+                                            .data
+                                            .as_ptr()
+                                            .offset(offset_layer_record as isize)
+                                            .offset(
+                                                LAYER_REC_LENGTH.wrapping_mul(j as usize) as isize
+                                            )
+                                            .offset(2 as ::core::ffi::c_int as isize),
+                                    ) as ColorId);
                                     j = j.wrapping_add(1);
                                 }
                                 let mut colr: ColrTable = Vec::new();
@@ -133,35 +148,39 @@ pub unsafe fn otfcc_read_colr(
                                     };
                                     let mut gid: u16 = read_16u(
                                         table
-                                            .data.as_ptr()
+                                            .data
+                                            .as_ptr()
                                             .offset(offset_base_glyph_record as isize)
-                                            .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
-                                                as isize),
+                                            .offset(
+                                                BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
+                                                    as isize,
+                                            ),
                                     );
                                     let mut first_layer_index: u16 = read_16u(
                                         table
-                                            .data.as_ptr()
+                                            .data
+                                            .as_ptr()
                                             .offset(offset_base_glyph_record as isize)
-                                            .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
-                                                as isize)
+                                            .offset(
+                                                BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
+                                                    as isize,
+                                            )
                                             .offset(2 as ::core::ffi::c_int as isize),
                                     );
                                     let mut num_layers: u16 = read_16u(
                                         table
-                                            .data.as_ptr()
+                                            .data
+                                            .as_ptr()
                                             .offset(offset_base_glyph_record as isize)
-                                            .offset(BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
-                                                as isize)
+                                            .offset(
+                                                BASE_GLYPH_REC_LENGTH.wrapping_mul(j_0 as usize)
+                                                    as isize,
+                                            )
                                             .offset(4 as ::core::ffi::c_int as isize),
                                     );
-                                    let mut base_glyph: GlyphHandle = handle_from_index(
-                                        gid as GlyphId
-                                    )
-                                        as GlyphHandle;
-                                    otfcc_handle_move(
-                                        &raw mut mapping.glyph,
-                                        &raw mut base_glyph,
-                                    );
+                                    let mut base_glyph: GlyphHandle =
+                                        handle_from_index(gid as GlyphId) as GlyphHandle;
+                                    otfcc_handle_move(&raw mut mapping.glyph, &raw mut base_glyph);
                                     let mut k: GlyphId = 0 as GlyphId;
                                     while (k as ::core::ffi::c_int)
                                         < num_layers as ::core::ffi::c_int
@@ -308,9 +327,7 @@ pub unsafe fn otfcc_parse_colr(
         let mut j: GlyphId = 0 as GlyphId;
         while (j as ::core::ffi::c_uint) < json_arr_len(_colr) {
             let mut _mapping: *const ParsedValue = json_arr_at(_colr, j as u32);
-            if !(_mapping.is_null()
-                || json_type_of(_mapping) != JsonType::Object)
-            {
+            if !(_mapping.is_null() || json_type_of(_mapping) != JsonType::Object) {
                 let mut _baseglyph: *const ParsedValue = json_obj_get_type(
                     _mapping,
                     b"from\0" as *const u8 as *const ::core::ffi::c_char,
@@ -334,9 +351,7 @@ pub unsafe fn otfcc_parse_colr(
                     let mut k: GlyphId = 0 as GlyphId;
                     while (k as ::core::ffi::c_uint) < json_arr_len(_layers) {
                         let mut _layer: *const ParsedValue = json_arr_at(_layers, k as u32);
-                        if !(_layer.is_null()
-                            || json_type_of(_layer) != JsonType::Object)
-                        {
+                        if !(_layer.is_null() || json_type_of(_layer) != JsonType::Object) {
                             let mut _layerglyph: *const ParsedValue = json_obj_get_type(
                                 _layer,
                                 b"layer\0" as *const u8 as *const ::core::ffi::c_char,
@@ -351,8 +366,7 @@ pub unsafe fn otfcc_parse_colr(
                                         b"paletteIndex\0" as *const u8
                                             as *const ::core::ffi::c_char,
                                         0xffff as i32,
-                                    )
-                                        as ColorId,
+                                    ) as ColorId,
                                 });
                             }
                         }
@@ -369,9 +383,7 @@ pub unsafe fn otfcc_parse_colr(
     return Some(colr);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_colr(
-    _colr: Option<&ColrTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
     let src = match _colr {
         Some(c) if !c.is_empty() => c,
         _ => return ::core::ptr::null_mut::<Buffer>(),
@@ -386,13 +398,38 @@ pub unsafe fn otfcc_build_colr(
     while keep != 0 && __caryll_index < colr.len() {
         let mapping: &ColrMapping = &colr[__caryll_index];
         while keep != 0 {
-            bk_push(base_records, &[bk_int(BkCellType::B16, (mapping.glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (current_layer_index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (mapping.layers.len()) as u32)]);
+            bk_push(
+                base_records,
+                &[
+                    bk_int(
+                        BkCellType::B16,
+                        (mapping.glyph.index as ::core::ffi::c_int) as u32,
+                    ),
+                    bk_int(
+                        BkCellType::B16,
+                        (current_layer_index as ::core::ffi::c_int) as u32,
+                    ),
+                    bk_int(BkCellType::B16, (mapping.layers.len()) as u32),
+                ],
+            );
             let mut __caryll_index_0: usize = 0 as usize;
             let mut keep_0: usize = 1 as usize;
             while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
                 let layer: &ColrLayer = &mapping.layers[__caryll_index_0];
                 while keep_0 != 0 {
-                    bk_push(layer_records, &[bk_int(BkCellType::B16, (layer.glyph.index as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (layer.palette_index as ::core::ffi::c_int) as u32)]);
+                    bk_push(
+                        layer_records,
+                        &[
+                            bk_int(
+                                BkCellType::B16,
+                                (layer.glyph.index as ::core::ffi::c_int) as u32,
+                            ),
+                            bk_int(
+                                BkCellType::B16,
+                                (layer.palette_index as ::core::ffi::c_int) as u32,
+                            ),
+                        ],
+                    );
                     current_layer_index = (current_layer_index as ::core::ffi::c_int
                         + 1 as ::core::ffi::c_int)
                         as GlyphId;
@@ -406,7 +443,16 @@ pub unsafe fn otfcc_build_colr(
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (colr.len()) as u32), bk_ptr(BkCellType::P32, base_records), bk_ptr(BkCellType::P32, layer_records), bk_int(BkCellType::B16, (current_layer_index as ::core::ffi::c_int) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[
+        bk_int(BkCellType::B16, 0 as u32),
+        bk_int(BkCellType::B16, (colr.len()) as u32),
+        bk_ptr(BkCellType::P32, base_records),
+        bk_ptr(BkCellType::P32, layer_records),
+        bk_int(
+            BkCellType::B16,
+            (current_layer_index as ::core::ffi::c_int) as u32,
+        ),
+    ]);
     // `colr` drops naturally at the end of this scope -- no explicit
     // dispose call needed (`ColrMapping`'s `Handle` fields already free
     // themselves via their own `Drop`).

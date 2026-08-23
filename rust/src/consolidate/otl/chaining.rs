@@ -1,19 +1,18 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::support::handle::{
+    Handle, HandleState, LookupHandle, handle_name_eq_bytes, otfcc_handle_dispose,
+};
 use crate::table::otl::coverage::{Coverage, shrink_coverage};
-use crate::support::handle::{HandleState, handle_name_eq_bytes, Handle, otfcc_handle_dispose, LookupHandle};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
-use crate::support::options::{Options};
+use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
 
-use crate::font::caryll_font::{Font};
+use crate::font::caryll_font::Font;
 
-
-
-
-use crate::table::otl::{ChainingRule, Subtable, ChainingSubtable, OtlTable};
+use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_mut};
-use crate::consolidate::otl::common::{fontop_consolidate_coverage};
+use crate::table::otl::{ChainingRule, ChainingSubtable, OtlTable, Subtable};
 
 pub unsafe extern "C" fn consolidate_chaining(
     mut font: *mut Font,
@@ -21,7 +20,9 @@ pub unsafe extern "C" fn consolidate_chaining(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let Subtable::Chaining(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let Subtable::Chaining(mut_subtable) = &mut *_subtable else {
+        unreachable!()
+    };
     let subtable: *mut ChainingSubtable = mut_subtable;
     if !chaining_is_canonical(subtable) {
         logger_log_sds(
@@ -46,8 +47,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             true,
         );
         possible = possible as ::core::ffi::c_int != 0
-            && (&(*rule).match_0)[j as usize].len() as ::core::ffi::c_int
-                > 0 as ::core::ffi::c_int;
+            && (&(*rule).match_0)[j as usize].len() as ::core::ffi::c_int > 0 as ::core::ffi::c_int;
         j = j.wrapping_add(1);
     }
     if (*rule).input_begins as ::core::ffi::c_int > (*rule).match_count as ::core::ffi::c_int {
@@ -66,14 +66,8 @@ pub unsafe extern "C" fn consolidate_chaining(
                 // Every element is a `Box<Lookup>` now, never null, so the
                 // old null check is gone -- everything else here is plain
                 // field access through the `Box`, unchanged.
-                if !((*(&(*table).lookups)[k as usize])
-                    .subtables
-                    .is_empty())
-                {
-                    if handle_name_eq_bytes(
-                        &(*h).name,
-                        &(*(&(*table).lookups)[k as usize]).name,
-                    ) {
+                if !((*(&(*table).lookups)[k as usize]).subtables.is_empty()) {
+                    if handle_name_eq_bytes(&(*h).name, &(*(&(*table).lookups)[k as usize]).name) {
                         found_lookup = true;
                         *h = Handle {
                             state: HandleState::Consolidated,
@@ -89,23 +83,22 @@ pub unsafe extern "C" fn consolidate_chaining(
                     &mut *(*options).logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::bytesbuild!(b"[Consolidate] Quoting an invalid lookup ",
+                    crate::bytesbuild!(
+                        b"[Consolidate] Quoting an invalid lookup ",
                         &(&(*rule).apply)[j_0 as usize].lookup.name,
                         b". This lookup application is ignored.",
                     ),
                 );
-                otfcc_handle_dispose(
-                    &raw mut (&mut (*rule).apply)[j_0 as usize].lookup,
-                );
+                otfcc_handle_dispose(&raw mut (&mut (*rule).apply)[j_0 as usize].lookup);
             }
-        } else if (*h).state == HandleState::Index
-        {
+        } else if (*h).state == HandleState::Index {
             if (*h).index as usize >= (*table).lookups.len() {
                 logger_log_sds(
                     &mut *(*options).logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::bytesbuild!(b"[Consolidate] Quoting an invalid lookup #",
+                    crate::bytesbuild!(
+                        b"[Consolidate] Quoting an invalid lookup #",
                         (*h).index as ::core::ffi::c_int,
                         b".",
                     ),

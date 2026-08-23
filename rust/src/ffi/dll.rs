@@ -1,57 +1,19 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
+use crate::support::buffer::Buffer;
+use crate::support::options::Options;
 
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-
-
-use crate::support::parsed_json::{ParsedValue};
-use crate::font::caryll_font::{Font};
-use crate::font::caryll_font::{otfcc_font_free};
-use crate::consolidate::{otfcc_consolidate_font};
-use crate::json_reader::{read_json};
-use crate::logger::{otfcc_new_empty_target, logger_indent, Logger};
-use std::cell::RefCell;
-use crate::otf_writer::{serialize_to_otf};
-use crate::support::buffer::{buffree};
-use crate::support::options::{otfcc_options_optimize_to, otfcc_new_options, otfcc_delete_options};
+use crate::consolidate::otfcc_consolidate_font;
+use crate::font::caryll_font::Font;
+use crate::font::caryll_font::otfcc_font_free;
+use crate::json_reader::read_json;
+use crate::logger::{Logger, logger_indent, otfcc_new_empty_target};
+use crate::otf_writer::serialize_to_otf;
+use crate::support::buffer::buffree;
+use crate::support::options::{otfcc_delete_options, otfcc_new_options, otfcc_options_optimize_to};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::parsed_json::{json_parse, json_value_free};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
+use std::cell::RefCell;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfccbuild_json_otf(
@@ -155,7 +117,10 @@ mod tests {
     // substantial, crate-wide work (every `otfcc_parse_*`/`otfcc_read_*`
     // call site that populates a freshly-created `Font` or table struct),
     // out of scope for that PR; tracked in rust/README.md's "Next steps".
-    #[cfg_attr(miri, ignore = "Font construction has pre-existing calloc+assign UB, see rust/README.md Next steps")]
+    #[cfg_attr(
+        miri,
+        ignore = "Font construction has pre-existing calloc+assign UB, see rust/README.md Next steps"
+    )]
     fn minimal_json_builds_and_frees_cleanly() {
         unsafe {
             // Exercises the success-path `otfcc_delete_options` call this
@@ -174,7 +139,10 @@ mod tests {
     #[test]
     // Same reason as minimal_json_builds_and_frees_cleanly above: this also
     // builds a real Font on every iteration.
-    #[cfg_attr(miri, ignore = "Font construction has pre-existing calloc+assign UB, see rust/README.md Next steps")]
+    #[cfg_attr(
+        miri,
+        ignore = "Font construction has pre-existing calloc+assign UB, see rust/README.md Next steps"
+    )]
     fn repeated_calls_do_not_crash() {
         // Not a leak check (needs a sanitizer for that -- see fuzz/), just
         // confirming the cleanup paths added by the fix above are safe to
@@ -192,4 +160,3 @@ mod tests {
         }
     }
 }
-

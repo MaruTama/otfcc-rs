@@ -59,13 +59,13 @@
 
 use ::core::ffi::{c_char, c_int, c_uint};
 
-pub use crate::vendor::json_builder::{
-    JsonSerializeOpts, JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED,
-    JSON_SERIALIZE_MODE_SINGLE_LINE, JSON_SERIALIZE_OPT_CRLF, JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON,
-    JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA, JSON_SERIALIZE_OPT_PACK_BRACKETS,
-    JSON_SERIALIZE_OPT_USE_TABS,
-};
 use crate::vendor::emyg_dtoa::emyg_dtoa;
+pub use crate::vendor::json_builder::{
+    JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JSON_SERIALIZE_MODE_SINGLE_LINE,
+    JSON_SERIALIZE_OPT_CRLF, JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON,
+    JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA, JSON_SERIALIZE_OPT_PACK_BRACKETS,
+    JSON_SERIALIZE_OPT_USE_TABS, JsonSerializeOpts,
+};
 
 /// The build-side JSON tree. Unlike `parsed_json::ParsedValue`, no
 /// NUL-termination convention is needed on `Str`/keys: nothing on the
@@ -141,8 +141,8 @@ pub unsafe fn json_object_push_length(
     name: *const c_char,
     value: *mut BuiltValue,
 ) -> *mut BuiltValue {
-    let key = unsafe { ::core::slice::from_raw_parts(name as *const u8, name_length as usize) }
-        .to_vec();
+    let key =
+        unsafe { ::core::slice::from_raw_parts(name as *const u8, name_length as usize) }.to_vec();
     let v = *unsafe { Box::from_raw(value) };
     if let Some(BuiltValue::Object(fields)) = unsafe { object.as_mut() } {
         fields.push((key, v));
@@ -164,9 +164,7 @@ pub(crate) unsafe fn json_object_push_bytes_key(
         Some(p) => p,
         None => name.len(),
     };
-    unsafe {
-        json_object_push_length(object, len as c_uint, name.as_ptr() as *const c_char, value)
-    }
+    unsafe { json_object_push_length(object, len as c_uint, name.as_ptr() as *const c_char, value) }
 }
 
 /// A NUL-terminated C string, copied verbatim (embedded NULs impossible
@@ -217,10 +215,7 @@ pub unsafe fn json_null_new() -> *mut BuiltValue {
 /// set bit -- matches `json_funcs::otfcc_dump_flags` exactly (see its own
 /// doc comment on why a plain slice reproduces the original's
 /// NUL-terminated-table walk).
-pub unsafe fn otfcc_dump_flags(
-    flags: c_int,
-    labels: &[&::core::ffi::CStr],
-) -> *mut BuiltValue {
+pub unsafe fn otfcc_dump_flags(flags: c_int, labels: &[&::core::ffi::CStr]) -> *mut BuiltValue {
     let v = unsafe { json_object_new(0) };
     for (j, label) in labels.iter().enumerate() {
         if flags & (1 as c_int) << j != 0 {
@@ -522,7 +517,10 @@ mod tests {
     // operation", not a bug finding). Untested whether this also reproduces
     // on the Linux target; if CI's miri job passes this test, the ignore
     // can come off.
-    #[cfg_attr(miri, ignore = "libc memmove in vendor/emyg_dtoa.rs unsupported under Miri")]
+    #[cfg_attr(
+        miri,
+        ignore = "libc memmove in vendor/emyg_dtoa.rs unsupported under Miri"
+    )]
     fn packed_matches_the_known_good_fixture() {
         unsafe {
             let tree = build_sample_tree();
@@ -538,7 +536,10 @@ mod tests {
 
     #[test]
     // Same reason as packed_matches_the_known_good_fixture above.
-    #[cfg_attr(miri, ignore = "libc memmove in vendor/emyg_dtoa.rs unsupported under Miri")]
+    #[cfg_attr(
+        miri,
+        ignore = "libc memmove in vendor/emyg_dtoa.rs unsupported under Miri"
+    )]
     fn multiline_matches_the_known_good_fixture() {
         unsafe {
             let tree = build_sample_tree();
@@ -591,11 +592,8 @@ mod tests {
             let name: &[u8] = b"abc\0def";
             let value_bytes: &[u8] = b"xy\0z";
             let obj = json_object_new(1);
-            let pushed = json_object_push_bytes_key(
-                obj,
-                name,
-                json_string_new_from_bytes(value_bytes),
-            );
+            let pushed =
+                json_object_push_bytes_key(obj, name, json_string_new_from_bytes(value_bytes));
             assert_eq!(obj, pushed);
             let tree = *Box::from_raw(obj);
             match tree {

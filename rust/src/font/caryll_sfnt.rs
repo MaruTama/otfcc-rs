@@ -1,9 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{SEEK_SET, exit, fclose, fprintf, fread, fseek};
 
-use crate::support::stdio::{FILE, stderr};
-use crate::support::{EXIT_FAILURE};
+use crate::support::EXIT_FAILURE;
 use crate::support::binio::{EndianProbe16, EndianProbe32};
+use crate::support::stdio::{FILE, stderr};
 // `data` was `__caryll_allocate_clean`'d/`free`'d, sized from `length` --
 // read straight out of the SFNT table directory, i.e. untrusted font bytes.
 // The same risk class `CffIndex`/`CffDict` closed: a counting mistake in
@@ -39,10 +39,7 @@ pub struct SplineFontContainer {
     pub offsets: Vec<u32>,
     pub packets: Vec<Packet>,
 }
-unsafe fn otfcc_read_packets(
-    mut font: *mut SplineFontContainer,
-    mut file: *mut FILE,
-) {
+unsafe fn otfcc_read_packets(mut font: *mut SplineFontContainer, mut file: *mut FILE) {
     let mut count: u32 = 0 as u32;
     while count < (*font).count {
         let offsets = &(*font).offsets;

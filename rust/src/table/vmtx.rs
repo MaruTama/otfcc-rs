@@ -1,15 +1,15 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::binio::{pos_to_u16};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::support::binio::pos_to_u16;
+use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
+use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Length, Pos};
-use crate::font::caryll_sfnt::{Packet};
 
-use crate::table::maxp::{MaxpTable};
-use crate::table::vhea::{VheaTable};
 use crate::support::buffer::{bufnew, bufwrite16b};
+use crate::table::maxp::MaxpTable;
+use crate::table::vhea::VheaTable;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct VerticalMetric {
@@ -31,13 +31,19 @@ fn parse_vmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<VmtxTable, 
     for _ in 0..count_a {
         let advance_height = r.u16()? as Length;
         let tsb = r.i16()? as Pos;
-        metrics.push(VerticalMetric { advance_height, tsb });
+        metrics.push(VerticalMetric {
+            advance_height,
+            tsb,
+        });
     }
     let mut top_side_bearing = Vec::with_capacity(count_k);
     for _ in 0..count_k {
         top_side_bearing.push(r.i16()? as Pos);
     }
-    Ok(VmtxTable { metrics, top_side_bearing })
+    Ok(VmtxTable {
+        metrics,
+        top_side_bearing,
+    })
 }
 pub unsafe fn otfcc_read_vmtx(
     packet: &Packet,
@@ -53,7 +59,10 @@ pub unsafe fn otfcc_read_vmtx(
     {
         return None;
     }
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VMTX)?;
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_VMTX)?;
     let count_a = (*vhea).num_of_long_ver_metrics as usize;
     let count_k = (*maxp).num_glyphs as usize - count_a;
     match parse_vmtx(&table.data, count_a, count_k) {

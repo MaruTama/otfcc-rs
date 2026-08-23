@@ -1,10 +1,8 @@
-use libc::{free};
+use libc::free;
 use std::cell::RefCell;
 
-
-use crate::support::alloc::{__caryll_allocate_clean};
 use crate::logger::{Logger, LoggerTarget};
-
+use crate::support::alloc::__caryll_allocate_clean;
 
 #[derive(Default)]
 #[repr(C)]
@@ -99,10 +97,7 @@ pub unsafe fn otfcc_delete_options(mut options: *mut Options) {
     }
     options = ::core::ptr::null_mut::<Options>();
 }
-pub unsafe fn otfcc_options_optimize_to(
-    mut options: *mut Options,
-    mut level: u8,
-) {
+pub unsafe fn otfcc_options_optimize_to(mut options: *mut Options, mut level: u8) {
     unsafe {
         (*options).cff_roll_char_string = false;
         (*options).short_post = false;

@@ -1,13 +1,19 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_str_bytes, json_type_of};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dispose, Handle, GlyphHandle};
+use crate::support::handle::{
+    GlyphHandle, Handle, handle_from_index, handle_from_name, otfcc_handle_dispose,
+};
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_str_bytes, json_type_of,
+};
 
-use crate::support::font_reader::{FontReader};
-use crate::support::buffer::{Buffer};
-use crate::support::primitives::{GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::support::buffer::{buffree, buflen, bufnew, bufwrite16b, bufwrite_bufdel};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_string_new_from_bytes, preserialize};
+use crate::support::buffer::Buffer;
+use crate::support::buffer::{buffree, buflen, bufnew, bufwrite_bufdel, bufwrite16b};
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_string_new_from_bytes, preserialize,
+};
+use crate::support::font_reader::FontReader;
+use crate::support::primitives::GlyphId;
+use crate::vendor::json::JsonType;
 /// A glyph coverage set: C by way of c2rust had this as a hand-rolled
 /// `malloc`/`realloc` array (`num_glyphs`/`capacity`/`glyphs: *mut
 /// GlyphHandle`); it was never anything but a growable array of
@@ -68,7 +74,11 @@ pub(crate) unsafe fn push_to_coverage(coverage: *mut Coverage, h: GlyphHandle) {
 // defeats-guard shape as `cmap.rs`'s bugs, just via addition instead of
 // multiplication. `FontReader::at`/`require_room` use `checked_add`/
 // `checked_mul` throughout, closing this.
-pub(crate) unsafe fn read_coverage(data: *const u8, table_length: u32, offset: u32) -> *mut Coverage {
+pub(crate) unsafe fn read_coverage(
+    data: *const u8,
+    table_length: u32,
+    offset: u32,
+) -> *mut Coverage {
     let coverage = otl_coverage_create();
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
@@ -77,7 +87,9 @@ pub(crate) unsafe fn read_coverage(data: *const u8, table_length: u32, offset: u
     let Ok(format) = r.u16() else { return coverage };
     match format {
         1 => {
-            let Ok(glyph_count) = r.u16() else { return coverage };
+            let Ok(glyph_count) = r.u16() else {
+                return coverage;
+            };
             if r.require_room(glyph_count as usize, 2).is_err() {
                 return coverage;
             }
@@ -97,7 +109,9 @@ pub(crate) unsafe fn read_coverage(data: *const u8, table_length: u32, offset: u
             }
         }
         2 => {
-            let Ok(range_count) = r.u16() else { return coverage };
+            let Ok(range_count) = r.u16() else {
+                return coverage;
+            };
             if r.require_room(range_count as usize, 6).is_err() {
                 return coverage;
             }
@@ -135,24 +149,18 @@ pub(crate) unsafe fn read_coverage(data: *const u8, table_length: u32, offset: u
 pub(crate) unsafe extern "C" fn dump_coverage(coverage: *const Coverage) -> *mut BuiltValue {
     let mut a: *mut BuiltValue = json_array_new((*coverage).len());
     for j in 0..(*coverage).len() {
-        json_array_push(
-            a,
-            json_string_new_from_bytes(&(&(*coverage))[j].name),
-        );
+        json_array_push(a, json_string_new_from_bytes(&(&(*coverage))[j].name));
     }
     return preserialize(a);
 }
 pub(crate) unsafe extern "C" fn parse_coverage(mut cov: *const ParsedValue) -> *mut Coverage {
     let mut c: *mut Coverage = otl_coverage_create();
-    if cov.is_null()
-        || json_type_of(cov) != JsonType::Array
-    {
+    if cov.is_null() || json_type_of(cov) != JsonType::Array {
         return c;
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < json_arr_len(cov) {
-        if json_type_of(json_arr_at(cov, j as u32)) == JsonType::String
-        {
+        if json_type_of(json_arr_at(cov, j as u32)) == JsonType::String {
             push_to_coverage(
                 c,
                 handle_from_name(Some(json_str_bytes(json_arr_at(cov, j as u32)))) as GlyphHandle,
@@ -322,7 +330,10 @@ mod read_coverage_tests {
         unsafe {
             let raw = read_coverage(data.as_ptr(), data.len() as u32, 0);
             let cov = coverage_from_raw(raw);
-            assert_eq!(cov.iter().map(|h| h.index).collect::<Vec<_>>(), vec![10, 11, 12]);
+            assert_eq!(
+                cov.iter().map(|h| h.index).collect::<Vec<_>>(),
+                vec![10, 11, 12]
+            );
         }
     }
 

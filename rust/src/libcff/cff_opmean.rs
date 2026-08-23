@@ -1,4 +1,3 @@
-
 use crate::libcff::{CffCharstringOperator, CffDictOperator};
 
 /// The DICT operator names. Dead in this crate (nothing calls it) -- it is
@@ -221,9 +220,7 @@ pub unsafe fn op_cff_name(mut op: CffDictOperator) -> *mut ::core::ffi::c_char {
     };
 }
 /// The CharString operator names -- the other half; see [`op_cff_name`].
-pub unsafe fn op_cs2_name(
-    mut op: CffCharstringOperator,
-) -> *mut ::core::ffi::c_char {
+pub unsafe fn op_cs2_name(mut op: CffCharstringOperator) -> *mut ::core::ffi::c_char {
     match op.0 {
         1 => {
             return b"hstem\0" as *const u8 as *const ::core::ffi::c_char

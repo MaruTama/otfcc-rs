@@ -4,20 +4,23 @@ unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
+use crate::support::binio::pos_to_u16;
 
-
-use crate::support::binio::{pos_to_u16};
-
-use crate::support::buffer::{Buffer};
+use crate::support::buffer::Buffer;
 use crate::support::primitives::{GlyphId, ShapeId};
 
+use crate::table::glyf::{
+    ComponentFlags, ComponentReference, GlyfAndLocaBuffers, GlyfTable, Glyph, MASK_ON_CURVE, Point,
+    PointFlags, RefAnchorStatus,
+};
+use crate::table::head::HeadTable;
 
-use crate::table::glyf::{MASK_ON_CURVE, RefAnchorStatus, ComponentFlags, PointFlags, ComponentReference, Glyph, Point, GlyfAndLocaBuffers, GlyfTable};
-use crate::table::head::{HeadTable};
-
-use crate::support::buffer::{bufclear, buffree, buflen, buflongalign, bufnew, bufwrite16b, bufwrite32b, bufwrite8, bufwrite_buf, bufwrite_bytes};
-use crate::support::primitives::{otfcc_to_f2dot14};
-use crate::vf::vq::{vq_get_still};
+use crate::support::buffer::{
+    bufclear, buffree, buflen, buflongalign, bufnew, bufwrite_buf, bufwrite_bytes, bufwrite8,
+    bufwrite16b, bufwrite32b,
+};
+use crate::support::primitives::otfcc_to_f2dot14;
+use crate::vf::vq::vq_get_still;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub union ComponentArg {
@@ -78,8 +81,8 @@ unsafe fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffer) {
     let mut ptid: ShapeId = 0 as ShapeId;
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < (*g).contours.len() {
-        ptid = (ptid as usize).wrapping_add((&(*g).contours)[j as usize].len())
-            as ShapeId as ShapeId;
+        ptid =
+            (ptid as usize).wrapping_add((&(*g).contours)[j as usize].len()) as ShapeId as ShapeId;
         bufwrite16b(
             gbuf,
             (ptid as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u16,
@@ -105,12 +108,8 @@ unsafe fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffer) {
             } else {
                 PointFlags::empty()
             };
-            let mut px: i32 =
-                round(vq_get_still((*p).x.clone())
-                    as ::core::ffi::c_double) as i32;
-            let mut py: i32 =
-                round(vq_get_still((*p).y.clone())
-                    as ::core::ffi::c_double) as i32;
+            let mut px: i32 = round(vq_get_still((*p).x.clone()) as ::core::ffi::c_double) as i32;
+            let mut py: i32 = round(vq_get_still((*p).y.clone()) as ::core::ffi::c_double) as i32;
             let mut dx: i16 = (px - cx) as i16;
             let mut dy: i16 = (py - cy) as i16;
             if dx as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
@@ -236,8 +235,7 @@ unsafe fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
                 gbuf,
                 otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u16,
             );
-        } else if flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE)
-        {
+        } else if flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
             bufwrite16b(
                 gbuf,
                 otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u16,

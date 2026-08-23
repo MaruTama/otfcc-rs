@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
+use libc::free;
 
 use crate::table::otl::{ChainingRule, ChainingRuleSet, ChainingSubtable};
 
@@ -7,7 +7,10 @@ pub unsafe fn otl_init_chaining(mut subtable: *mut ChainingSubtable) {
     // No all-zero bit pattern is a valid `ChainingSubtable` (it owns `Vec`
     // fields through every variant), so place a valid empty `Canonical`
     // value directly instead of the old `memset`.
-    ::core::ptr::write(subtable, ChainingSubtable::Canonical(ChainingRule::default()));
+    ::core::ptr::write(
+        subtable,
+        ChainingSubtable::Canonical(ChainingRule::default()),
+    );
 }
 pub unsafe fn otl_dispose_chaining(mut subtable: *mut ChainingSubtable) {
     // `ChainingRule`/`ChainingRuleSet` fully self-drop now (see
@@ -49,14 +52,18 @@ pub(crate) unsafe fn chaining_rule_mut_from_const(
 pub(crate) unsafe fn chaining_ruleset_mut(subtable: *mut ChainingSubtable) -> *mut ChainingRuleSet {
     match &mut *subtable {
         ChainingSubtable::Poly(rs) | ChainingSubtable::Classified(rs) => rs as *mut ChainingRuleSet,
-        ChainingSubtable::Canonical(_) => unreachable!("chaining_ruleset_mut: subtable is Canonical"),
+        ChainingSubtable::Canonical(_) => {
+            unreachable!("chaining_ruleset_mut: subtable is Canonical")
+        }
     }
 }
 pub(crate) unsafe fn chaining_ruleset_const(
     subtable: *const ChainingSubtable,
 ) -> *const ChainingRuleSet {
     match &*subtable {
-        ChainingSubtable::Poly(rs) | ChainingSubtable::Classified(rs) => rs as *const ChainingRuleSet,
+        ChainingSubtable::Poly(rs) | ChainingSubtable::Classified(rs) => {
+            rs as *const ChainingRuleSet
+        }
         ChainingSubtable::Canonical(_) => {
             unreachable!("chaining_ruleset_const: subtable is Canonical")
         }
@@ -117,5 +124,7 @@ pub(crate) unsafe fn subtable_chaining_create() -> *mut ChainingSubtable {
     // `Box::from_raw` (`subtable_from_raw`, or a direct `drop(Box::from_raw(
     // ..))` on an error path in `chaining/read.rs`), **never**
     // `subtable_chaining_free` -- see that function's doc comment for why.
-    Box::into_raw(Box::new(ChainingSubtable::Canonical(ChainingRule::default())))
+    Box::into_raw(Box::new(ChainingSubtable::Canonical(
+        ChainingRule::default(),
+    )))
 }

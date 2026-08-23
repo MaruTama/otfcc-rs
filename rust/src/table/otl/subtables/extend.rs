@@ -1,10 +1,12 @@
 use crate::support::binio::{read_16u, read_32u};
 
-use crate::support::options::{Options};
+use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId};
 
-use crate::table::otl::{LookupType, Subtable, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_UNKNOWN, ExtendSubtable};
-use crate::table::otl::read::{otfcc_read_otl_subtable};
+use crate::table::otl::read::otfcc_read_otl_subtable;
+use crate::table::otl::{
+    ExtendSubtable, LookupType, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_UNKNOWN, Subtable,
+};
 
 // Was: allocate a whole `Subtable`-sized block directly, then take
 // `&raw mut (*_subtable).extend` and fill the field in place -- sound only
@@ -46,7 +48,10 @@ unsafe fn _caryll_read_otl_extend(
             max_glyphs,
             options,
         );
-        Box::into_raw(Box::new(Subtable::Extend(ExtendSubtable { type_0, subtable })))
+        Box::into_raw(Box::new(Subtable::Extend(ExtendSubtable {
+            type_0,
+            subtable,
+        })))
     }
 }
 pub unsafe fn otfcc_read_otl_gsub_extend(
@@ -56,14 +61,16 @@ pub unsafe fn otfcc_read_otl_gsub_extend(
     max_glyphs: GlyphId,
     mut options: &Options,
 ) -> *mut Subtable {
-    return unsafe { _caryll_read_otl_extend(
-        data,
-        table_length,
-        subtable_offset,
-        OTL_TYPE_GSUB_UNKNOWN,
-        max_glyphs,
-        options,
-    ) };
+    return unsafe {
+        _caryll_read_otl_extend(
+            data,
+            table_length,
+            subtable_offset,
+            OTL_TYPE_GSUB_UNKNOWN,
+            max_glyphs,
+            options,
+        )
+    };
 }
 pub unsafe fn otfcc_read_otl_gpos_extend(
     mut data: FontFilePointer,
@@ -72,12 +79,14 @@ pub unsafe fn otfcc_read_otl_gpos_extend(
     max_glyphs: GlyphId,
     mut options: &Options,
 ) -> *mut Subtable {
-    return unsafe { _caryll_read_otl_extend(
-        data,
-        table_length,
-        subtable_offset,
-        OTL_TYPE_GPOS_UNKNOWN,
-        max_glyphs,
-        options,
-    ) };
+    return unsafe {
+        _caryll_read_otl_extend(
+            data,
+            table_length,
+            subtable_offset,
+            OTL_TYPE_GPOS_UNKNOWN,
+            max_glyphs,
+            options,
+        )
+    };
 }

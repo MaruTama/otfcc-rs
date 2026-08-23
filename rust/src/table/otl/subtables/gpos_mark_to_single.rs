@@ -1,23 +1,38 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
-use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
+use crate::support::handle::{
+    GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
+};
+use crate::support::parsed_json::{
+    ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len,
+    json_obj_val_at, json_type_of,
+};
+use crate::table::otl::coverage::{
+    Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
+};
 
-use crate::support::font_reader::{FontReader};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
+use crate::bk::bkblock::bk_new_block_from_buffer;
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::bkgraph::bk_build_block;
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::support::buffer::Buffer;
+use crate::support::built_json::{
+    BuiltValue, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key,
+    json_string_new_from_bytes, preserialize,
+};
+use crate::support::font_reader::FontReader;
+use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::table::otl::{Anchor, BaseArray, BaseRecord, Subtable, GposMarkToSingleSubtable, subtable_from_raw};
-use crate::table::otl::subtables::{BuildHeuristics};
-use crate::bk::bkblock::{bk_new_block_from_buffer};
-use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::coverage::{build_coverage};
-use crate::table::otl::subtables::gpos_common::{bk_from_anchor, otl_anchor_absent, otl_parse_mark_array, otl_parse_anchor, otl_read_mark_array, otl_read_anchor};
-use crate::support::built_json::{BuiltValue, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes, preserialize};
+use crate::table::otl::coverage::build_coverage;
+use crate::table::otl::subtables::BuildHeuristics;
+use crate::table::otl::subtables::gpos_common::{
+    bk_from_anchor, otl_anchor_absent, otl_parse_anchor, otl_parse_mark_array, otl_read_anchor,
+    otl_read_mark_array,
+};
+use crate::table::otl::{
+    Anchor, BaseArray, BaseRecord, GposMarkToSingleSubtable, Subtable, subtable_from_raw,
+};
+use crate::vendor::json::JsonType;
 // `BaseRecord.anchors` is a plain `Vec<Anchor>` now and `glyph: GlyphHandle`
 // already has its own `Drop`, so a `BaseArray` (`Vec<BaseRecord>`) fully
 // self-drops -- clearing it (still needed: `consolidate/otl/mark.rs`'s dedup
@@ -79,27 +94,53 @@ pub unsafe fn otl_read_gpos_mark_to_single(
         if header.skip(2).is_err() {
             break 'parse None; // format, unused
         }
-        let Ok(marks_rel) = header.u16() else { break 'parse None };
-        let Ok(bases_rel) = header.u16() else { break 'parse None };
-        let Ok(class_count) = header.u16() else { break 'parse None };
-        let Ok(mark_array_rel) = header.u16() else { break 'parse None };
-        let Ok(base_array_rel) = header.u16() else { break 'parse None };
+        let Ok(marks_rel) = header.u16() else {
+            break 'parse None;
+        };
+        let Ok(bases_rel) = header.u16() else {
+            break 'parse None;
+        };
+        let Ok(class_count) = header.u16() else {
+            break 'parse None;
+        };
+        let Ok(mark_array_rel) = header.u16() else {
+            break 'parse None;
+        };
+        let Ok(base_array_rel) = header.u16() else {
+            break 'parse None;
+        };
 
-        marks = read_coverage(data, table_length, subtable_offset.wrapping_add(marks_rel as u32));
-        bases = read_coverage(data, table_length, subtable_offset.wrapping_add(bases_rel as u32));
+        marks = read_coverage(
+            data,
+            table_length,
+            subtable_offset.wrapping_add(marks_rel as u32),
+        );
+        bases = read_coverage(
+            data,
+            table_length,
+            subtable_offset.wrapping_add(bases_rel as u32),
+        );
         if marks.is_null() || (*marks).is_empty() || bases.is_null() || (*bases).is_empty() {
             break 'parse None;
         }
 
         (*subtable).class_count = class_count as GlyphClass;
         let mark_array_offset = subtable_offset.wrapping_add(mark_array_rel as u32);
-        otl_read_mark_array(&raw mut (*subtable).mark_array, marks, data, table_length, mark_array_offset);
+        otl_read_mark_array(
+            &raw mut (*subtable).mark_array,
+            marks,
+            data,
+            table_length,
+            mark_array_offset,
+        );
 
         let base_array_offset = subtable_offset.wrapping_add(base_array_rel as u32);
         let Ok(mut base_reader) = FontReader::new(slice).at(base_array_offset as usize) else {
             break 'parse None;
         };
-        let Ok(base_count) = base_reader.u16() else { break 'parse None };
+        let Ok(base_count) = base_reader.u16() else {
+            break 'parse None;
+        };
         if base_count as usize != (*bases).len() {
             break 'parse None;
         }
@@ -146,10 +187,10 @@ pub unsafe fn otl_read_gpos_mark_to_single(
         }
     }
 }
-pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
-    mut st: *const Subtable,
-) -> *mut BuiltValue {
-    let Subtable::GposMarkToSingle(mut_subtable) = &*st else { unreachable!() };
+pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(mut st: *const Subtable) -> *mut BuiltValue {
+    let Subtable::GposMarkToSingle(mut_subtable) = &*st else {
+        unreachable!()
+    };
     let subtable: *const GposMarkToSingleSubtable = mut_subtable;
     let mut _subtable: *mut BuiltValue = json_object_new(3 as usize);
     let mut _marks: *mut BuiltValue = json_object_new((*subtable).mark_array.len());
@@ -188,8 +229,7 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
         let mut _base: *mut BuiltValue = json_object_new((*subtable).class_count as usize);
         let mut k: GlyphClass = 0 as GlyphClass;
         while (k as ::core::ffi::c_int) < (*subtable).class_count as ::core::ffi::c_int {
-            if (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].present
-            {
+            if (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].present {
                 let mut _anchor: *mut BuiltValue = json_object_new(2 as usize);
                 json_object_push(
                     _anchor,
@@ -205,7 +245,8 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(
                         (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].y as i64,
                     ),
                 );
-                let mark_class_name_0: Vec<u8> = crate::bytesbuild!(b"anchor", k as ::core::ffi::c_int);
+                let mark_class_name_0: Vec<u8> =
+                    crate::bytesbuild!(b"anchor", k as ::core::ffi::c_int);
                 json_object_push_bytes_key(_base, &mark_class_name_0, _anchor);
             }
             k = k.wrapping_add(1);
@@ -252,9 +293,7 @@ unsafe fn parse_bases(
         // and filled with "absent" rather than built with `.push()`.
         base.anchors = vec![otl_anchor_absent(); class_count as usize];
         let mut base_record: *const ParsedValue = json_obj_val_at(_bases, j as u32);
-        if base_record.is_null()
-            || json_type_of(base_record) != JsonType::Object
-        {
+        if base_record.is_null() || json_type_of(base_record) != JsonType::Object {
             (*subtable).base_array.push(base);
         } else {
             let mut k_0: GlyphClass = 0 as GlyphClass;
@@ -262,15 +301,15 @@ unsafe fn parse_bases(
                 let name_ptr: *mut ::core::ffi::c_char = json_obj_key_at(base_record, k_0 as u32);
                 // `strlen`-bounded, matching `otl_parse_mark_array`'s
                 // registration key exactly.
-                let class_name: Vec<u8> =
-                    ::core::ffi::CStr::from_ptr(name_ptr).to_bytes().to_vec();
+                let class_name: Vec<u8> = ::core::ffi::CStr::from_ptr(name_ptr).to_bytes().to_vec();
                 match (*h).get(&class_name) {
                     None => {
                         logger_log_sds(
                             &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::bytesbuild!(b"[OTFCC-fea] Invalid anchor class name <",
+                            crate::bytesbuild!(
+                                b"[OTFCC-fea] Invalid anchor class name <",
                                 name_ptr,
                                 b"> for /",
                                 gname,
@@ -279,9 +318,8 @@ unsafe fn parse_bases(
                         );
                     }
                     Some(&class_id) => {
-                        base.anchors[class_id as usize] = otl_parse_anchor(
-                            json_obj_val_at(base_record, k_0 as u32),
-                        );
+                        base.anchors[class_id as usize] =
+                            otl_parse_anchor(json_obj_val_at(base_record, k_0 as u32));
                     }
                 }
                 k_0 = k_0.wrapping_add(1);
@@ -319,16 +357,17 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let Subtable::GposMarkToSingle(mut_subtable) = &*_subtable else { unreachable!() };
+    let Subtable::GposMarkToSingle(mut_subtable) = &*_subtable else {
+        unreachable!()
+    };
     let subtable: *const GposMarkToSingleSubtable = mut_subtable;
     let mut marks: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).mark_array.len() {
         push_to_coverage(
             marks,
-            otfcc_handle_dup(
-                (&(*subtable).mark_array)[j as usize].glyph.clone() as Handle,
-            ) as GlyphHandle,
+            otfcc_handle_dup((&(*subtable).mark_array)[j as usize].glyph.clone() as Handle)
+                as GlyphHandle,
         );
         j = j.wrapping_add(1);
     }
@@ -337,37 +376,74 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
     while (j_0 as usize) < (*subtable).base_array.len() {
         push_to_coverage(
             bases,
-            otfcc_handle_dup(
-                (&(*subtable).base_array)[j_0 as usize].glyph.clone() as Handle,
-            ) as GlyphHandle,
+            otfcc_handle_dup((&(*subtable).base_array)[j_0 as usize].glyph.clone() as Handle)
+                as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
-            marks,
-        ))), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(
-            bases,
-        ))), bk_int(BkCellType::B16, ((*subtable).class_count as ::core::ffi::c_int) as u32)]);
-    let mut mark_array: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*subtable).mark_array.len()) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[
+        bk_int(BkCellType::B16, 1 as u32),
+        bk_ptr(
+            BkCellType::P16,
+            bk_new_block_from_buffer(build_coverage(marks)),
+        ),
+        bk_ptr(
+            BkCellType::P16,
+            bk_new_block_from_buffer(build_coverage(bases)),
+        ),
+        bk_int(
+            BkCellType::B16,
+            ((*subtable).class_count as ::core::ffi::c_int) as u32,
+        ),
+    ]);
+    let mut mark_array: *mut BkBlock = bk_new_block(&[bk_int(
+        BkCellType::B16,
+        ((*subtable).mark_array.len()) as u32,
+    )]);
     let mut j_1: GlyphId = 0 as GlyphId;
     while (j_1 as usize) < (*subtable).mark_array.len() {
-        bk_push(mark_array, &[bk_int(BkCellType::B16, ((&(*subtable).mark_array)[j_1 as usize].mark_class as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P16, bk_from_anchor((&(*subtable).mark_array)[j_1 as usize].anchor))]);
+        bk_push(
+            mark_array,
+            &[
+                bk_int(
+                    BkCellType::B16,
+                    ((&(*subtable).mark_array)[j_1 as usize].mark_class as ::core::ffi::c_int)
+                        as u32,
+                ),
+                bk_ptr(
+                    BkCellType::P16,
+                    bk_from_anchor((&(*subtable).mark_array)[j_1 as usize].anchor),
+                ),
+            ],
+        );
         j_1 = j_1.wrapping_add(1);
     }
-    let mut base_array: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*subtable).base_array.len()) as u32)]);
+    let mut base_array: *mut BkBlock = bk_new_block(&[bk_int(
+        BkCellType::B16,
+        ((*subtable).base_array.len()) as u32,
+    )]);
     let mut j_2: GlyphId = 0 as GlyphId;
     while (j_2 as usize) < (*subtable).base_array.len() {
         let mut k: GlyphClass = 0 as GlyphClass;
         while (k as ::core::ffi::c_int) < (*subtable).class_count as ::core::ffi::c_int {
-            bk_push(base_array, &[bk_ptr(BkCellType::P16, bk_from_anchor(
-                    (&(*subtable).base_array)[j_2 as usize]
-                        .anchors[k as usize],
-                ))]);
+            bk_push(
+                base_array,
+                &[bk_ptr(
+                    BkCellType::P16,
+                    bk_from_anchor((&(*subtable).base_array)[j_2 as usize].anchors[k as usize]),
+                )],
+            );
             k = k.wrapping_add(1);
         }
         j_2 = j_2.wrapping_add(1);
     }
-    bk_push(root, &[bk_ptr(BkCellType::P16, mark_array), bk_ptr(BkCellType::P16, base_array)]);
+    bk_push(
+        root,
+        &[
+            bk_ptr(BkCellType::P16, mark_array),
+            bk_ptr(BkCellType::P16, base_array),
+        ],
+    );
     otl_coverage_free(marks);
     otl_coverage_free(bases);
     return bk_build_block(root);
@@ -414,7 +490,9 @@ mod otl_read_gpos_mark_to_single_tests {
             );
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
-            let Subtable::GposMarkToSingle(subtable) = &*boxed else { unreachable!() };
+            let Subtable::GposMarkToSingle(subtable) = &*boxed else {
+                unreachable!()
+            };
             assert_eq!(subtable.class_count, 1);
             assert_eq!(subtable.base_array.len(), 1);
             assert_eq!(subtable.base_array[0].glyph.index, 6);

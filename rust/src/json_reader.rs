@@ -1,53 +1,44 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{strlen, strtol};
 
-
-
-
-
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of};
+use crate::logger::{LOG_VL_NOTICE, LoggerType, logger_log_sds};
 use crate::otf_reader::FontBuilder;
-use crate::logger::{LoggerType, LOG_VL_NOTICE, logger_log_sds};
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at,
+    json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of,
+};
 
-use crate::support::options::{Options};
-use crate::support::primitives::{GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::font::caryll_font::{FontSubtype, Font};
-use crate::support::{NULL};
-use crate::support::glyph_order::{GlyphOrderPass, GlyphOrder, GlyphOrderEntry};
+use crate::font::caryll_font::{Font, FontSubtype};
+use crate::support::NULL;
+use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry, GlyphOrderPass};
+use crate::support::options::Options;
+use crate::support::primitives::GlyphId;
+use crate::vendor::json::JsonType;
 
-
-
-
-
-
-use crate::font::caryll_font::{otfcc_font_create};
-use crate::table::base::{otfcc_parse_base};
-use crate::table::cff::{otfcc_parse_cff};
-use crate::table::colr::{otfcc_parse_colr};
-use crate::table::cpal::{otfcc_parse_cpal};
-use crate::table::gdef::{otfcc_parse_gdef};
-use crate::table::os_2::{otfcc_parse_os_2};
-use crate::table::svg::{otfcc_parse_svg};
-use crate::table::tsi5::{otfcc_parse_tsi5};
-use crate::table::_tsi::{otfcc_parse_tsi};
-use crate::table::cmap::{otfcc_parse_cmap};
-use crate::table::cvt::{otfcc_parse_cvt};
-use crate::table::fpgm_prep::{otfcc_parse_fpgm_prep};
-use crate::table::gasp::{otfcc_parse_gasp};
-use crate::table::glyf::{otfcc_parse_glyf};
-use crate::table::head::{otfcc_parse_head};
-use crate::table::hhea::{otfcc_parse_hhea};
-use crate::table::maxp::{otfcc_parse_maxp};
-use crate::table::meta::parse::{otfcc_parse_meta};
-use crate::table::name::{otfcc_parse_name};
-use crate::table::otl::parse::{otfcc_parse_otl};
-use crate::table::post::{otfcc_parse_post};
-use crate::table::vdmx::funcs::{otfcc_parse_vdmx};
-use crate::table::vhea::{otfcc_parse_vhea};
-
-
-
+use crate::font::caryll_font::otfcc_font_create;
+use crate::table::_tsi::otfcc_parse_tsi;
+use crate::table::base::otfcc_parse_base;
+use crate::table::cff::otfcc_parse_cff;
+use crate::table::cmap::otfcc_parse_cmap;
+use crate::table::colr::otfcc_parse_colr;
+use crate::table::cpal::otfcc_parse_cpal;
+use crate::table::cvt::otfcc_parse_cvt;
+use crate::table::fpgm_prep::otfcc_parse_fpgm_prep;
+use crate::table::gasp::otfcc_parse_gasp;
+use crate::table::gdef::otfcc_parse_gdef;
+use crate::table::glyf::otfcc_parse_glyf;
+use crate::table::head::otfcc_parse_head;
+use crate::table::hhea::otfcc_parse_hhea;
+use crate::table::maxp::otfcc_parse_maxp;
+use crate::table::meta::parse::otfcc_parse_meta;
+use crate::table::name::otfcc_parse_name;
+use crate::table::os_2::otfcc_parse_os_2;
+use crate::table::otl::parse::otfcc_parse_otl;
+use crate::table::post::otfcc_parse_post;
+use crate::table::svg::otfcc_parse_svg;
+use crate::table::tsi5::otfcc_parse_tsi5;
+use crate::table::vdmx::funcs::otfcc_parse_vdmx;
+use crate::table::vhea::otfcc_parse_vhea;
 
 #[inline]
 unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
@@ -57,9 +48,7 @@ unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
         10 as ::core::ffi::c_int,
     ) as ::core::ffi::c_int;
 }
-unsafe fn otfcc_decide_font_subtype_from_json(
-    mut root: *const ParsedValue,
-) -> FontSubtype {
+unsafe fn otfcc_decide_font_subtype_from_json(mut root: *const ParsedValue) -> FontSubtype {
     if !json_obj_get_type(
         root,
         b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
@@ -142,37 +131,21 @@ unsafe fn escalate_glyph_order_by_name(
         }
     }
 }
-unsafe fn place_order_entries_from_glyf(
-    mut table: *const ParsedValue,
-    mut go: *mut GlyphOrder,
-) {
+unsafe fn place_order_entries_from_glyf(mut table: *const ParsedValue, mut go: *mut GlyphOrder) {
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(table) as u32 {
         let gname: Vec<u8> = json_obj_key_bytes_at(table, j as u32);
         if gname.as_slice() == b".notdef" {
-            set_order_by_name(
-                go,
-                gname,
-                GlyphOrderPass::Notdef,
-                0 as u32,
-            );
+            set_order_by_name(go, gname, GlyphOrderPass::Notdef, 0 as u32);
         } else if gname.as_slice() == b".null" {
-            set_order_by_name(
-                go,
-                gname,
-                GlyphOrderPass::Notdef,
-                1 as u32,
-            );
+            set_order_by_name(go, gname, GlyphOrderPass::Notdef, 1 as u32);
         } else {
             set_order_by_name(go, gname, GlyphOrderPass::Glyf, j);
         }
         j = j.wrapping_add(1);
     }
 }
-unsafe fn place_order_entries_from_cmap(
-    mut table: *const ParsedValue,
-    mut go: *mut GlyphOrder,
-) {
+unsafe fn place_order_entries_from_cmap(mut table: *const ParsedValue, mut go: *mut GlyphOrder) {
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(table) as u32 {
         // Borrows `json_obj_key_at`'s pointer directly rather than an
@@ -203,12 +176,7 @@ unsafe fn place_order_entries_from_cmap(
             && unicode <= 0x10ffff as i32
         {
             let gname: Vec<u8> = json_str_bytes(item);
-            escalate_glyph_order_by_name(
-                go,
-                &gname,
-                GlyphOrderPass::Cmap,
-                unicode as u32,
-            );
+            escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::Cmap, unicode as u32);
         }
         j = j.wrapping_add(1);
     }
@@ -225,15 +193,9 @@ unsafe fn place_order_entries_from_subtable(
     let mut j: u32 = 0 as u32;
     while j < uplimit {
         let mut item: *const ParsedValue = json_arr_at(table, j as u32);
-        if json_type_of(item) == JsonType::String
-        {
+        if json_type_of(item) == JsonType::String {
             let gname: Vec<u8> = json_str_bytes(item);
-            escalate_glyph_order_by_name(
-                go,
-                &gname,
-                GlyphOrderPass::GlyphOrder,
-                j,
-            );
+            escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::GlyphOrder, j);
         }
         j = j.wrapping_add(1);
     }
@@ -253,8 +215,7 @@ unsafe fn parse_glyph_order(
         by_name: ::std::collections::HashMap::new(),
     });
     let go: *mut GlyphOrder = go_box.as_mut() as *mut GlyphOrder;
-    if json_type_of(root) != JsonType::Object
-    {
+    if json_type_of(root) != JsonType::Object {
         return Some(go_box);
     }
     let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
@@ -292,8 +253,7 @@ unsafe fn parse_glyph_order(
                     &mut *options.logger.borrow_mut(),
                     LOG_VL_NOTICE,
                     LoggerType::Info,
-                    crate::bytesbuild!(b"OpenType SVG table detected. Glyph order is preserved.",
-                    ),
+                    crate::bytesbuild!(b"OpenType SVG table detected. Glyph order is preserved.",),
                 );
                 ignore_glyph_order = false;
             }
@@ -306,82 +266,84 @@ unsafe fn parse_glyph_order(
 struct JsonReader;
 impl FontBuilder for JsonReader {
     unsafe fn read(
-    mut _root: *mut ::core::ffi::c_void,
-    mut _index: u32,
-    options: *const ::core::ffi::c_void,
-) -> *mut ::core::ffi::c_void {
-    let options: &Options = &*(options as *const Options);
-    let mut root: *const ParsedValue = _root as *const ParsedValue;
-    let mut font: *mut Font = (
-        otfcc_font_create)();
-    if font.is_null() {
-        return ::core::ptr::null_mut::<::core::ffi::c_void>();
-    }
-    (*font).subtype = otfcc_decide_font_subtype_from_json(root);
-    (*font).glyph_order = parse_glyph_order(root, options);
-    (*font).glyf = otfcc_parse_glyf(
-        root,
-        (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
-        options,
-    );
-    (*font).cff = otfcc_parse_cff(root, options);
-    (*font).head = otfcc_parse_head(root, options);
-    (*font).hhea = otfcc_parse_hhea(root, options);
-    (*font).os_2 = otfcc_parse_os_2(root, options);
-    (*font).maxp = otfcc_parse_maxp(root, options);
-    (*font).post = otfcc_parse_post(root, options);
-    (*font).name = otfcc_parse_name(root, options);
-    (*font).meta = otfcc_parse_meta(root, options);
-    (*font).cmap = otfcc_parse_cmap(root, options);
-    if !options.ignore_hints {
-        (*font).fpgm = otfcc_parse_fpgm_prep(
+        mut _root: *mut ::core::ffi::c_void,
+        mut _index: u32,
+        options: *const ::core::ffi::c_void,
+    ) -> *mut ::core::ffi::c_void {
+        let options: &Options = &*(options as *const Options);
+        let mut root: *const ParsedValue = _root as *const ParsedValue;
+        let mut font: *mut Font = (otfcc_font_create)();
+        if font.is_null() {
+            return ::core::ptr::null_mut::<::core::ffi::c_void>();
+        }
+        (*font).subtype = otfcc_decide_font_subtype_from_json(root);
+        (*font).glyph_order = parse_glyph_order(root, options);
+        (*font).glyf = otfcc_parse_glyf(
+            root,
+            (*font)
+                .glyph_order
+                .as_deref_mut()
+                .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
+            options,
+        );
+        (*font).cff = otfcc_parse_cff(root, options);
+        (*font).head = otfcc_parse_head(root, options);
+        (*font).hhea = otfcc_parse_hhea(root, options);
+        (*font).os_2 = otfcc_parse_os_2(root, options);
+        (*font).maxp = otfcc_parse_maxp(root, options);
+        (*font).post = otfcc_parse_post(root, options);
+        (*font).name = otfcc_parse_name(root, options);
+        (*font).meta = otfcc_parse_meta(root, options);
+        (*font).cmap = otfcc_parse_cmap(root, options);
+        if !options.ignore_hints {
+            (*font).fpgm = otfcc_parse_fpgm_prep(
+                root,
+                options,
+                b"fpgm\0" as *const u8 as *const ::core::ffi::c_char,
+            );
+            (*font).prep = otfcc_parse_fpgm_prep(
+                root,
+                options,
+                b"prep\0" as *const u8 as *const ::core::ffi::c_char,
+            );
+            (*font).cvt_ = otfcc_parse_cvt(
+                root,
+                options,
+                b"cvt_\0" as *const u8 as *const ::core::ffi::c_char,
+            );
+            (*font).gasp = otfcc_parse_gasp(root, options);
+        }
+        (*font).vdmx = otfcc_parse_vdmx(root, options);
+        (*font).vhea = otfcc_parse_vhea(root, options);
+        if (*font).glyf.is_some() {
+            (*font).gsub = otfcc_parse_otl(
+                root,
+                options,
+                b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
+            );
+            (*font).gpos = otfcc_parse_otl(
+                root,
+                options,
+                b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
+            );
+            (*font).gdef = otfcc_parse_gdef(root, options);
+        }
+        (*font).base = otfcc_parse_base(root, options);
+        (*font).cpal = otfcc_parse_cpal(root, options);
+        (*font).colr = otfcc_parse_colr(root, options);
+        (*font).svg = otfcc_parse_svg(root, options);
+        (*font).tsi_01 = otfcc_parse_tsi(
             root,
             options,
-            b"fpgm\0" as *const u8 as *const ::core::ffi::c_char,
+            b"TSI_01\0" as *const u8 as *const ::core::ffi::c_char,
         );
-        (*font).prep = otfcc_parse_fpgm_prep(
+        (*font).tsi_23 = otfcc_parse_tsi(
             root,
             options,
-            b"prep\0" as *const u8 as *const ::core::ffi::c_char,
+            b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
         );
-        (*font).cvt_ = otfcc_parse_cvt(
-            root,
-            options,
-            b"cvt_\0" as *const u8 as *const ::core::ffi::c_char,
-        );
-        (*font).gasp = otfcc_parse_gasp(root, options);
-    }
-    (*font).vdmx = otfcc_parse_vdmx(root, options);
-    (*font).vhea = otfcc_parse_vhea(root, options);
-    if (*font).glyf.is_some() {
-        (*font).gsub = otfcc_parse_otl(
-            root,
-            options,
-            b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
-        );
-        (*font).gpos = otfcc_parse_otl(
-            root,
-            options,
-            b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
-        );
-        (*font).gdef = otfcc_parse_gdef(root, options);
-    }
-    (*font).base = otfcc_parse_base(root, options);
-    (*font).cpal = otfcc_parse_cpal(root, options);
-    (*font).colr = otfcc_parse_colr(root, options);
-    (*font).svg = otfcc_parse_svg(root, options);
-    (*font).tsi_01 = otfcc_parse_tsi(
-        root,
-        options,
-        b"TSI_01\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*font).tsi_23 = otfcc_parse_tsi(
-        root,
-        options,
-        b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*font).tsi5 = otfcc_parse_tsi5(root);
-    return font as *mut ::core::ffi::c_void;
+        (*font).tsi5 = otfcc_parse_tsi5(root);
+        return font as *mut ::core::ffi::c_void;
     }
 }
 pub unsafe fn read_json(
@@ -389,6 +351,9 @@ pub unsafe fn read_json(
     mut _index: u32,
     mut options: &Options,
 ) -> *mut Font {
-    <JsonReader as FontBuilder>::read(_root, _index, options as *const Options as *const ::core::ffi::c_void)
-        as *mut Font
+    <JsonReader as FontBuilder>::read(
+        _root,
+        _index,
+        options as *const Options as *const ::core::ffi::c_void,
+    ) as *mut Font
 }

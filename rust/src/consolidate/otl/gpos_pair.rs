@@ -1,45 +1,10 @@
+use crate::support::options::Options;
 
-use crate::support::options::{Options};
+use crate::font::caryll_font::Font;
 
-
-
-use crate::font::caryll_font::{Font};
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-use crate::table::otl::{Subtable, GposPairSubtable, OtlTable};
-use crate::consolidate::otl::common::{fontop_consolidate_class_def};
+use crate::consolidate::otl::common::fontop_consolidate_class_def;
 use crate::table::otl::classdef::{ClassDef, shrink_class_def};
-
-
-
-
-
-
-
-
+use crate::table::otl::{GposPairSubtable, OtlTable, Subtable};
 
 pub unsafe extern "C" fn consolidate_gpos_pair(
     mut font: *mut Font,
@@ -48,7 +13,9 @@ pub unsafe extern "C" fn consolidate_gpos_pair(
     mut options: *const Options,
 ) -> bool {
     unsafe {
-        let Subtable::GposPair(mut_subtable) = &mut *_subtable else { unreachable!() };
+        let Subtable::GposPair(mut_subtable) = &mut *_subtable else {
+            unreachable!()
+        };
         let subtable: *mut GposPairSubtable = mut_subtable;
         let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
         let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();

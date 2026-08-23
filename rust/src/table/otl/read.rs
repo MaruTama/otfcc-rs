@@ -1,27 +1,37 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-
-
+use crate::font::caryll_sfnt::Packet;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::support::options::{Options};
+use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::vendor::sds::{Byte, Dec5, Hex2};
-use crate::font::caryll_sfnt::{Packet};
 
-use crate::table::otl::{Feature, FeatureList, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OTL_TYPE_UNKNOWN, OtlTable};
-use crate::table::otl::{otl_feature_ref_list_dispose, subtable_list_slot, new_feature, new_language, new_lookup};
-use crate::table::otl::constants::{SCRIPT_LANGUAGE_SEPARATOR};
+use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
-use crate::table::otl::subtables::extend::{otfcc_read_otl_gpos_extend, otfcc_read_otl_gsub_extend};
-use crate::table::otl::subtables::gpos_cursive::{otl_read_gpos_cursive};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_read_gpos_mark_to_ligature};
-use crate::table::otl::subtables::gpos_mark_to_single::{otl_read_gpos_mark_to_single};
-use crate::table::otl::subtables::gpos_pair::{otl_read_gpos_pair};
-use crate::table::otl::subtables::gpos_single::{otl_read_gpos_single};
-use crate::table::otl::subtables::gsub_ligature::{otl_read_gsub_ligature};
-use crate::table::otl::subtables::gsub_multi::{otl_read_gsub_multi};
-use crate::table::otl::subtables::gsub_reverse::{otl_read_gsub_reverse};
-use crate::table::otl::subtables::gsub_single::{otl_read_gsub_single};
+use crate::table::otl::subtables::extend::{
+    otfcc_read_otl_gpos_extend, otfcc_read_otl_gsub_extend,
+};
+use crate::table::otl::subtables::gpos_cursive::otl_read_gpos_cursive;
+use crate::table::otl::subtables::gpos_mark_to_ligature::otl_read_gpos_mark_to_ligature;
+use crate::table::otl::subtables::gpos_mark_to_single::otl_read_gpos_mark_to_single;
+use crate::table::otl::subtables::gpos_pair::otl_read_gpos_pair;
+use crate::table::otl::subtables::gpos_single::otl_read_gpos_single;
+use crate::table::otl::subtables::gsub_ligature::otl_read_gsub_ligature;
+use crate::table::otl::subtables::gsub_multi::otl_read_gsub_multi;
+use crate::table::otl::subtables::gsub_reverse::otl_read_gsub_reverse;
+use crate::table::otl::subtables::gsub_single::otl_read_gsub_single;
+use crate::table::otl::{
+    Feature, FeatureList, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType,
+    OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND,
+    OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK,
+    OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE,
+    OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_CONTEXT, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE,
+    OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN,
+    OTL_TYPE_UNKNOWN, OtlTable, Subtable,
+};
+use crate::table::otl::{
+    new_feature, new_language, new_lookup, otl_feature_ref_list_dispose, subtable_list_slot,
+};
 pub unsafe fn otfcc_read_otl_subtable(
     mut data: FontFilePointer,
     mut table_length: u32,
@@ -68,28 +78,13 @@ pub unsafe fn otfcc_read_otl_subtable(
             return otl_read_gpos_cursive(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GPOS_MARK_TO_BASE => {
-            return otl_read_gpos_mark_to_single(
-                data,
-                table_length,
-                subtable_offset,
-                max_glyphs,
-            );
+            return otl_read_gpos_mark_to_single(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GPOS_MARK_TO_MARK => {
-            return otl_read_gpos_mark_to_single(
-                data,
-                table_length,
-                subtable_offset,
-                max_glyphs,
-            );
+            return otl_read_gpos_mark_to_single(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GPOS_MARK_TO_LIGATURE => {
-            return otl_read_gpos_mark_to_ligature(
-                data,
-                table_length,
-                subtable_offset,
-                max_glyphs,
-            );
+            return otl_read_gpos_mark_to_ligature(data, table_length, subtable_offset, max_glyphs);
         }
         OTL_TYPE_GSUB_EXTEND => {
             return otfcc_read_otl_gsub_extend(
@@ -148,7 +143,9 @@ unsafe fn parse_language(
             }
             for feature_index in feature_indices {
                 if (feature_index as usize) < (*features).len() {
-                    (*lang).features.push(&raw const *(&(*features))[feature_index as usize] as FeatureRef);
+                    (*lang)
+                        .features
+                        .push(&raw const *(&(*features))[feature_index as usize] as FeatureRef);
                 }
             }
         }
@@ -179,8 +176,11 @@ unsafe fn parse_otl_common(
     lookup_type_base: LookupType,
     options: &Options,
 ) -> Result<Box<OtlTable>, ReadError> {
-    let mut table_box: Box<OtlTable> =
-        Box::new(OtlTable { lookups: Vec::new(), features: Vec::new(), languages: Vec::new() });
+    let mut table_box: Box<OtlTable> = Box::new(OtlTable {
+        lookups: Vec::new(),
+        features: Vec::new(),
+        languages: Vec::new(),
+    });
     let table: *mut OtlTable = table_box.as_mut() as *mut OtlTable;
 
     let script_list_offset = FontReader::new(data).at(4)?.u16()? as u32;
@@ -364,20 +364,25 @@ unsafe fn otfcc_read_otl_lookup(
     max_glyphs: GlyphId,
     options: &Options,
 ) {
-    let parsed = FontReader::new(data).at((*lookup)._offset as usize).and_then(|mut r| {
-        r.skip(2)?; // lookupType, already resolved into type_0
-        let flags = r.u16()?;
-        let subtable_count = r.u16()?;
-        r.require_room(subtable_count as usize, 2)?;
-        let mut subtable_offsets = Vec::with_capacity(subtable_count as usize);
-        for _ in 0..subtable_count {
-            subtable_offsets.push((*lookup)._offset.wrapping_add(r.u16()? as u32));
-        }
-        if subtable_count == 0 {
-            return Err(ReadError { needed: 1, available: 0 });
-        }
-        Ok((flags, subtable_offsets))
-    });
+    let parsed = FontReader::new(data)
+        .at((*lookup)._offset as usize)
+        .and_then(|mut r| {
+            r.skip(2)?; // lookupType, already resolved into type_0
+            let flags = r.u16()?;
+            let subtable_count = r.u16()?;
+            r.require_room(subtable_count as usize, 2)?;
+            let mut subtable_offsets = Vec::with_capacity(subtable_count as usize);
+            for _ in 0..subtable_count {
+                subtable_offsets.push((*lookup)._offset.wrapping_add(r.u16()? as u32));
+            }
+            if subtable_count == 0 {
+                return Err(ReadError {
+                    needed: 1,
+                    available: 0,
+                });
+            }
+            Ok((flags, subtable_offsets))
+        });
     let (flags, subtable_offsets) = match parsed {
         Ok(v) => v,
         Err(_) => {
@@ -403,14 +408,14 @@ unsafe fn otfcc_read_otl_lookup(
         );
         (*lookup).subtables.push(subtable_list_slot(subtable));
     }
-    if (*lookup).type_0 == OTL_TYPE_GSUB_EXTEND
-        || (*lookup).type_0 == OTL_TYPE_GPOS_EXTEND
-    {
+    if (*lookup).type_0 == OTL_TYPE_GSUB_EXTEND || (*lookup).type_0 == OTL_TYPE_GPOS_EXTEND {
         (*lookup).type_0 = OTL_TYPE_UNKNOWN;
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*lookup).subtables.len() {
             if let Some(elem) = &(&(*lookup).subtables)[j_0 as usize] {
-                let Subtable::Extend(ext) = elem.as_ref() else { unreachable!() };
+                let Subtable::Extend(ext) = elem.as_ref() else {
+                    unreachable!()
+                };
                 (*lookup).type_0 = ext.type_0;
                 break;
             } else {
@@ -432,12 +437,13 @@ unsafe fn otfcc_read_otl_lookup(
                     // infallible. Moving `ExtendSubtable` out of `*elem`
                     // (it's `Copy`) also deallocates `elem`'s own heap slot,
                     // same as the old explicit `Box::from_raw(..)` drop did.
-                    let Subtable::Extend(ext) = *elem else { unreachable!() };
+                    let Subtable::Extend(ext) = *elem else {
+                        unreachable!()
+                    };
                     if ext.type_0 == (*lookup).type_0 {
                         // `.subtable`'s ownership transfers to become the new
                         // list element.
-                        (&mut (*lookup).subtables)[j_1 as usize] =
-                            subtable_list_slot(ext.subtable);
+                        (&mut (*lookup).subtables)[j_1 as usize] = subtable_list_slot(ext.subtable);
                     } else {
                         // A scratch `Lookup` purely to reuse its (now `Drop`-driven)
                         // type-dispatched subtable teardown on this one subtable --
@@ -465,12 +471,10 @@ unsafe fn otfcc_read_otl_lookup(
             return;
         }
     }
-    if (*lookup).type_0 == OTL_TYPE_GSUB_CONTEXT
-    {
+    if (*lookup).type_0 == OTL_TYPE_GSUB_CONTEXT {
         (*lookup).type_0 = OTL_TYPE_GSUB_CHAINING;
     }
-    if (*lookup).type_0 == OTL_TYPE_GPOS_CONTEXT
-    {
+    if (*lookup).type_0 == OTL_TYPE_GPOS_CONTEXT {
         (*lookup).type_0 = OTL_TYPE_GPOS_CHAINING;
     }
 }
@@ -493,7 +497,12 @@ pub unsafe fn otfcc_read_otl(
     let mut otl_box = parse_otl_common(&table.data, lookup_type_base, options).ok()?;
     let otl_ptr: *mut OtlTable = otl_box.as_mut() as *mut OtlTable;
     for j in 0..(*otl_ptr).lookups.len() {
-        otfcc_read_otl_lookup(&table.data, &raw mut *(&mut (*otl_ptr).lookups)[j], max_glyphs, options);
+        otfcc_read_otl_lookup(
+            &table.data,
+            &raw mut *(&mut (*otl_ptr).lookups)[j],
+            max_glyphs,
+            options,
+        );
     }
     Some(otl_box)
 }
@@ -632,8 +641,7 @@ mod parse_otl_common_tests {
         let data = well_formed_gsub(); // subtableCount is already 0
         let options = zeroed_options();
         unsafe {
-            let mut otl =
-                parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
+            let mut otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
             let lookup_ptr: *mut Lookup = &raw mut *otl.lookups[0];
             otfcc_read_otl_lookup(&data, lookup_ptr, 0, &options);
             assert_eq!((*lookup_ptr).type_0, OTL_TYPE_UNKNOWN);

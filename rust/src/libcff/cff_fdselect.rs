@@ -1,9 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::buffer::{Buffer};
-use crate::support::font_reader::{FontReader};
-use crate::support::buffer::{bufnew};
+use crate::support::alloc::__caryll_allocate_clean;
+use crate::support::buffer::Buffer;
+use crate::support::buffer::bufnew;
+use crate::support::font_reader::FontReader;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -24,7 +24,10 @@ pub struct CffFdSelectRangeFormat3 {
 pub enum CffFdSelect {
     Unspecified,
     Format0(Vec<u8>),
-    Format3 { range3: Vec<CffFdSelectRangeFormat3>, sentinel: u16 },
+    Format3 {
+        range3: Vec<CffFdSelectRangeFormat3>,
+        sentinel: u16,
+    },
 }
 // `gu1`/`gu2` (no bounds checking, no length parameter at all) are gone --
 // see `libcff/cff_index.rs`'s own conversion for the same move.
@@ -71,7 +74,8 @@ pub unsafe fn cff_build_fd_select(fd: &CffFdSelect) -> *mut Buffer {
                     (r.first as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8;
                 *(*blob_0)
                     .data
-                    .offset((5 as ::core::ffi::c_int + 3 as ::core::ffi::c_int * i) as isize) = r.fd;
+                    .offset((5 as ::core::ffi::c_int + 3 as ::core::ffi::c_int * i) as isize) =
+                    r.fd;
             }
             *(*blob_0)
                 .data
@@ -101,7 +105,12 @@ pub unsafe fn cff_build_fd_select(fd: &CffFdSelect) -> *mut Buffer {
 // negative `offset`, this falls back to `Unspecified` -- the same
 // fallback the original already used for an unrecognized format byte,
 // just extended to cover "malformed" too.
-pub unsafe fn cff_extract_fd_select(data: *mut u8, table_length: u32, offset: i32, nchars: u16) -> CffFdSelect {
+pub unsafe fn cff_extract_fd_select(
+    data: *mut u8,
+    table_length: u32,
+    offset: i32,
+    nchars: u16,
+) -> CffFdSelect {
     if offset < 0 {
         return CffFdSelect::Unspecified;
     }
@@ -110,7 +119,9 @@ pub unsafe fn cff_extract_fd_select(data: *mut u8, table_length: u32, offset: i3
         let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
             break 'parse None;
         };
-        let Ok(format) = r.u8() else { break 'parse None };
+        let Ok(format) = r.u8() else {
+            break 'parse None;
+        };
         match format {
             0 => {
                 let mut fds: Vec<u8> = Vec::with_capacity(nchars as usize);
@@ -121,14 +132,20 @@ pub unsafe fn cff_extract_fd_select(data: *mut u8, table_length: u32, offset: i3
                 break 'parse Some(CffFdSelect::Format0(fds));
             }
             3 => {
-                let Ok(nranges) = r.u16() else { break 'parse None };
+                let Ok(nranges) = r.u16() else {
+                    break 'parse None;
+                };
                 let mut range3: Vec<CffFdSelectRangeFormat3> = Vec::with_capacity(nranges as usize);
                 for _ in 0..nranges {
-                    let Ok(first) = r.u16() else { break 'parse None };
+                    let Ok(first) = r.u16() else {
+                        break 'parse None;
+                    };
                     let Ok(fd) = r.u8() else { break 'parse None };
                     range3.push(CffFdSelectRangeFormat3 { first, fd });
                 }
-                let Ok(sentinel) = r.u16() else { break 'parse None };
+                let Ok(sentinel) = r.u16() else {
+                    break 'parse None;
+                };
                 break 'parse Some(CffFdSelect::Format3 { range3, sentinel });
             }
             _ => break 'parse Some(CffFdSelect::Unspecified),
@@ -180,7 +197,8 @@ mod cff_extract_fd_select_tests {
     }
 
     #[test]
-    fn format3_huge_nranges_against_a_tiny_table_falls_back_to_unspecified_instead_of_reading_oob() {
+    fn format3_huge_nranges_against_a_tiny_table_falls_back_to_unspecified_instead_of_reading_oob()
+    {
         // The original had no check at all that the table actually held
         // `nranges` 3-byte entries.
         let data = [0x03u8, 0xFF, 0xFF]; // format=3, nranges=65535, nothing else

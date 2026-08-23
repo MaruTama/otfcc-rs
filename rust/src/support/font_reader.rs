@@ -78,7 +78,9 @@ impl<'a> FontReader<'a> {
     /// `count` can be large enough that `count * stride` overflows `usize`
     /// on its own, before the length comparison ever runs).
     pub fn require_room(&self, count: usize, stride: usize) -> Result<(), ReadError> {
-        let need = count.checked_mul(stride).ok_or_else(|| self.err(usize::MAX))?;
+        let need = count
+            .checked_mul(stride)
+            .ok_or_else(|| self.err(usize::MAX))?;
         self.require(need)
     }
 
@@ -162,9 +164,10 @@ impl<'a> FontReader<'a> {
     /// explicit length, so the returned reader can't run past the
     /// subtable's own end even if the outer buffer has more data after it.
     pub fn sub(&self, offset: usize, len: usize) -> Result<FontReader<'a>, ReadError> {
-        let end = offset
-            .checked_add(len)
-            .ok_or(ReadError { needed: len, available: 0 })?;
+        let end = offset.checked_add(len).ok_or(ReadError {
+            needed: len,
+            available: 0,
+        })?;
         if end > self.data.len() {
             return Err(ReadError {
                 needed: end,

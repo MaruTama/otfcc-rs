@@ -21,18 +21,15 @@ pub struct BkGraphNode {
 pub struct BkGraph {
     pub entries: Vec<BkGraphNode>,
 }
-use crate::support::stdio::{stderr};
-use crate::support::buffer::{Buffer};
-use crate::bk::bkblock::{BkCellVisitState, BkBlock, BkCellType, BkCellValue, bk_new_block, bk_ptr};
-use crate::bk::bkblock::{bk_cell_is_pointer};
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite8};
+use crate::bk::bkblock::bk_cell_is_pointer;
+use crate::bk::bkblock::{
+    BkBlock, BkCellType, BkCellValue, BkCellVisitState, bk_new_block, bk_ptr,
+};
+use crate::support::buffer::Buffer;
+use crate::support::buffer::{bufnew, bufwrite8, bufwrite16b, bufwrite32b};
+use crate::support::stdio::stderr;
 
-
-unsafe fn dfs_insert_cells(
-    b: *mut BkBlock,
-    f: *mut BkGraph,
-    order: *mut u32,
-) -> u32 {
+unsafe fn dfs_insert_cells(b: *mut BkBlock, f: *mut BkGraph, order: *mut u32) -> u32 {
     if b.is_null() || (*b)._visitstate == BkCellVisitState::Gray {
         return 0;
     }
@@ -52,7 +49,13 @@ unsafe fn dfs_insert_cells(
     }
     *order = (*order).wrapping_add(1);
     (*b)._height = height;
-    (*f).entries.push(BkGraphNode { alias: 0, order: *order, height, hash: 0, block: b });
+    (*f).entries.push(BkGraphNode {
+        alias: 0,
+        order: *order,
+        height,
+        hash: 0,
+        block: b,
+    });
     (*b)._visitstate = BkCellVisitState::Black;
     return height;
 }
@@ -62,7 +65,8 @@ unsafe fn by_height_cmp(a: &BkGraphNode, b: &BkGraphNode) -> ::core::cmp::Orderi
 unsafe fn by_order_cmp(a: &BkGraphNode, b: &BkGraphNode) -> ::core::cmp::Ordering {
     if !a.block.is_null()
         && !b.block.is_null()
-        && (*a.block)._visitstate as ::core::ffi::c_uint != (*b.block)._visitstate as ::core::ffi::c_uint
+        && (*a.block)._visitstate as ::core::ffi::c_uint
+            != (*b.block)._visitstate as ::core::ffi::c_uint
     {
         ((*b.block)._visitstate as u32).cmp(&((*a.block)._visitstate as u32))
     } else if !a.block.is_null() && !b.block.is_null() && (*a.block)._depth != (*b.block)._depth {
@@ -72,13 +76,17 @@ unsafe fn by_order_cmp(a: &BkGraphNode, b: &BkGraphNode) -> ::core::cmp::Orderin
     }
 }
 pub unsafe fn bk_new_graph_from_root_block(b: *mut BkBlock) -> *mut BkGraph {
-    let forest: *mut BkGraph = Box::into_raw(Box::new(BkGraph { entries: Vec::new() }));
+    let forest: *mut BkGraph = Box::into_raw(Box::new(BkGraph {
+        entries: Vec::new(),
+    }));
     let mut ts_order: u32 = 0;
     dfs_insert_cells(b, forest, &raw mut ts_order);
     // `qsort` isn't guaranteed stable; `sort_by` is, matching the
     // conservative choice already made for `Coverage`/`ClassDef`/
     // `gpos_pair.rs`'s own qsort-scratch-buffer conversions.
-    (*forest).entries.sort_by(|a, b| unsafe { by_height_cmp(a, b) });
+    (*forest)
+        .entries
+        .sort_by(|a, b| unsafe { by_height_cmp(a, b) });
     for (j, entry) in (*forest).entries.iter_mut().enumerate() {
         (*entry.block)._index = j as u32;
         entry.alias = j as u32;
@@ -262,18 +270,14 @@ unsafe fn getoffset_untangle(
     let mut offtgt: usize = offsets[(*target)._index as usize];
     return offtgt.wrapping_sub(offref) as i64;
 }
-unsafe fn escalate_sppointers(
-    b: *mut BkBlock,
-    f: *mut BkGraph,
-    order: *mut u32,
-    depth: u32,
-) {
+unsafe fn escalate_sppointers(b: *mut BkBlock, f: *mut BkGraph, order: *mut u32, depth: u32) {
     if b.is_null() {
         return;
     }
     for j in 0..(*b).length {
         let cell = (*b).cells.offset(j as isize);
-        if bk_cell_is_pointer(cell) && !(*cell).as_ptr().is_null() && (*cell).t >= BkCellType::Sp16 {
+        if bk_cell_is_pointer(cell) && !(*cell).as_ptr().is_null() && (*cell).t >= BkCellType::Sp16
+        {
             escalate_sppointers((*cell).as_ptr(), f, order, depth);
         }
     }
@@ -281,12 +285,7 @@ unsafe fn escalate_sppointers(
     *order = (*order).wrapping_add(1);
     (&mut (*f).entries)[(*b)._index as usize].order = *order;
 }
-unsafe fn dfs_attract_cells(
-    b: *mut BkBlock,
-    f: *mut BkGraph,
-    order: *mut u32,
-    depth: u32,
-) {
+unsafe fn dfs_attract_cells(b: *mut BkBlock, f: *mut BkGraph, order: *mut u32, depth: u32) {
     if b.is_null() {
         return;
     }
@@ -303,12 +302,7 @@ unsafe fn dfs_attract_cells(
     for j in (0..(*b).length).rev() {
         let cell = (*b).cells.offset(j as isize);
         if bk_cell_is_pointer(cell) && !(*cell).as_ptr().is_null() {
-            dfs_attract_cells(
-                (*cell).as_ptr(),
-                f,
-                order,
-                depth.wrapping_add(1),
-            );
+            dfs_attract_cells((*cell).as_ptr(), f, order, depth.wrapping_add(1));
         }
     }
     *order = (*order).wrapping_add(1);

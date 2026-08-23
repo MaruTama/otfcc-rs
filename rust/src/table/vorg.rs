@@ -1,12 +1,12 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::binio::{pos_to_u16, read_16u, read_16s};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer, GlyphId, Pos};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::support::binio::{pos_to_u16, read_16s, read_16u};
+use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufwrite16b};
+use crate::support::options::Options;
+use crate::support::primitives::{FontFilePointer, GlyphId, Pos};
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -31,10 +31,7 @@ pub struct VorgTable {
 // equals `entries.len()` by construction at every write site, so keeping it
 // is a conservative choice that changes no call site beyond the storage
 // mechanism.
-pub unsafe fn otfcc_read_vorg(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<VorgTable>> {
+pub unsafe fn otfcc_read_vorg(packet: &Packet, options: &Options) -> Option<Box<VorgTable>> {
     let mut num_vert_origin_y_metrics: u16 = 0;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -51,9 +48,8 @@ pub unsafe fn otfcc_read_vorg(
                     let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     let mut length: u32 = table.length;
                     if !(length < 8 as u32) {
-                        num_vert_origin_y_metrics = read_16u(
-                            data.offset(6 as ::core::ffi::c_int as isize) as *const u8,
-                        );
+                        num_vert_origin_y_metrics =
+                            read_16u(data.offset(6 as ::core::ffi::c_int as isize) as *const u8);
                         if !(length
                             < (8 as ::core::ffi::c_int
                                 + 4 as ::core::ffi::c_int
@@ -69,13 +65,11 @@ pub unsafe fn otfcc_read_vorg(
                             while (j as ::core::ffi::c_int)
                                 < num_vert_origin_y_metrics as ::core::ffi::c_int
                             {
-                                let gid = read_16u(
-                                    data.offset(8 as ::core::ffi::c_int as isize).offset(
+                                let gid =
+                                    read_16u(data.offset(8 as ::core::ffi::c_int as isize).offset(
                                         (4 as ::core::ffi::c_int * j as ::core::ffi::c_int)
                                             as isize,
-                                    ) as *const u8,
-                                )
-                                    as GlyphId;
+                                    ) as *const u8) as GlyphId;
                                 let vertical_origin = read_16s(
                                     data.offset(8 as ::core::ffi::c_int as isize)
                                         .offset(
@@ -85,7 +79,10 @@ pub unsafe fn otfcc_read_vorg(
                                         .offset(2 as ::core::ffi::c_int as isize)
                                         as *const u8,
                                 );
-                                entries.push(VorgEntry { gid, vertical_origin });
+                                entries.push(VorgEntry {
+                                    gid,
+                                    vertical_origin,
+                                });
                                 j = j.wrapping_add(1);
                             }
                             return Some(Box::new(VorgTable {
@@ -113,9 +110,7 @@ pub unsafe fn otfcc_read_vorg(
     return None;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_vorg(
-    table: Option<&VorgTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_vorg(table: Option<&VorgTable>) -> *mut Buffer {
     let table = match table {
         Some(t) => t,
         None => return ::core::ptr::null_mut::<Buffer>(),

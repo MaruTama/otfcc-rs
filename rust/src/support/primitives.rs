@@ -96,11 +96,7 @@ unsafe fn divide(mut a: i64, b: i32) -> F16Dot16 {
     }
     return clamp(a / b as i64);
 }
-pub unsafe fn otfcc_f1616_muldiv(
-    mut a: F16Dot16,
-    mut b: F16Dot16,
-    mut c: F16Dot16,
-) -> F16Dot16 {
+pub unsafe fn otfcc_f1616_muldiv(mut a: F16Dot16, mut b: F16Dot16, mut c: F16Dot16) -> F16Dot16 {
     let mut tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
     return divide(tmp, c as i32);
 }
