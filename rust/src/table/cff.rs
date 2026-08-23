@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memset};
+use libc::free;
 unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
@@ -165,10 +165,14 @@ pub struct CffTable {
 // real work for the now-gone raw `fd_array` recursive-free loop) is
 // deleted outright, along with `dispose_fd`/`table_cff_dispose`/
 // `table_cff_free` (all now fully dead -- confirmed via crate-wide grep).
-// `table_cff_create`/`table_cff_init`/`init_fd` (`malloc`-based) stay:
-// they're still how every `CffTable` value -- top-level or `fd_array`
-// child -- gets constructed before being adopted into a `Box` via
-// `unwrap_cff_table`, exactly as `Font.cff` itself already works.
+// `table_cff_create` stays: it's still how every `CffTable` value --
+// top-level or `fd_array` child -- gets constructed before being adopted
+// into a `Box` via `unwrap_cff_table`, exactly as `Font.cff` itself already
+// works. It now builds directly via `Box::new`/`Box::into_raw` rather than
+// `malloc`+`table_cff_init`/`init_fd` (Stage 7-2-d): `fd_array` is already
+// `Vec<Box<CffTable>>`, so every `table_cff_create` result is immediately
+// adopted as an opaque `*mut CffTable` regardless of allocator, same as the
+// OTL subtable `_create()`s converted earlier in this migration.
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CffAndGlyf {
@@ -246,46 +250,51 @@ fn otfcc_new_cff_private() -> Box<CffPrivateDict> {
     })
 }
 #[inline]
-unsafe fn init_fd(mut fd: *mut CffTable) {
-    memset(
-        fd as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<CffTable>() as usize,
-    );
-    (*fd).underline_position = -(100 as ::core::ffi::c_int) as ::core::ffi::c_double;
-    (*fd).underline_thickness = 50 as ::core::ffi::c_int as ::core::ffi::c_double;
-}
-#[inline]
 unsafe fn table_cff_create() -> *mut CffTable {
-    let mut x: *mut CffTable = malloc(::core::mem::size_of::<CffTable>() as usize) as *mut CffTable;
-    table_cff_init(x);
-    return x;
-}
-#[inline]
-unsafe fn table_cff_init(mut x: *mut CffTable) {
-    init_fd(x);
+    Box::into_raw(Box::new(CffTable {
+        font_name: Vec::new(),
+        is_cid: false,
+        version: Vec::new(),
+        notice: Vec::new(),
+        copyright: Vec::new(),
+        full_name: Vec::new(),
+        family_name: Vec::new(),
+        weight: Vec::new(),
+        is_fixed_pitch: false,
+        italic_angle: 0 as ::core::ffi::c_double,
+        underline_position: -(100 as ::core::ffi::c_int) as ::core::ffi::c_double,
+        underline_thickness: 50 as ::core::ffi::c_int as ::core::ffi::c_double,
+        font_b_box_top: 0 as ::core::ffi::c_double,
+        font_b_box_bottom: 0 as ::core::ffi::c_double,
+        font_b_box_left: 0 as ::core::ffi::c_double,
+        font_b_box_right: 0 as ::core::ffi::c_double,
+        stroke_width: 0 as ::core::ffi::c_double,
+        private_dict: None,
+        font_matrix: None,
+        cid_registry: Vec::new(),
+        cid_ordering: Vec::new(),
+        cid_supplement: 0,
+        cid_font_version: 0 as ::core::ffi::c_double,
+        cid_font_revision: 0 as ::core::ffi::c_double,
+        cid_count: 0,
+        uid_base: 0,
+        fd_array: Vec::new(),
+    }))
 }
 // `table_cff_create`/`fd_from_json` are shared between the top-level table
-// (which becomes `Font.cff`) and `fd_array` children (still raw-pointer-
-// owned, built the same way) -- widening either constructor to return a
-// `Box` would force every recursive FD-array call site to also become
-// `Box`-aware, well beyond this field's scope. Instead this adopts the
-// malloc'd top-level pointer into a genuine `Box<CffTable>` at the one
-// point it actually needs to become `Font.cff`: `ptr::read` moves the
-// value out (a shallow copy -- the `Vec<u8>` fields' heap buffers and the
-// `private_dict`/`font_matrix`/`fd_array` pointers all move with it, none
-// of it is duplicated), then the now-empty malloc'd shell is released
-// with a bare `free` (not `table_cff_free`, which would incorrectly
-// re-drop everything a second time), and the value is placed into a
-// fresh `Box::new` allocated via Rust's global allocator. Matches
+// (which becomes `Font.cff`) and `fd_array` children (already `Vec<Box<
+// CffTable>>`, per the struct comment above) -- this adopts the raw
+// pointer into a genuine owned `Box<CffTable>` at the one point it
+// actually needs to become `Font.cff`. `table_cff_create` builds via
+// `Box::into_raw(Box::new(..))` now (Stage 7-2-d), so `raw` already points
+// at a real `Box` allocation -- `Box::from_raw` is the exact inverse, no
+// extra copy or separate dealloc call needed. Matches
 // `unwrap_glyf_table`/`unwrap_class_def` from earlier in this migration.
 pub(crate) unsafe fn unwrap_cff_table(raw: *mut CffTable) -> Option<Box<CffTable>> {
     if raw.is_null() {
         return None;
     }
-    let value = ::core::ptr::read(raw);
-    free(raw as *mut ::core::ffi::c_void);
-    Some(Box::new(value))
+    Some(Box::from_raw(raw))
 }
 unsafe extern "C" fn callback_extract_private(
     mut op: CffDictOperator,

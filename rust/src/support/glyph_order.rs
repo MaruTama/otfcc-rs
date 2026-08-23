@@ -8,8 +8,6 @@
 // c2rust's calling-convention residue, not real FFI. Same rationale as
 // `support/handle.rs`.
 #![allow(improper_ctypes_definitions)]
-use libc::{free, malloc};
-
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
 use crate::support::primitives::GlyphId;
@@ -98,51 +96,27 @@ pub struct GlyphOrder {
 // in `otf_reader/unconsolidate.rs`; `PostTable.post_name_map` was migrated
 // off this path to an owned `Option<Box<GlyphOrder>>`, matching
 // `Font.glyph_order`) -- those keep going through
-// `otfcc_glyph_order_create`/`otfcc_glyph_order_free` unchanged:
-// `dispose_glyph_order` resets `entries`/`by_gid`/`by_name` by field
-// reassignment (which drops each old value in place, same idiom it
-// already used for `by_gid`/`by_name` before this PR) before the malloc'd
-// shell itself is freed.
-#[inline]
-unsafe fn init_glyph_order(mut go: *mut GlyphOrder) {
-    // Placement-construct, not a field assignment: the one live caller
-    // (`otfcc_glyph_order_create`) hands this fresh `malloc`'d
-    // (uninitialized) memory, so there is nothing to read or drop first.
-    ::core::ptr::write(&raw mut (*go).entries, Vec::new());
-    ::core::ptr::write(&raw mut (*go).by_gid, std::collections::BTreeMap::new());
-    ::core::ptr::write(&raw mut (*go).by_name, std::collections::HashMap::new());
-}
-#[inline]
-unsafe fn dispose_glyph_order(mut go: *mut GlyphOrder) {
-    // `entries`'s own `Vec` drop glue frees every entry's `name: Vec<u8>`
-    // on the way out; `by_gid`/`by_name` hold non-owning indices, nothing
-    // to walk or free separately.
-    (*go).entries = Vec::new();
-    (*go).by_gid = std::collections::BTreeMap::new();
-    (*go).by_name = std::collections::HashMap::new();
-}
-#[inline]
-unsafe fn otfcc_glyph_order_init(mut x: *mut GlyphOrder) {
-    init_glyph_order(x);
-}
-#[inline]
-unsafe fn otfcc_glyph_order_dispose(mut x: *mut GlyphOrder) {
-    dispose_glyph_order(x);
-}
+// `otfcc_glyph_order_create`/`otfcc_glyph_order_free` unchanged, now backed
+// by `Box::into_raw`/`Box::from_raw` (same shape as `otl_class_def_create`
+// and the OTL subtable `_create()`s): there's no separate init/dispose step
+// to call, since `Box::new` constructs the fields directly and dropping the
+// `Box` on the way out already runs `entries`'s own `Vec` drop glue (which
+// frees every entry's `name: Vec<u8>`) -- `by_gid`/`by_name` hold
+// non-owning indices, nothing for them to free separately.
 #[inline]
 pub(crate) unsafe fn otfcc_glyph_order_free(mut x: *mut GlyphOrder) {
     if x.is_null() {
         return;
     }
-    otfcc_glyph_order_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
+    drop(Box::from_raw(x));
 }
 #[inline]
 pub(crate) unsafe fn otfcc_glyph_order_create() -> *mut GlyphOrder {
-    let mut x: *mut GlyphOrder =
-        malloc(::core::mem::size_of::<GlyphOrder>() as usize) as *mut GlyphOrder;
-    otfcc_glyph_order_init(x);
-    return x;
+    Box::into_raw(Box::new(GlyphOrder {
+        entries: Vec::new(),
+        by_gid: std::collections::BTreeMap::new(),
+        by_name: std::collections::HashMap::new(),
+    }))
 }
 // Returns an owned copy of the canonical name -- callers that discard the
 // return value (the ~590 fire-and-forget `set_by_gid` calls in
