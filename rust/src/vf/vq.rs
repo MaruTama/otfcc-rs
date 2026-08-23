@@ -54,6 +54,20 @@ impl VqSegment {
         }
     }
 }
+// Stage 7-2-f closes out here: `region` stays a raw pointer rather than
+// becoming an arena index, the last item this stage's plan named besides
+// `BkCellValue::Ptr` (see `bk/bkblock.rs`'s Box化 comment for that one).
+// Traced concretely, not assumed: `region` always ends up holding the
+// *canonical* pointer `table/fvar.rs`'s `fvar_register_region` returns,
+// which lives inside `FvarTable.masters` (an individually `Box`-owned
+// `VqRegion` per `vf/region.rs`'s `vq_create_region`) and is disposed
+// exactly once, by `FvarTable`'s own `Drop` impl, at final `Font` teardown
+// -- the same "borrowed pointer into a longer-lived Box/collection-owned
+// value, freed once, never revisited mid-algorithm" shape `Feature.lookups`/
+// `LanguageSystem.features` (`table/otl.rs`) already rely on. A region that
+// turns out to be a content-duplicate during registration is freed
+// immediately, before its pointer is ever handed to a `VqSegmentDelta` --
+// see `fvar_register_region`'s own comment.
 #[derive(Copy, Clone)]
 pub struct VqSegmentDelta {
     pub quantity: Pos,
