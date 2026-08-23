@@ -932,6 +932,47 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-3: `font/caryll_sfnt.rs`'s short-read `exit()`s removed.**
+  `otfcc_get16u`/`otfcc_get32u` (the sfnt header/table-directory readers)
+  called `libc::exit(EXIT_FAILURE)` straight from a raw `fprintf` to
+  `stderr` on a truncated file -- bypassing the `Logger` and whatever
+  caller was mid-read. They now return `Option<u16>`/`Option<u32>`
+  (`None` on a short `fread`), propagated with `let Some(x) = ... else {
+  return false; }` through a new `otfcc_read_sfnt_body` (split out of
+  `otfcc_read_sfnt` so the "free the partial `font`, return null" cleanup
+  lives in one place) and `otfcc_read_packets` (now `-> bool`), up to
+  `otfcc_read_sfnt` returning null on failure instead of aborting the
+  process mid-read.
+  - **No caller changes needed.** `otfcc_read_sfnt`'s only caller
+    (`bin/otfccdump.rs`) already null-checks its return (`sfnt.is_null()
+    || (*sfnt).count == 0`) and logs a clean `"Cannot read SFNT file
+    \"...\". Exit."` through the normal `Logger` channel before exiting --
+    this fix just reuses that existing path instead of adding a new one,
+    confirmed by hand (`head -c 2`/`head -c 20` truncations of a real
+    font both now produce that message and exit 1, and the old raw
+    `"File corruption of terminated unexpectedly.\n"` string -- note the
+    pre-existing grammar bug, which is now gone entirely rather than
+    fixed in place -- no longer appears in the built binary).
+  - **Scope note, checked before implementing**: the plan named 4
+    `exit()`-related Stage 7-3 items. `support/alloc.rs`'s OOM `exit()`s
+    were the first (previous entry below); `ffi/dll.rs`'s `Options` leak
+    turned out already fixed; this is the third. `table/_tsi.rs:381`'s
+    c2rust-residue `panic!` remains for a follow-up PR, along with the 15
+    `exit()`/`std::process::exit` call sites across `bin/*.rs`.
+  - **Deliberately left alone**: `otfcc_read_packets`'s second `fread`
+    (reading each table's actual bytes) still discards its return value --
+    a truncated file there silently zero-pads instead of failing. This is
+    a real, already-known bug, but the plan puts it in Stage 7-4 (`ファイ
+    ル I/O 22箇所 → std::fs/std::io`) alongside 21 other same-shaped call
+    sites, not here -- fixing just this one now would be inconsistent
+    with how the rest get fixed later, and this PR's `Option`-based fix
+    is unrelated to that one's cause (a discarded return value, not a
+    process-exit).
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged,
+    round-trips 10/10, lookup-alias regression clean, `cargo miri test`
+    identical to baseline, both fuzz targets `cargo check`-clean.
+
 - **Stage 7-3 begins: `support/alloc.rs`'s OOM `exit()` → `handle_alloc_error`.**
   `__caryll_allocate_clean`/`__caryll_reallocate` (the crate's shared
   calloc/realloc wrappers) printed a custom `"[<line>]Out of memory(N
