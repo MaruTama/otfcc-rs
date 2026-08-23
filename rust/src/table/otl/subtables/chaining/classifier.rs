@@ -386,7 +386,7 @@ pub unsafe fn otfcc_classified_build_chaining(
                 subtable_chaining_free(st);
             }
             subtable_buffers.push(buf);
-            *last_offset = (*last_offset).wrapping_add((*buf).size);
+            *last_offset = (*last_offset).wrapping_add((*buf).data.len());
             subtables_written =
                 (subtables_written as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
         }

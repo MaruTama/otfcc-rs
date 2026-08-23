@@ -217,8 +217,8 @@ pub unsafe fn bk_new_block_from_buffer(buf: *mut Buffer) -> *mut BkBlock {
         return ::core::ptr::null_mut::<BkBlock>();
     }
     let b: *mut BkBlock = bk_new_block(&[]);
-    for j in 0..(*buf).size {
-        bkblock_pushint(b, BkCellType::B8, *(*buf).data.offset(j as isize) as u32);
+    for &byte in (*buf).data.iter() {
+        bkblock_pushint(b, BkCellType::B8, byte as u32);
     }
     buffree(buf);
     return b;
@@ -228,8 +228,8 @@ pub unsafe fn bk_new_block_from_buffer_copy(buf: *const Buffer) -> *mut BkBlock 
         return ::core::ptr::null_mut::<BkBlock>();
     }
     let b: *mut BkBlock = bk_new_block(&[]);
-    for j in 0..(*buf).size {
-        bkblock_pushint(b, BkCellType::B8, *(*buf).data.offset(j as isize) as u32);
+    for &byte in (*buf).data.iter() {
+        bkblock_pushint(b, BkCellType::B8, byte as u32);
     }
     return b;
 }

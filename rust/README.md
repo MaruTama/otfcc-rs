@@ -932,6 +932,109 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-e: `Buffer` internally owns its bytes via `Vec<u8>` instead
+  of manual `malloc`/`realloc`/`free`.** The single largest remaining
+  conversion in the whole migration -- `bufwrite*` alone has ~510 call
+  sites across 58 files -- landed as one PR by keeping every public
+  function in `support/buffer.rs` at its existing `*mut Buffer` signature
+  (`bufnew`, `buffree`, `bufwrite8`/`16b`/`32b`/..., `buflen`, `bufpos`,
+  `bufseek`, `bufwrite_bytes`, `bufwrite_buf`, the `bufping`/`bufpong`
+  offset-backpatching family, ...): the ~42 files that only ever call
+  through those wrappers needed **zero changes**, verified by the build
+  itself once `buffer.rs` compiled clean. The real work concentrated in
+  `support/buffer.rs` itself and the ~19 files that poke `.cursor`/
+  `.size`/`.data` directly.
+  - **`Buffer`'s shape**: `{ cursor: usize, size: usize, free: usize, data:
+    *mut u8 }` → `{ cursor: usize, data: Vec<u8> }`. `size` is gone,
+    collapsed into `.data.len()` at every read site (mechanical, ~90
+    substitutions). `free` -- the hand-tracked spare-capacity bookkeeping a
+    manual `realloc` strategy needed, including a 16 MiB per-reallocation
+    growth cap -- has no replacement at all: `Vec`'s own capacity
+    management replaces the whole mechanism, and nothing outside this file
+    ever read `.free` (confirmed by grep before starting). `bufnew()` is
+    `Box::into_raw(Box::new(...))` now, not `__caryll_allocate_clean`'d
+    (an all-zero `Buffer` stopped being a valid bit pattern the instant
+    `data` became a `Vec`, the same calloc hazard this migration has hit
+    repeatedly); `buffree()` is `drop(Box::from_raw(buf))`.
+  - **The write path**: `buf_push_bytes` (every fixed-width `bufwriteNN`
+    reduces to this) can seek backward and overwrite already-written bytes
+    in place -- the offset-backpatching idiom `bufping16b`/`bufpong` build
+    on -- so it isn't a plain `Vec::extend`. If the write fits inside the
+    already-written region it's an in-place slice overwrite; otherwise
+    `resize` grows first (zero-filling any gap between the old length and
+    the cursor, matching what a fresh `realloc` over calloc'd memory used
+    to leave there), then the same slice-copy runs either way.
+  - **`Copy` dropped, `Clone` kept**: a `Vec`-owning struct can't be `Copy`.
+    Audited first (only two real by-value `Buffer` usages existed anywhere
+    in the crate): `libcff/subr.rs`'s `vec![zero_buffer; n]` scratch arrays
+    (three of them) still work under `Clone` alone -- cloning an empty
+    `Vec::new()` is free -- with one wrinkle: `vec![x; n]` only needs
+    `Clone`, but reusing the same `x` across more than one `vec![x; n]`
+    call needs an explicit `.clone()` at every use but the last, since the
+    macro moves its argument on each call. `table/svg.rs`'s
+    `otfcc_build_svg` used to build a transient stack-local `Buffer` that
+    borrowed another buffer's bytes for one call into
+    `bk_new_block_from_buffer_copy`; that trick needed a real `.clone()`
+    now instead of a raw-pointer alias -- correctness-preserving and cheap
+    (once per SVG assignment during build, not a hot path). A prior
+    survey's assumption that `bk_new_block_from_buffer_copy` had a single
+    caller (and could be re-signed to take `&[u8]` instead) turned out to
+    be wrong -- `table/cmap.rs` calls it too -- so its `*const Buffer`
+    signature stayed, and the transient-view approach was kept rather than
+    threading a signature change through a second, unrelated caller.
+  - **The four "hard" hand-rolled blob builders the plan itself flagged**
+    (`libcff/cff_charset.rs`, `cff_fdselect.rs`, `cff_index.rs`'s
+    `build_index`, and one site in `table/cff.rs`, plus `cff_codecs.rs`'s
+    `cff_encode_cff_float`, found during this conversion, not in the
+    original survey) all shared one property that made them tractable:
+    every one calloc's an exact-sized buffer up front and then writes into
+    it at **strictly increasing offsets**, format-header byte(s) first,
+    then a homogeneous array of fixed-or-computed-width entries, in order.
+    That's exactly what a plain sequence of `bufwrite8` calls already
+    produces -- no bespoke `Vec` manipulation code was needed in any of
+    them, just replacing "calloc the exact size, then poke every offset by
+    hand" with "start from `bufnew()` and push the same bytes in the same
+    order". `cff_index.rs`'s `build_index` additionally trades a raw
+    `memcpy` for `bufwrite_bytes`, and `libcff/subr.rs`'s `ident_node`
+    (comparing two terminal nodes' bytes for equality via `strncmp`) and
+    `get_singlet_hash_key`/`get_doublet_hash_key` (hashing a terminal's
+    bytes) both simplify from raw-pointer slice reconstruction to a direct
+    `&Vec<u8>` borrow, now that `.data` already *is* the slice.
+  - **One new deny-by-default lint surfaced by this conversion**:
+    `dangerous_implicit_autorefs` -- indexing or slicing a field through an
+    implicit reference materialized from a raw-pointer dereference
+    (`(*buf).data[i]`, `(*buf).data[a..b].copy_from_slice(...)`) is now a
+    hard error, not just discouraged style. Every site that needed
+    mutable, in-place access to already-written bytes (`buf_push_bytes`
+    itself, and `table/glyf/build.rs`'s RLE flag-compression `shrink_flags`,
+    which reads back and increments a previously-written repeat-count byte)
+    now binds an explicit `&Vec<u8>`/`&mut Vec<u8>` local first and indexes
+    that, rather than indexing through the raw pointer directly.
+  - **The public ABI boundary**: `ffi/dll.rs`'s `otfcc_get_buf_len`/
+    `otfcc_get_buf_data` (2 of the 4 exported symbols) keep their exact
+    `usize`/`*mut u8` return types -- callers across the FFI boundary see
+    no change at all, only the internal read moved to `.data.len()`/
+    `.data.as_mut_ptr()`. `check-abi.sh` confirms all 4 exports unchanged.
+  - **Verification**: full pipeline green -- build (lib *and* both
+    binaries, which surfaced one more call site `cargo build --lib` alone
+    doesn't reach), 244/244 tests, clippy clean, ABI unchanged, golden
+    bytes byte-identical on every payload including `KRName-Regular-O2.otf`
+    (the one payload exercising `subr.rs`'s CFF subroutinizer, the most
+    Buffer-intensive path in the crate) and log output unchanged, round-
+    trips 10/10, lookup-alias regression clean, `cargo miri test`
+    224/0/20 identical to baseline (the strongest evidence against any
+    allocator-mismatch, double-free, or aliasing bug in a conversion this
+    size), both fuzz targets `cargo check`-clean. `survey-unsafe.sh`: raw
+    pointer types 5797→5774, `.offset(` calls 892→843, `is_null()`
+    387→383, `__caryll_allocate_clean` census 89→73.
+  - **Deferred, out of this PR's scope**: the ~12 files that only *read*
+    `Buffer` fields (offset backpatching, hashing, magic-byte sniffing) got
+    swept up automatically by the mechanical `.size`→`.data.len()`
+    substitution above and needed no further design work, so nothing
+    remains split out by risk tier the way an earlier survey anticipated --
+    this PR turned out to cover the whole stage in one pass rather than
+    the originally-planned five-way A–E split.
+
 - **Stage 7-2-h (partial): 24 dispatch-pattern functions dropped `extern
   "C"`, unlocking `&Options` for the ~21 of them Stage 7-2-a had to leave
   on `*const Options`.** A survey of "dispatch tables" discovered during

@@ -321,15 +321,15 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
         while keep != 0 {
             // `bk_new_block_from_buffer_copy` still takes `*const Buffer`
             // (it has other callers, e.g. `table/cmap.rs`, so its signature
-            // stays as-is); build a stack-local `Buffer` that just borrows
-            // `a.document`'s bytes for the duration of this call. The
-            // function only reads `.size`/`.data` and never frees or
-            // retains the pointer, so this borrow is safe.
+            // stays as-is); build a stack-local `Buffer` view over
+            // `a.document`'s bytes for this one call. Stage 7-2-e made
+            // `Buffer.data` an owned `Vec<u8>`, so unlike before this is a
+            // real clone, not a zero-copy borrow -- correctness-preserving
+            // and cheap enough (once per SVG assignment during build, not a
+            // hot per-byte path).
             let doc_buf = Buffer {
                 cursor: a.document.len(),
-                size: a.document.len(),
-                free: a.document.len(),
-                data: a.document.as_ptr() as *mut u8,
+                data: a.document.clone(),
             };
             bk_push(
                 major,

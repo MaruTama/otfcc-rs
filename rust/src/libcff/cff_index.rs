@@ -1,9 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::memcpy;
-
-use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{buffree, bufnew, bufwrite8};
+use crate::support::buffer::{buffree, bufnew, bufwrite8, bufwrite_bytes};
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::Arity;
 
@@ -205,20 +202,19 @@ pub(crate) unsafe fn new_index_by_callback(
     let mut i: Arity = 0 as Arity;
     while i < length {
         let mut blob: *mut Buffer = fn_0.expect("non-null function pointer")(context, i as u32);
-        if blank < (*blob).size {
-            used = used.wrapping_add((*blob).size);
+        let blob_size: usize = (*blob).data.len();
+        if blank < blob_size {
+            used = used.wrapping_add(blob_size);
             blank = used >> 1 as ::core::ffi::c_int & 0xffffff as ::core::ffi::c_int as usize;
             data.resize(used.wrapping_add(blank), 0 as u8);
         } else {
-            used = used.wrapping_add((*blob).size);
-            blank = blank.wrapping_sub((*blob).size);
+            used = used.wrapping_add(blob_size);
+            blank = blank.wrapping_sub(blob_size);
         }
         let write_at: usize = (offset[i as usize] as usize).wrapping_sub(1 as usize);
-        let blob_size: usize = (*blob).size;
         offset[i.wrapping_add(1 as Arity) as usize] =
             blob_size.wrapping_add(offset[i as usize] as usize) as u32;
-        data[write_at..write_at.wrapping_add(blob_size)]
-            .copy_from_slice(::core::slice::from_raw_parts((*blob).data, blob_size));
+        data[write_at..write_at.wrapping_add(blob_size)].copy_from_slice(&(*blob).data);
         buffree(blob);
         i = i.wrapping_add(1);
     }
@@ -248,97 +244,59 @@ pub(crate) unsafe fn build_index(mut index: *const CffIndex) -> *mut Buffer {
     } else {
         off_size = 4 as u8;
     }
-    if (*index).count != 0 as Arity {
-        (*blob).size = (3 as u32)
-            .wrapping_add((offset[(*index).count as usize]).wrapping_sub(1 as u32))
-            .wrapping_add(
-                ((*index).count as u32)
-                    .wrapping_add(1 as u32)
-                    .wrapping_mul(off_size as u32),
-            ) as usize;
-    } else {
-        (*blob).size = 3 as usize;
-    }
-    (*blob).data = __caryll_allocate_clean(
-        (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob).size),
-        107 as ::core::ffi::c_ulong,
-    ) as *mut u8;
-    *(*blob).data.offset(0 as ::core::ffi::c_int as isize) =
-        (*index).count.wrapping_div(256 as Arity) as u8;
-    *(*blob).data.offset(1 as ::core::ffi::c_int as isize) =
-        (*index).count.wrapping_rem(256 as Arity) as u8;
-    *(*blob).data.offset(2 as ::core::ffi::c_int as isize) = off_size;
+    bufwrite8(blob, (*index).count.wrapping_div(256 as Arity) as u8);
+    bufwrite8(blob, (*index).count.wrapping_rem(256 as Arity) as u8);
+    bufwrite8(blob, off_size);
     if (*index).count > 0 as Arity {
         let mut i: Arity = 0 as Arity;
         while i <= (*index).count {
             let offset_i: u32 = offset[i as usize];
             match off_size as ::core::ffi::c_int {
                 1 => {
-                    *(*blob).data.offset((3 as Arity).wrapping_add(i) as isize) = offset_i as u8;
+                    bufwrite8(blob, offset_i as u8);
                 }
                 2 => {
-                    *(*blob)
-                        .data
-                        .offset((3 as Arity).wrapping_add(i.wrapping_mul(2 as Arity)) as isize) =
-                        offset_i.wrapping_div(256 as u32) as u8;
-                    *(*blob)
-                        .data
-                        .offset((4 as Arity).wrapping_add(i.wrapping_mul(2 as Arity)) as isize) =
-                        offset_i.wrapping_rem(256 as u32) as u8;
+                    bufwrite8(blob, offset_i.wrapping_div(256 as u32) as u8);
+                    bufwrite8(blob, offset_i.wrapping_rem(256 as u32) as u8);
                 }
                 3 => {
-                    *(*blob)
-                        .data
-                        .offset((3 as Arity).wrapping_add(i.wrapping_mul(3 as Arity)) as isize) =
-                        offset_i.wrapping_div(65536 as u32) as u8;
-                    *(*blob)
-                        .data
-                        .offset((4 as Arity).wrapping_add(i.wrapping_mul(3 as Arity)) as isize) =
-                        offset_i.wrapping_rem(65536 as u32).wrapping_div(256 as u32) as u8;
-                    *(*blob)
-                        .data
-                        .offset((5 as Arity).wrapping_add(i.wrapping_mul(3 as Arity)) as isize) =
-                        offset_i.wrapping_rem(65536 as u32).wrapping_rem(256 as u32) as u8;
+                    bufwrite8(blob, offset_i.wrapping_div(65536 as u32) as u8);
+                    bufwrite8(
+                        blob,
+                        offset_i.wrapping_rem(65536 as u32).wrapping_div(256 as u32) as u8,
+                    );
+                    bufwrite8(
+                        blob,
+                        offset_i.wrapping_rem(65536 as u32).wrapping_rem(256 as u32) as u8,
+                    );
                 }
                 4 => {
-                    *(*blob)
-                        .data
-                        .offset((3 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize) =
-                        offset_i.wrapping_div(65536 as u32).wrapping_div(256 as u32) as u8;
-                    *(*blob)
-                        .data
-                        .offset((4 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize) =
-                        offset_i.wrapping_div(65536 as u32).wrapping_rem(256 as u32) as u8;
-                    *(*blob)
-                        .data
-                        .offset((5 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize) =
-                        offset_i.wrapping_rem(65536 as u32).wrapping_div(256 as u32) as u8;
-                    *(*blob)
-                        .data
-                        .offset((6 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize) =
-                        offset_i.wrapping_rem(65536 as u32).wrapping_rem(256 as u32) as u8;
+                    bufwrite8(
+                        blob,
+                        offset_i.wrapping_div(65536 as u32).wrapping_div(256 as u32) as u8,
+                    );
+                    bufwrite8(
+                        blob,
+                        offset_i.wrapping_div(65536 as u32).wrapping_rem(256 as u32) as u8,
+                    );
+                    bufwrite8(
+                        blob,
+                        offset_i.wrapping_rem(65536 as u32).wrapping_div(256 as u32) as u8,
+                    );
+                    bufwrite8(
+                        blob,
+                        offset_i.wrapping_rem(65536 as u32).wrapping_rem(256 as u32) as u8,
+                    );
                 }
                 _ => {}
             }
             i = i.wrapping_add(1);
         }
         if !(*index).data.is_empty() {
-            memcpy(
-                (*blob)
-                    .data
-                    .offset(3 as ::core::ffi::c_int as isize)
-                    .offset(
-                        (*index)
-                            .count
-                            .wrapping_add(1 as Arity)
-                            .wrapping_mul(off_size as Arity) as isize,
-                    ) as *mut ::core::ffi::c_void,
-                (*index).data.as_ptr() as *const ::core::ffi::c_void,
-                (offset[(*index).count as usize]).wrapping_sub(1 as u32) as usize,
-            );
+            let n = (offset[(*index).count as usize]).wrapping_sub(1 as u32) as usize;
+            bufwrite_bytes(blob, n, (*index).data.as_ptr());
         }
     }
-    (*blob).cursor = (*blob).size;
     return blob;
 }
 

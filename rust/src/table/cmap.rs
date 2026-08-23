@@ -859,6 +859,7 @@ unsafe fn otfcc_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
         let mut ro: u16 = read_16u(
             (*id_range_offset)
                 .data
+                .as_ptr()
                 .offset((j_0 * 2 as ::core::ffi::c_int) as isize),
         );
         if ro != 0 {

@@ -195,7 +195,7 @@ pub unsafe fn name_glyph_by_hash(mut g: *const Glyph, mut glyf: *const GlyfTable
     };
     let mut hash: [u8; 20] = [0; 20];
     sha1_init(&raw mut ctx);
-    sha1_update(&raw mut ctx, (*buf).data as *const BYTE, buflen(buf));
+    sha1_update(&raw mut ctx, (*buf).data.as_ptr() as *const BYTE, buflen(buf));
     sha1_final(&raw mut ctx, &raw mut hash as *mut BYTE);
     let mut h_0: GlyphHash = GlyphHash { hash: [0; 20] };
     for j in 0..SHA1_BLOCK_SIZE as usize {
