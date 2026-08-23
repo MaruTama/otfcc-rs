@@ -37,7 +37,6 @@ use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_copy, vq_create_still, vq_get_still, vq_is_still, vq_replace};
 
 #[derive(Clone)]
-#[repr(C)]
 pub struct Point {
     pub x: VQ,
     pub y: VQ,
@@ -51,7 +50,6 @@ pub struct Point {
 pub type Contour = Vec<Point>;
 pub type ContourList = Vec<Contour>;
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct PostscriptStemDef {
     pub position: Pos,
     pub width: Pos,
@@ -59,7 +57,6 @@ pub struct PostscriptStemDef {
 }
 pub type StemDefList = Vec<PostscriptStemDef>;
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct PostscriptHintMask {
     pub points_before: u16,
     pub contours_before: u16,
@@ -78,7 +75,6 @@ pub enum RefAnchorStatus {
     AnchorConsolidatingXy = 5,
 }
 #[derive(Clone)]
-#[repr(C)]
 pub struct ComponentReference {
     pub x: VQ,
     pub y: VQ,
@@ -99,7 +95,6 @@ pub struct ComponentReference {
 /// container needs no explicit per-element dispose pass.
 pub type ReferenceList = Vec<ComponentReference>;
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct GlyphStat {
     pub x_min: Pos,
     pub x_max: Pos,
@@ -112,7 +107,6 @@ pub struct GlyphStat {
     pub n_composite_contours: u16,
 }
 #[derive(Clone)]
-#[repr(C)]
 pub struct Glyph {
     pub name: Vec<u8>,
     pub horizontal_origin: VQ,
@@ -162,7 +156,6 @@ pub type GlyphPtr = *mut Glyph;
 /// `Box` is never null), so the element type stays `Option<Box<Glyph>>`.
 pub type GlyfTable = Vec<Option<Box<Glyph>>>;
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct GlyfIOContext {
     pub loca_is_long: bool,
     pub num_glyphs: GlyphId,
@@ -1187,7 +1180,6 @@ pub unsafe fn otfcc_parse_glyf(
 }
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct GlyfAndLocaBuffers {
     pub glyf: *mut Buffer,
     pub loca: *mut Buffer,

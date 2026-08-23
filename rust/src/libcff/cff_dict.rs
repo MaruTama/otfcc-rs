@@ -12,7 +12,6 @@ use crate::support::buffer::{bufnew, bufwrite_bufdel};
 // same class of risk `CffIndex.offset`/`.data` had. `Vec` removes the
 // manual free pair and the OOB-write risk a counting mistake there would
 // have caused.
-#[repr(C)]
 pub struct CffDictEntry {
     pub op: CffDictOperator,
     pub vals: Vec<CffValue>,
@@ -20,12 +19,10 @@ pub struct CffDictEntry {
 // `ents` was similarly `__caryll_reallocate`'d one entry at a time while
 // parsing untrusted DICT bytes (`parse_dict`'s `count`), and in the write
 // (build) path (`table/cff.rs`'s `cffdict_givemeablank`).
-#[repr(C)]
 pub struct CffDict {
     pub ents: Vec<CffDictEntry>,
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffGetKeyContext {
     pub found: bool,
     pub res: CffValue,

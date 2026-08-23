@@ -43,7 +43,6 @@ use crate::vendor::json::JsonType;
 // grid a real `Vec<Vec<PositionValue>>` there is no backing array to point
 // into that outlives this struct's own use (a single build pass).
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct IndividualGposPair {
     pub gid: GlyphId,
     pub fv: PositionValue,

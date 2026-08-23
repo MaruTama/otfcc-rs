@@ -21,7 +21,6 @@ use crate::support::built_json::{
     json_object_push, preserialize,
 };
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CpalColor {
     pub red: u8,
     pub green: u8,

@@ -37,7 +37,6 @@ use crate::vf::vq::{
 // are gone with them -- `FontReader`'s reads are big-endian by
 // construction.
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct TuplePolymorphizerCtx {
     pub fvar: *mut FvarTable,
     pub dimensions: u16,
@@ -53,14 +52,12 @@ pub struct TuplePolymorphizerCtx {
 }
 pub type CoordPartGetter = Option<unsafe extern "C" fn(*mut Point) -> *mut VQ>;
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct PackedDeltaRun {
     pub length: ShapeId,
     pub wide: bool,
     pub zero: bool,
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct PackedPointRun {
     pub length: ShapeId,
     pub wide: bool,

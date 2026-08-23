@@ -38,7 +38,6 @@ pub enum HandleState {
 /// used to need (wrapping `sdsdup`/`sdsfree`) are gone; `Vec<u8>` already
 /// has both.
 #[derive(Clone)]
-#[repr(C)]
 pub struct Handle {
     pub state: HandleState,
     pub index: GlyphId,

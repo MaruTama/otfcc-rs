@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::memmove;
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct DiyFp {
     pub f: u64,
     pub e: ::core::ffi::c_int,

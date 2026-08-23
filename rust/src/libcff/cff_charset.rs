@@ -15,13 +15,11 @@ const CFF_CHARSET_OFFSET_EXPERT: i32 = 1;
 const CFF_CHARSET_OFFSET_EXPERT_SUBSET: i32 = 2;
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffCharsetRangeFormat1 {
     pub first: u16,
     pub nleft: u8,
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffCharsetRangeFormat2 {
     pub first: u16,
     pub nleft: u16,

@@ -27,7 +27,6 @@ use libc::free;
 // was already dead before this conversion, per the earlier note this
 // replaces).
 #[derive(Clone)]
-#[repr(C)]
 pub struct NameRecord {
     pub platform_id: u16,
     pub encoding_id: u16,

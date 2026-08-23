@@ -32,7 +32,6 @@ pub const CS2_OPERAND: CffValueType = CffValueType::Integer;
 /// The CharString reader's name for [`CffValueType::Double`].
 pub const CS2_FRACTION: CffValueType = CffValueType::Double;
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffValue {
     pub t: CffValueType,
     pub c2rust_unnamed: CffValueBody,

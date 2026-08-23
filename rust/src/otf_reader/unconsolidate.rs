@@ -29,7 +29,6 @@ use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vq::{vq_create_still, vq_inplace_plus};
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct GlyphHash {
     pub hash: [u8; 20],
 }

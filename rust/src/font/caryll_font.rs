@@ -37,7 +37,6 @@ use crate::table::vorg::VorgTable;
 // exclusively via `*mut Font`/`(*font).field` throughout the crate -- never
 // returned, constructed as a value literal, or `.clone()`'d -- so dropping
 // the derive is safe (same check as `CffTable`/`NameRecord`/`GlyphOrderEntry`).
-#[repr(C)]
 pub struct Font {
     pub subtype: FontSubtype,
     pub fvar: Option<Box<FvarTable>>,

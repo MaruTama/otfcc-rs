@@ -18,7 +18,6 @@ use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct VheaTable {
     pub version: F16Dot16,
     pub ascent: i16,

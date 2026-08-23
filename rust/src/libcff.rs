@@ -281,7 +281,6 @@ pub const TYPE2_STEM_HINTS: u32 = 96;
 pub const TYPE2_ARGUMENT_STACK: u32 = 48;
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffHeader {
     pub major: u8,
     pub minor: u8,
@@ -290,14 +289,12 @@ pub struct CffHeader {
 }
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffEncodingRangeFormat1 {
     pub first: u8,
     pub nleft: u8,
 }
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffEncodingSupplement {
     pub code: u8,
     pub glyph: u16,
@@ -330,7 +327,6 @@ pub enum CffEncoding {
 // CffStack`, constructed once in `table/cff.rs`'s `build_outline`, never
 // copied. `max` is gone -- write-only (set once at construction, never read
 // anywhere in the interpreter), and exactly duplicated `stack.capacity()`.
-#[repr(C)]
 pub struct CffStack {
     pub stack: Vec<CffValue>,
     pub transient: [CffValue; TYPE2_TRANSIENT_ARRAY],
@@ -342,7 +338,6 @@ pub struct CffStack {
 // three of its variants. Confirmed by grep before removing the derive --
 // `CffFile` is never used by value anywhere in the crate, always through
 // `*mut CffFile`/`*const CffFile`, so the derive was vestigial.
-#[repr(C)]
 pub struct CffFile {
     pub raw_data: *mut u8,
     pub raw_length: u32,

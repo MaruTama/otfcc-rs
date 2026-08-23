@@ -21,7 +21,6 @@ use crate::support::primitives::{F16Dot16, GlyphId};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json::JsonType;
 
-#[repr(C)]
 pub struct PostTable {
     pub version: F16Dot16,
     pub italic_angle: F16Dot16,

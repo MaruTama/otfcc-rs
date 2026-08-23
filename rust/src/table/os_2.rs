@@ -19,7 +19,6 @@ use crate::support::parsed_json::{
 use crate::vendor::json::JsonType;
 use libc::memcpy;
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct Os2Table {
     pub version: u16,
     pub x_avg_char_width: i16,

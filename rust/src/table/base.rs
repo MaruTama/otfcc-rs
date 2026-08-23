@@ -20,7 +20,6 @@ use crate::support::primitives::{FontFilePointer, Pos, TableId};
 use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct BaseValue {
     pub tag: u32,
     pub coordinate: Pos,
@@ -28,7 +27,6 @@ pub struct BaseValue {
 /// `base_values_count` is gone -- `base_values.len()` is always the same
 /// number now that the array is a `Vec` instead of a `__caryll_allocate_
 /// clean`'d buffer sized separately from what actually got filled.
-#[repr(C)]
 pub struct BaseScriptEntry {
     pub tag: u32,
     pub default_baseline_tag: u32,
@@ -40,11 +38,9 @@ pub struct BaseScriptEntry {
 /// `script_count` down to how many actually landed -- a `Vec` built with
 /// `.push()` only for entries that pass the check arrives at the same
 /// final content directly, with no separate count to keep in sync.
-#[repr(C)]
 pub struct BaseAxis {
     pub entries: Vec<BaseScriptEntry>,
 }
-#[repr(C)]
 pub struct BaseTable {
     pub horizontal: Option<Box<BaseAxis>>,
     pub vertical: Option<Box<BaseAxis>>,
@@ -70,7 +66,6 @@ pub struct BaseTable {
 // `items` was `__caryll_reallocate`'d one tag at a time by a hand-written
 // "search, then grow-by-one-and-append" loop in `axis_to_bk` -- exactly
 // `Vec::contains`/`Vec::push`. `size` duplicated `.len()` and is dropped.
-#[repr(C)]
 pub struct BaseTagList {
     pub items: Vec<u32>,
 }

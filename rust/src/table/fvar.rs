@@ -99,7 +99,6 @@ impl ::core::hash::Hash for RegionKey {
 // 件数が実質的に無制限 —— 線形走査は実アルゴリズム的退行になり得るので
 // `IndexMap`（挿入順を保ちつつO(1)平均ルックアップ）を使う。このcrateで
 // 初めて`indexmap`に依存する箇所。
-#[repr(C)]
 pub struct FvarTable {
     pub major_version: u16,
     pub minor_version: u16,

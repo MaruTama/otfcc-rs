@@ -28,7 +28,6 @@ use crate::support::built_json::{
 use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
 use crate::table::otl::coverage::build_coverage;
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CaretValue {
     pub format: i8,
     pub coordiante: Pos,

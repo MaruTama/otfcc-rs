@@ -1,6 +1,5 @@
 // `.data` holds either a UTF-8 string tag's bytes or raw (possibly
 // non-UTF-8) base64-decoded bytes, so `Vec<u8>`, not `String`.
-#[repr(C)]
 pub struct MetaEntry {
     pub tag: u32,
     pub data: Vec<u8>,
