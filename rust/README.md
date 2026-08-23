@@ -932,6 +932,35 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Fixed the `caryll_sfnt_builder.rs` checksum alignment UB surfaced by the
+  `Font` Box化 fix above.** `buf_checksum`/`create_segment` cast a
+  `Buffer.data: Vec<u8>` pointer (1-byte aligned) to `*mut u32` and
+  dereferenced it to sum a table's bytes as big-endian u32 words --
+  undefined behaviour whenever the cast pointer isn't 4-byte aligned,
+  independent of whether the table's length was a multiple of 4 (`Vec<u8>`
+  makes no alignment promise beyond 1). `otfcc_check_endian`/
+  `otfcc_endian_convert32` (a runtime host-endianness probe via a union,
+  used only to interpret each loaded native-endian `u32` as big-endian) are
+  removed from this file entirely -- both call sites now go through a new
+  `buf_checksum_bytes(&[u8]) -> u32` helper that reads each 4-byte window
+  with `chunks_exact(4)` + `u32::from_be_bytes`, which is both alignment-safe
+  and endianness-portable without a runtime check. `buflongalign` (called by
+  both callers immediately before) always pads `data` to a multiple of 4, so
+  `chunks_exact(4)` covers every byte with no remainder. The sibling
+  `otfcc_check_endian`/`otfcc_endian_convert32`/`otfcc_endian_convert16` in
+  `font/caryll_sfnt.rs` are untouched -- those read through `fread` into an
+  aligned stack local, not a pointer cast onto `Vec<u8>`, so they were never
+  affected.
+  - The two `ffi::dll::tests` that had been re-ignored under miri for this
+    bug (`minimal_json_builds_and_frees_cleanly`, `repeated_calls_do_not_
+    crash`) are un-ignored; both pass under `cargo miri test` now.
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged (checksum
+    values themselves were arithmetically correct despite the UB, so output
+    is byte-identical to before), round-trips 10/10, lookup-alias regression
+    clean, `cargo miri test` clean including both previously-masked tests,
+    both fuzz targets `cargo check`-clean.
+
 - **Stage 7-2-d, the last `_create()`: `otfcc_font_create` (`Font` itself),
   Box化.** A focused survey found this was not the cleanup it looked like --
   it's a live, miri-confirmed UB bug. `Font` has 6 `Option<Vec<T>>` fields
