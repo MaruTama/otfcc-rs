@@ -111,14 +111,14 @@ pub struct FvarTable {
 // master" shape `dispose_fvar` already had. `Copy`/`Clone` were already
 // absent (no derive to drop).
 //
-// Note: as of this PR, `Font.fvar` still has no disposal call anywhere in
-// `caryll_font.rs`'s `dispose_font` -- that is a pre-existing leak (the
-// crate never freed the OTF-read `FvarTable` on font teardown even before
-// this conversion), not introduced here. Preserved rather than silently
-// fixed, matching this migration's discipline elsewhere (e.g. `BaseTable`'s
-// `delete_base_axis` leak, `otf_reader/unconsolidate.rs`'s
-// `unconsolidate_chaining` move) -- an opportunistic fix here would need
-// its own verification pass and is out of scope for a Box化-only PR.
+// `Font.fvar` (and `Font.vdmx`) used to leak on font teardown: the old
+// `dispose_font` explicitly null'd 31 of `Font`'s 33 table fields before the
+// struct's memory was `free()`'d raw, and `fvar`/`vdmx` were the two it
+// missed -- a raw `free()` runs no field `Drop` glue, so whatever `fvar`
+// pointed to was never reclaimed. Fixed as a side effect of Stage 7-2-d's
+// `Font` Box化: `otfcc_font_free` is now `drop(Box::from_raw(x))`, which
+// drops every field (including this one) through its own `Drop` impl
+// regardless of whether `dispose_font`'s hand-written list covered it.
 impl Drop for FvarTable {
     fn drop(&mut self) {
         unsafe {

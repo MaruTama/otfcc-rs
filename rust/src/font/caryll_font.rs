@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc, memset};
 
 use crate::support::glyph_order::GlyphOrder;
 use crate::table::_tsi::TsiTable;
@@ -201,66 +200,48 @@ pub(crate) unsafe fn delete_font_table(mut font: *mut Font, tag: u32) {
     };
 }
 #[inline]
-unsafe fn init_font(mut font: *mut Font) {
-    memset(
-        font as *mut ::core::ffi::c_void,
-        0 as ::core::ffi::c_int,
-        ::core::mem::size_of::<Font>() as usize,
-    );
-}
-#[inline]
-unsafe fn dispose_font(mut font: *mut Font) {
-    delete_font_table(font, crate::tag::TAG_HEAD);
-    delete_font_table(font, crate::tag::TAG_HHEA);
-    delete_font_table(font, crate::tag::TAG_MAXP);
-    delete_font_table(font, crate::tag::TAG_OS_2_ALT);
-    delete_font_table(font, crate::tag::TAG_NAME);
-    delete_font_table(font, crate::tag::TAG_META);
-    delete_font_table(font, crate::tag::TAG_HMTX);
-    delete_font_table(font, crate::tag::TAG_VMTX);
-    delete_font_table(font, crate::tag::TAG_POST);
-    delete_font_table(font, crate::tag::TAG_HDMX);
-    delete_font_table(font, crate::tag::TAG_VHEA);
-    delete_font_table(font, crate::tag::TAG_FPGM);
-    delete_font_table(font, crate::tag::TAG_PREP);
-    delete_font_table(font, crate::tag::TAG_CVT_ALT);
-    delete_font_table(font, crate::tag::TAG_GASP);
-    delete_font_table(font, crate::tag::TAG_CFF_ALT);
-    delete_font_table(font, crate::tag::TAG_GLYF);
-    delete_font_table(font, crate::tag::TAG_CMAP);
-    delete_font_table(font, crate::tag::TAG_LTSH);
-    delete_font_table(font, crate::tag::TAG_GSUB);
-    delete_font_table(font, crate::tag::TAG_GPOS);
-    delete_font_table(font, crate::tag::TAG_GDEF);
-    delete_font_table(font, crate::tag::TAG_BASE);
-    delete_font_table(font, crate::tag::TAG_VORG);
-    delete_font_table(font, crate::tag::TAG_CPAL);
-    delete_font_table(font, crate::tag::TAG_COLR);
-    delete_font_table(font, crate::tag::TAG_SVG_ALT);
-    delete_font_table(font, crate::tag::TAG_TSI0);
-    delete_font_table(font, crate::tag::TAG_TSI2);
-    delete_font_table(font, crate::tag::TAG_TSI5);
-    (*font).glyph_order = None;
-}
-#[inline]
-unsafe fn otfcc_font_dispose(mut x: *mut Font) {
-    dispose_font(x);
-}
-#[inline]
 pub unsafe fn otfcc_font_create() -> *mut Font {
-    let mut x: *mut Font = malloc(::core::mem::size_of::<Font>() as usize) as *mut Font;
-    otfcc_font_init(x);
-    return x;
+    Box::into_raw(Box::new(Font {
+        subtype: FontSubtype::Ttf,
+        fvar: None,
+        head: None,
+        hhea: None,
+        maxp: None,
+        os_2: None,
+        hmtx: None,
+        post: None,
+        hdmx: None,
+        vhea: None,
+        vmtx: None,
+        vorg: None,
+        cff: None,
+        glyf: None,
+        cmap: None,
+        name: None,
+        meta: None,
+        fpgm: None,
+        prep: None,
+        cvt_: None,
+        gasp: None,
+        vdmx: None,
+        ltsh: None,
+        gsub: None,
+        gpos: None,
+        gdef: None,
+        base: None,
+        cpal: None,
+        colr: None,
+        svg: None,
+        tsi_01: None,
+        tsi_23: None,
+        tsi5: None,
+        glyph_order: None,
+    }))
 }
 #[inline]
-unsafe fn otfcc_font_init(mut x: *mut Font) {
-    init_font(x);
-}
-#[inline]
-pub unsafe fn otfcc_font_free(mut x: *mut Font) {
+pub unsafe fn otfcc_font_free(x: *mut Font) {
     if x.is_null() {
         return;
     }
-    otfcc_font_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
+    drop(Box::from_raw(x));
 }
