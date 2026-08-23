@@ -50,6 +50,17 @@ pub struct FvarMaster {
 // swept in a few bytes of zeroed alignment padding between `dimensions`
 // and `spans` -- not something this conversion set out to fix, just a
 // side effect of the two-piece view being the natural shape now.)
+//
+// Stays a raw pointer rather than an arena index (Stage 7-2-f): the only
+// keys ever actually stored in `masters` are the canonical, `masters`-owned
+// region a successful `fvar_register_region` insert holds -- the transient
+// `RegionKey` built at the top of that function to probe an incoming,
+// not-yet-registered region is used for one `masters.get(&key)` lookup and
+// then dropped, never inserted, so it never outlives the region it points
+// at even when that region turns out to be a duplicate and gets freed
+// immediately after. See `vf/vq.rs`'s `VqSegmentDelta` comment for the
+// matching argument on the other Stage 7-2-f pointer this stage's plan
+// named.
 #[derive(Clone, Copy)]
 pub struct RegionKey(*const VqRegion);
 impl RegionKey {
