@@ -1,6 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc};
-
 
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
 use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
@@ -31,14 +29,15 @@ pub(crate) unsafe fn subtable_gsub_multi_free(x: *mut GsubMultiSubtable) {
     if x.is_null() {
         return;
     }
-    dispose_gsub_multi_subtable(x);
-    free(x as *mut ::core::ffi::c_void);
+    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
+    // and runs the `Vec`'s own drop glue -- no separate dispose-then-`free`
+    // needed (Stage 7-2-d; `dispose_gsub_multi_subtable` stays, it is still
+    // used by `table/otl.rs`'s `Drop for Subtable` and `consolidate/otl/
+    // gsub_multi.rs`, just no longer from here).
+    drop(Box::from_raw(x));
 }
 unsafe fn subtable_gsub_multi_create() -> *mut GsubMultiSubtable {
-    let x: *mut GsubMultiSubtable =
-        malloc(::core::mem::size_of::<GsubMultiSubtable>() as usize) as *mut GsubMultiSubtable;
-    x.write(Vec::new());
-    x
+    Box::into_raw(Box::new(Vec::new()))
 }
 // Each Sequence subtable (`seq_offset`, resolved from the per-entry
 // `sequenceOffsets[]` array) had *no* length guard at all before this

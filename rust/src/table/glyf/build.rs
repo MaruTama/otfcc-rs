@@ -86,9 +86,9 @@ unsafe fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffer) {
         );
         j = j.wrapping_add(1);
     }
-    bufwrite16b(gbuf, (*g).instructions_length);
-    if !(*g).instructions.is_null() {
-        bufwrite_bytes(gbuf, (*g).instructions_length as usize, (*g).instructions);
+    bufwrite16b(gbuf, (*g).instructions.len() as u16);
+    if !(*g).instructions.is_empty() {
+        bufwrite_bytes(gbuf, (*g).instructions.len(), (*g).instructions.as_ptr());
     }
     bufclear(flags);
     bufclear(xs);
@@ -170,7 +170,7 @@ unsafe fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
         let mut flags: ComponentFlags =
             if (rj as usize) < (*g).references.len().wrapping_sub(1 as usize) {
                 ComponentFlags::MORE_COMPONENTS
-            } else if (*g).instructions_length as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+            } else if !(*g).instructions.is_empty() {
                 ComponentFlags::WE_HAVE_INSTRUCTIONS
             } else {
                 ComponentFlags::empty()
@@ -266,11 +266,9 @@ unsafe fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
         }
         rj = rj.wrapping_add(1);
     }
-    if (*g).instructions_length != 0 {
-        bufwrite16b(gbuf, (*g).instructions_length);
-        if !(*g).instructions.is_null() {
-            bufwrite_bytes(gbuf, (*g).instructions_length as usize, (*g).instructions);
-        }
+    if !(*g).instructions.is_empty() {
+        bufwrite16b(gbuf, (*g).instructions.len() as u16);
+        bufwrite_bytes(gbuf, (*g).instructions.len(), (*g).instructions.as_ptr());
     }
 }
 #[allow(improper_ctypes_definitions)]

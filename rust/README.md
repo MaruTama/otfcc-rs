@@ -1017,6 +1017,99 @@ on the other platform before a commit is trusted.
     `FvarTable`, `PostTable`, `FpgmPrepTable`, `SvgAssignment`, `Glyph`
     remain -- the latter 4 are exactly this stage's deferred batch 2).
 
+- **Stage 7-2-c (batch 2 of 2): the 4 deferred types converted too --
+  Stage 7-2-c is now fully done, all 10 of the plan's candidates cleared.**
+  A follow-up survey found batch 1's caution about these 4 was mostly
+  overcautious; only `FpgmPrepTable.bytes`/`Glyph.instructions` were
+  genuinely coupled (to each other, not to anything blocking).
+  - **`FpgmPrepTable.bytes`** (`table/fpgm_prep.rs`) and
+    **`Glyph.instructions`** (`table/glyf.rs`): both `*mut u8` → `Vec<u8>`,
+    converted together because both are populated via callbacks
+    (`make_fpgm_prep_instr`/`make_instrs_for_glyph`) invoked by the same
+    shared parser, `parse_ttinstr`/`parse_instrs` in `support/ttinstr.rs`.
+    `parse_instrs` used to allocate an upper-bound-sized buffer, write into
+    it in strictly increasing order (push semantics, never reading back),
+    then do one final `realloc` shrink to the exact size -- exactly what
+    `Vec::with_capacity` + `.push()` already does, no shrink step needed
+    since `Vec::len()` already reflects what was pushed. The `make`
+    callback now takes an owned `Vec<u8>` by value instead of `*mut u8,
+    u32`, and drops its `extern "C"` linkage: nothing about a callback
+    invoked only from inside `parse_ttinstr`, itself only called from two
+    internal-Rust sites, needs C ABI linkage. `Glyph` kept `#[derive(Clone)]`
+    through this conversion, and it's sound for the first time -- previously
+    it shallow-copied the raw `instructions` pointer alongside a real
+    `Drop`, a live double-free hazard if `Glyph` were ever cloned wholesale
+    (no call site did, but the bug class is now categorically gone).
+  - **`SvgAssignment.document`** (`table/svg.rs`): `*mut Buffer` →
+    `Vec<u8>` directly, skipping `Buffer` entirely rather than waiting for
+    Stage 7-2-e -- safe because every construction site writes `document`
+    exactly once (never incrementally appended) and no reader ever touches
+    `.cursor`/`.free`, only `.data`/`.size`. `bk_new_block_from_buffer_copy`
+    (`bk/bkblock.rs`) turned out to have other callers (`table/cmap.rs`),
+    contradicting the batch-1-adjacent survey's single-caller assumption --
+    so its signature stayed `*const Buffer`, and `otfcc_build_svg` instead
+    builds a stack-local `Buffer` that borrows `a.document`'s pointer/len
+    for the one call (the function only ever reads `.size`/`.data`, never
+    frees or retains the pointer, so this is a safe zero-copy view).
+  - **`PostTable.post_name_map`** (`table/post.rs`): `*mut GlyphOrder` →
+    `Option<Box<GlyphOrder>>`. The earlier "coupled to `Font.glyph_order`'s
+    representation" caution turned out to be stale: `Font.glyph_order` is
+    already `Option<Box<GlyphOrder>>`, built via `Box::new(GlyphOrder{...})`
+    struct literals in `consolidate.rs`/`json_reader.rs` that completely
+    bypass `otfcc_glyph_order_create`/`_free` -- so `post_name_map` never
+    actually shared a constructor/destructor with it, just the element
+    type. `otfcc_read_post` now builds the `GlyphOrder` the same way those
+    two sites already do; `otfcc_glyph_order_create`/`_free` themselves stay
+    untouched for their other callers (`unconsolidate.rs`'s local `aglfn`/
+    `gord` scratch values).
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged, round-
+    trips 10/10, lookup-alias regression clean, `cargo miri test` 224/0/20
+    identical to baseline, both fuzz targets `cargo check`-clean.
+    `survey-unsafe.sh`: raw pointer types 5906→5847, `.offset(` calls
+    915→892, `is_null()` 394→387. `impl Drop for` blocks 6→2 -- only
+    `FvarTable` and `Subtable` remain, neither an "inner raw array" case
+    (see batch 1's note on why they were always out of this stage's scope).
+
+- **Stage 7-2-d (easy wins): 10 OTL subtable `_create()`s converted from
+  malloc/calloc shells to direct `Box` construction.** A survey of the
+  plan's "7-2-d" list found the named 9 `_create()`s (really 10 -- the
+  plan's list missed `gpos_mark_to_ligature`/`gpos_mark_to_single`) were
+  low-risk, well-precedented wins (`otl_class_def_create` already did this
+  exact conversion earlier in the migration), while the plan's other 4
+  named targets (`Font`/`GlyphOrder`'s own top-level `_create()`s,
+  `table/cff.rs`, `table/glyf.rs`) are genuinely coupled to larger,
+  still-unconverted structures (recursive CFF FD-array ownership, `Font`'s
+  crate-wide calloc-then-assign construction pattern) and stay deferred.
+  - Every one of the 10 now builds its struct with a plain Rust literal and
+    returns via `Box::into_raw`, instead of `malloc`/`__caryll_allocate_
+    clean` + manual field writes. `subtable_from_raw` (`table/otl.rs`) --
+    the shared helper every one of these feeds into -- changed from
+    `ptr::read`+`libc::free` to `*Box::from_raw(raw)`, since every input now
+    genuinely originates from a `Box` allocation; it kept its generic
+    `*mut T` signature rather than narrowing to `Box<T>`, since some
+    callers (chaining) still need a `*mut T`-shaped intermediate threaded
+    through several helper functions before it reaches this adoption point.
+  - **One real hazard found and avoided**: `chaining/common.rs`'s
+    `subtable_chaining_create`/`_free` stayed genuinely dual-mode rather
+    than fully converting, because `subtable_chaining_free` is *also* used
+    by `chaining/classifier.rs`'s `try_classify_around`, which builds its
+    own separate `ChainingSubtable` via a still-`__caryll_allocate_clean`'d
+    allocation (out of this stage's scope) and must keep matching it with
+    `libc::free`. Mixing that calloc'd pointer with `Box::from_raw` (or the
+    reverse) would be a genuine allocator-mismatch hazard -- so
+    `subtable_chaining_create`'s own `Box`-allocated results are instead
+    reclaimed via direct `drop(Box::from_raw(x))` calls at their specific
+    call sites in `chaining/read.rs`, each commented with which allocation
+    origin it is and why it must not go through `subtable_chaining_free`.
+  - A handful of now-redundant `_init` helpers with no other callers
+    (`init_gsub_reverse`, `init_gpos_pair`, `init_mark_to_ligature`,
+    `init_mark_to_single`, `subtable_chaining_init`) were removed along
+    with their matching `_dispose` counterparts where applicable.
+  - **Verification**: same full pipeline as above, all green (run once,
+    combined with the Stage 7-2-c batch 2 commits above since both landed
+    on the same branch/PR). `__caryll_allocate_clean` census: 93→89.
+
 - **Stage 7-2-b: `Options` owns its `Logger` inline, via `RefCell`, instead
   of pointing at a second heap allocation.** `Options.logger` was `*mut
   Logger`, built by a separate `otfcc_new_logger` allocation and freed by

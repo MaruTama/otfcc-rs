@@ -12,53 +12,40 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece};
 use crate::bk::bkblock::{bk_new_block_from_buffer_copy};
 use crate::bk::bkgraph::{bk_build_block};
 use crate::support::base64::{base64_encode};
-use crate::support::buffer::{buffree, bufnew, bufwrite_buf, bufwrite_bytes};
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
 
 #[repr(C)]
 pub struct SvgAssignment {
     pub start: GlyphId,
     pub end: GlyphId,
-    pub document: *mut Buffer,
+    pub document: Vec<u8>,
 }
-// C由来の時点で素のベクタ形（ラッパー構造体なし）。要素の `document: *mut Buffer`
-// は所有物だが `Handle`/`sds` ではなく `Buffer`（`buffree`）で、この形の Vec 化は
-// 初めて（`svg_assignment_dup` が `bufnew`+`bufwrite_buf` で本物のディープコピー
-// を行う——`ColrTable`/`TsiTable` と同じく `.clone()` には頼れない）。
+// C由来の時点で素のベクタ形（ラッパー構造体なし）。要素の `document` はこの
+// stage で `*mut Buffer`（`buffree` 所有）から `Vec<u8>` へ直接移行した
+// （`Buffer` 自体はまだ libc アロケータのままだが、このフィールドに限り
+// 経由せずに済ませる）。`Vec<u8>` は `Clone` を持つので `svg_assignment_dup`
+// は素直な `.clone()` でディープコピーできる。
 //
 // Stage 6-4 "Box化": `Font.svg` becomes `Option<Vec<SvgAssignment>>` (not
 // `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer, a
-// second `Box` layer would be pure overhead). For a plain `Vec<T>`'s own
-// `Drop` to correctly free every element's `document`, `T` needs a real
-// `Drop` impl -- `Copy`/`Clone` dropped (mutually exclusive with `Drop`;
-// nothing in this file relied on either: duplication always went through
-// `svg_assignment_dup`'s deep copy, never a derive).
+// second `Box` layer would be pure overhead). `document: Vec<u8>` now
+// self-drops along with the rest of `SvgAssignment`, so no `Drop` impl is
+// needed for this type any more.
 pub type SvgTable = Vec<SvgAssignment>;
-impl Drop for SvgAssignment {
-    fn drop(&mut self) {
-        unsafe {
-            buffree(self.document);
-        }
-    }
-}
 #[inline]
 unsafe fn svg_assignment_empty() -> SvgAssignment {
     SvgAssignment {
         start: 0,
         end: 0,
-        document: ::core::ptr::null_mut::<Buffer>(),
+        document: Vec::new(),
     }
 }
-/// 本物のディープコピー（`document` を指す `Buffer` を複製する）。
-/// `document`(`*mut Buffer`)を素朴に`.clone()`すると単なるポインタのビット
-/// コピーになりエイリアスしてしまうため、`otfcc_build_svg`のソート済み
-/// コピー生成には使えない——明示的にディープコピーする。
+/// 本物のディープコピー（`document` の `Vec<u8>` を複製する）。
 unsafe fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
     let mut dst: SvgAssignment = svg_assignment_empty();
     dst.start = src.start;
     dst.end = src.end;
-    dst.document = bufnew();
-    bufwrite_buf(dst.document, src.document);
+    dst.document = src.document.clone();
     dst
 }
 #[allow(improper_ctypes_definitions)]
@@ -121,17 +108,15 @@ pub unsafe fn otfcc_read_svg(
                                         .wrapping_add(doclen)
                                         <= table.length
                                     {
-                                        asg.document = bufnew();
-                                        bufwrite_bytes(
-                                            asg.document,
-                                            doclen as usize,
-                                            table
-                                                .data.as_ptr()
-                                                .offset(offset_to_svg_doc_index as isize)
-                                                .offset(docstart as isize),
-                                        );
+                                        let src_ptr = table
+                                            .data.as_ptr()
+                                            .offset(offset_to_svg_doc_index as isize)
+                                            .offset(docstart as isize);
+                                        asg.document =
+                                            ::core::slice::from_raw_parts(src_ptr, doclen as usize)
+                                                .to_vec();
                                     } else {
-                                        asg.document = bufnew();
+                                        asg.document = Vec::new();
                                     }
                                     svg.push(asg);
                                     j = j.wrapping_add(1);
@@ -155,27 +140,18 @@ pub unsafe fn otfcc_read_svg(
     }
     return None;
 }
-unsafe fn can_use_plain_format(mut buf: *const Buffer) -> bool {
-    return (*buf).size > 4 as usize
-        && *(*buf).data.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-            == '<' as i32
-        && *(*buf).data.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-            == 's' as i32
-        && *(*buf).data.offset(2 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-            == 'v' as i32
-        && *(*buf).data.offset(3 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-            == 'g' as i32
-        || (*buf).size > 5 as usize
-            && *(*buf).data.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-                == '<' as i32
-            && *(*buf).data.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-                == '?' as i32
-            && *(*buf).data.offset(2 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-                == 'x' as i32
-            && *(*buf).data.offset(3 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-                == 'm' as i32
-            && *(*buf).data.offset(4 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-                == 'l' as i32;
+fn can_use_plain_format(doc: &[u8]) -> bool {
+    return doc.len() > 4 as usize
+        && doc[0 as usize] as ::core::ffi::c_int == '<' as i32
+        && doc[1 as usize] as ::core::ffi::c_int == 's' as i32
+        && doc[2 as usize] as ::core::ffi::c_int == 'v' as i32
+        && doc[3 as usize] as ::core::ffi::c_int == 'g' as i32
+        || doc.len() > 5 as usize
+            && doc[0 as usize] as ::core::ffi::c_int == '<' as i32
+            && doc[1 as usize] as ::core::ffi::c_int == '?' as i32
+            && doc[2 as usize] as ::core::ffi::c_int == 'x' as i32
+            && doc[3 as usize] as ::core::ffi::c_int == 'm' as i32
+            && doc[4 as usize] as ::core::ffi::c_int == 'l' as i32;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_svg(
@@ -211,7 +187,7 @@ pub unsafe fn otfcc_dump_svg(
                     b"end\0" as *const u8 as *const ::core::ffi::c_char,
                     json_integer_new((*a).end as i64),
                 );
-                if can_use_plain_format((*a).document) {
+                if can_use_plain_format(&a.document) {
                     json_object_push(
                         _a,
                         b"format\0" as *const u8 as *const ::core::ffi::c_char,
@@ -221,14 +197,14 @@ pub unsafe fn otfcc_dump_svg(
                         _a,
                         b"document\0" as *const u8 as *const ::core::ffi::c_char,
                         json_string_new_length(
-                            (*(*a).document).size as ::core::ffi::c_uint,
-                            (*(*a).document).data as *mut ::core::ffi::c_char,
+                            a.document.len() as ::core::ffi::c_uint,
+                            a.document.as_ptr() as *mut ::core::ffi::c_char,
                         ),
                     );
                 } else {
                     let mut len: usize = 0 as usize;
                     let mut buf: *mut u8 =
-                        base64_encode((*(*a).document).data, (*(*a).document).size, &raw mut len);
+                        base64_encode(a.document.as_ptr(), a.document.len(), &raw mut len);
                     json_object_push(
                         _a,
                         b"format\0" as *const u8 as *const ::core::ffi::c_char,
@@ -307,14 +283,12 @@ pub unsafe fn otfcc_parse_svg(
                         b"plain\0" as *const u8 as *const ::core::ffi::c_char,
                     ) == 0 as ::core::ffi::c_int
                     {
-                        asg.document = bufnew();
-                        bufwrite_bytes(asg.document, doc.len(), doc.as_ptr() as *mut u8);
+                        asg.document = doc;
                     } else {
-                        asg.document = bufnew();
                         let mut len: usize = 0 as usize;
                         let mut buf: *mut u8 =
-                            base64_encode(doc.as_ptr() as *mut u8, doc.len(), &raw mut len);
-                        bufwrite_bytes(asg.document, len, buf);
+                            base64_encode(doc.as_ptr(), doc.len(), &raw mut len);
+                        asg.document = ::core::slice::from_raw_parts(buf, len).to_vec();
                         free(buf as *mut ::core::ffi::c_void);
                         buf = ::core::ptr::null_mut::<u8>();
                     }
@@ -347,15 +321,27 @@ pub unsafe fn otfcc_build_svg(
     while keep != 0 && __caryll_index < svg.len() {
         let a: &SvgAssignment = &svg[__caryll_index];
         while keep != 0 {
-            bk_push(major, &[bk_int(BkCellType::B16, ((*a).start as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*a).end as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy((*a).document)), bk_int(BkCellType::B32, ((*(*a).document).size) as u32)]);
+            // `bk_new_block_from_buffer_copy` still takes `*const Buffer`
+            // (it has other callers, e.g. `table/cmap.rs`, so its signature
+            // stays as-is); build a stack-local `Buffer` that just borrows
+            // `a.document`'s bytes for the duration of this call. The
+            // function only reads `.size`/`.data` and never frees or
+            // retains the pointer, so this borrow is safe.
+            let doc_buf = Buffer {
+                cursor: a.document.len(),
+                size: a.document.len(),
+                free: a.document.len(),
+                data: a.document.as_ptr() as *mut u8,
+            };
+            bk_push(major, &[bk_int(BkCellType::B16, ((*a).start as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*a).end as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(&doc_buf as *const Buffer)), bk_int(BkCellType::B32, (a.document.len()) as u32)]);
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 0 as u32), bk_ptr(BkCellType::P32, major), bk_int(BkCellType::B32, 0 as u32)]);
-    // `svg` drops naturally at the end of this scope -- each `SvgAssignment`
-    // has a real `Drop` impl now, so the explicit `table_svg_dispose` call
-    // this used to need is gone along with that function.
+    // `svg` drops naturally at the end of this scope -- `document` is a
+    // plain `Vec<u8>` now, self-dropping along with the rest of
+    // `SvgAssignment`, so no explicit disposal call is needed here.
     return bk_build_block(root);
 }

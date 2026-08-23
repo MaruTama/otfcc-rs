@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc};
 
 use crate::support::parsed_json::{ParsedValue, json_obj_get, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
@@ -29,15 +28,15 @@ pub(crate) unsafe fn subtable_gpos_cursive_free(x: *mut GposCursiveSubtable) {
     if x.is_null() {
         return;
     }
-    dispose_gpos_cursive_subtable(x);
-    free(x as *mut ::core::ffi::c_void);
+    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
+    // and runs the `Vec`'s own drop glue -- no separate dispose-then-`free`
+    // needed (Stage 7-2-d; `dispose_gpos_cursive_subtable` stays, it is still
+    // used by `table/otl.rs`'s `Drop for Subtable` and `consolidate/otl/
+    // gpos_cursive.rs`, just no longer from here).
+    drop(Box::from_raw(x));
 }
 unsafe fn subtable_gpos_cursive_create() -> *mut GposCursiveSubtable {
-    let x: *mut GposCursiveSubtable =
-        malloc(::core::mem::size_of::<GposCursiveSubtable>() as usize)
-            as *mut GposCursiveSubtable;
-    x.write(Vec::new());
-    x
+    Box::into_raw(Box::new(Vec::new()))
 }
 pub unsafe fn otl_read_gpos_cursive(
     data: FontFilePointer,

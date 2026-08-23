@@ -370,8 +370,8 @@ pub unsafe fn stat_maxp(mut font: *mut Font) {
                 n_components = (*g).references.len() as u16;
             }
         }
-        if (*g).instructions_length as ::core::ffi::c_int > inst_size as ::core::ffi::c_int {
-            inst_size = (*g).instructions_length;
+        if (*g).instructions.len() as ::core::ffi::c_int > inst_size as ::core::ffi::c_int {
+            inst_size = (*g).instructions.len() as u16;
         }
     }
     (*maxp).max_points = n_points;
@@ -1348,13 +1348,15 @@ pub unsafe fn otfcc_stat_font(
     {
         stat_maxp(font);
         if let Some(fpgm) = &(*font).fpgm {
-            if fpgm.length > (*maxp).max_size_of_instructions as u32 {
-                (*maxp).max_size_of_instructions = fpgm.length as u16;
+            let fpgm_length = fpgm.bytes.len() as u32;
+            if fpgm_length > (*maxp).max_size_of_instructions as u32 {
+                (*maxp).max_size_of_instructions = fpgm_length as u16;
             }
         }
         if let Some(prep) = &(*font).prep {
-            if prep.length > (*maxp).max_size_of_instructions as u32 {
-                (*maxp).max_size_of_instructions = prep.length as u16;
+            let prep_length = prep.bytes.len() as u32;
+            if prep_length > (*maxp).max_size_of_instructions as u32 {
+                (*maxp).max_size_of_instructions = prep_length as u16;
             }
         }
     }

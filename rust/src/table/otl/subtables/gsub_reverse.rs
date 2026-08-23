@@ -1,6 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc};
-
 
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum_fallback};
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, push_to_coverage, read_coverage};
@@ -22,46 +20,25 @@ use crate::table::otl::coverage::{dump_coverage, parse_coverage, build_coverage}
 use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
 
 #[inline]
-unsafe fn init_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
-    // `.write()`, not a field assignment: `subtable` is fresh from
-    // `malloc` (uninitialized, not zeroed), so there is nothing valid to
-    // drop first -- an `=` here would attempt to drop whatever garbage
-    // bytes were already there.
-    (&raw mut (*subtable).match_0).write(Vec::new());
-    (&raw mut (*subtable).to).write(Vec::new());
-}
-#[inline]
-pub(crate) unsafe fn dispose_gsub_reverse(mut subtable: *mut GsubReverseSubtable) {
-    // Both fields are real `Vec`s by the time this runs (never called on
-    // the freshly-`malloc`'d, not-yet-`init`'d state) -- assigning a fresh
-    // empty one drops the old contents correctly, no manual per-element
-    // walk needed anymore.
-    (*subtable).match_0 = Vec::new();
-    (*subtable).to = Vec::new();
-}
-#[inline]
-unsafe fn subtable_gsub_reverse_dispose(mut x: *mut GsubReverseSubtable) {
-    dispose_gsub_reverse(x);
-}
-#[inline]
 unsafe fn subtable_gsub_reverse_free(mut x: *mut GsubReverseSubtable) {
     if x.is_null() {
         return;
     }
-    subtable_gsub_reverse_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
+    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
+    // and runs `match_0`/`to`'s own drop glue directly -- no separate
+    // dispose-then-`free` needed (Stage 7-2-d). `dispose_gsub_reverse`/
+    // `subtable_gsub_reverse_dispose` had no other callers, so they're gone
+    // along with `init_gsub_reverse`/`subtable_gsub_reverse_init`.
+    drop(Box::from_raw(x));
 }
 #[inline]
 unsafe fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
-    let mut x: *mut GsubReverseSubtable =
-        malloc(::core::mem::size_of::<GsubReverseSubtable>() as usize)
-            as *mut GsubReverseSubtable;
-    subtable_gsub_reverse_init(x);
-    return x;
-}
-#[inline]
-unsafe fn subtable_gsub_reverse_init(mut x: *mut GsubReverseSubtable) {
-    init_gsub_reverse(x);
+    Box::into_raw(Box::new(GsubReverseSubtable {
+        match_count: 0,
+        input_index: 0,
+        match_0: Vec::new(),
+        to: Coverage::new(),
+    }))
 }
 // Was a manual index-swapping loop over `start..end`, meeting in the
 // middle -- exactly what `[T]::reverse` does, now that `match_0` is a real

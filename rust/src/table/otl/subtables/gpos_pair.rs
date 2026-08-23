@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, malloc};
 use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_type_of};
 use crate::table::otl::classdef::{expand_class_def, classdef_from_raw, ClassDef, otl_class_def_create, read_class_def};
 use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage, shrink_coverage};
@@ -34,44 +33,25 @@ pub struct IndividualGposPair {
     pub sv: PositionValue,
 }
 #[inline]
-unsafe fn init_gpos_pair(mut subtable: *mut GposPairSubtable) {
-    // Placement-construct: `subtable` is fresh malloc'd (not calloc'd) by
-    // `subtable_gpos_pair_create`, so there is nothing valid to drop first --
-    // same reasoning as `otl_coverage_create`/`otl_class_def_create`.
-    (&raw mut (*subtable).first).write(None);
-    (&raw mut (*subtable).second).write(None);
-    (&raw mut (*subtable).first_values).write(Vec::new());
-    (&raw mut (*subtable).second_values).write(Vec::new());
-}
-#[inline]
-pub(crate) unsafe fn dispose_gpos_pair(mut subtable: *mut GposPairSubtable) {
-    (*subtable).first = None;
-    (*subtable).second = None;
-    (*subtable).first_values = Vec::new();
-    (*subtable).second_values = Vec::new();
-}
-#[inline]
-unsafe fn subtable_gpos_pair_dispose(mut x: *mut GposPairSubtable) {
-    dispose_gpos_pair(x);
-}
-#[inline]
 unsafe fn subtable_gpos_pair_create() -> *mut GposPairSubtable {
-    let mut x: *mut GposPairSubtable =
-        malloc(::core::mem::size_of::<GposPairSubtable>() as usize) as *mut GposPairSubtable;
-    subtable_gpos_pair_init(x);
-    return x;
-}
-#[inline]
-unsafe fn subtable_gpos_pair_init(mut x: *mut GposPairSubtable) {
-    init_gpos_pair(x);
+    Box::into_raw(Box::new(GposPairSubtable {
+        first: None,
+        second: None,
+        first_values: Vec::new(),
+        second_values: Vec::new(),
+    }))
 }
 #[inline]
 unsafe fn subtable_gpos_pair_free(mut x: *mut GposPairSubtable) {
     if x.is_null() {
         return;
     }
-    subtable_gpos_pair_dispose(x);
-    free(x as *mut ::core::ffi::c_void);
+    // `Box::from_raw` reclaims exactly the allocation `_create()` made above
+    // and runs `first`/`second`/`first_values`/`second_values`'s own drop
+    // glue directly -- no separate dispose-then-`free` needed (Stage 7-2-d).
+    // `dispose_gpos_pair`/`subtable_gpos_pair_dispose` had no other callers,
+    // so they're gone along with `init_gpos_pair`/`subtable_gpos_pair_init`.
+    drop(Box::from_raw(x));
 }
 // Two real bugs fixed, one per format:
 //
@@ -117,7 +97,7 @@ pub unsafe fn otl_read_gpos_pair(
             // into `(*subtable).first` as soon as it's fully constructed --
             // matching the original's immediate field assignment, so every
             // exit path below still disposes it correctly via
-            // `subtable_gpos_pair_free`'s `dispose_gpos_pair`.
+            // `subtable_gpos_pair_free`'s `Box::from_raw`.
             let cov = read_coverage(data, table_length, offset.wrapping_add(cov_rel as u32));
             let first_raw: *mut ClassDef = otl_class_def_create();
             (*first_raw).glyphs = ::core::mem::take(&mut *cov);
