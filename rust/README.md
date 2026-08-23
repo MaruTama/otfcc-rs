@@ -976,6 +976,24 @@ on the other platform before a commit is trusted.
     the part of this rewrite most likely to have an off-by-one), round-trips
     10/10, lookup-alias regression clean, `cargo miri test` 226/0/18
     identical to baseline, both fuzz targets `cargo check`-clean.
+  - **The plan's Stage 7-2-f also named two more raw pointers besides
+    `BkCellValue::Ptr`: `VqSegmentDelta.region`/`RegionKey.0`
+    (`(*const VqRegion)`).** Traced concretely rather than assumed (prompted
+    by a status question after this PR opened): both already have the same
+    "borrowed pointer into a longer-lived, individually `Box`-owned value,
+    freed exactly once, never revisited mid-algorithm" shape `Feature.
+    lookups`/`LanguageSystem.features` (`table/otl.rs`) already document and
+    rely on -- `VqSegmentDelta.region` always ends up holding the canonical
+    pointer `fvar_register_region` returns, which lives inside `FvarTable.
+    masters` (`vf/region.rs`'s `vq_create_region` gives each `VqRegion` its
+    own individual `Box`) and is disposed exactly once, by `FvarTable`'s own
+    `Drop`, at final `Font` teardown; a content-duplicate region is freed
+    immediately during registration, before its pointer is ever handed to a
+    `VqSegmentDelta`. No code change needed -- doc comments added on both
+    types recording the reasoning, so this doesn't need re-deriving later.
+    With this, every raw pointer Stage 7-2-f named is now resolved (either
+    converted, in `BkCellValue::Ptr`'s case, or confirmed already-sound and
+    documented as such), closing out Stage 7-2 entirely.
 
 - **Fixed the `caryll_sfnt_builder.rs` checksum alignment UB surfaced by the
   `Font` Box化 fix above.** `buf_checksum`/`create_segment` cast a
