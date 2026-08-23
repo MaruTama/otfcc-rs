@@ -4,7 +4,6 @@ use crate::support::primitives::{Pos, ShapeId};
 
 use crate::vf::vv::VV;
 #[derive(Copy, Clone, PartialEq, PartialOrd)]
-#[repr(C)]
 pub struct VqAxisSpan {
     pub start: Pos,
     pub peak: Pos,

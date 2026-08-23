@@ -1,5 +1,4 @@
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct VdmxRecord {
     pub y_pel_height: u16,
     pub y_max: i16,

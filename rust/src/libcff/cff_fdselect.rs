@@ -5,7 +5,6 @@ use crate::support::buffer::{bufnew, bufwrite8};
 use crate::support::font_reader::FontReader;
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffFdSelectRangeFormat3 {
     pub first: u16,
     pub fd: u8,

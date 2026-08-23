@@ -2,7 +2,6 @@
 use libc::{fprintf, free};
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct BkGraphNode {
     pub alias: u32,
     pub order: u32,

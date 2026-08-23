@@ -24,7 +24,6 @@ use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 // Stage 7-2-c: `bytes` is now a `Vec<u8>` -- `length` (redundant with
 // `.bytes.len()`) is dropped along with the manual `Drop` impl below;
 // `Vec`'s own drop glue frees the buffer.
-#[repr(C)]
 pub struct FpgmPrepTable {
     pub tag: Vec<u8>,
     pub bytes: Vec<u8>,

@@ -31,7 +31,6 @@ pub enum TsiEntryType {
     ReservedFffc = 4,
 }
 #[derive(Clone)]
-#[repr(C)]
 pub struct TsiEntry {
     pub type_0: TsiEntryType,
     pub glyph: GlyphHandle,
@@ -53,7 +52,6 @@ pub(crate) unsafe fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
     }
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct TsiBuildTarget {
     pub index_part: *mut Buffer,
     pub text_part: *mut Buffer,

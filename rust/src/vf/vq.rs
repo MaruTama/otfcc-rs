@@ -55,7 +55,6 @@ impl VqSegment {
     }
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct VqSegmentDelta {
     pub quantity: Pos,
     pub touched: bool,

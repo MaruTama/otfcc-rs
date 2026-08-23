@@ -19,7 +19,6 @@ use crate::support::primitives::GlyphSize;
 use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct GaspRecord {
     pub range_max_ppem: GlyphSize,
     pub dogray: bool,

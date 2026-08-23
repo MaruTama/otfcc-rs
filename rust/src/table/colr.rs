@@ -26,7 +26,6 @@ use crate::support::built_json::{
     json_object_push, json_string_new_from_bytes, preserialize,
 };
 #[derive(Clone)]
-#[repr(C)]
 pub struct ColrLayer {
     pub glyph: GlyphHandle,
     pub palette_index: ColorId,

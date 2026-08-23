@@ -16,7 +16,6 @@ use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct MaxpTable {
     pub version: F16Dot16,
     pub num_glyphs: u16,

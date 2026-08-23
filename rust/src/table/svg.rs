@@ -20,7 +20,6 @@ use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::json::JsonType;
 use libc::{free, strcmp};
 
-#[repr(C)]
 pub struct SvgAssignment {
     pub start: GlyphId,
     pub end: GlyphId,

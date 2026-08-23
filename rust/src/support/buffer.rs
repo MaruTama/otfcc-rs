@@ -19,7 +19,6 @@ use libc::fprintf;
 // unchanged under `Clone` instead -- `vec![x; n]` only ever required
 // `Clone`, and cloning an empty `Vec::new()` is cheap.
 #[derive(Clone)]
-#[repr(C)]
 pub struct Buffer {
     pub cursor: usize,
     pub data: Vec<u8>,

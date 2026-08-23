@@ -77,7 +77,6 @@ use crate::vf::vq::{
 };
 
 #[derive(Clone)]
-#[repr(C)]
 pub struct CffFontMatrix {
     pub a: Scale,
     pub b: Scale,
@@ -86,7 +85,6 @@ pub struct CffFontMatrix {
     pub x: VQ,
     pub y: VQ,
 }
-#[repr(C)]
 pub struct CffPrivateDict {
     pub blue_values: Vec<::core::ffi::c_double>,
     pub other_blues: Vec<::core::ffi::c_double>,
@@ -125,7 +123,6 @@ pub struct CffPrivateDict {
 // site and is deleted below rather than left as a would-be-unsound
 // landmine, matching this migration's established pattern for confirmed
 // -dead vtable slots.
-#[repr(C)]
 pub struct CffTable {
     pub font_name: Vec<u8>,
     pub is_cid: bool,
@@ -174,13 +171,11 @@ pub struct CffTable {
 // adopted as an opaque `*mut CffTable` regardless of allocator, same as the
 // OTL subtable `_create()`s converted earlier in this migration.
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffAndGlyf {
     pub meta: *mut CffTable,
     pub glyphs: *mut GlyfTable,
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffExtractContext {
     pub fd_array_index: i32,
     pub meta: *mut CffTable,
@@ -189,7 +184,6 @@ pub struct CffExtractContext {
     pub seed: u64,
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct OutlineBuilderContext {
     pub g: *mut Glyph,
     pub j_contour: ShapeId,
@@ -208,7 +202,6 @@ pub union CffDoubleBits {
     pub u: u64,
     pub d: ::core::ffi::c_double,
 }
-#[repr(C)]
 pub struct CffCharstringBuilderContext {
     pub glyf: *mut GlyfTable,
     pub default_width: u16,
@@ -217,7 +210,6 @@ pub struct CffCharstringBuilderContext {
     pub graph: CffSubrGraph,
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct FdArrayCompileContext {
     pub fd_array: *const Vec<Box<CffTable>>,
     pub string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,

@@ -5,7 +5,6 @@ use crate::logger::{Logger, LoggerTarget};
 use crate::support::alloc::__caryll_allocate_clean;
 
 #[derive(Default)]
-#[repr(C)]
 pub struct Options {
     pub debug_wait_on_start: bool,
     pub ignore_glyph_order: bool,

@@ -11,7 +11,6 @@ use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::table::hhea::HheaTable;
 use crate::table::maxp::MaxpTable;
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct HorizontalMetric {
     pub advance_width: Length,
     pub lsb: Pos,
@@ -24,7 +23,6 @@ pub struct HorizontalMetric {
 // its only touch points are this file's own read/build functions and
 // `otf_writer/stat.rs`'s `stat_hmtx`, which constructs it), so there is no
 // JSON-side fallout from this field type change.
-#[repr(C)]
 pub struct HmtxTable {
     pub metrics: Vec<HorizontalMetric>,
     pub left_side_bearing: Vec<Pos>,

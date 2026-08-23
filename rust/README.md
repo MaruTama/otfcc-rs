@@ -932,6 +932,44 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-h (`repr(C)` removal): 112 of 128 `#[repr(C)]` struct
+  attributes removed.** A prior survey found 116 of 118 struct/enum types
+  carrying `#[repr(C)]` were non-load-bearing and every name already
+  `non_camel_case_types`-conformant (so removal would need zero renames);
+  actually implementing it added its own per-type safety pass beyond
+  naming -- checking every candidate for a still-`extern "C"` by-value
+  crossing, a `transmute`/union reinterpretation, and finally just
+  building under `-D warnings` as the real safety net (`improper_ctypes`
+  would have caught anything the greps missed).
+  - **3 more types turned out load-bearing, beyond the 2 the survey
+    already knew about** (`support/getopt.rs`'s `LongOption`, `vendor/
+    sds.rs`'s `SdsHeader`): `table/fvar.rs`'s `FVARHeader`, `InstanceRecord`,
+    `VariationAxisRecord`. `otfcc_read_fvar` does `data as *mut FVARHeader`
+    directly on raw on-disk font bytes (`data` comes straight from
+    `table.data.as_ptr()`), then reads fields through that pointer --
+    exactly the same "byte-exact overlay onto foreign bytes" shape
+    `SdsHeader` has, just missed by the earlier naming-only pass since it
+    required tracing where the pointer that gets cast to the type
+    actually comes from, not just grepping for `transmute`. All three
+    already carried `#[repr(C, packed)]`; left the whole attribute
+    untouched rather than guessing whether `packed` alone would have been
+    safe to keep without `C`.
+  - **112 removed cleanly** — every payload still parses/dumps/builds
+    byte-identical, confirming these were genuinely representation-only
+    attributes with no code anywhere depending on C field ordering.
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean (including zero new `non_camel_case_types`/`improper_ctypes`
+    warnings, confirming the "no renames needed" finding held), ABI
+    unchanged, golden bytes and log output unchanged, round-trips 10/10,
+    lookup-alias regression clean, `cargo miri test` 224/0/20 identical to
+    baseline, both fuzz targets `cargo check`-clean. `repr(C)` census: 11
+    real attributes remain (down from the prior 118 struct/enum count plus
+    6 unions, i.e. 112 removed of 118 struct/enum candidates) -- the 5
+    load-bearing structs above, plus the 6 unions this pass deliberately
+    left untouched (`CffValueBody`, `EndianProbe32`, `EndianProbe16`,
+    `CffDoubleBits`, `DoubleBits`, `ComponentArg`, all still Stage 7-4
+    work).
+
 - **Three quick wins landed together after a fresh feasibility survey found
   each of them tractable now, contrary to earlier deferrals**: the last 3
   `_create()` malloc shells (Stage 7-2-d) and `VqRegion`'s C flexible-

@@ -69,7 +69,6 @@ struct CffSubrNode {
     dead: bool,
 }
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffSubrRule {
     pub printed: bool,
     pub numbered: bool,

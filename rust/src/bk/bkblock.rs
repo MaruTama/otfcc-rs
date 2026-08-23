@@ -2,7 +2,6 @@
 use libc::{fprintf, free};
 
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct BkBlock {
     pub _visitstate: BkCellVisitState,
     pub _index: u32,
@@ -24,7 +23,6 @@ pub struct BkBlock {
 // heap data -- `p` is a borrowed pointer into the same `BkGraph` that owns
 // it), so the new enum stays `Copy` too.
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct BkCell {
     pub t: BkCellType,
     pub value: BkCellValue,

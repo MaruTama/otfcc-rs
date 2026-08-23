@@ -12,7 +12,6 @@
 // `support::built_json` still re-exports them for real use by
 // `bin/otfccdump.rs` and its own `preserialize`.
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct JsonSerializeOpts {
     pub mode: ::core::ffi::c_int,
     pub opts: ::core::ffi::c_int,

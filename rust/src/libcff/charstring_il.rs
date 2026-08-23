@@ -46,7 +46,6 @@ pub enum CffInstructionType {
 // alone). Both arms are `Copy` (no owned heap data), so this enum stays
 // `Copy` too.
 #[derive(Copy, Clone)]
-#[repr(C)]
 pub struct CffCharstringInstruction {
     pub type_0: CffInstructionType,
     pub arity: Arity,
@@ -90,7 +89,6 @@ impl CffCharstringInstruction {
 // entirely (`length` duplicated `.len()`; `free` duplicated spare
 // capacity) and the three push helpers below become plain `.push()`.
 #[derive(Clone)]
-#[repr(C)]
 pub struct CffCharstringIl {
     pub instr: Vec<CffCharstringInstruction>,
 }
