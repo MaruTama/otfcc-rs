@@ -932,6 +932,35 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-3: `table/_tsi.rs`'s c2rust-residue `panic!` removed.**
+  `propergid` had a numeric `switch` over `TsiEntryType as c_uint` with a
+  fallthrough `panic!("Reached end of non-void function without
+  returning")` for "no case matched" -- but `TsiEntryType` is a closed
+  5-variant enum (`Glyph=0`, `Fpgm=1`, `Prep=2`, `Cvt=3`,
+  `ReservedFffc=4`) and the switch already covered all five numerically,
+  so that arm was unreachable, not a real error path. Rewritten to match
+  on the enum directly instead of its numeric cast, so the exhaustiveness
+  is compiler-checked (a future variant added without updating this match
+  is now a build error, not a runtime panic reachable in production) and
+  the `panic!` arm falls away with it, needing no `_ => unreachable!()`
+  replacement.
+  - **Found and documented, not fixed, while reading the surrounding
+    control flow**: `push_tsi_entries` calls `propergid` with a null
+    `entry` from its own `min_n`-padding loop -- sound only because it's
+    never called with `type_0 == TsiEntryType::Glyph` (the one arm that
+    dereferences `entry`) and a nonzero `min_n` at the same time
+    (`otfcc_build_tsi`'s `TsiEntryType::Glyph` call site always pairs it
+    with `min_n = 0`). A future call site could violate that pairing;
+    left as a documented invariant rather than an added runtime check,
+    since it isn't the dead code this PR set out to remove and changing
+    it needs its own look at whether a genuine fix or just an assert is
+    warranted.
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged
+    (`tsi5`/`_tsi`-table payloads exercise `propergid` directly),
+    round-trips 10/10, lookup-alias regression clean, `cargo miri test`
+    identical to baseline, both fuzz targets `cargo check`-clean.
+
 - **Stage 7-3: `font/caryll_sfnt.rs`'s short-read `exit()`s removed.**
   `otfcc_get16u`/`otfcc_get32u` (the sfnt header/table-directory readers)
   called `libc::exit(EXIT_FAILURE)` straight from a raw `fprintf` to
