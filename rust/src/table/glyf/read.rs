@@ -822,7 +822,7 @@ unsafe fn create_region_from_tuples(
                 }
             }
         }
-        *(&raw mut (*r).spans as *mut VqAxisSpan).offset(d as isize) = span;
+        (*r).spans.push(span);
         d = d.wrapping_add(1);
     }
     Some(r)

@@ -37,31 +37,48 @@ pub struct FvarMaster {
     pub name: Vec<u8>,
     pub region: *mut VqRegion,
 }
-// A `VqRegion` is a fixed header (`dimensions: ShapeId`) followed by a C
-// "flexible array member" trailing `spans: [VqAxisSpan; 0]`, allocated as
-// one contiguous block (see `vf/region.rs`) -- not yet `Vec`-ified, out of
-// scope here. Wraps a `*const VqRegion` so it can be used as an `IndexMap`
-// key, comparing/hashing exactly the bytes the original uthash table's
-// `memcmp`-based key did: the whole allocation, header plus trailing
-// spans, by content, not by pointer identity.
+// A `VqRegion` used to be a fixed header (`dimensions: ShapeId`) followed
+// by a C "flexible array member" trailing `spans: [VqAxisSpan; 0]`,
+// allocated as one contiguous block, so the original uthash table's
+// `memcmp`-based key could walk it as a single byte range. Since
+// `vf/region.rs`'s `Vec`-ification, `dimensions` and `spans` are no longer
+// contiguous in memory, so `RegionKey` instead views them as two separate
+// byte slices, hashed/compared in sequence -- `dimensions` then `spans`'
+// backing bytes. Wraps a `*const VqRegion` so it can be used as an
+// `IndexMap` key, comparing/hashing by content, not by pointer identity.
+// (Incidentally more correct than the old single-range view, which also
+// swept in a few bytes of zeroed alignment padding between `dimensions`
+// and `spans` -- not something this conversion set out to fix, just a
+// side effect of the two-piece view being the natural shape now.)
 #[derive(Clone, Copy)]
 pub struct RegionKey(*const VqRegion);
 impl RegionKey {
-    unsafe fn as_bytes(&self) -> &[u8] {
-        let len = ::core::mem::size_of::<VqRegion>()
-            + ::core::mem::size_of::<VqAxisSpan>() * (*self.0).dimensions as usize;
-        ::core::slice::from_raw_parts(self.0 as *const u8, len)
+    unsafe fn dimensions_bytes(&self) -> [u8; 2] {
+        (*self.0).dimensions.to_ne_bytes()
+    }
+    unsafe fn spans_bytes(&self) -> &[u8] {
+        let spans = &(*self.0).spans;
+        ::core::slice::from_raw_parts(
+            spans.as_ptr() as *const u8,
+            spans.len() * ::core::mem::size_of::<VqAxisSpan>(),
+        )
     }
 }
 impl PartialEq for RegionKey {
     fn eq(&self, other: &Self) -> bool {
-        unsafe { self.as_bytes() == other.as_bytes() }
+        unsafe {
+            self.dimensions_bytes() == other.dimensions_bytes()
+                && self.spans_bytes() == other.spans_bytes()
+        }
     }
 }
 impl Eq for RegionKey {}
 impl ::core::hash::Hash for RegionKey {
     fn hash<H: ::core::hash::Hasher>(&self, state: &mut H) {
-        unsafe { self.as_bytes().hash(state) }
+        unsafe {
+            self.dimensions_bytes().hash(state);
+            self.spans_bytes().hash(state);
+        }
     }
 }
 // `axes: VfAxes`(`Vec<VfAxis>`)/`instances: FvarInstanceList`(`Vec<FvarInstance>`)
@@ -639,10 +656,7 @@ pub unsafe fn json_new_vq_region_explicit(
             json_object_push_tag(
                 r,
                 axes[j].tag,
-                json_new_vq_axis_span(
-                    (&raw const (*rs).spans as *const VqAxisSpan).offset(j as isize)
-                        as *const VqAxisSpan,
-                ),
+                json_new_vq_axis_span(&(&(*rs).spans)[j] as *const VqAxisSpan),
             );
             j = j.wrapping_add(1);
         }
@@ -653,10 +667,7 @@ pub unsafe fn json_new_vq_region_explicit(
         while j_0 < (*rs).dimensions as usize {
             json_array_push(
                 r_0,
-                json_new_vq_axis_span(
-                    (&raw const (*rs).spans as *const VqAxisSpan).offset(j_0 as isize)
-                        as *const VqAxisSpan,
-                ),
+                json_new_vq_axis_span(&(&(*rs).spans)[j_0] as *const VqAxisSpan),
             );
             j_0 = j_0.wrapping_add(1);
         }
