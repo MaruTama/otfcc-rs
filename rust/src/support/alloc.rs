@@ -6,31 +6,27 @@
 // already reviewed for the idiomatization pass) have been migrated to use
 // this module so far; the remaining ~47 files still carry their own private
 // copy pending a future, wider pass.
-use crate::support::stdio::stderr;
-
-use libc::{calloc, exit, fprintf, free, realloc};
-
-const EXIT_FAILURE: ::core::ffi::c_int = 1;
+use libc::{calloc, free, realloc};
+use std::alloc::{Layout, handle_alloc_error};
 
 #[inline]
 pub(crate) unsafe fn __caryll_allocate_clean(
     n: usize,
-    line: ::core::ffi::c_ulong,
+    // Was embedded in the old OOM message ("[<line>]Out of memory(...)"),
+    // one per c/lib/support/mem.h call site. `handle_alloc_error` reports
+    // the allocation itself (size, and the standard "memory allocation of N
+    // bytes failed" abort message) instead of a call-site line number, so
+    // this is now unused -- kept as a parameter so the ~50 call sites across
+    // the crate don't need touching, the same choice `bk/bkgraph.rs`'s
+    // `compute_block_offsets` made for its own now-vestigial `_line`.
+    _line: ::core::ffi::c_ulong,
 ) -> *mut ::core::ffi::c_void {
     if n == 0 {
         return ::core::ptr::null_mut();
     }
     let p = unsafe { calloc(n, 1) };
     if p.is_null() {
-        unsafe {
-            fprintf(
-                stderr,
-                b"[%ld]Out of memory(%ld bytes)\n\0" as *const u8 as *const ::core::ffi::c_char,
-                line,
-                n as ::core::ffi::c_ulong,
-            );
-            exit(EXIT_FAILURE);
-        }
+        handle_alloc_error(Layout::from_size_align(n, 1).unwrap());
     }
     p
 }
@@ -50,15 +46,7 @@ pub(crate) unsafe fn __caryll_reallocate(
     }
     let p = unsafe { realloc(ptr, n) };
     if p.is_null() {
-        unsafe {
-            fprintf(
-                stderr,
-                b"[%ld]Out of memory(%ld bytes)\n\0" as *const u8 as *const ::core::ffi::c_char,
-                line,
-                n as ::core::ffi::c_ulong,
-            );
-            exit(EXIT_FAILURE);
-        }
+        handle_alloc_error(Layout::from_size_align(n, 1).unwrap());
     }
     p
 }
