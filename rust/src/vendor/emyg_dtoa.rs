@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{memmove};
+use libc::memmove;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct DiyFp {
@@ -24,8 +24,7 @@ static K_DP_EXPONENT_MASK: u64 = (0x7ff00000 as ::core::ffi::c_int as u64)
 static K_DP_SIGNIFICAND_MASK: u64 = (0xfffff as ::core::ffi::c_int as u64)
     << 32 as ::core::ffi::c_int
     | 0xffffffff as ::core::ffi::c_uint as u64;
-static K_DP_HIDDEN_BIT: u64 = (0x100000 as ::core::ffi::c_int as u64)
-    << 32 as ::core::ffi::c_int
+static K_DP_HIDDEN_BIT: u64 = (0x100000 as ::core::ffi::c_int as u64) << 32 as ::core::ffi::c_int
     | 0 as ::core::ffi::c_int as u64;
 #[inline]
 unsafe fn diy_fp_from_parts(mut f: u64, mut e: ::core::ffi::c_int) -> DiyFp {
@@ -92,11 +91,7 @@ unsafe fn normalize_boundary(lhs: DiyFp) -> DiyFp {
     return res;
 }
 #[inline]
-unsafe fn normalized_boundaries(
-    mut lhs: DiyFp,
-    mut minus: *mut DiyFp,
-    mut plus: *mut DiyFp,
-) {
+unsafe fn normalized_boundaries(mut lhs: DiyFp, mut minus: *mut DiyFp, mut plus: *mut DiyFp) {
     let mut pl: DiyFp = normalize_boundary(diy_fp_from_parts(
         (lhs.f << 1 as ::core::ffi::c_int).wrapping_add(1 as u64),
         lhs.e - 1 as ::core::ffi::c_int,
@@ -118,10 +113,7 @@ unsafe fn normalized_boundaries(
     *minus = mi;
 }
 #[inline]
-unsafe fn get_cached_power(
-    mut e: ::core::ffi::c_int,
-    mut k_out: *mut ::core::ffi::c_int,
-) -> DiyFp {
+unsafe fn get_cached_power(mut e: ::core::ffi::c_int, mut k_out: *mut ::core::ffi::c_int) -> DiyFp {
     static K_CACHED_POWERS_F: [u64; 87] = [
         (0xfa8fd5a0 as ::core::ffi::c_uint as u64) << 32 as ::core::ffi::c_int
             | 0x81c0288 as ::core::ffi::c_int as u64,
@@ -396,7 +388,8 @@ unsafe fn get_cached_power(
     }
     let mut index: ::core::ffi::c_uint =
         ((k >> 3 as ::core::ffi::c_int) + 1 as ::core::ffi::c_int) as ::core::ffi::c_uint;
-    *k_out = -(-(348 as ::core::ffi::c_int) + (index << 3 as ::core::ffi::c_int) as ::core::ffi::c_int);
+    *k_out =
+        -(-(348 as ::core::ffi::c_int) + (index << 3 as ::core::ffi::c_int) as ::core::ffi::c_int);
     return diy_fp_from_parts(
         K_CACHED_POWERS_F[index as usize],
         K_CACHED_POWERS_E[index as usize] as ::core::ffi::c_int,
@@ -473,8 +466,7 @@ unsafe fn digit_gen(
         100000000 as ::core::ffi::c_int as u32,
         1000000000 as ::core::ffi::c_int as u32,
     ];
-    let one: DiyFp =
-        diy_fp_from_parts((1 as ::core::ffi::c_int as u64) << -mp.e, mp.e) as DiyFp;
+    let one: DiyFp = diy_fp_from_parts((1 as ::core::ffi::c_int as u64) << -mp.e, mp.e) as DiyFp;
     let wp_w: DiyFp = diy_fp_subtract(mp, w) as DiyFp;
     let mut p1: u32 = (mp.f >> -one.e) as u32;
     let mut p2: u64 = mp.f & one.f.wrapping_sub(1 as u64);
@@ -569,7 +561,8 @@ unsafe fn digit_gen(
                 delta,
                 p2,
                 one.f,
-                wp_w.f.wrapping_mul(K_POW10[(-kappa as usize).min(9)] as u64),
+                wp_w.f
+                    .wrapping_mul(K_POW10[(-kappa as usize).min(9)] as u64),
             );
             return;
         }
@@ -801,10 +794,7 @@ unsafe fn get_digits_lut() -> *const ::core::ffi::c_char {
     return &raw const C_DIGITS_LUT as *const ::core::ffi::c_char;
 }
 #[inline]
-unsafe fn write_exponent(
-    mut k_out: ::core::ffi::c_int,
-    mut buffer: *mut ::core::ffi::c_char,
-) {
+unsafe fn write_exponent(mut k_out: ::core::ffi::c_int, mut buffer: *mut ::core::ffi::c_char) {
     if k_out < 0 as ::core::ffi::c_int {
         let fresh1 = buffer;
         buffer = buffer.offset(1);
@@ -838,8 +828,8 @@ unsafe fn write_exponent(
     } else {
         let fresh7 = buffer;
         buffer = buffer.offset(1);
-        *fresh7 =
-            ('0' as i32 + k_out as ::core::ffi::c_char as ::core::ffi::c_int) as ::core::ffi::c_char;
+        *fresh7 = ('0' as i32 + k_out as ::core::ffi::c_char as ::core::ffi::c_int)
+            as ::core::ffi::c_char;
     }
     *buffer = '\0' as i32 as ::core::ffi::c_char;
 }
@@ -910,10 +900,7 @@ unsafe fn prettify(
         );
     };
 }
-pub unsafe fn emyg_dtoa(
-    mut value: ::core::ffi::c_double,
-    mut buffer: *mut ::core::ffi::c_char,
-) {
+pub unsafe fn emyg_dtoa(mut value: ::core::ffi::c_double, mut buffer: *mut ::core::ffi::c_char) {
     if value == 0 as ::core::ffi::c_int as ::core::ffi::c_double {
         *buffer.offset(0 as ::core::ffi::c_int as isize) = '0' as i32 as ::core::ffi::c_char;
         *buffer.offset(1 as ::core::ffi::c_int as isize) = '.' as i32 as ::core::ffi::c_char;

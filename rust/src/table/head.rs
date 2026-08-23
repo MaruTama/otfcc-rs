@@ -1,15 +1,22 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{F16Dot16};
-use crate::support::font_reader::{FontReader, ReadError};
-use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet};
-use crate::support::parsed_json::{ParsedValue, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, otfcc_parse_flags};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite64b};
+use crate::support::built_json::{
+    BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
+    otfcc_dump_flags,
+};
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, otfcc_parse_flags,
+};
+use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
-use crate::support::built_json::{BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push, otfcc_dump_flags};
+use crate::vendor::json::JsonType;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct HeadTable {
@@ -59,11 +66,11 @@ fn parse_head(data: &[u8]) -> Result<HeadTable, ReadError> {
         glyph_data_format: r.i16()?,
     })
 }
-pub unsafe fn otfcc_read_head(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<HeadTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_HEAD)?;
+pub unsafe fn otfcc_read_head(packet: &Packet, options: &Options) -> Option<Box<HeadTable>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_HEAD)?;
     match parse_head(&table.data) {
         Ok(head) => Some(Box::new(head)),
         Err(_) => {
@@ -133,10 +140,7 @@ pub unsafe fn otfcc_dump_head(
         json_object_push(
             head,
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags(
-                (*table).flags as ::core::ffi::c_int,
-                &HEAD_FLAGS_LABELS,
-            ),
+            otfcc_dump_flags((*table).flags as ::core::ffi::c_int, &HEAD_FLAGS_LABELS),
         );
         json_object_push(
             head,
@@ -176,10 +180,7 @@ pub unsafe fn otfcc_dump_head(
         json_object_push(
             head,
             b"macStyle\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags(
-                (*table).mac_style as ::core::ffi::c_int,
-                &MAC_STYLE_LABELS,
-            ),
+            otfcc_dump_flags((*table).mac_style as ::core::ffi::c_int, &MAC_STYLE_LABELS),
         );
         json_object_push(
             head,
@@ -314,17 +315,13 @@ pub unsafe fn otfcc_parse_head(
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
             ___loggedstep_v = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
     return Some(head_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_head(
-    head: Option<&HeadTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_head(head: Option<&HeadTable>) -> *mut Buffer {
     let head = match head {
         Some(h) => h as *const HeadTable,
         None => return ::core::ptr::null_mut::<Buffer>(),

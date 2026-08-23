@@ -1,47 +1,36 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, malloc, memset};
 
-
-
-
-
-
-
-
 use crate::support::glyph_order::GlyphOrder;
+use crate::table::_tsi::TsiTable;
 use crate::table::base::BaseTable;
 use crate::table::cff::CffTable;
+use crate::table::cmap::CmapTable;
 use crate::table::colr::ColrTable;
 use crate::table::cpal::CpalTable;
-use crate::table::gdef::GdefTable;
-use crate::table::ltsh::LtshTable;
-use crate::table::os_2::Os2Table;
-use crate::table::svg::SvgTable;
-use crate::table::tsi5::{Tsi5Table};
-use crate::table::vorg::VorgTable;
-use crate::table::_tsi::TsiTable;
-use crate::table::cmap::CmapTable;
 use crate::table::cvt::CvtTable;
 use crate::table::fpgm_prep::FpgmPrepTable;
-use crate::table::fvar::{FvarTable};
+use crate::table::fvar::FvarTable;
 use crate::table::gasp::GaspTable;
+use crate::table::gdef::GdefTable;
 use crate::table::glyf::GlyfTable;
-use crate::table::hdmx::{HdmxTable};
+use crate::table::hdmx::HdmxTable;
 use crate::table::head::HeadTable;
 use crate::table::hhea::HheaTable;
 use crate::table::hmtx::HmtxTable;
+use crate::table::ltsh::LtshTable;
 use crate::table::maxp::MaxpTable;
 use crate::table::meta::types::MetaTable;
 use crate::table::name::NameTable;
+use crate::table::os_2::Os2Table;
 use crate::table::otl::OtlTable;
 use crate::table::post::PostTable;
-use crate::table::vdmx::types::{VdmxTable};
+use crate::table::svg::SvgTable;
+use crate::table::tsi5::Tsi5Table;
+use crate::table::vdmx::types::VdmxTable;
 use crate::table::vhea::VheaTable;
 use crate::table::vmtx::VmtxTable;
-
-
-
-
+use crate::table::vorg::VorgTable;
 
 // `Copy, Clone` dropped: `Font` gained `ltsh: Option<Box<LtshTable>>` (Stage
 // 6-4 pilot), which is never `Copy`. Grepping confirms `Font` is accessed
@@ -260,8 +249,7 @@ unsafe fn otfcc_font_dispose(mut x: *mut Font) {
 }
 #[inline]
 pub unsafe fn otfcc_font_create() -> *mut Font {
-    let mut x: *mut Font =
-        malloc(::core::mem::size_of::<Font>() as usize) as *mut Font;
+    let mut x: *mut Font = malloc(::core::mem::size_of::<Font>() as usize) as *mut Font;
     otfcc_font_init(x);
     return x;
 }
@@ -277,4 +265,3 @@ pub unsafe fn otfcc_font_free(mut x: *mut Font) {
     otfcc_font_dispose(x);
     free(x as *mut ::core::ffi::c_void);
 }
-

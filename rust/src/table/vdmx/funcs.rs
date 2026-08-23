@@ -1,16 +1,23 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum, json_type_of};
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::vendor::json::{JsonType};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::font::caryll_sfnt::{Packet};
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum, json_type_of,
+};
+use crate::vendor::json::JsonType;
 
-use crate::table::vdmx::types::{VdmxTable, VdmxRatioRange, VdmxRecord};
-use crate::bk::bkgraph::{bk_build_block_no_minimize};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push};
+use crate::bk::bkgraph::bk_build_block_no_minimize;
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
+    json_object_push,
+};
+use crate::table::vdmx::types::{VdmxRatioRange, VdmxRecord, VdmxTable};
 // `group_offset` (read from the per-ratio offset table) used to be handed
 // straight to `data.offset()` with no check against the table's actual
 // length at all -- not even the wrapping-arithmetic-defeated kind of guard
@@ -47,15 +54,21 @@ fn parse_vdmx(data: &[u8]) -> Result<VdmxTable, ReadError> {
                 y_min: gr.i16()?,
             });
         }
-        ratios.push(VdmxRatioRange { b_charset, x_ratio, y_start_ratio, y_end_ratio, records });
+        ratios.push(VdmxRatioRange {
+            b_charset,
+            x_ratio,
+            y_start_ratio,
+            y_end_ratio,
+            records,
+        });
     }
     Ok(VdmxTable { version, ratios })
 }
-pub unsafe fn otfcc_read_vdmx(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<VdmxTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VDMX)?;
+pub unsafe fn otfcc_read_vdmx(packet: &Packet, options: &Options) -> Option<Box<VdmxTable>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_VDMX)?;
     match parse_vdmx(&table.data) {
         Ok(vdmx) => Some(Box::new(vdmx)),
         Err(_) => {
@@ -185,7 +198,10 @@ pub unsafe fn otfcc_parse_vdmx(
     if _vdmx.is_null() {
         return None;
     }
-    let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable { version: 0, ratios: Vec::new() });
+    let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable {
+        version: 0,
+        ratios: Vec::new(),
+    });
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"VDMX"),
@@ -204,9 +220,7 @@ pub unsafe fn otfcc_parse_vdmx(
         let mut j: usize = 0 as usize;
         while j < json_arr_len(_ratios) as usize {
             let mut _rr: *const ParsedValue = json_arr_at(_ratios, j as u32);
-            if !(_rr.is_null()
-                || json_type_of(_rr) != JsonType::Object)
-            {
+            if !(_rr.is_null() || json_type_of(_rr) != JsonType::Object) {
                 let mut r: VdmxRatioRange = VdmxRatioRange {
                     b_charset: 0,
                     x_ratio: 0,
@@ -238,9 +252,7 @@ pub unsafe fn otfcc_parse_vdmx(
                     let mut j_0: usize = 0 as usize;
                     while j_0 < json_arr_len(_records) as usize {
                         let mut _r: *const ParsedValue = json_arr_at(_records, j_0 as u32);
-                        if !(_r.is_null()
-                            || json_type_of(_r) != JsonType::Object)
-                        {
+                        if !(_r.is_null() || json_type_of(_r) != JsonType::Object) {
                             r.records.push(VdmxRecord {
                                 y_pel_height: json_obj_getnum(
                                     _r,
@@ -269,9 +281,7 @@ pub unsafe fn otfcc_parse_vdmx(
     return Some(vdmx);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_vdmx(
-    vdmx: Option<&VdmxTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
     let vdmx = match vdmx {
         Some(v) => v,
         None => return ::core::ptr::null_mut::<Buffer>(),
@@ -280,13 +290,34 @@ pub unsafe fn otfcc_build_vdmx(
     if ratios.is_empty() {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*vdmx).version as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (ratios.len()) as u32), bk_int(BkCellType::B16, (ratios.len()) as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[
+        bk_int(
+            BkCellType::B16,
+            ((*vdmx).version as ::core::ffi::c_int) as u32,
+        ),
+        bk_int(BkCellType::B16, (ratios.len()) as u32),
+        bk_int(BkCellType::B16, (ratios.len()) as u32),
+    ]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < ratios.len() {
         let rr: &VdmxRatioRange = &ratios[__caryll_index];
         while keep != 0 {
-            bk_push(root, &[bk_int(BkCellType::B8, (rr.b_charset as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, (rr.x_ratio as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, (rr.y_start_ratio as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, (rr.y_end_ratio as ::core::ffi::c_int) as u32)]);
+            bk_push(
+                root,
+                &[
+                    bk_int(BkCellType::B8, (rr.b_charset as ::core::ffi::c_int) as u32),
+                    bk_int(BkCellType::B8, (rr.x_ratio as ::core::ffi::c_int) as u32),
+                    bk_int(
+                        BkCellType::B8,
+                        (rr.y_start_ratio as ::core::ffi::c_int) as u32,
+                    ),
+                    bk_int(
+                        BkCellType::B8,
+                        (rr.y_end_ratio as ::core::ffi::c_int) as u32,
+                    ),
+                ],
+            );
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;
@@ -315,13 +346,27 @@ pub unsafe fn otfcc_build_vdmx(
                 keep_1 = (keep_1 == 0) as ::core::ffi::c_int as usize;
                 __caryll_index_1 = __caryll_index_1.wrapping_add(1);
             }
-            let mut group: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (rr_0.records.len()) as u32), bk_int(BkCellType::B8, (startsz as ::core::ffi::c_int) as u32), bk_int(BkCellType::B8, (endsz as ::core::ffi::c_int) as u32)]);
+            let mut group: *mut BkBlock = bk_new_block(&[
+                bk_int(BkCellType::B16, (rr_0.records.len()) as u32),
+                bk_int(BkCellType::B8, (startsz as ::core::ffi::c_int) as u32),
+                bk_int(BkCellType::B8, (endsz as ::core::ffi::c_int) as u32),
+            ]);
             let mut __caryll_index_2: usize = 0 as usize;
             let mut keep_2: usize = 1 as usize;
             while keep_2 != 0 && __caryll_index_2 < rr_0.records.len() {
                 let r_0: &VdmxRecord = &rr_0.records[__caryll_index_2];
                 while keep_2 != 0 {
-                    bk_push(group, &[bk_int(BkCellType::B16, (r_0.y_pel_height as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (r_0.y_max as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (r_0.y_min as ::core::ffi::c_int) as u32)]);
+                    bk_push(
+                        group,
+                        &[
+                            bk_int(
+                                BkCellType::B16,
+                                (r_0.y_pel_height as ::core::ffi::c_int) as u32,
+                            ),
+                            bk_int(BkCellType::B16, (r_0.y_max as ::core::ffi::c_int) as u32),
+                            bk_int(BkCellType::B16, (r_0.y_min as ::core::ffi::c_int) as u32),
+                        ],
+                    );
                     keep_2 = (keep_2 == 0) as ::core::ffi::c_int as usize;
                 }
                 keep_2 = (keep_2 == 0) as ::core::ffi::c_int as usize;

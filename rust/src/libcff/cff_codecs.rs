@@ -1,14 +1,13 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{printf, sprintf, strlen, strtod};
 
-
 use crate::libcff::CffDictOperator;
-use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::buffer::{bufninit, Buffer};
-use crate::support::font_reader::{FontReader};
-use crate::libcff::cff_value::{CS2_FRACTION, CS2_OPERAND, CS2_OPERATOR, CffValueType, CffValue};
-use crate::support::{NULL};
-use crate::support::buffer::{bufnew};
+use crate::libcff::cff_value::{CS2_FRACTION, CS2_OPERAND, CS2_OPERATOR, CffValue, CffValueType};
+use crate::support::NULL;
+use crate::support::alloc::__caryll_allocate_clean;
+use crate::support::buffer::bufnew;
+use crate::support::buffer::{Buffer, bufninit};
+use crate::support::font_reader::FontReader;
 #[inline]
 unsafe fn atof(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_double {
     return strtod(__nptr, NULL as *mut *mut ::core::ffi::c_char);
@@ -28,14 +27,30 @@ pub unsafe fn cff_encode_cff_integer(mut val: i32) -> *mut Buffer {
         return bufninit(&[(val + 139 as i32) as u8]);
     } else if val >= 108 as i32 && val <= 1131 as i32 {
         val = (val as ::core::ffi::c_int - 108 as ::core::ffi::c_int) as i32;
-        return bufninit(&[((val >> 8 as ::core::ffi::c_int) + 247 as i32) as u8, (val & 0xff as i32) as u8]);
+        return bufninit(&[
+            ((val >> 8 as ::core::ffi::c_int) + 247 as i32) as u8,
+            (val & 0xff as i32) as u8,
+        ]);
     } else if val >= -(1131 as i32) && val <= -(108 as i32) {
         val = -(108 as i32) - val;
-        return bufninit(&[((val >> 8 as ::core::ffi::c_int) + 251 as i32) as u8, (val & 0xff as i32) as u8]);
+        return bufninit(&[
+            ((val >> 8 as ::core::ffi::c_int) + 251 as i32) as u8,
+            (val & 0xff as i32) as u8,
+        ]);
     } else if val >= -(32768 as i32) && val < 32768 as i32 {
-        return bufninit(&[28 as u8, (val >> 8 as ::core::ffi::c_int) as u8, (val & 0xff as i32) as u8]);
+        return bufninit(&[
+            28 as u8,
+            (val >> 8 as ::core::ffi::c_int) as u8,
+            (val & 0xff as i32) as u8,
+        ]);
     } else {
-        return bufninit(&[29 as u8, (val >> 24 as ::core::ffi::c_int & 0xff as i32) as u8, (val >> 16 as ::core::ffi::c_int & 0xff as i32) as u8, (val >> 8 as ::core::ffi::c_int & 0xff as i32) as u8, (val & 0xff as i32) as u8]);
+        return bufninit(&[
+            29 as u8,
+            (val >> 24 as ::core::ffi::c_int & 0xff as i32) as u8,
+            (val >> 16 as ::core::ffi::c_int & 0xff as i32) as u8,
+            (val >> 8 as ::core::ffi::c_int & 0xff as i32) as u8,
+            (val & 0xff as i32) as u8,
+        ]);
     };
 }
 pub unsafe fn cff_encode_cff_float(mut val: ::core::ffi::c_double) -> *mut Buffer {
@@ -173,9 +188,11 @@ pub unsafe fn cff_encode_cff_float(mut val: ::core::ffi::c_double) -> *mut Buffe
                 [i.wrapping_sub(1 as u32).wrapping_mul(2 as u32) as usize]
                 as ::core::ffi::c_int
                 * 16 as ::core::ffi::c_int
-                + array[i.wrapping_sub(1 as u32)
-                        .wrapping_mul(2 as u32)
-                        .wrapping_add(1 as u32) as usize] as ::core::ffi::c_int) as u8;
+                + array[i
+                    .wrapping_sub(1 as u32)
+                    .wrapping_mul(2 as u32)
+                    .wrapping_add(1 as u32) as usize] as ::core::ffi::c_int)
+                as u8;
             i = i.wrapping_add(1);
         }
     }
@@ -295,21 +312,7 @@ unsafe fn cff_dec_i(start: *const u8, remaining: usize, val: *mut CffValue) -> O
     Some(len)
 }
 static NIBBLE_SYMB: [&::core::ffi::CStr; 15] = [
-    c"0",
-    c"1",
-    c"2",
-    c"3",
-    c"4",
-    c"5",
-    c"6",
-    c"7",
-    c"8",
-    c"9",
-    c".",
-    c"E",
-    c"E-",
-    c"",
-    c"-",
+    c"0", c"1", c"2", c"3", c"4", c"5", c"6", c"7", c"8", c"9", c".", c"E", c"E-", c"", c"-",
 ];
 // The original scanned the nibble string with no bound at all beyond
 // finding a `0xF` terminator nibble -- a malformed DICT real number that
@@ -655,7 +658,10 @@ mod token_decoder_tests {
     use crate::libcff::cff_value::CffValueBody;
 
     fn zeroed_val() -> CffValue {
-        CffValue { t: CffValueType::Unset, c2rust_unnamed: CffValueBody { i: 0 } }
+        CffValue {
+            t: CffValueType::Unset,
+            c2rust_unnamed: CffValueBody { i: 0 },
+        }
     }
 
     #[test]

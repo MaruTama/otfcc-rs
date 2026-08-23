@@ -1,14 +1,23 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{memcpy};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::buffer::Buffer;
+use crate::support::buffer::{bufnew, bufwrite_bytes, bufwrite16b, bufwrite32b};
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
+    json_object_push, json_string_new_from_bytes, otfcc_dump_flags,
+};
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet};
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, json_str_len, json_str_ptr, json_type_of, otfcc_parse_flags};
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite_bytes};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_from_bytes, otfcc_dump_flags};
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get,
+    json_obj_get_type, json_obj_getnum_fallback, json_str_len, json_str_ptr, json_type_of,
+    otfcc_parse_flags,
+};
+use crate::vendor::json::JsonType;
+use libc::memcpy;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct Os2Table {
@@ -71,7 +80,10 @@ pub struct Os2Table {
 // `data.offset(N)` calls used explicitly -- confirmed field-by-field below.
 fn parse_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
     if data.len() < 2 {
-        return Err(ReadError { needed: 2, available: data.len() });
+        return Err(ReadError {
+            needed: 2,
+            available: data.len(),
+        });
     }
     // All-zero is a valid bit pattern for every field (integers and
     // fixed-size byte arrays only), matching the old `memset`-then-
@@ -120,7 +132,10 @@ fn parse_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
     let mut r = FontReader::new(data);
     os2.version = r.u16()?;
     if data.len() < 68 {
-        return Err(ReadError { needed: 68, available: data.len() });
+        return Err(ReadError {
+            needed: 68,
+            available: data.len(),
+        });
     }
     os2.x_avg_char_width = r.i16()?;
     os2.us_weight_class = r.u16()?;
@@ -154,14 +169,20 @@ fn parse_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
         os2.us_win_descent = r.u16()?;
     }
     if os2.version >= 1 && data.len() < 86 {
-        return Err(ReadError { needed: 86, available: data.len() });
+        return Err(ReadError {
+            needed: 86,
+            available: data.len(),
+        });
     }
     if os2.version >= 1 {
         os2.ul_code_page_range1 = r.u32()?;
         os2.ul_code_page_range2 = r.u32()?;
     }
     if os2.version >= 2 && data.len() < 96 {
-        return Err(ReadError { needed: 96, available: data.len() });
+        return Err(ReadError {
+            needed: 96,
+            available: data.len(),
+        });
     }
     if os2.version >= 2 {
         os2.sx_height = r.i16()?;
@@ -171,7 +192,10 @@ fn parse_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
         os2.us_max_context = r.u16()?;
     }
     if os2.version >= 5 && data.len() < 100 {
-        return Err(ReadError { needed: 100, available: data.len() });
+        return Err(ReadError {
+            needed: 100,
+            available: data.len(),
+        });
     }
     if os2.version >= 5 {
         // Preserving the original's bug verbatim: both reads assign to
@@ -184,11 +208,11 @@ fn parse_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
     }
     Ok(os2)
 }
-pub unsafe fn otfcc_read_os_2(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<Os2Table>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_OS_2)?;
+pub unsafe fn otfcc_read_os_2(packet: &Packet, options: &Options) -> Option<Box<Os2Table>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_OS_2)?;
     match parse_os_2(&table.data) {
         Ok(os2) => Some(Box::new(os2)),
         Err(_) => {
@@ -261,38 +285,10 @@ pub static CODE_PAGE_LABELS1: [&::core::ffi::CStr; 32] = [
     c"symbol",
 ];
 pub static CODE_PAGE_LABELS2: [&::core::ffi::CStr; 32] = [
-    c"oem8",
-    c"oem9",
-    c"oem10",
-    c"oem11",
-    c"oem12",
-    c"oem13",
-    c"oem14",
-    c"oem15",
-    c"oem16",
-    c"oem17",
-    c"oem18",
-    c"oem19",
-    c"oem20",
-    c"oem21",
-    c"oem22",
-    c"oem23",
-    c"cp869",
-    c"cp866",
-    c"cp865",
-    c"cp864",
-    c"cp863",
-    c"cp862",
-    c"cp861",
-    c"cp860",
-    c"cp857",
-    c"cp855",
-    c"cp852",
-    c"cp775",
-    c"cp737",
-    c"cp708",
-    c"cp850",
-    c"ascii",
+    c"oem8", c"oem9", c"oem10", c"oem11", c"oem12", c"oem13", c"oem14", c"oem15", c"oem16",
+    c"oem17", c"oem18", c"oem19", c"oem20", c"oem21", c"oem22", c"oem23", c"cp869", c"cp866",
+    c"cp865", c"cp864", c"cp863", c"cp862", c"cp861", c"cp860", c"cp857", c"cp855", c"cp852",
+    c"cp775", c"cp737", c"cp708", c"cp850", c"ascii",
 ];
 pub static UNICODE_RANGE_LABELS1: [&::core::ffi::CStr; 32] = [
     c"Basic_Latin",
@@ -465,10 +461,7 @@ pub unsafe fn otfcc_dump_os_2(
         json_object_push(
             os_2,
             b"fsType\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags(
-                (*table).fs_type as ::core::ffi::c_int,
-                &FS_TYPE_LABELS,
-            ),
+            otfcc_dump_flags((*table).fs_type as ::core::ffi::c_int, &FS_TYPE_LABELS),
         );
         json_object_push(
             os_2,
@@ -528,10 +521,7 @@ pub unsafe fn otfcc_dump_os_2(
         let mut panose: *mut BuiltValue = json_array_new(10 as usize);
         let mut j: u8 = 0 as u8;
         while (j as ::core::ffi::c_int) < 10 as ::core::ffi::c_int {
-            json_array_push(
-                panose,
-                json_integer_new((*table).panose[j as usize] as i64),
-            );
+            json_array_push(panose, json_integer_new((*table).panose[j as usize] as i64));
             j = j.wrapping_add(1);
         }
         json_object_push(
@@ -915,11 +905,9 @@ pub unsafe fn otfcc_parse_os_2(
                 let mut j: u32 = 0 as u32;
                 while j < json_arr_len(panose) && j < 10 as u32 {
                     let mut term: *const ParsedValue = json_arr_at(panose, j as u32);
-                    if json_type_of(term) == JsonType::Integer
-                    {
+                    if json_type_of(term) == JsonType::Integer {
                         (*os_2).panose[j as usize] = json_int_val(term) as u8;
-                    } else if json_type_of(term) == JsonType::Double
-                    {
+                    } else if json_type_of(term) == JsonType::Double {
                         (*os_2).panose[j as usize] = json_dbl_val(term) as u8;
                     }
                     j = j.wrapping_add(1);
@@ -951,9 +939,7 @@ pub unsafe fn otfcc_parse_os_2(
                 }
             }
             ___loggedstep_v = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
     if ((*os_2).version as ::core::ffi::c_int) < 1 as ::core::ffi::c_int {
@@ -962,9 +948,7 @@ pub unsafe fn otfcc_parse_os_2(
     return Some(os_2_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_os_2(
-    os_2: Option<&Os2Table>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_os_2(os_2: Option<&Os2Table>) -> *mut Buffer {
     let os_2 = match os_2 {
         Some(o) => o as *const Os2Table,
         None => return ::core::ptr::null_mut::<Buffer>(),
@@ -986,20 +970,12 @@ pub unsafe fn otfcc_build_os_2(
     bufwrite16b(buf, (*os_2).y_strikeout_size as u16);
     bufwrite16b(buf, (*os_2).y_strikeout_position as u16);
     bufwrite16b(buf, (*os_2).s_family_class as u16);
-    bufwrite_bytes(
-        buf,
-        10 as usize,
-        &raw const (*os_2).panose as *const u8,
-    );
+    bufwrite_bytes(buf, 10 as usize, &raw const (*os_2).panose as *const u8);
     bufwrite32b(buf, (*os_2).ul_unicode_range1);
     bufwrite32b(buf, (*os_2).ul_unicode_range2);
     bufwrite32b(buf, (*os_2).ul_unicode_range3);
     bufwrite32b(buf, (*os_2).ul_unicode_range4);
-    bufwrite_bytes(
-        buf,
-        4 as usize,
-        &raw const (*os_2).ach_vend_id as *const u8,
-    );
+    bufwrite_bytes(buf, 4 as usize, &raw const (*os_2).ach_vend_id as *const u8);
     bufwrite16b(buf, (*os_2).fs_selection);
     bufwrite16b(buf, (*os_2).us_first_char_index);
     bufwrite16b(buf, (*os_2).us_last_char_index);

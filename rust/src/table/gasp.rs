@@ -1,14 +1,22 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{GlyphSize};
-use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet};
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getbool, json_obj_getint_fallback, json_type_of};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufwrite16b};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new, json_object_new, json_object_push};
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new,
+    json_object_new, json_object_push,
+};
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getbool,
+    json_obj_getint_fallback, json_type_of,
+};
+use crate::support::primitives::GlyphSize;
+use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -52,11 +60,11 @@ fn parse_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
     }
     Ok(GaspTable { version, records })
 }
-pub unsafe fn otfcc_read_gasp(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<GaspTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_GASP)?;
+pub unsafe fn otfcc_read_gasp(packet: &Packet, options: &Options) -> Option<Box<GaspTable>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_GASP)?;
     match parse_gasp(&table.data) {
         Ok(gasp) => Some(Box::new(gasp)),
         Err(_) => {
@@ -109,16 +117,12 @@ pub unsafe fn otfcc_dump_gasp(
             json_object_push(
                 rec,
                 b"symmetric_smoothing\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(
-                    records[j as usize].symmetric_smoothing as ::core::ffi::c_int,
-                ),
+                json_boolean_new(records[j as usize].symmetric_smoothing as ::core::ffi::c_int),
             );
             json_object_push(
                 rec,
                 b"symmetric_gridfit\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(
-                    records[j as usize].symmetric_gridfit as ::core::ffi::c_int,
-                ),
+                json_boolean_new(records[j as usize].symmetric_gridfit as ::core::ffi::c_int),
             );
             json_array_push(t, rec);
             j = j.wrapping_add(1);
@@ -150,13 +154,14 @@ pub unsafe fn otfcc_parse_gasp(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            gasp = Some(Box::new(GaspTable { version: 1, records: Vec::new() }));
+            gasp = Some(Box::new(GaspTable {
+                version: 1,
+                records: Vec::new(),
+            }));
             let mut j: u16 = 0 as u16;
             while (j as ::core::ffi::c_uint) < json_arr_len(table) {
                 let mut r: *const ParsedValue = json_arr_at(table, j as u32);
-                if !(r.is_null()
-                    || json_type_of(r) != JsonType::Object)
-                {
+                if !(r.is_null() || json_type_of(r) != JsonType::Object) {
                     let mut record: GaspRecord = GaspRecord {
                         range_max_ppem: 0,
                         dogray: false,
@@ -188,17 +193,13 @@ pub unsafe fn otfcc_parse_gasp(
                 j = j.wrapping_add(1);
             }
             ___loggedstep_v = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
     return gasp;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_gasp(
-    gasp: Option<&GaspTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> *mut Buffer {
     let gasp = match gasp {
         Some(g) => g,
         None => return ::core::ptr::null_mut::<Buffer>(),
@@ -246,7 +247,9 @@ mod parse_gasp_tests {
         data.extend_from_slice(&1u16.to_be_bytes()); // version
         data.extend_from_slice(&1u16.to_be_bytes()); // numRanges
         data.extend_from_slice(&65535u16.to_be_bytes()); // rangeMaxPPEM
-        data.extend_from_slice(&(GASP_GRIDFIT as u16 | GASP_SYMMETRIC_SMOOTHING as u16).to_be_bytes());
+        data.extend_from_slice(
+            &(GASP_GRIDFIT as u16 | GASP_SYMMETRIC_SMOOTHING as u16).to_be_bytes(),
+        );
         let gasp = parse_gasp(&data).unwrap();
         assert_eq!(gasp.records.len(), 1);
         assert_eq!(gasp.records[0].range_max_ppem, 65535);

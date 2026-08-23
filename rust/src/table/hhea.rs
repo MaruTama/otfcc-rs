@@ -1,15 +1,19 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum_fallback};
-use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{F16Dot16};
-use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
+use crate::support::built_json::{
+    BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
+};
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::support::options::Options;
+use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum_fallback};
+use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
-use crate::support::built_json::{BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push};
+use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -54,11 +58,11 @@ fn parse_hhea(data: &[u8]) -> Result<HheaTable, ReadError> {
         number_of_metrics: r.u16()?,
     })
 }
-pub unsafe fn otfcc_read_hhea(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<HheaTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_HHEA)?;
+pub unsafe fn otfcc_read_hhea(packet: &Packet, options: &Options) -> Option<Box<HheaTable>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_HHEA)?;
     match parse_hhea(&table.data) {
         Ok(hhea) => Some(Box::new(hhea)),
         Err(_) => {
@@ -230,17 +234,13 @@ pub unsafe fn otfcc_parse_hhea(
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
             ___loggedstep_v = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
     return Some(hhea_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_hhea(
-    hhea: Option<&HheaTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_hhea(hhea: Option<&HheaTable>) -> *mut Buffer {
     let hhea = match hhea {
         Some(h) => h as *const HheaTable,
         None => return ::core::ptr::null_mut::<Buffer>(),

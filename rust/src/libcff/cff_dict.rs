@@ -1,8 +1,10 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::buffer::{Buffer};
 use crate::libcff::CffDictOperator;
-use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
-use crate::libcff::cff_codecs::{cff_decode_cff_token, cff_encode_cff_float, cff_encode_cff_integer, cff_encode_cff_operator};
+use crate::libcff::cff_codecs::{
+    cff_decode_cff_token, cff_encode_cff_float, cff_encode_cff_integer, cff_encode_cff_operator,
+};
+use crate::libcff::cff_value::{CffValue, CffValueBody, CffValueType};
+use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufwrite_bufdel};
 
 // `vals` was `__caryll_allocate_clean`'d/`free`'d, sized from `cnt` -- an
@@ -38,9 +40,7 @@ unsafe fn dispose_dict(mut dict: *mut CffDict) {
 pub(crate) unsafe fn cff_dict_create() -> *mut CffDict {
     // `Box::new` of an explicit all-zero literal, not `malloc` + a `memset`
     // init -- see `cff_dict_free`'s matching `Box::from_raw`.
-    Box::into_raw(Box::new(CffDict {
-        ents: Vec::new(),
-    }))
+    Box::into_raw(Box::new(CffDict { ents: Vec::new() }))
 }
 #[inline]
 pub(crate) unsafe fn cff_dict_free(mut x: *mut CffDict) {
@@ -66,12 +66,7 @@ pub(crate) unsafe fn parse_to_callback(
     len: u32,
     mut context: *mut ::core::ffi::c_void,
     mut callback: Option<
-        unsafe extern "C" fn(
-            CffDictOperator,
-            u8,
-            *mut CffValue,
-            *mut ::core::ffi::c_void,
-        ) -> (),
+        unsafe extern "C" fn(CffDictOperator, u8, *mut CffValue, *mut ::core::ffi::c_void) -> (),
     >,
 ) {
     let mut index: u8 = 0 as u8;

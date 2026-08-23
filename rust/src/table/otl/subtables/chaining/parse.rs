@@ -1,20 +1,21 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-
+use crate::support::handle::{LookupHandle, handle_from_name, otfcc_handle_empty};
 use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
-    json_str_bytes, json_type_of,
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum,
+    json_obj_getnum_fallback, json_str_bytes, json_type_of,
 };
 use crate::table::otl::coverage::coverage_from_raw;
-use crate::support::handle::{handle_from_name, otfcc_handle_empty, LookupHandle};
 
-use crate::support::options::{Options};
-use crate::support::primitives::{TableId};
-use crate::vendor::json::{JsonType};
+use crate::support::options::Options;
+use crate::support::primitives::TableId;
+use crate::vendor::json::JsonType;
 
-use crate::table::otl::{ChainLookupApplication, ChainingRule, Subtable, ChainingSubtable, subtable_from_raw};
-use crate::table::otl::coverage::{parse_coverage};
-use crate::table::otl::subtables::chaining::common::{subtable_chaining_create, chaining_rule_mut};
+use crate::table::otl::coverage::parse_coverage;
+use crate::table::otl::subtables::chaining::common::{chaining_rule_mut, subtable_chaining_create};
+use crate::table::otl::{
+    ChainLookupApplication, ChainingRule, ChainingSubtable, Subtable, subtable_from_raw,
+};
 pub unsafe extern "C" fn otl_parse_chaining(
     mut _subtable: *const ParsedValue,
     mut _options: *const Options,
@@ -32,9 +33,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
     if _match.is_null() || _apply.is_null() {
         return ::core::ptr::null_mut::<Subtable>();
     }
-    let mut subtable: *mut ChainingSubtable =
-        (
-            subtable_chaining_create)();
+    let mut subtable: *mut ChainingSubtable = (subtable_chaining_create)();
     // `create()` already hands back a valid `Canonical(ChainingRule::
     // default())` -- no separate tag assignment or placement-construct
     // needed, unlike the pre-enum version.
@@ -54,11 +53,11 @@ pub unsafe extern "C" fn otl_parse_chaining(
     ) as TableId;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-        (*rule).match_0.push(coverage_from_raw(
-            parse_coverage(
-                json_arr_at(_match, j as u32),
-            ),
-        ));
+        (*rule)
+            .match_0
+            .push(coverage_from_raw(parse_coverage(json_arr_at(
+                _match, j as u32,
+            ))));
         j = j.wrapping_add(1);
     }
     let mut j_0: TableId = 0 as TableId;
@@ -66,8 +65,7 @@ pub unsafe extern "C" fn otl_parse_chaining(
         let mut index: TableId = 0 as TableId;
         let mut lookup: LookupHandle = otfcc_handle_empty() as LookupHandle;
         let mut _application: *const ParsedValue = json_arr_at(_apply, j_0 as u32);
-        if json_type_of(_application) == JsonType::Object
-        {
+        if json_type_of(_application) == JsonType::Object {
             let mut _ln: *const ParsedValue = json_obj_get_type(
                 _application,
                 b"lookup\0" as *const u8 as *const ::core::ffi::c_char,

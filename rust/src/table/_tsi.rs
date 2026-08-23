@@ -1,16 +1,25 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{strcmp};
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_len, json_str_ptr, json_type_of};
-use crate::support::handle::{handle_from_index, handle_from_name, otfcc_handle_dup, otfcc_handle_empty, otfcc_handle_init, Handle, GlyphHandle, HandleState};
-use crate::support::font_reader::{FontReader, ReadError};
+use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet};
+use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufnwrite8, bufwrite16b, bufwrite32b};
-use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_length};
+use crate::support::built_json::{
+    BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key,
+    json_string_new_length,
+};
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::support::handle::{
+    GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, otfcc_handle_dup,
+    otfcc_handle_empty, otfcc_handle_init,
+};
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len,
+    json_obj_val_at, json_str_len, json_str_ptr, json_type_of,
+};
+use crate::support::primitives::GlyphId;
+use crate::vendor::json::JsonType;
+use libc::strcmp;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -95,7 +104,10 @@ pub unsafe fn otfcc_read_tsi(
     let mut tsi: TsiTable = Vec::new();
     let mut j: u32 = 0 as u32;
     while let Ok(entry) = read_tsi_index_entry(&index_part.data, j) {
-        if is_valid_gid(entry.gid, tag_index) && entry.text_offset < text_len && entry.text_length != 0 {
+        if is_valid_gid(entry.gid, tag_index)
+            && entry.text_offset < text_len
+            && entry.text_length != 0
+        {
             let mut predicted_text_length: u32 = text_len.wrapping_sub(entry.text_offset);
             let mut k: u32 = j.wrapping_add(1 as u32);
             while let Ok(entry_k) = read_tsi_index_entry(&index_part.data, k) {
@@ -157,9 +169,7 @@ pub unsafe fn otfcc_read_tsi(
                 }
                 _ => {
                     tsi_entry.type_0 = TsiEntryType::Glyph;
-                    tsi_entry.glyph = handle_from_index(
-                        entry.gid as GlyphId,
-                    ) as GlyphHandle;
+                    tsi_entry.glyph = handle_from_index(entry.gid as GlyphId) as GlyphHandle;
                 }
             }
             tsi.push(tsi_entry);
@@ -179,10 +189,7 @@ pub unsafe fn otfcc_dump_tsi(
         Some(t) => t,
         None => return,
     };
-    logger_start_sds(
-        &mut *options.logger.borrow_mut(),
-        crate::bytesbuild!(tag),
-    );
+    logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let entries: &Vec<TsiEntry> = tsi;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -280,10 +287,7 @@ pub unsafe fn otfcc_parse_tsi(
         return None;
     }
     let mut tsi: TsiTable = Vec::new();
-    logger_start_sds(
-        &mut *options.logger.borrow_mut(),
-        crate::bytesbuild!(tag),
-    );
+    logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _glyphs: *const ParsedValue = json_obj_get_type(
@@ -294,22 +298,18 @@ pub unsafe fn otfcc_parse_tsi(
         if !_glyphs.is_null() {
             let mut j: u32 = 0 as u32;
             while j < json_obj_len(_glyphs) {
-                let mut _content: *const ParsedValue =
-                    json_obj_val_at(_glyphs, j as u32);
-                if !(_content.is_null()
-                    || json_type_of(_content) != JsonType::String)
-                {
+                let mut _content: *const ParsedValue = json_obj_val_at(_glyphs, j as u32);
+                if !(_content.is_null() || json_type_of(_content) != JsonType::String) {
                     tsi.push(TsiEntry {
-                            type_0: TsiEntryType::Glyph,
-                            glyph: handle_from_name(
-                                Some(json_obj_key_bytes_at(_glyphs, j as u32)),
-                            ) as GlyphHandle,
-                            content: ::core::slice::from_raw_parts(
-                                json_str_ptr(_content) as *const u8,
-                                json_str_len(_content) as usize,
-                            )
-                            .to_vec(),
-                        });
+                        type_0: TsiEntryType::Glyph,
+                        glyph: handle_from_name(Some(json_obj_key_bytes_at(_glyphs, j as u32)))
+                            as GlyphHandle,
+                        content: ::core::slice::from_raw_parts(
+                            json_str_ptr(_content) as *const u8,
+                            json_str_len(_content) as usize,
+                        )
+                        .to_vec(),
+                    });
                 }
                 j = j.wrapping_add(1);
             }
@@ -322,49 +322,45 @@ pub unsafe fn otfcc_parse_tsi(
         if !_extra.is_null() {
             let mut j_0: u32 = 0 as u32;
             while j_0 < json_obj_len(_extra) {
-                let mut _key: *mut ::core::ffi::c_char =
-                    json_obj_key_at(_extra, j_0 as u32);
-                let mut _content_0: *const ParsedValue =
-                    json_obj_val_at(_extra, j_0 as u32);
-                if !(_content_0.is_null()
-                    || json_type_of(_content_0) != JsonType::String)
-                {
+                let mut _key: *mut ::core::ffi::c_char = json_obj_key_at(_extra, j_0 as u32);
+                let mut _content_0: *const ParsedValue = json_obj_val_at(_extra, j_0 as u32);
+                if !(_content_0.is_null() || json_type_of(_content_0) != JsonType::String) {
                     if strcmp(_key, b"cvt\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
                         tsi.push(TsiEntry {
-                                type_0: TsiEntryType::Cvt,
-                                glyph: otfcc_handle_empty() as GlyphHandle,
-                                content: ::core::slice::from_raw_parts(
-                                    json_str_ptr(_content_0) as *const u8,
-                                    json_str_len(_content_0) as usize,
-                                )
-                                .to_vec(),
-                            });
+                            type_0: TsiEntryType::Cvt,
+                            glyph: otfcc_handle_empty() as GlyphHandle,
+                            content: ::core::slice::from_raw_parts(
+                                json_str_ptr(_content_0) as *const u8,
+                                json_str_len(_content_0) as usize,
+                            )
+                            .to_vec(),
+                        });
                     } else if strcmp(_key, b"fpgm\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
                         tsi.push(TsiEntry {
-                                type_0: TsiEntryType::Fpgm,
-                                glyph: otfcc_handle_empty() as GlyphHandle,
-                                content: ::core::slice::from_raw_parts(
-                                    json_str_ptr(_content_0) as *const u8,
-                                    json_str_len(_content_0) as usize,
-                                )
-                                .to_vec(),
-                            });
+                            type_0: TsiEntryType::Fpgm,
+                            glyph: otfcc_handle_empty() as GlyphHandle,
+                            content: ::core::slice::from_raw_parts(
+                                json_str_ptr(_content_0) as *const u8,
+                                json_str_len(_content_0) as usize,
+                            )
+                            .to_vec(),
+                        });
                     } else if strcmp(_key, b"prep\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
                     {
                         tsi.push(TsiEntry {
-                                type_0: TsiEntryType::Prep,
-                                glyph: otfcc_handle_empty() as GlyphHandle,
-                                content: ::core::slice::from_raw_parts(
-                                    json_str_ptr(_content_0) as *const u8,
-                                    json_str_len(_content_0) as usize,
-                                )
-                                .to_vec(),
-                            });
+                            type_0: TsiEntryType::Prep,
+                            glyph: otfcc_handle_empty() as GlyphHandle,
+                            content: ::core::slice::from_raw_parts(
+                                json_str_ptr(_content_0) as *const u8,
+                                json_str_len(_content_0) as usize,
+                            )
+                            .to_vec(),
+                        });
                     }
                 }
                 j_0 = j_0.wrapping_add(1);
@@ -427,17 +423,12 @@ unsafe fn push_tsi_entries(
             propergid(::core::ptr::null_mut::<TsiEntry>(), type_0) as u16,
         );
         bufwrite16b((*target).index_part, 0 as u16);
-        bufwrite32b(
-            (*target).index_part,
-            (*(*target).text_part).cursor as u32,
-        );
+        bufwrite32b((*target).index_part, (*(*target).text_part).cursor as u32);
         items_pushed = (items_pushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_tsi(
-    tsi: Option<&TsiTable>,
-) -> TsiBuildTarget {
+pub unsafe fn otfcc_build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
     let tsi: *const TsiTable = tsi.map_or(::core::ptr::null(), |t| t as *const TsiTable);
     let mut target: TsiBuildTarget = TsiBuildTarget {
         index_part: ::core::ptr::null_mut::<Buffer>(),
@@ -455,7 +446,12 @@ pub unsafe fn otfcc_build_tsi(
         bufwrite32b(target.index_part, 0xabfc1f34 as u32);
         push_tsi_entries(&raw mut target, tsi, TsiEntryType::Prep, 1 as GlyphId);
         push_tsi_entries(&raw mut target, tsi, TsiEntryType::Cvt, 1 as GlyphId);
-        push_tsi_entries(&raw mut target, tsi, TsiEntryType::ReservedFffc, 1 as GlyphId);
+        push_tsi_entries(
+            &raw mut target,
+            tsi,
+            TsiEntryType::ReservedFffc,
+            1 as GlyphId,
+        );
         push_tsi_entries(&raw mut target, tsi, TsiEntryType::Fpgm, 1 as GlyphId);
     }
     return target;

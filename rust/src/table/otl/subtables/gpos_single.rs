@@ -1,23 +1,32 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle};
-use crate::support::font_reader::{FontReader};
-use crate::support::parsed_json::{ParsedValue, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
+use crate::support::font_reader::FontReader;
+use crate::support::handle::{GlyphHandle, Handle, handle_from_name, otfcc_handle_dup};
+use crate::support::parsed_json::{
+    ParsedValue, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of,
+};
+use crate::table::otl::coverage::{
+    Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
+};
 
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::support::buffer::Buffer;
+use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::vendor::json::JsonType;
 
-use crate::table::otl::{GposSingleEntry, PositionValue, Subtable, GposSingleSubtable, subtable_from_raw};
-use crate::table::otl::subtables::{BuildHeuristics};
-use crate::bk::bkblock::{bk_new_block_from_buffer};
-use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::coverage::{build_coverage};
-use crate::table::otl::subtables::gpos_common::{bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, read_gpos_value, required_position_format};
+use crate::bk::bkblock::bk_new_block_from_buffer;
+use crate::bk::bkgraph::bk_build_block;
 use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_bytes_key};
+use crate::table::otl::coverage::build_coverage;
+use crate::table::otl::subtables::BuildHeuristics;
+use crate::table::otl::subtables::gpos_common::{
+    bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, read_gpos_value,
+    required_position_format,
+};
+use crate::table::otl::{
+    GposSingleEntry, GposSingleSubtable, PositionValue, Subtable, subtable_from_raw,
+};
 // `GposSingleEntry` holds only a `GlyphHandle` plus a plain `PositionValue`,
 // so dropping the `Vec` runs `Handle`'s own `Drop` for every entry -- no
 // per-element dtor needed anymore.
@@ -53,8 +62,12 @@ pub unsafe fn otl_read_gpos_single(
             Ok(r) => r,
             Err(_) => break 'parse,
         };
-        let Ok(subtable_format) = header.u16() else { break 'parse };
-        let Ok(from_rel) = header.u16() else { break 'parse };
+        let Ok(subtable_format) = header.u16() else {
+            break 'parse;
+        };
+        let Ok(from_rel) = header.u16() else {
+            break 'parse;
+        };
 
         targets = read_coverage(data, table_length, offset.wrapping_add(from_rel as u32));
         if targets.is_null() || (*targets).is_empty() {
@@ -62,8 +75,11 @@ pub unsafe fn otl_read_gpos_single(
         }
 
         if subtable_format == 1 {
-            let Ok(value_format) = header.u16() else { break 'parse };
-            let v: PositionValue = read_gpos_value(data, table_length, offset.wrapping_add(6), value_format);
+            let Ok(value_format) = header.u16() else {
+                break 'parse;
+            };
+            let v: PositionValue =
+                read_gpos_value(data, table_length, offset.wrapping_add(6), value_format);
             for j in 0..(*targets).len() {
                 (*subtable).push(GposSingleEntry {
                     target: otfcc_handle_dup((&(*targets))[j].clone() as Handle) as GlyphHandle,
@@ -71,8 +87,12 @@ pub unsafe fn otl_read_gpos_single(
                 });
             }
         } else {
-            let Ok(value_format) = header.u16() else { break 'parse };
-            let Ok(value_count) = header.u16() else { break 'parse };
+            let Ok(value_format) = header.u16() else {
+                break 'parse;
+            };
+            let Ok(value_count) = header.u16() else {
+                break 'parse;
+            };
             let stride = position_format_length(value_format) as usize;
             if header.require_room(value_count as usize, stride).is_err() {
                 break 'parse;
@@ -105,10 +125,10 @@ pub unsafe fn otl_read_gpos_single(
     subtable_gpos_single_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe extern "C" fn otl_gpos_dump_single(
-    mut _subtable: *const Subtable,
-) -> *mut BuiltValue {
-    let Subtable::GposSingle(mut_subtable) = &*_subtable else { unreachable!() };
+pub unsafe extern "C" fn otl_gpos_dump_single(mut _subtable: *const Subtable) -> *mut BuiltValue {
+    let Subtable::GposSingle(mut_subtable) = &*_subtable else {
+        unreachable!()
+    };
     let subtable: *const GposSingleSubtable = mut_subtable;
     let mut st: *mut BuiltValue = json_object_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
@@ -131,8 +151,7 @@ pub unsafe extern "C" fn otl_gpos_parse_single(
     while (j as ::core::ffi::c_uint) < json_obj_len(_subtable) {
         let val = json_obj_val_at(_subtable, j as u32);
         if !val.is_null()
-            && json_type_of(val)
-                as ::core::ffi::c_uint
+            && json_type_of(val) as ::core::ffi::c_uint
                 == JsonType::Object as ::core::ffi::c_int as ::core::ffi::c_uint
         {
             (*subtable).push(GposSingleEntry {
@@ -149,7 +168,9 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
-    let Subtable::GposSingle(mut_subtable) = &*_subtable else { unreachable!() };
+    let Subtable::GposSingle(mut_subtable) = &*_subtable else {
+        unreachable!()
+    };
     let subtable: *const GposSingleSubtable = mut_subtable;
     let mut is_const: bool = (*subtable).len() > 0 as usize;
     let mut format: u16 = 0 as u16;
@@ -157,17 +178,13 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*subtable).len() {
             is_const = is_const as ::core::ffi::c_int != 0
-                && (&(*subtable))[j as usize].value.dx
-                    == (&(*subtable))[0].value.dx
-                && (&(*subtable))[j as usize].value.dy
-                    == (&(*subtable))[0].value.dy
-                && (&(*subtable))[j as usize].value.d_width
-                    == (&(*subtable))[0].value.d_width
-                && (&(*subtable))[j as usize].value.d_height
-                    == (&(*subtable))[0].value.d_height;
+                && (&(*subtable))[j as usize].value.dx == (&(*subtable))[0].value.dx
+                && (&(*subtable))[j as usize].value.dy == (&(*subtable))[0].value.dy
+                && (&(*subtable))[j as usize].value.d_width == (&(*subtable))[0].value.d_width
+                && (&(*subtable))[j as usize].value.d_height == (&(*subtable))[0].value.d_height;
             format = (format as ::core::ffi::c_int
-                | required_position_format((&(*subtable))[j as usize].value)
-                    as ::core::ffi::c_int) as u16;
+                | required_position_format((&(*subtable))[j as usize].value) as ::core::ffi::c_int)
+                as u16;
             j = j.wrapping_add(1);
         }
     }
@@ -176,26 +193,39 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
     while (j_0 as usize) < (*subtable).len() {
         push_to_coverage(
             cov,
-            otfcc_handle_dup(
-                (&(*subtable))[j_0 as usize].target.clone() as Handle,
-            ) as GlyphHandle,
+            otfcc_handle_dup((&(*subtable))[j_0 as usize].target.clone() as Handle) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut coverage_buf: *mut Buffer =
-        build_coverage(cov);
+    let mut coverage_buf: *mut Buffer = build_coverage(cov);
     if is_const {
-        let mut b: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::Embed, bk_gpos_value(
-                (&(*subtable))[0].value,
-                format,
-            ))]);
+        let mut b: *mut BkBlock = bk_new_block(&[
+            bk_int(BkCellType::B16, 1 as u32),
+            bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
+            bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32),
+            bk_ptr(
+                BkCellType::Embed,
+                bk_gpos_value((&(*subtable))[0].value, format),
+            ),
+        ]);
         otl_coverage_free(cov);
         return bk_build_block(b);
     } else {
-        let mut b_0: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 2 as u32), bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)), bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*subtable).len()) as u32)]);
+        let mut b_0: *mut BkBlock = bk_new_block(&[
+            bk_int(BkCellType::B16, 2 as u32),
+            bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
+            bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32),
+            bk_int(BkCellType::B16, ((*subtable).len()) as u32),
+        ]);
         let mut k: GlyphId = 0 as GlyphId;
         while (k as usize) < (*subtable).len() {
-            bk_push(b_0, &[bk_ptr(BkCellType::Embed, bk_gpos_value((&(*subtable))[k as usize].value, format))]);
+            bk_push(
+                b_0,
+                &[bk_ptr(
+                    BkCellType::Embed,
+                    bk_gpos_value((&(*subtable))[k as usize].value, format),
+                )],
+            );
             k = k.wrapping_add(1);
         }
         otl_coverage_free(cov);
@@ -219,10 +249,13 @@ mod otl_read_gpos_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&9u16.to_be_bytes());
         unsafe {
-            let raw = otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
+            let raw =
+                otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
-            let Subtable::GposSingle(entries) = &*boxed else { unreachable!() };
+            let Subtable::GposSingle(entries) = &*boxed else {
+                unreachable!()
+            };
             assert_eq!(entries.len(), 1);
             assert_eq!(entries[0].target.index, 9);
             assert_eq!(entries[0].value.dx, 77.0);
@@ -242,10 +275,13 @@ mod otl_read_gpos_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
         unsafe {
-            let raw = otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
+            let raw =
+                otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
             assert!(!raw.is_null());
             let boxed = Box::from_raw(raw);
-            let Subtable::GposSingle(entries) = &*boxed else { unreachable!() };
+            let Subtable::GposSingle(entries) = &*boxed else {
+                unreachable!()
+            };
             assert_eq!(entries.len(), 1);
             assert_eq!(entries[0].target.index, 5);
             assert_eq!(entries[0].value.dx, 50.0);

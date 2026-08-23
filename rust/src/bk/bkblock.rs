@@ -81,10 +81,10 @@ pub enum BkCellVisitState {
     Gray = 1,
     Black = 2,
 }
-use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
-use crate::support::buffer::{Buffer};
-use crate::support::buffer::{buffree};
+use crate::support::buffer::Buffer;
+use crate::support::buffer::buffree;
+use crate::support::stdio::stderr;
 
 unsafe fn bkblock_acells(mut b: *mut BkBlock, mut len: u32) {
     if len <= (*b).length.wrapping_add((*b).free) {
@@ -118,20 +118,12 @@ pub unsafe fn _bkblock_init() -> *mut BkBlock {
     bkblock_acells(b, 0 as u32);
     return b;
 }
-pub unsafe fn bkblock_pushint(
-    mut b: *mut BkBlock,
-    mut type_0: BkCellType,
-    mut x: u32,
-) {
+pub unsafe fn bkblock_pushint(mut b: *mut BkBlock, mut type_0: BkCellType, mut x: u32) {
     let mut cell: *mut BkCell = bkblock_grow(b, 1 as u32);
     (*cell).t = type_0;
     (*cell).value = BkCellValue::Int(x);
 }
-pub unsafe fn bkblock_pushptr(
-    mut b: *mut BkBlock,
-    mut type_0: BkCellType,
-    mut p: *mut BkBlock,
-) {
+pub unsafe fn bkblock_pushptr(mut b: *mut BkBlock, mut type_0: BkCellType, mut p: *mut BkBlock) {
     let mut cell: *mut BkCell = bkblock_grow(b, 1 as u32);
     (*cell).t = type_0;
     (*cell).value = BkCellValue::Ptr(p);
@@ -151,7 +143,10 @@ pub unsafe fn bkblock_pushptr(
 /// A cell holding an integer. `t` must be `BkCellType::B8`, `BkCellType::B16` or `BkCellType::B32`.
 #[inline]
 pub fn bk_int(t: BkCellType, z: u32) -> BkCell {
-    BkCell { t, value: BkCellValue::Int(z) }
+    BkCell {
+        t,
+        value: BkCellValue::Int(z),
+    }
 }
 
 /// A cell holding a block pointer -- `BkCellType::P16`/`BkCellType::P32`/`BkCellType::Sp16`/`BkCellType::Sp32` for an offset, or
@@ -296,14 +291,44 @@ mod tests {
     // orders are the same one.
     #[test]
     fn bk_celltype_order_is_its_encoding() {
-        let all = [BkCellType::Over, BkCellType::B8, BkCellType::B16, BkCellType::B32, BkCellType::P16, BkCellType::P32, BkCellType::Sp16, BkCellType::Sp32, BkCellType::Copy, BkCellType::Embed];
+        let all = [
+            BkCellType::Over,
+            BkCellType::B8,
+            BkCellType::B16,
+            BkCellType::B32,
+            BkCellType::P16,
+            BkCellType::P32,
+            BkCellType::Sp16,
+            BkCellType::Sp32,
+            BkCellType::Copy,
+            BkCellType::Embed,
+        ];
         for w in all.windows(2) {
             assert!(w[0] < w[1], "{:?} should sort before {:?}", w[0], w[1]);
             assert!((w[0] as u32) < (w[1] as u32));
         }
-        assert_eq!([BkCellType::Over as u32, BkCellType::B8 as u32, BkCellType::B16 as u32, BkCellType::B32 as u32], [0, 1, 2, 3]);
-        assert_eq!([BkCellType::P16 as u32, BkCellType::P32 as u32, BkCellType::Sp16 as u32, BkCellType::Sp32 as u32], [16, 17, 128, 129]);
-        assert_eq!([BkCellType::Copy as u32, BkCellType::Embed as u32], [254, 255]);
+        assert_eq!(
+            [
+                BkCellType::Over as u32,
+                BkCellType::B8 as u32,
+                BkCellType::B16 as u32,
+                BkCellType::B32 as u32
+            ],
+            [0, 1, 2, 3]
+        );
+        assert_eq!(
+            [
+                BkCellType::P16 as u32,
+                BkCellType::P32 as u32,
+                BkCellType::Sp16 as u32,
+                BkCellType::Sp32 as u32
+            ],
+            [16, 17, 128, 129]
+        );
+        assert_eq!(
+            [BkCellType::Copy as u32, BkCellType::Embed as u32],
+            [254, 255]
+        );
         assert_eq!(::core::mem::size_of::<BkCellType>(), 4);
     }
 }

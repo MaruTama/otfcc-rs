@@ -1,8 +1,8 @@
-use crate::support::primitives::{Arity};
-use crate::libcff::cff_charset::{CffCharset};
-use crate::libcff::cff_fdselect::{CffFdSelect};
-use crate::libcff::cff_index::{CffIndex};
-use crate::libcff::cff_value::{CffValue};
+use crate::libcff::cff_charset::CffCharset;
+use crate::libcff::cff_fdselect::CffFdSelect;
+use crate::libcff::cff_index::CffIndex;
+use crate::libcff::cff_value::CffValue;
+use crate::support::primitives::Arity;
 pub mod cff_charset;
 pub mod cff_codecs;
 pub mod cff_dict;

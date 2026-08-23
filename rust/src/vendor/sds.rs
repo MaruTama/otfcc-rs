@@ -63,10 +63,7 @@ unsafe fn sdsalloc(s: SdsRaw) -> usize {
 unsafe fn sdssetalloc(s: SdsRaw, newlen: usize) {
     (*sds_header(s)).cap = newlen;
 }
-pub unsafe fn sdsnewlen(
-    init: *const ::core::ffi::c_void,
-    initlen: usize,
-) -> SdsRaw {
+pub unsafe fn sdsnewlen(init: *const ::core::ffi::c_void, initlen: usize) -> SdsRaw {
     let block = malloc(SDS_HDR_SIZE.wrapping_add(initlen).wrapping_add(1 as usize));
     if block.is_null() {
         return ::core::ptr::null_mut::<::core::ffi::c_char>();
@@ -394,9 +391,7 @@ impl SdsPart for *const ::core::ffi::c_char {
         if self.is_null() {
             return unsafe { b"(null)".append_to_vec(v) };
         }
-        let bytes = unsafe {
-            ::core::slice::from_raw_parts(self as *const u8, strlen(self))
-        };
+        let bytes = unsafe { ::core::slice::from_raw_parts(self as *const u8, strlen(self)) };
         v.extend_from_slice(bytes);
     }
 }
@@ -434,9 +429,7 @@ impl SdsPart for Sds {
         sdscatsds(s, self.0)
     }
     unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
-        let bytes = unsafe {
-            ::core::slice::from_raw_parts(self.0 as *const u8, sdslen(self.0))
-        };
+        let bytes = unsafe { ::core::slice::from_raw_parts(self.0 as *const u8, sdslen(self.0)) };
         v.extend_from_slice(bytes);
     }
 }
@@ -642,11 +635,7 @@ pub unsafe fn sdstrim(mut s: SdsRaw, mut cset: *const ::core::ffi::c_char) -> Sd
     sdssetlen(s, len);
     return s;
 }
-pub unsafe fn sdsrange(
-    mut s: SdsRaw,
-    mut start: ::core::ffi::c_int,
-    mut end: ::core::ffi::c_int,
-) {
+pub unsafe fn sdsrange(mut s: SdsRaw, mut start: ::core::ffi::c_int, mut end: ::core::ffi::c_int) {
     let mut newlen: usize = 0;
     let mut len: usize = sdslen(s);
     if len == 0 as usize {
@@ -698,7 +687,8 @@ pub unsafe fn sdstolower(mut s: SdsRaw) {
     let mut j: ::core::ffi::c_int = 0;
     j = 0 as ::core::ffi::c_int;
     while j < len {
-        *s.offset(j as isize) = (c_tolower(*s.offset(j as isize) as ::core::ffi::c_int)) as ::core::ffi::c_char;
+        *s.offset(j as isize) =
+            (c_tolower(*s.offset(j as isize) as ::core::ffi::c_int)) as ::core::ffi::c_char;
         j += 1;
     }
 }
@@ -707,7 +697,8 @@ pub unsafe fn sdstoupper(mut s: SdsRaw) {
     let mut j: ::core::ffi::c_int = 0;
     j = 0 as ::core::ffi::c_int;
     while j < len {
-        *s.offset(j as isize) = (c_toupper(*s.offset(j as isize) as ::core::ffi::c_int)) as ::core::ffi::c_char;
+        *s.offset(j as isize) =
+            (c_toupper(*s.offset(j as isize) as ::core::ffi::c_int)) as ::core::ffi::c_char;
         j += 1;
     }
 }
@@ -745,8 +736,8 @@ pub unsafe fn sdssplitlen(
     if seplen < 1 as ::core::ffi::c_int || len < 0 as ::core::ffi::c_int {
         return ::core::ptr::null_mut::<SdsRaw>();
     }
-    tokens =
-        malloc((::core::mem::size_of::<SdsRaw>() as usize).wrapping_mul(slots as usize)) as *mut SdsRaw;
+    tokens = malloc((::core::mem::size_of::<SdsRaw>() as usize).wrapping_mul(slots as usize))
+        as *mut SdsRaw;
     if tokens.is_null() {
         return ::core::ptr::null_mut::<SdsRaw>();
     }
@@ -897,8 +888,7 @@ pub unsafe fn sdscatrepr(
                 );
             }
             _ => {
-                if c_isprint(*p as ::core::ffi::c_int)
-                {
+                if c_isprint(*p as ::core::ffi::c_int) {
                     s = crate::sdsbuild!(s, Byte((*p as ::core::ffi::c_int) as u8));
                 } else {
                     s = crate::sdsbuild!(
@@ -954,9 +944,7 @@ pub unsafe fn sdssplitargs(
         ::core::ptr::null_mut::<*mut ::core::ffi::c_char>();
     *argc = 0 as ::core::ffi::c_int;
     's_13: loop {
-        while *p as ::core::ffi::c_int != 0
-            && c_isspace(*p as ::core::ffi::c_int)
-        {
+        while *p as ::core::ffi::c_int != 0 && c_isspace(*p as ::core::ffi::c_int) {
             p = p.offset(1);
         }
         if *p != 0 {
@@ -1017,7 +1005,9 @@ pub unsafe fn sdssplitargs(
                         ) as *mut ::core::ffi::c_char;
                     } else if *p as ::core::ffi::c_int == '"' as i32 {
                         if *p.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int != 0
-                            && !c_isspace(*p.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
+                            && !c_isspace(
+                                *p.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
+                            )
                         {
                             break 's_13;
                         }
@@ -1025,9 +1015,11 @@ pub unsafe fn sdssplitargs(
                     } else if *p == 0 {
                         break 's_13;
                     } else {
-                        current =
-                            sdscatlen(current as SdsRaw, p as *const ::core::ffi::c_void, 1 as usize)
-                                as *mut ::core::ffi::c_char;
+                        current = sdscatlen(
+                            current as SdsRaw,
+                            p as *const ::core::ffi::c_void,
+                            1 as usize,
+                        ) as *mut ::core::ffi::c_char;
                     }
                 } else if insq != 0 {
                     if *p as ::core::ffi::c_int == '\\' as i32
@@ -1043,7 +1035,9 @@ pub unsafe fn sdssplitargs(
                         ) as *mut ::core::ffi::c_char;
                     } else if *p as ::core::ffi::c_int == '\'' as i32 {
                         if *p.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int != 0
-                            && !c_isspace(*p.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int)
+                            && !c_isspace(
+                                *p.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
+                            )
                         {
                             break 's_13;
                         }
@@ -1052,9 +1046,11 @@ pub unsafe fn sdssplitargs(
                         if *p == 0 {
                             break 's_13;
                         }
-                        current =
-                            sdscatlen(current as SdsRaw, p as *const ::core::ffi::c_void, 1 as usize)
-                                as *mut ::core::ffi::c_char;
+                        current = sdscatlen(
+                            current as SdsRaw,
+                            p as *const ::core::ffi::c_void,
+                            1 as usize,
+                        ) as *mut ::core::ffi::c_char;
                     }
                 } else {
                     match *p as ::core::ffi::c_int {
@@ -1253,7 +1249,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri")]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri"
+    )]
     fn decimal_matches_printf() {
         unsafe {
             for v in [0, 1, -1, 42, -42, i32::MAX, i32::MIN] {
@@ -1270,7 +1269,10 @@ mod tests {
     // digits and not four. Casting to `u16` at the call site -- the obvious
     // reading of "%04x" -- would silently drop the top half.
     #[test]
-    #[cfg_attr(miri, ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri")]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri"
+    )]
     fn hex_matches_printf_including_negatives() {
         unsafe {
             for v in [0i32, 1, 0x0a, 0xabcd, 0xfffff, -1, -32768] {
@@ -1285,7 +1287,10 @@ mod tests {
     // `%c` is a byte, not a character: 0xe9 is one byte for C, and would be the
     // two bytes of U+00E9 if it went through Rust's `char` formatting.
     #[test]
-    #[cfg_attr(miri, ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri")]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri"
+    )]
     fn byte_is_one_byte_not_a_char() {
         unsafe {
             for v in [b'A' as i32, 0, 0x7f, 0x80, 0xe9, 0xff] {
@@ -1313,7 +1318,10 @@ mod tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri")]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri"
+    )]
     fn null_c_string_prints_like_libc() {
         unsafe {
             assert_matches_printf!(
@@ -1358,4 +1366,3 @@ mod tests {
         }
     }
 }
-

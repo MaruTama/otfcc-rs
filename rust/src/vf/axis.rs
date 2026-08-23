@@ -1,4 +1,4 @@
-use crate::support::primitives::{Pos};
+use crate::support::primitives::Pos;
 
 #[derive(Copy, Clone)]
 #[repr(C)]

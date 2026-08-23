@@ -1,11 +1,14 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
 use crate::logger::{logger_finish, logger_start_sds};
-use crate::support::options::{Options};
+use crate::support::options::Options;
+use libc::free;
 
+use crate::support::base64::base64_encode;
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
+    json_object_push, json_string_new_length,
+};
 use crate::table::meta::types::{MetaEntry, MetaTable};
-use crate::support::base64::{base64_encode};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
 #[inline]
 unsafe fn is_string_tag(mut tag: u32) -> bool {
     return tag == crate::tag::TAG_DLNG || tag == crate::tag::TAG_SLNG;
@@ -66,11 +69,8 @@ pub unsafe fn otfcc_dump_meta(
                     );
                 } else {
                     let mut out_len: usize = 0 as usize;
-                    let mut out: *mut u8 = base64_encode(
-                        (*e).data.as_ptr(),
-                        (*e).data.len(),
-                        &raw mut out_len,
-                    );
+                    let mut out: *mut u8 =
+                        base64_encode((*e).data.as_ptr(), (*e).data.len(), &raw mut out_len);
                     json_object_push(
                         _e,
                         b"base64\0" as *const u8 as *const ::core::ffi::c_char,
@@ -110,6 +110,5 @@ unsafe fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {
         (tag >> 16 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(2 as ::core::ffi::c_int as isize) =
         (tag >> 8 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
-    *tags.offset(3 as ::core::ffi::c_int as isize) =
-        (tag & 0xff as u32) as ::core::ffi::c_char;
+    *tags.offset(3 as ::core::ffi::c_int as isize) = (tag & 0xff as u32) as ::core::ffi::c_char;
 }

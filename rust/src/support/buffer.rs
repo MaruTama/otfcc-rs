@@ -9,8 +9,8 @@ pub struct Buffer {
     pub free: usize,
     pub data: *mut u8,
 }
-use crate::support::stdio::{stderr};
 use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
+use crate::support::stdio::stderr;
 
 pub unsafe fn bufnew() -> *mut Buffer {
     let mut buf: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
@@ -153,7 +153,10 @@ pub unsafe fn bufwrite_buf(buf: *mut Buffer, that: *mut Buffer) {
     if that.is_null() || (*that).data.is_null() {
         return;
     }
-    buf_push_bytes(buf, ::core::slice::from_raw_parts((*that).data, buflen(that)));
+    buf_push_bytes(
+        buf,
+        ::core::slice::from_raw_parts((*that).data, buflen(that)),
+    );
 }
 pub unsafe fn bufwrite_bufdel(buf: *mut Buffer, that: *mut Buffer) {
     if that.is_null() {
@@ -163,7 +166,10 @@ pub unsafe fn bufwrite_bufdel(buf: *mut Buffer, that: *mut Buffer) {
         buffree(that);
         return;
     }
-    buf_push_bytes(buf, ::core::slice::from_raw_parts((*that).data, buflen(that)));
+    buf_push_bytes(
+        buf,
+        ::core::slice::from_raw_parts((*that).data, buflen(that)),
+    );
     buffree(that);
 }
 pub unsafe fn buflongalign(buf: *mut Buffer) {
@@ -182,12 +188,7 @@ pub unsafe fn bufping16b(buf: *mut Buffer, offset: *mut usize, cp: *mut usize) {
     *cp = (*buf).cursor;
     bufseek(buf, *offset);
 }
-pub unsafe fn bufping16bd(
-    buf: *mut Buffer,
-    offset: *mut usize,
-    shift: *mut usize,
-    cp: *mut usize,
-) {
+pub unsafe fn bufping16bd(buf: *mut Buffer, offset: *mut usize, shift: *mut usize, cp: *mut usize) {
     bufwrite16b(buf, (*offset).wrapping_sub(*shift) as u16);
     *cp = (*buf).cursor;
     bufseek(buf, *offset);

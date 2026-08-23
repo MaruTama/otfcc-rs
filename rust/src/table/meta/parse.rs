@@ -1,36 +1,40 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::free;
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_str_len, json_str_ptr, json_type_of};
 use crate::logger::{logger_finish, logger_start_sds};
-use crate::support::options::{Options};
-use crate::vendor::json::{JsonType};
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_str_len, json_str_ptr,
+    json_type_of,
+};
+use crate::vendor::json::JsonType;
+use libc::free;
 
+use crate::support::base64::base64_decode;
 use crate::table::meta::types::{MetaEntry, MetaTable};
-use crate::support::base64::{base64_decode};
 // `extern "C"` is a c2rust artifact -- this is only ever called from
 // `otfcc_parse_meta` in this same file, never across a real FFI boundary,
 // same reasoning as every other `#[allow(improper_ctypes_definitions)]`
 // in this migration.
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn parse_meta_data(mut v: *const ParsedValue) -> Option<Vec<u8>> {
-    if json_type_of(v) == JsonType::String
-    {
-        return Some(::core::slice::from_raw_parts(
-            json_str_ptr(v) as *const u8,
-            json_str_len(v) as usize,
-        ).to_vec());
-    } else if json_type_of(v) == JsonType::Object
-    {
+    if json_type_of(v) == JsonType::String {
+        return Some(
+            ::core::slice::from_raw_parts(json_str_ptr(v) as *const u8, json_str_len(v) as usize)
+                .to_vec(),
+        );
+    } else if json_type_of(v) == JsonType::Object {
         let mut _string: *const ParsedValue = json_obj_get_type(
             v,
             b"string\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::String,
         );
         if !_string.is_null() {
-            return Some(::core::slice::from_raw_parts(
-                json_str_ptr(_string) as *const u8,
-                json_str_len(_string) as usize,
-            ).to_vec());
+            return Some(
+                ::core::slice::from_raw_parts(
+                    json_str_ptr(_string) as *const u8,
+                    json_str_len(_string) as usize,
+                )
+                .to_vec(),
+            );
         }
         let mut _base64: *const ParsedValue = json_obj_get_type(
             v,
@@ -74,7 +78,11 @@ pub unsafe fn otfcc_parse_meta(
     if _meta_entries.is_null() {
         return None;
     }
-    let mut meta: Box<MetaTable> = Box::new(MetaTable { version: 1, flags: 0, entries: Vec::new() });
+    let mut meta: Box<MetaTable> = Box::new(MetaTable {
+        version: 1,
+        flags: 0,
+        entries: Vec::new(),
+    });
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"meta"),
@@ -92,10 +100,7 @@ pub unsafe fn otfcc_parse_meta(
             if !(_tag.is_null() || json_str_len(_tag) != 4 as ::core::ffi::c_uint) {
                 let mut tag: u32 = str2tag(json_str_ptr(_tag));
                 if let Some(data) = parse_meta_data(_e) {
-                    (*meta).entries.push(MetaEntry {
-                        tag: tag,
-                        data,
-                    });
+                    (*meta).entries.push(MetaEntry { tag: tag, data });
                 }
             }
             j = j.wrapping_add(1);

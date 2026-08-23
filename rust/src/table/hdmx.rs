@@ -1,9 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::font_reader::{FontReader, ReadError};
 
-use crate::font::caryll_sfnt::{Packet};
+use crate::font::caryll_sfnt::Packet;
 
-use crate::table::maxp::{MaxpTable};
+use crate::table::maxp::MaxpTable;
 
 // `widths` was `__caryll_allocate_clean`'d/`free`'d, sized from `maxp`'s
 // `num_glyphs`. `Copy` is dropped along with the raw pointer -- same
@@ -64,11 +64,11 @@ fn parse_hdmx(
     Ok((version, num_records, size_device_record, records))
 }
 
-pub unsafe fn otfcc_read_hdmx(
-    packet: &Packet,
-    mut maxp: *mut MaxpTable,
-) -> Option<Box<HdmxTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_HDMX)?;
+pub unsafe fn otfcc_read_hdmx(packet: &Packet, mut maxp: *mut MaxpTable) -> Option<Box<HdmxTable>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_HDMX)?;
     let (version, num_records, size_device_record, records) =
         parse_hdmx(&table.data, (*maxp).num_glyphs as usize).ok()?;
     Some(Box::new(HdmxTable {

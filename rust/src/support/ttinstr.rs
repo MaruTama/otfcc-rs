@@ -1,14 +1,19 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, memcpy, snprintf, strlen, strtol};
 
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_int_val, json_str_len, json_str_ptr, json_type_of};
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_int_val, json_str_len, json_str_ptr, json_type_of,
+};
 
-use crate::support::options::{Options};
-use crate::vendor::json::{JsonType};
+use crate::support::options::Options;
+use crate::vendor::json::JsonType;
 
-use crate::support::ctype_compat::{c_isdigit, c_tolower};
 use crate::support::base64::{base64_decode, base64_encode};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_string_new, json_string_new_length, preserialize};
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_integer_new, json_string_new,
+    json_string_new_length, preserialize,
+};
+use crate::support::ctype_compat::{c_isdigit, c_tolower};
 /// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
 /// their operands are part of the instruction stream rather than separate
 /// instructions. `u8`, since that is what `InstrData.instrs` holds.
@@ -374,9 +379,7 @@ unsafe fn parse_instrs(
             {
                 pt = pt.offset(1);
             }
-            if !(c_isdigit(*pt as ::core::ffi::c_int)
-                || *pt as ::core::ffi::c_int == '-' as i32)
-            {
+            if !(c_isdigit(*pt as ::core::ffi::c_int) || *pt as ::core::ffi::c_int == '-' as i32) {
                 break;
             }
             val = strtol(pt, &raw mut end, 0 as ::core::ffi::c_int) as ::core::ffi::c_int;
@@ -521,10 +524,11 @@ unsafe fn parse_instrs(
                             i += 1;
                         }
                         if i - nread <= 8 as ::core::ffi::c_int {
-                            instrs.push((TTF_PUSHB as ::core::ffi::c_int
-                                + (i - nread)
-                                - 1 as ::core::ffi::c_int)
-                                as u8);
+                            instrs.push(
+                                (TTF_PUSHB as ::core::ffi::c_int + (i - nread)
+                                    - 1 as ::core::ffi::c_int)
+                                    as u8,
+                            );
                         } else {
                             instrs.push(TTF_NPUSHB);
                             instrs.push((i - nread) as u8);
@@ -544,25 +548,28 @@ unsafe fn parse_instrs(
                             i += 1;
                         }
                         if i - nread <= 8 as ::core::ffi::c_int {
-                            instrs.push((TTF_PUSHW as ::core::ffi::c_int
-                                + (i - nread)
-                                - 1 as ::core::ffi::c_int)
-                                as u8);
+                            instrs.push(
+                                (TTF_PUSHW as ::core::ffi::c_int + (i - nread)
+                                    - 1 as ::core::ffi::c_int)
+                                    as u8,
+                            );
                         } else {
                             instrs.push(TTF_NPUSHW);
                             instrs.push((i - nread) as u8);
                         }
                         while nread < i {
-                            instrs.push((numberstack[nread as usize]
-                                as ::core::ffi::c_int
-                                >> 8 as ::core::ffi::c_int)
-                                as u8);
+                            instrs.push(
+                                (numberstack[nread as usize] as ::core::ffi::c_int
+                                    >> 8 as ::core::ffi::c_int)
+                                    as u8,
+                            );
                             let fresh16 = nread;
                             nread = nread + 1;
-                            instrs.push((numberstack[fresh16 as usize]
-                                as ::core::ffi::c_int
-                                & 0xff as ::core::ffi::c_int)
-                                as u8);
+                            instrs.push(
+                                (numberstack[fresh16 as usize] as ::core::ffi::c_int
+                                    & 0xff as ::core::ffi::c_int)
+                                    as u8,
+                            );
                         }
                     }
                 }
@@ -764,7 +771,8 @@ pub unsafe fn dump_ttinstr(
         // rather than taking ownership of it (see its own definition) --
         // `buf` itself was never freed on this path, unlike `table/name.rs`'s
         // three sibling `base64_encode`/`base64_decode` call sites, which do.
-        let result = json_string_new_length(len as ::core::ffi::c_uint, buf as *mut ::core::ffi::c_char);
+        let result =
+            json_string_new_length(len as ::core::ffi::c_uint, buf as *mut ::core::ffi::c_char);
         free(buf as *mut ::core::ffi::c_void);
         return result;
     } else {
@@ -786,22 +794,18 @@ pub unsafe fn dump_ttinstr(
                         ((*id.instrs.offset(i as isize) as ::core::ffi::c_int)
                             << 8 as ::core::ffi::c_int
                             | *id.instrs.offset(i.wrapping_add(1 as u32) as isize)
-                                as ::core::ffi::c_int) as i16
-                            as i64,
+                                as ::core::ffi::c_int) as i16 as i64,
                     ),
                 );
                 i = i.wrapping_add(1);
-            } else if id.bts[i as usize] == ByteType::Cnt
-                || id.bts[i as usize] == ByteType::Byte
-            {
-                json_array_push(
-                    ret,
-                    json_integer_new(*id.instrs.offset(i as isize) as i64),
-                );
+            } else if id.bts[i as usize] == ByteType::Cnt || id.bts[i as usize] == ByteType::Byte {
+                json_array_push(ret, json_integer_new(*id.instrs.offset(i as isize) as i64));
             } else {
                 json_array_push(
                     ret,
-                    json_string_new(FF_TTF_INSTRNAMES[*id.instrs.offset(i as isize) as usize].as_ptr()),
+                    json_string_new(
+                        FF_TTF_INSTRNAMES[*id.instrs.offset(i as isize) as usize].as_ptr(),
+                    ),
                 );
             }
             i = i.wrapping_add(1);
@@ -823,8 +827,7 @@ pub unsafe fn parse_ttinstr(
 ) {
     if col.is_null() {
         make.expect("non-null function pointer")(context, Vec::new());
-    } else if json_type_of(col) == JsonType::String
-    {
+    } else if json_type_of(col) == JsonType::String {
         let mut instrlen: usize = 0;
         let instructions: *mut u8 = base64_decode(
             json_str_ptr(col) as *mut u8,
@@ -845,19 +848,16 @@ pub unsafe fn parse_ttinstr(
             free(instructions as *mut ::core::ffi::c_void);
         }
         make.expect("non-null function pointer")(context, instructions_vec);
-    } else if json_type_of(col) == JsonType::Array
-    {
+    } else if json_type_of(col) == JsonType::Array {
         let mut istrlen: usize = 0 as usize;
         let mut j: u32 = 0 as u32;
         while j < json_arr_len(col) {
             let mut record: *const ParsedValue = json_arr_at(col, j as u32);
-            if json_type_of(record) == JsonType::String
-            {
+            if json_type_of(record) == JsonType::String {
                 istrlen = istrlen.wrapping_add(
                     json_str_len(record).wrapping_add(1 as ::core::ffi::c_uint) as usize,
                 );
-            } else if json_type_of(record) == JsonType::Integer
-            {
+            } else if json_type_of(record) == JsonType::Integer {
                 istrlen = istrlen
                     .wrapping_add((1 as ::core::ffi::c_int + 20 as ::core::ffi::c_int) as usize);
             } else {
@@ -873,12 +873,12 @@ pub unsafe fn parse_ttinstr(
         // `sdsnewlen(NULL, istrlen + 1)` gave, without needing `sds` at
         // all.
         let mut instr_string: Vec<u8> = vec![0u8; istrlen.wrapping_add(1 as usize)];
-        let mut head: *mut ::core::ffi::c_char = instr_string.as_mut_ptr() as *mut ::core::ffi::c_char;
+        let mut head: *mut ::core::ffi::c_char =
+            instr_string.as_mut_ptr() as *mut ::core::ffi::c_char;
         let mut j_0: u32 = 0 as u32;
         while j_0 < json_arr_len(col) {
             let mut record_0: *const ParsedValue = json_arr_at(col, j_0 as u32);
-            if json_type_of(record_0) == JsonType::String
-            {
+            if json_type_of(record_0) == JsonType::String {
                 memcpy(
                     head as *mut ::core::ffi::c_void,
                     json_str_ptr(record_0) as *const ::core::ffi::c_void,
@@ -886,8 +886,7 @@ pub unsafe fn parse_ttinstr(
                         .wrapping_mul(json_str_len(record_0) as usize),
                 );
                 head = head.offset(json_str_len(record_0) as isize);
-            } else if json_type_of(record_0) == JsonType::Integer
-            {
+            } else if json_type_of(record_0) == JsonType::Integer {
                 let mut n: ::core::ffi::c_int = snprintf(
                     head,
                     20 as usize,
@@ -931,7 +930,13 @@ mod tests {
         assert_eq!(::core::mem::size_of::<ByteType>(), 1);
         assert_eq!(ByteType::Instr as u8, 0);
         assert_eq!(
-            [ByteType::Cnt as u8, ByteType::Byte as u8, ByteType::WordHi as u8, ByteType::WordLo as u8, ByteType::ImpliedReturn as u8],
+            [
+                ByteType::Cnt as u8,
+                ByteType::Byte as u8,
+                ByteType::WordHi as u8,
+                ByteType::WordLo as u8,
+                ByteType::ImpliedReturn as u8
+            ],
             [1, 2, 3, 4, 5]
         );
     }
@@ -942,7 +947,10 @@ mod tests {
     // since the two are the only remaining record of the opcode numbering.
     #[test]
     fn push_opcodes_agree_with_the_name_table() {
-        assert_eq!([TTF_NPUSHB, TTF_NPUSHW, TTF_PUSHB, TTF_PUSHW], [64, 65, 176, 184]);
+        assert_eq!(
+            [TTF_NPUSHB, TTF_NPUSHW, TTF_PUSHB, TTF_PUSHW],
+            [64, 65, 176, 184]
+        );
         assert_eq!(FF_TTF_INSTRNAMES[TTF_NPUSHB as usize], c"NPUSHB");
         assert_eq!(FF_TTF_INSTRNAMES[TTF_NPUSHW as usize], c"NPUSHW");
         // `PUSHB`/`PUSHW` are eight opcodes each, pushing 1..=8 values; the

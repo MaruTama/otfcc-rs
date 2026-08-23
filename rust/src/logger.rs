@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{fprintf, fwrite};
 
-use crate::support::stdio::{stderr};
+use crate::support::stdio::stderr;
 
 // Was `ILoggerTarget`, a 2-field vtable (`dispose`/`push`) with exactly two
 // static instances (stderr output vs no-op) selected once at `Logger`
@@ -102,15 +102,8 @@ impl Default for Logger {
         Logger::new(LoggerTarget::Empty)
     }
 }
-pub static OTFCC_LOGGER_TYPE_NAMES: [&::core::ffi::CStr; 3] = [
-    c"[ERROR]",
-    c"[WARNING]",
-    c"[NOTE]",
-];
-pub unsafe fn logger_indent(
-    _self: &mut Logger,
-    mut segment: *const ::core::ffi::c_char,
-) {
+pub static OTFCC_LOGGER_TYPE_NAMES: [&::core::ffi::CStr; 3] = [c"[ERROR]", c"[WARNING]", c"[NOTE]"];
+pub unsafe fn logger_indent(_self: &mut Logger, mut segment: *const ::core::ffi::c_char) {
     logger_indent_sds(_self, crate::bytesbuild!(segment));
 }
 pub unsafe fn logger_indent_sds(self_0: &mut Logger, mut segment: Vec<u8>) {
@@ -130,8 +123,7 @@ pub unsafe fn logger_dedent(self_0: &mut Logger) {
 pub unsafe fn logger_finish(self_0: &mut Logger) {
     logger_log_sds(
         self_0,
-        (LOG_VL_PROGRESS as ::core::ffi::c_int
-            + self_0.level as ::core::ffi::c_int) as u8,
+        (LOG_VL_PROGRESS as ::core::ffi::c_int + self_0.level as ::core::ffi::c_int) as u8,
         LoggerType::Progress,
         crate::bytesbuild!(b"Finish"),
     );
@@ -141,8 +133,7 @@ pub unsafe fn logger_start_sds(self_0: &mut Logger, segment: Vec<u8>) {
     logger_indent_sds(self_0, segment);
     logger_log_sds(
         self_0,
-        (LOG_VL_PROGRESS as ::core::ffi::c_int
-            + self_0.level as ::core::ffi::c_int) as u8,
+        (LOG_VL_PROGRESS as ::core::ffi::c_int + self_0.level as ::core::ffi::c_int) as u8,
         LoggerType::Progress,
         crate::bytesbuild!(b"Begin"),
     );

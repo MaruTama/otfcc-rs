@@ -1,17 +1,25 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free};
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_str_len, json_str_ptr, json_type_of};
-use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet};
-use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
 use crate::support::base64::{base64_decode, base64_encode};
-use crate::support::buffer::{buffree, bufnew, bufseek, bufwrite16b, bufwrite_buf, bufwrite_bytes};
-use crate::support::unicodeconv::{utf16be_to_utf8, utf8toutf16be};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new_length};
+use crate::support::buffer::Buffer;
+use crate::support::buffer::{buffree, bufnew, bufseek, bufwrite_buf, bufwrite_bytes, bufwrite16b};
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
+    json_object_push, json_string_new_length,
+};
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_str_len,
+    json_str_ptr, json_type_of,
+};
+use crate::support::unicodeconv::{utf8toutf16be, utf16be_to_utf8};
+use crate::vendor::json::JsonType;
+use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
+use libc::free;
 
 // `Copy` dropped (`name_string` is now `Vec<u8>`, the `sds` sweep's last
 // leaf field) -- `Clone` alone is enough, and nothing relied on
@@ -77,7 +85,9 @@ unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
     // `length < 6 + 12 * count` guard, now via `checked_mul`/`checked_add`
     // rather than `wrapping_add`/`wrapping_mul` (so an overflowing `count`
     // fails the check instead of wrapping past it).
-    FontReader::new(data).at(6)?.require_room(count as usize, 12)?;
+    FontReader::new(data)
+        .at(6)?
+        .require_room(count as usize, 12)?;
 
     let mut name: NameTable = Vec::with_capacity(count as usize);
     for j in 0..count {
@@ -100,7 +110,8 @@ unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
             if should_decode_as_bytes(&raw const record) {
                 record.name_string = bytes.to_vec();
             } else if should_decode_as_utf16(&raw const record) {
-                record.name_string = utf16be_to_utf8(bytes.as_ptr(), bytes.len() as ::core::ffi::c_int);
+                record.name_string =
+                    utf16be_to_utf8(bytes.as_ptr(), bytes.len() as ::core::ffi::c_int);
             } else {
                 let mut len: usize = 0 as usize;
                 let mut buf: *mut u8 = base64_encode(bytes.as_ptr(), bytes.len(), &raw mut len);
@@ -115,11 +126,11 @@ unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
 }
 
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_read_name(
-    packet: &Packet,
-    options: &Options,
-) -> Option<NameTable> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_NAME)?;
+pub unsafe fn otfcc_read_name(packet: &Packet, options: &Options) -> Option<NameTable> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_NAME)?;
     match parse_name(&table.data) {
         Ok(name) => Some(name),
         Err(_) => {
@@ -217,9 +228,7 @@ pub unsafe fn otfcc_parse_name(
             let mut j: u32 = 0 as u32;
             while j < json_arr_len(table) {
                 let mut _record: *const ParsedValue = json_arr_at(table, j as u32);
-                if !_record.is_null()
-                    && json_type_of(_record) == JsonType::Object
-                {
+                if !_record.is_null() && json_type_of(_record) == JsonType::Object {
                     if json_obj_get_type(
                         _record,
                         b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
@@ -231,7 +240,8 @@ pub unsafe fn otfcc_parse_name(
                             &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::bytesbuild!(b"Missing or invalid platformID for name entry ",
+                            crate::bytesbuild!(
+                                b"Missing or invalid platformID for name entry ",
                                 j,
                                 b"\n",
                             ),
@@ -247,7 +257,8 @@ pub unsafe fn otfcc_parse_name(
                             &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::bytesbuild!(b"Missing or invalid encodingID for name entry ",
+                            crate::bytesbuild!(
+                                b"Missing or invalid encodingID for name entry ",
                                 j,
                                 b"\n",
                             ),
@@ -263,7 +274,8 @@ pub unsafe fn otfcc_parse_name(
                             &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::bytesbuild!(b"Missing or invalid languageID for name entry ",
+                            crate::bytesbuild!(
+                                b"Missing or invalid languageID for name entry ",
                                 j,
                                 b"\n",
                             ),
@@ -279,7 +291,8 @@ pub unsafe fn otfcc_parse_name(
                             &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::bytesbuild!(b"Missing or invalid nameID for name entry ",
+                            crate::bytesbuild!(
+                                b"Missing or invalid nameID for name entry ",
                                 j,
                                 b"\n",
                             ),
@@ -295,7 +308,8 @@ pub unsafe fn otfcc_parse_name(
                             &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::bytesbuild!(b"Missing or invalid name string for name entry ",
+                            crate::bytesbuild!(
+                                b"Missing or invalid name string for name entry ",
                                 j,
                                 b"\n",
                             ),
@@ -332,7 +346,8 @@ pub unsafe fn otfcc_parse_name(
                         record.name_string = ::core::slice::from_raw_parts(
                             json_str_ptr(str) as *const u8,
                             json_str_len(str) as usize,
-                        ).to_vec();
+                        )
+                        .to_vec();
                         name.push(record);
                     }
                 }
@@ -346,17 +361,13 @@ pub unsafe fn otfcc_parse_name(
                     .then(a.name_id.cmp(&b.name_id))
             });
             ___loggedstep_v = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
     return Some(name);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_name(
-    name: Option<&NameTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_name(name: Option<&NameTable>) -> *mut Buffer {
     let name = match name {
         Some(n) => n,
         None => return ::core::ptr::null_mut::<Buffer>(),
@@ -436,9 +447,23 @@ mod parse_name_tests {
     }
 
     // record: platform(2) + encoding(2) + language(2) + name_id(2) + length(2) + offset(2)
-    fn record(platform_id: u16, encoding_id: u16, language_id: u16, name_id: u16, length: u16, offset: u16) -> Vec<u8> {
+    fn record(
+        platform_id: u16,
+        encoding_id: u16,
+        language_id: u16,
+        name_id: u16,
+        length: u16,
+        offset: u16,
+    ) -> Vec<u8> {
         let mut b = Vec::new();
-        for v in [platform_id, encoding_id, language_id, name_id, length, offset] {
+        for v in [
+            platform_id,
+            encoding_id,
+            language_id,
+            name_id,
+            length,
+            offset,
+        ] {
             b.extend_from_slice(&v.to_be_bytes());
         }
         b

@@ -1,14 +1,13 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
 
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{GlyphId};
-use crate::font::caryll_sfnt::{Packet};
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite8};
-
+use crate::font::caryll_sfnt::Packet;
+use crate::support::buffer::Buffer;
+use crate::support::buffer::{bufnew, bufwrite8, bufwrite16b};
+use crate::support::options::Options;
+use crate::support::primitives::GlyphId;
 
 // Stage 6-4 pilot for `Font`'s `*mut X`-typed table fields Box-ified the
 // outer `LtshTable` itself; Stage 7-2-c "inner Vec化" finishes the job here:
@@ -37,11 +36,11 @@ fn parse_ltsh(data: &[u8]) -> Result<(u16, GlyphId, &[u8]), ReadError> {
     Ok((version, num_glyphs, pels))
 }
 
-pub unsafe fn otfcc_read_ltsh(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<LtshTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_LTSH)?;
+pub unsafe fn otfcc_read_ltsh(packet: &Packet, options: &Options) -> Option<Box<LtshTable>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_LTSH)?;
     let (version, num_glyphs, pels) = match parse_ltsh(&table.data) {
         Ok(parsed) => parsed,
         Err(_) => {
@@ -55,16 +54,18 @@ pub unsafe fn otfcc_read_ltsh(
         }
     };
     let y_pels = pels.to_vec();
-    Some(Box::new(LtshTable { version, num_glyphs, y_pels }))
+    Some(Box::new(LtshTable {
+        version,
+        num_glyphs,
+        y_pels,
+    }))
 }
 // `Option<&LtshTable>`, not `*const LtshTable`: internal-only call (never
 // crosses the real FFI boundary, see `rust/README.md`), and the crate's
 // only caller now hands `(*font).ltsh.as_deref()` from `Font.ltsh:
 // Option<Box<LtshTable>>`.
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_ltsh(
-    ltsh: Option<&LtshTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_ltsh(ltsh: Option<&LtshTable>) -> *mut Buffer {
     let ltsh = match ltsh {
         Some(l) => l,
         None => return ::core::ptr::null_mut::<Buffer>(),

@@ -1,15 +1,23 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::parsed_json::{ParsedValue, json_numof, json_obj_get_type, json_obj_getstr_share, json_obj_key_at, json_obj_len, json_obj_val_at, json_type_of};
-use crate::support::binio::{read_16u, read_16s, read_32u};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer, Pos, TableId};
-use crate::vendor::json::{JsonType};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::bkgraph::bk_build_block;
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::bk::bkgraph::{bk_build_block};
-use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_string_new_length, json_new_position, json_object_push_tag};
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::binio::{read_16s, read_16u, read_32u};
+use crate::support::buffer::Buffer;
+use crate::support::built_json::{
+    BuiltValue, json_new_position, json_object_new, json_object_push, json_object_push_tag,
+    json_string_new_length,
+};
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_numof, json_obj_get_type, json_obj_getstr_share, json_obj_key_at,
+    json_obj_len, json_obj_val_at, json_type_of,
+};
+use crate::support::primitives::{FontFilePointer, Pos, TableId};
+use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -113,10 +121,10 @@ unsafe fn read_base_script(
     if table_length < (base_values_offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32 {
         return (0, Vec::new());
     }
-    let default_index: u16 = (read_16u(
-        data.offset(base_values_offset as ::core::ffi::c_int as isize) as *const u8,
-    ) as ::core::ffi::c_int
-        % n_base_tags as ::core::ffi::c_int) as u16;
+    let default_index: u16 =
+        (read_16u(data.offset(base_values_offset as ::core::ffi::c_int as isize) as *const u8)
+            as ::core::ffi::c_int
+            % n_base_tags as ::core::ffi::c_int) as u16;
     let default_baseline_tag: u32 = base_tag_list[default_index as usize];
     let base_values_count: TableId = read_16u(
         data.offset(base_values_offset as ::core::ffi::c_int as isize)
@@ -218,9 +226,9 @@ unsafe fn read_axis(
     {
         return None;
     }
-    let n_base_scripts: TableId = read_16u(
-        data.offset(base_script_list_offset as ::core::ffi::c_int as isize) as *const u8,
-    ) as TableId;
+    let n_base_scripts: TableId =
+        read_16u(data.offset(base_script_list_offset as ::core::ffi::c_int as isize) as *const u8)
+            as TableId;
     if table_length
         < (base_script_list_offset as ::core::ffi::c_int
             + 2 as ::core::ffi::c_int
@@ -252,18 +260,23 @@ unsafe fn read_axis(
                 &base_tag_list,
                 n_base_tags,
             );
-            entries.push(BaseScriptEntry { tag, default_baseline_tag, base_values });
+            entries.push(BaseScriptEntry {
+                tag,
+                default_baseline_tag,
+                base_values,
+            });
         } else {
-            entries.push(BaseScriptEntry { tag, default_baseline_tag: 0, base_values: Vec::new() });
+            entries.push(BaseScriptEntry {
+                tag,
+                default_baseline_tag: 0,
+                base_values: Vec::new(),
+            });
         }
         j_0 = j_0.wrapping_add(1);
     }
     Some(Box::new(BaseAxis { entries }))
 }
-pub unsafe fn otfcc_read_base(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<BaseTable>> {
+pub unsafe fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<BaseTable>> {
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -290,19 +303,20 @@ pub unsafe fn otfcc_read_base(
                     } else {
                         let mut horizontal: Option<Box<BaseAxis>> = None;
                         let mut vertical: Option<Box<BaseAxis>> = None;
-                        offset_h = read_16u(
-                            data.offset(4 as ::core::ffi::c_int as isize) as *const u8
-                        );
+                        offset_h =
+                            read_16u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8);
                         if offset_h != 0 {
                             horizontal = read_axis(data, table_length, offset_h);
                         }
-                        offset_v = read_16u(
-                            data.offset(6 as ::core::ffi::c_int as isize) as *const u8
-                        );
+                        offset_v =
+                            read_16u(data.offset(6 as ::core::ffi::c_int as isize) as *const u8);
                         if offset_v != 0 {
                             vertical = read_axis(data, table_length, offset_v);
                         }
-                        return Some(Box::new(BaseTable { horizontal, vertical }));
+                        return Some(Box::new(BaseTable {
+                            horizontal,
+                            vertical,
+                        }));
                     }
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
@@ -446,7 +460,11 @@ unsafe fn axis_from_json(mut _axis: *const ParsedValue) -> Option<Box<BaseAxis>>
         if !script_val.is_null() && json_type_of(script_val) == JsonType::Object {
             let tag = str2tag(json_obj_key_at(_axis, j as u32));
             let (default_baseline_tag, base_values) = base_script_from_json(script_val);
-            entries.push(BaseScriptEntry { tag, default_baseline_tag, base_values });
+            entries.push(BaseScriptEntry {
+                tag,
+                default_baseline_tag,
+                base_values,
+            });
         }
         j = j.wrapping_add(1);
     }
@@ -481,11 +499,12 @@ pub unsafe fn otfcc_parse_base(
                 b"vertical\0" as *const u8 as *const ::core::ffi::c_char,
                 JsonType::Object,
             ));
-            base = Some(Box::new(BaseTable { horizontal, vertical }));
+            base = Some(Box::new(BaseTable {
+                horizontal,
+                vertical,
+            }));
             ___loggedstep_v = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
     return base;
@@ -494,9 +513,7 @@ pub unsafe fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
     if axis.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let mut taglist: BaseTagList = BaseTagList {
-        items: Vec::new(),
-    };
+    let mut taglist: BaseTagList = BaseTagList { items: Vec::new() };
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*axis).entries.len() {
         let entry: &BaseScriptEntry = &(&(*axis).entries)[j as usize];
@@ -516,13 +533,22 @@ pub unsafe fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
         j = j.wrapping_add(1);
     }
     taglist.items.sort();
-    let mut base_tag_list: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (taglist.items.len() as ::core::ffi::c_int) as u32)]);
+    let mut base_tag_list: *mut BkBlock = bk_new_block(&[bk_int(
+        BkCellType::B16,
+        (taglist.items.len() as ::core::ffi::c_int) as u32,
+    )]);
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < taglist.items.len() {
-        bk_push(base_tag_list, &[bk_int(BkCellType::B32, taglist.items[j_0 as usize] as u32)]);
+        bk_push(
+            base_tag_list,
+            &[bk_int(BkCellType::B32, taglist.items[j_0 as usize] as u32)],
+        );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut base_script_list: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, ((*axis).entries.len() as ::core::ffi::c_int) as u32)]);
+    let mut base_script_list: *mut BkBlock = bk_new_block(&[bk_int(
+        BkCellType::B16,
+        ((*axis).entries.len() as ::core::ffi::c_int) as u32,
+    )]);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as usize) < (*axis).entries.len() {
         let entry_0: &BaseScriptEntry = &(&(*axis).entries)[j_1 as usize];
@@ -537,16 +563,27 @@ pub unsafe fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
                 m = m.wrapping_add(1);
             }
         }
-        bk_push(base_values, &[bk_int(BkCellType::B16, (default_index as ::core::ffi::c_int) as u32)]);
-        bk_push(base_values, &[bk_int(BkCellType::B16, (taglist.items.len() as ::core::ffi::c_int) as u32)]);
+        bk_push(
+            base_values,
+            &[bk_int(
+                BkCellType::B16,
+                (default_index as ::core::ffi::c_int) as u32,
+            )],
+        );
+        bk_push(
+            base_values,
+            &[bk_int(
+                BkCellType::B16,
+                (taglist.items.len() as ::core::ffi::c_int) as u32,
+            )],
+        );
         let mut m_0: usize = 0 as usize;
         while m_0 < taglist.items.len() {
             let mut found_1: bool = false;
             let mut found_index: TableId = 0 as TableId;
             let mut k_0: TableId = 0 as TableId;
             while (k_0 as usize) < entry_0.base_values.len() {
-                if (&entry_0.base_values)[k_0 as usize].tag == taglist.items[m_0 as usize]
-                {
+                if (&entry_0.base_values)[k_0 as usize].tag == taglist.items[m_0 as usize] {
                     found_1 = true;
                     found_index = k_0;
                     break;
@@ -555,23 +592,55 @@ pub unsafe fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
                 }
             }
             if found_1 {
-                bk_push(base_values, &[bk_ptr(BkCellType::P16, bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, ((&entry_0.base_values)[found_index as usize].coordinate as i16
-                            as ::core::ffi::c_int) as u32)]))]);
+                bk_push(
+                    base_values,
+                    &[bk_ptr(
+                        BkCellType::P16,
+                        bk_new_block(&[
+                            bk_int(BkCellType::B16, 1 as u32),
+                            bk_int(
+                                BkCellType::B16,
+                                ((&entry_0.base_values)[found_index as usize].coordinate as i16
+                                    as ::core::ffi::c_int) as u32,
+                            ),
+                        ]),
+                    )],
+                );
             } else {
-                bk_push(base_values, &[bk_ptr(BkCellType::P16, bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, 0 as u32)]))]);
+                bk_push(
+                    base_values,
+                    &[bk_ptr(
+                        BkCellType::P16,
+                        bk_new_block(&[
+                            bk_int(BkCellType::B16, 1 as u32),
+                            bk_int(BkCellType::B16, 0 as u32),
+                        ]),
+                    )],
+                );
             }
             m_0 = m_0.wrapping_add(1);
         }
-        let mut script_record: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, base_values), bk_ptr(BkCellType::P16, ::core::ptr::null_mut()), bk_int(BkCellType::B16, 0 as u32)]);
-        bk_push(base_script_list, &[bk_int(BkCellType::B32, (entry_0.tag) as u32), bk_ptr(BkCellType::P16, script_record)]);
+        let mut script_record: *mut BkBlock = bk_new_block(&[
+            bk_ptr(BkCellType::P16, base_values),
+            bk_ptr(BkCellType::P16, ::core::ptr::null_mut()),
+            bk_int(BkCellType::B16, 0 as u32),
+        ]);
+        bk_push(
+            base_script_list,
+            &[
+                bk_int(BkCellType::B32, (entry_0.tag) as u32),
+                bk_ptr(BkCellType::P16, script_record),
+            ],
+        );
         j_1 = j_1.wrapping_add(1);
     }
-    return bk_new_block(&[bk_ptr(BkCellType::P16, base_tag_list), bk_ptr(BkCellType::P16, base_script_list)]);
+    return bk_new_block(&[
+        bk_ptr(BkCellType::P16, base_tag_list),
+        bk_ptr(BkCellType::P16, base_script_list),
+    ]);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_base(
-    base: Option<&BaseTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> *mut Buffer {
     let base = match base {
         Some(b) => b as *const BaseTable,
         None => return ::core::ptr::null_mut::<Buffer>(),
@@ -579,12 +648,20 @@ pub unsafe fn otfcc_build_base(
     let horizontal_bk = (*base)
         .horizontal
         .as_deref()
-        .map_or(::core::ptr::null_mut(), |a| axis_to_bk(a as *const BaseAxis));
+        .map_or(::core::ptr::null_mut(), |a| {
+            axis_to_bk(a as *const BaseAxis)
+        });
     let vertical_bk = (*base)
         .vertical
         .as_deref()
-        .map_or(::core::ptr::null_mut(), |a| axis_to_bk(a as *const BaseAxis));
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, horizontal_bk), bk_ptr(BkCellType::P16, vertical_bk)]);
+        .map_or(::core::ptr::null_mut(), |a| {
+            axis_to_bk(a as *const BaseAxis)
+        });
+    let mut root: *mut BkBlock = bk_new_block(&[
+        bk_int(BkCellType::B32, 0x10000 as u32),
+        bk_ptr(BkCellType::P16, horizontal_bk),
+        bk_ptr(BkCellType::P16, vertical_bk),
+    ]);
     return bk_build_block(root);
 }
 #[inline]
@@ -595,8 +672,7 @@ unsafe fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {
         (tag >> 16 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(2 as ::core::ffi::c_int as isize) =
         (tag >> 8 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
-    *tags.offset(3 as ::core::ffi::c_int as isize) =
-        (tag & 0xff as u32) as ::core::ffi::c_char;
+    *tags.offset(3 as ::core::ffi::c_int as isize) = (tag & 0xff as u32) as ::core::ffi::c_char;
 }
 #[inline]
 unsafe fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {

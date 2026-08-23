@@ -1,23 +1,29 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::handle::{handle_from_index, GlyphHandle};
+use crate::support::handle::{GlyphHandle, handle_from_index};
 
-use crate::support::font_reader::{FontReader};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
-use crate::support::options::{Options};
-use crate::support::primitives::{F16Dot16, F2Dot14, FontFilePointer, GlyphId, Pos, Scale, ShapeId};
-use crate::font::caryll_sfnt::{Packet};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::support::font_reader::FontReader;
+use crate::support::options::Options;
+use crate::support::primitives::{
+    F2Dot14, F16Dot16, FontFilePointer, GlyphId, Pos, Scale, ShapeId,
+};
 
 use crate::table::fvar::FvarTable;
-use crate::table::glyf::{GlyfIOContext, RefAnchorStatus, ComponentFlags, PointFlags, ComponentReference, Contour, ContourList, Glyph, GlyphPtr, Point, GlyfTable};
+use crate::table::glyf::{
+    ComponentFlags, ComponentReference, Contour, ContourList, GlyfIOContext, GlyfTable, Glyph,
+    GlyphPtr, Point, PointFlags, RefAnchorStatus,
+};
 
-
-use crate::vf::region::{VqAxisSpan, VqRegion};
-use crate::vf::vq::{VQ, VqSegment, VqSegmentDelta};
-use crate::support::primitives::{otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed};
-use crate::table::fvar::{fvar_register_region};
+use crate::support::primitives::{
+    otfcc_f1616_muldiv, otfcc_from_f2dot14, otfcc_from_fixed, otfcc_to_fixed,
+};
+use crate::table::fvar::fvar_register_region;
 use crate::table::glyf::{glyf_component_reference_empty, glyf_contour_fill, otfcc_new_glyf_glyph};
+use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::region::{vq_create_region, vq_delete_region};
+use crate::vf::vq::{VQ, VqSegment, VqSegmentDelta};
 use crate::vf::vq::{
     vq_add_delta, vq_copy_replace, vq_create_still, vq_inplace_plus, vq_neutral, vq_replace,
 };
@@ -87,10 +93,7 @@ unsafe extern "C" fn next_point(
 // down as a `&[u8]`; every read here goes through `FontReader`, so running
 // past that range now fails cleanly (`None`, the glyph becomes empty)
 // instead of reading adjacent memory.
-unsafe fn otfcc_read_simple_glyph(
-    body: &[u8],
-    number_of_contours: ShapeId,
-) -> Option<Box<Glyph>> {
+unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     let contours: *mut ContourList = &raw mut (*g).contours;
     let mut r = FontReader::new(body);
@@ -164,7 +167,11 @@ unsafe fn otfcc_read_simple_glyph(
         let flag_0: PointFlags = PointFlags::from_bits_retain(flags[coordinates_read]);
         let x: i16 = if flag_0.contains(PointFlags::X_SHORT) {
             let mag = r.u8().ok()? as i16;
-            if flag_0.contains(PointFlags::POSITIVE_X) { mag } else { -mag }
+            if flag_0.contains(PointFlags::POSITIVE_X) {
+                mag
+            } else {
+                -mag
+            }
         } else if flag_0.contains(PointFlags::SAME_X) {
             0
         } else {
@@ -193,7 +200,11 @@ unsafe fn otfcc_read_simple_glyph(
         let flag_1: PointFlags = PointFlags::from_bits_retain(flags[coordinates_read]);
         let y: i16 = if flag_1.contains(PointFlags::Y_SHORT) {
             let mag = r.u8().ok()? as i16;
-            if flag_1.contains(PointFlags::POSITIVE_Y) { mag } else { -mag }
+            if flag_1.contains(PointFlags::POSITIVE_Y) {
+                mag
+            } else {
+                -mag
+            }
         } else if flag_1.contains(PointFlags::SAME_Y) {
             0
         } else {
@@ -215,10 +226,8 @@ unsafe fn otfcc_read_simple_glyph(
         );
         coordinates_read += 1;
     }
-    let mut cx: VQ =
-        (vq_neutral)();
-    let mut cy: VQ =
-        (vq_neutral)();
+    let mut cx: VQ = (vq_neutral)();
+    let mut cy: VQ = (vq_neutral)();
     let mut j_1: ShapeId = 0 as ShapeId;
     while (j_1 as ::core::ffi::c_int) < number_of_contours as ::core::ffi::c_int {
         let mut k: ShapeId = 0 as ShapeId;
@@ -238,10 +247,7 @@ unsafe fn otfcc_read_simple_glyph(
     // when this function returns -- no explicit dispose call is needed.
     Some(g)
 }
-unsafe fn otfcc_read_composite_glyph(
-    body: &[u8],
-    options: &Options,
-) -> Option<Box<Glyph>> {
+unsafe fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     let mut r = FontReader::new(body);
     let mut glyph_has_instruction: bool = false;
@@ -323,8 +329,7 @@ unsafe fn otfcc_read_glyph(
     length: u32,
     options: &Options,
 ) -> Option<Box<Glyph>> {
-    let glyph_bytes =
-        ::core::slice::from_raw_parts(data.offset(offset as isize), length as usize);
+    let glyph_bytes = ::core::slice::from_raw_parts(data.offset(offset as isize), length as usize);
     let mut r = FontReader::new(glyph_bytes);
     let number_of_contours: i16 = r.i16().ok()?;
     let x_min = r.i16().ok()? as Pos;
@@ -424,7 +429,8 @@ unsafe fn parse_point_numbers(
                 // as-is; see rust/README.md.
                 let b = r.bytes(2).ok()?;
                 let raw = u16::from_ne_bytes([b[0], b[1]]);
-                point_number = (point_number as ::core::ffi::c_int + raw as ::core::ffi::c_int) as i16;
+                point_number =
+                    (point_number as ::core::ffi::c_int + raw as ::core::ffi::c_int) as i16;
             } else {
                 let fresh7: u8 = r.u8().ok()?;
                 point_number =
@@ -534,8 +540,8 @@ unsafe fn fill_the_gaps(
             }
             if nudges[j_next as usize].is_touched() && nudges[j_prev as usize].is_touched() {
                 let mut untouch_j: F16Dot16 = otfcc_to_fixed(
-                    (*getter.expect("non-null function pointer")(glyph_refs[j as usize]))
-                        .kernel as ::core::ffi::c_double,
+                    (*getter.expect("non-null function pointer")(glyph_refs[j as usize])).kernel
+                        as ::core::ffi::c_double,
                 );
                 let mut untouch_prev: F16Dot16 = otfcc_to_fixed(
                     (*getter.expect("non-null function pointer")(glyph_refs[j_prev as usize]))
@@ -566,10 +572,11 @@ unsafe fn fill_the_gaps(
                 } else if untouch_j >= u_max {
                     nudges[j as usize].delta_mut().quantity = otfcc_from_fixed(d_max) as Pos;
                 } else {
-                    nudges[j as usize].delta_mut().quantity = otfcc_from_fixed(
-                        otfcc_f1616_muldiv(d_max - d_min, untouch_j - u_min, u_max - u_min),
-                    )
-                        as Pos;
+                    nudges[j as usize].delta_mut().quantity = otfcc_from_fixed(otfcc_f1616_muldiv(
+                        d_max - d_min,
+                        untouch_j - u_min,
+                        u_max - u_min,
+                    )) as Pos;
                 }
             }
         }
@@ -731,7 +738,8 @@ unsafe fn apply_polymorphism(
             &raw mut (*glyph).advance_width,
             true,
             r,
-            *delta_x.offset((total_points as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize)
+            *delta_x
+                .offset((total_points as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize)
                 - *delta_x.offset(total_points as isize),
         );
     }
@@ -742,15 +750,18 @@ unsafe fn apply_polymorphism(
             &raw mut (*glyph).vertical_origin,
             true,
             r,
-            *delta_y.offset((total_points as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize),
+            *delta_y
+                .offset((total_points as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize),
         );
         vq_add_delta(
             &raw mut (*glyph).advance_height,
             true,
             r,
-            *delta_y.offset((total_points as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize)
-                - *delta_y
-                    .offset((total_points as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as isize),
+            *delta_y
+                .offset((total_points as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize)
+                - *delta_y.offset(
+                    (total_points as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as isize,
+                ),
         );
     }
 }
@@ -839,8 +850,7 @@ unsafe fn polymorphize_glyph(
     for c in &(*glyph).contours {
         total_points = (total_points as usize).wrapping_add(c.len()) as ShapeId;
     }
-    total_points =
-        (total_points as usize).wrapping_add((*glyph).references.len()) as ShapeId;
+    total_points = (total_points as usize).wrapping_add((*glyph).references.len()) as ShapeId;
     let total_delta_entries: ShapeId = (total_points as ::core::ffi::c_int
         + ctx.n_phantom_points as ::core::ffi::c_int)
         as ShapeId;
@@ -960,7 +970,9 @@ unsafe fn polymorphize(
     // GVARHeader: majorVersion(2) + minorVersion(2) + axisCount(2) +
     // sharedTupleCount(2) + sharedTuplesOffset(4) + glyphCount(2) +
     // flags(2) + glyphVariationDataArrayOffset(4) = 20 bytes.
-    let Ok(mut header) = FontReader::new(gvar).at(0) else { return };
+    let Ok(mut header) = FontReader::new(gvar).at(0) else {
+        return;
+    };
     if header.skip(4).is_err() {
         return;
     } // majorVersion/minorVersion: never read by the original either
@@ -974,11 +986,19 @@ unsafe fn polymorphize(
         );
         return;
     }
-    let Ok(shared_tuple_count) = header.u16() else { return };
-    let Ok(shared_tuples_offset) = header.u32() else { return };
-    let Ok(_glyph_count) = header.u16() else { return };
+    let Ok(shared_tuple_count) = header.u16() else {
+        return;
+    };
+    let Ok(shared_tuples_offset) = header.u32() else {
+        return;
+    };
+    let Ok(_glyph_count) = header.u16() else {
+        return;
+    };
     let Ok(flags) = header.u16() else { return };
-    let Ok(glyph_variation_data_array_offset) = header.u32() else { return };
+    let Ok(glyph_variation_data_array_offset) = header.u32() else {
+        return;
+    };
 
     let dimensions = axis_count;
     let offsets_are_long = flags & GVAR_OFFSETS_ARE_LONG as u16 != 0;
@@ -1089,7 +1109,10 @@ pub unsafe fn otfcc_read_glyf(
         return None;
     }
 
-    let glyf_piece = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_GLYF)?;
+    let glyf_piece = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_GLYF)?;
     if glyf_piece.length < offsets[num_glyphs as usize] {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
@@ -1122,7 +1145,8 @@ pub unsafe fn otfcc_read_glyf(
     polymorphize(
         packet,
         options,
-        glyf.as_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable),
+        glyf.as_mut()
+            .map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable),
         ctx,
     );
     glyf

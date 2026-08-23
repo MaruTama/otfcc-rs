@@ -1,17 +1,17 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::handle::{Handle, HandleState, GlyphHandle};
+use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::support::options::{Options};
-use crate::support::primitives::{GlyphId};
-use crate::font::caryll_font::{Font};
+use crate::font::caryll_font::Font;
+use crate::support::options::Options;
+use crate::support::primitives::GlyphId;
 
-use crate::table::otl::{GsubSingleEntry, Subtable, GsubSingleSubtable, OtlTable};
+use crate::table::otl::{GsubSingleEntry, GsubSingleSubtable, OtlTable, Subtable};
 
-use crate::support::glyph_order::{otfcc_gord_consolidate_handle, GlyphOrder};
-use crate::table::otl::subtables::gsub_single::{dispose_gsub_single_subtable};
+use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
+use crate::table::otl::subtables::gsub_single::dispose_gsub_single_subtable;
 
 pub unsafe extern "C" fn consolidate_gsub_single(
     mut font: *mut Font,
@@ -23,7 +23,9 @@ pub unsafe extern "C" fn consolidate_gsub_single(
         .glyph_order
         .as_deref_mut()
         .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
-    let Subtable::GsubSingle(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let Subtable::GsubSingle(mut_subtable) = &mut *_subtable else {
+        unreachable!()
+    };
     let subtable: *mut GsubSingleSubtable = mut_subtable;
     // Deduplicates by `from`'s glyph id, first occurrence wins -- a later
     // duplicate is logged as a warning and dropped, not merged. `BTreeMap`,
@@ -36,15 +38,14 @@ pub unsafe extern "C" fn consolidate_gsub_single(
         std::collections::BTreeMap::new();
     let mut k: usize = 0 as usize;
     while k < (*subtable).len() {
-        if !otfcc_gord_consolidate_handle(
-            glyph_order,
-            &raw mut (&mut (*subtable))[k as usize].from,
-        ) {
+        if !otfcc_gord_consolidate_handle(glyph_order, &raw mut (&mut (*subtable))[k as usize].from)
+        {
             logger_log_sds(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(
+                    b"[Consolidate] Ignored missing glyph /",
                     &(&(*subtable))[k as usize].from.name,
                     b".\n",
                 ),
@@ -57,7 +58,8 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(
+                    b"[Consolidate] Ignored missing glyph /",
                     &(&(*subtable))[k as usize].to.name,
                     b".\n",
                 ),
@@ -69,7 +71,8 @@ pub unsafe extern "C" fn consolidate_gsub_single(
                     &mut *(*options).logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::bytesbuild!(b"[Consolidate] Double-mapping a glyph in a single substitution /",
+                    crate::bytesbuild!(
+                        b"[Consolidate] Double-mapping a glyph in a single substitution /",
                         &(&(*subtable))[k as usize].from.name,
                         b".\n",
                     ),
@@ -88,8 +91,7 @@ pub unsafe extern "C" fn consolidate_gsub_single(
             &mut *(*options).logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::bytesbuild!(b"[Consolidate] In this lookup, some mappings are ignored.\n",
-            ),
+            crate::bytesbuild!(b"[Consolidate] In this lookup, some mappings are ignored.\n",),
         );
     }
     dispose_gsub_single_subtable(subtable);

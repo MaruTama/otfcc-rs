@@ -1,8 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::buffer::{Buffer};
-use crate::support::font_reader::{FontReader};
-use crate::support::buffer::{bufnew};
+use crate::support::alloc::__caryll_allocate_clean;
+use crate::support::buffer::Buffer;
+use crate::support::buffer::bufnew;
+use crate::support::font_reader::FontReader;
 
 /// The Top DICT's Charset offset is overloaded by spec: values 0/1/2 select
 /// one of the three predefined charsets (ISOAdobe/Expert/ExpertSubset)
@@ -62,7 +62,12 @@ pub enum CffCharset {
 // falls back to `IsoAdobe` -- the same fallback the original already used
 // for an unrecognized format byte, just extended to cover "malformed"
 // too, since the original drew no distinction between the two.
-pub unsafe fn cff_extract_charset(data: *mut u8, table_length: u32, offset: i32, nchars: u16) -> CffCharset {
+pub unsafe fn cff_extract_charset(
+    data: *mut u8,
+    table_length: u32,
+    offset: i32,
+    nchars: u16,
+) -> CffCharset {
     if offset == CFF_CHARSET_OFFSET_ISO_ADOBE {
         return CffCharset::IsoAdobe;
     } else if offset == CFF_CHARSET_OFFSET_EXPERT {
@@ -79,7 +84,9 @@ pub unsafe fn cff_extract_charset(data: *mut u8, table_length: u32, offset: i32,
         let Ok(mut r) = FontReader::new(slice).at(offset) else {
             break 'parse None;
         };
-        let Ok(format) = r.u8() else { break 'parse None };
+        let Ok(format) = r.u8() else {
+            break 'parse None;
+        };
         match format {
             0 => {
                 let count = (nchars as usize).saturating_sub(1);
@@ -111,8 +118,12 @@ pub unsafe fn cff_extract_charset(data: *mut u8, table_length: u32, offset: i32,
                     break 'parse None;
                 };
                 for _ in 0..size {
-                    let Ok(first) = r2.u16() else { break 'parse None };
-                    let Ok(nleft) = r2.u8() else { break 'parse None };
+                    let Ok(first) = r2.u16() else {
+                        break 'parse None;
+                    };
+                    let Ok(nleft) = r2.u8() else {
+                        break 'parse None;
+                    };
                     range1.push(CffCharsetRangeFormat1 { first, nleft });
                 }
                 break 'parse Some(CffCharset::Format1(range1));
@@ -135,8 +146,12 @@ pub unsafe fn cff_extract_charset(data: *mut u8, table_length: u32, offset: i32,
                     break 'parse None;
                 };
                 for _ in 0..size {
-                    let Ok(first) = r2.u16() else { break 'parse None };
-                    let Ok(nleft) = r2.u16() else { break 'parse None };
+                    let Ok(first) = r2.u16() else {
+                        break 'parse None;
+                    };
+                    let Ok(nleft) = r2.u16() else {
+                        break 'parse None;
+                    };
                     range2.push(CffCharsetRangeFormat2 { first, nleft });
                 }
                 break 'parse Some(CffCharset::Format2(range2));
@@ -154,7 +169,8 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
         CffCharset::IsoAdobe | CffCharset::Expert | CffCharset::ExpertSubset => bufnew(),
         CffCharset::Format0(glyph) => {
             let blob: *mut Buffer = bufnew();
-            (*blob).size = (1 as u32).wrapping_add((glyph.len() as u32).wrapping_mul(2 as u32)) as usize;
+            (*blob).size =
+                (1 as u32).wrapping_add((glyph.len() as u32).wrapping_mul(2 as u32)) as usize;
             (*blob).data = __caryll_allocate_clean(
                 (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob).size),
                 75 as ::core::ffi::c_ulong,
@@ -162,9 +178,13 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
             *(*blob).data.offset(0 as ::core::ffi::c_int as isize) = 0 as u8;
             for (i, &g) in glyph.iter().enumerate() {
                 let i = i as u32;
-                *(*blob).data.offset((1 as u32).wrapping_add((2 as u32).wrapping_mul(i)) as isize) =
+                *(*blob)
+                    .data
+                    .offset((1 as u32).wrapping_add((2 as u32).wrapping_mul(i)) as isize) =
                     (g as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8;
-                *(*blob).data.offset((2 as u32).wrapping_add((2 as u32).wrapping_mul(i)) as isize) =
+                *(*blob)
+                    .data
+                    .offset((2 as u32).wrapping_add((2 as u32).wrapping_mul(i)) as isize) =
                     (g as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8;
             }
             (*blob).cursor = (*blob).size;
@@ -172,7 +192,8 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
         }
         CffCharset::Format1(range1) => {
             let blob_0: *mut Buffer = bufnew();
-            (*blob_0).size = (1 as u32).wrapping_add((range1.len() as u32).wrapping_mul(3 as u32)) as usize;
+            (*blob_0).size =
+                (1 as u32).wrapping_add((range1.len() as u32).wrapping_mul(3 as u32)) as usize;
             (*blob_0).data = __caryll_allocate_clean(
                 (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob_0).size),
                 85 as ::core::ffi::c_ulong,
@@ -180,18 +201,24 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
             *(*blob_0).data.offset(0 as ::core::ffi::c_int as isize) = 1 as u8;
             for (i, r) in range1.iter().enumerate() {
                 let i = i as u32;
-                *(*blob_0).data.offset((1 as u32).wrapping_add((3 as u32).wrapping_mul(i)) as isize) =
+                *(*blob_0)
+                    .data
+                    .offset((1 as u32).wrapping_add((3 as u32).wrapping_mul(i)) as isize) =
                     (r.first as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8;
-                *(*blob_0).data.offset((2 as u32).wrapping_add((3 as u32).wrapping_mul(i)) as isize) =
+                *(*blob_0)
+                    .data
+                    .offset((2 as u32).wrapping_add((3 as u32).wrapping_mul(i)) as isize) =
                     (r.first as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8;
-                *(*blob_0).data.offset((3 as u32).wrapping_add((3 as u32).wrapping_mul(i)) as isize) =
-                    r.nleft;
+                *(*blob_0)
+                    .data
+                    .offset((3 as u32).wrapping_add((3 as u32).wrapping_mul(i)) as isize) = r.nleft;
             }
             blob_0
         }
         CffCharset::Format2(range2) => {
             let blob_1: *mut Buffer = bufnew();
-            (*blob_1).size = (1 as u32).wrapping_add((range2.len() as u32).wrapping_mul(4 as u32)) as usize;
+            (*blob_1).size =
+                (1 as u32).wrapping_add((range2.len() as u32).wrapping_mul(4 as u32)) as usize;
             (*blob_1).data = __caryll_allocate_clean(
                 (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob_1).size),
                 96 as ::core::ffi::c_ulong,
@@ -199,13 +226,21 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
             *(*blob_1).data.offset(0 as ::core::ffi::c_int as isize) = 2 as u8;
             for (i, r) in range2.iter().enumerate() {
                 let i = i as u32;
-                *(*blob_1).data.offset((1 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
+                *(*blob_1)
+                    .data
+                    .offset((1 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
                     (r.first as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8;
-                *(*blob_1).data.offset((2 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
+                *(*blob_1)
+                    .data
+                    .offset((2 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
                     (r.first as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8;
-                *(*blob_1).data.offset((3 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
+                *(*blob_1)
+                    .data
+                    .offset((3 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
                     (r.nleft as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8;
-                *(*blob_1).data.offset((4 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
+                *(*blob_1)
+                    .data
+                    .offset((4 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
                     (r.nleft as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8;
             }
             (*blob_1).cursor = (*blob_1).size;
@@ -225,7 +260,8 @@ mod cff_extract_charset_tests {
         // at offset 3.
         let data = [0u8, 0, 0, 0x00, 0x00, 0x05, 0x00, 0x0A]; // format=0, glyphs=[5,10]
         unsafe {
-            let CffCharset::Format0(glyph) = cff_extract_charset(data.as_ptr() as *mut u8, data.len() as u32, 3, 3)
+            let CffCharset::Format0(glyph) =
+                cff_extract_charset(data.as_ptr() as *mut u8, data.len() as u32, 3, 3)
             else {
                 panic!("expected Format0");
             };
@@ -240,7 +276,8 @@ mod cff_extract_charset_tests {
         // `0xFFFFFFFF` and `Vec::with_capacity` aborted immediately.
         let data = [0u8, 0, 0, 0x00];
         unsafe {
-            let CffCharset::Format0(glyph) = cff_extract_charset(data.as_ptr() as *mut u8, data.len() as u32, 3, 0)
+            let CffCharset::Format0(glyph) =
+                cff_extract_charset(data.as_ptr() as *mut u8, data.len() as u32, 3, 0)
             else {
                 panic!("expected Format0");
             };

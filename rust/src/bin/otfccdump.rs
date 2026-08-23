@@ -10,8 +10,10 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use otfcc_rust::support::stdio::{stdin, stdout, FILE};
-use libc::{exit, fclose, fgetc, fileno, fopen, fprintf, fputc, fwrite, isatty, strcmp, strdup, strtol};
+use libc::{
+    exit, fclose, fgetc, fileno, fopen, fprintf, fputc, fwrite, isatty, strcmp, strdup, strtol,
+};
+use otfcc_rust::support::stdio::{FILE, stdin, stdout};
 // `otfcc_read_sfnt` and friends are this crate's own functions, still reached
 // through `extern "C"` rather than `use otfcc_rust::…` because the binary also
 // carries its own copies of the types in their signatures. Once those types
@@ -30,65 +32,35 @@ unsafe extern "C" {
     ) -> ::core::ffi::c_int;
 }
 
-use otfcc_rust::logger::{LoggerType, logger_finish, logger_indent, logger_log_sds, logger_set_verbosity, logger_start_sds};
+use otfcc_rust::logger::{
+    LoggerType, logger_finish, logger_indent, logger_log_sds, logger_set_verbosity,
+    logger_start_sds,
+};
 
-use otfcc_rust::support::options::{Options};
+use otfcc_rust::support::options::Options;
 
-use otfcc_rust::support::built_json::BuiltValue;
-use otfcc_rust::font::caryll_font::{Font};
-use otfcc_rust::font::caryll_sfnt::{SplineFontContainer};
+use otfcc_rust::font::caryll_font::Font;
+use otfcc_rust::font::caryll_sfnt::SplineFontContainer;
 use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
+use otfcc_rust::support::built_json::BuiltValue;
 use otfcc_rust::support::{EXIT_FAILURE, NULL};
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-use otfcc_rust::support::built_json::{JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts};
 use libc::timespec;
-use otfcc_rust::support::getopt::{NO_ARGUMENT, LongOption, REQUIRED_ARGUMENT};
-use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
-use otfcc_rust::font::caryll_font::{otfcc_font_free};
-use otfcc_rust::consolidate::{otfcc_consolidate_font};
+use otfcc_rust::consolidate::otfcc_consolidate_font;
+use otfcc_rust::font::caryll_font::otfcc_font_free;
 use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt};
-use otfcc_rust::json_writer::{serialize_to_json};
+use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
-use std::cell::RefCell;
-use otfcc_rust::otf_reader::{read_otf};
+use otfcc_rust::otf_reader::read_otf;
+use otfcc_rust::support::built_json::json_serialize_ex;
+use otfcc_rust::support::built_json::{
+    JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts,
+};
+use otfcc_rust::support::getopt::{LongOption, NO_ARGUMENT, REQUIRED_ARGUMENT};
 use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
-use otfcc_rust::support::built_json::json_serialize_ex;
-
-
-
-
+use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
+use std::cell::RefCell;
 
 #[inline]
 unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
@@ -441,8 +413,7 @@ unsafe fn main_0(
         tv_nsec: 0,
     };
     time_now(&raw mut begin);
-    let mut sfnt: *mut SplineFontContainer =
-        ::core::ptr::null_mut::<SplineFontContainer>();
+    let mut sfnt: *mut SplineFontContainer = ::core::ptr::null_mut::<SplineFontContainer>();
     logger_start_sds(
         &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Read SFNT"),
@@ -465,7 +436,8 @@ unsafe fn main_0(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::bytesbuild!(b"Cannot read SFNT file \"",
+                otfcc_rust::bytesbuild!(
+                    b"Cannot read SFNT file \"",
                     inPath.as_bytes(),
                     b"\". Exit.\n",
                 ),
@@ -477,7 +449,8 @@ unsafe fn main_0(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::bytesbuild!(b"Subfont index ",
+                otfcc_rust::bytesbuild!(
+                    b"Subfont index ",
                     ttcindex,
                     b" out of range for \"",
                     inPath.as_bytes(),
@@ -510,7 +483,8 @@ unsafe fn main_0(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::bytesbuild!(b"Font structure broken or corrupted \"",
+                otfcc_rust::bytesbuild!(
+                    b"Font structure broken or corrupted \"",
                     inPath.as_bytes(),
                     b"\". Exit.\n",
                 ),
@@ -558,7 +532,8 @@ unsafe fn main_0(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
-                otfcc_rust::bytesbuild!(b"Font structure broken or corrupted \"",
+                otfcc_rust::bytesbuild!(
+                    b"Font structure broken or corrupted \"",
                     inPath.as_bytes(),
                     b"\". Exit.\n",
                 ),
@@ -623,7 +598,8 @@ unsafe fn main_0(
                     &mut *(*options).logger.borrow_mut(),
                     LOG_VL_CRITICAL,
                     LoggerType::Error,
-                    otfcc_rust::bytesbuild!(b"Cannot write to file \"",
+                    otfcc_rust::bytesbuild!(
+                        b"Cannot write to file \"",
                         output_path.as_bytes(),
                         b"\". Exit.",
                     ),

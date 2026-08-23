@@ -8,17 +8,16 @@ pub mod parse;
 pub mod read;
 pub mod subtables;
 
-use crate::table::otl::classdef::{ClassDef};
-use crate::table::otl::coverage::{Coverage};
 use crate::support::handle::{GlyphHandle, LookupHandle};
+use crate::table::otl::classdef::ClassDef;
+use crate::table::otl::coverage::Coverage;
 
 use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
-use crate::table::otl::subtables::gpos_cursive::{dispose_gpos_cursive_subtable};
-use crate::table::otl::subtables::gpos_single::{dispose_gpos_single_subtable};
-use crate::table::otl::subtables::gsub_ligature::{dispose_gsub_ligature_subtable};
-use crate::table::otl::subtables::gsub_multi::{dispose_gsub_multi_subtable};
-use crate::table::otl::subtables::gsub_single::{dispose_gsub_single_subtable};
-
+use crate::table::otl::subtables::gpos_cursive::dispose_gpos_cursive_subtable;
+use crate::table::otl::subtables::gpos_single::dispose_gpos_single_subtable;
+use crate::table::otl::subtables::gsub_ligature::dispose_gsub_ligature_subtable;
+use crate::table::otl::subtables::gsub_multi::dispose_gsub_multi_subtable;
+use crate::table::otl::subtables::gsub_single::dispose_gsub_single_subtable;
 
 /// Which gsub/gpos subtable format a lookup is, in otfcc's own numbering: the
 /// file's 16-bit format number offset by the table's base, `otl_type_gsub_*`
@@ -176,9 +175,13 @@ impl Drop for Subtable {
     fn drop(&mut self) {
         unsafe {
             match self {
-                Subtable::GsubSingle(x) => dispose_gsub_single_subtable(x as *mut GsubSingleSubtable),
+                Subtable::GsubSingle(x) => {
+                    dispose_gsub_single_subtable(x as *mut GsubSingleSubtable)
+                }
                 Subtable::GsubMulti(x) => dispose_gsub_multi_subtable(x as *mut GsubMultiSubtable),
-                Subtable::GsubLigature(x) => dispose_gsub_ligature_subtable(x as *mut GsubLigatureSubtable),
+                Subtable::GsubLigature(x) => {
+                    dispose_gsub_ligature_subtable(x as *mut GsubLigatureSubtable)
+                }
                 // `ChainingRule`'s and `ChainingRuleSet`'s fields (including
                 // `bc`/`ic`/`fc: Option<Box<ClassDef>>`, converted alongside
                 // this enum) all self-drop now -- no manual dispose left to
@@ -195,13 +198,17 @@ impl Drop for Subtable {
                 // free`'s `Box::from_raw` runs this same enum-field drop glue
                 // directly, and a raw `free()` there would have skipped it.
                 Subtable::GsubReverse(_) => {}
-                Subtable::GposSingle(x) => dispose_gpos_single_subtable(x as *mut GposSingleSubtable),
+                Subtable::GposSingle(x) => {
+                    dispose_gpos_single_subtable(x as *mut GposSingleSubtable)
+                }
                 // `first`/`second: Option<Box<ClassDef>>` and
                 // `first_values`/`second_values: Vec<Vec<PositionValue>>`
                 // all self-drop now -- no manual dispose left to call, same
                 // reasoning as `GposMarkToSingle` above.
                 Subtable::GposPair(_) => {}
-                Subtable::GposCursive(x) => dispose_gpos_cursive_subtable(x as *mut GposCursiveSubtable),
+                Subtable::GposCursive(x) => {
+                    dispose_gpos_cursive_subtable(x as *mut GposCursiveSubtable)
+                }
                 // `mark_array: MarkArray` and `base_array: BaseArray`
                 // (`Vec<BaseRecord>`, `BaseRecord.anchors` now a plain
                 // `Vec<Anchor>`) both self-drop -- no manual dispose left to
@@ -261,7 +268,11 @@ pub(crate) unsafe fn subtable_from_raw<T>(raw: *mut T, wrap: fn(T) -> Subtable) 
 /// "hole" even before this migration -- `Box::from_raw` on a null pointer
 /// would be UB, so this null check is required, not defensive.
 pub(crate) unsafe fn subtable_list_slot(raw: SubtablePtr) -> Option<Box<Subtable>> {
-    if raw.is_null() { None } else { Some(Box::from_raw(raw)) }
+    if raw.is_null() {
+        None
+    } else {
+        Some(Box::from_raw(raw))
+    }
 }
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -699,7 +710,8 @@ pub(crate) unsafe fn otl_feature_ref_list_filter_env(
     fn_0: Option<unsafe extern "C" fn(*const FeatureRef, *mut ::core::ffi::c_void) -> bool>,
     env: *mut ::core::ffi::c_void,
 ) {
-    (*arr).retain(|&item| fn_0.expect("non-null function pointer")(&item as *const FeatureRef, env));
+    (*arr)
+        .retain(|&item| fn_0.expect("non-null function pointer")(&item as *const FeatureRef, env));
 }
 /// Replaces the old `__caryll_allocate_clean`-into-a-`*mut`-out-parameter
 /// constructor: `Box` is the allocation, and the struct literal is the
@@ -810,7 +822,10 @@ mod tests {
         let unnamed = LookupType::from_file(OTL_TYPE_GSUB_UNKNOWN, 9);
         assert_eq!(unnamed.raw(), 25);
         assert_eq!(unnamed.name(), c"unknown");
-        assert_eq!(LookupType::from_file(OTL_TYPE_GSUB_UNKNOWN, 0xffff).raw(), 65551);
+        assert_eq!(
+            LookupType::from_file(OTL_TYPE_GSUB_UNKNOWN, 0xffff).raw(),
+            65551
+        );
         assert_eq!(::core::mem::size_of::<LookupType>(), 4);
     }
 }

@@ -7,7 +7,7 @@
 // `__syscall_slong_t` typedefs verbatim into every file that timed anything --
 // the same mistake as the hand-copied `_IO_FILE`: it happens to have the right
 // shape on x86_64 Linux and says nothing about any other target.
-use libc::{clock_gettime, snprintf, time_t, timespec, CLOCK_REALTIME};
+use libc::{CLOCK_REALTIME, clock_gettime, snprintf, time_t, timespec};
 
 pub unsafe fn time_now(mut tv: *mut timespec) {
     unsafe { clock_gettime(CLOCK_REALTIME, tv) };

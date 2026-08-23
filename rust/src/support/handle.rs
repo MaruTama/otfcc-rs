@@ -1,4 +1,5 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+#![allow(unsafe_op_in_unsafe_fn)]
+// Stage 6 removes this; see rust/README.md
 // `Handle` now owns a `Vec<u8>` name, so every `extern "C" fn` here that
 // passes/returns `Handle` by value trips `improper_ctypes_definitions` --
 // none of these are `#[no_mangle]` (the crate's only real FFI surface is
@@ -6,7 +7,7 @@
 // convention residue, not real FFI. Same rationale as `CaretValueRecord`/
 // `GsubLigatureSubtable` elsewhere in the crate.
 #![allow(improper_ctypes_definitions)]
-use crate::support::primitives::{GlyphId};
+use crate::support::primitives::GlyphId;
 
 /// Which of `Handle`'s fields is meaningful.
 ///

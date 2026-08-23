@@ -2,18 +2,17 @@
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type};
 use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
 
-use crate::support::handle::{handle_from_index, GlyphHandle};
+use crate::support::handle::{GlyphHandle, handle_from_index};
 
-use crate::support::font_reader::{FontReader};
+use crate::support::font_reader::FontReader;
 
-use crate::support::buffer::{Buffer};
-use crate::support::primitives::{GlyphClass, GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet};
+use crate::font::caryll_sfnt::Packet;
+use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufwrite16b};
-use crate::table::otl::classdef::{dump_class_def, parse_class_def};
 use crate::support::built_json::{BuiltValue, json_object_push};
-
+use crate::support::primitives::{GlyphClass, GlyphId};
+use crate::table::otl::classdef::{dump_class_def, parse_class_def};
+use crate::vendor::json::JsonType;
 
 pub type Tsi5Table = ClassDef;
 // Stage 6-4 "Box化": `Font.tsi5` becomes `Option<Box<Tsi5Table>>`.
@@ -40,10 +39,11 @@ unsafe fn unwrap_class_def(raw: *mut ClassDef) -> Box<ClassDef> {
 // bytes to actually be present, so the loop below now stops one entry
 // earlier on an odd-length table instead of reading past the end; a
 // well-formed (even-length) table parses identically to before.
-pub unsafe fn otfcc_read_tsi5(
-    packet: &Packet,
-) -> Option<Box<Tsi5Table>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_TSI5)?;
+pub unsafe fn otfcc_read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_TSI5)?;
     let tsi5: *mut Tsi5Table = otl_class_def_create() as *mut Tsi5Table;
     let mut r = FontReader::new(&table.data);
     let mut j: GlyphId = 0 as GlyphId;
@@ -58,10 +58,7 @@ pub unsafe fn otfcc_read_tsi5(
     Some(unwrap_class_def(tsi5))
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_tsi5(
-    table: Option<&Tsi5Table>,
-    mut root: *mut BuiltValue,
-) {
+pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, mut root: *mut BuiltValue) {
     let table = match table {
         Some(t) => t as *const Tsi5Table,
         None => return,
@@ -72,9 +69,7 @@ pub unsafe fn otfcc_dump_tsi5(
         dump_class_def(table as *const ClassDef),
     );
 }
-pub unsafe fn otfcc_parse_tsi5(
-    mut root: *const ParsedValue,
-) -> Option<Box<Tsi5Table>> {
+pub unsafe fn otfcc_parse_tsi5(mut root: *const ParsedValue) -> Option<Box<Tsi5Table>> {
     let mut _tsi: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _tsi = json_obj_get_type(
         root,
@@ -91,10 +86,7 @@ pub unsafe fn otfcc_parse_tsi5(
     return Some(unwrap_class_def(raw as *mut ClassDef));
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_tsi5(
-    tsi5: Option<&Tsi5Table>,
-    mut num_glyphs: GlyphId,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, mut num_glyphs: GlyphId) -> *mut Buffer {
     let tsi5 = match tsi5 {
         Some(t) => t as *const Tsi5Table,
         None => return ::core::ptr::null_mut::<Buffer>(),
@@ -102,7 +94,8 @@ pub unsafe fn otfcc_build_tsi5(
     let mut tsi5cls: Vec<u16> = vec![0; num_glyphs as usize];
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*tsi5).glyphs.len() {
-        if ((&(*tsi5).glyphs)[j as usize].index as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int
+        if ((&(*tsi5).glyphs)[j as usize].index as ::core::ffi::c_int)
+            < num_glyphs as ::core::ffi::c_int
         {
             tsi5cls[(&(*tsi5).glyphs)[j as usize].index as usize] =
                 (&(*tsi5).classes)[j as usize] as u16;

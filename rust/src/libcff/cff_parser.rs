@@ -5,25 +5,34 @@ unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
+use crate::support::alloc::__caryll_allocate_clean;
+use crate::support::font_reader::FontReader;
 
-use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::font_reader::{FontReader};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
-
-use crate::support::options::{Options};
-use crate::support::primitives::{Arity};
-use crate::vendor::sds::Hex4;
-use crate::libcff::{CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, CffStack, OP_CHAR_STRINGS, OP_ENCODING, OP_FD_ARRAY, OP_FD_SELECT, OP_PRIVATE, OP_SUBRS, OP_ABS, OP_ADD, OP_AND, OP_CALLGSUBR, OP_CALLSUBR, OP_CHARSET, OP_CNTRMASK, OP_DIV, OP_DROP, OP_DUP, OP_EQ, OP_EXCH, OP_FLEX, OP_FLEX1, OP_GET, OP_HFLEX, OP_HFLEX1, OP_HMOVETO, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR, OP_PUT, OP_RMOVETO, OP_ROLL, OP_SQRT, OP_SUB, OP_VMOVETO, OP_VSTEM, OP_VSTEMHM, TYPE2_TRANSIENT_ARRAY};
 use crate::libcff::cff_charset::CffCharset;
-use crate::libcff::cff_fdselect::{CffFdSelect};
+use crate::libcff::cff_charset::cff_extract_charset;
+use crate::libcff::cff_codecs::cff_decode_cs2_token;
+use crate::libcff::cff_dict::parse_dict_key;
+use crate::libcff::cff_fdselect::CffFdSelect;
+use crate::libcff::cff_fdselect::cff_extract_fd_select;
 use crate::libcff::cff_index::CffIndex;
-use crate::libcff::cff_value::{CffValueType, CffValue, CffValueBody};
-use crate::libcff::cff_charset::{cff_extract_charset};
-use crate::table::cff::{callback_draw_setwidth, callback_draw_next_contour, callback_draw_lineto, callback_draw_curveto, callback_draw_sethint, callback_draw_setmask, callback_draw_getrand};
-use crate::libcff::cff_codecs::{cff_decode_cs2_token};
-use crate::libcff::cff_dict::{parse_dict_key};
-use crate::libcff::cff_fdselect::{cff_extract_fd_select};
-use crate::libcff::cff_index::{extract_index, get_index_length, empty_index, cff_index_dispose};
+use crate::libcff::cff_index::{cff_index_dispose, empty_index, extract_index, get_index_length};
+use crate::libcff::cff_value::{CffValue, CffValueBody, CffValueType};
+use crate::libcff::{
+    CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, CffStack, OP_ABS, OP_ADD,
+    OP_AND, OP_CALLGSUBR, OP_CALLSUBR, OP_CHAR_STRINGS, OP_CHARSET, OP_CNTRMASK, OP_DIV, OP_DROP,
+    OP_DUP, OP_ENCODING, OP_EQ, OP_EXCH, OP_FD_ARRAY, OP_FD_SELECT, OP_FLEX, OP_FLEX1, OP_GET,
+    OP_HFLEX, OP_HFLEX1, OP_HMOVETO, OP_IFELSE, OP_INDEX, OP_MUL, OP_NEG, OP_NOT, OP_OR,
+    OP_PRIVATE, OP_PUT, OP_RMOVETO, OP_ROLL, OP_SQRT, OP_SUB, OP_SUBRS, OP_VMOVETO, OP_VSTEM,
+    OP_VSTEMHM, TYPE2_TRANSIENT_ARRAY,
+};
+use crate::support::options::Options;
+use crate::support::primitives::Arity;
+use crate::table::cff::{
+    callback_draw_curveto, callback_draw_getrand, callback_draw_lineto, callback_draw_next_contour,
+    callback_draw_sethint, callback_draw_setmask, callback_draw_setwidth,
+};
+use crate::vendor::sds::Hex4;
 
 /// The Top DICT's Encoding offset is overloaded by spec: values 0 and 1
 /// select the two predefined (Standard/Expert) encodings outright, and
@@ -72,10 +81,14 @@ unsafe fn parse_encoding(cff: *mut CffFile, offset: i32) -> CffEncoding {
         let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
             break 'parse None;
         };
-        let Ok(format) = r.u8() else { break 'parse None };
+        let Ok(format) = r.u8() else {
+            break 'parse None;
+        };
         match format {
             0 => {
-                let Ok(ncodes) = r.u8() else { break 'parse None };
+                let Ok(ncodes) = r.u8() else {
+                    break 'parse None;
+                };
                 let mut code: Vec<u8> = Vec::with_capacity(ncodes as usize);
                 for _ in 0..ncodes {
                     let Ok(v) = r.u8() else { break 'parse None };
@@ -84,7 +97,9 @@ unsafe fn parse_encoding(cff: *mut CffFile, offset: i32) -> CffEncoding {
                 break 'parse Some(CffEncoding::Format0(code));
             }
             1 => {
-                let Ok(nranges) = r.u8() else { break 'parse None };
+                let Ok(nranges) = r.u8() else {
+                    break 'parse None;
+                };
                 let mut range1: Vec<CffEncodingRangeFormat1> = Vec::with_capacity(nranges as usize);
                 for _ in 0..nranges {
                     let Ok(first) = r.u8() else { break 'parse None };
@@ -101,7 +116,9 @@ unsafe fn parse_encoding(cff: *mut CffFile, offset: i32) -> CffEncoding {
                 let mut supplement: Vec<CffEncodingSupplement> = Vec::with_capacity(nsup as usize);
                 for _ in 0..nsup {
                     let Ok(code) = r.u8() else { break 'parse None };
-                    let Ok(glyph) = r.u16() else { break 'parse None };
+                    let Ok(glyph) = r.u16() else {
+                        break 'parse None;
+                    };
                     supplement.push(CffEncodingSupplement { code, glyph });
                 }
                 break 'parse Some(CffEncoding::FormatSupplement(supplement));
@@ -133,9 +150,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
         pos,
         &raw mut (*cff).name,
     );
-    pos = (4 as u32).wrapping_add(get_index_length(
-        &raw mut (*cff).name,
-    ));
+    pos = (4 as u32).wrapping_add(get_index_length(&raw mut (*cff).name));
     extract_index(
         (*cff).raw_data,
         (*cff).raw_length,
@@ -147,7 +162,8 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
             &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::bytesbuild!(b"[libcff] Bad CFF font: (",
+            crate::bytesbuild!(
+                b"[libcff] Bad CFF font: (",
                 (*cff).name.count,
                 b", name), (",
                 (*cff).top_dict.count,
@@ -156,12 +172,8 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
         );
     }
     pos = (4 as u32)
-        .wrapping_add(get_index_length(
-            &raw mut (*cff).name,
-        ))
-        .wrapping_add(get_index_length(
-            &raw mut (*cff).top_dict,
-        ));
+        .wrapping_add(get_index_length(&raw mut (*cff).name))
+        .wrapping_add(get_index_length(&raw mut (*cff).top_dict));
     extract_index(
         (*cff).raw_data,
         (*cff).raw_length,
@@ -169,15 +181,9 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
         &raw mut (*cff).string,
     );
     pos = (4 as u32)
-        .wrapping_add(get_index_length(
-            &raw mut (*cff).name,
-        ))
-        .wrapping_add(get_index_length(
-            &raw mut (*cff).top_dict,
-        ))
-        .wrapping_add(get_index_length(
-            &raw mut (*cff).string,
-        ));
+        .wrapping_add(get_index_length(&raw mut (*cff).name))
+        .wrapping_add(get_index_length(&raw mut (*cff).top_dict))
+        .wrapping_add(get_index_length(&raw mut (*cff).string));
     extract_index(
         (*cff).raw_data,
         (*cff).raw_length,
@@ -190,12 +196,14 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset.as_ptr()
+                .offset
+                .as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset.as_ptr()
+                    .offset
+                    .as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_CHAR_STRINGS,
@@ -224,12 +232,14 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset.as_ptr()
+                .offset
+                .as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset.as_ptr()
+                    .offset
+                    .as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_ENCODING,
@@ -246,12 +256,14 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset.as_ptr()
+                .offset
+                .as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset.as_ptr()
+                    .offset
+                    .as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_CHARSET,
@@ -273,12 +285,14 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset.as_ptr()
+                .offset
+                .as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset.as_ptr()
+                    .offset
+                    .as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_FD_SELECT,
@@ -300,12 +314,14 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset.as_ptr()
+                .offset
+                .as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset.as_ptr()
+                    .offset
+                    .as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_FD_ARRAY,
@@ -331,12 +347,14 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset.as_ptr()
+                .offset
+                .as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset.as_ptr()
+                    .offset
+                    .as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_PRIVATE,
@@ -348,12 +366,14 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
                 .top_dict
-                .offset.as_ptr()
+                .offset
+                .as_ptr()
                 .offset(1 as ::core::ffi::c_int as isize))
             .wrapping_sub(
                 *(*cff)
                     .top_dict
-                    .offset.as_ptr()
+                    .offset
+                    .as_ptr()
                     .offset(0 as ::core::ffi::c_int as isize),
             ),
             OP_PRIVATE,
@@ -478,11 +498,13 @@ pub unsafe fn cff_parse_subr(
     }
     off_private = parse_dict_key(
         fdarray
-            .data.as_ptr()
+            .data
+            .as_ptr()
             .offset(*fdarray.offset.as_ptr().offset(fd as isize) as isize)
             .offset(-(1 as ::core::ffi::c_int as isize)),
         (*fdarray
-            .offset.as_ptr()
+            .offset
+            .as_ptr()
             .offset((fd as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
         .wrapping_sub(*fdarray.offset.as_ptr().offset(fd as isize)),
         OP_PRIVATE,
@@ -492,11 +514,13 @@ pub unsafe fn cff_parse_subr(
     .i;
     len_private = parse_dict_key(
         fdarray
-            .data.as_ptr()
+            .data
+            .as_ptr()
             .offset(*fdarray.offset.as_ptr().offset(fd as isize) as isize)
             .offset(-(1 as ::core::ffi::c_int as isize)),
         (*fdarray
-            .offset.as_ptr()
+            .offset
+            .as_ptr()
             .offset((fd as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
         .wrapping_sub(*fdarray.offset.as_ptr().offset(fd as isize)),
         OP_PRIVATE,
@@ -514,12 +538,7 @@ pub unsafe fn cff_parse_subr(
         .c2rust_unnamed
         .i;
         if off_subr != -(1 as i32) {
-            extract_index(
-                raw,
-                raw_length,
-                (off_private + off_subr) as u32,
-                subr,
-            );
+            extract_index(raw, raw_length, (off_private + off_subr) as u32, subr);
         } else {
             empty_index(subr);
         }
@@ -565,13 +584,15 @@ unsafe fn compute_subr_bias(mut cnt: u16) -> u16 {
         return 32768 as u16;
     };
 }
-unsafe fn reverse_stack(
-    mut stack: *mut CffStack,
-    mut left: u8,
-    mut right: u8,
-) {
-    let mut p1: *mut CffValue = (*stack).stack.as_mut_ptr().offset(left as ::core::ffi::c_int as isize);
-    let mut p2: *mut CffValue = (*stack).stack.as_mut_ptr().offset(right as ::core::ffi::c_int as isize);
+unsafe fn reverse_stack(mut stack: *mut CffStack, mut left: u8, mut right: u8) {
+    let mut p1: *mut CffValue = (*stack)
+        .stack
+        .as_mut_ptr()
+        .offset(left as ::core::ffi::c_int as isize);
+    let mut p2: *mut CffValue = (*stack)
+        .stack
+        .as_mut_ptr()
+        .offset(right as ::core::ffi::c_int as isize);
     while p1 < p2 {
         let mut temp: CffValue = *p1;
         *p1 = *p2;
@@ -626,9 +647,12 @@ pub unsafe fn cff_parse_outline(
                         if (*stack).index.wrapping_rem(2 as Arity) != 0 {
                             callback_draw_setwidth(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(0 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                             );
                         }
                         (*stack).stem = ((*stack).stem as Arity)
@@ -638,17 +662,19 @@ pub unsafe fn cff_parse_outline(
                         let mut j: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j as Arity) < (*stack).index {
                             let mut pos: ::core::ffi::c_double =
-                                (*(*stack).stack.as_mut_ptr().offset(j as isize)).c2rust_unnamed.d;
-                            let mut width: ::core::ffi::c_double = (*(*stack).stack.as_mut_ptr().offset(
-                                (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
-                            ))
-                            .c2rust_unnamed
-                            .d;
+                                (*(*stack).stack.as_mut_ptr().offset(j as isize))
+                                    .c2rust_unnamed
+                                    .d;
+                            let mut width: ::core::ffi::c_double =
+                                (*(*stack).stack.as_mut_ptr().offset(
+                                    (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
+                                ))
+                                .c2rust_unnamed
+                                .d;
                             callback_draw_sethint(
                                 outline,
                                 val.c2rust_unnamed.i == OP_VSTEM.0
-                                    || val.c2rust_unnamed.i
-                                        == OP_VSTEMHM.0,
+                                    || val.c2rust_unnamed.i == OP_VSTEMHM.0,
                                 pos + hint_base,
                                 width,
                             );
@@ -661,9 +687,12 @@ pub unsafe fn cff_parse_outline(
                         if (*stack).index.wrapping_rem(2 as Arity) != 0 {
                             callback_draw_setwidth(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(0 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                             );
                         }
                         let mut is_vertical: bool =
@@ -673,16 +702,18 @@ pub unsafe fn cff_parse_outline(
                             as u8 as u8;
                         let mut hint_base_0: ::core::ffi::c_double =
                             0 as ::core::ffi::c_int as ::core::ffi::c_double;
-                        let mut j_0: u16 =
-                            (*stack).index.wrapping_rem(2 as Arity) as u16;
+                        let mut j_0: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j_0 as Arity) < (*stack).index {
                             let mut pos_0: ::core::ffi::c_double =
-                                (*(*stack).stack.as_mut_ptr().offset(j_0 as isize)).c2rust_unnamed.d;
-                            let mut width_0: ::core::ffi::c_double = (*(*stack).stack.as_mut_ptr().offset(
-                                (j_0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
-                            ))
-                            .c2rust_unnamed
-                            .d;
+                                (*(*stack).stack.as_mut_ptr().offset(j_0 as isize))
+                                    .c2rust_unnamed
+                                    .d;
+                            let mut width_0: ::core::ffi::c_double =
+                                (*(*stack).stack.as_mut_ptr().offset(
+                                    (j_0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
+                                ))
+                                .c2rust_unnamed
+                                .d;
                             callback_draw_sethint(
                                 outline,
                                 is_vertical,
@@ -707,61 +738,57 @@ pub unsafe fn cff_parse_outline(
                         while byte < mask_length {
                             let mut mask_byte: u8 =
                                 *start.offset(advance.wrapping_add(byte) as isize);
-                            *mask.offset(
-                                (byte << 3 as ::core::ffi::c_int).wrapping_add(0 as u32)
-                                    as isize,
-                            ) = mask_byte as ::core::ffi::c_int >> 7 as ::core::ffi::c_int
+                            *mask
+                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(0 as u32)
+                                    as isize) = mask_byte as ::core::ffi::c_int
+                                >> 7 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
-                            *mask.offset(
-                                (byte << 3 as ::core::ffi::c_int).wrapping_add(1 as u32)
-                                    as isize,
-                            ) = mask_byte as ::core::ffi::c_int >> 6 as ::core::ffi::c_int
+                            *mask
+                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(1 as u32)
+                                    as isize) = mask_byte as ::core::ffi::c_int
+                                >> 6 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
-                            *mask.offset(
-                                (byte << 3 as ::core::ffi::c_int).wrapping_add(2 as u32)
-                                    as isize,
-                            ) = mask_byte as ::core::ffi::c_int >> 5 as ::core::ffi::c_int
+                            *mask
+                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(2 as u32)
+                                    as isize) = mask_byte as ::core::ffi::c_int
+                                >> 5 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
-                            *mask.offset(
-                                (byte << 3 as ::core::ffi::c_int).wrapping_add(3 as u32)
-                                    as isize,
-                            ) = mask_byte as ::core::ffi::c_int >> 4 as ::core::ffi::c_int
+                            *mask
+                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(3 as u32)
+                                    as isize) = mask_byte as ::core::ffi::c_int
+                                >> 4 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
-                            *mask.offset(
-                                (byte << 3 as ::core::ffi::c_int).wrapping_add(4 as u32)
-                                    as isize,
-                            ) = mask_byte as ::core::ffi::c_int >> 3 as ::core::ffi::c_int
+                            *mask
+                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(4 as u32)
+                                    as isize) = mask_byte as ::core::ffi::c_int
+                                >> 3 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
-                            *mask.offset(
-                                (byte << 3 as ::core::ffi::c_int).wrapping_add(5 as u32)
-                                    as isize,
-                            ) = mask_byte as ::core::ffi::c_int >> 2 as ::core::ffi::c_int
+                            *mask
+                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(5 as u32)
+                                    as isize) = mask_byte as ::core::ffi::c_int
+                                >> 2 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
-                            *mask.offset(
-                                (byte << 3 as ::core::ffi::c_int).wrapping_add(6 as u32)
-                                    as isize,
-                            ) = mask_byte as ::core::ffi::c_int >> 1 as ::core::ffi::c_int
+                            *mask
+                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(6 as u32)
+                                    as isize) = mask_byte as ::core::ffi::c_int
+                                >> 1 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
-                            *mask.offset(
-                                (byte << 3 as ::core::ffi::c_int).wrapping_add(7 as u32)
-                                    as isize,
-                            ) = mask_byte as ::core::ffi::c_int >> 0 as ::core::ffi::c_int
+                            *mask
+                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(7 as u32)
+                                    as isize) = mask_byte as ::core::ffi::c_int
+                                >> 0 as ::core::ffi::c_int
                                 & 1 as ::core::ffi::c_int
                                 != 0;
                             byte = byte.wrapping_add(1);
                         }
-                        callback_draw_setmask(
-                            outline,
-                            val.c2rust_unnamed.i == OP_CNTRMASK.0,
-                            mask,
-                        );
+                        callback_draw_setmask(outline, val.c2rust_unnamed.i == OP_CNTRMASK.0, mask);
                         advance = advance.wrapping_add(mask_length);
                         (*stack).index = 0 as Arity;
                     }
@@ -771,7 +798,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_vmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_VMOVETO.0 as u32),
@@ -783,10 +811,11 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_setwidth(
                                     outline,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
-                                        .c2rust_unnamed
-                                        .d,
+                                    .c2rust_unnamed
+                                    .d,
                                 );
                             }
                             callback_draw_next_contour(outline);
@@ -794,7 +823,8 @@ pub unsafe fn cff_parse_outline(
                                 outline,
                                 0.0f64,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -808,7 +838,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_rmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_RMOVETO.0 as u32),
@@ -820,22 +851,25 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_setwidth(
                                     outline,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
-                                        .c2rust_unnamed
-                                        .d,
+                                    .c2rust_unnamed
+                                    .d,
                                 );
                             }
                             callback_draw_next_contour(outline);
                             callback_draw_lineto(
                                 outline,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -849,7 +883,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hmoveto\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_HMOVETO.0 as u32),
@@ -861,17 +896,19 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_setwidth(
                                     outline,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
-                                        .c2rust_unnamed
-                                        .d,
+                                    .c2rust_unnamed
+                                    .d,
                                 );
                             }
                             callback_draw_next_contour(outline);
                             callback_draw_lineto(
                                 outline,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -885,7 +922,8 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_setwidth(
                                 outline,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -897,9 +935,12 @@ pub unsafe fn cff_parse_outline(
                         while i < (*stack).index {
                             callback_draw_lineto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                    .c2rust_unnamed
+                                    .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(1 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -913,22 +954,28 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_lineto(
                                 outline,
                                 0.0f64,
-                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(0 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                             );
                             i = 1 as u32;
                             while i < (*stack).index {
                                 callback_draw_lineto(
                                     outline,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                     0.0f64,
                                 );
                                 callback_draw_lineto(
                                     outline,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -941,12 +988,15 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_lineto(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                 );
                                 callback_draw_lineto(
                                     outline,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -961,9 +1011,12 @@ pub unsafe fn cff_parse_outline(
                         if (*stack).index.wrapping_rem(2 as Arity) == 1 as Arity {
                             callback_draw_lineto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(0 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                                 0.0f64,
                             );
                             i = 1 as u32;
@@ -971,12 +1024,15 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_lineto(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                 );
                                 callback_draw_lineto(
                                     outline,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -989,14 +1045,17 @@ pub unsafe fn cff_parse_outline(
                             while i < (*stack).index {
                                 callback_draw_lineto(
                                     outline,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                     0.0f64,
                                 );
                                 callback_draw_lineto(
                                     outline,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1011,29 +1070,36 @@ pub unsafe fn cff_parse_outline(
                         while i < (*stack).index {
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                    .c2rust_unnamed
+                                    .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(1 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(2 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(3 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(4 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(5 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1047,29 +1113,36 @@ pub unsafe fn cff_parse_outline(
                         while i < (*stack).index.wrapping_sub(2 as Arity) {
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                    .c2rust_unnamed
+                                    .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(1 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(2 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(3 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(4 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(5 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1079,12 +1152,14 @@ pub unsafe fn cff_parse_outline(
                         callback_draw_lineto(
                             outline,
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
@@ -1096,9 +1171,12 @@ pub unsafe fn cff_parse_outline(
                         while i < (*stack).index.wrapping_sub(6 as Arity) {
                             callback_draw_lineto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                    .c2rust_unnamed
+                                    .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset(i.wrapping_add(1 as u32) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1108,32 +1186,38 @@ pub unsafe fn cff_parse_outline(
                         callback_draw_curveto(
                             outline,
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(6 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d,
@@ -1144,42 +1228,62 @@ pub unsafe fn cff_parse_outline(
                         if (*stack).index.wrapping_rem(4 as Arity) == 1 as Arity {
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(0 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(1 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(2 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(3 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                                 0.0f64,
-                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(4 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                             );
                             i = 5 as u32;
                             while i < (*stack).index {
                                 callback_draw_curveto(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1192,20 +1296,25 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_curveto(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1219,41 +1328,61 @@ pub unsafe fn cff_parse_outline(
                         if (*stack).index.wrapping_rem(4 as Arity) == 1 as Arity {
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(1 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(0 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(2 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(3 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(4 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                                 0.0f64,
                             );
                             i = 5 as u32;
                             while i < (*stack).index {
                                 callback_draw_curveto(
                                     outline,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1266,20 +1395,25 @@ pub unsafe fn cff_parse_outline(
                             while i < (*stack).index {
                                 callback_draw_curveto(
                                     outline,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1302,25 +1436,28 @@ pub unsafe fn cff_parse_outline(
                         }
                         i = 0 as u32;
                         while i < (4 as u32).wrapping_mul(cnt_bezier) {
-                            if i.wrapping_div(4 as u32).wrapping_rem(2 as u32)
-                                == 0 as u32
-                            {
+                            if i.wrapping_div(4 as u32).wrapping_rem(2 as u32) == 0 as u32 {
                                 callback_draw_curveto(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1329,21 +1466,26 @@ pub unsafe fn cff_parse_outline(
                             } else {
                                 callback_draw_curveto(
                                     outline,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1356,27 +1498,32 @@ pub unsafe fn cff_parse_outline(
                                 outline,
                                 0.0f64,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1386,28 +1533,33 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_curveto(
                                 outline,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 0.0f64,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1427,26 +1579,29 @@ pub unsafe fn cff_parse_outline(
                         }
                         i = 0 as u32;
                         while i < (4 as u32).wrapping_mul(cnt_bezier) {
-                            if i.wrapping_div(4 as u32).wrapping_rem(2 as u32)
-                                == 0 as u32
-                            {
+                            if i.wrapping_div(4 as u32).wrapping_rem(2 as u32) == 0 as u32 {
                                 callback_draw_curveto(
                                     outline,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     0.0f64,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1455,19 +1610,24 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_curveto(
                                     outline,
                                     0.0f64,
-                                    (*(*stack).stack.as_mut_ptr().offset(i as isize)).c2rust_unnamed.d,
+                                    (*(*stack).stack.as_mut_ptr().offset(i as isize))
+                                        .c2rust_unnamed
+                                        .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(1 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(2 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
                                     (*(*stack)
-                                        .stack.as_mut_ptr()
+                                        .stack
+                                        .as_mut_ptr()
                                         .offset(i.wrapping_add(3 as u32) as isize))
                                     .c2rust_unnamed
                                     .d,
@@ -1480,28 +1640,33 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_curveto(
                                 outline,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 0.0f64,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1512,27 +1677,32 @@ pub unsafe fn cff_parse_outline(
                                 outline,
                                 0.0f64,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(5 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
                                 (*(*stack)
-                                    .stack.as_mut_ptr()
+                                    .stack
+                                    .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                                 .c2rust_unnamed
                                 .d,
@@ -1546,7 +1716,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hflex\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_HFLEX.0 as u32),
@@ -1556,36 +1727,60 @@ pub unsafe fn cff_parse_outline(
                         } else {
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(0 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                                 0.0f64,
-                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(1 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(2 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(3 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                                 0.0f64,
                             );
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(4 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                                 0.0f64,
-                                (*(*stack).stack.as_mut_ptr().offset(5 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                -(*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(6 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(5 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                -(*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(2 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(6 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                                 0.0f64,
                             );
                             (*stack).index = 0 as Arity;
@@ -1597,7 +1792,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_flex\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_FLEX.0 as u32),
@@ -1607,45 +1803,81 @@ pub unsafe fn cff_parse_outline(
                         } else {
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(5 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(0 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(1 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(2 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(3 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(4 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(5 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                             );
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(6 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(7 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(8 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(9 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(10 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(11 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(6 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(7 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(8 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(9 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(10 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(11 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                             );
                             (*stack).index = 0 as Arity;
                         }
@@ -1656,7 +1888,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_hflex1\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_HFLEX1.0 as u32),
@@ -1666,47 +1899,81 @@ pub unsafe fn cff_parse_outline(
                         } else {
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(0 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(1 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(2 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(3 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(4 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                                 0.0f64,
                             );
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(5 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(5 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                                 0.0f64,
-                                (*(*stack).stack.as_mut_ptr().offset(6 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(7 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(8 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                -((*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d
-                                    + (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
-                                        .c2rust_unnamed
-                                        .d
-                                    + (*(*stack).stack.as_mut_ptr().offset(7 as ::core::ffi::c_int as isize))
-                                        .c2rust_unnamed
-                                        .d),
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(6 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(7 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(8 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                -((*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(1 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d + (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(3 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d + (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(7 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d),
                             );
                             (*stack).index = 0 as Arity;
                         }
@@ -1717,7 +1984,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_flex1\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_FLEX1.0 as u32),
@@ -1725,84 +1993,140 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut dx: ::core::ffi::c_double =
-                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d
-                                    + (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
-                                        .c2rust_unnamed
-                                        .d
-                                    + (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
-                                        .c2rust_unnamed
-                                        .d
-                                    + (*(*stack).stack.as_mut_ptr().offset(6 as ::core::ffi::c_int as isize))
-                                        .c2rust_unnamed
-                                        .d
-                                    + (*(*stack).stack.as_mut_ptr().offset(8 as ::core::ffi::c_int as isize))
-                                        .c2rust_unnamed
-                                        .d;
-                            let mut dy: ::core::ffi::c_double =
-                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d
-                                    + (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
-                                        .c2rust_unnamed
-                                        .d
-                                    + (*(*stack).stack.as_mut_ptr().offset(5 as ::core::ffi::c_int as isize))
-                                        .c2rust_unnamed
-                                        .d
-                                    + (*(*stack).stack.as_mut_ptr().offset(7 as ::core::ffi::c_int as isize))
-                                        .c2rust_unnamed
-                                        .d
-                                    + (*(*stack).stack.as_mut_ptr().offset(9 as ::core::ffi::c_int as isize))
-                                        .c2rust_unnamed
-                                        .d;
+                            let mut dx: ::core::ffi::c_double = (*(*stack)
+                                .stack
+                                .as_mut_ptr()
+                                .offset(0 as ::core::ffi::c_int as isize))
+                            .c2rust_unnamed
+                            .d + (*(*stack)
+                                .stack
+                                .as_mut_ptr()
+                                .offset(2 as ::core::ffi::c_int as isize))
+                            .c2rust_unnamed
+                            .d + (*(*stack)
+                                .stack
+                                .as_mut_ptr()
+                                .offset(4 as ::core::ffi::c_int as isize))
+                            .c2rust_unnamed
+                            .d + (*(*stack)
+                                .stack
+                                .as_mut_ptr()
+                                .offset(6 as ::core::ffi::c_int as isize))
+                            .c2rust_unnamed
+                            .d + (*(*stack)
+                                .stack
+                                .as_mut_ptr()
+                                .offset(8 as ::core::ffi::c_int as isize))
+                            .c2rust_unnamed
+                            .d;
+                            let mut dy: ::core::ffi::c_double = (*(*stack)
+                                .stack
+                                .as_mut_ptr()
+                                .offset(1 as ::core::ffi::c_int as isize))
+                            .c2rust_unnamed
+                            .d + (*(*stack)
+                                .stack
+                                .as_mut_ptr()
+                                .offset(3 as ::core::ffi::c_int as isize))
+                            .c2rust_unnamed
+                            .d + (*(*stack)
+                                .stack
+                                .as_mut_ptr()
+                                .offset(5 as ::core::ffi::c_int as isize))
+                            .c2rust_unnamed
+                            .d + (*(*stack)
+                                .stack
+                                .as_mut_ptr()
+                                .offset(7 as ::core::ffi::c_int as isize))
+                            .c2rust_unnamed
+                            .d + (*(*stack)
+                                .stack
+                                .as_mut_ptr()
+                                .offset(9 as ::core::ffi::c_int as isize))
+                            .c2rust_unnamed
+                            .d;
                             if fabs(dx) > fabs(dy) {
-                                dx = (*(*stack).stack.as_mut_ptr().offset(10 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d;
+                                dx = (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(10 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d;
                                 dy = -dy;
                             } else {
                                 dx = -dx;
-                                dy = (*(*stack).stack.as_mut_ptr().offset(10 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d;
+                                dy = (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(10 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d;
                             }
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(0 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(1 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(2 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(3 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(4 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(5 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(0 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(1 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(2 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(3 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(4 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(5 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                             );
                             callback_draw_curveto(
                                 outline,
-                                (*(*stack).stack.as_mut_ptr().offset(6 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(7 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(8 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
-                                (*(*stack).stack.as_mut_ptr().offset(9 as ::core::ffi::c_int as isize))
-                                    .c2rust_unnamed
-                                    .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(6 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(7 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(8 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
+                                (*(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset(9 as ::core::ffi::c_int as isize))
+                                .c2rust_unnamed
+                                .d,
                                 dx,
                                 dy,
                             );
@@ -1815,7 +2139,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_and\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_AND.0 as u32),
@@ -1824,17 +2149,20 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num1: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num1 != 0. && num2 != 0. {
@@ -1851,7 +2179,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_or\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_OR.0 as u32),
@@ -1860,17 +2189,20 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_0: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_0: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num1_0 != 0. || num2_0 != 0. {
@@ -1887,7 +2219,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_not\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_NOT.0 as u32),
@@ -1896,12 +2229,14 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num != 0. { 0.0f64 } else { 1.0f64 };
@@ -1913,7 +2248,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_abs\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_ABS.0 as u32),
@@ -1922,12 +2258,14 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num_0: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num_0 < 0.0f64 { -num_0 } else { num_0 };
@@ -1939,7 +2277,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_add\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_ADD.0 as u32),
@@ -1948,17 +2287,20 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_1: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_1: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_1 + num2_1;
@@ -1971,7 +2313,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_sub\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_SUB.0 as u32),
@@ -1980,17 +2323,20 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_2: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_2: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_2 - num2_2;
@@ -2003,7 +2349,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_div\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_DIV.0 as u32),
@@ -2012,17 +2359,20 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_3: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_3: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_3 / num2_3;
@@ -2035,7 +2385,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_neg\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_NEG.0 as u32),
@@ -2044,12 +2395,14 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num_1: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = -num_1;
@@ -2061,7 +2414,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_eq\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_EQ.0 as u32),
@@ -2070,17 +2424,20 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_4: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_4: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if num1_4 == num2_4 { 1.0f64 } else { 0.0f64 };
@@ -2093,7 +2450,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_drop\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_DROP.0 as u32),
@@ -2110,7 +2468,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_put\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_PUT.0 as u32),
@@ -2119,18 +2478,18 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut val_0: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut i_0: i32 = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d as i32;
-                            (*stack).transient[(i_0
-                                % TYPE2_TRANSIENT_ARRAY as i32)
-                                as usize]
+                            (*stack).transient[(i_0 % TYPE2_TRANSIENT_ARRAY as i32) as usize]
                                 .c2rust_unnamed
                                 .d = val_0;
                             (*stack).index = (*stack).index.wrapping_sub(2 as Arity);
@@ -2142,7 +2501,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_get\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_GET.0 as u32),
@@ -2151,17 +2511,17 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut i_1: i32 = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d as i32;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
-                            .d = (*stack).transient[(i_1
-                                % TYPE2_TRANSIENT_ARRAY as i32)
-                                as usize]
+                            .d = (*stack).transient[(i_1 % TYPE2_TRANSIENT_ARRAY as i32) as usize]
                                 .c2rust_unnamed
                                 .d;
                         }
@@ -2172,7 +2532,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_ifelse\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_IFELSE.0 as u32),
@@ -2181,27 +2542,32 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut v2: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut v1: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut s2: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(3 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut s1: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(4 as Arity) as isize))
                             .c2rust_unnamed
                             .d = if v1 <= v2 { s1 } else { s2 };
@@ -2209,7 +2575,8 @@ pub unsafe fn cff_parse_outline(
                         }
                     }
                     3095 => {
-                        (*(*stack).stack.as_mut_ptr().offset((*stack).index as isize)).t = CffValueType::Double;
+                        (*(*stack).stack.as_mut_ptr().offset((*stack).index as isize)).t =
+                            CffValueType::Double;
                         (*(*stack).stack.as_mut_ptr().offset((*stack).index as isize))
                             .c2rust_unnamed
                             .d = callback_draw_getrand(outline);
@@ -2221,7 +2588,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_mul\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_MUL.0 as u32),
@@ -2230,17 +2598,20 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_5: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_5: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_5 * num2_5;
@@ -2253,7 +2624,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_sqrt\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_SQRT.0 as u32),
@@ -2262,12 +2634,14 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num_2: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = sqrt(num_2);
@@ -2279,7 +2653,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_dup\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_DUP.0 as u32),
@@ -2287,9 +2662,11 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            *(*stack).stack.as_mut_ptr().offset((*stack).index as isize) = *(*stack)
-                                .stack.as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize);
+                            *(*stack).stack.as_mut_ptr().offset((*stack).index as isize) =
+                                *(*stack)
+                                    .stack
+                                    .as_mut_ptr()
+                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize);
                             (*stack).index = (*stack).index.wrapping_add(1 as Arity);
                         }
                     }
@@ -2299,7 +2676,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_exch\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_EXCH.0 as u32),
@@ -2308,22 +2686,26 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut num1_6: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             let mut num2_6: ::core::ffi::c_double = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num2_6;
                             (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d = num1_6;
@@ -2335,7 +2717,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_index\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_INDEX.0 as u32),
@@ -2343,11 +2726,12 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut n: u8 =
-                                (*stack).index.wrapping_sub(1 as Arity) as u8;
+                            let mut n: u8 = (*stack).index.wrapping_sub(1 as Arity) as u8;
                             let mut j_1: u8 = (n as ::core::ffi::c_int
                                 - 1 as ::core::ffi::c_int
-                                - (*(*stack).stack.as_mut_ptr().offset(n as isize)).c2rust_unnamed.d as u8
+                                - (*(*stack).stack.as_mut_ptr().offset(n as isize))
+                                    .c2rust_unnamed
+                                    .d as u8
                                     as ::core::ffi::c_int
                                     % n as ::core::ffi::c_int)
                                 as u8;
@@ -2361,7 +2745,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_roll\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_ROLL.0 as u32),
@@ -2370,12 +2755,14 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut j_2: i32 = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize))
                             .c2rust_unnamed
                             .d as i32;
                             let mut n_0: u32 = (*(*stack)
-                                .stack.as_mut_ptr()
+                                .stack
+                                .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(2 as Arity) as isize))
                             .c2rust_unnamed
                             .d as u32;
@@ -2384,7 +2771,8 @@ pub unsafe fn cff_parse_outline(
                                     &mut *options.logger.borrow_mut(),
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
-                                    crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                    crate::bytesbuild!(
+                                        b"[libcff] Stack cannot provide enough parameters for ",
                                         b"op_roll\0" as *const u8 as *const ::core::ffi::c_char,
                                         b" (",
                                         Hex4(OP_ROLL.0 as u32),
@@ -2423,7 +2811,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_callsubr\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_CALLSUBR.0 as u32),
@@ -2436,8 +2825,7 @@ pub unsafe fn cff_parse_outline(
                                 (*(*stack).stack.as_mut_ptr().offset((*stack).index as isize))
                                     .c2rust_unnamed
                                     .d as u32;
-                            if let Some((sub_data, sub_len)) =
-                                locate_subr(lsubr, lsubr_bias, subr)
+                            if let Some((sub_data, sub_len)) = locate_subr(lsubr, lsubr_bias, subr)
                             {
                                 cff_parse_outline(
                                     sub_data as *mut u8,
@@ -2453,7 +2841,8 @@ pub unsafe fn cff_parse_outline(
                                     &mut *options.logger.borrow_mut(),
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
-                                    crate::bytesbuild!(b"[libcff] Invalid local subroutine index for ",
+                                    crate::bytesbuild!(
+                                        b"[libcff] Invalid local subroutine index for ",
                                         b"op_callsubr\0" as *const u8 as *const ::core::ffi::c_char,
                                         b" (",
                                         Hex4(OP_CALLSUBR.0 as u32),
@@ -2469,7 +2858,8 @@ pub unsafe fn cff_parse_outline(
                                 &mut *options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
-                                crate::bytesbuild!(b"[libcff] Stack cannot provide enough parameters for ",
+                                crate::bytesbuild!(
+                                    b"[libcff] Stack cannot provide enough parameters for ",
                                     b"op_callgsubr\0" as *const u8 as *const ::core::ffi::c_char,
                                     b" (",
                                     Hex4(OP_CALLGSUBR.0 as u32),
@@ -2499,8 +2889,10 @@ pub unsafe fn cff_parse_outline(
                                     &mut *options.logger.borrow_mut(),
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
-                                    crate::bytesbuild!(b"[libcff] Invalid global subroutine index for ",
-                                        b"op_callgsubr\0" as *const u8 as *const ::core::ffi::c_char,
+                                    crate::bytesbuild!(
+                                        b"[libcff] Invalid global subroutine index for ",
+                                        b"op_callgsubr\0" as *const u8
+                                            as *const ::core::ffi::c_char,
                                         b" (",
                                         Hex4(OP_CALLGSUBR.0 as u32),
                                         b"). This call is ignored.\n",
@@ -2514,7 +2906,8 @@ pub unsafe fn cff_parse_outline(
                             &mut *options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
-                            crate::bytesbuild!(b"Warning: unknown operator ",
+                            crate::bytesbuild!(
+                                b"Warning: unknown operator ",
                                 val.c2rust_unnamed.i,
                                 b" occurs in Type 2 CharString. It may caused by file corruption.",
                             ),
@@ -2554,7 +2947,12 @@ mod cff_header_and_encoding_tests {
             raw_data: data.as_ptr() as *mut u8,
             raw_length: data.len() as u32,
             cnt_glyph: 0,
-            head: crate::libcff::CffHeader { major: 0, minor: 0, hdr_size: 0, off_size: 0 },
+            head: crate::libcff::CffHeader {
+                major: 0,
+                minor: 0,
+                hdr_size: 0,
+                off_size: 0,
+            },
             name: empty_cff_index(),
             top_dict: empty_cff_index(),
             string: empty_cff_index(),
@@ -2616,7 +3014,8 @@ mod cff_header_and_encoding_tests {
     }
 
     #[test]
-    fn parse_encoding_negative_offset_falls_back_to_unspecified_instead_of_reading_before_the_buffer() {
+    fn parse_encoding_negative_offset_falls_back_to_unspecified_instead_of_reading_before_the_buffer()
+     {
         let data = [0u8; 8];
         unsafe {
             let mut cff = cff_file_over(&data);
@@ -2647,11 +3046,17 @@ mod locate_subr_tests {
         unsafe {
             let (p0, len0) = locate_subr(&idx, 0, 0).unwrap();
             assert_eq!(len0, 2);
-            assert_eq!(::core::slice::from_raw_parts(p0, len0 as usize), &[0xAA, 0xBB]);
+            assert_eq!(
+                ::core::slice::from_raw_parts(p0, len0 as usize),
+                &[0xAA, 0xBB]
+            );
 
             let (p1, len1) = locate_subr(&idx, 0, 1).unwrap();
             assert_eq!(len1, 2);
-            assert_eq!(::core::slice::from_raw_parts(p1, len1 as usize), &[0xCC, 0xDD]);
+            assert_eq!(
+                ::core::slice::from_raw_parts(p1, len1 as usize),
+                &[0xCC, 0xDD]
+            );
         }
     }
 

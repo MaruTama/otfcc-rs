@@ -1,22 +1,32 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint, json_obj_getnum, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of};
-use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
-use crate::table::otl::coverage::{Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage};
-use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
-use crate::support::binio::{read_16u};
-use crate::logger::{logger_finish, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer, GlyphId, Pos, ShapeId};
-use crate::vendor::json::{JsonType};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::logger::{logger_finish, logger_start_sds};
+use crate::support::binio::read_16u;
+use crate::support::buffer::Buffer;
+use crate::support::handle::{
+    GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
+};
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint,
+    json_obj_getnum, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of,
+};
+use crate::support::primitives::{FontFilePointer, GlyphId, Pos, ShapeId};
+use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
+use crate::table::otl::coverage::{
+    Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
+};
+use crate::vendor::json::JsonType;
 
-use crate::bk::bkblock::{bk_new_block_from_buffer};
-use crate::bk::bkgraph::{bk_build_block};
-use crate::table::otl::classdef::{dump_class_def, parse_class_def, build_class_def};
-use crate::table::otl::coverage::{build_coverage};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, preserialize};
+use crate::bk::bkblock::bk_new_block_from_buffer;
+use crate::bk::bkgraph::bk_build_block;
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
+    json_object_push, json_object_push_bytes_key, preserialize,
+};
+use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
+use crate::table::otl::coverage::build_coverage;
 #[derive(Copy, Clone)]
 #[repr(C)]
 pub struct CaretValue {
@@ -118,34 +128,29 @@ unsafe fn read_lig_caret_record(
     if !(table_length < offset.wrapping_add(2 as u32)) {
         caret_count = read_16u(data.offset(offset as isize) as *const u8) as ShapeId;
         if !(table_length
-            < offset.wrapping_add(2 as u32).wrapping_add(
-                (caret_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32,
-            ))
+            < offset
+                .wrapping_add(2 as u32)
+                .wrapping_add((caret_count as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as u32))
         {
             let mut j: GlyphId = 0 as GlyphId;
             while (j as ::core::ffi::c_int) < caret_count as ::core::ffi::c_int {
-                g.carets.push(
-                    read_caret_value(
-                        data,
-                        table_length,
-                        offset.wrapping_add(read_16u(
-                            data.offset(offset as isize)
-                                .offset(2 as ::core::ffi::c_int as isize)
-                                .offset(
-                                    (j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize,
-                                ) as *const u8,
-                        ) as u32),
-                    ),
-                );
+                g.carets.push(read_caret_value(
+                    data,
+                    table_length,
+                    offset.wrapping_add(read_16u(
+                        data.offset(offset as isize)
+                            .offset(2 as ::core::ffi::c_int as isize)
+                            .offset((j as ::core::ffi::c_int * 2 as ::core::ffi::c_int) as isize)
+                            as *const u8,
+                    ) as u32),
+                ));
                 j = j.wrapping_add(1);
             }
         }
     }
     return g;
 }
-pub unsafe fn otfcc_read_gdef(
-    packet: &Packet,
-) -> Option<Box<GdefTable>> {
+pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     let mut classdef_offset: u16 = 0;
     let mut lig_caret_offset: u16 = 0;
     let mut mark_attach_def_offset: u16 = 0;
@@ -171,9 +176,8 @@ pub unsafe fn otfcc_read_gdef(
                             mark_attach_class_def: None,
                             lig_carets: Vec::new(),
                         }));
-                        classdef_offset = read_16u(
-                            data.offset(4 as ::core::ffi::c_int as isize) as *const u8
-                        );
+                        classdef_offset =
+                            read_16u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8);
                         if classdef_offset != 0 {
                             gdef.as_mut().unwrap().glyph_class_def =
                                 classdef_from_raw(read_class_def(
@@ -182,9 +186,8 @@ pub unsafe fn otfcc_read_gdef(
                                     classdef_offset as u32,
                                 ));
                         }
-                        lig_caret_offset = read_16u(
-                            data.offset(8 as ::core::ffi::c_int as isize) as *const u8
-                        );
+                        lig_caret_offset =
+                            read_16u(data.offset(8 as ::core::ffi::c_int as isize) as *const u8);
                         if lig_caret_offset != 0 {
                             if table_length
                                 < (lig_caret_offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int)
@@ -249,11 +252,10 @@ pub unsafe fn otfcc_read_gdef(
                                                     as ::core::ffi::c_int)
                                                 as u32,
                                         );
-                                        v.glyph =
-                                            otfcc_handle_dup(
-                                                (&(*cov))[j as usize].clone() as Handle,
-                                            )
-                                                as GlyphHandle;
+                                        v.glyph = otfcc_handle_dup(
+                                            (&(*cov))[j as usize].clone() as Handle
+                                        )
+                                            as GlyphHandle;
                                         gdef.as_mut().unwrap().lig_carets.push(v);
                                         j = j.wrapping_add(1);
                                     }
@@ -267,9 +269,9 @@ pub unsafe fn otfcc_read_gdef(
                         match current_block {
                             10802812094495641425 => {}
                             _ => {
-                                mark_attach_def_offset =
-                                    read_16u(data.offset(10 as ::core::ffi::c_int as isize)
-                                        as *const u8);
+                                mark_attach_def_offset = read_16u(
+                                    data.offset(10 as ::core::ffi::c_int as isize) as *const u8,
+                                );
                                 if mark_attach_def_offset != 0 {
                                     gdef.as_mut().unwrap().mark_attach_class_def =
                                         classdef_from_raw(read_class_def(
@@ -373,21 +375,14 @@ pub unsafe fn otfcc_dump_gdef(
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-unsafe fn lig_caret_from_json(
-    mut _carets: *const ParsedValue,
-    mut lc: *mut LigCaretTable,
-) {
-    if _carets.is_null()
-        || json_type_of(_carets) != JsonType::Object
-    {
+unsafe fn lig_caret_from_json(mut _carets: *const ParsedValue, mut lc: *mut LigCaretTable) {
+    if _carets.is_null() || json_type_of(_carets) != JsonType::Object {
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < json_obj_len(_carets) {
         let mut a: *const ParsedValue = json_obj_val_at(_carets, j as u32);
-        if !(a.is_null()
-            || json_type_of(a) != JsonType::Array)
-        {
+        if !(a.is_null() || json_type_of(a) != JsonType::Array) {
             let mut v: CaretValueRecord = CaretValueRecord {
                 glyph: Handle {
                     state: HandleState::Empty,
@@ -396,7 +391,8 @@ unsafe fn lig_caret_from_json(
                 },
                 carets: Vec::new(),
             };
-            v.glyph = handle_from_name(Some(json_obj_key_bytes_at(_carets, j as u32))) as GlyphHandle;
+            v.glyph =
+                handle_from_name(Some(json_obj_key_bytes_at(_carets, j as u32))) as GlyphHandle;
             let mut caret_count: ShapeId = json_arr_len(a) as ShapeId;
             let mut k: GlyphId = 0 as GlyphId;
             while (k as ::core::ffi::c_int) < caret_count as ::core::ffi::c_int {
@@ -409,9 +405,7 @@ unsafe fn lig_caret_from_json(
                 caret.coordiante = 0 as ::core::ffi::c_int as Pos;
                 caret.point_index = 0xffff as ::core::ffi::c_int as i16;
                 let mut _caret: *const ParsedValue = json_arr_at(a, k as u32);
-                if !_caret.is_null()
-                    && json_type_of(_caret) == JsonType::Object
-                {
+                if !_caret.is_null() && json_type_of(_caret) == JsonType::Object {
                     if !json_obj_get_type(
                         _caret,
                         b"atPoint\0" as *const u8 as *const ::core::ffi::c_char,
@@ -480,9 +474,7 @@ pub unsafe fn otfcc_parse_gdef(
                 &raw mut gdef.as_mut().unwrap().lig_carets,
             );
             ___loggedstep_v = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
     return gdef;
@@ -493,14 +485,23 @@ unsafe fn write_lig_caret_rec(mut cr: *mut CaretValueRecord) -> *mut BkBlock {
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < carets.len() {
         let caret = &carets[j as usize];
-        bk_push(bcr, &[bk_ptr(BkCellType::P16, bk_new_block(&[bk_int(BkCellType::B16, (caret.format as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (if caret.format as ::core::ffi::c_int
-                    == 2 as ::core::ffi::c_int
-                {
-                    caret.point_index as ::core::ffi::c_int
-                } else {
-                    caret.coordiante as i16
-                        as ::core::ffi::c_int
-                }) as u32)]))]);
+        bk_push(
+            bcr,
+            &[bk_ptr(
+                BkCellType::P16,
+                bk_new_block(&[
+                    bk_int(BkCellType::B16, (caret.format as ::core::ffi::c_int) as u32),
+                    bk_int(
+                        BkCellType::B16,
+                        (if caret.format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
+                            caret.point_index as ::core::ffi::c_int
+                        } else {
+                            caret.coordiante as i16 as ::core::ffi::c_int
+                        }) as u32,
+                    ),
+                ]),
+            )],
+        );
         j = j.wrapping_add(1);
     }
     return bcr;
@@ -516,19 +517,31 @@ unsafe fn write_lig_carets(mut lc: *const LigCaretTable) -> *mut BkBlock {
         );
         j = j.wrapping_add(1);
     }
-    let mut lct: *mut BkBlock = bk_new_block(&[bk_ptr(BkCellType::P16, bk_new_block_from_buffer(build_coverage(cov))), bk_int(BkCellType::B16, (records.len()) as u32)]);
+    let mut lct: *mut BkBlock = bk_new_block(&[
+        bk_ptr(
+            BkCellType::P16,
+            bk_new_block_from_buffer(build_coverage(cov)),
+        ),
+        bk_int(BkCellType::B16, (records.len()) as u32),
+    ]);
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < records.len() {
-        bk_push(lct, &[bk_ptr(BkCellType::P16, write_lig_caret_rec(&records[j_0 as usize] as *const CaretValueRecord as *mut CaretValueRecord))]);
+        bk_push(
+            lct,
+            &[bk_ptr(
+                BkCellType::P16,
+                write_lig_caret_rec(
+                    &records[j_0 as usize] as *const CaretValueRecord as *mut CaretValueRecord,
+                ),
+            )],
+        );
         j_0 = j_0.wrapping_add(1);
     }
     otl_coverage_free(cov);
     return lct;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_gdef(
-    gdef: Option<&GdefTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> *mut Buffer {
     let gdef = match gdef {
         Some(g) => g as *const GdefTable,
         None => return ::core::ptr::null_mut::<Buffer>(),
@@ -538,16 +551,20 @@ pub unsafe fn otfcc_build_gdef(
     let mut b_lig_caret_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let mut b_mark_attach_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     if let Some(cd) = (*gdef).glyph_class_def.as_deref() {
-        b_glyph_class_def =
-            bk_new_block_from_buffer(build_class_def(cd));
+        b_glyph_class_def = bk_new_block_from_buffer(build_class_def(cd));
     }
     if !(*gdef).lig_carets.is_empty() {
         b_lig_caret_list = write_lig_carets(&raw const (*gdef).lig_carets);
     }
     if let Some(cd) = (*gdef).mark_attach_class_def.as_deref() {
-        b_mark_attach_class_def =
-            bk_new_block_from_buffer(build_class_def(cd));
+        b_mark_attach_class_def = bk_new_block_from_buffer(build_class_def(cd));
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B32, 0x10000 as u32), bk_ptr(BkCellType::P16, b_glyph_class_def), bk_ptr(BkCellType::P16, b_attach_list), bk_ptr(BkCellType::P16, b_lig_caret_list), bk_ptr(BkCellType::P16, b_mark_attach_class_def)]);
+    let mut root: *mut BkBlock = bk_new_block(&[
+        bk_int(BkCellType::B32, 0x10000 as u32),
+        bk_ptr(BkCellType::P16, b_glyph_class_def),
+        bk_ptr(BkCellType::P16, b_attach_list),
+        bk_ptr(BkCellType::P16, b_lig_caret_list),
+        bk_ptr(BkCellType::P16, b_mark_attach_class_def),
+    ]);
     return bk_build_block(root);
 }

@@ -5,8 +5,8 @@ unsafe extern "C" {
 
 use crate::support::primitives::{Pos, Scale};
 
-use crate::vf::region::{VqRegion};
-use crate::vf::region::{vq_compare_region};
+use crate::vf::region::VqRegion;
+use crate::vf::region::vq_compare_region;
 // Was a C-shaped `struct { type_0: VQSegType, val: union { still: Pos,
 // delta: VqSegmentDelta } }` -- the same "tag fully determines the live
 // union arm" shape already converted elsewhere in the crate (`CffEncoding`,
@@ -224,8 +224,7 @@ pub(crate) unsafe fn vq_inplace_plus(mut a: *mut VQ, b: VQ) {
     let mut p: usize = 0 as usize;
     while p < b.shift.len() {
         let k: VqSegment = b.shift[p];
-        if let VqSegment::Still(still) = k
-        {
+        if let VqSegment::Still(still) = k {
             (*a).kernel += still;
         } else {
             let mut s: VqSegment = VqSegment::Still(0.);

@@ -1,4 +1,5 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+#![allow(unsafe_op_in_unsafe_fn)]
+// Stage 6 removes this; see rust/README.md
 // `GlyphOrderEntry.name` and every string-carrying `GlyphOrderPackage`
 // vtable slot (`set_by_gid`/`set_by_name`/`lookup_name`/
 // `name_a_field_shared`) now carry `Vec<u8>` across an `extern "C" fn`
@@ -9,9 +10,9 @@
 #![allow(improper_ctypes_definitions)]
 use libc::{free, malloc};
 
-use crate::support::handle::{Handle, GlyphHandle, HandleState};
+use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-use crate::support::primitives::{GlyphId};
+use crate::support::primitives::GlyphId;
 /// Which pass of a JSON font's glyph naming placed a glyph, and therefore how
 /// strongly it is placed: the *lowest* pass wins, because `set_order_by_name`
 /// escalates an entry only when the new pass ranks below the one on record and
@@ -226,7 +227,11 @@ pub(crate) unsafe fn otfcc_gord_consolidate_handle(
         let name_bytes = (*h).name.clone();
         if let Some(&entry_idx) = (*go).by_name.get(&name_bytes) {
             let entry = &(&(*go).entries)[entry_idx];
-            *h = Handle { state: HandleState::Consolidated, index: entry.gid, name: entry.name.clone() } as GlyphHandle;
+            *h = Handle {
+                state: HandleState::Consolidated,
+                index: entry.gid,
+                name: entry.name.clone(),
+            } as GlyphHandle;
             return true;
         }
         // Original C (glyph-order.c:83) passed the wrong hash-handle
@@ -240,14 +245,22 @@ pub(crate) unsafe fn otfcc_gord_consolidate_handle(
         // already-correct search. Fixed here.
         if let Some(&entry_idx) = (*go).by_gid.get(&(*h).index) {
             let entry = &(&(*go).entries)[entry_idx];
-            *h = Handle { state: HandleState::Consolidated, index: entry.gid, name: entry.name.clone() } as GlyphHandle;
+            *h = Handle {
+                state: HandleState::Consolidated,
+                index: entry.gid,
+                name: entry.name.clone(),
+            } as GlyphHandle;
             return true;
         }
     } else if (*h).state == HandleState::Name {
         let name_bytes = (*h).name.clone();
         if let Some(&entry_idx) = (*go).by_name.get(&name_bytes) {
             let entry = &(&(*go).entries)[entry_idx];
-            *h = Handle { state: HandleState::Consolidated, index: entry.gid, name: entry.name.clone() } as GlyphHandle;
+            *h = Handle {
+                state: HandleState::Consolidated,
+                index: entry.gid,
+                name: entry.name.clone(),
+            } as GlyphHandle;
             return true;
         }
     } else if (*h).state == HandleState::Index {
@@ -255,7 +268,11 @@ pub(crate) unsafe fn otfcc_gord_consolidate_handle(
         otfcc_gord_name_a_field_shared(go, (*h).index, &raw mut name);
         if !name.is_empty() {
             let idx = (*h).index;
-            *h = Handle { state: HandleState::Consolidated, index: idx, name } as GlyphHandle;
+            *h = Handle {
+                state: HandleState::Consolidated,
+                index: idx,
+                name,
+            } as GlyphHandle;
             return true;
         }
     }
@@ -276,7 +293,13 @@ mod tests {
     // field to be a valid `GlyphOrderPass` at all.
     #[test]
     fn glyphorderpass_order_is_its_encoding() {
-        let all = [GlyphOrderPass::Unset, GlyphOrderPass::GlyphOrder, GlyphOrderPass::Notdef, GlyphOrderPass::Cmap, GlyphOrderPass::Glyf];
+        let all = [
+            GlyphOrderPass::Unset,
+            GlyphOrderPass::GlyphOrder,
+            GlyphOrderPass::Notdef,
+            GlyphOrderPass::Cmap,
+            GlyphOrderPass::Glyf,
+        ];
         for w in all.windows(2) {
             assert!(w[0] < w[1], "{:?} should rank above {:?}", w[0], w[1]);
             assert!((w[0] as u8) < (w[1] as u8));

@@ -386,10 +386,7 @@ impl<'a> Parser<'a> {
 /// failure) -- lets `bin/otfccbuild.rs`/`ffi/dll.rs` swap the call site
 /// without reshaping the surrounding code. Owns the result as a `Box`;
 /// pair with `json_value_free` below.
-pub unsafe fn json_parse(
-    json: *const ::core::ffi::c_char,
-    length: usize,
-) -> *mut ParsedValue {
+pub unsafe fn json_parse(json: *const ::core::ffi::c_char, length: usize) -> *mut ParsedValue {
     let bytes = unsafe { ::core::slice::from_raw_parts(json as *const u8, length) };
     match parse_json(bytes) {
         Some(v) => Box::into_raw(Box::new(v)),
@@ -712,7 +709,13 @@ pub unsafe fn json_obj_getsds(
         None
     } else {
         unsafe {
-            Some(::core::slice::from_raw_parts(json_str_ptr(v) as *const u8, json_str_len(v) as usize).to_vec())
+            Some(
+                ::core::slice::from_raw_parts(
+                    json_str_ptr(v) as *const u8,
+                    json_str_len(v) as usize,
+                )
+                .to_vec(),
+            )
         }
     }
 }
@@ -774,7 +777,9 @@ mod tests {
         let text = format!(r#"{{"v":{json_body}}}"#);
         match parse_json(text.as_bytes()) {
             Some(ParsedValue::Object(mut fields)) if fields.len() == 1 => fields.remove(0).1,
-            other => panic!("expected {{\"v\": {json_body}}} to parse to a 1-field object, got {other:?}"),
+            other => panic!(
+                "expected {{\"v\": {json_body}}} to parse to a 1-field object, got {other:?}"
+            ),
         }
     }
 
@@ -794,10 +799,7 @@ mod tests {
                 0
             );
             assert_eq!(json_obj_key_len_at(&root, 0), 3);
-            assert_eq!(
-                ::core::ffi::CStr::from_ptr(key).to_bytes(),
-                b"abc"
-            );
+            assert_eq!(::core::ffi::CStr::from_ptr(key).to_bytes(), b"abc");
 
             let val = json_obj_val_at(&root, 0);
             let str_ptr = json_str_ptr(val);
@@ -816,11 +818,16 @@ mod tests {
     #[test]
     // std::fs::read_dir needs `opendir`, which Miri refuses by default
     // (filesystem access breaks its isolation sandbox, not a bug finding).
-    #[cfg_attr(miri, ignore = "reads tests/payload/ from disk, needs -Zmiri-disable-isolation")]
+    #[cfg_attr(
+        miri,
+        ignore = "reads tests/payload/ from disk, needs -Zmiri-disable-isolation"
+    )]
     fn every_committed_payload_json_parses() {
         let mut any = false;
         for dir in ["../tests/payload", "../build"] {
-            let Ok(entries) = std::fs::read_dir(dir) else { continue };
+            let Ok(entries) = std::fs::read_dir(dir) else {
+                continue;
+            };
             for entry in entries.flatten() {
                 let path = entry.path();
                 if path.extension().and_then(|e| e.to_str()) == Some("json") {
@@ -848,7 +855,10 @@ mod tests {
     // test --release` (real hardware, real libm) reliably gets exactly
     // 500.0 -- so this is Miri's own `powf` shim disagreeing with itself,
     // not a bug in parse_number reachable on any real target.
-    #[cfg_attr(miri, ignore = "10.0f64.powf() is not required to be correctly-rounded; Miri's shim disagrees with native libm by a few ULPs (and with itself between runs)")]
+    #[cfg_attr(
+        miri,
+        ignore = "10.0f64.powf() is not required to be correctly-rounded; Miri's shim disagrees with native libm by a few ULPs (and with itself between runs)"
+    )]
     fn number_edge_cases() {
         assert_eq!(parse_v("5"), ParsedValue::Int(5));
         assert_eq!(parse_v("5.0"), ParsedValue::Double(5.0));
@@ -900,15 +910,15 @@ mod tests {
     // (passed reliably in local testing on macOS -- confirms this varies by
     // platform/Miri build, not just by run, consistent with "not required
     // to be correctly-rounded").
-    #[cfg_attr(miri, ignore = "10.0f64.powf() is not required to be correctly-rounded; Miri's shim disagrees with native libm by a few ULPs")]
+    #[cfg_attr(
+        miri,
+        ignore = "10.0f64.powf() is not required to be correctly-rounded; Miri's shim disagrees with native libm by a few ULPs"
+    )]
     fn string_edge_cases() {
         // `\u` escape + surrogate pair (é, 😀), plus \t \n \\ \".
         let mut expected: Vec<u8> = "é😀".bytes().collect();
         expected.extend(b"\t\n\\\"");
-        assert_eq!(
-            parse_v(r#""é😀\t\n\\\"""#),
-            s(expected)
-        );
+        assert_eq!(parse_v(r#""é😀\t\n\\\"""#), s(expected));
 
         // Raw non-UTF-8 bytes survive verbatim (Latin-1 glyph names).
         assert_eq!(
@@ -977,11 +987,17 @@ mod tests {
     fn parser_leniency_quirks() {
         assert_eq!(
             parse_json(b"[1,2,]"),
-            Some(ParsedValue::Array(vec![ParsedValue::Int(1), ParsedValue::Int(2)]))
+            Some(ParsedValue::Array(vec![
+                ParsedValue::Int(1),
+                ParsedValue::Int(2)
+            ]))
         );
         assert_eq!(
             parse_json(br#"{"a":1,}"#),
-            Some(ParsedValue::Object(vec![(b"a\0".to_vec(), ParsedValue::Int(1))]))
+            Some(ParsedValue::Object(vec![(
+                b"a\0".to_vec(),
+                ParsedValue::Int(1)
+            )]))
         );
         assert_eq!(parse_v("-"), ParsedValue::Int(0));
         assert_eq!(
@@ -995,10 +1011,23 @@ mod tests {
     #[test]
     fn malformed_input_is_rejected() {
         for bad in [
-            "{", r#"{"a":}"#, r#""unterminated"#, "nul", "{,}", "[1 2]",
-            r#"{"a" "b"}"#, "", "   ", "[1,2,,]", "[,1]", "[,]",
+            "{",
+            r#"{"a":}"#,
+            r#""unterminated"#,
+            "nul",
+            "{,}",
+            "[1 2]",
+            r#"{"a" "b"}"#,
+            "",
+            "   ",
+            "[1,2,,]",
+            "[,1]",
+            "[,]",
         ] {
-            assert!(parse_json(bad.as_bytes()).is_none(), "expected {bad:?} to be rejected");
+            assert!(
+                parse_json(bad.as_bytes()).is_none(),
+                "expected {bad:?} to be rejected"
+            );
         }
     }
 }

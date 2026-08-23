@@ -1,25 +1,36 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, strlen, strtol};
 
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of};
-use crate::support::handle::{handle_from_index, handle_from_name, GlyphHandle};
+use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
+use crate::support::parsed_json::{
+    ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_len, json_obj_val_at, json_str_bytes,
+    json_type_of,
+};
 
-use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::binio::{read_16u};
-use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{GlyphId, TableId, Unicode};
-use crate::vendor::sds::{Hex4Upper};
-use crate::vendor::json::{JsonType};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::font::caryll_sfnt::{Packet};
-use crate::support::{NULL};
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkblock::{bk_new_block_from_buffer, bk_new_block_from_buffer_copy};
-use crate::bk::bkgraph::{bk_build_block};
-use crate::support::buffer::{buffree, buflen, bufnew, bufseek, bufwrite16b, bufwrite24b, bufwrite32b, bufwrite8, bufwrite_buf};
-use crate::support::built_json::{BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new_from_bytes};
+use crate::bk::bkgraph::bk_build_block;
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::NULL;
+use crate::support::alloc::__caryll_allocate_clean;
+use crate::support::binio::read_16u;
+use crate::support::buffer::Buffer;
+use crate::support::buffer::{
+    buffree, buflen, bufnew, bufseek, bufwrite_buf, bufwrite8, bufwrite16b, bufwrite24b,
+    bufwrite32b,
+};
+use crate::support::built_json::{
+    BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key,
+    json_string_new_from_bytes,
+};
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::support::options::Options;
+use crate::support::primitives::{GlyphId, TableId, Unicode};
+use crate::vendor::json::JsonType;
+use crate::vendor::sds::Hex4Upper;
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 #[repr(C)]
 pub struct CmapUvsKey {
@@ -115,10 +126,7 @@ pub unsafe fn otfcc_encode_cmap_by_name(
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-pub unsafe fn otfcc_unmap_cmap(
-    mut cmap: *mut CmapTable,
-    mut c: ::core::ffi::c_int,
-) -> bool {
+pub unsafe fn otfcc_unmap_cmap(mut cmap: *mut CmapTable, mut c: ::core::ffi::c_int) -> bool {
     // Removing the entry drops its `GlyphHandle` (freeing the glyph
     // name), replacing the explicit `otfcc_handle_dispose` + manual
     // node walk this walk used to do.
@@ -166,10 +174,7 @@ pub unsafe fn otfcc_encode_cmap_uvs_by_name(
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-pub unsafe fn otfcc_unmap_cmap_uvs(
-    mut cmap: *mut CmapTable,
-    mut c: CmapUvsKey,
-) -> bool {
+pub unsafe fn otfcc_unmap_cmap_uvs(mut cmap: *mut CmapTable, mut c: CmapUvsKey) -> bool {
     (*cmap).uvs.remove(&c).is_some()
 }
 pub unsafe fn otfcc_cmap_lookup_uvs(
@@ -241,9 +246,14 @@ unsafe fn read_format4(data: &[u8], offset: usize, cmap: *mut CmapTable) {
     if header.skip(6).is_err() {
         return; // format, length, language
     }
-    let Ok(seg_count_x2) = header.u16() else { return };
+    let Ok(seg_count_x2) = header.u16() else {
+        return;
+    };
     let segments_count = (seg_count_x2 / 2) as usize;
-    let Some(needed) = segments_count.checked_mul(8).and_then(|n| n.checked_add(16)) else {
+    let Some(needed) = segments_count
+        .checked_mul(8)
+        .and_then(|n| n.checked_add(16))
+    else {
         return;
     };
     if available < needed {
@@ -260,16 +270,27 @@ unsafe fn read_format4(data: &[u8], offset: usize, cmap: *mut CmapTable) {
     let id_range_offset_rel = id_delta_rel + segments_count * 2;
 
     let read_u16 = |rel: usize| -> Option<u16> {
-        FontReader::new(data).at(offset + rel).ok().and_then(|mut r| r.u16().ok())
+        FontReader::new(data)
+            .at(offset + rel)
+            .ok()
+            .and_then(|mut r| r.u16().ok())
     };
 
     for j in 0..segments_count {
-        let Some(end_code) = read_u16(end_code_rel + j * 2) else { return };
-        let Some(start_code) = read_u16(start_code_rel + j * 2) else { return };
-        let Some(id_delta_raw) = read_u16(id_delta_rel + j * 2) else { return };
+        let Some(end_code) = read_u16(end_code_rel + j * 2) else {
+            return;
+        };
+        let Some(start_code) = read_u16(start_code_rel + j * 2) else {
+            return;
+        };
+        let Some(id_delta_raw) = read_u16(id_delta_rel + j * 2) else {
+            return;
+        };
         let id_delta = id_delta_raw as i16;
         let id_range_offset_entry_rel = id_range_offset_rel + j * 2;
-        let Some(id_range_offset) = read_u16(id_range_offset_entry_rel) else { return };
+        let Some(id_range_offset) = read_u16(id_range_offset_entry_rel) else {
+            return;
+        };
         if id_range_offset == 0 {
             let mut c = start_code as u32;
             while c < 0xffff && c <= end_code as u32 {
@@ -314,7 +335,10 @@ unsafe fn read_uvs_default(data: &[u8], offset: usize, selector: Unicode, cmap: 
             if !g.is_null() {
                 otfcc_encode_cmap_uvs_by_index(
                     cmap,
-                    CmapUvsKey { unicode: u, selector },
+                    CmapUvsKey {
+                        unicode: u,
+                        selector,
+                    },
                     (*g).index as u16,
                 );
             }
@@ -322,7 +346,12 @@ unsafe fn read_uvs_default(data: &[u8], offset: usize, selector: Unicode, cmap: 
         }
     }
 }
-unsafe fn read_uvs_non_default(data: &[u8], offset: usize, selector: Unicode, cmap: *mut CmapTable) {
+unsafe fn read_uvs_non_default(
+    data: &[u8],
+    offset: usize,
+    selector: Unicode,
+    cmap: *mut CmapTable,
+) {
     let mut r = match FontReader::new(data).at(offset) {
         Ok(r) => r,
         Err(_) => return,
@@ -334,7 +363,14 @@ unsafe fn read_uvs_non_default(data: &[u8], offset: usize, selector: Unicode, cm
     for _ in 0..num_mappings {
         let unicode_value = r.u24().unwrap();
         let glyph_id = r.u16().unwrap();
-        otfcc_encode_cmap_uvs_by_index(cmap, CmapUvsKey { unicode: unicode_value, selector }, glyph_id);
+        otfcc_encode_cmap_uvs_by_index(
+            cmap,
+            CmapUvsKey {
+                unicode: unicode_value,
+                selector,
+            },
+            glyph_id,
+        );
     }
 }
 unsafe fn read_format14(data: &[u8], offset: usize, cmap: *mut CmapTable) {
@@ -350,7 +386,10 @@ unsafe fn read_format14(data: &[u8], offset: usize, cmap: *mut CmapTable) {
     // byte more than the VarSelectorRecord array's actual size
     // (10 + 11*n_groups) needs. Preserved exactly: it's stricter, not
     // weaker, so keeping it doesn't reopen any bound.
-    let Some(needed) = (n_groups as usize).checked_mul(11).and_then(|n| n.checked_add(11)) else {
+    let Some(needed) = (n_groups as usize)
+        .checked_mul(11)
+        .and_then(|n| n.checked_add(11))
+    else {
         return;
     };
     if data.len().saturating_sub(offset) < needed {
@@ -358,17 +397,21 @@ unsafe fn read_format14(data: &[u8], offset: usize, cmap: *mut CmapTable) {
     }
     for j in 0..n_groups as usize {
         let record_rel = 10 + 11 * j;
-        let Ok(selector) = FontReader::new(data).at(offset + record_rel).and_then(|mut r| r.u24())
+        let Ok(selector) = FontReader::new(data)
+            .at(offset + record_rel)
+            .and_then(|mut r| r.u24())
         else {
             return;
         };
-        let Ok(default_uvs_offset) =
-            FontReader::new(data).at(offset + record_rel + 3).and_then(|mut r| r.u32())
+        let Ok(default_uvs_offset) = FontReader::new(data)
+            .at(offset + record_rel + 3)
+            .and_then(|mut r| r.u32())
         else {
             return;
         };
-        let Ok(non_default_uvs_offset) =
-            FontReader::new(data).at(offset + record_rel + 7).and_then(|mut r| r.u32())
+        let Ok(non_default_uvs_offset) = FontReader::new(data)
+            .at(offset + record_rel + 7)
+            .and_then(|mut r| r.u32())
         else {
             return;
         };
@@ -390,7 +433,11 @@ unsafe fn read_cmap_mapping_table(
     cmap: *mut CmapTable,
     required_format: TableId,
 ) {
-    let Some(format) = FontReader::new(data).at(offset).ok().and_then(|mut r| r.u16().ok()) else {
+    let Some(format) = FontReader::new(data)
+        .at(offset)
+        .ok()
+        .and_then(|mut r| r.u16().ok())
+    else {
         return;
     };
     if format == required_format {
@@ -402,7 +449,11 @@ unsafe fn read_cmap_mapping_table(
     }
 }
 unsafe fn read_cmap_mapping_table_uvs(data: &[u8], offset: usize, cmap: *mut CmapTable) {
-    let Some(format) = FontReader::new(data).at(offset).ok().and_then(|mut r| r.u16().ok()) else {
+    let Some(format) = FontReader::new(data)
+        .at(offset)
+        .ok()
+        .and_then(|mut r| r.u16().ok())
+    else {
         return;
     };
     if format == 14 {
@@ -411,7 +462,10 @@ unsafe fn read_cmap_mapping_table_uvs(data: &[u8], offset: usize, cmap: *mut Cma
 }
 #[inline]
 fn is_valid_cmap_encoding(platform: u16, encoding: u16) -> bool {
-    matches!((platform, encoding), (0, 3) | (0, 4) | (0, 5) | (3, 1) | (3, 10))
+    matches!(
+        (platform, encoding),
+        (0, 3) | (0, 4) | (0, 5) | (3, 1) | (3, 10)
+    )
 }
 pub static FORMAT_PRIORITIES: [TableId; 3] = [12, 4, 0];
 // `FORMAT_PRIORITIES` ends with a `0` sentinel that is also, confusingly,
@@ -455,11 +509,11 @@ unsafe fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     }
     Ok(cmap_box)
 }
-pub unsafe fn otfcc_read_cmap(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<CmapTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CMAP)?;
+pub unsafe fn otfcc_read_cmap(packet: &Packet, options: &Options) -> Option<Box<CmapTable>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_CMAP)?;
     match parse_cmap(&table.data) {
         Ok(cmap) => Some(cmap),
         Err(_) => {
@@ -498,11 +552,7 @@ pub unsafe fn otfcc_dump_cmap(
                     } else {
                         crate::bytesbuild!(b"U+", Hex4Upper(unicode as u32))
                     };
-                    json_object_push_bytes_key(
-                        cmap,
-                        &key,
-                        json_string_new_from_bytes(&glyph.name),
-                    );
+                    json_object_push_bytes_key(cmap, &key, json_string_new_from_bytes(&glyph.name));
                 }
             }
             json_object_push(
@@ -516,11 +566,7 @@ pub unsafe fn otfcc_dump_cmap(
             for (key, glyph) in (*table).uvs.iter() {
                 if !glyph.name.is_empty() {
                     let key_0: Vec<u8> = if options.decimal_cmap {
-                        crate::bytesbuild!(
-                            key.unicode,
-                            b" ",
-                            key.selector,
-                        )
+                        crate::bytesbuild!(key.unicode, b" ", key.selector,)
                     } else {
                         crate::bytesbuild!(
                             b"U+",
@@ -572,9 +618,7 @@ unsafe fn parse_cmap_unicodes(
     mut table: *const ParsedValue,
     options: &Options,
 ) {
-    if table.is_null()
-        || json_type_of(table) != JsonType::Object
-    {
+    if table.is_null() || json_type_of(table) != JsonType::Object {
         return;
     }
     let mut j: u32 = 0 as u32;
@@ -593,7 +637,8 @@ unsafe fn parse_cmap_unicodes(
                     &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::bytesbuild!(b"U+",
+                    crate::bytesbuild!(
+                        b"U+",
                         Hex4Upper(unicode as u32),
                         b" is already mapped to ",
                         &(*current_map).name,
@@ -631,9 +676,7 @@ unsafe fn parse_cmap_uvs(
     mut table: *const ParsedValue,
     options: &Options,
 ) {
-    if table.is_null()
-        || json_type_of(table) != JsonType::Object
-    {
+    if table.is_null() || json_type_of(table) != JsonType::Object {
         return;
     }
     let mut j: u32 = 0 as u32;
@@ -654,7 +697,8 @@ unsafe fn parse_cmap_uvs(
                     &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
-                    crate::bytesbuild!(b"UVS U+",
+                    crate::bytesbuild!(
+                        b"UVS U+",
                         Hex4Upper((k.unicode) as u32),
                         b" U+",
                         Hex4Upper((k.selector) as u32),
@@ -674,8 +718,7 @@ pub unsafe fn otfcc_parse_cmap(
     mut root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<CmapTable>> {
-    if json_type_of(root) != JsonType::Object
-    {
+    if json_type_of(root) != JsonType::Object {
         return None;
     }
     let mut cmap_box: Box<CmapTable> = Box::new(CmapTable {
@@ -746,8 +789,7 @@ unsafe fn otfcc_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
                 last_gid_start = last_gid_end;
                 is_sequencial = true;
             } else if unicode == last_unicode_end + 1 as ::core::ffi::c_int
-                && !(glyph.index as ::core::ffi::c_int
-                    != last_gid_end + 1 as ::core::ffi::c_int
+                && !(glyph.index as ::core::ffi::c_int != last_gid_end + 1 as ::core::ffi::c_int
                     && is_sequencial as ::core::ffi::c_int != 0
                     && last_gid_end - last_gid_start >= 4 as ::core::ffi::c_int)
             {
@@ -764,8 +806,7 @@ unsafe fn otfcc_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
                 }
                 last_unicode_end = unicode;
                 is_sequencial = is_sequencial as ::core::ffi::c_int != 0
-                    && glyph.index as ::core::ffi::c_int
-                        == last_gid_end + 1 as ::core::ffi::c_int;
+                    && glyph.index as ::core::ffi::c_int == last_gid_end + 1 as ::core::ffi::c_int;
                 last_gid_end = glyph.index as ::core::ffi::c_int;
                 if !is_sequencial {
                     bufwrite16b(glyph_id_array, last_gid_end as u16);
@@ -849,8 +890,8 @@ unsafe fn otfcc_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
     bufwrite16b(buf, j_1.wrapping_sub(1 as u32) as u16);
     bufwrite16b(
         buf,
-        ((2 as ::core::ffi::c_int * segments_count as ::core::ffi::c_int) as u32)
-            .wrapping_sub(i) as u16,
+        ((2 as ::core::ffi::c_int * segments_count as ::core::ffi::c_int) as u32).wrapping_sub(i)
+            as u16,
     );
     bufwrite_buf(buf, end_count);
     bufwrite16b(buf, 0 as u16);
@@ -1012,7 +1053,8 @@ unsafe fn build_format14_for_selector(
                 u_0.wrapping_sub(1 as Unicode),
             );
         }
-        if *non_defaults.offset(u_0 as isize) as ::core::ffi::c_int != 0xffff as ::core::ffi::c_int {
+        if *non_defaults.offset(u_0 as isize) as ::core::ffi::c_int != 0xffff as ::core::ffi::c_int
+        {
             bufwrite24b(nondflt, u_0 as u32);
             bufwrite16b(nondflt, *non_defaults.offset(u_0 as isize) as u16);
             num_uvs_mappings = num_uvs_mappings.wrapping_add(1);
@@ -1052,7 +1094,11 @@ unsafe fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
         }
         selector = selector.wrapping_add(1);
     }
-    let mut st: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 14 as u32), bk_int(BkCellType::B32, 0 as u32), bk_int(BkCellType::B32, n_selectors as u32)]);
+    let mut st: *mut BkBlock = bk_new_block(&[
+        bk_int(BkCellType::B16, 14 as u32),
+        bk_int(BkCellType::B32, 0 as u32),
+        bk_int(BkCellType::B32, n_selectors as u32),
+    ]);
     let mut selector_0: Unicode = 0 as Unicode;
     while selector_0 < MAX_UNICODE as Unicode {
         if valid_selectors[selector_0 as usize] {
@@ -1067,7 +1113,25 @@ unsafe fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
                 buffree(nondflt);
                 nondflt = ::core::ptr::null_mut::<Buffer>();
             }
-            bk_push(st, &[bk_int(BkCellType::B8, (selector_0 >> 16 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_int(BkCellType::B8, (selector_0 >> 8 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_int(BkCellType::B8, (selector_0 >> 0 as ::core::ffi::c_int & 0xff as Unicode) as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer(dflt)), bk_ptr(BkCellType::P32, bk_new_block_from_buffer(nondflt))]);
+            bk_push(
+                st,
+                &[
+                    bk_int(
+                        BkCellType::B8,
+                        (selector_0 >> 16 as ::core::ffi::c_int & 0xff as Unicode) as u32,
+                    ),
+                    bk_int(
+                        BkCellType::B8,
+                        (selector_0 >> 8 as ::core::ffi::c_int & 0xff as Unicode) as u32,
+                    ),
+                    bk_int(
+                        BkCellType::B8,
+                        (selector_0 >> 0 as ::core::ffi::c_int & 0xff as Unicode) as u32,
+                    ),
+                    bk_ptr(BkCellType::P32, bk_new_block_from_buffer(dflt)),
+                    bk_ptr(BkCellType::P32, bk_new_block_from_buffer(nondflt)),
+                ],
+            );
         }
         selector_0 = selector_0.wrapping_add(1);
     }
@@ -1077,10 +1141,7 @@ unsafe fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
     return buf;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_cmap(
-    cmap: Option<&CmapTable>,
-    options: &Options,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *mut Buffer {
     let cmap = match cmap {
         Some(c) if !c.unicodes.is_empty() => c as *const CmapTable,
         _ => return ::core::ptr::null_mut::<Buffer>(),
@@ -1127,18 +1188,56 @@ pub unsafe fn otfcc_build_cmap(
         bufwrite16b(format4, 0 as u16);
     }
     let mut format12: *mut Buffer = otfcc_build_cmap_format12(cmap);
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, (n_tables as ::core::ffi::c_int) as u32)]);
-    bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 3 as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format4))]);
+    let mut root: *mut BkBlock = bk_new_block(&[
+        bk_int(BkCellType::B16, 0 as u32),
+        bk_int(BkCellType::B16, (n_tables as ::core::ffi::c_int) as u32),
+    ]);
+    bk_push(
+        root,
+        &[
+            bk_int(BkCellType::B16, 0 as u32),
+            bk_int(BkCellType::B16, 3 as u32),
+            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format4)),
+        ],
+    );
     if requires_format12 {
-        bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 4 as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format12))]);
+        bk_push(
+            root,
+            &[
+                bk_int(BkCellType::B16, 0 as u32),
+                bk_int(BkCellType::B16, 4 as u32),
+                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format12)),
+            ],
+        );
     }
     if has_uvs {
         let mut format14: *mut Buffer = otfcc_build_cmap_format14(cmap);
-        bk_push(root, &[bk_int(BkCellType::B16, 0 as u32), bk_int(BkCellType::B16, 5 as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer(format14))]);
+        bk_push(
+            root,
+            &[
+                bk_int(BkCellType::B16, 0 as u32),
+                bk_int(BkCellType::B16, 5 as u32),
+                bk_ptr(BkCellType::P32, bk_new_block_from_buffer(format14)),
+            ],
+        );
     }
-    bk_push(root, &[bk_int(BkCellType::B16, 3 as u32), bk_int(BkCellType::B16, 1 as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format4))]);
+    bk_push(
+        root,
+        &[
+            bk_int(BkCellType::B16, 3 as u32),
+            bk_int(BkCellType::B16, 1 as u32),
+            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format4)),
+        ],
+    );
     if requires_format12 {
-        bk_push(root, &[bk_int(BkCellType::B16, 3 as u32), bk_int(BkCellType::B16, 10 as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format12))]);
+        bk_push(
+            root,
+            &[
+                bk_int(BkCellType::B16, 3 as u32),
+                bk_int(BkCellType::B16, 10 as u32),
+                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format12)),
+            ],
+        );
     }
     buffree(format4);
     buffree(format12);
@@ -1280,7 +1379,13 @@ mod cmap_read_tests {
 
         let mut cmap = empty_cmap();
         unsafe { read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut() as *mut CmapTable) };
-        let g = cmap.uvs.get(&CmapUvsKey { unicode: 0x41, selector: 0xFE00 }).unwrap();
+        let g = cmap
+            .uvs
+            .get(&CmapUvsKey {
+                unicode: 0x41,
+                selector: 0xFE00,
+            })
+            .unwrap();
         assert_eq!(g.index, 9);
     }
 

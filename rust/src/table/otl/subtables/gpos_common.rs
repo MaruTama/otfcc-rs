@@ -1,21 +1,24 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+use crate::support::handle::{
+    GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
+};
 use crate::support::parsed_json::{
     ParsedValue, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
-    json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_ptr,
-    json_type_of,
+    json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_ptr, json_type_of,
 };
-use crate::table::otl::coverage::{Coverage};
-use crate::support::handle::{handle_from_name, otfcc_handle_dup, Handle, GlyphHandle, HandleState};
+use crate::table::otl::coverage::Coverage;
 
-use crate::support::binio::{pos_to_u16, read_16u, read_16s};
+use crate::support::binio::{pos_to_u16, read_16s, read_16u};
 
-use crate::support::buffer::{Buffer};
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};
+use crate::support::buffer::Buffer;
+use crate::support::buffer::bufwrite16b;
+use crate::support::built_json::{
+    BuiltValue, json_new_position, json_null_new, json_object_new, json_object_push, preserialize,
+};
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos};
-use crate::vendor::json::{JsonType};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_push};
 use crate::table::otl::{Anchor, MarkArray, MarkRecord, PositionValue};
-use crate::support::buffer::{bufwrite16b};
-use crate::support::built_json::{BuiltValue, json_null_new, json_object_new, json_object_push, json_new_position, preserialize};
+use crate::vendor::json::JsonType;
 // `MarkRecord` holds only a `GlyphHandle` plus a plain `Anchor`, so dropping
 // the `Vec` runs `Handle`'s own `Drop` for every entry -- no per-element
 // dtor needed anymore.
@@ -47,29 +50,17 @@ pub unsafe fn otl_read_mark_array(
                     .offset(2 as ::core::ffi::c_int as isize) as *const u8,
             );
             if delta != 0 {
-                (*array).push(
-                    MarkRecord {
-                        glyph: otfcc_handle_dup(
-                            (&(*cov))[j as usize].clone() as Handle,
-                        ) as GlyphHandle,
-                        mark_class: mark_class,
-                        anchor: otl_read_anchor(
-                            data,
-                            table_length,
-                            offset.wrapping_add(delta as u32),
-                        ),
-                    },
-                );
+                (*array).push(MarkRecord {
+                    glyph: otfcc_handle_dup((&(*cov))[j as usize].clone() as Handle) as GlyphHandle,
+                    mark_class: mark_class,
+                    anchor: otl_read_anchor(data, table_length, offset.wrapping_add(delta as u32)),
+                });
             } else {
-                (*array).push(
-                    MarkRecord {
-                        glyph: otfcc_handle_dup(
-                            (&(*cov))[j as usize].clone() as Handle,
-                        ) as GlyphHandle,
-                        mark_class: mark_class,
-                        anchor: otl_anchor_absent(),
-                    },
-                );
+                (*array).push(MarkRecord {
+                    glyph: otfcc_handle_dup((&(*cov))[j as usize].clone() as Handle) as GlyphHandle,
+                    mark_class: mark_class,
+                    anchor: otl_anchor_absent(),
+                });
             }
             j = j.wrapping_add(1);
         }
@@ -99,9 +90,7 @@ pub unsafe fn otl_parse_mark_array(
         mark.glyph = handle_from_name(Some(json_obj_key_bytes_at(_marks, j as u32))) as GlyphHandle;
         mark.mark_class = 0 as GlyphClass;
         mark.anchor = otl_anchor_absent();
-        if anchor_record.is_null()
-            || json_type_of(anchor_record) != JsonType::Object
-        {
+        if anchor_record.is_null() || json_type_of(anchor_record) != JsonType::Object {
             (*array).push(mark);
         } else {
             let mut _class_name: *const ParsedValue = json_obj_get_type(
@@ -124,7 +113,7 @@ pub unsafe fn otl_parse_mark_array(
                 // equally provisional, later replaced by a
                 // `HASH_SORT`-driven renumbering pass.
                 let class_name: Vec<u8> = ::core::ffi::CStr::from_ptr(
-                    json_str_ptr(_class_name) as *const ::core::ffi::c_char,
+                    json_str_ptr(_class_name) as *const ::core::ffi::c_char
                 )
                 .to_bytes()
                 .to_vec();
@@ -171,7 +160,7 @@ pub unsafe fn otl_parse_mark_array(
                 JsonType::String,
             );
             let class_name_0: Vec<u8> = ::core::ffi::CStr::from_ptr(
-                json_str_ptr(_class_name_0) as *const ::core::ffi::c_char,
+                json_str_ptr(_class_name_0) as *const ::core::ffi::c_char
             )
             .to_bytes()
             .to_vec();
@@ -243,9 +232,7 @@ pub unsafe fn otl_parse_anchor(mut v: *const ParsedValue) -> Anchor {
         x: 0 as ::core::ffi::c_int as Pos,
         y: 0 as ::core::ffi::c_int as Pos,
     };
-    if v.is_null()
-        || json_type_of(v) != JsonType::Object
-    {
+    if v.is_null() || json_type_of(v) != JsonType::Object {
         return anchor;
     }
     anchor.present = true;
@@ -265,7 +252,11 @@ pub unsafe fn bk_from_anchor(mut a: Anchor) -> *mut BkBlock {
     if !a.present {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    return bk_new_block(&[bk_int(BkCellType::B16, 1 as u32), bk_int(BkCellType::B16, (a.x as i16 as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, (a.y as i16 as ::core::ffi::c_int) as u32)]);
+    return bk_new_block(&[
+        bk_int(BkCellType::B16, 1 as u32),
+        bk_int(BkCellType::B16, (a.x as i16 as ::core::ffi::c_int) as u32),
+        bk_int(BkCellType::B16, (a.y as i16 as ::core::ffi::c_int) as u32),
+    ]);
 }
 pub static FORMAT_DX: u8 = 1 as u8;
 pub static FORMAT_DY: u8 = 2 as u8;
@@ -1639,15 +1630,12 @@ pub unsafe fn gpos_parse_value(mut pos: *const ParsedValue) -> PositionValue {
         d_width: 0.0f64,
         d_height: 0.0f64,
     };
-    if pos.is_null()
-        || json_type_of(pos) != JsonType::Object
-    {
+    if pos.is_null() || json_type_of(pos) != JsonType::Object {
         return v;
     }
     v.dx = json_obj_getnum(pos, b"dx\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
     v.dy = json_obj_getnum(pos, b"dy\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
-    v.d_width =
-        json_obj_getnum(pos, b"dWidth\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
+    v.d_width = json_obj_getnum(pos, b"dWidth\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
     v.d_height =
         json_obj_getnum(pos, b"dHeight\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
     return v;
@@ -1671,11 +1659,7 @@ pub unsafe fn required_position_format(mut v: PositionValue) -> u8 {
         0 as ::core::ffi::c_int
     })) as u8;
 }
-pub unsafe fn write_gpos_value(
-    mut buf: *mut Buffer,
-    mut v: PositionValue,
-    mut format: u16,
-) {
+pub unsafe fn write_gpos_value(mut buf: *mut Buffer, mut v: PositionValue, mut format: u16) {
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
         bufwrite16b(buf, pos_to_u16(v.dx));
     }
@@ -1689,22 +1673,43 @@ pub unsafe fn write_gpos_value(
         bufwrite16b(buf, pos_to_u16(v.d_height));
     }
 }
-pub unsafe fn bk_gpos_value(
-    mut v: PositionValue,
-    mut format: u16,
-) -> *mut BkBlock {
+pub unsafe fn bk_gpos_value(mut v: PositionValue, mut format: u16) -> *mut BkBlock {
     let mut b: *mut BkBlock = bk_new_block(&[]);
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
-        bk_push(b, &[bk_int(BkCellType::B16, (v.dx as i16 as ::core::ffi::c_int) as u32)]);
+        bk_push(
+            b,
+            &[bk_int(
+                BkCellType::B16,
+                (v.dx as i16 as ::core::ffi::c_int) as u32,
+            )],
+        );
     }
     if format as ::core::ffi::c_int & FORMAT_DY as ::core::ffi::c_int != 0 {
-        bk_push(b, &[bk_int(BkCellType::B16, (v.dy as i16 as ::core::ffi::c_int) as u32)]);
+        bk_push(
+            b,
+            &[bk_int(
+                BkCellType::B16,
+                (v.dy as i16 as ::core::ffi::c_int) as u32,
+            )],
+        );
     }
     if format as ::core::ffi::c_int & FORMAT_DWIDTH as ::core::ffi::c_int != 0 {
-        bk_push(b, &[bk_int(BkCellType::B16, (v.d_width as i16 as ::core::ffi::c_int) as u32)]);
+        bk_push(
+            b,
+            &[bk_int(
+                BkCellType::B16,
+                (v.d_width as i16 as ::core::ffi::c_int) as u32,
+            )],
+        );
     }
     if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
-        bk_push(b, &[bk_int(BkCellType::B16, (v.d_height as i16 as ::core::ffi::c_int) as u32)]);
+        bk_push(
+            b,
+            &[bk_int(
+                BkCellType::B16,
+                (v.d_height as i16 as ::core::ffi::c_int) as u32,
+            )],
+        );
     }
     return b;
 }

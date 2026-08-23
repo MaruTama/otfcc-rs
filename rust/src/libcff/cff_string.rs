@@ -1,10 +1,11 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+#![allow(unsafe_op_in_unsafe_fn)]
+// Stage 6 removes this; see rust/README.md
 // `sdsget_cff_sid` now returns `Option<Vec<u8>>`, its only callers direct
 // Rust call sites (never a real FFI boundary) -- goes away with the
 // vtable/extern "C" cleanup, same as every other instance of this allow.
 #![allow(improper_ctypes_definitions)]
-use crate::support::primitives::{Arity};
-use crate::libcff::cff_index::{CffIndex};
+use crate::libcff::cff_index::CffIndex;
+use crate::support::primitives::Arity;
 
 static STRING_STANDARD: [&::core::ffi::CStr; 391] = [
     c".notdef",
@@ -405,20 +406,18 @@ pub unsafe fn sdsget_cff_sid(mut idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
     } else if str.count > 0 as Arity
         && ((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as Arity) < str.count
     {
-        let ptr = str.data
+        let ptr = str
+            .data
             .as_ptr()
             .offset(
-                str.offset
-                    [(idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as usize] as isize,
+                str.offset[(idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as usize]
+                    as isize,
             )
             .offset(-(1 as ::core::ffi::c_int as isize)) as *const u8;
-        let len = (str
-            .offset
-            [(idx as ::core::ffi::c_int - 390 as ::core::ffi::c_int) as usize])
-        .wrapping_sub(
-            str.offset
-                [(idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as usize],
-        ) as usize;
+        let len = (str.offset[(idx as ::core::ffi::c_int - 390 as ::core::ffi::c_int) as usize])
+            .wrapping_sub(
+                str.offset[(idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as usize],
+            ) as usize;
         return Some(::core::slice::from_raw_parts(ptr, len).to_vec());
     } else {
         return None;

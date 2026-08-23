@@ -1,15 +1,21 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback};
-use crate::support::font_reader::{FontReader, ReadError};
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_finish, logger_log_sds, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{F16Dot16};
-use crate::vendor::json::{JsonType};
-use crate::font::caryll_sfnt::{Packet};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
+use crate::support::built_json::{
+    BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
+};
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
+};
+use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
-use crate::support::built_json::{BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push};
+use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone)]
 #[repr(C)]
@@ -77,11 +83,11 @@ fn parse_vhea(data: &[u8]) -> Result<VheaTable, ReadError> {
         num_of_long_ver_metrics,
     })
 }
-pub unsafe fn otfcc_read_vhea(
-    packet: &Packet,
-    options: &Options,
-) -> Option<Box<VheaTable>> {
-    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VHEA)?;
+pub unsafe fn otfcc_read_vhea(packet: &Packet, options: &Options) -> Option<Box<VheaTable>> {
+    let table = packet
+        .pieces
+        .iter()
+        .find(|p| p.tag == crate::tag::TAG_VHEA)?;
     match parse_vhea(&table.data) {
         Ok(vhea) => Some(Box::new(vhea)),
         Err(_) => {
@@ -252,17 +258,13 @@ pub unsafe fn otfcc_parse_vhea(
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as i16;
             ___loggedstep_v = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
     return vhea_box;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_vhea(
-    vhea: Option<&VheaTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_vhea(vhea: Option<&VheaTable>) -> *mut Buffer {
     let vhea = match vhea {
         Some(v) => v as *const VheaTable,
         None => return ::core::ptr::null_mut::<Buffer>(),

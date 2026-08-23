@@ -1,16 +1,20 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, strncmp};
 
-use crate::logger::{LoggerType, LOG_VL_PROGRESS, logger_log_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
+use crate::logger::{LOG_VL_PROGRESS, LoggerType, logger_log_sds};
+use crate::support::buffer::Buffer;
+use crate::support::options::Options;
 
 use crate::libcff::CffCharstringOperator;
-use crate::libcff::{OP_CALLGSUBR, OP_CALLSUBR, OP_ENDCHAR, OP_RETURN, TYPE2_MAX_SUBRS, TYPE2_SUBR_NESTING};
 use crate::libcff::cff_index::CffIndex;
-use crate::libcff::charstring_il::{CffCharstringIl};
-use crate::libcff::cff_index::{new_index_by_callback, build_index, cff_index_free};
-use crate::libcff::cff_writer::{cff_merge_cs2_int, cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special};
+use crate::libcff::cff_index::{build_index, cff_index_free, new_index_by_callback};
+use crate::libcff::cff_writer::{
+    cff_merge_cs2_int, cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special,
+};
+use crate::libcff::charstring_il::CffCharstringIl;
+use crate::libcff::{
+    OP_CALLGSUBR, OP_CALLSUBR, OP_ENDCHAR, OP_RETURN, TYPE2_MAX_SUBRS, TYPE2_SUBR_NESTING,
+};
 use crate::support::buffer::{buffree, buflen, bufnew, bufwrite_buf};
 
 /// Index into `CffSubrGraph.nodes`. This (and `RuleId`) replaces the
@@ -323,11 +327,17 @@ unsafe fn unlink_node(g: &mut CffSubrGraph, a: NodeId) {
     // unlinked -- some *other* node may have since claimed this key's
     // slot, and that entry must be left alone.
     let doublet_key = get_doublet_hash_key(g, a);
-    if g.diagram_index.get(&doublet_key).is_some_and(|di| di.start == a) {
+    if g.diagram_index
+        .get(&doublet_key)
+        .is_some_and(|di| di.start == a)
+    {
         g.diagram_index.remove(&doublet_key);
     }
     let singlet_key = get_singlet_hash_key(g, a);
-    if g.diagram_index.get(&singlet_key).is_some_and(|di| di.start == a) {
+    if g.diagram_index
+        .get(&singlet_key)
+        .is_some_and(|di| di.start == a)
+    {
         g.diagram_index.remove(&singlet_key);
     }
 }
@@ -343,7 +353,8 @@ unsafe fn add_doublet(g: &mut CffSubrGraph, n: Option<NodeId>) {
         return;
     }
     let key = get_doublet_hash_key(g, n);
-    g.diagram_index.insert(key, CffSubrDiagramIndexEntry { arity: 2, start: n });
+    g.diagram_index
+        .insert(key, CffSubrDiagramIndexEntry { arity: 2, start: n });
 }
 unsafe fn add_singlet(g: &mut CffSubrGraph, n: Option<NodeId>) {
     let Some(n) = n else { return };
@@ -352,7 +363,8 @@ unsafe fn add_singlet(g: &mut CffSubrGraph, n: Option<NodeId>) {
         return;
     }
     let key = get_singlet_hash_key(g, n);
-    g.diagram_index.insert(key, CffSubrDiagramIndexEntry { arity: 1, start: n });
+    g.diagram_index
+        .insert(key, CffSubrDiagramIndexEntry { arity: 1, start: n });
 }
 unsafe fn ident_node(g: &CffSubrGraph, m: NodeId, n: NodeId) -> bool {
     let mn = g.node(m);
@@ -532,7 +544,11 @@ unsafe fn check_doublet_match(g: &mut CffSubrGraph, n: NodeId) -> bool {
         std::collections::hash_map::Entry::Occupied(o) => {
             let di = *o.get();
             let start_next = g.node(di.start).next.unwrap();
-            if di.arity == 2 && di.start != n && !g.node(di.start).guard && !g.node(start_next).guard {
+            if di.arity == 2
+                && di.start != n
+                && !g.node(di.start).guard
+                && !g.node(start_next).guard
+            {
                 process_match_doublet(g, di.start, n);
                 true
             } else {
@@ -575,10 +591,7 @@ unsafe fn append_node_to_graph(g: &mut CffSubrGraph, n: NodeId) {
         }
     }
 }
-pub unsafe fn cff_insert_il_to_graph(
-    g: *mut CffSubrGraph,
-    il: *mut CffCharstringIl,
-) {
+pub unsafe fn cff_insert_il_to_graph(g: *mut CffSubrGraph, il: *mut CffCharstringIl) {
     let g = &mut *g;
     let mut blob: *mut Buffer = bufnew();
     let mut flush: bool = false;
@@ -603,9 +616,7 @@ pub unsafe fn cff_insert_il_to_graph(
                     blob,
                     CffCharstringOperator((*(*il).instr.as_mut_ptr().offset(j as isize)).i()),
                 );
-                if (*(*il).instr.as_mut_ptr().offset(j as isize)).i()
-                    == OP_ENDCHAR.0
-                {
+                if (*(*il).instr.as_mut_ptr().offset(j as isize)).i() == OP_ENDCHAR.0 {
                     last = true;
                 }
                 flush = true;
@@ -742,7 +753,10 @@ unsafe fn serialize_node_to_buffer(
             let ru = g.rule(r);
             (ru.numbered, ru.number, ru.height)
         };
-        if numbered && number < max_l_subrs.wrapping_add(max_g_subrs) && r_height < TYPE2_SUBR_NESTING {
+        if numbered
+            && number < max_l_subrs.wrapping_add(max_g_subrs)
+            && r_height < TYPE2_SUBR_NESTING
+        {
             let target: *mut Buffer;
             if number < max_l_subrs {
                 let stacknum: i32 =
@@ -765,7 +779,15 @@ unsafe fn serialize_node_to_buffer(
                 let mut e = g.node(guard).next.unwrap();
                 while e != guard {
                     let next = g.node(e).next.unwrap();
-                    serialize_node_to_buffer(g, e, target, gsubrs, max_g_subrs, lsubrs, max_l_subrs);
+                    serialize_node_to_buffer(
+                        g,
+                        e,
+                        target,
+                        gsubrs,
+                        max_g_subrs,
+                        lsubrs,
+                        max_l_subrs,
+                    );
                     e = next;
                 }
                 if !ends_with_end_char(g, r) {
@@ -785,10 +807,7 @@ unsafe fn serialize_node_to_buffer(
         bufwrite_buf(buf, terminal);
     };
 }
-unsafe extern "C" fn from_array(
-    mut _context: *mut ::core::ffi::c_void,
-    mut j: u32,
-) -> *mut Buffer {
+unsafe extern "C" fn from_array(mut _context: *mut ::core::ffi::c_void, mut j: u32) -> *mut Buffer {
     let mut context: *mut Buffer = _context as *mut Buffer;
     let mut blob: *mut Buffer = bufnew();
     bufwrite_buf(blob, context.offset(j as isize));
@@ -809,7 +828,11 @@ pub unsafe fn cff_il_graph_to_buffers(
         &mut *options.logger.borrow_mut(),
         LOG_VL_PROGRESS,
         LoggerType::Progress,
-        crate::bytesbuild!(b"[libcff] Total ", max_subroutines, b" subroutines extracted."),
+        crate::bytesbuild!(
+            b"[libcff] Total ",
+            max_subroutines,
+            b" subroutines extracted."
+        ),
     );
     let mut max_l_subrs: u32 = max_subroutines;
     let mut max_g_subrs: u32 = 0 as u32;
@@ -831,7 +854,12 @@ pub unsafe fn cff_il_graph_to_buffers(
     // itself produces (`__caryll_allocate_clean` zeroes, then `bufnew` only
     // re-asserts `free`/`size` are 0), so a `vec![zero_buffer; n]` starts
     // every slot in the same state a freshly-`bufnew`'d buffer would.
-    let zero_buffer = Buffer { cursor: 0, size: 0, free: 0, data: ::core::ptr::null_mut() };
+    let zero_buffer = Buffer {
+        cursor: 0,
+        size: 0,
+        free: 0,
+        data: ::core::ptr::null_mut(),
+    };
     let mut char_strings: Vec<Buffer> =
         vec![zero_buffer; g.total_char_strings.wrapping_add(1 as u32) as usize];
     let mut lsubrs: Vec<Buffer> = vec![zero_buffer; max_l_subrs.wrapping_add(1 as u32) as usize];
@@ -863,26 +891,17 @@ pub unsafe fn cff_il_graph_to_buffers(
     let mut is: *mut CffIndex = new_index_by_callback(
         char_strings.as_mut_ptr() as *mut ::core::ffi::c_void,
         g.total_char_strings,
-        Some(
-            from_array
-                as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
-        ),
+        Some(from_array as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
     );
     let mut igs: *mut CffIndex = new_index_by_callback(
         gsubrs.as_mut_ptr() as *mut ::core::ffi::c_void,
         max_g_subrs,
-        Some(
-            from_array
-                as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
-        ),
+        Some(from_array as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
     );
     let mut ils: *mut CffIndex = new_index_by_callback(
         lsubrs.as_mut_ptr() as *mut ::core::ffi::c_void,
         max_l_subrs,
-        Some(
-            from_array
-                as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
-        ),
+        Some(from_array as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
     );
     for entry in char_strings.iter_mut().take(g.total_char_strings as usize) {
         free(entry.data as *mut ::core::ffi::c_void);
@@ -916,8 +935,8 @@ pub unsafe fn cff_il_graph_to_buffers(
 #[cfg(test)]
 mod subr_graph_tests {
     use super::*;
-    use crate::libcff::charstring_il::{CffCharstringIl, il_push_op, il_push_operand};
     use crate::libcff::cff_index::{cff_index_create, extract_index};
+    use crate::libcff::charstring_il::{CffCharstringIl, il_push_op, il_push_operand};
     use crate::libcff::{OP_HLINETO, OP_RMOVETO};
 
     unsafe fn simple_glyph_il(x: f64, y: f64) -> CffCharstringIl {
@@ -963,13 +982,7 @@ mod subr_graph_tests {
         let mut s: *mut Buffer = ::core::ptr::null_mut();
         let mut gs: *mut Buffer = ::core::ptr::null_mut();
         let mut ls: *mut Buffer = ::core::ptr::null_mut();
-        cff_il_graph_to_buffers(
-            &raw mut g,
-            &raw mut s,
-            &raw mut gs,
-            &raw mut ls,
-            &options,
-        );
+        cff_il_graph_to_buffers(&raw mut g, &raw mut s, &raw mut gs, &raw mut ls, &options);
         cff_subr_graph_dispose(&raw mut g);
         (s, gs, ls)
     }
@@ -988,7 +1001,10 @@ mod subr_graph_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri")]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri"
+    )]
     fn one_glyph_with_subroutinize_off_produces_one_char_string_and_no_subroutines() {
         unsafe {
             let il = simple_glyph_il(10.0, 20.0);
@@ -1003,7 +1019,10 @@ mod subr_graph_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri")]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri"
+    )]
     fn two_identical_glyphs_with_subroutinize_on_extract_a_shared_subroutine() {
         unsafe {
             let il1 = simple_glyph_il(10.0, 20.0);
@@ -1023,7 +1042,10 @@ mod subr_graph_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri")]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri"
+    )]
     fn two_identical_glyphs_subroutinized_have_a_smaller_char_strings_index() {
         // The *total* size (char strings + subr indexes) isn't guaranteed
         // to shrink for an example this tiny -- the subr INDEX header and
@@ -1052,7 +1074,10 @@ mod subr_graph_tests {
     }
 
     #[test]
-    #[cfg_attr(miri, ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri")]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri"
+    )]
     fn two_different_glyphs_with_subroutinize_on_extract_no_subroutine() {
         unsafe {
             let il1 = simple_glyph_il(10.0, 20.0);

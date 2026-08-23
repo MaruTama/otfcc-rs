@@ -1,23 +1,31 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-
-
 use crate::logger::{logger_finish, logger_start_sds};
-use crate::support::options::{Options};
-use crate::support::primitives::{TableId};
-use crate::table::otl::{Feature, LanguageSystem, Lookup, LookupType, Subtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable};
-use crate::table::otl::constants::{LOOKUP_FLAGS_LABELS};
-use crate::table::otl::subtables::chaining::dump::{otl_dump_chaining};
-use crate::table::otl::subtables::gpos_cursive::{otl_gpos_dump_cursive};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{otl_gpos_dump_mark_to_ligature};
-use crate::table::otl::subtables::gpos_mark_to_single::{otl_gpos_dump_mark_to_single};
-use crate::table::otl::subtables::gpos_pair::{otl_gpos_dump_pair};
-use crate::table::otl::subtables::gpos_single::{otl_gpos_dump_single};
-use crate::table::otl::subtables::gsub_ligature::{otl_gsub_dump_ligature};
-use crate::table::otl::subtables::gsub_multi::{otl_gsub_dump_multi};
-use crate::table::otl::subtables::gsub_reverse::{otl_gsub_dump_reverse};
-use crate::table::otl::subtables::gsub_single::{otl_gsub_dump_single};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key, json_string_new, json_string_new_from_bytes, otfcc_dump_flags, preserialize};
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
+    json_object_push, json_object_push_bytes_key, json_string_new, json_string_new_from_bytes,
+    otfcc_dump_flags, preserialize,
+};
+use crate::support::options::Options;
+use crate::support::primitives::TableId;
+use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
+use crate::table::otl::subtables::chaining::dump::otl_dump_chaining;
+use crate::table::otl::subtables::gpos_cursive::otl_gpos_dump_cursive;
+use crate::table::otl::subtables::gpos_mark_to_ligature::otl_gpos_dump_mark_to_ligature;
+use crate::table::otl::subtables::gpos_mark_to_single::otl_gpos_dump_mark_to_single;
+use crate::table::otl::subtables::gpos_pair::otl_gpos_dump_pair;
+use crate::table::otl::subtables::gpos_single::otl_gpos_dump_single;
+use crate::table::otl::subtables::gsub_ligature::otl_gsub_dump_ligature;
+use crate::table::otl::subtables::gsub_multi::otl_gsub_dump_multi;
+use crate::table::otl::subtables::gsub_reverse::otl_gsub_dump_reverse;
+use crate::table::otl::subtables::gsub_single::otl_gsub_dump_single;
+use crate::table::otl::{
+    Feature, LanguageSystem, Lookup, LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE,
+    OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK,
+    OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING,
+    OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE,
+    OtlTable, Subtable,
+};
 unsafe fn _declare_lookup_dumper(
     mut llt: LookupType,
     mut dumper: Option<unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue>,
@@ -33,10 +41,7 @@ unsafe fn _declare_lookup_dumper(
         json_object_push(
             dump,
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags(
-                (*lookup).flags as ::core::ffi::c_int,
-                &LOOKUP_FLAGS_LABELS,
-            ),
+            otfcc_dump_flags((*lookup).flags as ::core::ffi::c_int, &LOOKUP_FLAGS_LABELS),
         );
         if (*lookup).flags as ::core::ffi::c_int >> 8 as ::core::ffi::c_int != 0 {
             json_object_push(
@@ -53,9 +58,7 @@ unsafe fn _declare_lookup_dumper(
             if let Some(sub) = &(&(*lookup).subtables)[j as usize] {
                 json_array_push(
                     subtables,
-                    dumper.expect("non-null function pointer")(
-                        sub.as_ref() as *const Subtable,
-                    ),
+                    dumper.expect("non-null function pointer")(sub.as_ref() as *const Subtable),
                 );
             }
             j = j.wrapping_add(1);
@@ -88,9 +91,7 @@ unsafe fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut BuiltValue) {
     );
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_LIGATURE,
-        Some(
-            otl_gsub_dump_ligature as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue,
-        ),
+        Some(otl_gsub_dump_ligature as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
@@ -172,10 +173,7 @@ pub unsafe fn otfcc_dump_otl(
     {
         return;
     }
-    logger_start_sds(
-        &mut *options.logger.borrow_mut(),
-        crate::bytesbuild!(tag),
-    );
+    logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut otl: *mut BuiltValue = json_object_new(3 as usize);
@@ -222,9 +220,7 @@ pub unsafe fn otfcc_dump_otl(
                 languages,
             );
             ___loggedstep_v_0 = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
@@ -242,16 +238,14 @@ pub unsafe fn otfcc_dump_otl(
                     if !(&(*feature).lookups)[k_0 as usize].is_null() {
                         json_array_push(
                             _feature,
-                            json_string_new_from_bytes(&(*(&(*feature).lookups)[k_0 as usize]).name),
+                            json_string_new_from_bytes(
+                                &(*(&(*feature).lookups)[k_0 as usize]).name,
+                            ),
                         );
                     }
                     k_0 = k_0.wrapping_add(1);
                 }
-                json_object_push_bytes_key(
-                    features_0,
-                    &(*feature).name,
-                    preserialize(_feature),
-                );
+                json_object_push_bytes_key(features_0, &(*feature).name, preserialize(_feature));
                 j_0 = j_0.wrapping_add(1);
             }
             json_object_push(
@@ -260,9 +254,7 @@ pub unsafe fn otfcc_dump_otl(
                 features_0,
             );
             ___loggedstep_v_1 = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
@@ -277,15 +269,8 @@ pub unsafe fn otfcc_dump_otl(
                 let mut _lookup: *mut BuiltValue = json_object_new(5 as usize);
                 let lookup: *const Lookup = &raw const *(&(*table).lookups)[j_1 as usize];
                 _dump_lookup(lookup, _lookup);
-                json_object_push_bytes_key(
-                    lookups,
-                    &(*lookup).name,
-                    _lookup,
-                );
-                json_array_push(
-                    lookup_order,
-                    json_string_new_from_bytes(&(*lookup).name),
-                );
+                json_object_push_bytes_key(lookups, &(*lookup).name, _lookup);
+                json_array_push(lookup_order, json_string_new_from_bytes(&(*lookup).name));
                 j_1 = j_1.wrapping_add(1);
             }
             json_object_push(
@@ -299,9 +284,7 @@ pub unsafe fn otfcc_dump_otl(
                 lookup_order,
             );
             ___loggedstep_v_2 = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
         json_object_push(root, tag, otl);
         ___loggedstep_v = false;

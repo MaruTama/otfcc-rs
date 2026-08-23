@@ -1,27 +1,24 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use std::collections::btree_map::Entry;
 use std::collections::BTreeMap;
+use std::collections::btree_map::Entry;
 
-use crate::support::handle::{Handle, HandleState, GlyphHandle};
+use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::support::options::{Options};
+use crate::font::caryll_font::Font;
+use crate::support::options::Options;
 use crate::support::primitives::{GlyphClass, GlyphId};
-use crate::font::caryll_font::{Font};
 
+use crate::table::otl::{
+    Anchor, BaseArray, BaseRecord, GposMarkToLigatureSubtable, GposMarkToSingleSubtable,
+    LigatureArray, LigatureBaseRecord, MarkArray, MarkRecord, OtlTable, Subtable,
+};
 
-
-
-use crate::table::otl::{Anchor, BaseArray, BaseRecord, LigatureArray, LigatureBaseRecord, MarkArray, MarkRecord, Subtable, GposMarkToLigatureSubtable, GposMarkToSingleSubtable, OtlTable};
-
-
-
-
-use crate::support::glyph_order::{otfcc_gord_consolidate_handle, GlyphOrder};
-use crate::table::otl::subtables::gpos_common::{dispose_mark_array};
-use crate::table::otl::subtables::gpos_mark_to_ligature::{dispose_lig_array};
-use crate::table::otl::subtables::gpos_mark_to_single::{dispose_base_array};
+use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
+use crate::table::otl::subtables::gpos_common::dispose_mark_array;
+use crate::table::otl::subtables::gpos_mark_to_ligature::dispose_lig_array;
+use crate::table::otl::subtables::gpos_mark_to_single::dispose_base_array;
 
 struct MarkHashValue {
     name: Vec<u8>,
@@ -48,14 +45,18 @@ unsafe fn consolidate_mark_array(
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*mark_array).len() {
         if !otfcc_gord_consolidate_handle(
-            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
+            (*font)
+                .glyph_order
+                .as_deref_mut()
+                .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*mark_array))[k as usize].glyph,
         ) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
+                crate::bytesbuild!(
+                    b"[Consolidate] Ignored unknown glyph name ",
                     &(&(*mark_array))[k as usize].glyph.name,
                     b".",
                 ),
@@ -95,17 +96,15 @@ unsafe fn consolidate_mark_array(
     // `Vec<u8>` a `Handle` wants, so it moves straight in -- no sds round
     // trip, no `sdsfree` afterward.
     for (gid, entry) in h.into_iter() {
-        (*mark_array).push(
-            MarkRecord {
-                glyph: Handle {
-                    state: HandleState::Consolidated,
-                    index: gid,
-                    name: entry.name,
-                } as GlyphHandle,
-                mark_class: entry.mark_class,
-                anchor: entry.anchor,
-            },
-        );
+        (*mark_array).push(MarkRecord {
+            glyph: Handle {
+                state: HandleState::Consolidated,
+                index: gid,
+                name: entry.name,
+            } as GlyphHandle,
+            mark_class: entry.mark_class,
+            anchor: entry.anchor,
+        });
     }
 }
 unsafe fn consolidate_base_array(
@@ -118,14 +117,18 @@ unsafe fn consolidate_base_array(
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*base_array).len() {
         if !otfcc_gord_consolidate_handle(
-            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
+            (*font)
+                .glyph_order
+                .as_deref_mut()
+                .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*base_array))[k as usize].glyph,
         ) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
+                crate::bytesbuild!(
+                    b"[Consolidate] Ignored unknown glyph name ",
                     &(&(*base_array))[k as usize].glyph.name,
                     b".",
                 ),
@@ -144,7 +147,8 @@ unsafe fn consolidate_base_array(
                         &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::bytesbuild!(b"[Consolidate] Ignored anchor double-definition for /",
+                        crate::bytesbuild!(
+                            b"[Consolidate] Ignored anchor double-definition for /",
                             &(&(*base_array))[k as usize].glyph.name,
                             b".",
                         ),
@@ -156,16 +160,14 @@ unsafe fn consolidate_base_array(
     }
     dispose_base_array(base_array);
     for (gid, entry) in h.into_iter() {
-        (*base_array).push(
-            BaseRecord {
-                glyph: Handle {
-                    state: HandleState::Consolidated,
-                    index: gid,
-                    name: entry.name,
-                } as GlyphHandle,
-                anchors: entry.anchors,
-            },
-        );
+        (*base_array).push(BaseRecord {
+            glyph: Handle {
+                state: HandleState::Consolidated,
+                index: gid,
+                name: entry.name,
+            } as GlyphHandle,
+            anchors: entry.anchors,
+        });
     }
 }
 unsafe fn consolidate_lig_array(
@@ -178,14 +180,18 @@ unsafe fn consolidate_lig_array(
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*lig_array).len() {
         if !otfcc_gord_consolidate_handle(
-            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
+            (*font)
+                .glyph_order
+                .as_deref_mut()
+                .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*lig_array))[k as usize].glyph,
         ) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ",
+                crate::bytesbuild!(
+                    b"[Consolidate] Ignored unknown glyph name ",
                     &(&(*lig_array))[k as usize].glyph.name,
                     b".",
                 ),
@@ -198,14 +204,19 @@ unsafe fn consolidate_lig_array(
                     let component_count: GlyphId = (&(*lig_array))[k as usize].component_count;
                     let anchors: Vec<Vec<Anchor>> =
                         ::core::mem::take(&mut (&mut (*lig_array))[k as usize].anchors);
-                    v.insert(LigHashValue { name, component_count, anchors });
+                    v.insert(LigHashValue {
+                        name,
+                        component_count,
+                        anchors,
+                    });
                 }
                 Entry::Occupied(_) => {
                     logger_log_sds(
                         &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
-                        crate::bytesbuild!(b"[Consolidate] Ignored anchor double-definition for /",
+                        crate::bytesbuild!(
+                            b"[Consolidate] Ignored anchor double-definition for /",
                             &(&(*lig_array))[k as usize].glyph.name,
                             b".",
                         ),
@@ -217,17 +228,15 @@ unsafe fn consolidate_lig_array(
     }
     dispose_lig_array(lig_array);
     for (gid, entry) in h.into_iter() {
-        (*lig_array).push(
-            LigatureBaseRecord {
-                glyph: Handle {
-                    state: HandleState::Consolidated,
-                    index: gid,
-                    name: entry.name,
-                } as GlyphHandle,
-                component_count: entry.component_count,
-                anchors: entry.anchors,
-            },
-        );
+        (*lig_array).push(LigatureBaseRecord {
+            glyph: Handle {
+                state: HandleState::Consolidated,
+                index: gid,
+                name: entry.name,
+            } as GlyphHandle,
+            component_count: entry.component_count,
+            anchors: entry.anchors,
+        });
     }
 }
 pub unsafe extern "C" fn consolidate_mark_to_single(
@@ -236,7 +245,9 @@ pub unsafe extern "C" fn consolidate_mark_to_single(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let Subtable::GposMarkToSingle(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let Subtable::GposMarkToSingle(mut_subtable) = &mut *_subtable else {
+        unreachable!()
+    };
     let subtable: *mut GposMarkToSingleSubtable = mut_subtable;
     consolidate_mark_array(
         font,
@@ -255,7 +266,9 @@ pub unsafe extern "C" fn consolidate_mark_to_ligature(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let Subtable::GposMarkToLigature(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let Subtable::GposMarkToLigature(mut_subtable) = &mut *_subtable else {
+        unreachable!()
+    };
     let subtable: *mut GposMarkToLigatureSubtable = mut_subtable;
     consolidate_mark_array(
         font,
@@ -265,6 +278,5 @@ pub unsafe extern "C" fn consolidate_mark_to_ligature(
         (*subtable).class_count,
     );
     consolidate_lig_array(font, table, &*options, &raw mut (*subtable).lig_array);
-    return (*subtable).mark_array.len() == 0 as usize
-        || (*subtable).lig_array.len() == 0 as usize;
+    return (*subtable).mark_array.len() == 0 as usize || (*subtable).lig_array.len() == 0 as usize;
 }

@@ -1,17 +1,17 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::table::otl::coverage::{Coverage};
-use crate::support::handle::{Handle, HandleState, GlyphHandle};
+use crate::support::handle::{GlyphHandle, Handle, HandleState};
+use crate::table::otl::coverage::Coverage;
 
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::support::options::{Options};
+use crate::font::caryll_font::Font;
+use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
-use crate::font::caryll_font::{Font};
 
-use crate::table::otl::{Subtable, GsubReverseSubtable, OtlTable};
+use crate::table::otl::{GsubReverseSubtable, OtlTable, Subtable};
 
-use crate::consolidate::otl::common::{fontop_consolidate_coverage};
+use crate::consolidate::otl::common::fontop_consolidate_coverage;
 
 pub unsafe extern "C" fn consolidate_gsub_reverse(
     mut font: *mut Font,
@@ -19,7 +19,9 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let Subtable::GsubReverse(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let Subtable::GsubReverse(mut_subtable) = &mut *_subtable else {
+        unreachable!()
+    };
     let subtable: *mut GsubReverseSubtable = mut_subtable;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
@@ -31,7 +33,8 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
         j = j.wrapping_add(1);
     }
     fontop_consolidate_coverage(font, &mut (*subtable).to as *mut Coverage, &*options);
-    if (*subtable).input_index as ::core::ffi::c_int >= (*subtable).match_count as ::core::ffi::c_int
+    if (*subtable).input_index as ::core::ffi::c_int
+        >= (*subtable).match_count as ::core::ffi::c_int
     {
         (*subtable).input_index =
             ((*subtable).match_count as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as TableId;
@@ -71,7 +74,8 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
+                crate::bytesbuild!(
+                    b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
                     &(&(*from))[k].name,
                     b".\n",
                 ),
@@ -90,7 +94,8 @@ pub unsafe extern "C" fn consolidate_gsub_reverse(
             &mut *(*options).logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
-            crate::bytesbuild!(b"[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n",
+            crate::bytesbuild!(
+                b"[Consolidate] In this reverse subsitution lookup, some mappings are ignored.\n",
             ),
         );
     }

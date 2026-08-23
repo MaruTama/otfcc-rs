@@ -1,12 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{memcpy};
+use libc::memcpy;
 
-
-use crate::support::alloc::{__caryll_allocate_clean};
-use crate::support::buffer::{Buffer};
-use crate::support::font_reader::{FontReader};
-use crate::support::primitives::{Arity};
+use crate::support::alloc::__caryll_allocate_clean;
+use crate::support::buffer::Buffer;
 use crate::support::buffer::{buffree, bufnew, bufwrite8};
+use crate::support::font_reader::FontReader;
+use crate::support::primitives::Arity;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -144,14 +143,18 @@ pub(crate) unsafe fn extract_index(
         let Ok(count) = r.u16().map(|v| v as Arity) else {
             break 'parse None;
         };
-        let Ok(off_size) = r.u8() else { break 'parse None };
+        let Ok(off_size) = r.u8() else {
+            break 'parse None;
+        };
         (*in_0).count = count;
         (*in_0).off_size = off_size;
         if count > 0 as Arity {
             if !(1..=4).contains(&off_size) {
                 break 'parse None;
             }
-            if r.require_room(count as usize + 1, off_size as usize).is_err() {
+            if r.require_room(count as usize + 1, off_size as usize)
+                .is_err()
+            {
                 break 'parse None;
             }
             let mut offset: Vec<u32> = Vec::with_capacity(count as usize + 1);
@@ -190,12 +193,9 @@ pub(crate) unsafe fn extract_index(
 pub(crate) unsafe fn new_index_by_callback(
     mut context: *mut ::core::ffi::c_void,
     mut length: u32,
-    mut fn_0: Option<
-        unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
-    >,
+    mut fn_0: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer>,
 ) -> *mut CffIndex {
-    let mut idx: *mut CffIndex = (
-        cff_index_create)();
+    let mut idx: *mut CffIndex = (cff_index_create)();
     (*idx).count = length as Arity;
     let mut offset: Vec<u32> = vec![0 as u32; (*idx).count.wrapping_add(1 as Arity) as usize];
     offset[0 as usize] = 1 as u32;
@@ -204,8 +204,7 @@ pub(crate) unsafe fn new_index_by_callback(
     let mut blank: usize = 0 as usize;
     let mut i: Arity = 0 as Arity;
     while i < length {
-        let mut blob: *mut Buffer =
-            fn_0.expect("non-null function pointer")(context, i as u32);
+        let mut blob: *mut Buffer = fn_0.expect("non-null function pointer")(context, i as u32);
         if blank < (*blob).size {
             used = used.wrapping_add((*blob).size);
             blank = used >> 1 as ::core::ffi::c_int & 0xffffff as ::core::ffi::c_int as usize;
@@ -251,9 +250,7 @@ pub(crate) unsafe fn build_index(mut index: *const CffIndex) -> *mut Buffer {
     }
     if (*index).count != 0 as Arity {
         (*blob).size = (3 as u32)
-            .wrapping_add(
-                (offset[(*index).count as usize]).wrapping_sub(1 as u32),
-            )
+            .wrapping_add((offset[(*index).count as usize]).wrapping_sub(1 as u32))
             .wrapping_add(
                 ((*index).count as u32)
                     .wrapping_add(1 as u32)
@@ -277,56 +274,49 @@ pub(crate) unsafe fn build_index(mut index: *const CffIndex) -> *mut Buffer {
             let offset_i: u32 = offset[i as usize];
             match off_size as ::core::ffi::c_int {
                 1 => {
-                    *(*blob).data.offset((3 as Arity).wrapping_add(i) as isize) =
-                        offset_i as u8;
+                    *(*blob).data.offset((3 as Arity).wrapping_add(i) as isize) = offset_i as u8;
                 }
                 2 => {
-                    *(*blob).data.offset(
-                        (3 as Arity).wrapping_add(i.wrapping_mul(2 as Arity)) as isize,
-                    ) = offset_i.wrapping_div(256 as u32)
-                        as u8;
-                    *(*blob).data.offset(
-                        (4 as Arity).wrapping_add(i.wrapping_mul(2 as Arity)) as isize,
-                    ) = offset_i.wrapping_rem(256 as u32)
-                        as u8;
+                    *(*blob)
+                        .data
+                        .offset((3 as Arity).wrapping_add(i.wrapping_mul(2 as Arity)) as isize) =
+                        offset_i.wrapping_div(256 as u32) as u8;
+                    *(*blob)
+                        .data
+                        .offset((4 as Arity).wrapping_add(i.wrapping_mul(2 as Arity)) as isize) =
+                        offset_i.wrapping_rem(256 as u32) as u8;
                 }
                 3 => {
-                    *(*blob).data.offset(
-                        (3 as Arity).wrapping_add(i.wrapping_mul(3 as Arity)) as isize,
-                    ) = offset_i.wrapping_div(65536 as u32)
-                        as u8;
-                    *(*blob).data.offset(
-                        (4 as Arity).wrapping_add(i.wrapping_mul(3 as Arity)) as isize,
-                    ) = offset_i
-                        .wrapping_rem(65536 as u32)
-                        .wrapping_div(256 as u32) as u8;
-                    *(*blob).data.offset(
-                        (5 as Arity).wrapping_add(i.wrapping_mul(3 as Arity)) as isize,
-                    ) = offset_i
-                        .wrapping_rem(65536 as u32)
-                        .wrapping_rem(256 as u32) as u8;
+                    *(*blob)
+                        .data
+                        .offset((3 as Arity).wrapping_add(i.wrapping_mul(3 as Arity)) as isize) =
+                        offset_i.wrapping_div(65536 as u32) as u8;
+                    *(*blob)
+                        .data
+                        .offset((4 as Arity).wrapping_add(i.wrapping_mul(3 as Arity)) as isize) =
+                        offset_i.wrapping_rem(65536 as u32).wrapping_div(256 as u32) as u8;
+                    *(*blob)
+                        .data
+                        .offset((5 as Arity).wrapping_add(i.wrapping_mul(3 as Arity)) as isize) =
+                        offset_i.wrapping_rem(65536 as u32).wrapping_rem(256 as u32) as u8;
                 }
                 4 => {
-                    *(*blob).data.offset(
-                        (3 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize,
-                    ) = offset_i
-                        .wrapping_div(65536 as u32)
-                        .wrapping_div(256 as u32) as u8;
-                    *(*blob).data.offset(
-                        (4 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize,
-                    ) = offset_i
-                        .wrapping_div(65536 as u32)
-                        .wrapping_rem(256 as u32) as u8;
-                    *(*blob).data.offset(
-                        (5 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize,
-                    ) = offset_i
-                        .wrapping_rem(65536 as u32)
-                        .wrapping_div(256 as u32) as u8;
-                    *(*blob).data.offset(
-                        (6 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize,
-                    ) = offset_i
-                        .wrapping_rem(65536 as u32)
-                        .wrapping_rem(256 as u32) as u8;
+                    *(*blob)
+                        .data
+                        .offset((3 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize) =
+                        offset_i.wrapping_div(65536 as u32).wrapping_div(256 as u32) as u8;
+                    *(*blob)
+                        .data
+                        .offset((4 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize) =
+                        offset_i.wrapping_div(65536 as u32).wrapping_rem(256 as u32) as u8;
+                    *(*blob)
+                        .data
+                        .offset((5 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize) =
+                        offset_i.wrapping_rem(65536 as u32).wrapping_div(256 as u32) as u8;
+                    *(*blob)
+                        .data
+                        .offset((6 as Arity).wrapping_add(i.wrapping_mul(4 as Arity)) as isize) =
+                        offset_i.wrapping_rem(65536 as u32).wrapping_rem(256 as u32) as u8;
                 }
                 _ => {}
             }
@@ -344,8 +334,7 @@ pub(crate) unsafe fn build_index(mut index: *const CffIndex) -> *mut Buffer {
                             .wrapping_mul(off_size as Arity) as isize,
                     ) as *mut ::core::ffi::c_void,
                 (*index).data.as_ptr() as *const ::core::ffi::c_void,
-                (offset[(*index).count as usize]).wrapping_sub(1 as u32)
-                    as usize,
+                (offset[(*index).count as usize]).wrapping_sub(1 as u32) as usize,
             );
         }
     }

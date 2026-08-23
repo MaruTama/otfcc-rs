@@ -1,13 +1,13 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::parsed_json::{ParsedValue, json_obj_get};
+use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::font::caryll_sfnt::{Packet};
+use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufwrite_bytes};
-use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::options::Options;
+use crate::support::parsed_json::{ParsedValue, json_obj_get};
+use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 
 // `tag` is written on every construction path (read: unconditionally
 // null/empty; parse: `sdsnew(tag)`, now `CStr::from_ptr(tag).to_bytes()`)
@@ -39,12 +39,12 @@ pub struct FpgmPrepTable {
 // so this just clones it rather than routing through
 // `__caryll_allocate_clean`/`copy_nonoverlapping` the way the raw-pointer
 // version did.
-pub unsafe fn otfcc_read_fpgm_prep(
-    packet: &Packet,
-    mut tag: u32,
-) -> Option<Box<FpgmPrepTable>> {
+pub unsafe fn otfcc_read_fpgm_prep(packet: &Packet, mut tag: u32) -> Option<Box<FpgmPrepTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == tag)?;
-    Some(Box::new(FpgmPrepTable { tag: Vec::new(), bytes: table.data.clone() }))
+    Some(Box::new(FpgmPrepTable {
+        tag: Vec::new(),
+        bytes: table.data.clone(),
+    }))
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn table_dump_table_fpgm_prep(
@@ -57,10 +57,7 @@ pub unsafe fn table_dump_table_fpgm_prep(
         Some(t) => t,
         None => return,
     };
-    logger_start_sds(
-        &mut *options.logger.borrow_mut(),
-        crate::bytesbuild!(tag),
-    );
+    logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         json_object_push(
@@ -76,10 +73,7 @@ pub unsafe fn table_dump_table_fpgm_prep(
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-pub unsafe fn make_fpgm_prep_instr(
-    mut _t: *mut ::core::ffi::c_void,
-    instrs: Vec<u8>,
-) {
+pub unsafe fn make_fpgm_prep_instr(mut _t: *mut ::core::ffi::c_void, instrs: Vec<u8>) {
     let mut t: *mut FpgmPrepTable = _t as *mut FpgmPrepTable;
     (*t).bytes = instrs;
 }
@@ -98,10 +92,7 @@ pub unsafe fn otfcc_parse_fpgm_prep(
     let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     table = json_obj_get(root, tag);
     if !table.is_null() {
-        logger_start_sds(
-            &mut *options.logger.borrow_mut(),
-            crate::bytesbuild!(tag),
-        );
+        logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             let mut boxed = Box::new(FpgmPrepTable {
@@ -111,13 +102,7 @@ pub unsafe fn otfcc_parse_fpgm_prep(
             parse_ttinstr(
                 table,
                 boxed.as_mut() as *mut FpgmPrepTable as *mut ::core::ffi::c_void,
-                Some(
-                    make_fpgm_prep_instr
-                        as unsafe fn(
-                            *mut ::core::ffi::c_void,
-                            Vec<u8>,
-                        ) -> (),
-                ),
+                Some(make_fpgm_prep_instr as unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()),
                 Some(
                     wrong_fpgm_prep_instr
                         as unsafe extern "C" fn(
@@ -129,17 +114,13 @@ pub unsafe fn otfcc_parse_fpgm_prep(
             );
             t = Some(boxed);
             ___loggedstep_v = false;
-            logger_finish(
-                &mut *options.logger.borrow_mut()
-            );
+            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
     return t;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_fpgm_prep(
-    table: Option<&FpgmPrepTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_fpgm_prep(table: Option<&FpgmPrepTable>) -> *mut Buffer {
     let table = match table {
         Some(t) => t,
         None => return ::core::ptr::null_mut::<Buffer>(),

@@ -1,50 +1,20 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
+use crate::support::handle::{GlyphHandle, Handle, HandleState};
 use crate::table::otl::coverage::{Coverage, shrink_coverage};
-use crate::support::handle::{Handle, HandleState, GlyphHandle};
 
-use crate::logger::{LoggerType, LOG_VL_IMPORTANT, logger_log_sds};
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::support::options::{Options};
-use crate::support::primitives::{GlyphId};
+use crate::support::options::Options;
+use crate::support::primitives::GlyphId;
 
-use crate::font::caryll_font::{Font};
+use crate::font::caryll_font::Font;
 
+use crate::table::otl::{GsubMultiEntry, GsubMultiSubtable, OtlTable, Subtable};
 
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-use crate::table::otl::{GsubMultiEntry, Subtable, GsubMultiSubtable, OtlTable};
-
-
-
-
-
-use crate::consolidate::otl::common::{fontop_consolidate_coverage};
-use crate::support::glyph_order::{otfcc_gord_consolidate_handle, GlyphOrder};
-use crate::table::otl::subtables::gsub_multi::{dispose_gsub_multi_subtable};
-
-
-
+use crate::consolidate::otl::common::fontop_consolidate_coverage;
+use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
+use crate::table::otl::subtables::gsub_multi::dispose_gsub_multi_subtable;
 
 pub unsafe extern "C" fn consolidate_gsub_multi(
     mut font: *mut Font,
@@ -52,7 +22,9 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
     mut _subtable: *mut Subtable,
     mut options: *const Options,
 ) -> bool {
-    let Subtable::GsubMulti(mut_subtable) = &mut *_subtable else { unreachable!() };
+    let Subtable::GsubMulti(mut_subtable) = &mut *_subtable else {
+        unreachable!()
+    };
     let subtable: *mut GsubMultiSubtable = mut_subtable;
     // Deduplicates by `from.index`, first occurrence wins -- a later
     // duplicate's already-consolidated `to` coverage is simply dropped along
@@ -67,14 +39,18 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).len() {
         if !otfcc_gord_consolidate_handle(
-            (*font).glyph_order.as_deref_mut().map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
+            (*font)
+                .glyph_order
+                .as_deref_mut()
+                .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
             &raw mut (&mut (*subtable))[k as usize].from,
         ) {
             logger_log_sds(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /",
+                crate::bytesbuild!(
+                    b"[Consolidate] Ignored missing glyph /",
                     &(&(*subtable))[k as usize].from.name,
                     b".\n",
                 ),
@@ -103,8 +79,7 @@ pub unsafe extern "C" fn consolidate_gsub_multi(
                 let fromid: i32 = (&(*subtable))[k as usize].from.index as i32;
                 if !seen.contains_key(&fromid) {
                     let fromname: Vec<u8> = (&(*subtable))[k as usize].from.name.clone();
-                    let to: Coverage =
-                        ::core::mem::take(&mut (&mut (*subtable))[k as usize].to);
+                    let to: Coverage = ::core::mem::take(&mut (&mut (*subtable))[k as usize].to);
                     seen.insert(fromid, (fromname, to));
                 }
             }

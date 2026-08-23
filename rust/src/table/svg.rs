@@ -1,18 +1,24 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, strcmp};
-use crate::support::parsed_json::{ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getsds, json_obj_getstr_share, json_type_of};
-use crate::support::binio::{read_16u, read_32u};
-use crate::logger::{logger_finish, logger_start_sds};
-use crate::support::buffer::{Buffer};
-use crate::support::options::{Options};
-use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::json::{JsonType};
-use crate::bk::bkblock::{BkCellType, BkBlock, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::bkblock::bk_new_block_from_buffer_copy;
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::bkgraph::bk_build_block;
 use crate::font::caryll_sfnt::{Packet, PacketPiece};
-use crate::bk::bkblock::{bk_new_block_from_buffer_copy};
-use crate::bk::bkgraph::{bk_build_block};
-use crate::support::base64::{base64_encode};
-use crate::support::built_json::{BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new, json_object_push, json_string_new, json_string_new_length};
+use crate::logger::{logger_finish, logger_start_sds};
+use crate::support::base64::base64_encode;
+use crate::support::binio::{read_16u, read_32u};
+use crate::support::buffer::Buffer;
+use crate::support::built_json::{
+    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
+    json_object_push, json_string_new, json_string_new_length,
+};
+use crate::support::options::Options;
+use crate::support::parsed_json::{
+    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getsds,
+    json_obj_getstr_share, json_type_of,
+};
+use crate::support::primitives::{FontFilePointer, GlyphId};
+use crate::vendor::json::JsonType;
+use libc::{free, strcmp};
 
 #[repr(C)]
 pub struct SvgAssignment {
@@ -49,9 +55,7 @@ unsafe fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
     dst
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_read_svg(
-    packet: &Packet,
-) -> Option<SvgTable> {
+pub unsafe fn otfcc_read_svg(packet: &Packet) -> Option<SvgTable> {
     let mut offset_to_svg_doc_index: u32 = 0;
     let mut num_entries: u16 = 0;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -70,27 +74,29 @@ pub unsafe fn otfcc_read_svg(
                         offset_to_svg_doc_index =
                             read_32u(table.data.as_ptr().offset(2 as ::core::ffi::c_int as isize));
                         if !(table.length < offset_to_svg_doc_index.wrapping_add(2 as u32)) {
-                            num_entries = read_16u(table.data.as_ptr().offset(offset_to_svg_doc_index as isize));
+                            num_entries = read_16u(
+                                table.data.as_ptr().offset(offset_to_svg_doc_index as isize),
+                            );
                             if !(table.length
-                                < offset_to_svg_doc_index
-                                    .wrapping_add(2 as u32)
-                                    .wrapping_add(
-                                        (12 as ::core::ffi::c_int
-                                            * num_entries as ::core::ffi::c_int)
-                                            as u32,
-                                    ))
+                                < offset_to_svg_doc_index.wrapping_add(2 as u32).wrapping_add(
+                                    (12 as ::core::ffi::c_int * num_entries as ::core::ffi::c_int)
+                                        as u32,
+                                ))
                             {
                                 let mut svg: SvgTable = Vec::new();
                                 let mut j: GlyphId = 0 as GlyphId;
-                                while (j as ::core::ffi::c_int) < num_entries as ::core::ffi::c_int {
+                                while (j as ::core::ffi::c_int) < num_entries as ::core::ffi::c_int
+                                {
                                     let mut record: FontFilePointer = table
-                                        .data.as_ptr()
+                                        .data
+                                        .as_ptr()
                                         .offset(offset_to_svg_doc_index as isize)
                                         .offset(2 as ::core::ffi::c_int as isize)
                                         .offset(
                                             (12 as ::core::ffi::c_int * j as ::core::ffi::c_int)
                                                 as isize,
-                                        ) as *mut u8;
+                                        )
+                                        as *mut u8;
                                     let mut asg: SvgAssignment = svg_assignment_empty();
                                     asg.start = read_16u(record as *const u8) as GlyphId;
                                     asg.end =
@@ -109,7 +115,8 @@ pub unsafe fn otfcc_read_svg(
                                         <= table.length
                                     {
                                         let src_ptr = table
-                                            .data.as_ptr()
+                                            .data
+                                            .as_ptr()
                                             .offset(offset_to_svg_doc_index as isize)
                                             .offset(docstart as isize);
                                         asg.document =
@@ -154,11 +161,7 @@ fn can_use_plain_format(doc: &[u8]) -> bool {
             && doc[4 as usize] as ::core::ffi::c_int == 'l' as i32;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_svg(
-    svg: Option<&SvgTable>,
-    mut root: *mut BuiltValue,
-    options: &Options,
-) {
+pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, mut root: *mut BuiltValue, options: &Options) {
     let svg = match svg {
         Some(s) => s,
         None => return,
@@ -237,10 +240,7 @@ pub unsafe fn otfcc_dump_svg(
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_parse_svg(
-    mut root: *const ParsedValue,
-    options: &Options,
-) -> Option<SvgTable> {
+pub unsafe fn otfcc_parse_svg(mut root: *const ParsedValue, options: &Options) -> Option<SvgTable> {
     let mut _svg: *const ParsedValue = ::core::ptr::null();
     _svg = json_obj_get_type(
         root,
@@ -260,9 +260,7 @@ pub unsafe fn otfcc_parse_svg(
         let mut j: GlyphId = 0 as GlyphId;
         while (j as ::core::ffi::c_uint) < json_arr_len(_svg) {
             let mut _a: *const ParsedValue = json_arr_at(_svg, j as u32);
-            if !(_a.is_null()
-                || json_type_of(_a) != JsonType::Object)
-            {
+            if !(_a.is_null() || json_type_of(_a) != JsonType::Object) {
                 let mut format: *const ::core::ffi::c_char = json_obj_getstr_share(
                     _a,
                     b"format\0" as *const u8 as *const ::core::ffi::c_char,
@@ -270,30 +268,32 @@ pub unsafe fn otfcc_parse_svg(
                 let doc: Option<Vec<u8>> =
                     json_obj_getsds(_a, b"document\0" as *const u8 as *const ::core::ffi::c_char);
                 if !format.is_null() {
-                if let Some(doc) = doc {
-                    let mut asg: SvgAssignment = svg_assignment_empty();
-                    asg.start =
-                        json_obj_getint(_a, b"start\0" as *const u8 as *const ::core::ffi::c_char)
-                            as GlyphId;
-                    asg.end =
-                        json_obj_getint(_a, b"end\0" as *const u8 as *const ::core::ffi::c_char)
-                            as GlyphId;
-                    if strcmp(
-                        format,
-                        b"plain\0" as *const u8 as *const ::core::ffi::c_char,
-                    ) == 0 as ::core::ffi::c_int
-                    {
-                        asg.document = doc;
-                    } else {
-                        let mut len: usize = 0 as usize;
-                        let mut buf: *mut u8 =
-                            base64_encode(doc.as_ptr(), doc.len(), &raw mut len);
-                        asg.document = ::core::slice::from_raw_parts(buf, len).to_vec();
-                        free(buf as *mut ::core::ffi::c_void);
-                        buf = ::core::ptr::null_mut::<u8>();
+                    if let Some(doc) = doc {
+                        let mut asg: SvgAssignment = svg_assignment_empty();
+                        asg.start = json_obj_getint(
+                            _a,
+                            b"start\0" as *const u8 as *const ::core::ffi::c_char,
+                        ) as GlyphId;
+                        asg.end = json_obj_getint(
+                            _a,
+                            b"end\0" as *const u8 as *const ::core::ffi::c_char,
+                        ) as GlyphId;
+                        if strcmp(
+                            format,
+                            b"plain\0" as *const u8 as *const ::core::ffi::c_char,
+                        ) == 0 as ::core::ffi::c_int
+                        {
+                            asg.document = doc;
+                        } else {
+                            let mut len: usize = 0 as usize;
+                            let mut buf: *mut u8 =
+                                base64_encode(doc.as_ptr(), doc.len(), &raw mut len);
+                            asg.document = ::core::slice::from_raw_parts(buf, len).to_vec();
+                            free(buf as *mut ::core::ffi::c_void);
+                            buf = ::core::ptr::null_mut::<u8>();
+                        }
+                        svg.push(asg);
                     }
-                    svg.push(asg);
-                }
                 }
             }
             j = j.wrapping_add(1);
@@ -304,9 +304,7 @@ pub unsafe fn otfcc_parse_svg(
     return Some(svg);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_svg(
-    _svg: Option<&SvgTable>,
-) -> *mut Buffer {
+pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
     let _svg = match _svg {
         Some(s) if !s.is_empty() => s,
         _ => return ::core::ptr::null_mut::<Buffer>(),
@@ -333,13 +331,28 @@ pub unsafe fn otfcc_build_svg(
                 free: a.document.len(),
                 data: a.document.as_ptr() as *mut u8,
             };
-            bk_push(major, &[bk_int(BkCellType::B16, ((*a).start as ::core::ffi::c_int) as u32), bk_int(BkCellType::B16, ((*a).end as ::core::ffi::c_int) as u32), bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(&doc_buf as *const Buffer)), bk_int(BkCellType::B32, (a.document.len()) as u32)]);
+            bk_push(
+                major,
+                &[
+                    bk_int(BkCellType::B16, ((*a).start as ::core::ffi::c_int) as u32),
+                    bk_int(BkCellType::B16, ((*a).end as ::core::ffi::c_int) as u32),
+                    bk_ptr(
+                        BkCellType::P32,
+                        bk_new_block_from_buffer_copy(&doc_buf as *const Buffer),
+                    ),
+                    bk_int(BkCellType::B32, (a.document.len()) as u32),
+                ],
+            );
             keep = (keep == 0) as ::core::ffi::c_int as usize;
         }
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 0 as u32), bk_ptr(BkCellType::P32, major), bk_int(BkCellType::B32, 0 as u32)]);
+    let mut root: *mut BkBlock = bk_new_block(&[
+        bk_int(BkCellType::B16, 0 as u32),
+        bk_ptr(BkCellType::P32, major),
+        bk_int(BkCellType::B32, 0 as u32),
+    ]);
     // `svg` drops naturally at the end of this scope -- `document` is a
     // plain `Vec<u8>` now, self-dropping along with the rest of
     // `SvgAssignment`, so no explicit disposal call is needed here.

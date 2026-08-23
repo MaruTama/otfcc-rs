@@ -1,6 +1,6 @@
-pub mod gdef;
 pub mod chaining;
 pub mod common;
+pub mod gdef;
 pub mod gpos_cursive;
 pub mod gpos_pair;
 pub mod gpos_single;
