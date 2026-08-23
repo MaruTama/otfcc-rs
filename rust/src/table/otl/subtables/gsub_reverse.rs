@@ -196,9 +196,9 @@ pub unsafe extern "C" fn otl_gsub_dump_reverse(mut _subtable: *const Subtable) -
     );
     return _st;
 }
-pub unsafe extern "C" fn otl_gsub_parse_reverse(
+pub unsafe fn otl_gsub_parse_reverse(
     mut _subtable: *const ParsedValue,
-    mut _options: *const Options,
+    mut _options: &Options,
 ) -> *mut Subtable {
     let mut _match: *const ParsedValue = json_obj_get_type(
         _subtable,

@@ -932,6 +932,57 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-h (partial): 24 dispatch-pattern functions dropped `extern
+  "C"`, unlocking `&Options` for the ~21 of them Stage 7-2-a had to leave
+  on `*const Options`.** A survey of "dispatch tables" discovered during
+  Stage 7-2-a found they aren't persistent static tables at all -- every
+  one is a same-call pattern (`fn_ptr.expect(...)( args )`, called
+  immediately after being cast, never stored beyond one statement). Nothing
+  about that pattern requires C ABI linkage; it only requires *some*
+  `fn(...)` pointer type. So the `"C"` keyword itself, not the
+  function-pointer-value pattern, was the actual constraint 7-2-a hit.
+  - **Three families, 24 functions total**: `table/otl/parse.rs`'s
+    `_declare_lookup_parser` dispatch (10 lookup-subtable parsers -- the 8
+    part 1 already knew about, plus `otl_gpos_parse_mark_to_ligature`/
+    `_mark_to_single`, found later); `consolidate.rs`'s
+    `__declare_otl_consolidation` dispatch (11 functions, including
+    `consolidate_gsub_single` in `consolidate/otl/gsub_single.rs`); and
+    `table/otl/subtables/chaining/read.rs`'s `CoverageReaderHandler` type
+    (3 functions -- no `Options` parameter, pure ABI-keyword drop).
+  - Each function's own definition lost `extern "C"`; each dispatch
+    family's shared function-pointer type (`OtlConsolidationFunction` in
+    `consolidate.rs`, `CoverageReaderHandler` in `chaining/read.rs`, and
+    `_declare_lookup_parser`'s own inline parameter type) was updated to
+    match; every cast site (`NAME as unsafe extern "C" fn(...)` →
+    `unsafe fn(...)`) followed. For the ~21 with an `Options` parameter,
+    `*const Options` became `&Options` at the same time, collapsing the
+    `&*options` bridging expressions those call sites had carried since
+    7-2-a back into plain `options` -- mechanical once the type-signature
+    change landed, no logic touched.
+  - **What's still deferred in Stage 7-2-h**: `repr(C)` removal for the
+    ~121 non-load-bearing types (only `support/getopt.rs`'s `LongOption`
+    and `vendor/sds.rs`'s `SdsHeader` are genuinely layout-dependent) is a
+    separate, larger task -- removing `repr(C)` re-activates `non_camel_
+    case_types` and friends for every affected type for the first time,
+    and this codebase's `-D warnings` policy means any type whose name
+    doesn't already conform would break the build the moment its `repr(C)`
+    exemption disappears. That needs its own naming-violation inventory
+    before starting, not a blind attribute removal. The ~44 other
+    `extern "C" fn`s in the crate (real FFI-boundary functions, and
+    callback shapes like `support/ttinstr.rs`'s `make`/`wrong` pair that a
+    prior stage already partly converted) are untouched -- this batch was
+    scoped to exactly the 24 same-call dispatch functions, nothing else.
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged, round-
+    trips 10/10, lookup-alias regression clean, `cargo miri test`
+    224/0/20 identical to baseline, both fuzz targets `cargo check`-clean.
+    `survey-unsafe.sh`: raw pointer types 5847→5797 (the `&Options`
+    conversions); `unsafe fn` count going *up* (945→969) is a text-match
+    artifact, not a regression -- the script counts the literal substring
+    `"unsafe fn"`, which `unsafe extern "C" fn` never matched but plain
+    `unsafe fn` does, so converting 24 functions mechanically adds 24 new
+    matches for a strictly less-unsafe signature.
+
 - **Stage 7-2-c (batch 1 of 2): 5 of the plan's 10 "outer `Box` + inner raw
   array" types converted to `Vec<T>`/`Option<Box<T>>`, their manual `impl
   Drop` deleted.** Stage 6-4 had already `Box`/`Vec`-ified the *outer*

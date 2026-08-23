@@ -16,9 +16,9 @@ use crate::table::otl::subtables::chaining::common::{chaining_rule_mut, subtable
 use crate::table::otl::{
     ChainLookupApplication, ChainingRule, ChainingSubtable, Subtable, subtable_from_raw,
 };
-pub unsafe extern "C" fn otl_parse_chaining(
+pub unsafe fn otl_parse_chaining(
     mut _subtable: *const ParsedValue,
-    mut _options: *const Options,
+    mut _options: &Options,
 ) -> *mut Subtable {
     let mut _match: *const ParsedValue = json_obj_get_type(
         _subtable,

@@ -14,11 +14,11 @@ use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_mut};
 use crate::table::otl::{ChainingRule, ChainingSubtable, OtlTable, Subtable};
 
-pub unsafe extern "C" fn consolidate_chaining(
+pub unsafe fn consolidate_chaining(
     mut font: *mut Font,
     mut table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> bool {
     let Subtable::Chaining(mut_subtable) = &mut *_subtable else {
         unreachable!()
@@ -26,7 +26,7 @@ pub unsafe extern "C" fn consolidate_chaining(
     let subtable: *mut ChainingSubtable = mut_subtable;
     if !chaining_is_canonical(subtable) {
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Consolidate] Ignoring non-canonical chaining subtable."),
@@ -40,7 +40,7 @@ pub unsafe extern "C" fn consolidate_chaining(
         fontop_consolidate_coverage(
             font,
             &mut (&mut (*rule).match_0)[j as usize] as *mut Coverage,
-            &*options,
+            options,
         );
         shrink_coverage(
             &mut (&mut (*rule).match_0)[j as usize] as *mut Coverage,
@@ -80,7 +80,7 @@ pub unsafe extern "C" fn consolidate_chaining(
             }
             if !found_lookup && !(&(*rule).apply)[j_0 as usize].lookup.name.is_empty() {
                 logger_log_sds(
-                    &mut *(*options).logger.borrow_mut(),
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(
@@ -94,7 +94,7 @@ pub unsafe extern "C" fn consolidate_chaining(
         } else if (*h).state == HandleState::Index {
             if (*h).index as usize >= (*table).lookups.len() {
                 logger_log_sds(
-                    &mut *(*options).logger.borrow_mut(),
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(

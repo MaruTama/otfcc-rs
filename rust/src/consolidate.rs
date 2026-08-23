@@ -63,7 +63,7 @@ use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_get_still, vq_neutral, vq_point_linear_tfm, vq_replace};
 
 pub type OtlConsolidationFunction =
-    Option<unsafe extern "C" fn(*mut Font, *mut OtlTable, *mut Subtable, *const Options) -> bool>;
+    Option<unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool>;
 unsafe fn by_stem_pos(
     mut a: *const PostscriptStemDef,
     mut b: *const PostscriptStemDef,
@@ -734,12 +734,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GSUB_SINGLE,
         Some(
             consolidate_gsub_single
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -750,12 +745,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GSUB_MULTIPLE,
         Some(
             consolidate_gsub_multi
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -766,12 +756,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GSUB_ALTERNATE,
         Some(
             consolidate_gsub_alternative
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -782,12 +767,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GSUB_LIGATURE,
         Some(
             consolidate_gsub_ligature
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -798,12 +778,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GSUB_CHAINING,
         Some(
             consolidate_chaining
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -814,12 +789,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GSUB_REVERSE,
         Some(
             consolidate_gsub_reverse
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -830,12 +800,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GPOS_SINGLE,
         Some(
             consolidate_gpos_single
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -846,12 +811,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GPOS_PAIR,
         Some(
             consolidate_gpos_pair
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -862,12 +822,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GPOS_CURSIVE,
         Some(
             consolidate_gpos_cursive
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -878,12 +833,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GPOS_CHAINING,
         Some(
             consolidate_chaining
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -894,12 +844,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GPOS_MARK_TO_BASE,
         Some(
             consolidate_mark_to_single
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -910,12 +855,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GPOS_MARK_TO_MARK,
         Some(
             consolidate_mark_to_single
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,
@@ -926,12 +866,7 @@ pub unsafe fn otfcc_consolidate_lookup(
         OTL_TYPE_GPOS_MARK_TO_LIGATURE,
         Some(
             consolidate_mark_to_ligature
-                as unsafe extern "C" fn(
-                    *mut Font,
-                    *mut OtlTable,
-                    *mut Subtable,
-                    *const Options,
-                ) -> bool,
+                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
         ),
         font,
         table,

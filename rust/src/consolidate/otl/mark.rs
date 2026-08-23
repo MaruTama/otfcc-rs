@@ -239,11 +239,11 @@ unsafe fn consolidate_lig_array(
         });
     }
 }
-pub unsafe extern "C" fn consolidate_mark_to_single(
+pub unsafe fn consolidate_mark_to_single(
     mut font: *mut Font,
     mut table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> bool {
     let Subtable::GposMarkToSingle(mut_subtable) = &mut *_subtable else {
         unreachable!()
@@ -252,19 +252,19 @@ pub unsafe extern "C" fn consolidate_mark_to_single(
     consolidate_mark_array(
         font,
         table,
-        &*options,
+        options,
         &raw mut (*subtable).mark_array,
         (*subtable).class_count,
     );
-    consolidate_base_array(font, table, &*options, &raw mut (*subtable).base_array);
+    consolidate_base_array(font, table, options, &raw mut (*subtable).base_array);
     return (*subtable).mark_array.len() == 0 as usize
         || (*subtable).base_array.len() == 0 as usize;
 }
-pub unsafe extern "C" fn consolidate_mark_to_ligature(
+pub unsafe fn consolidate_mark_to_ligature(
     mut font: *mut Font,
     mut table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> bool {
     let Subtable::GposMarkToLigature(mut_subtable) = &mut *_subtable else {
         unreachable!()
@@ -273,10 +273,10 @@ pub unsafe extern "C" fn consolidate_mark_to_ligature(
     consolidate_mark_array(
         font,
         table,
-        &*options,
+        options,
         &raw mut (*subtable).mark_array,
         (*subtable).class_count,
     );
-    consolidate_lig_array(font, table, &*options, &raw mut (*subtable).lig_array);
+    consolidate_lig_array(font, table, options, &raw mut (*subtable).lig_array);
     return (*subtable).mark_array.len() == 0 as usize || (*subtable).lig_array.len() == 0 as usize;
 }

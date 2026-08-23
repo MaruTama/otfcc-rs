@@ -13,11 +13,11 @@ use crate::table::otl::{Anchor, GposCursiveEntry, GposCursiveSubtable, OtlTable,
 use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
 use crate::table::otl::subtables::gpos_cursive::dispose_gpos_cursive_subtable;
 
-pub unsafe extern "C" fn consolidate_gpos_cursive(
+pub unsafe fn consolidate_gpos_cursive(
     mut font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> bool {
     let Subtable::GposCursive(mut_subtable) = &mut *_subtable else {
         unreachable!()
@@ -44,7 +44,7 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
             &raw mut (&mut (*subtable))[k as usize].target,
         ) {
             logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
@@ -57,7 +57,7 @@ pub unsafe extern "C" fn consolidate_gpos_cursive(
             let fromid: i32 = (&(*subtable))[k as usize].target.index as i32;
             if seen.contains_key(&fromid) {
                 logger_log_sds(
-                    &mut *(*options).logger.borrow_mut(),
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(

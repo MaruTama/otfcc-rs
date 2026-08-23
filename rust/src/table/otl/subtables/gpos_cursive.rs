@@ -144,9 +144,9 @@ pub unsafe extern "C" fn otl_gpos_dump_cursive(mut _subtable: *const Subtable) -
     }
     return st;
 }
-pub unsafe extern "C" fn otl_gpos_parse_cursive(
+pub unsafe fn otl_gpos_parse_cursive(
     mut _subtable: *const ParsedValue,
-    mut _options: *const Options,
+    mut _options: &Options,
 ) -> *mut Subtable {
     let subtable: *mut GposCursiveSubtable = subtable_gpos_cursive_create();
     let mut j: GlyphId = 0 as GlyphId;

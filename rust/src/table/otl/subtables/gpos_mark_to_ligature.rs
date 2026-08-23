@@ -363,9 +363,9 @@ unsafe fn parse_bases(
         j = j.wrapping_add(1);
     }
 }
-pub unsafe extern "C" fn otl_gpos_parse_mark_to_ligature(
+pub unsafe fn otl_gpos_parse_mark_to_ligature(
     mut _subtable: *const ParsedValue,
-    mut options: *const Options,
+    mut options: &Options,
 ) -> *mut Subtable {
     let mut _marks: *const ParsedValue = json_obj_get_type(
         _subtable,
@@ -384,7 +384,7 @@ pub unsafe extern "C" fn otl_gpos_parse_mark_to_ligature(
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
     otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h);
     (*st).class_count = h.len() as GlyphClass;
-    parse_bases(_bases, st, &raw mut h, &*options);
+    parse_bases(_bases, st, &raw mut h, options);
     return subtable_from_raw(st, Subtable::GposMarkToLigature);
 }
 pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
