@@ -369,16 +369,29 @@ pub unsafe fn otfcc_parse_tsi(
     }
     return Some(tsi);
 }
-unsafe fn propergid(mut entry: *mut TsiEntry, type_0: TsiEntryType) -> GlyphId {
-    match type_0 as ::core::ffi::c_uint {
-        3 => return 0xfffb as GlyphId,
-        1 => return 0xfffd as GlyphId,
-        2 => return 0xfffa as GlyphId,
-        4 => return 0xfffc as GlyphId,
-        0 => return (*entry).glyph.index,
-        _ => {}
+// c2rust residue: the original had this as a numeric `switch` over
+// `TsiEntryType as c_uint` with a fallthrough `panic!` for "no case
+// matched" -- but `TsiEntryType` is a closed 5-variant enum (`Glyph=0`,
+// `Fpgm=1`, `Prep=2`, `Cvt=3`, `ReservedFffc=4`) and the switch already
+// covered all five, so that arm was unreachable, not a real error path.
+// Matching on the enum directly instead of its numeric cast makes that
+// exhaustiveness compiler-checked rather than asserted at runtime, and
+// the panic falls away with it.
+//
+// `entry` is only actually dereferenced in the `Glyph` arm --
+// `push_tsi_entries` (below) passes a null `entry` from its own
+// `min_n`-padding loop, but only ever calls this with `type_0 ==
+// TsiEntryType::Glyph` when `min_n` is `0`, which keeps that loop from
+// running at all for `Glyph` (see `otfcc_build_tsi`'s call sites), so the
+// null never actually reaches this arm.
+unsafe fn propergid(entry: *mut TsiEntry, type_0: TsiEntryType) -> GlyphId {
+    match type_0 {
+        TsiEntryType::Cvt => 0xfffb as GlyphId,
+        TsiEntryType::Fpgm => 0xfffd as GlyphId,
+        TsiEntryType::Prep => 0xfffa as GlyphId,
+        TsiEntryType::ReservedFffc => 0xfffc as GlyphId,
+        TsiEntryType::Glyph => (*entry).glyph.index,
     }
-    panic!("Reached end of non-void function without returning");
 }
 unsafe fn push_tsi_entries(
     mut target: *mut TsiBuildTarget,
