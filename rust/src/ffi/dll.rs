@@ -105,21 +105,20 @@ mod tests {
     }
 
     #[test]
-    // Constructs a real `Font` (`otfcc_font_create` -> `malloc` +
-    // `memset`-zero, `font/caryll_font.rs:init_font`), and `read_json`'s
-    // field-by-field `(*font).x = ...` writes over that zeroed memory are
-    // the same "drop-before-write on an invalid niche-optimized bit
-    // pattern" UB class documented on `otfcc_new_options`
-    // (`support/options.rs:otfcc_new_options`) -- except `Font` has this on
-    // essentially every pointer-containing field, not just one, discovered
-    // while wiring up `cargo miri test` in rust/fuzz's sibling
-    // infrastructure PR. Fixing `Font`'s construction path is real,
-    // substantial, crate-wide work (every `otfcc_parse_*`/`otfcc_read_*`
-    // call site that populates a freshly-created `Font` or table struct),
-    // out of scope for that PR; tracked in rust/README.md's "Next steps".
+    // Constructs a real `Font` via `otfcc_font_create`, then `read_json`
+    // populates it field-by-field. This test used to be miri-ignored for a
+    // `Font`-construction UB (a calloc'd `Option<Vec<T>>` field written via
+    // plain `=`) that Stage 7-2-d's `Font` Box化 has now fixed. Re-running
+    // this test under miri after that fix surfaced a second, unrelated,
+    // pre-existing bug it had been masking: `font/caryll_sfnt_builder.rs`'s
+    // `create_segment`/`otfcc_checksum` cast a `Buffer.data: Vec<u8>`
+    // pointer (1-byte aligned) to `*mut u32` and dereference it -- an
+    // alignment violation whenever a table's byte length isn't a multiple
+    // of 4 from an aligned start. Out of scope for the Font Box化 PR that
+    // found it; tracked in rust/README.md's "Next steps".
     #[cfg_attr(
         miri,
-        ignore = "Font construction has pre-existing calloc+assign UB, see rust/README.md Next steps"
+        ignore = "caryll_sfnt_builder.rs checksum reads Vec<u8> as *mut u32, alignment UB, see rust/README.md Next steps"
     )]
     fn minimal_json_builds_and_frees_cleanly() {
         unsafe {
@@ -138,10 +137,11 @@ mod tests {
 
     #[test]
     // Same reason as minimal_json_builds_and_frees_cleanly above: this also
-    // builds a real Font on every iteration.
+    // builds a real Font on every iteration, so it hits the same
+    // caryll_sfnt_builder.rs alignment bug under miri.
     #[cfg_attr(
         miri,
-        ignore = "Font construction has pre-existing calloc+assign UB, see rust/README.md Next steps"
+        ignore = "caryll_sfnt_builder.rs checksum reads Vec<u8> as *mut u32, alignment UB, see rust/README.md Next steps"
     )]
     fn repeated_calls_do_not_crash() {
         // Not a leak check (needs a sanitizer for that -- see fuzz/), just

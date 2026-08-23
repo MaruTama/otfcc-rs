@@ -932,6 +932,58 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-2-d, the last `_create()`: `otfcc_font_create` (`Font` itself),
+  Box化.** A focused survey found this was not the cleanup it looked like --
+  it's a live, miri-confirmed UB bug. `Font` has 6 `Option<Vec<T>>` fields
+  (`glyf`, `name`, `colr`, `svg`, `tsi_01`, `tsi_23`); unlike `Option<Box<T>>`,
+  `Option<Vec<T>>` does not niche-optimize an all-zero bit pattern to `None`
+  (`Vec`'s niche lives in `Cap`'s valid-range restriction, not in "pointer ==
+  0"), so `otfcc_font_create`'s `malloc`+`memset`-zero followed by
+  `json_reader.rs`/`otf_reader.rs`'s plain `(*font).glyf = ...` assignments
+  ran the compiler-generated drop-the-old-value glue on a bogus `Some`,
+  which is exactly the `Options.logger` calloc-trap (see
+  `otfcc-vec-field-assign-needs-calloc`), just recurring on `Font` itself.
+  Reproduced directly with `cargo miri test -- --ignored
+  ffi::dll::tests::minimal_json_builds_and_frees_cleanly` before the fix:
+  `constructing invalid value of type std::ptr::Unique<u8>`, inside
+  `Vec::drop` reached through `Option<GlyfTable>`'s drop glue.
+  - **Fix**: `otfcc_font_create` is now `Box::into_raw(Box::new(Font {
+    subtype: FontSubtype::Ttf, fvar: None, ..., glyph_order: None }))` --
+    every one of the 33 non-`subtype` fields defaults to the literal `None`,
+    no per-type default-value judgment calls needed (lower risk than
+    `CffTable`'s 24-field literal). `otfcc_font_free` is now `drop(Box::
+    from_raw(x))`. `init_font`/`dispose_font`/`otfcc_font_dispose`/
+    `otfcc_font_init` all removed as dead code; `delete_font_table` (used
+    elsewhere for selective single-table clearing, e.g. `otf_writer/stat.rs`)
+    is untouched.
+  - **Two pre-existing leaks fixed as a side effect**: the old `dispose_font`
+    explicitly null'd 31 of `Font`'s 33 table fields before the struct's
+    memory was `free()`'d raw; `fvar` and `vdmx` were the two fields it
+    missed, so whatever they pointed to was never reclaimed on font
+    teardown (raw `free()` runs no field `Drop` glue). `drop(Box::from_raw
+    (x))` now drops every field through its own `Drop` impl regardless of
+    whether the old hand-written list covered it. Stale comment in
+    `table/fvar.rs` documenting the `fvar` leak as deliberately-preserved
+    corrected in place.
+  - **A second, unrelated, pre-existing bug surfaced by unblocking miri
+    further**, not fixed here: `font/caryll_sfnt_builder.rs`'s
+    `create_segment`/`otfcc_checksum` cast a `Buffer.data: Vec<u8>` pointer
+    (1-byte aligned) to `*mut u32` and dereference it -- an alignment
+    violation whenever a table's byte length from an aligned start isn't a
+    multiple of 4. The two `ffi::dll::tests` that build a real `Font` used
+    to be miri-ignored for the `Font` bug above and never got far enough
+    under miri to hit this one; they're now miri-ignored again with an
+    updated reason pointing at this bug instead. Left for a dedicated PR --
+    out of scope for a `Font` Box化 change, and deserves its own look at
+    whether `create_segment`/`otfcc_checksum` should read via
+    `u32::from_ne_bytes` on a 4-byte slice instead of a pointer cast.
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged, round-trips
+    10/10, lookup-alias regression clean, `cargo miri test` 224/0/20
+    identical to baseline (with the alignment bug now masked again by the
+    updated ignore reasons rather than the old Font one), both fuzz targets
+    `cargo check`-clean.
+
 - **Stage 7-2-h (`repr(C)` removal): 112 of 128 `#[repr(C)]` struct
   attributes removed.** A prior survey found 116 of 118 struct/enum types
   carrying `#[repr(C)]` were non-load-bearing and every name already
