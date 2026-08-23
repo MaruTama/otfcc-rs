@@ -11,7 +11,7 @@
 use ::otfcc_rust;
 
 use libc::{
-    SEEK_SET, exit, fclose, feof, fgets, fopen, fprintf, fread, free, fseek, ftell, fwrite, malloc,
+    SEEK_SET, fclose, feof, fgets, fopen, fprintf, fread, free, fseek, ftell, fwrite, malloc,
     realloc, strcmp, strlen, strtol,
 };
 use otfcc_rust::support::stdio::{FILE, stderr, stdin, stdout};
@@ -80,11 +80,17 @@ pub unsafe fn printHelp() {
             as *const u8 as *const ::core::ffi::c_char,
     );
 }
+// `false` means the file couldn't be opened or read -- the caller
+// (`main_0`) returns `EXIT_FAILURE` itself instead of this function
+// calling `exit()` deep inside a helper, the same "propagate a failure
+// signal up to the one place that already owns process-exit semantics"
+// shape `font/caryll_sfnt.rs`'s `otfcc_get16u`/`otfcc_get32u` -> `Option`
+// conversion used.
 pub unsafe fn readEntireFile(
     mut inPath: *mut ::core::ffi::c_char,
     mut _buffer: *mut *mut ::core::ffi::c_char,
     mut _length: *mut ::core::ffi::c_long,
-) {
+) -> bool {
     let mut buffer: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut length: ::core::ffi::c_long = 0 as ::core::ffi::c_long;
     let mut f: *mut FILE =
@@ -95,7 +101,7 @@ pub unsafe fn readEntireFile(
             b"Cannot read JSON file \"%s\". Exit.\n\0" as *const u8 as *const ::core::ffi::c_char,
             inPath,
         );
-        exit(EXIT_FAILURE);
+        return false;
     }
     fseek(f, 0 as ::core::ffi::c_long, SEEK_END);
     length = ftell(f);
@@ -116,10 +122,11 @@ pub unsafe fn readEntireFile(
             b"Cannot read JSON file \"%s\". Exit.\n\0" as *const u8 as *const ::core::ffi::c_char,
             inPath,
         );
-        exit(EXIT_FAILURE);
+        return false;
     }
     *_buffer = buffer;
     *_length = length;
+    true
 }
 pub unsafe fn readEntireStdin(
     mut _buffer: *mut *mut ::core::ffi::c_char,
@@ -520,7 +527,7 @@ unsafe fn main_0(
             ),
         );
         printHelp();
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     }
     let mut buffer: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut length: ::core::ffi::c_long = 0;
@@ -537,11 +544,13 @@ unsafe fn main_0(
             );
             let mut ___loggedstep_v_0: bool = true;
             while ___loggedstep_v_0 {
-                readEntireFile(
+                if !readEntireFile(
                     in_path.as_ptr() as *mut ::core::ffi::c_char,
                     &raw mut buffer,
                     &raw mut length,
-                );
+                ) {
+                    return EXIT_FAILURE;
+                }
                 // No longer freed here (was: `sdsfree(inPath)`) -- doing
                 // so used to leave a dangling pointer that the two later
                 // "Cannot parse JSON file" error messages below still
@@ -600,7 +609,7 @@ unsafe fn main_0(
                     b"\". Exit.\n",
                 ),
             );
-            exit(EXIT_FAILURE);
+            return EXIT_FAILURE;
         }
         ___loggedstep_v_2 = false;
         logger_finish(&mut *(*options).logger.borrow_mut());
@@ -624,7 +633,7 @@ unsafe fn main_0(
                     b"\" as a font. Exit.\n",
                 ),
             );
-            exit(EXIT_FAILURE);
+            return EXIT_FAILURE;
         }
         json_value_free(json_root);
         logger_log_sds(
@@ -683,7 +692,7 @@ unsafe fn main_0(
                         b"\". Exit.\n",
                     ),
                 );
-                exit(EXIT_FAILURE);
+                return EXIT_FAILURE;
             }
             fwrite(
                 (*otf).data.as_ptr() as *const ::core::ffi::c_void,
@@ -712,7 +721,7 @@ unsafe fn main_0(
     otfcc_delete_options(options);
     return 0 as ::core::ffi::c_int;
 }
-pub fn main() {
+pub fn main() -> ::std::process::ExitCode {
     let mut args_strings: Vec<Vec<u8>> = ::std::env::args()
         .map(|arg| {
             ::std::ffi::CString::new(arg)
@@ -726,9 +735,9 @@ pub fn main() {
         .chain(::core::iter::once(::core::ptr::null_mut()))
         .collect();
     unsafe {
-        ::std::process::exit(main_0(
+        ::std::process::ExitCode::from(main_0(
             (args_ptrs.len() - 1) as ::core::ffi::c_int,
             args_ptrs.as_mut_ptr() as *mut *mut ::core::ffi::c_char,
-        ))
+        ) as u8)
     }
 }

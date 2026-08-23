@@ -932,6 +932,41 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-3 closes: `bin/otfccdump.rs`/`bin/otfccbuild.rs`'s `exit()` calls
+  → `main() -> ExitCode`.** The last named Stage 7-3 item. Both binaries
+  already had a `main_0(argc, argv) -> c_int` doing all the real work,
+  with `pub fn main()` just forwarding its return value to `std::process::
+  exit()` -- so the fix is narrower than it sounds: convert the 12
+  `exit(EXIT_FAILURE)` call sites scattered through each `main_0` into
+  plain `return EXIT_FAILURE;` (both already return the same `c_int`
+  type, and `EXIT_FAILURE`'s value, `1`, is unchanged), and change each
+  `main()` from `std::process::exit(main_0(...))` to `std::process::
+  ExitCode::from(main_0(...) as u8)`.
+  - **One site per file needed more than a substitution**:
+    `otfccbuild.rs`'s `readEntireFile` -- a helper `main_0` calls, not
+    `main_0` itself -- had 2 of its own `exit()` calls. Converted its
+    signature from `-> ()` (writing through two out-parameters) to `->
+    bool`, its two `exit()`s to `return false;`, and its one call site in
+    `main_0` to check the result and `return EXIT_FAILURE;` itself on
+    failure -- the same "propagate a failure signal up to the one place
+    that already owns process-exit semantics" shape `font/caryll_sfnt.rs`'s
+    `otfcc_get16u`/`otfcc_get32u` -> `Option` conversion used earlier in
+    this stage. Every other `exit()` site in both files (10 of the 12) was
+    already directly inside `main_0`, confirmed by checking each site's
+    enclosing function before assuming a plain substitution would work.
+  - **Verified by hand, not just by inspection**: built both binaries and
+    ran a success path and a failure path through each --
+    `otfccdump`/`otfccbuild --help` exit 0, `otfccdump` on a missing file
+    and `otfccbuild` on unparseable JSON both exit 1 with their existing
+    error messages intact (`otfccbuild : Parse into JSON : [ERROR] Cannot
+    parse JSON file "...". Exit.`).
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged (the
+    `dump-missing-file` golden log case exercises one of these exit
+    paths directly), round-trips 10/10, lookup-alias regression clean,
+    `cargo miri test` identical to baseline, both fuzz targets `cargo
+    check`-clean.
+
 - **Stage 7-3: `table/_tsi.rs`'s c2rust-residue `panic!` removed.**
   `propergid` had a numeric `switch` over `TsiEntryType as c_uint` with a
   fallthrough `panic!("Reached end of non-void function without
