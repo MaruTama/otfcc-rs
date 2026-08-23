@@ -2,7 +2,7 @@
 pub mod build;
 pub mod read;
 
-use libc::{fprintf, free, malloc, strcmp};
+use libc::{fprintf, strcmp};
 unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
@@ -332,30 +332,25 @@ pub unsafe fn otfcc_new_glyf_glyph() -> Box<Glyph> {
 // Stage 6-4 "Box化": `Font.glyf` becomes `Option<Vec<Option<Box<Glyph>>>>`
 // (not `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
 // `table_glyf_create_n` stays: `table/cff.rs`'s CFF glyph extraction still
-// builds a `GlyfTable` through it as a bare `*mut GlyfTable` (a much larger,
-// separate conversion -- `Font.cff` itself isn't Box化'd yet), so
+// builds a `GlyfTable` through it as a bare `*mut GlyfTable`, so
 // `unwrap_glyf_table` below "adopts" that raw pointer into a genuine owned
-// value at the one point it actually needs to become `Font.glyf` --
-// `ptr::read` moves the `Vec` value out (only its 3-word descriptor is
-// copied, not the heap buffer -- exactly what a normal Rust move does),
-// then the now-empty outer allocation is released with a bare `free`, not
-// `table_glyf_free` (deleted below), which would incorrectly try to drop
-// the `Vec` a second time. Same technique as `table/tsi5.rs`'s
-// `unwrap_class_def`.
+// value at the one point it actually needs to become `Font.glyf`. Since
+// Stage 7-2-d, `table_glyf_create_n` builds via `Box::into_raw(Box::new(..))`
+// rather than `malloc`, so `raw` already points at a real `Box<GlyfTable>`
+// allocation -- `Box::from_raw` is the exact inverse (dereferencing moves
+// the `Vec` value out and drops the now-empty `Box` shell in the same
+// step), no separate `free` call needed. Same technique as
+// `table/cff.rs`'s `unwrap_cff_table`.
 pub(crate) unsafe fn unwrap_glyf_table(raw: *mut GlyfTable) -> Option<GlyfTable> {
     if raw.is_null() {
         return None;
     }
-    let value = ::core::ptr::read(raw);
-    free(raw as *mut ::core::ffi::c_void);
-    Some(value)
+    Some(*Box::from_raw(raw))
 }
 pub(crate) unsafe fn table_glyf_create_n(n: usize) -> *mut GlyfTable {
-    let x: *mut GlyfTable = malloc(::core::mem::size_of::<GlyfTable>() as usize) as *mut GlyfTable;
     let mut v: GlyfTable = Vec::with_capacity(n);
     v.resize_with(n, || None);
-    x.write(v);
-    x
+    Box::into_raw(Box::new(v))
 }
 unsafe fn glyf_glyph_dump_contours(
     mut g: *const Glyph,

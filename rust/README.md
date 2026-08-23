@@ -932,6 +932,102 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Three quick wins landed together after a fresh feasibility survey found
+  each of them tractable now, contrary to earlier deferrals**: the last 3
+  `_create()` malloc shells (Stage 7-2-d) and `VqRegion`'s C flexible-
+  array-member shape (part of Stage 7-2-f). A real type-confusion bug was
+  also found and fixed along the way.
+  - **Stage 7-2-d, the 3 remaining `_create()`s**: `otfcc_glyph_order_create`
+    (`support/glyph_order.rs`), `table_glyf_create_n` (`table/glyf.rs`),
+    `table_cff_create` (`table/cff.rs`) all converted to `Box::into_raw(
+    Box::new(...))`, same shape as the 10 OTL subtable `_create()`s
+    converted earlier. Two of the three deferral reasons had gone stale
+    since they were written: `table_glyf_create_n`'s comment said it
+    couldn't convert because `Font.cff` "isn't Box化'd yet" -- it already
+    was (`Option<Box<CffTable>>`, from earlier Stage 6-4 work); `table_cff_
+    create`'s comment said converting it would force every recursive
+    `fd_array` call site to become `Box`-aware -- `fd_array` was already
+    `Vec<Box<CffTable>>` (from Stage 7-2-c). Both stale comments were
+    corrected in place, not just the code. `otfcc_font_create` (`Font`
+    itself) stays deferred -- `*mut Font` still appears in ~87 places
+    including the FFI boundary, genuinely large work -- but a smaller,
+    real first step was identified for later: `json_reader.rs`/`otf_
+    reader.rs`'s `(*font).field = ...` writes onto freshly-calloc'd memory
+    could move to `ptr::write` field-by-field, the same fix already applied
+    to `Options`'s own calloc'd construction, without touching `Font`'s
+    allocator or its `*mut Font` type at all.
+  - **`VqRegion`** (`vf/region.rs`): was a C flexible-array-member struct
+    (`spans: [VqAxisSpan; 0]`, allocated as one `dimensions`-header-plus-
+    trailing-spans block, indexed everywhere via pointer arithmetic past
+    the struct's own address) -- now `{ dimensions: ShapeId, spans: Vec<
+    VqAxisSpan> }`. `vq_compare_region` moved from a `strncmp` byte-
+    identity comparison over the whole block to a structural `dimensions`-
+    then-`spans` comparison (`VqAxisSpan` gained `PartialEq`/`PartialOrd`);
+    it's only ever consumed as an ordering/equality signal, never for
+    byte-identity, so this is behavior-preserving. `RegionKey` (`table/
+    fvar.rs`), which DOES need byte-identity (it's an `IndexMap` dedup
+    key mirroring the original uthash table's `memcmp` semantics), now
+    hashes/compares `dimensions` and `spans` as two separate byte views
+    instead of one contiguous range -- incidentally more correct than
+    before, since the old single-range view also swept in a few bytes of
+    zeroed alignment padding between the two fields.
+  - **`VqSegmentDelta.region`/`RegionKey.0` deliberately stayed raw
+    pointers**, not converted to indices into `FvarTable.masters`'s
+    `IndexMap`, per the plan's own Stage 7-2-f section. An `IndexMap`
+    insert can still reallocate its own backing array and move the
+    `FvarMaster` values it stores, but `VqRegion` itself now lives in
+    stable `Box`-owned heap storage -- the pointee address doesn't move
+    just because the map reallocates, so an index buys nothing here that
+    a raw pointer doesn't already have, at the cost of needing a back-
+    reference to resolve it (`VqSegmentDelta` currently needs none).
+  - **A real bug found and fixed**: `otf_reader/unconsolidate.rs`'s
+    `hash_vqs` (used for duplicate-glyph detection when naming glyphs by
+    content hash) read `VqRegion.spans` via the old raw pointer-offset
+    trick, which stayed *syntactically* valid after the `Vec` conversion
+    (pointer-to-pointer casts always compile) but became a genuine type
+    confusion: for axis index 0 it read `Vec<VqAxisSpan>`'s own internal
+    (ptr, len, capacity) representation as if it were span data, and for
+    index ≥ 1 it read out of bounds past the `Vec`'s own struct. None of
+    the 244 lib tests exercise this path (it only fires for a font with
+    real gvar tuple-variation deltas being name-hashed), so it wasn't
+    caught by the type checker or the test suite -- only by tracing every
+    read site of the field being converted, the same discipline this
+    migration has applied to every risky conversion. Fixed to index
+    `spans` directly; `KRName-Regular`/`gvar-test.ttf`'s golden bytes
+    (which do exercise gvar deltas) stayed byte-identical after the fix,
+    consistent with (though not conclusive proof of) correctness --
+    genuinely wrong hash bytes would very likely have produced a
+    different, detectable checksum.
+  - **Deferred, per the same survey**: `BkCellValue::Ptr`/`BkGraphNode.
+    block` (`bk/bkblock.rs`/`bk/bkgraph.rs`) would need an arena for
+    individually-`malloc`'d `BkBlock`s, similar in shape to the completed
+    `libcff/subr.rs` conversion but larger -- `*mut BkBlock` appears
+    ~128 times across 21 otherwise-unrelated table builder files (vs.
+    `subr.rs`'s single self-contained file), so it needs its own dedicated
+    effort, not a fold-in to this batch. `Feature.lookups`/`LanguageSystem.
+    features` (weak `*const Lookup`/`*const Feature` refs into `OtlTable`'s
+    `Vec<Box<Lookup>>`/`Vec<Box<Feature>>`) turned out not to need
+    conversion at all: since the referents are `Box`-owned, `Vec::retain`
+    compaction reorders the *handles*, not the heap-allocated values
+    themselves, so existing raw-pointer refs already survive compaction
+    correctly -- the plan's "index into the Vec" framing for this pair was
+    an overgeneralization from `subr.rs`'s different (plain `Vec<T>`, no
+    `Box` indirection) hazard shape.
+  - `repr(C)` removal (Stage 7-2-h's other half) was surveyed too: of 118
+    struct/enum types carrying `#[repr(C)]`, only 2 remain load-bearing
+    (`LongOption`, `SdsHeader`) and every one of the other 116 already has
+    a fully `UpperCamelCase`-conformant name -- removing `#[repr(C)]`
+    would be a zero-risk, single-pass mechanical change with no rename
+    sub-batch needed. Not done in this PR (scoped to the 4 items above),
+    but ready to execute as the next step.
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes byte-identical on every payload
+    (including `gvar-test.ttf`, the one exercising the `hash_vqs` fix) and
+    log output unchanged, round-trips 10/10, lookup-alias regression
+    clean, `cargo miri test` 224/0/20 identical to baseline, both fuzz
+    targets `cargo check`-clean. `survey-unsafe.sh`: raw pointer types
+    5774→5746, `.offset(` calls 843→838.
+
 - **Stage 7-2-e: `Buffer` internally owns its bytes via `Vec<u8>` instead
   of manual `malloc`/`realloc`/`free`.** The single largest remaining
   conversion in the whole migration -- `bufwrite*` alone has ~510 call

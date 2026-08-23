@@ -46,8 +46,7 @@ unsafe fn hash_vqs(buf: *mut Buffer, s: VqSegment) {
             );
             bufwrite32b(buf, (*delta.region).dimensions as u32);
             for j in 0..(*delta.region).dimensions as usize {
-                let span: *const VqAxisSpan =
-                    (&raw const (*delta.region).spans as *const VqAxisSpan).offset(j as isize);
+                let span: *const VqAxisSpan = &(&(*delta.region).spans)[j];
                 bufwrite32b(
                     buf,
                     otfcc_to_f2dot14((*span).start as ::core::ffi::c_double) as u32,

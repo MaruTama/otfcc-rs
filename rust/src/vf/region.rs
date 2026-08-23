@@ -1,67 +1,63 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, memcpy, strncmp};
 
-use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::primitives::{Pos, ShapeId};
 
 use crate::vf::vv::VV;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, PartialEq, PartialOrd)]
 #[repr(C)]
 pub struct VqAxisSpan {
     pub start: Pos,
     pub peak: Pos,
     pub end: Pos,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
+// Was a C "flexible array member" struct (`spans: [VqAxisSpan; 0]`,
+// allocated as one `dimensions`-header-plus-trailing-spans block, indexed
+// everywhere via manual pointer arithmetic past the struct's own address).
+// Now a plain `Vec`-backed struct: `spans` owns its storage independently,
+// so this can no longer be `Copy` (and doesn't need `#[repr(C)]` -- nothing
+// reinterprets the whole struct as a contiguous byte blob any more; see
+// `RegionKey` in `table/fvar.rs`, which now hashes/compares `dimensions`
+// and `spans` as two separate byte views instead of one).
+#[derive(Clone)]
 pub struct VqRegion {
     pub dimensions: ShapeId,
-    pub spans: [VqAxisSpan; 0],
+    pub spans: Vec<VqAxisSpan>,
 }
-pub unsafe fn vq_create_region(mut dimensions: ShapeId) -> *mut VqRegion {
-    let mut r: *mut VqRegion = ::core::ptr::null_mut::<VqRegion>();
-    r = __caryll_allocate_clean(
-        (::core::mem::size_of::<VqRegion>() as usize).wrapping_add(
-            (::core::mem::size_of::<VqAxisSpan>() as usize).wrapping_mul(dimensions as usize),
-        ),
-        6 as ::core::ffi::c_ulong,
-    ) as *mut VqRegion;
-    (*r).dimensions = dimensions;
-    return r;
+pub unsafe fn vq_create_region(dimensions: ShapeId) -> *mut VqRegion {
+    Box::into_raw(Box::new(VqRegion {
+        dimensions,
+        spans: Vec::with_capacity(dimensions as usize),
+    }))
 }
-pub unsafe fn vq_delete_region(mut region: *mut VqRegion) {
-    free(region as *mut ::core::ffi::c_void);
-    region = ::core::ptr::null_mut::<VqRegion>();
+pub unsafe fn vq_delete_region(region: *mut VqRegion) {
+    drop(Box::from_raw(region));
 }
-pub unsafe fn vq_copy_region(mut region: *const VqRegion) -> *mut VqRegion {
-    let mut dst: *mut VqRegion = vq_create_region((*region).dimensions);
-    memcpy(
-        dst as *mut ::core::ffi::c_void,
-        region as *const ::core::ffi::c_void,
-        (::core::mem::size_of::<VqRegion>() as usize).wrapping_add(
-            (::core::mem::size_of::<VqAxisSpan>() as usize)
-                .wrapping_mul((*region).dimensions as usize),
-        ),
-    );
-    return dst;
+pub unsafe fn vq_copy_region(region: *const VqRegion) -> *mut VqRegion {
+    Box::into_raw(Box::new((*region).clone()))
 }
-pub unsafe fn vq_compare_region(
-    mut a: *const VqRegion,
-    mut b: *const VqRegion,
-) -> ::core::ffi::c_int {
-    if ((*a).dimensions as ::core::ffi::c_int) < (*b).dimensions as ::core::ffi::c_int {
-        return -(1 as ::core::ffi::c_int);
+// Was `strncmp` over the whole header+spans byte range (after a
+// `dimensions` shortcut) -- a byte-identity check that made sense when
+// `spans` was contiguous with the header in one allocation. Now compares
+// `dimensions` then `spans` structurally (`VqAxisSpan` derives
+// `PartialOrd`, lexicographic over `start`/`peak`/`end`, matching the
+// field order the old byte comparison walked in practice). Only consumed
+// as an ordering key (`vqs_compare`, for sorting) or an equality check
+// (`vqs_compatible`, via `== 0`), never for anything relying on
+// byte-for-byte identity -- that stricter semantics is preserved instead
+// in `RegionKey` (`table/fvar.rs`), which still needs it for `IndexMap`
+// dedup.
+pub unsafe fn vq_compare_region(a: *const VqRegion, b: *const VqRegion) -> ::core::ffi::c_int {
+    if (*a).dimensions < (*b).dimensions {
+        return -1;
     }
-    if (*a).dimensions as ::core::ffi::c_int > (*b).dimensions as ::core::ffi::c_int {
-        return 1 as ::core::ffi::c_int;
+    if (*a).dimensions > (*b).dimensions {
+        return 1;
     }
-    return strncmp(
-        a as *const ::core::ffi::c_char,
-        b as *const ::core::ffi::c_char,
-        (::core::mem::size_of::<VqRegion>() as usize).wrapping_add(
-            (::core::mem::size_of::<VqAxisSpan>() as usize).wrapping_mul((*a).dimensions as usize),
-        ),
-    );
+    match (*a).spans.partial_cmp(&(*b).spans) {
+        Some(::core::cmp::Ordering::Less) => -1,
+        Some(::core::cmp::Ordering::Greater) => 1,
+        _ => 0,
+    }
 }
 pub unsafe fn vq_axis_span_is_one(mut s: *const VqAxisSpan) -> bool {
     let a: Pos = (*s).start;
@@ -103,10 +99,7 @@ pub unsafe fn vq_region_get_weight(mut r: *const VqRegion, v: *const VV) -> Pos 
     let mut w: Pos = 1 as ::core::ffi::c_int as Pos;
     let mut j: usize = 0 as usize;
     while j < (*r).dimensions as usize && !coords.is_empty() {
-        w *= weight_axis_region(
-            (&raw const (*r).spans as *const VqAxisSpan).offset(j as isize) as *const VqAxisSpan,
-            coords[j],
-        );
+        w *= weight_axis_region(&(&(*r).spans)[j] as *const VqAxisSpan, coords[j]);
         j = j.wrapping_add(1);
     }
     return w;
