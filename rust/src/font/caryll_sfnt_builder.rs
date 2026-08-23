@@ -3,7 +3,6 @@ use libc::free;
 
 use crate::logger::{LOG_VL_PROGRESS, LoggerType, logger_log_sds};
 use crate::support::alloc::__caryll_allocate_clean;
-use crate::support::binio::{EndianProbe16, EndianProbe32};
 use crate::support::buffer::Buffer;
 use crate::support::buffer::{
     buffree, buflen, buflongalign, bufnew, bufseek, bufwrite_buf, bufwrite16b, bufwrite32b,
@@ -22,59 +21,26 @@ pub struct SfntBuilder {
     pub tables: std::collections::BTreeMap<::core::ffi::c_int, SfntTableEntry>,
     pub options: *const Options,
 }
-#[inline]
-unsafe fn otfcc_check_endian() -> bool {
-    let mut check_union: EndianProbe16 = EndianProbe16 {
-        i2: 1 as ::core::ffi::c_int as u16,
-    };
-    return check_union.i1[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
-        == 1 as ::core::ffi::c_int;
+// sfnt table checksums sum the table's bytes as big-endian u32 words.
+// `buflongalign` (called by both callers just before this) always pads
+// `data` out to a multiple of 4 bytes, so `chunks_exact(4)` covers every
+// byte with no remainder -- reading each chunk with `from_be_bytes` avoids
+// the alignment requirement a `*const u32` cast onto `Vec<u8>`'s
+// 1-byte-aligned storage would need (that cast used to be UB here, caught
+// by miri once `Font` construction stopped masking it earlier in the same
+// test; see rust/README.md).
+fn buf_checksum_bytes(data: &[u8]) -> u32 {
+    data.chunks_exact(4)
+        .fold(0u32, |sum, word| sum.wrapping_add(u32::from_be_bytes(word.try_into().unwrap())))
 }
-#[inline]
-unsafe fn otfcc_endian_convert32(mut i: u32) -> u32 {
-    if otfcc_check_endian() {
-        let mut src: EndianProbe32 = EndianProbe32 { i1: [0; 4] };
-        let mut des: EndianProbe32 = EndianProbe32 { i1: [0; 4] };
-        src.i4 = i;
-        des.i1[0 as ::core::ffi::c_int as usize] = src.i1[3 as ::core::ffi::c_int as usize];
-        des.i1[1 as ::core::ffi::c_int as usize] = src.i1[2 as ::core::ffi::c_int as usize];
-        des.i1[2 as ::core::ffi::c_int as usize] = src.i1[1 as ::core::ffi::c_int as usize];
-        des.i1[3 as ::core::ffi::c_int as usize] = src.i1[0 as ::core::ffi::c_int as usize];
-        return des.i4;
-    } else {
-        return i;
-    };
-}
-unsafe fn buf_checksum(mut buffer: *mut Buffer) -> u32 {
-    let mut actual_length: u32 = buflen(buffer) as u32;
+unsafe fn buf_checksum(buffer: *mut Buffer) -> u32 {
     buflongalign(buffer);
-    let mut sum: u32 = 0 as u32;
-    let mut start: *mut u32 = (*buffer).data.as_mut_ptr() as *mut u32;
-    let mut end: *mut u32 = start.offset(
-        ((actual_length.wrapping_add(3 as u32) & !(3 as ::core::ffi::c_int) as u32) as usize)
-            .wrapping_div(::core::mem::size_of::<u32>()) as isize,
-    );
-    while start < end {
-        let fresh3 = start;
-        start = start.offset(1);
-        sum = sum.wrapping_add(otfcc_endian_convert32(*fresh3));
-    }
-    return sum;
+    buf_checksum_bytes(&(*buffer).data)
 }
 unsafe fn create_segment(tag: u32, buffer: *mut Buffer) -> SfntTableEntry {
     let length = buflen(buffer) as u32;
     buflongalign(buffer);
-    let mut sum: u32 = 0 as u32;
-    let mut start: *mut u32 = (*buffer).data.as_mut_ptr() as *mut u32;
-    let mut end: *mut u32 = start.offset(
-        ((length.wrapping_add(3 as u32) & !(3 as ::core::ffi::c_int) as u32) as usize)
-            .wrapping_div(::core::mem::size_of::<u32>()) as isize,
-    );
-    while start < end {
-        let fresh0 = start;
-        start = start.offset(1);
-        sum = sum.wrapping_add(otfcc_endian_convert32(*fresh0));
-    }
+    let sum = buf_checksum_bytes(&(*buffer).data);
     SfntTableEntry {
         tag: tag as ::core::ffi::c_int,
         length,
