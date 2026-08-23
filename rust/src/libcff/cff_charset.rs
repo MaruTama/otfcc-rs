@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::bufnew;
+use crate::support::buffer::{bufnew, bufwrite8};
 use crate::support::font_reader::FontReader;
 
 /// The Top DICT's Charset offset is overloaded by spec: values 0/1/2 select
@@ -169,81 +168,50 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
         CffCharset::IsoAdobe | CffCharset::Expert | CffCharset::ExpertSubset => bufnew(),
         CffCharset::Format0(glyph) => {
             let blob: *mut Buffer = bufnew();
-            (*blob).size =
-                (1 as u32).wrapping_add((glyph.len() as u32).wrapping_mul(2 as u32)) as usize;
-            (*blob).data = __caryll_allocate_clean(
-                (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob).size),
-                75 as ::core::ffi::c_ulong,
-            ) as *mut u8;
-            *(*blob).data.offset(0 as ::core::ffi::c_int as isize) = 0 as u8;
-            for (i, &g) in glyph.iter().enumerate() {
-                let i = i as u32;
-                *(*blob)
-                    .data
-                    .offset((1 as u32).wrapping_add((2 as u32).wrapping_mul(i)) as isize) =
-                    (g as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8;
-                *(*blob)
-                    .data
-                    .offset((2 as u32).wrapping_add((2 as u32).wrapping_mul(i)) as isize) =
-                    (g as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8;
+            bufwrite8(blob, 0 as u8);
+            for &g in glyph.iter() {
+                bufwrite8(blob, (g as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8);
+                bufwrite8(blob, (g as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8);
             }
-            (*blob).cursor = (*blob).size;
             blob
         }
         CffCharset::Format1(range1) => {
             let blob_0: *mut Buffer = bufnew();
-            (*blob_0).size =
-                (1 as u32).wrapping_add((range1.len() as u32).wrapping_mul(3 as u32)) as usize;
-            (*blob_0).data = __caryll_allocate_clean(
-                (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob_0).size),
-                85 as ::core::ffi::c_ulong,
-            ) as *mut u8;
-            *(*blob_0).data.offset(0 as ::core::ffi::c_int as isize) = 1 as u8;
-            for (i, r) in range1.iter().enumerate() {
-                let i = i as u32;
-                *(*blob_0)
-                    .data
-                    .offset((1 as u32).wrapping_add((3 as u32).wrapping_mul(i)) as isize) =
-                    (r.first as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8;
-                *(*blob_0)
-                    .data
-                    .offset((2 as u32).wrapping_add((3 as u32).wrapping_mul(i)) as isize) =
-                    (r.first as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8;
-                *(*blob_0)
-                    .data
-                    .offset((3 as u32).wrapping_add((3 as u32).wrapping_mul(i)) as isize) = r.nleft;
+            bufwrite8(blob_0, 1 as u8);
+            for r in range1.iter() {
+                bufwrite8(
+                    blob_0,
+                    (r.first as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8,
+                );
+                bufwrite8(
+                    blob_0,
+                    (r.first as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8,
+                );
+                bufwrite8(blob_0, r.nleft);
             }
             blob_0
         }
         CffCharset::Format2(range2) => {
             let blob_1: *mut Buffer = bufnew();
-            (*blob_1).size =
-                (1 as u32).wrapping_add((range2.len() as u32).wrapping_mul(4 as u32)) as usize;
-            (*blob_1).data = __caryll_allocate_clean(
-                (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob_1).size),
-                96 as ::core::ffi::c_ulong,
-            ) as *mut u8;
-            *(*blob_1).data.offset(0 as ::core::ffi::c_int as isize) = 2 as u8;
-            for (i, r) in range2.iter().enumerate() {
-                let i = i as u32;
-                *(*blob_1)
-                    .data
-                    .offset((1 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
-                    (r.first as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8;
-                *(*blob_1)
-                    .data
-                    .offset((2 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
-                    (r.first as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8;
-                *(*blob_1)
-                    .data
-                    .offset((3 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
-                    (r.nleft as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8;
-                *(*blob_1)
-                    .data
-                    .offset((4 as u32).wrapping_add((4 as u32).wrapping_mul(i)) as isize) =
-                    (r.nleft as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8;
+            bufwrite8(blob_1, 2 as u8);
+            for r in range2.iter() {
+                bufwrite8(
+                    blob_1,
+                    (r.first as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8,
+                );
+                bufwrite8(
+                    blob_1,
+                    (r.first as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8,
+                );
+                bufwrite8(
+                    blob_1,
+                    (r.nleft as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8,
+                );
+                bufwrite8(
+                    blob_1,
+                    (r.nleft as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8,
+                );
             }
-            (*blob_1).cursor = (*blob_1).size;
             blob_1
         }
     }

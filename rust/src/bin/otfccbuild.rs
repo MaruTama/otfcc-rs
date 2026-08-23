@@ -686,7 +686,7 @@ unsafe fn main_0(
                 exit(EXIT_FAILURE);
             }
             fwrite(
-                (*otf).data as *const ::core::ffi::c_void,
+                (*otf).data.as_ptr() as *const ::core::ffi::c_void,
                 ::core::mem::size_of::<u8>() as usize,
                 buflen(otf),
                 outfile,

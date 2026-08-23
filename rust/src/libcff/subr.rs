@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, strncmp};
+use libc::strncmp;
 
 use crate::logger::{LOG_VL_PROGRESS, LoggerType, logger_log_sds};
 use crate::support::buffer::Buffer;
@@ -263,10 +263,7 @@ unsafe fn get_singlet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
     if let Some(r) = node.rule {
         key.extend_from_slice(&g.rule(r).unique_index.to_ne_bytes());
     } else {
-        key.extend_from_slice(std::slice::from_raw_parts(
-            (*node.terminal).data,
-            buflen(node.terminal),
-        ));
+        key.extend_from_slice(&(*node.terminal).data);
     }
     key.push(0);
     key
@@ -281,18 +278,12 @@ unsafe fn get_doublet_hash_key(g: &CffSubrGraph, n: NodeId) -> Vec<u8> {
     if let Some(r) = node.rule {
         key.extend_from_slice(&g.rule(r).unique_index.to_ne_bytes());
     } else {
-        key.extend_from_slice(std::slice::from_raw_parts(
-            (*node.terminal).data,
-            buflen(node.terminal),
-        ));
+        key.extend_from_slice(&(*node.terminal).data);
     }
     if let Some(r) = next.rule {
         key.extend_from_slice(&g.rule(r).unique_index.to_ne_bytes());
     } else {
-        key.extend_from_slice(std::slice::from_raw_parts(
-            (*next.terminal).data,
-            buflen(next.terminal),
-        ));
+        key.extend_from_slice(&(*next.terminal).data);
     }
     key.push(0);
     key
@@ -374,11 +365,11 @@ unsafe fn ident_node(g: &CffSubrGraph, m: NodeId, n: NodeId) -> bool {
     } else if nn.rule.is_some() {
         return false;
     } else {
-        return (*mn.terminal).size == (*nn.terminal).size
+        return (*mn.terminal).data.len() == (*nn.terminal).data.len()
             && strncmp(
-                (*mn.terminal).data as *mut ::core::ffi::c_char,
-                (*nn.terminal).data as *mut ::core::ffi::c_char,
-                (*mn.terminal).size,
+                (*mn.terminal).data.as_ptr() as *const ::core::ffi::c_char,
+                (*nn.terminal).data.as_ptr() as *const ::core::ffi::c_char,
+                (*mn.terminal).data.len(),
             ) == 0 as ::core::ffi::c_int;
     };
 }
@@ -632,7 +623,7 @@ pub unsafe fn cff_insert_il_to_graph(g: *mut CffSubrGraph, il: *mut CffCharstrin
         }
         j = j.wrapping_add(1);
     }
-    if (*blob).size != 0 {
+    if !(*blob).data.is_empty() {
         let n_0 = g.alloc_node();
         g.node_mut(n_0).rule = None;
         g.node_mut(n_0).last = last;
@@ -669,7 +660,8 @@ unsafe fn cff_stat_height(g: &mut CffSubrGraph, r: RuleId, height: u32) {
             cff_stat_height(g, er, height.wrapping_add(1 as u32));
             effective_length = effective_length.wrapping_add(4 as u32);
         } else {
-            effective_length = (effective_length as usize).wrapping_add((*terminal).size) as u32;
+            effective_length =
+                (effective_length as usize).wrapping_add((*terminal).data.len()) as u32;
         }
         e = g.node(e).next.unwrap();
     }
@@ -850,19 +842,21 @@ pub unsafe fn cff_il_graph_to_buffers(
     // field-by-field (every `.data`) and then as a whole -- the same
     // "malloc'd scratch array of plain structs" shape already converted to
     // `Vec` for `table/glyf/read.rs`'s six scratch buffers. `Buffer` is
-    // `Copy`/`repr(C)` and its zeroed state is exactly what `bufnew()`
-    // itself produces (`__caryll_allocate_clean` zeroes, then `bufnew` only
-    // re-asserts `free`/`size` are 0), so a `vec![zero_buffer; n]` starts
-    // every slot in the same state a freshly-`bufnew`'d buffer would.
+    // `Clone` (not `Copy` any more, since Stage 7-2-e made `data` a real
+    // `Vec<u8>`); `vec![x; n]` only needs `Clone`, but reusing the same `x`
+    // across more than one `vec![x; n]` call still needs an explicit
+    // `.clone()` at every use but the last, since the macro moves its
+    // argument -- cloning an empty `Vec::new()` is cheap regardless, so
+    // this still starts every slot in the same empty state a freshly-
+    // `bufnew()`'d buffer would.
     let zero_buffer = Buffer {
         cursor: 0,
-        size: 0,
-        free: 0,
-        data: ::core::ptr::null_mut(),
+        data: Vec::new(),
     };
     let mut char_strings: Vec<Buffer> =
-        vec![zero_buffer; g.total_char_strings.wrapping_add(1 as u32) as usize];
-    let mut lsubrs: Vec<Buffer> = vec![zero_buffer; max_l_subrs.wrapping_add(1 as u32) as usize];
+        vec![zero_buffer.clone(); g.total_char_strings.wrapping_add(1 as u32) as usize];
+    let mut lsubrs: Vec<Buffer> =
+        vec![zero_buffer.clone(); max_l_subrs.wrapping_add(1 as u32) as usize];
     let mut gsubrs: Vec<Buffer> = vec![zero_buffer; max_g_subrs.wrapping_add(1 as u32) as usize];
     let mut j: u32 = 0 as u32;
     let root = g.root;
@@ -904,16 +898,13 @@ pub unsafe fn cff_il_graph_to_buffers(
         Some(from_array as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
     );
     for entry in char_strings.iter_mut().take(g.total_char_strings as usize) {
-        free(entry.data as *mut ::core::ffi::c_void);
-        entry.data = ::core::ptr::null_mut::<u8>();
+        entry.data = Vec::new();
     }
     for entry in gsubrs.iter_mut().take(max_g_subrs as usize) {
-        free(entry.data as *mut ::core::ffi::c_void);
-        entry.data = ::core::ptr::null_mut::<u8>();
+        entry.data = Vec::new();
     }
     for entry in lsubrs.iter_mut().take(max_l_subrs as usize) {
-        free(entry.data as *mut ::core::ffi::c_void);
-        entry.data = ::core::ptr::null_mut::<u8>();
+        entry.data = Vec::new();
     }
     *s = build_index(is);
     *gs = build_index(igs);
@@ -952,7 +943,7 @@ mod subr_graph_tests {
 
     unsafe fn index_count(buf: *mut Buffer) -> u32 {
         let idx = cff_index_create();
-        extract_index((*buf).data, (*buf).size as u32, 0, idx);
+        extract_index((*buf).data.as_mut_ptr(), (*buf).data.len() as u32, 0, idx);
         let count = (*idx).count;
         cff_index_free(idx);
         count
@@ -1058,13 +1049,13 @@ mod subr_graph_tests {
             let il1 = simple_glyph_il(10.0, 20.0);
             let il2 = simple_glyph_il(10.0, 20.0);
             let (s_on, gs_on, ls_on) = build(&[il1.clone(), il2.clone()], true);
-            let char_strings_on = (*s_on).size;
+            let char_strings_on = (*s_on).data.len();
             buffree(s_on);
             buffree(gs_on);
             buffree(ls_on);
 
             let (s_off, gs_off, ls_off) = build(&[il1, il2], false);
-            let char_strings_off = (*s_off).size;
+            let char_strings_off = (*s_off).data.len();
             buffree(s_off);
             buffree(gs_off);
             buffree(ls_off);

@@ -80,7 +80,7 @@ unsafe fn _declare_lookup_writer(
                 heuristics,
             );
             subtables.push(buf);
-            total_buf_size_short = total_buf_size_short.wrapping_add((*buf).size);
+            total_buf_size_short = total_buf_size_short.wrapping_add((*buf).data.len());
             total_buf_size_ext = total_buf_size_ext.wrapping_add(8 as usize);
             j = j.wrapping_add(1);
         }
@@ -119,7 +119,7 @@ unsafe fn _declare_lookup_writer_split(
             while (k as ::core::ffi::c_int) < n_part as ::core::ffi::c_int {
                 subtables.push(*part.offset(k as isize));
                 total_buf_size_short =
-                    total_buf_size_short.wrapping_add((**part.offset(k as isize)).size);
+                    total_buf_size_short.wrapping_add((**part.offset(k as isize)).data.len());
                 k = k.wrapping_add(1);
             }
             // `part` itself -- the raw `*mut *mut Buffer` shell `fn_0`

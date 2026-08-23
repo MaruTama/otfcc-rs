@@ -49,7 +49,7 @@ unsafe fn buf_checksum(mut buffer: *mut Buffer) -> u32 {
     let mut actual_length: u32 = buflen(buffer) as u32;
     buflongalign(buffer);
     let mut sum: u32 = 0 as u32;
-    let mut start: *mut u32 = (*buffer).data as *mut u32;
+    let mut start: *mut u32 = (*buffer).data.as_mut_ptr() as *mut u32;
     let mut end: *mut u32 = start.offset(
         ((actual_length.wrapping_add(3 as u32) & !(3 as ::core::ffi::c_int) as u32) as usize)
             .wrapping_div(::core::mem::size_of::<u32>()) as isize,
@@ -65,7 +65,7 @@ unsafe fn create_segment(tag: u32, buffer: *mut Buffer) -> SfntTableEntry {
     let length = buflen(buffer) as u32;
     buflongalign(buffer);
     let mut sum: u32 = 0 as u32;
-    let mut start: *mut u32 = (*buffer).data as *mut u32;
+    let mut start: *mut u32 = (*buffer).data.as_mut_ptr() as *mut u32;
     let mut end: *mut u32 = start.offset(
         ((length.wrapping_add(3 as u32) & !(3 as ::core::ffi::c_int) as u32) as usize)
             .wrapping_div(::core::mem::size_of::<u32>()) as isize,

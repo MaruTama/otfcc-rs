@@ -32,36 +32,32 @@ pub unsafe fn shrink_flags(mut flags: *mut Buffer) -> *mut Buffer {
         return flags;
     }
     let mut shrunk: *mut Buffer = bufnew();
-    bufwrite8(
-        shrunk,
-        *(*flags).data.offset(0 as ::core::ffi::c_int as isize),
-    );
+    let flags_data: &Vec<u8> = &(*flags).data;
+    bufwrite8(shrunk, flags_data[0]);
     let mut repeating: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut j: usize = 1 as usize;
     while j < buflen(flags) {
-        if *(*flags).data.offset(j as isize) as ::core::ffi::c_int
-            == *(*flags).data.offset(j.wrapping_sub(1 as usize) as isize) as ::core::ffi::c_int
+        if flags_data[j] as ::core::ffi::c_int
+            == flags_data[j.wrapping_sub(1 as usize)] as ::core::ffi::c_int
         {
             if repeating != 0 && repeating < 0xfe as ::core::ffi::c_int {
-                let ref mut fresh0 = *(*shrunk)
-                    .data
-                    .offset((*shrunk).cursor.wrapping_sub(1 as usize) as isize);
+                let shrunk_data: &mut Vec<u8> = &mut (*shrunk).data;
+                let fresh0 = &mut shrunk_data[(*shrunk).cursor.wrapping_sub(1 as usize)];
                 *fresh0 = (*fresh0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
                 repeating += 1 as ::core::ffi::c_int;
             } else if repeating == 0 as ::core::ffi::c_int {
-                let ref mut fresh1 = *(*shrunk)
-                    .data
-                    .offset((*shrunk).cursor.wrapping_sub(1 as usize) as isize);
+                let shrunk_data: &mut Vec<u8> = &mut (*shrunk).data;
+                let fresh1 = &mut shrunk_data[(*shrunk).cursor.wrapping_sub(1 as usize)];
                 *fresh1 |= PointFlags::REPEAT.bits();
                 bufwrite8(shrunk, 1 as u8);
                 repeating += 1 as ::core::ffi::c_int;
             } else {
                 repeating = 0 as ::core::ffi::c_int;
-                bufwrite8(shrunk, *(*flags).data.offset(j as isize));
+                bufwrite8(shrunk, flags_data[j]);
             }
         } else {
             repeating = 0 as ::core::ffi::c_int;
-            bufwrite8(shrunk, *(*flags).data.offset(j as isize));
+            bufwrite8(shrunk, flags_data[j]);
         }
         j = j.wrapping_add(1);
     }

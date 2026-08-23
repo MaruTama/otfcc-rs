@@ -52,11 +52,11 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_len(mut buf: *mut Buffer) -> usize {
-    return (*buf).size;
+    return (*buf).data.len();
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfcc_get_buf_data(mut buf: *mut Buffer) -> *mut u8 {
-    return (*buf).data;
+    return (*buf).data.as_mut_ptr();
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfccbuild_free_otfbuf(mut buf: *mut Buffer) {

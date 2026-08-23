@@ -4,9 +4,8 @@ use libc::{printf, sprintf, strlen, strtod};
 use crate::libcff::CffDictOperator;
 use crate::libcff::cff_value::{CS2_FRACTION, CS2_OPERAND, CS2_OPERATOR, CffValue, CffValueType};
 use crate::support::NULL;
-use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::bufnew;
-use crate::support::buffer::{Buffer, bufninit};
+use crate::support::buffer::{Buffer, bufninit, bufwrite8};
 use crate::support::font_reader::FontReader;
 #[inline]
 unsafe fn atof(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_double {
@@ -92,13 +91,8 @@ pub unsafe fn cff_encode_cff_float(mut val: ::core::ffi::c_double) -> *mut Buffe
         0,
     ];
     if val == 0.0f64 {
-        (*blob).size = 2 as usize;
-        (*blob).data = __caryll_allocate_clean(
-            (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob).size),
-            56 as ::core::ffi::c_ulong,
-        ) as *mut u8;
-        *(*blob).data.offset(0 as ::core::ffi::c_int as isize) = 30 as u8;
-        *(*blob).data.offset(1 as ::core::ffi::c_int as isize) = 0xf as u8;
+        bufwrite8(blob, 30 as u8);
+        bufwrite8(blob, 0xf as u8);
     } else {
         let mut niblen: u32 = 0 as u32;
         let mut array: Vec<u8>;
@@ -132,12 +126,8 @@ pub unsafe fn cff_encode_cff_float(mut val: ::core::ffi::c_double) -> *mut Buffe
                 i = i.wrapping_add(1);
             }
         }
-        (*blob).size = (2 as u32).wrapping_add(niblen.wrapping_div(2 as u32)) as usize;
-        (*blob).data = __caryll_allocate_clean(
-            (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob).size),
-            78 as ::core::ffi::c_ulong,
-        ) as *mut u8;
-        *(*blob).data.offset(0 as ::core::ffi::c_int as isize) = 30 as u8;
+        let blob_size: usize = (2 as u32).wrapping_add(niblen.wrapping_div(2 as u32)) as usize;
+        bufwrite8(blob, 30 as u8);
         if niblen.wrapping_rem(2 as u32) != 0 as u32 {
             array = vec![0u8; niblen.wrapping_add(1 as u32) as usize];
             array[niblen as usize] = 0xf as u8;
@@ -183,16 +173,18 @@ pub unsafe fn cff_encode_cff_float(mut val: ::core::ffi::c_double) -> *mut Buffe
             }
         }
         i = 1 as u32;
-        while (i as usize) < (*blob).size {
-            *(*blob).data.offset(i as isize) = (array
-                [i.wrapping_sub(1 as u32).wrapping_mul(2 as u32) as usize]
-                as ::core::ffi::c_int
-                * 16 as ::core::ffi::c_int
-                + array[i
-                    .wrapping_sub(1 as u32)
-                    .wrapping_mul(2 as u32)
-                    .wrapping_add(1 as u32) as usize] as ::core::ffi::c_int)
-                as u8;
+        while (i as usize) < blob_size {
+            bufwrite8(
+                blob,
+                (array[i.wrapping_sub(1 as u32).wrapping_mul(2 as u32) as usize]
+                    as ::core::ffi::c_int
+                    * 16 as ::core::ffi::c_int
+                    + array[i
+                        .wrapping_sub(1 as u32)
+                        .wrapping_mul(2 as u32)
+                        .wrapping_add(1 as u32) as usize] as ::core::ffi::c_int)
+                    as u8,
+            );
             i = i.wrapping_add(1);
         }
     }

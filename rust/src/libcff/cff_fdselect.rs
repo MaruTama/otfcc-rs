@@ -1,8 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::bufnew;
+use crate::support::buffer::{bufnew, bufwrite8};
 use crate::support::font_reader::FontReader;
 
 #[derive(Copy, Clone)]
@@ -39,52 +38,36 @@ pub unsafe fn cff_build_fd_select(fd: &CffFdSelect) -> *mut Buffer {
         CffFdSelect::Unspecified => bufnew(),
         CffFdSelect::Format0(fds) => {
             let blob: *mut Buffer = bufnew();
-            (*blob).size = (1 as u32).wrapping_add(fds.len() as u32) as usize;
-            (*blob).data = __caryll_allocate_clean(
-                (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob).size),
-                24 as ::core::ffi::c_ulong,
-            ) as *mut u8;
-            for (j, &b) in fds.iter().enumerate() {
-                *(*blob).data.offset(j as isize) = b;
+            for &b in fds.iter() {
+                bufwrite8(blob, b);
             }
             blob
         }
         CffFdSelect::Format3 { range3, sentinel } => {
             let blob_0: *mut Buffer = bufnew();
             let nranges = range3.len() as ::core::ffi::c_int;
-            (*blob_0).size = (5 as ::core::ffi::c_int + nranges * 3 as ::core::ffi::c_int) as usize;
-            (*blob_0).data = __caryll_allocate_clean(
-                (::core::mem::size_of::<u8>() as usize).wrapping_mul((*blob_0).size),
-                33 as ::core::ffi::c_ulong,
-            ) as *mut u8;
-            *(*blob_0).data.offset(0 as ::core::ffi::c_int as isize) = 3 as u8;
-            *(*blob_0).data.offset(1 as ::core::ffi::c_int as isize) =
-                (nranges / 256 as ::core::ffi::c_int) as u8;
-            *(*blob_0).data.offset(2 as ::core::ffi::c_int as isize) =
-                (nranges % 256 as ::core::ffi::c_int) as u8;
-            for (i, r) in range3.iter().enumerate() {
-                let i = i as ::core::ffi::c_int;
-                *(*blob_0)
-                    .data
-                    .offset((3 as ::core::ffi::c_int + 3 as ::core::ffi::c_int * i) as isize) =
-                    (r.first as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8;
-                *(*blob_0)
-                    .data
-                    .offset((4 as ::core::ffi::c_int + 3 as ::core::ffi::c_int * i) as isize) =
-                    (r.first as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8;
-                *(*blob_0)
-                    .data
-                    .offset((5 as ::core::ffi::c_int + 3 as ::core::ffi::c_int * i) as isize) =
-                    r.fd;
+            bufwrite8(blob_0, 3 as u8);
+            bufwrite8(blob_0, (nranges / 256 as ::core::ffi::c_int) as u8);
+            bufwrite8(blob_0, (nranges % 256 as ::core::ffi::c_int) as u8);
+            for r in range3.iter() {
+                bufwrite8(
+                    blob_0,
+                    (r.first as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8,
+                );
+                bufwrite8(
+                    blob_0,
+                    (r.first as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8,
+                );
+                bufwrite8(blob_0, r.fd);
             }
-            *(*blob_0)
-                .data
-                .offset((*blob_0).size.wrapping_sub(2 as usize) as isize) =
-                (*sentinel as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8;
-            *(*blob_0)
-                .data
-                .offset((*blob_0).size.wrapping_sub(1 as usize) as isize) =
-                (*sentinel as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8;
+            bufwrite8(
+                blob_0,
+                (*sentinel as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8,
+            );
+            bufwrite8(
+                blob_0,
+                (*sentinel as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8,
+            );
             blob_0
         }
     }

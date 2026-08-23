@@ -1,85 +1,87 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{fprintf, free, strlen};
+use libc::fprintf;
 
-#[derive(Copy, Clone)]
+// Stage 7-2-e "Buffer to Vec": `data` was `*mut u8`, manually grown via
+// `__caryll_reallocate`/freed via `libc::free`, with `size`/`free` as
+// separate hand-tracked bookkeeping fields (`size` = written length,
+// `free` = spare allocated-but-unwritten capacity, capped at growing by at
+// most 16 MiB per reallocation). `Vec<u8>` now owns the allocation and
+// tracks its own length/capacity, so `size`/`free` are gone -- every former
+// read of `.size` is `.data.len()`; there is no external equivalent of
+// `.free` any more (nothing outside this file ever read it, confirmed by
+// grep before this conversion; `Vec`'s own growth strategy replaces the
+// hand-rolled one, including the 16 MiB growth cap, which only existed to
+// bound a single `realloc` call's size and has no externally observable
+// effect on buffer *contents*).
+//
+// `Copy` dropped (a `Vec` can't be): the one place that relied on it,
+// `libcff/subr.rs`'s `vec![zero_buffer; n]` scratch arrays, keeps working
+// unchanged under `Clone` instead -- `vec![x; n]` only ever required
+// `Clone`, and cloning an empty `Vec::new()` is cheap.
+#[derive(Clone)]
 #[repr(C)]
 pub struct Buffer {
     pub cursor: usize,
-    pub size: usize,
-    pub free: usize,
-    pub data: *mut u8,
+    pub data: Vec<u8>,
 }
-use crate::support::alloc::{__caryll_allocate_clean, __caryll_reallocate};
 use crate::support::stdio::stderr;
 
+// `Box`-allocated now, not `__caryll_allocate_clean`'d: a calloc'd, all-zero
+// `Buffer` is not a valid value the instant it contains a `Vec` (see
+// [[otfcc-vec-field-assign-needs-calloc]] throughout this migration), so
+// construction has to go through a real Rust value from the start.
 pub unsafe fn bufnew() -> *mut Buffer {
-    let mut buf: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-    buf = __caryll_allocate_clean(
-        ::core::mem::size_of::<Buffer>() as usize,
-        6 as ::core::ffi::c_ulong,
-    ) as *mut Buffer;
-    (*buf).free = 0 as usize;
-    (*buf).size = (*buf).free;
-    return buf;
+    Box::into_raw(Box::new(Buffer {
+        cursor: 0,
+        data: Vec::new(),
+    }))
 }
-pub unsafe fn buffree(mut buf: *mut Buffer) {
+pub unsafe fn buffree(buf: *mut Buffer) {
     if buf.is_null() {
         return;
     }
-    if !(*buf).data.is_null() {
-        free((*buf).data as *mut ::core::ffi::c_void);
-        (*buf).data = ::core::ptr::null_mut::<u8>();
-    }
-    free(buf as *mut ::core::ffi::c_void);
-    buf = ::core::ptr::null_mut::<Buffer>();
+    drop(Box::from_raw(buf));
 }
-pub unsafe fn buflen(mut buf: *mut Buffer) -> usize {
-    return (*buf).size;
+pub unsafe fn buflen(buf: *mut Buffer) -> usize {
+    (*buf).data.len()
 }
-pub unsafe fn bufpos(mut buf: *mut Buffer) -> usize {
-    return (*buf).cursor;
+pub unsafe fn bufpos(buf: *mut Buffer) -> usize {
+    (*buf).cursor
 }
-pub unsafe fn bufseek(mut buf: *mut Buffer, mut pos: usize) {
+pub unsafe fn bufseek(buf: *mut Buffer, pos: usize) {
     (*buf).cursor = pos;
 }
-pub unsafe fn bufclear(mut buf: *mut Buffer) {
-    (*buf).cursor = 0 as usize;
-    (*buf).free = (*buf).size.wrapping_add((*buf).free);
-    (*buf).size = 0 as usize;
+pub unsafe fn bufclear(buf: *mut Buffer) {
+    (*buf).cursor = 0;
+    // `.clear()`, not `= Vec::new()`: drops every element but keeps the
+    // backing allocation, the same "reset length, keep the allocation"
+    // contract `size = 0` + `free = size + free` used to give by hand.
+    (*buf).data.clear();
 }
-unsafe fn bufbeforewrite(mut buf: *mut Buffer, mut towrite: usize) {
-    let mut current_size: usize = (*buf).size;
-    let mut allocated: usize = (*buf).size.wrapping_add((*buf).free);
-    let mut required: usize = (*buf).cursor.wrapping_add(towrite);
-    if required < current_size {
-        return;
-    } else if required <= allocated {
-        (*buf).size = required;
-        (*buf).free = allocated.wrapping_sub((*buf).size);
-    } else {
-        (*buf).size = required;
-        (*buf).free = required;
-        if (*buf).free > 0x1000000 as ::core::ffi::c_int as usize {
-            (*buf).free = 0x1000000 as ::core::ffi::c_int as usize;
-        }
-        (*buf).data = __caryll_reallocate(
-            (*buf).data as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<u8>() as usize)
-                .wrapping_mul((*buf).size.wrapping_add((*buf).free)),
-            46 as ::core::ffi::c_ulong,
-        ) as *mut u8;
-    };
-}
-// Pushes `bytes` at the cursor, growing the buffer first, and advances the
-// cursor. All the fixed-width bufwriteNN{l,b} functions below are exactly
-// this plus an endian-ordered byte array (to_le_bytes/to_be_bytes), which
-// replaces c2rust's manual per-byte shift-mask-store expansion.
+// Pushes `bytes` at the cursor, growing the buffer first if needed, and
+// advances the cursor. All the fixed-width bufwriteNN{l,b} functions below
+// are exactly this plus an endian-ordered byte array
+// (to_le_bytes/to_be_bytes), which replaces c2rust's manual per-byte
+// shift-mask-store expansion.
+//
+// A write can seek backward and overwrite already-written bytes in place
+// (the offset-backpatching idiom `bufping16b`/`bufpong` below build on) --
+// so this is not a plain `Vec::extend`. If the write fits entirely within
+// the already-written region (`cursor + bytes.len() <= data.len()`), it's
+// a pure in-place overwrite; otherwise `resize` grows the `Vec` first
+// (zero-filling any gap between the old length and `cursor`, matching what
+// a fresh `realloc` over calloc'd memory used to leave there) before the
+// same slice-copy runs either way.
 #[inline]
 unsafe fn buf_push_bytes(buf: *mut Buffer, bytes: &[u8]) {
-    bufbeforewrite(buf, bytes.len());
-    let dst = (*buf).data.add((*buf).cursor);
-    ::core::ptr::copy_nonoverlapping(bytes.as_ptr(), dst, bytes.len());
-    (*buf).cursor = (*buf).cursor.wrapping_add(bytes.len());
+    let cursor = (*buf).cursor;
+    let end = cursor.wrapping_add(bytes.len());
+    let data: &mut Vec<u8> = &mut (*buf).data;
+    if data.len() < end {
+        data.resize(end, 0);
+    }
+    data[cursor..end].copy_from_slice(bytes);
+    (*buf).cursor = end;
 }
 pub unsafe fn bufwrite8(buf: *mut Buffer, byte: u8) {
     buf_push_bytes(buf, &[byte]);
@@ -137,11 +139,12 @@ pub unsafe fn bufwrite_str(buf: *mut Buffer, str: *const ::core::ffi::c_char) {
     if str.is_null() {
         return;
     }
-    let len: usize = strlen(str);
-    if len == 0 {
+    let cstr = ::core::ffi::CStr::from_ptr(str);
+    let bytes = cstr.to_bytes();
+    if bytes.is_empty() {
         return;
     }
-    buf_push_bytes(buf, ::core::slice::from_raw_parts(str as *const u8, len));
+    buf_push_bytes(buf, bytes);
 }
 pub unsafe fn bufwrite_bytes(buf: *mut Buffer, len: usize, str: *const u8) {
     if str.is_null() || len == 0 {
@@ -150,26 +153,23 @@ pub unsafe fn bufwrite_bytes(buf: *mut Buffer, len: usize, str: *const u8) {
     buf_push_bytes(buf, ::core::slice::from_raw_parts(str, len));
 }
 pub unsafe fn bufwrite_buf(buf: *mut Buffer, that: *mut Buffer) {
-    if that.is_null() || (*that).data.is_null() {
+    if that.is_null() {
         return;
     }
-    buf_push_bytes(
-        buf,
-        ::core::slice::from_raw_parts((*that).data, buflen(that)),
-    );
+    // `.to_vec()` (not a borrow held across `buf_push_bytes`): `buf` and
+    // `that` could in principle be the same allocation, and a borrow of
+    // `(*that).data` can't coexist with the `&mut` `buf_push_bytes` takes
+    // on `(*buf).data` if they alias -- an owned copy sidesteps the
+    // question entirely, at the cost of one extra allocation for what was
+    // already a copy either way.
+    let bytes = (*that).data.clone();
+    buf_push_bytes(buf, &bytes);
 }
 pub unsafe fn bufwrite_bufdel(buf: *mut Buffer, that: *mut Buffer) {
     if that.is_null() {
         return;
     }
-    if (*that).data.is_null() {
-        buffree(that);
-        return;
-    }
-    buf_push_bytes(
-        buf,
-        ::core::slice::from_raw_parts((*that).data, buflen(that)),
-    );
+    bufwrite_buf(buf, that);
     buffree(that);
 }
 pub unsafe fn buflongalign(buf: *mut Buffer) {
@@ -220,10 +220,7 @@ mod tests {
     use super::*;
 
     unsafe fn contents(buf: *mut Buffer) -> Vec<u8> {
-        if (*buf).data.is_null() {
-            return Vec::new();
-        }
-        ::core::slice::from_raw_parts((*buf).data, buflen(buf)).to_vec()
+        (*buf).data.clone()
     }
 
     #[test]
@@ -326,15 +323,19 @@ mod tests {
     }
 
     #[test]
-    fn clear_resets_length_but_keeps_the_allocation() {
+    fn clear_resets_length_but_keeps_the_capacity() {
         unsafe {
             let buf = bufnew();
             bufwrite32b(buf, 0xdeadbeef);
-            let allocated = (*buf).size + (*buf).free;
+            let capacity_before = (*buf).data.capacity();
             bufclear(buf);
             assert_eq!(buflen(buf), 0);
             assert_eq!(bufpos(buf), 0);
-            assert_eq!((*buf).free, allocated, "capacity moved into `free`");
+            assert_eq!(
+                (*buf).data.capacity(),
+                capacity_before,
+                "Vec::clear keeps the backing allocation, same as the old size=0/free=size+free bookkeeping"
+            );
             buffree(buf);
         }
     }
@@ -381,14 +382,14 @@ mod tests {
 }
 
 pub unsafe fn bufprint(buf: *mut Buffer) {
-    for j in 0..(*buf).size {
+    for (j, &byte) in (*buf).data.iter().enumerate() {
         if j % 16 != 0 {
             fprintf(stderr, b" \0" as *const u8 as *const ::core::ffi::c_char);
         }
         fprintf(
             stderr,
             b"%02X\0" as *const u8 as *const ::core::ffi::c_char,
-            *(*buf).data.add(j) as ::core::ffi::c_int,
+            byte as ::core::ffi::c_int,
         );
         if j % 16 == 15 {
             fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
