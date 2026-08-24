@@ -21,12 +21,6 @@ use crate::support::buffer::{
 };
 use crate::support::primitives::otfcc_to_f2dot14;
 use crate::vf::vq::vq_get_still;
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union ComponentArg {
-    pub pointid: u16,
-    pub coord: i16,
-}
 pub unsafe fn shrink_flags(mut flags: *mut Buffer) -> *mut Buffer {
     if buflen(flags) == 0 {
         return flags;
@@ -171,28 +165,35 @@ unsafe fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
                 ComponentFlags::empty()
             };
         let mut output_anchor: bool = (*r).is_anchored == RefAnchorStatus::AnchorConsolidated;
-        let mut arg1: ComponentArg = ComponentArg { pointid: 0 };
-        let mut arg2: ComponentArg = ComponentArg { pointid: 0 };
-        if output_anchor {
-            arg1.pointid = (*r).outer as u16;
-            arg2.pointid = (*r).inner as u16;
-            if !((arg1.pointid as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int
-                && (arg2.pointid as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int)
+        // Was a `union { pointid: u16, coord: i16 }` -- `arg1`/`arg2` are
+        // written as whichever type this glyph's arguments actually are,
+        // then always read back as `u16` further down (`bufwrite16b`/
+        // `bufwrite8`), relying on the union's same-size storage to
+        // reinterpret an `i16` coordinate's bits as `u16` for writing.
+        // Plain `as u16` casts on the same-width integers do the identical
+        // bit-preserving reinterpretation without a union.
+        let (arg1, arg2): (u16, u16) = if output_anchor {
+            let a1 = (*r).outer as u16;
+            let a2 = (*r).inner as u16;
+            if !((a1 as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int
+                && (a2 as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int)
             {
                 flags.insert(ComponentFlags::ARG_1_AND_2_ARE_WORDS);
             }
+            (a1, a2)
         } else {
             flags.insert(ComponentFlags::ARGS_ARE_XY_VALUES);
-            arg1.coord = vq_get_still((*r).x.clone()) as i16;
-            arg2.coord = vq_get_still((*r).y.clone()) as i16;
-            if !((arg1.coord as ::core::ffi::c_int) < 128 as ::core::ffi::c_int
-                && arg1.coord as ::core::ffi::c_int >= -(128 as ::core::ffi::c_int)
-                && (arg2.coord as ::core::ffi::c_int) < 128 as ::core::ffi::c_int
-                && arg2.coord as ::core::ffi::c_int >= -(128 as ::core::ffi::c_int))
+            let c1 = vq_get_still((*r).x.clone()) as i16;
+            let c2 = vq_get_still((*r).y.clone()) as i16;
+            if !((c1 as ::core::ffi::c_int) < 128 as ::core::ffi::c_int
+                && c1 as ::core::ffi::c_int >= -(128 as ::core::ffi::c_int)
+                && (c2 as ::core::ffi::c_int) < 128 as ::core::ffi::c_int
+                && c2 as ::core::ffi::c_int >= -(128 as ::core::ffi::c_int))
             {
                 flags.insert(ComponentFlags::ARG_1_AND_2_ARE_WORDS);
             }
-        }
+            (c1 as u16, c2 as u16)
+        };
         if fabs((*r).b as ::core::ffi::c_double) > EPSILON
             || fabs((*r).c as ::core::ffi::c_double) > EPSILON
         {
@@ -220,11 +221,11 @@ unsafe fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
         bufwrite16b(gbuf, flags.bits());
         bufwrite16b(gbuf, (*r).glyph.index as u16);
         if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
-            bufwrite16b(gbuf, arg1.pointid);
-            bufwrite16b(gbuf, arg2.pointid);
+            bufwrite16b(gbuf, arg1);
+            bufwrite16b(gbuf, arg2);
         } else {
-            bufwrite8(gbuf, arg1.pointid as u8);
-            bufwrite8(gbuf, arg2.pointid as u8);
+            bufwrite8(gbuf, arg1 as u8);
+            bufwrite8(gbuf, arg2 as u8);
         }
         if flags.contains(ComponentFlags::WE_HAVE_A_SCALE) {
             bufwrite16b(
