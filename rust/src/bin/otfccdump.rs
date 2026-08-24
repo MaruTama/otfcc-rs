@@ -10,13 +10,12 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use libc::{fclose, fgetc, fileno, fopen, fprintf, fputc, fwrite, isatty, strcmp, strdup, strtol};
-use otfcc_rust::support::stdio::{FILE, stdin, stdout};
-// `otfcc_read_sfnt` and friends are this crate's own functions, still reached
-// through `extern "C"` rather than `use otfcc_rust::…` because the binary also
-// carries its own copies of the types in their signatures. Once those types
-// are unified the declarations go away and so does this allow, which is only
-// needed because `libc::FILE` is deliberately opaque.
+use libc::{fgetc, fileno, fprintf, isatty, strcmp, strdup, strtol};
+use otfcc_rust::support::stdio::{stdin, stdout};
+// `getopt_long` and friends are reached through `extern "C"` rather than a
+// normal Rust declaration because they're the real libc symbols, called
+// with this crate's own `LongOption` (a `#[repr(C)]` mirror of libc's
+// `struct option`) rather than a type `bindgen`/`libc` exposes for them.
 #[allow(improper_ctypes)]
 unsafe extern "C" {
     static mut optarg: *mut ::core::ffi::c_char;
@@ -59,6 +58,8 @@ use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use std::cell::RefCell;
+use std::io::Write;
+use std::os::unix::ffi::OsStrExt;
 
 #[inline]
 unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
@@ -583,11 +584,16 @@ unsafe fn main_0(
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
         if let Some(ref output_path) = outputPath {
-            let mut outputFile: *mut FILE = fopen(
-                output_path.as_ptr(),
-                b"wb\0" as *const u8 as *const ::core::ffi::c_char,
-            ) as *mut FILE;
-            if outputFile.is_null() {
+            let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
+            let write_result = std::fs::File::create(std::path::Path::new(os_path)).and_then(
+                |mut f| {
+                    if add_bom {
+                        f.write_all(&[0xef, 0xbb, 0xbf])?;
+                    }
+                    f.write_all(&buf)
+                },
+            );
+            if write_result.is_err() {
                 logger_log_sds(
                     &mut *(*options).logger.borrow_mut(),
                     LOG_VL_CRITICAL,
@@ -600,30 +606,12 @@ unsafe fn main_0(
                 );
                 return EXIT_FAILURE;
             }
-            if add_bom {
-                fputc(0xef as ::core::ffi::c_int, outputFile);
-                fputc(0xbb as ::core::ffi::c_int, outputFile);
-                fputc(0xbf as ::core::ffi::c_int, outputFile);
-            }
-            fwrite(
-                buf.as_ptr() as *const ::core::ffi::c_void,
-                ::core::mem::size_of::<u8>() as usize,
-                buf.len(),
-                outputFile,
-            );
-            fclose(outputFile);
         } else {
+            let mut stdout_handle = std::io::stdout();
             if add_bom {
-                fputc(0xef as ::core::ffi::c_int, stdout);
-                fputc(0xbb as ::core::ffi::c_int, stdout);
-                fputc(0xbf as ::core::ffi::c_int, stdout);
+                let _ = stdout_handle.write_all(&[0xef, 0xbb, 0xbf]);
             }
-            fwrite(
-                buf.as_ptr() as *const ::core::ffi::c_void,
-                ::core::mem::size_of::<u8>() as usize,
-                buf.len(),
-                stdout,
-            );
+            let _ = stdout_handle.write_all(&buf);
         }
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),
