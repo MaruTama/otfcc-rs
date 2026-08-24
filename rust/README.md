@@ -932,6 +932,41 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-4: the file-I/O item's last two spots -- `bin/otfccbuild.rs`'s
+  `readEntireStdin` and `bin/otfccdump.rs`'s `getchar` -- moved off
+  `libc::fgets`/`fgetc`/`realloc` onto `std::io`, finishing the item
+  `font/caryll_sfnt.rs` and the previous file-I/O PR started.** `fopen`/
+  `fclose`/`fread`/`fwrite`/`fputc`/`fgets`/`fgetc` are now gone from
+  `rust/src` entirely.
+  - **`readEntireStdin`** (feeds `otfccbuild`'s no-input-file/piped-JSON
+    path) used a `malloc`/`realloc`-growing buffer filled by `fgets` in a
+    loop, measuring each chunk with `strlen` -- which stops at the first
+    embedded NUL byte, so any stdin content after one silently vanished
+    from `length` (and thus from the JSON text handed to `json_parse`)
+    instead of erroring or being kept. `Read::read_to_end` copies exactly
+    the bytes it receives with no such assumption, closing that class of
+    bug structurally, the same way `readEntireFile`'s `std::fs::read`
+    closed the short-read class of bug in the previous PR. The out-param
+    stays a `malloc`'d `*mut c_char` for the same reason as
+    `readEntireFile`'s: it's copied out of a `Vec<u8>` into the same
+    `buffer`/`length` locals `readEntireFile` also writes, freed
+    uniformly downstream with `free()`.
+  - **`getchar`** (only used to block on a keypress for
+    `--debug-wait-on-start`) moved from `fgetc(stdin)` to a single-byte
+    `std::io::stdin().read(...)`, keeping its libc `getchar()`-style
+    return convention (the byte read, or `-1` on EOF/error) since nothing
+    about its one call site needed to change.
+  - **No existing script exercises stdin input** (`compare-with-golden.sh`
+    and friends always pass a file path), so this was verified by hand:
+    piping each of the four `tests/payload/*.json` fixtures through
+    `otfccbuild -q -o ... <` and diffing the result against the same
+    fixture built from a path -- byte-identical in all four cases.
+  - **Verification**: full pipeline green -- build, 245/245 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged,
+    round-trips 10/10, lookup-alias regression clean, both fuzz targets
+    `cargo check`-clean, `cargo miri test` clean with no new ignores, plus
+    the by-hand stdin-vs-file byte comparison above.
+
 - **Stage 7-4: the remaining file I/O -- `bin/otfccbuild.rs`'s
   `readEntireFile`, both binaries' output writes, and `logger.rs`'s stderr
   write -- moved off `libc::fopen`/`fread`/`fwrite`/`fclose`/`fputc` onto

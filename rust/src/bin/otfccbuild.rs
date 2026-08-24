@@ -10,8 +10,8 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use libc::{feof, fgets, fprintf, free, malloc, realloc, strcmp, strlen, strtol};
-use otfcc_rust::support::stdio::{stderr, stdin, stdout};
+use libc::{fprintf, free, malloc, strcmp, strtol};
+use otfcc_rust::support::stdio::{stderr, stdout};
 unsafe extern "C" {
     static mut optarg: *mut ::core::ffi::c_char;
     static mut optind: ::core::ffi::c_int;
@@ -50,6 +50,7 @@ use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::support::{EXIT_FAILURE, NULL};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use std::cell::RefCell;
+use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 
 #[inline]
@@ -126,36 +127,25 @@ pub unsafe fn readEntireFile(
     *_length = bytes.len() as ::core::ffi::c_long;
     true
 }
+// The old `fgets`/`strlen` loop measured each chunk it read with `strlen`,
+// which stops at the first embedded NUL byte -- any stdin content after an
+// embedded NUL silently vanished from `length` (and thus from the JSON
+// text handed to `json_parse`) instead of erroring or being kept.
+// `Read::read_to_end` copies exactly the bytes it receives with no such
+// assumption, closing that class of bug structurally, the same way
+// `readEntireFile`'s `std::fs::read` closed the short-read class of bug.
 pub unsafe fn readEntireStdin(
-    mut _buffer: *mut *mut ::core::ffi::c_char,
-    mut _length: *mut ::core::ffi::c_long,
+    _buffer: *mut *mut ::core::ffi::c_char,
+    _length: *mut ::core::ffi::c_long,
 ) {
-    const BUF_SIZE: ::core::ffi::c_long = 0x400000 as ::core::ffi::c_long;
-    const BUF_MIN: ::core::ffi::c_long = 0x1000 as ::core::ffi::c_long;
-    let mut buffer: *mut ::core::ffi::c_char =
-        malloc(BUF_SIZE as usize) as *mut ::core::ffi::c_char;
-    let mut length: ::core::ffi::c_long = 0 as ::core::ffi::c_long;
-    let mut remain: ::core::ffi::c_long = BUF_SIZE;
-    while feof(stdin) == 0 {
-        if remain <= BUF_MIN {
-            remain += length >> 1 as ::core::ffi::c_int & 0xffffff as ::core::ffi::c_long;
-            buffer = realloc(
-                buffer as *mut ::core::ffi::c_void,
-                (length + remain) as usize,
-            ) as *mut ::core::ffi::c_char;
-        }
-        fgets(
-            buffer.offset(length as isize),
-            remain as ::core::ffi::c_int,
-            stdin,
-        );
-        let mut n: ::core::ffi::c_long =
-            strlen(buffer.offset(length as isize)) as ::core::ffi::c_long;
-        length += n;
-        remain -= n;
+    let mut bytes = Vec::new();
+    let _ = std::io::stdin().lock().read_to_end(&mut bytes);
+    let buffer = malloc(bytes.len().max(1)) as *mut ::core::ffi::c_char;
+    unsafe {
+        ::core::ptr::copy_nonoverlapping(bytes.as_ptr(), buffer as *mut u8, bytes.len());
     }
     *_buffer = buffer;
-    *_length = length;
+    *_length = bytes.len() as ::core::ffi::c_long;
 }
 unsafe fn main_0(
     mut argc: ::core::ffi::c_int,

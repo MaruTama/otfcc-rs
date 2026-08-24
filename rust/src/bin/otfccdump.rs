@@ -10,8 +10,8 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use libc::{fgetc, fileno, fprintf, isatty, strcmp, strdup, strtol};
-use otfcc_rust::support::stdio::{stdin, stdout};
+use libc::{fileno, fprintf, isatty, strcmp, strdup, strtol};
+use otfcc_rust::support::stdio::stdout;
 // `getopt_long` and friends are reached through `extern "C"` rather than a
 // normal Rust declaration because they're the real libc symbols, called
 // with this crate's own `LongOption` (a `#[repr(C)]` mirror of libc's
@@ -58,7 +58,7 @@ use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use std::cell::RefCell;
-use std::io::Write;
+use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
 
 #[inline]
@@ -71,7 +71,11 @@ unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
 }
 #[inline]
 unsafe fn getchar() -> ::core::ffi::c_int {
-    return fgetc(stdin);
+    let mut byte = [0u8; 1];
+    match std::io::stdin().read(&mut byte) {
+        Ok(1) => byte[0] as ::core::ffi::c_int,
+        _ => -1,
+    }
 }
 pub unsafe fn printInfo() {
     fprintf(
