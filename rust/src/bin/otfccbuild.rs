@@ -10,11 +10,8 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use libc::{
-    SEEK_SET, fclose, feof, fgets, fopen, fprintf, fread, free, fseek, ftell, fwrite, malloc,
-    realloc, strcmp, strlen, strtol,
-};
-use otfcc_rust::support::stdio::{FILE, stderr, stdin, stdout};
+use libc::{feof, fgets, fprintf, free, malloc, realloc, strcmp, strlen, strtol};
+use otfcc_rust::support::stdio::{stderr, stdin, stdout};
 unsafe extern "C" {
     static mut optarg: *mut ::core::ffi::c_char;
     static mut optind: ::core::ffi::c_int;
@@ -42,7 +39,7 @@ use otfcc_rust::json_reader::read_json;
 use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
 use otfcc_rust::otf_writer::serialize_to_otf;
-use otfcc_rust::support::buffer::{buffree, buflen};
+use otfcc_rust::support::buffer::buffree;
 use otfcc_rust::support::getopt::{LongOption, NO_ARGUMENT, REQUIRED_ARGUMENT};
 use otfcc_rust::support::options::{
     otfcc_delete_options, otfcc_new_options, otfcc_options_optimize_to,
@@ -53,8 +50,8 @@ use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::support::{EXIT_FAILURE, NULL};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use std::cell::RefCell;
+use std::os::unix::ffi::OsStrExt;
 
-pub const SEEK_END: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
 unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
     return strtol(
@@ -86,36 +83,34 @@ pub unsafe fn printHelp() {
 // signal up to the one place that already owns process-exit semantics"
 // shape `font/caryll_sfnt.rs`'s `otfcc_get16u`/`otfcc_get32u` -> `Option`
 // conversion used.
+//
+// The bug this fixes: the old `fseek`/`ftell`/`fread` version discarded
+// `fread`'s return value, so a read that returned fewer bytes than
+// `length` (a race with concurrent truncation, or any other short read)
+// left the malloc'd buffer's tail as uninitialized memory that still got
+// treated as `length` valid bytes and fed to `json_parse`. `std::fs::read`
+// reads to actual EOF into a `Vec<u8>` whose length is exactly what was
+// read, so there is no way for a short read to go unnoticed. `_buffer`
+// stays a `malloc`'d `*mut c_char` (the caller's shared `buffer`/`length`
+// locals are also written by `readEntireStdin`, unconverted, and both are
+// freed uniformly downstream with `free()` and read with `json_parse`) --
+// only the reading, not the buffer's ownership shape, changes here.
 pub unsafe fn readEntireFile(
-    mut inPath: *mut ::core::ffi::c_char,
-    mut _buffer: *mut *mut ::core::ffi::c_char,
-    mut _length: *mut ::core::ffi::c_long,
+    inPath: *mut ::core::ffi::c_char,
+    _buffer: *mut *mut ::core::ffi::c_char,
+    _length: *mut ::core::ffi::c_long,
 ) -> bool {
-    let mut buffer: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut length: ::core::ffi::c_long = 0 as ::core::ffi::c_long;
-    let mut f: *mut FILE =
-        fopen(inPath, b"rb\0" as *const u8 as *const ::core::ffi::c_char) as *mut FILE;
-    if f.is_null() {
+    let path_bytes = unsafe { ::core::ffi::CStr::from_ptr(inPath) }.to_bytes();
+    let os_path = std::ffi::OsStr::from_bytes(path_bytes);
+    let Ok(bytes) = std::fs::read(std::path::Path::new(os_path)) else {
         fprintf(
             stderr,
             b"Cannot read JSON file \"%s\". Exit.\n\0" as *const u8 as *const ::core::ffi::c_char,
             inPath,
         );
         return false;
-    }
-    fseek(f, 0 as ::core::ffi::c_long, SEEK_END);
-    length = ftell(f);
-    fseek(f, 0 as ::core::ffi::c_long, SEEK_SET);
-    buffer = malloc(length as usize) as *mut ::core::ffi::c_char;
-    if !buffer.is_null() {
-        fread(
-            buffer as *mut ::core::ffi::c_void,
-            1 as usize,
-            length as usize,
-            f,
-        );
-    }
-    fclose(f);
+    };
+    let buffer = malloc(bytes.len()) as *mut ::core::ffi::c_char;
     if buffer.is_null() {
         fprintf(
             stderr,
@@ -124,8 +119,11 @@ pub unsafe fn readEntireFile(
         );
         return false;
     }
+    unsafe {
+        ::core::ptr::copy_nonoverlapping(bytes.as_ptr(), buffer as *mut u8, bytes.len());
+    }
     *_buffer = buffer;
-    *_length = length;
+    *_length = bytes.len() as ::core::ffi::c_long;
     true
 }
 pub unsafe fn readEntireStdin(
@@ -677,11 +675,8 @@ unsafe fn main_0(
             // Always `Some` here -- the `outputPath.is_none()` branch
             // above already exited.
             let output_path = outputPath.as_ref().unwrap();
-            let mut outfile: *mut FILE = fopen(
-                output_path.as_ptr(),
-                b"wb\0" as *const u8 as *const ::core::ffi::c_char,
-            ) as *mut FILE;
-            if outfile.is_null() {
+            let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
+            if std::fs::write(std::path::Path::new(os_path), &(*otf).data).is_err() {
                 logger_log_sds(
                     &mut *(*options).logger.borrow_mut(),
                     LOG_VL_CRITICAL,
@@ -694,13 +689,6 @@ unsafe fn main_0(
                 );
                 return EXIT_FAILURE;
             }
-            fwrite(
-                (*otf).data.as_ptr() as *const ::core::ffi::c_void,
-                ::core::mem::size_of::<u8>() as usize,
-                buflen(otf),
-                outfile,
-            );
-            fclose(outfile);
             ___loggedstep_v_6 = false;
             logger_finish(&mut *(*options).logger.borrow_mut());
         }

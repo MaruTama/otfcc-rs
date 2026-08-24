@@ -932,6 +932,45 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-4: the remaining file I/O -- `bin/otfccbuild.rs`'s
+  `readEntireFile`, both binaries' output writes, and `logger.rs`'s stderr
+  write -- moved off `libc::fopen`/`fread`/`fwrite`/`fclose`/`fputc` onto
+  `std::fs`/`std::io`, completing the item `font/caryll_sfnt.rs` started.**
+  - **`readEntireFile` had the same bug just fixed in `caryll_sfnt.rs`**:
+    `fseek`/`ftell` determined a claimed length, then `fread`'s return
+    value was discarded, so a read that returned fewer bytes than that
+    claimed length (a race with concurrent truncation, or any other short
+    read) left the `malloc`'d buffer's tail as uninitialized memory that
+    still got treated as `length` valid bytes and fed to `json_parse`.
+    `std::fs::read` reads to actual EOF into a `Vec<u8>` whose length is
+    exactly what was read, structurally closing the class of bug rather
+    than adding a check for it. The out-param stays a `malloc`'d
+    `*mut c_char`, copied out of the `Vec` -- its caller's `buffer`/
+    `length` locals are shared with `readEntireStdin` (still
+    `malloc`/`realloc`/`fgets`-based, a separate, harder conversion, left
+    for its own PR) and freed uniformly downstream with `free()`, so only
+    the reading changed, not the buffer's ownership shape.
+  - **Both binaries' output writes** (`otfccbuild.rs`'s OTF write,
+    `otfccdump.rs`'s JSON write with its optional UTF-8 BOM, for both the
+    `-o <path>` and stdout branches) moved to `std::fs::write`/
+    `std::fs::File::create` + `Write::write_all`/`std::io::stdout()`. The
+    file-output paths now surface a write failure as the same
+    "Cannot write to file" error the old code only produced for an
+    `fopen` failure -- the old `fwrite` return value was discarded, same
+    shape as the `readEntireFile` bug but on the write side.
+  - **`logger.rs`'s `LoggerTarget::Stderr` push** (the one function behind
+    every one of this crate's ~425 logger calls) moved from
+    `fwrite`/`fprintf(stderr, ...)` to `std::io::stderr().write_all(...)`.
+  - **Verification**: full pipeline green -- build, 245/245 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged (exercises
+    both the `otfccbuild` write path and every logger call),
+    round-trips 10/10, lookup-alias regression clean, both fuzz targets
+    `cargo check`-clean, `cargo miri test` clean with no new ignores (none
+    of these three files' tests touch a real file directly -- golden/
+    cycles/roundtrip scripts already exercise the JSON-input build path
+    `readEntireFile` sits on, and log-output comparison exercises every
+    `LoggerTarget::Stderr` call).
+
 - **Stage 7-4: `font/caryll_sfnt.rs` moved off `libc::fopen`/`fread`/`fseek`
   onto `std::fs`/`std::io`, fixing the file-I/O bug the plan named as this
   item's motivation.** `otfcc_read_packets`'s second loop (reading each

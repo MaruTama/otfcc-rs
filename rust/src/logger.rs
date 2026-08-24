@@ -1,7 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{fprintf, fwrite};
-
-use crate::support::stdio::stderr;
+use std::io::Write;
 
 // Was `ILoggerTarget`, a 2-field vtable (`dispose`/`push`) with exactly two
 // static instances (stderr output vs no-op) selected once at `Logger`
@@ -20,17 +18,10 @@ impl LoggerTarget {
     unsafe fn push(self, data: Vec<u8>) {
         match self {
             LoggerTarget::Stderr => {
-                // Writes the exact byte count rather than `fprintf("%s", ...)`:
-                // `data` is no longer NUL-terminated storage, and this crate's log
-                // text is not expected to contain an embedded NUL either way.
-                fwrite(
-                    data.as_ptr() as *const ::core::ffi::c_void,
-                    1,
-                    data.len(),
-                    stderr,
-                );
+                let mut stderr = std::io::stderr();
+                let _ = stderr.write_all(&data);
                 if data.last() != Some(&b'\n') {
-                    fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
+                    let _ = stderr.write_all(b"\n");
                 }
             }
             LoggerTarget::Empty => {
