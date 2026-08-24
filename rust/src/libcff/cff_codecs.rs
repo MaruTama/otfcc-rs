@@ -2,7 +2,7 @@
 use libc::{printf, sprintf, strlen, strtod};
 
 use crate::libcff::CffDictOperator;
-use crate::libcff::cff_value::{CS2_FRACTION, CS2_OPERAND, CS2_OPERATOR, CffValue, CffValueType};
+use crate::libcff::cff_value::CffValue;
 use crate::support::NULL;
 use crate::support::buffer::bufnew;
 use crate::support::buffer::{Buffer, bufninit, bufwrite8};
@@ -182,8 +182,8 @@ pub unsafe fn cff_encode_cff_float(mut val: ::core::ffi::c_double) -> *mut Buffe
                     + array[i
                         .wrapping_sub(1 as u32)
                         .wrapping_mul(2 as u32)
-                        .wrapping_add(1 as u32) as usize] as ::core::ffi::c_int)
-                    as u8,
+                        .wrapping_add(1 as u32) as usize]
+                        as ::core::ffi::c_int) as u8,
             );
             i = i.wrapping_add(1);
         }
@@ -211,96 +211,101 @@ pub unsafe fn cff_decode_cs2_token(
     let slice = ::core::slice::from_raw_parts(start, remaining);
     let mut r = FontReader::new(slice);
     let b0 = r.u8().ok()?;
-    let advance: u32;
-    if b0 <= 27 {
-        (*val).t = CS2_OPERATOR;
+    // A CS2 "operand" always becomes a `Double`, never stays an `Integer`
+    // -- the original built it as `CS2_OPERAND` (== `Integer`) and then
+    // unconditionally normalized it to `CS2_FRACTION` (== `Double`)
+    // immediately afterward, so this constructs the normalized value
+    // directly instead of writing-then-retagging.
+    let (value, advance): (CffValue, u32) = if b0 <= 27 {
         if b0 == 12 {
             let b1 = r.u8().ok()?;
-            (*val).c2rust_unnamed.i = ((b0 as i32) << 8) | b1 as i32;
-            advance = 2;
+            (CffValue::Operator(((b0 as i32) << 8) | b1 as i32), 2)
         } else {
             // 0-11 and 13-27 all take this same one-byte-operator shape
             // in the original.
-            (*val).c2rust_unnamed.i = b0 as i32;
-            advance = 1;
+            (CffValue::Operator(b0 as i32), 1)
         }
     } else if b0 == 28 {
-        (*val).t = CS2_OPERAND;
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
-        (*val).c2rust_unnamed.i = ((((b1 as i32) << 8) | b2 as i32) as i16) as i32;
-        advance = 3;
+        let i = ((((b1 as i32) << 8) | b2 as i32) as i16) as i32;
+        (CffValue::Double(i as f64), 3)
     } else if (29..=31).contains(&b0) {
-        (*val).t = CS2_OPERATOR;
-        (*val).c2rust_unnamed.i = b0 as i32;
-        advance = 1;
+        (CffValue::Operator(b0 as i32), 1)
     } else if (32..=254).contains(&b0) {
-        (*val).t = CS2_OPERAND;
         if (32..=246).contains(&b0) {
-            (*val).c2rust_unnamed.i = b0 as i32 - 139;
-            advance = 1;
+            (CffValue::Double((b0 as i32 - 139) as f64), 1)
         } else if (247..=250).contains(&b0) {
             let b1 = r.u8().ok()?;
-            (*val).c2rust_unnamed.i = (b0 as i32 - 247) * 256 + b1 as i32 + 108;
-            advance = 2;
+            (
+                CffValue::Double(((b0 as i32 - 247) * 256 + b1 as i32 + 108) as f64),
+                2,
+            )
         } else {
             // 251-254
             let b1 = r.u8().ok()?;
-            (*val).c2rust_unnamed.i = -((b0 as i32 - 251) * 256) - b1 as i32 - 108;
-            advance = 2;
+            (
+                CffValue::Double((-((b0 as i32 - 251) * 256) - b1 as i32 - 108) as f64),
+                2,
+            )
         }
     } else {
         // b0 == 255
-        (*val).t = CS2_FRACTION;
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
         let b3 = r.u8().ok()?;
         let b4 = r.u8().ok()?;
         let integer_part = ((((b1 as i32) << 8) | b2 as i32) as i16) as i32;
         let fraction_part = ((((b3 as i32) << 8) | b4 as i32) as u16) as i32;
-        (*val).c2rust_unnamed.d = integer_part as ::core::ffi::c_double
-            + fraction_part as ::core::ffi::c_double / 65536.0f64;
-        advance = 5;
-    }
-    if (*val).t as ::core::ffi::c_uint == CS2_OPERAND as ::core::ffi::c_int as ::core::ffi::c_uint {
-        (*val).c2rust_unnamed.d = (*val).c2rust_unnamed.i as ::core::ffi::c_double;
-        (*val).t = CS2_FRACTION;
-    }
+        (
+            CffValue::Double(integer_part as f64 + fraction_part as f64 / 65536.0f64),
+            5,
+        )
+    };
+    *val = value;
     Some(advance)
 }
 unsafe fn cff_dec_i(start: *const u8, remaining: usize, val: *mut CffValue) -> Option<u32> {
     let slice = ::core::slice::from_raw_parts(start, remaining);
     let mut r = FontReader::new(slice);
     let b0 = r.u8().ok()?;
+    let i: i32;
     let len: u32;
     if (32..=246).contains(&b0) {
-        (*val).c2rust_unnamed.i = b0 as i32 - 139;
+        i = b0 as i32 - 139;
         len = 1;
     } else if (247..=250).contains(&b0) {
         let b1 = r.u8().ok()?;
-        (*val).c2rust_unnamed.i = (b0 as i32 - 247) * 256 + b1 as i32 + 108;
+        i = (b0 as i32 - 247) * 256 + b1 as i32 + 108;
         len = 2;
     } else if (251..=254).contains(&b0) {
         let b1 = r.u8().ok()?;
-        (*val).c2rust_unnamed.i = -(b0 as i32 - 251) * 256 - b1 as i32 - 108;
+        i = -(b0 as i32 - 251) * 256 - b1 as i32 - 108;
         len = 2;
     } else if b0 == 28 {
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
-        (*val).c2rust_unnamed.i = ((b1 as i32) << 8) | b2 as i32;
+        i = ((b1 as i32) << 8) | b2 as i32;
         len = 3;
     } else if b0 == 29 {
         let b1 = r.u8().ok()?;
         let b2 = r.u8().ok()?;
         let b3 = r.u8().ok()?;
         let b4 = r.u8().ok()?;
-        (*val).c2rust_unnamed.i =
-            ((b1 as i32) << 24) | ((b2 as i32) << 16) | ((b3 as i32) << 8) | b4 as i32;
+        i = ((b1 as i32) << 24) | ((b2 as i32) << 16) | ((b3 as i32) << 8) | b4 as i32;
         len = 5;
     } else {
+        // Not a recognized lead byte -- `len = 0` signals "no token
+        // consumed" to the caller the same way the original did; the
+        // integer payload was left as whatever garbage sat in the
+        // calloc'd/reused union in that case, never read since nothing
+        // downstream trusts a zero-length token's value. `0` here is an
+        // explicit, defined stand-in for that same "never actually read"
+        // slot, not a behavior change.
+        i = 0;
         len = 0;
     }
-    (*val).t = CffValueType::Integer;
+    *val = CffValue::Integer(i);
     Some(len)
 }
 static NIBBLE_SYMB: [&::core::ffi::CStr; 15] = [
@@ -337,28 +342,31 @@ unsafe fn cff_dec_r(start: *const u8, remaining: usize, val: *mut CffValue) -> O
     }
     let len = (nibst + 1) as u32;
     text.push(0); // NUL-terminate for atof/strtod, matching the original's atof(restr) call
-    (*val).c2rust_unnamed.d = atof(text.as_ptr() as *const ::core::ffi::c_char);
-    (*val).t = CffValueType::Double;
+    *val = CffValue::Double(atof(text.as_ptr() as *const ::core::ffi::c_char));
     Some(len)
 }
 unsafe fn cff_dec_o(start: *const u8, remaining: usize, val: *mut CffValue) -> Option<u32> {
     let slice = ::core::slice::from_raw_parts(start, remaining);
     let mut r = FontReader::new(slice);
     let b0 = r.u8().ok()?;
+    let op: i32;
     let len: u32;
     if b0 <= 21 {
         if b0 != 12 {
-            (*val).c2rust_unnamed.i = b0 as i32;
+            op = b0 as i32;
             len = 1;
         } else {
             let b1 = r.u8().ok()?;
-            (*val).c2rust_unnamed.i = b0 as i32 * 256 + b1 as i32;
+            op = b0 as i32 * 256 + b1 as i32;
             len = 2;
         }
     } else {
+        // Same "never actually read when len == 0" reasoning as
+        // `cff_dec_i`'s own else branch.
+        op = 0;
         len = 0;
     }
-    (*val).t = CffValueType::Operator;
+    *val = CffValue::Operator(op);
     Some(len)
 }
 unsafe fn cff_dec_e(start: *const u8, remaining: usize, val: *mut CffValue) -> Option<u32> {
@@ -369,8 +377,7 @@ unsafe fn cff_dec_e(start: *const u8, remaining: usize, val: *mut CffValue) -> O
         b"Undefined Byte in CFF: %d.\n\0" as *const u8 as *const ::core::ffi::c_char,
         *start as ::core::ffi::c_int,
     );
-    (*val).c2rust_unnamed.i = *start as i32;
-    (*val).t = CffValueType::Integer;
+    *val = CffValue::Integer(*start as i32);
     Some(1)
 }
 static DE_T2: [Option<unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>>; 256] = {
@@ -647,13 +654,9 @@ pub unsafe fn cff_decode_cff_token(
 #[cfg(test)]
 mod token_decoder_tests {
     use super::*;
-    use crate::libcff::cff_value::CffValueBody;
 
     fn zeroed_val() -> CffValue {
-        CffValue {
-            t: CffValueType::Unset,
-            c2rust_unnamed: CffValueBody { i: 0 },
-        }
+        CffValue::Unset
     }
 
     #[test]
@@ -663,8 +666,7 @@ mod token_decoder_tests {
         unsafe {
             let advance = cff_decode_cs2_token(data.as_ptr(), data.len(), &raw mut val).unwrap();
             assert_eq!(advance, 1);
-            assert!(matches!(val.t, CffValueType::Double));
-            assert_eq!(val.c2rust_unnamed.d, -39.0);
+            assert_eq!(val, CffValue::Double(-39.0));
         }
     }
 
@@ -675,7 +677,7 @@ mod token_decoder_tests {
         unsafe {
             let advance = cff_decode_cs2_token(data.as_ptr(), data.len(), &raw mut val).unwrap();
             assert_eq!(advance, 5);
-            assert_eq!(val.c2rust_unnamed.d, 2.5);
+            assert_eq!(val, CffValue::Double(2.5));
         }
     }
 
@@ -704,8 +706,7 @@ mod token_decoder_tests {
         unsafe {
             let advance = cff_decode_cff_token(data.as_ptr(), data.len(), &raw mut val).unwrap();
             assert_eq!(advance, 1);
-            assert!(matches!(val.t, CffValueType::Integer));
-            assert_eq!(val.c2rust_unnamed.i, 61);
+            assert_eq!(val, CffValue::Integer(61));
         }
     }
 
@@ -719,8 +720,7 @@ mod token_decoder_tests {
         unsafe {
             let advance = cff_decode_cff_token(data.as_ptr(), data.len(), &raw mut val).unwrap();
             assert_eq!(advance, 3);
-            assert!(matches!(val.t, CffValueType::Double));
-            assert_eq!(val.c2rust_unnamed.d, 1.5);
+            assert_eq!(val, CffValue::Double(1.5));
         }
     }
 

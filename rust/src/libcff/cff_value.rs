@@ -1,99 +1,63 @@
-/// What a [`CffValue`] holds: an operator, or a number in one of the two forms
-/// cff encodes.
+/// What a CFF DICT/CharString token decodes to: an operator, or a number in
+/// one of the two forms CFF encodes.
 ///
-/// One value, two spellings. C declares each number twice -- `CffValueType::Operator` for
-/// code reading a DICT and `CS2_OPERATOR` for code reading a CharString -- so
-/// that each reader can use its own vocabulary for the same three states. Rust
-/// cannot give one value two variant names, so the DICT names are the variants
-/// and the CharString names are consts equal to them.
+/// Used to be a C-shaped `struct { t: CffValueType, c2rust_unnamed: union {
+/// i: i32, d: f64 } }` -- `t` decided which arm of the union was live, and
+/// nothing but caller discipline stopped a mismatched read (`.i` while
+/// `t == Double`, say). Folding the tag and payload into one enum makes
+/// that check-before-read discipline the compiler's job: there is no
+/// `.c2rust_unnamed` left to read past a `match`.
 ///
-/// `CffValueType::Unset` is a name this port adds. C had none: it wrote
-/// `(CffValueType)0` in six struct initialisers and let `calloc` supply it
-/// everywhere else. The state is real and reachable, not padding --
-/// `parse_dict_key` resets `context.res.t` to it to mean "key not
-/// found", and such a value reaching [`cffnum`] returns 0.0 because it matches
-/// neither number arm. An `enum` without a zero variant would make every one of
-/// those initialisers instant UB, so the zero gets a name.
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[repr(u32)]
-pub enum CffValueType {
-    Unset = 0,
-    Operator = 1,
-    Integer = 2,
-    Double = 3,
+/// The DICT reader and the CharString reader used to have their own
+/// vocabulary for the same three live states -- `CffValueType::Operator`/
+/// `CS2_OPERATOR`, `CffValueType::Integer`/`CS2_OPERAND`,
+/// `CffValueType::Double`/`CS2_FRACTION` -- because each reader built a
+/// value by writing `.t` and `.c2rust_unnamed` as two separate steps, and
+/// giving the second writer its own names made its code read naturally.
+/// Building a value now means naming the variant directly at the one
+/// point it's constructed (`CffValue::Operator(op)`, `CffValue::Double(d)`),
+/// which already reads naturally in either vocabulary, so the `CS2_*`
+/// aliases are gone rather than ported.
+///
+/// `Unset` is a name this port adds; C had none, and wrote `(CffValueType)0`
+/// in DICT-lookup-miss initializers and let `calloc` supply it everywhere
+/// else. The state is real and reachable, not padding -- `parse_dict_key`
+/// returns it to mean "key not found", and [`cffnum`] treats it (like
+/// `Operator`) as "not a number", returning `0.0`.
+#[derive(Copy, Clone, PartialEq, Debug)]
+pub enum CffValue {
+    Unset,
+    /// A DICT/CharString operator opcode. 2-byte (`12 <n>`-escaped)
+    /// operators are pre-combined the same way the original packed them
+    /// into one `i32`: `(12 << 8) | n`.
+    Operator(i32),
+    Integer(i32),
+    Double(f64),
 }
-
-/// The CharString reader's name for [`CffValueType::Operator`].
-pub const CS2_OPERATOR: CffValueType = CffValueType::Operator;
-/// The CharString reader's name for [`CffValueType::Integer`] — an operand still in
-/// integer form. `cff_decode_cs2_token` converts every one of these to
-/// [`CS2_FRACTION`] before it returns, so it is only ever seen mid-decode.
-pub const CS2_OPERAND: CffValueType = CffValueType::Integer;
-/// The CharString reader's name for [`CffValueType::Double`].
-pub const CS2_FRACTION: CffValueType = CffValueType::Double;
-#[derive(Copy, Clone)]
-pub struct CffValue {
-    pub t: CffValueType,
-    pub c2rust_unnamed: CffValueBody,
-}
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union CffValueBody {
-    pub i: i32,
-    pub d: ::core::ffi::c_double,
-}
-pub unsafe fn cffnum(mut val: CffValue) -> ::core::ffi::c_double {
-    if val.t as ::core::ffi::c_uint
-        == CffValueType::Integer as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        return unsafe { val.c2rust_unnamed.i } as ::core::ffi::c_double;
+/// `Integer`/`Double` as an `f64`; `Unset`/`Operator` (not a number) as
+/// `0.0` -- the same three-way split the original had, just matched on
+/// the enum directly instead of `t` then `.c2rust_unnamed`.
+pub fn cffnum(val: CffValue) -> f64 {
+    match val {
+        CffValue::Integer(i) => i as f64,
+        CffValue::Double(d) => d,
+        CffValue::Unset | CffValue::Operator(_) => 0.0,
     }
-    if val.t as ::core::ffi::c_uint
-        == CffValueType::Double as ::core::ffi::c_int as ::core::ffi::c_uint
-    {
-        return unsafe { val.c2rust_unnamed.d };
-    }
-    return 0 as ::core::ffi::c_int as ::core::ffi::c_double;
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    // Six names, four states. The DICT reader and the CharString reader each have
-    // their own word for the same three of them, which is why half of these are
-    // consts rather than variants -- and the code relies on the two spellings
-    // being interchangeable: `cff_decode_cs2_token` writes `CS2_FRACTION` and
-    // `cffnum` reads `CffValueType::Double`.
     #[test]
-    fn the_two_spellings_are_the_same_states() {
-        assert_eq!(CS2_OPERATOR, CffValueType::Operator);
-        assert_eq!(CS2_OPERAND, CffValueType::Integer);
-        assert_eq!(CS2_FRACTION, CffValueType::Double);
-        assert!(matches!(CS2_FRACTION, CffValueType::Double));
+    fn unset_and_operator_are_not_numbers() {
+        assert_eq!(cffnum(CffValue::Unset), 0.0);
+        assert_eq!(cffnum(CffValue::Operator(42)), 0.0);
     }
 
-    // `CffValueType::Unset` is this port's name for a state C left nameless: six struct
-    // initialisers wrote `(CffValueType)0` and every `calloc`ed stack of values
-    // starts there. It has to be a legal value of the type, and it has to be 0.
     #[test]
-    fn unset_is_zero_and_legal() {
-        assert_eq!(CffValueType::Unset as u32, 0);
-        assert_eq!(
-            [
-                CffValueType::Operator as u32,
-                CffValueType::Integer as u32,
-                CffValueType::Double as u32
-            ],
-            [1, 2, 3]
-        );
-        assert_eq!(::core::mem::size_of::<CffValueType>(), 4);
-        // An unset value is not a number, which is how a missing DICT key comes
-        // back as 0.0 from `cffnum`.
-        let unset = CffValue {
-            t: CffValueType::Unset,
-            c2rust_unnamed: CffValueBody { i: 42 },
-        };
-        assert_eq!(unsafe { cffnum(unset) }, 0.0);
+    fn integer_and_double_convert_to_f64() {
+        assert_eq!(cffnum(CffValue::Integer(-39)), -39.0);
+        assert_eq!(cffnum(CffValue::Double(2.5)), 2.5);
     }
 }

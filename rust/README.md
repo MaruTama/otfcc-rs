@@ -932,6 +932,70 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-4: `CffValueBody` union → `CffValue` enum, the largest single
+  item in this stage.** 281 of the crate's 290 `c2rust_unnamed` (tagged-
+  union field access) occurrences belonged to this one type, 231 of those
+  concentrated in a single file (`libcff/cff_parser.rs`). A focused survey
+  first (see prior "Next steps" entries' pattern) found the real shape
+  before writing any code: `CffValue` becomes
+  ```rust
+  pub enum CffValue { Unset, Operator(i32), Integer(i32), Double(f64) }
+  pub fn cffnum(val: CffValue) -> f64 { /* Integer/Double -> f64, else 0.0 */ }
+  ```
+  `Operator` genuinely carries an opcode (confirmed via both write sites in
+  `libcff/cff_codecs.rs`'s decoders and read sites in `libcff/cff_dict.rs`/
+  `cff_parser.rs`'s dispatch), so -- unlike `Unset` -- it isn't a bare unit
+  variant.
+  - **A real, previously-silent bug found while designing the fix, not
+    just while surveying it**: `libcff/cff_dict.rs`'s `parse_dict_key`
+    used to encode "key not found" as `t: Unset, c2rust_unnamed.i: -1` and
+    every one of 11 call sites in `cff_parser.rs` read `.c2rust_unnamed.i`
+    unconditionally, trusting that `-1` sentinel without ever checking
+    `.t` -- meaning a crafted font that encoded a DICT operand as a *real
+    number* instead of an integer would have its `f64` bit pattern
+    silently misread as an `i32` offset/length. A first-pass fix
+    (`cffnum(val) as i32`, matching a pattern this migration's earlier
+    surveys called reasonable in the abstract) would have **changed the
+    sentinel value from -1 to 0** for the legitimate "not found" case,
+    since `cffnum(Unset) == 0.0` -- a real behavior regression caught only
+    by reading the 11 call sites' actual `if offset_0 != -1 { ... }` usage
+    before implementing, not by the type signature alone. Fixed instead
+    with a dedicated `parse_dict_key_int(...) -> i32` that matches the
+    variant explicitly and returns `-1` for `Unset`/`Operator`, preserving
+    the exact existing "not found" convention for the common case while
+    still converting a genuinely-`Double` DICT value correctly (`d as
+    i32`) instead of reading raw union bytes.
+  - **`table/cff.rs` had the same shape, 9 more sites**: `.c2rust_unnamed.i
+    as u16` SID/CID-field reads in `callback_extract_fd`/
+    `callback_extract_private`, guarded only by an operand-*count* check,
+    never a `.t` check. These use `cffnum(val) as u16` instead (not
+    `parse_dict_key_int`'s `-1` convention, since these read `CffValue`s
+    directly off a CharString/DICT operand stack mid-callback, not through
+    `parse_dict_key`'s "not found" API) -- unifying them with the
+    `cffnum()`-based reads a few lines away in the same file that were
+    already written correctly.
+  - **A second dead branch found while converting, not before**:
+    `table/cff.rs`'s `cffdict_input_array` took a runtime `CffValueType`
+    parameter to choose between a `Double` and an `Integer` encoding path,
+    but all 6 call sites (`cff_make_private_dict`) passed `Double` --
+    confirmed by grep, matching what the function's own pre-existing doc
+    comment had already suspected ("the runtime branch on `t` is really
+    two functions") without anyone following through and checking. The
+    `Integer` branch and the `t` parameter are gone; the function is now a
+    thin empty-check wrapper around `cffdict_input_doubles`.
+  - **Zero external-to-CFF blast radius**: confirmed by grep before
+    starting that `CffValue`/`CffValueBody`/`CffValueType` are used only
+    in `libcff/cff_value.rs`, `cff_codecs.rs`, `cff_dict.rs`,
+    `cff_parser.rs`, and `table/cff.rs` -- no other subsystem touches
+    them.
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged
+    (**including `KRName-Regular-O2.otf` (CFF subroutinize), the one
+    payload that exercises the DICT/CharString stack machinery this PR
+    rewrote most heavily**), round-trips 10/10, lookup-alias regression
+    clean, `cargo miri test` identical to baseline, both fuzz targets
+    `cargo check`-clean.
+
 - **Stage 7-3 closes: `bin/otfccdump.rs`/`bin/otfccbuild.rs`'s `exit()` calls
   → `main() -> ExitCode`.** The last named Stage 7-3 item. Both binaries
   already had a `main_0(argc, argv) -> c_int` doing all the real work,
