@@ -10,9 +10,7 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use libc::{
-    exit, fclose, fgetc, fileno, fopen, fprintf, fputc, fwrite, isatty, strcmp, strdup, strtol,
-};
+use libc::{fclose, fgetc, fileno, fopen, fprintf, fputc, fwrite, isatty, strcmp, strdup, strtol};
 use otfcc_rust::support::stdio::{FILE, stdin, stdout};
 // `otfcc_read_sfnt` and friends are this crate's own functions, still reached
 // through `extern "C"` rather than `use otfcc_rust::…` because the binary also
@@ -404,7 +402,7 @@ unsafe fn main_0(
             otfcc_rust::bytesbuild!(b"Expected argument for input file name.\n"),
         );
         printHelp();
-        exit(EXIT_FAILURE);
+        return EXIT_FAILURE;
     } else {
         inPath = ::std::ffi::CStr::from_ptr(*argv.offset(optind as isize)).to_owned();
     }
@@ -442,7 +440,7 @@ unsafe fn main_0(
                     b"\". Exit.\n",
                 ),
             );
-            exit(EXIT_FAILURE);
+            return EXIT_FAILURE;
         }
         if ttcindex >= (*sfnt).count {
             logger_log_sds(
@@ -459,7 +457,7 @@ unsafe fn main_0(
                     b"). Exit.\n",
                 ),
             );
-            exit(EXIT_FAILURE);
+            return EXIT_FAILURE;
         }
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),
@@ -489,7 +487,7 @@ unsafe fn main_0(
                     b"\". Exit.\n",
                 ),
             );
-            exit(EXIT_FAILURE);
+            return EXIT_FAILURE;
         }
         if !sfnt.is_null() {
             otfcc_delete_sfnt(sfnt);
@@ -538,7 +536,7 @@ unsafe fn main_0(
                     b"\". Exit.\n",
                 ),
             );
-            exit(EXIT_FAILURE);
+            return EXIT_FAILURE;
         }
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),
@@ -604,7 +602,7 @@ unsafe fn main_0(
                         b"\". Exit.",
                     ),
                 );
-                exit(EXIT_FAILURE);
+                return EXIT_FAILURE;
             }
             if add_bom {
                 fputc(0xef as ::core::ffi::c_int, outputFile);
@@ -667,7 +665,7 @@ unsafe fn main_0(
     otfcc_delete_options(options);
     return 0 as ::core::ffi::c_int;
 }
-pub fn main() {
+pub fn main() -> ::std::process::ExitCode {
     let mut args_strings: Vec<Vec<u8>> = ::std::env::args()
         .map(|arg| {
             ::std::ffi::CString::new(arg)
@@ -681,9 +679,9 @@ pub fn main() {
         .chain(::core::iter::once(::core::ptr::null_mut()))
         .collect();
     unsafe {
-        ::std::process::exit(main_0(
+        ::std::process::ExitCode::from(main_0(
             (args_ptrs.len() - 1) as ::core::ffi::c_int,
             args_ptrs.as_mut_ptr() as *mut *mut ::core::ffi::c_char,
-        ))
+        ) as u8)
     }
 }
