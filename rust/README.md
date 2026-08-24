@@ -932,6 +932,36 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-4: `EndianProbe16`/`EndianProbe32` (`support/binio.rs`),
+  `CffDoubleBits` (`table/cff.rs`), and `DoubleBits`
+  (`vendor/emyg_dtoa.rs`) removed -- all four were the same
+  bit-reinterpretation shape `ComponentArg` was, just for different types.**
+  - `EndianProbe16`/`32` were a runtime host-endianness probe (`font/
+    caryll_sfnt.rs`'s `otfcc_check_endian`) plus a conditional byte-swap
+    (`otfcc_endian_convert16`/`32`) applied to a value `fread` had just
+    copied a file's big-endian bytes into byte-for-byte -- exactly what
+    `u16::from_be`/`u32::from_be` do, built into the standard library
+    without a union or a runtime probe. (This is the same fix `font/
+    caryll_sfnt_builder.rs`'s checksum computation already got, in an
+    earlier Stage 7-3 PR, for its own copy of this pattern -- `caryll_sfnt.
+    rs`'s was the last one left, confirmed by grep before starting.) Both
+    functions, `otfcc_check_endian`, and the two `EndianProbe*` unions
+    (zero other users crate-wide) are gone.
+  - `CffDoubleBits` (`callback_draw_getrand`, the CFF outline builder's
+    xorshift-based random-double generator) and `DoubleBits`
+    (`diy_fp_from_double`, `emyg_dtoa`'s float-to-shortest-decimal
+    conversion) each had exactly one construction site, immediately
+    followed by reading the *other* field -- a `u64` written, an `f64`
+    read (or vice versa), the classic "reinterpret this float's bits as an
+    integer" trick. `f64::from_bits`/`f64::to_bits` are that exact
+    operation without a union.
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged (CFF
+    hinting and `otfccdump`'s missing-file path both exercise code this
+    touched), round-trips 10/10, lookup-alias regression clean, `cargo
+    miri test` identical to baseline, both fuzz targets `cargo
+    check`-clean.
+
 - **Stage 7-4: `table/glyf/build.rs`'s `ComponentArg` union removed.**
   `union { pointid: u16, coord: i16 }` turned out to be a pure same-size
   bit-reinterpretation trick, not a real tagged value: `arg1`/`arg2` are
