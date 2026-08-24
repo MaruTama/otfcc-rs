@@ -932,6 +932,59 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-4: `font/caryll_sfnt.rs` moved off `libc::fopen`/`fread`/`fseek`
+  onto `std::fs`/`std::io`, fixing the file-I/O bug the plan named as this
+  item's motivation.** `otfcc_read_packets`'s second loop (reading each
+  table's actual bytes) used to call `fread` and discard its return value
+  -- a table whose declared `length` ran past the end of a truncated file
+  was silently zero-padded instead of the read failing. `Read::read_exact`
+  fails on a short read on its own, so this needed no separate byte-count
+  check, the same way the header/directory fields already worked once
+  Stage 7-3 fixed their own `exit()`-on-failure. Verified against a real
+  truncated font by hand, not just by the new unit tests: `otfccdump` on a
+  font truncated mid-table now cleanly reports `Cannot read SFNT file
+  "...". Exit.` (exit 1) instead of building a font with that table's
+  tail silently zeroed.
+  - **`otfcc_read_sfnt` changed shape**: it used to take an already-`fopen`'d
+    `*mut FILE`, with `otfccdump.rs`'s one caller doing the `fopen` itself;
+    it now takes the path directly and opens the file internally (`std::fs::
+    File::open`), so the caller no longer needs a `libc::fopen`/`FILE*` of
+    its own for this at all. The reading functions
+    (`otfcc_read_packets`/`otfcc_read_sfnt_body`/`otfcc_get16u`/`32`) are
+    generic over `Read`/`Read + Seek` rather than hardcoded to `std::fs::
+    File`, so a new sibling entry point, `otfcc_read_sfnt_from_reader`,
+    can take any reader.
+  - **Found while updating this function's one real caller**: the
+    `otf_parse` fuzz target (`rust/fuzz/`, a separate cargo workspace the
+    standard build/clippy/test pipeline never compiles -- caught only by
+    explicitly `cargo check`ing it, per this migration's established
+    habit) turned out to be a second caller, missed by grepping just
+    `rust/src/`. It used to wrap the fuzzer-provided byte slice with
+    `fmemopen` as a `FILE*` specifically because `otfcc_read_sfnt` was
+    `FILE*`-shaped -- its own comment even named this as something
+    "Stage 7-4 of the plan will eventually replace". Switched to
+    `otfcc_read_sfnt_from_reader` with a `std::io::Cursor<&[u8]>`, keeping
+    the same "wrap this byte slice, no real file on disk" shape without
+    writing a real temp file on every one of its thousands-per-process
+    iterations.
+  - **Verification**: full pipeline green -- build, 245/245 tests (4 new,
+    including one pinning the truncation bug directly), clippy clean, ABI
+    unchanged, golden bytes and log output unchanged (`dump-missing-file`
+    exercises the new open-failure path), round-trips 10/10, lookup-alias
+    regression clean, both fuzz targets `cargo check`-clean (`otf_parse`
+    needed real code changes, not just a recompile, confirmed by hand --
+    this is exactly the kind of signature change that check exists to
+    catch before CI does). `cargo miri test`: 224 passed, 0 failed, 21
+    ignored (3 more than baseline) -- the 3 new tests that touch a real
+    file (`nonexistent_path_returns_null`,
+    `table_length_past_truncated_file_end_fails_instead_of_zero_padding`,
+    `well_formed_single_table_font_reads_its_bytes_back`) hit Miri's
+    filesystem isolation (`error: unsupported operation: 'open' not
+    available when isolation is enabled`) and are marked
+    `#[cfg_attr(miri, ignore = "...")]`, matching this crate's existing
+    convention for Miri-incompatible tests; all 4 new tests run normally
+    under `cargo test`.
+
 - **Stage 7-4: `vendor/sds.rs` (1,368 lines, a transpiled port of redis's
   `sds` string type) removed entirely, replaced by a ~275-line
   `support/fmt.rs`.** Confirmed by grep before touching anything, not

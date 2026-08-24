@@ -12,58 +12,36 @@
 // crash-free forever after.
 //
 // The otfccdump binary's equivalent flow (src/bin/otfccdump.rs) reads a real
-// file with fopen/otfcc_read_sfnt and process-exits on failure, so its error
-// paths never have to worry about freeing what came before -- this harness
-// runs thousands of iterations in one process, so it can't take that
-// shortcut: every path here (bad file, bad ttcindex, bad font, good font)
-// explicitly frees sfnt/font/options before returning, unlike the CLI.
+// file by path via otfcc_read_sfnt and process-exits on failure, so its
+// error paths never have to worry about freeing what came before -- this
+// harness runs thousands of iterations in one process, so it can't take
+// that shortcut: every path here (bad file, bad ttcindex, bad font, good
+// font) explicitly frees sfnt/font/options before returning, unlike the CLI.
 //
-// fmemopen wraps the fuzzer-provided byte slice as a FILE* without a real
-// file on disk, since otfcc_read_sfnt's signature is FILE*-shaped (inherited
-// from the C fread/fseek-based reader) rather than slice-based -- the same
-// FILE*-at-the-boundary shape Stage 7-4 of the plan will eventually replace
-// with std::fs/std::io.
+// otfcc_read_sfnt itself is path-based (Stage 7-4 moved it off a `FILE*`
+// onto `std::fs`/`std::io`), so this uses its `Read + Seek`-generic sibling
+// `otfcc_read_sfnt_from_reader` with a `Cursor` over the fuzzer-provided
+// bytes instead -- the same "wrap this byte slice, no real file on disk"
+// shape `fmemopen` gave the old `FILE*`-based reader, without needing a
+// real temp file written to disk on every one of this target's
+// thousands-per-process iterations.
 
 use libfuzzer_sys::fuzz_target;
 use otfcc_rust::font::caryll_font::otfcc_font_free;
-use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt};
+use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
 use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use std::cell::RefCell;
+use std::io::Cursor;
 
 fuzz_target!(|data: &[u8]| {
-    // fmemopen requires a non-empty buffer on some libc implementations
-    // (glibc accepts size 0, macOS's libc does not); nothing interesting is
-    // reachable from an empty file either way.
     if data.is_empty() {
         return;
     }
 
     unsafe {
-        // fmemopen does not copy: it reads/writes through this exact
-        // buffer for the FILE*'s lifetime, so `buf` must outlive `file`.
-        let mut buf = data.to_vec();
-        let mode = c"rb";
-        let file = libc::fmemopen(
-            buf.as_mut_ptr() as *mut libc::c_void,
-            buf.len(),
-            mode.as_ptr(),
-        );
-        if file.is_null() {
-            return;
-        }
-
-        // otfcc_read_sfnt takes ownership of `file` and fcloses it itself,
-        // unconditionally, on every path (font/caryll_sfnt.rs:172, after
-        // the match over sfnt_version) -- mirrors src/bin/otfccdump.rs,
-        // which never fcloses the FILE* it opened either. An extra
-        // `libc::fclose(file)` here used to double-close it: harmless on
-        // this Mac's libc, but a real double-free under glibc + ASan,
-        // caught by CI on the very first (unmutated) seed-corpus run
-        // (tests/payload/gvar-test.ttf) -- a bug in this harness, not in
-        // otfcc_read_sfnt.
-        let sfnt = otfcc_read_sfnt(file as *mut otfcc_rust::support::stdio::FILE);
+        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data));
 
         if sfnt.is_null() || (*sfnt).count == 0 {
             if !sfnt.is_null() {
