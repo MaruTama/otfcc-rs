@@ -932,6 +932,25 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-4: `table/glyf/build.rs`'s `ComponentArg` union removed.**
+  `union { pointid: u16, coord: i16 }` turned out to be a pure same-size
+  bit-reinterpretation trick, not a real tagged value: `arg1`/`arg2` are
+  written as whichever type a composite glyph's arguments actually are
+  (point indices via `.pointid`, coordinate deltas via `.coord`), then
+  always read back as `.pointid` a few lines later regardless of which one
+  was written, relying on the union's overlapping storage to reinterpret
+  an `i16`'s bits as `u16` for `bufwrite16b`/`bufwrite8`. A plain `as u16`
+  cast on the same-width integer does the identical bit-preserving
+  reinterpretation, so `arg1`/`arg2` are now just `u16` locals produced by
+  an `if`/`else` expression (one arm building them from `u16` point
+  indices, the other from an `i16` coordinate cast to `u16` at the point
+  of construction) instead of a union write/reinterpret-read pair.
+  - **Verification**: full pipeline green -- build, 244/244 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged
+    (composite-glyph payloads exercise this function directly),
+    round-trips 10/10, lookup-alias regression clean, `cargo miri test`
+    identical to baseline, both fuzz targets `cargo check`-clean.
+
 - **Stage 7-4: `CffValueBody` union → `CffValue` enum, the largest single
   item in this stage.** 281 of the crate's 290 `c2rust_unnamed` (tagged-
   union field access) occurrences belonged to this one type, 231 of those
