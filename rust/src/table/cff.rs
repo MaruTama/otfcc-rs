@@ -196,12 +196,6 @@ pub struct OutlineBuilderContext {
     pub defined_contour_masks: u8,
     pub randx: u64,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union CffDoubleBits {
-    pub u: u64,
-    pub d: ::core::ffi::c_double,
-}
 pub struct CffCharstringBuilderContext {
     pub glyf: *mut GlyfTable,
     pub default_width: u16,
@@ -854,15 +848,19 @@ pub(crate) unsafe fn callback_draw_getrand(
     x ^= x << 25 as ::core::ffi::c_int;
     x ^= x >> 27 as ::core::ffi::c_int;
     (*context).randx = x;
-    let mut a: CffDoubleBits = CffDoubleBits { u: 0 };
-    a.u = x.wrapping_mul(2685821657736338717 as u64);
-    a.u = a.u >> 12 as ::core::ffi::c_int | 0x3ff0000000000000 as u64;
-    let mut q: ::core::ffi::c_double = if a.u & 2048 as u64 != 0 {
+    // Classic xorshift-then-bit-cast trick: pack `bits` into an f64's
+    // exponent/mantissa layout to land a uniform double in [1, 2), then
+    // subtract to land in [0, 1). Was a `CffDoubleBits` union (`u: u64`/
+    // `d: f64`, written via `.u` then read via `.d`); `f64::from_bits` is
+    // the same bit-for-bit reinterpretation without a union.
+    let mut bits: u64 = x.wrapping_mul(2685821657736338717 as u64);
+    bits = bits >> 12 as ::core::ffi::c_int | 0x3ff0000000000000 as u64;
+    let mut q: ::core::ffi::c_double = if bits & 2048 as u64 != 0 {
         1.0f64 - 2.2204460492503131E-16f64 / 2.0f64
     } else {
         1.0f64
     };
-    return a.d - q;
+    return f64::from_bits(bits) - q;
 }
 unsafe fn build_outline(
     mut i: GlyphId,

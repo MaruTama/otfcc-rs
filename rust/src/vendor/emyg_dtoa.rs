@@ -5,12 +5,6 @@ pub struct DiyFp {
     pub f: u64,
     pub e: ::core::ffi::c_int,
 }
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union DoubleBits {
-    pub d: ::core::ffi::c_double,
-    pub u64_0: u64,
-}
 static K_DIY_SIGNIFICAND_SIZE: ::core::ffi::c_int = 64 as ::core::ffi::c_int;
 static K_DP_SIGNIFICAND_SIZE: ::core::ffi::c_int = 52 as ::core::ffi::c_int;
 static K_DP_EXPONENT_BIAS: ::core::ffi::c_int =
@@ -33,11 +27,14 @@ unsafe fn diy_fp_from_parts(mut f: u64, mut e: ::core::ffi::c_int) -> DiyFp {
     return fp;
 }
 pub unsafe fn diy_fp_from_double(mut d: ::core::ffi::c_double) -> DiyFp {
-    let mut u: DoubleBits = DoubleBits { d: d };
+    // Was a `DoubleBits` union (`d: f64`/`u64_0: u64`, written via `.d`
+    // then read via `.u64_0`); `f64::to_bits` is the same bit-for-bit
+    // reinterpretation without a union.
+    let bits: u64 = d.to_bits();
     let mut res: DiyFp = DiyFp { f: 0, e: 0 };
     let mut biased_e: ::core::ffi::c_int =
-        ((u.u64_0 & K_DP_EXPONENT_MASK) >> K_DP_SIGNIFICAND_SIZE) as ::core::ffi::c_int;
-    let mut significand: u64 = u.u64_0 & K_DP_SIGNIFICAND_MASK;
+        ((bits & K_DP_EXPONENT_MASK) >> K_DP_SIGNIFICAND_SIZE) as ::core::ffi::c_int;
+    let mut significand: u64 = bits & K_DP_SIGNIFICAND_MASK;
     if biased_e != 0 as ::core::ffi::c_int {
         res.f = significand.wrapping_add(K_DP_HIDDEN_BIT);
         res.e = biased_e - K_DP_EXPONENT_BIAS;

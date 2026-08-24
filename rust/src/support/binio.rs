@@ -106,17 +106,3 @@ mod tests {
         assert_eq!(pos_to_u16(65535.0), 0x7fff);
     }
 }
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union EndianProbe32 {
-    pub i1: [u8; 4],
-    pub i4: u32,
-}
-
-#[derive(Copy, Clone)]
-#[repr(C)]
-pub union EndianProbe16 {
-    pub i1: [u8; 2],
-    pub i2: u16,
-}

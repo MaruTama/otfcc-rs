@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{SEEK_SET, fclose, fread, fseek};
 
-use crate::support::binio::{EndianProbe16, EndianProbe32};
 use crate::support::stdio::FILE;
 // `data` was `__caryll_allocate_clean`'d/`free`'d, sized from `length` --
 // read straight out of the SFNT table directory, i.e. untrusted font bytes.
@@ -225,47 +224,21 @@ pub unsafe fn otfcc_delete_sfnt(mut font: *mut SplineFontContainer) {
     }
     drop(Box::from_raw(font));
 }
-#[inline]
-unsafe fn otfcc_check_endian() -> bool {
-    let mut check_union: EndianProbe16 = EndianProbe16 {
-        i2: 1 as ::core::ffi::c_int as u16,
-    };
-    return check_union.i1[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
-        == 1 as ::core::ffi::c_int;
-}
-#[inline]
-unsafe fn otfcc_endian_convert16(mut i: u16) -> u16 {
-    if otfcc_check_endian() {
-        let mut src: EndianProbe16 = EndianProbe16 { i1: [0; 2] };
-        let mut des: EndianProbe16 = EndianProbe16 { i1: [0; 2] };
-        src.i2 = i;
-        des.i1[0 as ::core::ffi::c_int as usize] = src.i1[1 as ::core::ffi::c_int as usize];
-        des.i1[1 as ::core::ffi::c_int as usize] = src.i1[0 as ::core::ffi::c_int as usize];
-        return des.i2;
-    } else {
-        return i;
-    };
-}
-#[inline]
-unsafe fn otfcc_endian_convert32(mut i: u32) -> u32 {
-    if otfcc_check_endian() {
-        let mut src: EndianProbe32 = EndianProbe32 { i1: [0; 4] };
-        let mut des: EndianProbe32 = EndianProbe32 { i1: [0; 4] };
-        src.i4 = i;
-        des.i1[0 as ::core::ffi::c_int as usize] = src.i1[3 as ::core::ffi::c_int as usize];
-        des.i1[1 as ::core::ffi::c_int as usize] = src.i1[2 as ::core::ffi::c_int as usize];
-        des.i1[2 as ::core::ffi::c_int as usize] = src.i1[1 as ::core::ffi::c_int as usize];
-        des.i1[3 as ::core::ffi::c_int as usize] = src.i1[0 as ::core::ffi::c_int as usize];
-        return des.i4;
-    } else {
-        return i;
-    };
-}
 // `None` on a short read (EOF partway through, i.e. a truncated file) --
 // used to `fprintf` a raw message straight to `stderr` and `exit()`
 // immediately, bypassing the `Logger` and whatever caller was in the
 // middle of assembling. See `otfcc_read_packets`'s comment for where the
 // failure actually surfaces instead.
+//
+// `fread` copies the file's big-endian bytes into `tmp` byte-for-byte, so
+// `tmp`'s in-memory bytes are already correct -- it's only `tmp`'s *value*
+// that's wrong on a little-endian host (the standard library's
+// `from_be`/`from_be_bytes` distinction: this is the former, since the
+// bytes need no reordering, only the value needs reinterpreting). This
+// used to be `otfcc_endian_convert16`/`32`, a `EndianProbe16`/`32` union
+// pair that ran a runtime host-endianness probe and conditionally
+// byte-swapped -- `u16::from_be`/`u32::from_be` are the same operation,
+// built into the standard library without a union.
 #[inline]
 unsafe fn otfcc_get16u(mut file: *mut FILE) -> Option<u16> {
     let mut tmp: u16 = 0;
@@ -278,7 +251,7 @@ unsafe fn otfcc_get16u(mut file: *mut FILE) -> Option<u16> {
     if size_read == 0 {
         return None;
     }
-    Some(otfcc_endian_convert16(tmp))
+    Some(u16::from_be(tmp))
 }
 #[inline]
 unsafe fn otfcc_get32u(mut file: *mut FILE) -> Option<u32> {
@@ -292,5 +265,5 @@ unsafe fn otfcc_get32u(mut file: *mut FILE) -> Option<u32> {
     if size_read == 0 {
         return None;
     }
-    Some(otfcc_endian_convert32(tmp))
+    Some(u32::from_be(tmp))
 }
