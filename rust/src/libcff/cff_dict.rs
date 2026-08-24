@@ -3,7 +3,7 @@ use crate::libcff::CffDictOperator;
 use crate::libcff::cff_codecs::{
     cff_decode_cff_token, cff_encode_cff_float, cff_encode_cff_integer, cff_encode_cff_operator,
 };
-use crate::libcff::cff_value::{CffValue, CffValueBody, CffValueType};
+use crate::libcff::cff_value::CffValue;
 use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufwrite_bufdel};
 
@@ -68,14 +68,8 @@ pub(crate) unsafe fn parse_to_callback(
 ) {
     let mut index: u8 = 0 as u8;
     let mut advance: u32 = 0;
-    let mut val: CffValue = CffValue {
-        t: CffValueType::Unset,
-        c2rust_unnamed: CffValueBody { i: 0 },
-    };
-    let mut stack: [CffValue; 256] = [CffValue {
-        t: CffValueType::Unset,
-        c2rust_unnamed: CffValueBody { i: 0 },
-    }; 256];
+    let mut val: CffValue = CffValue::Unset;
+    let mut stack: [CffValue; 256] = [CffValue::Unset; 256];
     let mut temp: *const u8 = data;
     while temp < data.offset(len as isize) {
         // Same fix as `cff_parse_outline`'s equivalent loop: the token
@@ -85,22 +79,22 @@ pub(crate) unsafe fn parse_to_callback(
             break;
         };
         advance = adv;
-        match val.t {
-            CffValueType::Operator => {
+        match val {
+            CffValue::Operator(op) => {
                 callback.expect("non-null function pointer")(
-                    CffDictOperator(val.c2rust_unnamed.i as u32),
+                    CffDictOperator(op as u32),
                     index,
                     &raw mut stack as *mut CffValue,
                     context,
                 );
                 index = 0 as u8;
             }
-            CffValueType::Integer | CffValueType::Double => {
+            CffValue::Integer(_) | CffValue::Double(_) => {
                 let fresh0 = index;
                 index = index.wrapping_add(1);
                 stack[fresh0 as usize] = val;
             }
-            _ => {}
+            CffValue::Unset => {}
         }
         temp = temp.offset(advance as isize);
     }
@@ -125,18 +119,14 @@ pub(crate) unsafe fn parse_dict_key(
 ) -> CffValue {
     let mut context: CffGetKeyContext = CffGetKeyContext {
         found: false,
-        res: CffValue {
-            t: CffValueType::Unset,
-            c2rust_unnamed: CffValueBody { i: 0 },
-        },
+        res: CffValue::Unset,
         op: CffDictOperator(0),
         idx: 0,
     };
     context.found = false;
     context.idx = idx;
     context.op = op;
-    context.res.t = CffValueType::Unset;
-    context.res.c2rust_unnamed.i = -(1 as ::core::ffi::c_int) as i32;
+    context.res = CffValue::Unset;
     parse_to_callback(
         data,
         len,
@@ -153,6 +143,26 @@ pub(crate) unsafe fn parse_dict_key(
     );
     return context.res;
 }
+/// `parse_dict_key`'s value as a plain `i32`, `-1` if the key wasn't
+/// present or wasn't a number -- the "not found" convention every one of
+/// this crate's `parse_dict_key(...)` call sites already relied on (the
+/// original encoded it by writing `-1` into the "not found" sentinel's
+/// union payload and trusting every caller to read `.i` without checking
+/// `.t` first). Computed here by actually matching the variant instead,
+/// so a caller can no longer misread a legitimately-`Double` DICT value
+/// as a bogus offset/length by reading the wrong union arm.
+pub(crate) unsafe fn parse_dict_key_int(
+    data: *const u8,
+    len: u32,
+    op: CffDictOperator,
+    idx: u32,
+) -> i32 {
+    match parse_dict_key(data, len, op, idx) {
+        CffValue::Integer(i) => i,
+        CffValue::Double(d) => d as i32,
+        CffValue::Unset | CffValue::Operator(_) => -1,
+    }
+}
 pub(crate) unsafe fn build_dict(mut dict: *const CffDict) -> *mut Buffer {
     let mut blob: *mut Buffer = bufnew();
     let ents = &(*dict).ents;
@@ -161,18 +171,11 @@ pub(crate) unsafe fn build_dict(mut dict: *const CffDict) -> *mut Buffer {
         let vals = &ents[i].vals;
         let mut j: usize = 0;
         while j < vals.len() {
-            let mut blob_val: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-            if vals[j].t as ::core::ffi::c_uint
-                == CffValueType::Integer as ::core::ffi::c_int as ::core::ffi::c_uint
-            {
-                blob_val = cff_encode_cff_integer(vals[j].c2rust_unnamed.i);
-            } else if vals[j].t as ::core::ffi::c_uint
-                == CffValueType::Double as ::core::ffi::c_int as ::core::ffi::c_uint
-            {
-                blob_val = cff_encode_cff_float(vals[j].c2rust_unnamed.d);
-            } else {
-                blob_val = cff_encode_cff_integer(0 as i32);
-            }
+            let blob_val: *mut Buffer = match vals[j] {
+                CffValue::Integer(i) => cff_encode_cff_integer(i),
+                CffValue::Double(d) => cff_encode_cff_float(d),
+                CffValue::Unset | CffValue::Operator(_) => cff_encode_cff_integer(0 as i32),
+            };
             bufwrite_bufdel(blob, blob_val);
             j = j.wrapping_add(1);
         }
