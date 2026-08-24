@@ -424,11 +424,7 @@ unsafe fn main_0(
             LoggerType::Progress,
             otfcc_rust::bytesbuild!(b"From file ", inPath.as_bytes()),
         );
-        let mut file: *mut FILE = fopen(
-            inPath.as_ptr(),
-            b"rb\0" as *const u8 as *const ::core::ffi::c_char,
-        ) as *mut FILE;
-        sfnt = otfcc_read_sfnt(file);
+        sfnt = otfcc_read_sfnt(inPath.as_ptr());
         if sfnt.is_null() || (*sfnt).count == 0 as u32 {
             logger_log_sds(
                 &mut *(*options).logger.borrow_mut(),
