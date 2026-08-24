@@ -19,7 +19,7 @@ use crate::support::NULL;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, ShapeId, TableId};
-use crate::vendor::sds::Hex4Upper;
+use crate::support::fmt::Hex4Upper;
 
 use crate::table::cff::CffTable;
 use crate::table::colr::{ColrLayer, ColrMapping, ColrTable, colr_layer_dup};

@@ -932,6 +932,49 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-4: `vendor/sds.rs` (1,368 lines, a transpiled port of redis's
+  `sds` string type) removed entirely, replaced by a ~275-line
+  `support/fmt.rs`.** Confirmed by grep before touching anything, not
+  assumed: every `sds*()` function in the file (25+ of them --
+  `sdsnewlen`/`sdscatlen`/`sdsdup`/`sdstrim`/`sdssplitargs`/etc.) had *zero*
+  real call sites anywhere else in the crate. More surprising, so was
+  `sdsbuild!` itself (the `SdsRaw`-returning macro `SdsPart::append_to`
+  existed to serve) -- only its `Vec<u8>`-targeting sibling `bytesbuild!`
+  (`SdsPart::append_to_vec`) is what any real code calls today. The whole
+  redis-derived string reimplementation (`SdsHeader`, `sds_header`,
+  `SDS_MAX_PREALLOC`, `Sds`, `SdsRaw`, `sdsbuild!`, and every `sds*()`
+  function) was dead weight kept alive only because the file's own test
+  suite built through it to cross-check formatting against libc's
+  `snprintf` -- rewriting those tests to call `bytesbuild!` directly (which
+  already returns an owned `Vec<u8>`, so no `sdslen`/`sdsfree`/raw-pointer
+  read-back needed either) removed that last dependency. What's left --
+  the `SdsPart` trait (now just `append_to_vec`), the formatting newtypes
+  (`Byte`/`Hex4`/`Hex4Upper`/`Hex2`/`Hex2Upper`/`Dec5`), and `bytesbuild!`
+  itself -- moved to `support/fmt.rs`, since none of it is "vendored" C
+  code anymore.
+  - **3 of the file's 10 tests don't have an equivalent in the new file,
+    and shouldn't**: `newlen_from_null_init_is_zero_filled`,
+    `cat_grows_and_keeps_embedded_nul`, `dup_is_independent_of_the_original`
+    tested the `sds` header/growth/dup mechanics directly -- code that no
+    longer exists, since `Vec<u8>`'s growth and `Clone` are the standard
+    library's problem to test, not this crate's. One test
+    (`sds_part_keeps_embedded_nul_but_c_string_does_not`, contrasting `%S`
+    vs. `%s`) was rewritten rather than dropped, since the "byte slice
+    keeps embedded NULs, C string stops at the first one" distinction it
+    pinned still holds between `&[u8]` and `*const c_char` -- just not
+    via `Sds` anymore, which is gone. Total library test count: 244 → 241,
+    all three drops accounted for above, nothing live lost coverage.
+  - `sdsget_cff_sid` (`libcff/cff_string.rs`, unrelated to this file but
+    named after it) renamed to `get_cff_sid` -- it already returned
+    `Option<Vec<u8>>`, not an `sds`, so the prefix was a pure holdover;
+    15 call sites in `table/cff.rs` updated.
+  - **Verification**: full pipeline green -- build, 241/241 tests
+    (244 minus the 3 explained above), clippy clean, ABI unchanged, golden
+    bytes and log output unchanged (log/JSON text is exactly what
+    `bytesbuild!` builds, crate-wide), round-trips 10/10, lookup-alias
+    regression clean, `cargo miri test` identical to baseline, both fuzz
+    targets `cargo check`-clean.
+
 - **Stage 7-4: `EndianProbe16`/`EndianProbe32` (`support/binio.rs`),
   `CffDoubleBits` (`table/cff.rs`), and `DoubleBits`
   (`vendor/emyg_dtoa.rs`) removed -- all four were the same

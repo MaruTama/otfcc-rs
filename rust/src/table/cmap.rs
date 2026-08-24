@@ -30,7 +30,7 @@ use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId, Unicode};
 use crate::vendor::json::JsonType;
-use crate::vendor::sds::Hex4Upper;
+use crate::support::fmt::Hex4Upper;
 #[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
 pub struct CmapUvsKey {
     pub unicode: u32,

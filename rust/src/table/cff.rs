@@ -55,7 +55,7 @@ use crate::libcff::cff_index::{
     new_index_by_callback,
 };
 use crate::libcff::cff_parser::{cff_close, cff_open_stream, cff_parse_outline, cff_parse_subr};
-use crate::libcff::cff_string::sdsget_cff_sid;
+use crate::libcff::cff_string::get_cff_sid;
 use crate::libcff::cff_value::cffnum;
 use crate::libcff::cff_writer::{cff_build_header, cff_build_offset};
 use crate::libcff::charstring_il::{cff_compile_glyph_to_il, cff_optimize_il};
@@ -427,7 +427,7 @@ unsafe extern "C" fn callback_extract_fd(
     match op.0 {
         0 => {
             if top != 0 {
-                (*meta).version = sdsget_cff_sid(
+                (*meta).version = get_cff_sid(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
@@ -439,7 +439,7 @@ unsafe extern "C" fn callback_extract_fd(
         }
         1 => {
             if top != 0 {
-                (*meta).notice = sdsget_cff_sid(
+                (*meta).notice = get_cff_sid(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
@@ -451,7 +451,7 @@ unsafe extern "C" fn callback_extract_fd(
         }
         3072 => {
             if top != 0 {
-                (*meta).copyright = sdsget_cff_sid(
+                (*meta).copyright = get_cff_sid(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
@@ -463,7 +463,7 @@ unsafe extern "C" fn callback_extract_fd(
         }
         3110 => {
             if top != 0 {
-                (*meta).font_name = sdsget_cff_sid(
+                (*meta).font_name = get_cff_sid(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
@@ -475,7 +475,7 @@ unsafe extern "C" fn callback_extract_fd(
         }
         2 => {
             if top != 0 {
-                (*meta).full_name = sdsget_cff_sid(
+                (*meta).full_name = get_cff_sid(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
@@ -487,7 +487,7 @@ unsafe extern "C" fn callback_extract_fd(
         }
         3 => {
             if top != 0 {
-                (*meta).family_name = sdsget_cff_sid(
+                (*meta).family_name = get_cff_sid(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
@@ -499,7 +499,7 @@ unsafe extern "C" fn callback_extract_fd(
         }
         4 => {
             if top != 0 {
-                (*meta).weight = sdsget_cff_sid(
+                (*meta).weight = get_cff_sid(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
@@ -620,7 +620,7 @@ unsafe extern "C" fn callback_extract_fd(
         3102 => {
             if top as ::core::ffi::c_int >= 3 as ::core::ffi::c_int {
                 (*meta).is_cid = true;
-                (*meta).cid_registry = sdsget_cff_sid(
+                (*meta).cid_registry = get_cff_sid(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 3 as ::core::ffi::c_int) as isize),
@@ -628,7 +628,7 @@ unsafe extern "C" fn callback_extract_fd(
                     &(*file).string,
                 )
                 .unwrap_or_default();
-                (*meta).cid_ordering = sdsget_cff_sid(
+                (*meta).cid_ordering = get_cff_sid(
                     cffnum(
                         *stack
                             .offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize),
@@ -1016,7 +1016,7 @@ unsafe fn name_glyphs_according_to_cff(mut context: *mut CffExtractContext) {
                 for (j, &g) in glyph.iter().enumerate() {
                     let sid: CffSid = g as CffSid;
                     let glyphname: Option<Vec<u8>> =
-                        sdsget_cff_sid(sid as u16, &(*cff_file).string);
+                        get_cff_sid(sid as u16, &(*cff_file).string);
                     if let Some(glyphname) = glyphname {
                         let ref mut fresh2 = (&mut (*glyphs))[j + 1].as_mut().unwrap().name;
                         *fresh2 = glyphname;
@@ -1082,7 +1082,7 @@ unsafe fn name_glyphs_according_to_cff(mut context: *mut CffExtractContext) {
                 for (j_2, &g) in glyph.iter().enumerate() {
                     let sid_2: CffSid = g as CffSid;
                     let glyphname_2: Option<Vec<u8>> =
-                        sdsget_cff_sid(sid_2 as u16, &(*cff_file).string);
+                        get_cff_sid(sid_2 as u16, &(*cff_file).string);
                     if let Some(glyphname_2) = glyphname_2 {
                         let ref mut fresh5 = (&mut (*glyphs))[j_2 + 1].as_mut().unwrap().name;
                         *fresh5 = glyphname_2;
@@ -1098,7 +1098,7 @@ unsafe fn name_glyphs_according_to_cff(mut context: *mut CffExtractContext) {
                         let sid_3: CffSid =
                             (first_1 as ::core::ffi::c_int + k_1 as ::core::ffi::c_int) as CffSid;
                         let glyphname_3: Option<Vec<u8>> =
-                            sdsget_cff_sid(sid_3 as u16, &(*cff_file).string);
+                            get_cff_sid(sid_3 as u16, &(*cff_file).string);
                         if (glyphs_named_sofar_1 as usize) < (*glyphs).len() {
                             if let Some(glyphname_3) = glyphname_3 {
                                 let ref mut fresh6 = (&mut (*glyphs))
@@ -1123,7 +1123,7 @@ unsafe fn name_glyphs_according_to_cff(mut context: *mut CffExtractContext) {
                         let sid_4: CffSid =
                             (first_2 as ::core::ffi::c_int + k_2 as ::core::ffi::c_int) as CffSid;
                         let glyphname_4: Option<Vec<u8>> =
-                            sdsget_cff_sid(sid_4 as u16, &(*cff_file).string);
+                            get_cff_sid(sid_4 as u16, &(*cff_file).string);
                         if (glyphs_named_sofar_2 as usize) < (*glyphs).len() {
                             if let Some(glyphname_4) = glyphname_4 {
                                 let ref mut fresh7 = (&mut (*glyphs))
@@ -1269,7 +1269,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                     );
                     if (*context.meta).font_name.is_empty() {
                         (*context.meta).font_name =
-                            sdsget_cff_sid(391 as u16, &(*cff_file).name).unwrap_or_default();
+                            get_cff_sid(391 as u16, &(*cff_file).name).unwrap_or_default();
                     }
                     if (*cff_file).font_dict.count != 0 {
                         let fd_count = (*cff_file).font_dict.count as usize;

@@ -5,7 +5,7 @@ use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos};
 use crate::support::sha1::{BYTE, Sha1Ctx};
-use crate::vendor::sds::{Hex2Upper, Hex4Upper, SdsPart};
+use crate::support::fmt::{Hex2Upper, Hex4Upper, SdsPart};
 
 use crate::table::glyf::{ComponentReference, Contour, GlyfTable, Glyph};
 

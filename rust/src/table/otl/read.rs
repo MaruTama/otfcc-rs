@@ -4,7 +4,7 @@ use crate::font::caryll_sfnt::Packet;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
-use crate::vendor::sds::{Byte, Dec5, Hex2};
+use crate::support::fmt::{Byte, Dec5, Hex2};
 
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};

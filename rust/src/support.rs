@@ -5,6 +5,7 @@ pub mod binio;
 pub mod buffer;
 pub mod built_json;
 pub mod ctype_compat;
+pub mod fmt;
 pub mod font_reader;
 pub mod getopt;
 pub mod glyph_order;
