@@ -1,8 +1,10 @@
 #![allow(unsafe_op_in_unsafe_fn)]
 // Stage 6 removes this; see rust/README.md
-// `sdsget_cff_sid` now returns `Option<Vec<u8>>`, its only callers direct
-// Rust call sites (never a real FFI boundary) -- goes away with the
-// vtable/extern "C" cleanup, same as every other instance of this allow.
+// `get_cff_sid` (renamed from `sdsget_cff_sid` once `vendor/sds.rs` was
+// removed -- it never built an `sds`, just returned `Option<Vec<u8>>`, so
+// the name was a pure holdover) has its only callers as direct Rust call
+// sites (never a real FFI boundary) -- goes away with the vtable/
+// extern "C" cleanup, same as every other instance of this allow.
 #![allow(improper_ctypes_definitions)]
 use crate::libcff::cff_index::CffIndex;
 use crate::support::primitives::Arity;
@@ -400,7 +402,7 @@ static STRING_STANDARD: [&::core::ffi::CStr; 391] = [
     c"Roman",
     c"Semibold",
 ];
-pub unsafe fn sdsget_cff_sid(mut idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
+pub unsafe fn get_cff_sid(mut idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
     if idx as ::core::ffi::c_int <= 390 as ::core::ffi::c_int {
         return Some(STRING_STANDARD[idx as usize].to_bytes().to_vec());
     } else if str.count > 0 as Arity

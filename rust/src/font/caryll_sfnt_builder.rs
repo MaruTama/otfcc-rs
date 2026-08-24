@@ -8,7 +8,7 @@ use crate::support::buffer::{
     buffree, buflen, buflongalign, bufnew, bufseek, bufwrite_buf, bufwrite16b, bufwrite32b,
 };
 use crate::support::options::Options;
-use crate::vendor::sds::Byte;
+use crate::support::fmt::Byte;
 pub struct SfntTableEntry {
     pub tag: ::core::ffi::c_int,
     pub length: u32,

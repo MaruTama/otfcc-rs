@@ -32,7 +32,7 @@ use crate::table::cff::{
     callback_draw_curveto, callback_draw_getrand, callback_draw_lineto, callback_draw_next_contour,
     callback_draw_sethint, callback_draw_setmask, callback_draw_setwidth,
 };
-use crate::vendor::sds::Hex4;
+use crate::support::fmt::Hex4;
 
 /// The Top DICT's Encoding offset is overloaded by spec: values 0 and 1
 /// select the two predefined (Standard/Expert) encodings outright, and
