@@ -120,19 +120,16 @@ point instead of having to rediscover them:
   `Option`-returning, `std::io`-based reads with no `exit()` anywhere in the
   read path.
 
-- **`otf_parse` can be made to `malloc()` an attacker-chosen, multi-gigabyte
-  allocation from a single small input** — `font/caryll_sfnt.rs:105`,
-  `otfcc_read_packets` allocates `vec![0u8; length as usize]` for every
+- ~~`otf_parse` can be made to `malloc()` an attacker-chosen, multi-gigabyte
+  allocation from a single small input — `font/caryll_sfnt.rs`,
+  `otfcc_read_packets` allocated `vec![0u8; length as usize]` for every
   table directory entry using that entry's raw, unvalidated `length` field
-  (up to `u32::MAX`) *before* checking the entry's bytes actually exist in
-  the file. A 961-byte crafted input reproduces a 3.7GB allocation request
-  (`tests/fuzz-corpus/known-issues/otf-parse-table-length-oom.bin`); found
-  during Stage 7-4 CFF-fix verification, not introduced by it — this
-  allocation site predates that PR by over a week. This is exactly what
-  Stage 7-1's planned `FontReader` (checked offsets/lengths before any read
-  or allocation) is designed to close crate-wide; not fixed here to keep
-  this PR's CFF-recursion fix to one theme.
-  Reproduce: `cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-table-length-oom.bin`
+  *before* checking the entry's bytes actually exist in the file~~ —
+  **fixed**: the function now gets the file's real length once up front
+  and checks each entry's `offset + length` against it before allocating.
+  Reproducer (`tests/fuzz-corpus/known-issues/otf-parse-table-length-oom.bin`,
+  a 961-byte input that used to request a 3.7GB allocation) confirmed
+  fixed, now returning null in ~1ms.
 
 ## CI
 
