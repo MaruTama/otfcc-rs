@@ -86,8 +86,8 @@ pub(crate) unsafe fn otfcc_handle_replace(dst: *mut Handle, src: Handle) {
 pub(crate) unsafe fn otfcc_handle_move(dst: *mut Handle, src: *mut Handle) {
     *dst = ::core::mem::take(&mut *src);
 }
-pub(crate) unsafe fn handle_from_index(mut id: GlyphId) -> Handle {
-    let mut h: Handle = Handle {
+pub(crate) unsafe fn handle_from_index(id: GlyphId) -> Handle {
+    let h: Handle = Handle {
         state: HandleState::Index,
         index: id,
         name: Vec::new(),
@@ -131,7 +131,7 @@ pub(crate) fn handle_name_eq_bytes(a: &[u8], b: &[u8]) -> bool {
 // present name is a different state from no name at all, and collapsing
 // the two by testing `v.is_empty()` instead would be an observable (if
 // exotic -- an empty-string glyph name) behavior change.
-pub(crate) unsafe fn handle_from_name(mut s: Option<Vec<u8>>) -> Handle {
+pub(crate) unsafe fn handle_from_name(s: Option<Vec<u8>>) -> Handle {
     let mut h: Handle = Handle {
         state: HandleState::Empty,
         index: 0 as GlyphId,

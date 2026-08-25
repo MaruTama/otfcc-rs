@@ -69,7 +69,7 @@ pub unsafe fn otfcc_build_ltsh(ltsh: Option<&LtshTable>) -> *mut Buffer {
         Some(l) => l,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, ltsh.num_glyphs as u16);
     let mut j: u16 = 0 as u16;

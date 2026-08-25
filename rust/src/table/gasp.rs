@@ -80,7 +80,7 @@ pub unsafe fn otfcc_read_gasp(packet: &Packet, options: &Options) -> Option<Box<
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_gasp(
     table: Option<&GaspTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -94,10 +94,10 @@ pub unsafe fn otfcc_dump_gasp(
     let records: &Vec<GaspRecord> = &(*table).records;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut t: *mut BuiltValue = json_array_new(records.len());
+        let t: *mut BuiltValue = json_array_new(records.len());
         let mut j: u16 = 0 as u16;
         while (j as usize) < records.len() {
-            let mut rec: *mut BuiltValue = json_object_new(5 as usize);
+            let rec: *mut BuiltValue = json_object_new(5 as usize);
             json_object_push(
                 rec,
                 b"rangeMaxPPEM\0" as *const u8 as *const ::core::ffi::c_char,
@@ -136,7 +136,7 @@ pub unsafe fn otfcc_dump_gasp(
     }
 }
 pub unsafe fn otfcc_parse_gasp(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<GaspTable>> {
     let mut gasp: Option<Box<GaspTable>> = None;
@@ -159,7 +159,7 @@ pub unsafe fn otfcc_parse_gasp(
             }));
             let mut j: u16 = 0 as u16;
             while (j as ::core::ffi::c_uint) < json_arr_len(table) {
-                let mut r: *const ParsedValue = json_arr_at(table, j as u32);
+                let r: *const ParsedValue = json_arr_at(table, j as u32);
                 if !(r.is_null() || json_type_of(r) != JsonType::Object) {
                     let mut record: GaspRecord = GaspRecord {
                         range_max_ppem: 0,
@@ -203,13 +203,13 @@ pub unsafe fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> *mut Buffer {
         Some(g) => g,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     let records: &Vec<GaspRecord> = &(*gasp).records;
     bufwrite16b(buf, 1 as u16);
     bufwrite16b(buf, records.len() as u16);
     let mut j: u16 = 0 as u16;
     while (j as usize) < records.len() {
-        let mut r: *const GaspRecord = &records[j as usize];
+        let r: *const GaspRecord = &records[j as usize];
         bufwrite16b(buf, (*r).range_max_ppem as u16);
         bufwrite16b(
             buf,

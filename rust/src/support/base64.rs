@@ -7,9 +7,9 @@ static BASE64_TABLE: [u8; 64] = unsafe {
     )
 };
 pub unsafe fn base64_encode(
-    mut src: *const u8,
-    mut len: usize,
-    mut out_len: *mut usize,
+    src: *const u8,
+    len: usize,
+    out_len: *mut usize,
 ) -> *mut u8 {
     let mut out: *mut u8 = ::core::ptr::null_mut::<u8>();
     let mut pos: *mut u8 = ::core::ptr::null_mut::<u8>();
@@ -101,9 +101,9 @@ pub unsafe fn base64_encode(
     return out;
 }
 pub unsafe fn base64_decode(
-    mut src: *const u8,
-    mut len: usize,
-    mut out_len: *mut usize,
+    src: *const u8,
+    len: usize,
+    out_len: *mut usize,
 ) -> *mut u8 {
     let mut dtable: [u8; 256] = [0; 256];
     let mut out: *mut u8 = ::core::ptr::null_mut::<u8>();

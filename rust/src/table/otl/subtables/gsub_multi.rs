@@ -197,7 +197,7 @@ pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: ::core::ffi::c_int = 0xff00 as ::core:
 pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
-    mut count: *mut TableId,
+    count: *mut TableId,
 ) -> *mut *mut Buffer {
     let Subtable::GsubMulti(mut_subtable) = &*_subtable else {
         unreachable!()
@@ -210,7 +210,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
         let mut size: usize = (6 as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as usize;
         let mut end: GlyphId = start;
         while (end as usize) < (*subtable).len() {
-            let mut entry_size: usize = ((2 as ::core::ffi::c_int
+            let entry_size: usize = ((2 as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int) as usize)
                 .wrapping_add(((&(*subtable))[end as usize].to.len()).wrapping_mul(2 as usize));

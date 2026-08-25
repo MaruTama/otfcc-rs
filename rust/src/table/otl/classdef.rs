@@ -33,7 +33,7 @@ pub struct ClassDefSortRecord {
     pub gid: GlyphId,
     pub cid: GlyphClass,
 }
-pub(crate) unsafe fn otl_class_def_free(mut x: *mut ClassDef) {
+pub(crate) unsafe fn otl_class_def_free(x: *mut ClassDef) {
     if x.is_null() {
         return;
     }
@@ -140,10 +140,10 @@ pub(crate) unsafe fn read_class_def(
     cd
 }
 pub(crate) unsafe fn expand_class_def(
-    mut cov: *mut Coverage,
-    mut ocd: *mut ClassDef,
+    cov: *mut Coverage,
+    ocd: *mut ClassDef,
 ) -> *mut ClassDef {
-    let mut cd: *mut ClassDef = otl_class_def_create();
+    let cd: *mut ClassDef = otl_class_def_create();
     // No `HASH_SORT` call anywhere in the original -- the final walk is
     // plain insertion order (uthash's natural `.next` list), which
     // `IndexMap` reproduces directly with no separate sort step. `ocd`'s
@@ -172,7 +172,7 @@ pub(crate) unsafe fn expand_class_def(
     return cd;
 }
 pub(crate) unsafe fn dump_class_def(cd: *const ClassDef) -> *mut BuiltValue {
-    let mut a: *mut BuiltValue = json_object_new((*cd).glyphs.len());
+    let a: *mut BuiltValue = json_object_new((*cd).glyphs.len());
     for j in 0..(*cd).glyphs.len() {
         json_object_push_bytes_key(
             a,
@@ -186,10 +186,10 @@ pub(crate) unsafe fn parse_class_def(mut _cd: *const ParsedValue) -> *mut ClassD
     if _cd.is_null() || json_type_of(_cd) != JsonType::Object {
         return ::core::ptr::null_mut::<ClassDef>();
     }
-    let mut cd: *mut ClassDef = otl_class_def_create();
+    let cd: *mut ClassDef = otl_class_def_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < json_obj_len(_cd) {
-        let mut h: GlyphHandle =
+        let h: GlyphHandle =
             handle_from_name(Some(json_obj_key_bytes_at(_cd, j as u32))) as GlyphHandle;
         let mut _cid: *const ParsedValue = json_obj_val_at(_cd, j as u32);
         let mut cls: GlyphClass = 0 as GlyphClass;
@@ -203,8 +203,8 @@ pub(crate) unsafe fn parse_class_def(mut _cd: *const ParsedValue) -> *mut ClassD
     }
     return cd;
 }
-pub(crate) unsafe fn build_class_def(mut cd: *const ClassDef) -> *mut Buffer {
-    let mut buf: *mut Buffer = bufnew();
+pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> *mut Buffer {
+    let buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 2 as u16);
     if (*cd).glyphs.is_empty() {
         bufwrite16b(buf, 0 as u16);
@@ -233,10 +233,10 @@ pub(crate) unsafe fn build_class_def(mut cd: *const ClassDef) -> *mut Buffer {
     let mut last_class: GlyphClass = r[0].cid;
     let mut n_ranges: GlyphId = 0 as GlyphId;
     let mut last_gid: GlyphId = start_gid;
-    let mut ranges: *mut Buffer = bufnew();
+    let ranges: *mut Buffer = bufnew();
     let mut j_0: GlyphId = 1 as GlyphId;
     while (j_0 as ::core::ffi::c_int) < jj as ::core::ffi::c_int {
-        let mut current: GlyphId = r[j_0 as usize].gid;
+        let current: GlyphId = r[j_0 as usize].gid;
         if !(current as ::core::ffi::c_int <= last_gid as ::core::ffi::c_int) {
             if current as ::core::ffi::c_int
                 == end_gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int

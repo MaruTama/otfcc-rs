@@ -145,7 +145,7 @@ pub unsafe fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<Colr
                                         },
                                         layers: Vec::new(),
                                     };
-                                    let mut gid: u16 = read_16u(
+                                    let gid: u16 = read_16u(
                                         table
                                             .data
                                             .as_ptr()
@@ -155,7 +155,7 @@ pub unsafe fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<Colr
                                                     as isize,
                                             ),
                                     );
-                                    let mut first_layer_index: u16 = read_16u(
+                                    let first_layer_index: u16 = read_16u(
                                         table
                                             .data
                                             .as_ptr()
@@ -166,7 +166,7 @@ pub unsafe fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<Colr
                                             )
                                             .offset(2 as ::core::ffi::c_int as isize),
                                     );
-                                    let mut num_layers: u16 = read_16u(
+                                    let num_layers: u16 = read_16u(
                                         table
                                             .data
                                             .as_ptr()
@@ -233,7 +233,7 @@ pub unsafe fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<Colr
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_colr(
     colr: Option<&ColrTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let colr = match colr {
@@ -304,7 +304,7 @@ pub unsafe fn otfcc_dump_colr(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_colr(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<ColrTable> {
     let mut _colr: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
@@ -390,8 +390,8 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
     let mut colr: ColrTable = src.iter().map(colr_mapping_dup).collect();
     colr.sort_by(|a, b| a.glyph.index.cmp(&b.glyph.index));
     let mut current_layer_index: GlyphId = 0 as GlyphId;
-    let mut layer_records: *mut BkBlock = bk_new_block(&[]);
-    let mut base_records: *mut BkBlock = bk_new_block(&[]);
+    let layer_records: *mut BkBlock = bk_new_block(&[]);
+    let base_records: *mut BkBlock = bk_new_block(&[]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < colr.len() {
@@ -442,7 +442,7 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 0 as u32),
         bk_int(BkCellType::B16, (colr.len()) as u32),
         bk_ptr(BkCellType::P32, base_records),

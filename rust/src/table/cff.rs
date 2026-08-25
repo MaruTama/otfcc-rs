@@ -283,12 +283,12 @@ pub(crate) unsafe fn unwrap_cff_table(raw: *mut CffTable) -> Option<Box<CffTable
     Some(Box::from_raw(raw))
 }
 unsafe extern "C" fn callback_extract_private(
-    mut op: CffDictOperator,
-    mut top: u8,
-    mut stack: *mut CffValue,
+    op: CffDictOperator,
+    top: u8,
+    stack: *mut CffValue,
     mut _context: *mut ::core::ffi::c_void,
 ) {
-    let mut context: *mut CffExtractContext = _context as *mut CffExtractContext;
+    let context: *mut CffExtractContext = _context as *mut CffExtractContext;
     let mut meta: *mut CffTable = (*context).meta;
     if (*context).fd_array_index >= 0 as i32
         && ((*context).fd_array_index as usize) < (*meta).fd_array.len()
@@ -296,7 +296,7 @@ unsafe extern "C" fn callback_extract_private(
         meta =
             (&mut (*meta).fd_array)[(*context).fd_array_index as usize].as_mut() as *mut CffTable;
     }
-    let mut pd: *mut CffPrivateDict =
+    let pd: *mut CffPrivateDict =
         (*meta).private_dict.as_deref_mut().unwrap() as *mut CffPrivateDict;
     match op.0 {
         6 => {
@@ -410,13 +410,13 @@ unsafe extern "C" fn callback_extract_private(
     };
 }
 unsafe extern "C" fn callback_extract_fd(
-    mut op: CffDictOperator,
-    mut top: u8,
-    mut stack: *mut CffValue,
+    op: CffDictOperator,
+    top: u8,
+    stack: *mut CffValue,
     mut _context: *mut ::core::ffi::c_void,
 ) {
-    let mut context: *mut CffExtractContext = _context as *mut CffExtractContext;
-    let mut file: *mut CffFile = (*context).cff_file;
+    let context: *mut CffExtractContext = _context as *mut CffExtractContext;
+    let file: *mut CffFile = (*context).cff_file;
     let mut meta: *mut CffTable = (*context).meta;
     if (*context).fd_array_index >= 0 as i32
         && ((*context).fd_array_index as usize) < (*meta).fd_array.len()
@@ -594,10 +594,10 @@ unsafe extern "C" fn callback_extract_fd(
         }
         18 => {
             if top as ::core::ffi::c_int >= 2 as ::core::ffi::c_int {
-                let mut private_length: u32 = cffnum(
+                let private_length: u32 = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize),
                 ) as u32;
-                let mut private_offset: u32 = cffnum(
+                let private_offset: u32 = cffnum(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 ) as u32;
                 (*meta).private_dict = Some(otfcc_new_cff_private());
@@ -646,26 +646,26 @@ unsafe extern "C" fn callback_extract_fd(
 }
 pub(crate) unsafe fn callback_draw_setwidth(
     mut _context: *mut ::core::ffi::c_void,
-    mut width: ::core::ffi::c_double,
+    width: ::core::ffi::c_double,
 ) {
-    let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
+    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     vq_replace(
         &raw mut (*(*context).g).advance_width,
         vq_create_still(width as Pos + (*context).nominal_width_x as Pos) as VQ,
     );
 }
 pub(crate) unsafe fn callback_draw_next_contour(mut _context: *mut ::core::ffi::c_void) {
-    let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
+    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     (*(*context).g).contours.push(Vec::new());
     (*context).j_contour = (*(*context).g).contours.len() as ShapeId;
     (*context).j_point = 0 as ShapeId;
 }
 pub(crate) unsafe fn callback_draw_lineto(
     mut _context: *mut ::core::ffi::c_void,
-    mut x1: ::core::ffi::c_double,
-    mut y1: ::core::ffi::c_double,
+    x1: ::core::ffi::c_double,
+    y1: ::core::ffi::c_double,
 ) {
-    let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
+    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     if (*context).j_contour != 0 {
         let contour: *mut Contour = &raw mut (&mut (*(*context).g).contours)
             [((*context).j_contour as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize];
@@ -691,14 +691,14 @@ pub(crate) unsafe fn callback_draw_lineto(
 }
 pub(crate) unsafe fn callback_draw_curveto(
     mut _context: *mut ::core::ffi::c_void,
-    mut x1: ::core::ffi::c_double,
-    mut y1: ::core::ffi::c_double,
-    mut x2: ::core::ffi::c_double,
-    mut y2: ::core::ffi::c_double,
-    mut x3: ::core::ffi::c_double,
-    mut y3: ::core::ffi::c_double,
+    x1: ::core::ffi::c_double,
+    y1: ::core::ffi::c_double,
+    x2: ::core::ffi::c_double,
+    y2: ::core::ffi::c_double,
+    x3: ::core::ffi::c_double,
+    y3: ::core::ffi::c_double,
 ) {
-    let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
+    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     if (*context).j_contour != 0 {
         let contour: *mut Contour = &raw mut (&mut (*(*context).g).contours)
             [((*context).j_contour as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize];
@@ -756,11 +756,11 @@ pub(crate) unsafe fn callback_draw_curveto(
 }
 pub(crate) unsafe fn callback_draw_sethint(
     mut _context: *mut ::core::ffi::c_void,
-    mut is_vertical: bool,
-    mut position: ::core::ffi::c_double,
-    mut width: ::core::ffi::c_double,
+    is_vertical: bool,
+    position: ::core::ffi::c_double,
+    width: ::core::ffi::c_double,
 ) {
-    let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
+    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     let stems: &mut StemDefList = if is_vertical as ::core::ffi::c_int != 0 {
         &mut (*(*context).g).stem_v
     } else {
@@ -774,10 +774,10 @@ pub(crate) unsafe fn callback_draw_sethint(
 }
 pub(crate) unsafe fn callback_draw_setmask(
     mut _context: *mut ::core::ffi::c_void,
-    mut is_contour_mask: bool,
+    is_contour_mask: bool,
     mut mask_array: *mut bool,
 ) {
-    let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
+    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     let mask_list: &mut MaskList = if is_contour_mask as ::core::ffi::c_int != 0 {
         &mut (*(*context).g).contour_masks
     } else {
@@ -842,7 +842,7 @@ pub(crate) unsafe fn callback_draw_setmask(
 pub(crate) unsafe fn callback_draw_getrand(
     mut _context: *mut ::core::ffi::c_void,
 ) -> ::core::ffi::c_double {
-    let mut context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
+    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     let mut x: u64 = (*context).randx;
     x ^= x >> 12 as ::core::ffi::c_int;
     x ^= x << 25 as ::core::ffi::c_int;
@@ -855,7 +855,7 @@ pub(crate) unsafe fn callback_draw_getrand(
     // the same bit-for-bit reinterpretation without a union.
     let mut bits: u64 = x.wrapping_mul(2685821657736338717 as u64);
     bits = bits >> 12 as ::core::ffi::c_int | 0x3ff0000000000000 as u64;
-    let mut q: ::core::ffi::c_double = if bits & 2048 as u64 != 0 {
+    let q: ::core::ffi::c_double = if bits & 2048 as u64 != 0 {
         1.0f64 - 2.2204460492503131E-16f64 / 2.0f64
     } else {
         1.0f64
@@ -863,19 +863,19 @@ pub(crate) unsafe fn callback_draw_getrand(
     return f64::from_bits(bits) - q;
 }
 unsafe fn build_outline(
-    mut i: GlyphId,
-    mut context: *mut CffExtractContext,
-    mut options: &Options,
+    i: GlyphId,
+    context: *mut CffExtractContext,
+    options: &Options,
 ) {
-    let mut f: *mut CffFile = (*context).cff_file;
+    let f: *mut CffFile = (*context).cff_file;
     // `g` keeps pointing at the same heap allocation for the rest of this
     // function (via `bc.g` below) even after the `Box` that owns it is
     // moved into the table -- moving a `Box` moves only the handle, not
     // the allocation it points at.
     let mut g_owner: Box<Glyph> = otfcc_new_glyf_glyph();
-    let mut g: *mut Glyph = &raw mut *g_owner;
+    let g: *mut Glyph = &raw mut *g_owner;
     (&mut (*(*context).glyphs))[i as usize] = Some(g_owner);
-    let mut seed: u64 = (*context).seed;
+    let seed: u64 = (*context).seed;
     let mut local_subrs: CffIndex = CffIndex {
         count_type: CffIndexCountType::U16,
         count: 0,
@@ -937,10 +937,10 @@ unsafe fn build_outline(
         vq_create_still(bc.default_width_x as Pos) as VQ,
     );
     let char_strings_offset = &(*f).char_strings.offset;
-    let mut char_string_ptr: *mut u8 = ((*f).char_strings.data.as_ptr() as *mut u8)
+    let char_string_ptr: *mut u8 = ((*f).char_strings.data.as_ptr() as *mut u8)
         .offset(char_strings_offset[i as usize] as isize)
         .offset(-(1 as ::core::ffi::c_int as isize));
-    let mut char_string_length: u32 = (char_strings_offset
+    let char_string_length: u32 = (char_strings_offset
         [(i as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
         .wrapping_sub(char_strings_offset[i as usize]);
     stack.index = 0 as Arity;
@@ -1004,12 +1004,12 @@ unsafe fn build_outline(
 // FFI boundary) -- goes away with the vtable/extern "C" cleanup, same as
 // every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-unsafe fn form_cid_string(mut cid: CffSid) -> Vec<u8> {
+unsafe fn form_cid_string(cid: CffSid) -> Vec<u8> {
     return crate::bytesbuild!(b"CID", cid as ::core::ffi::c_int);
 }
-unsafe fn name_glyphs_according_to_cff(mut context: *mut CffExtractContext) {
-    let mut cff_file: *mut CffFile = (*context).cff_file;
-    let mut glyphs: *mut GlyfTable = (*context).glyphs;
+unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
+    let cff_file: *mut CffFile = (*context).cff_file;
+    let glyphs: *mut GlyfTable = (*context).glyphs;
     let charset: &CffCharset = &(*cff_file).charsets;
     if (*(*context).meta).is_cid {
         match charset {
@@ -1148,9 +1148,9 @@ unsafe fn qround(x: ::core::ffi::c_double) -> ::core::ffi::c_double {
     return otfcc_from_fixed(otfcc_to_fixed(x));
 }
 unsafe fn apply_cff_matrix(
-    mut cff: *mut CffTable,
-    mut glyf: *mut GlyfTable,
-    mut head: *const HeadTable,
+    cff: *mut CffTable,
+    glyf: *mut GlyfTable,
+    head: *const HeadTable,
 ) {
     let mut jj: GlyphId = 0 as GlyphId;
     while (jj as usize) < (*glyf).len() {
@@ -1160,19 +1160,19 @@ unsafe fn apply_cff_matrix(
             fd = (&mut (*fd).fd_array)[(*g).fd_select.index as usize].as_mut() as *mut CffTable;
         }
         if let Some(fm) = (*fd).font_matrix.as_deref() {
-            let mut a: Scale = qround(
+            let a: Scale = qround(
                 (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
                     * fm.a as ::core::ffi::c_double,
             ) as Scale;
-            let mut b: Scale = qround(
+            let b: Scale = qround(
                 (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
                     * fm.b as ::core::ffi::c_double,
             ) as Scale;
-            let mut c: Scale = qround(
+            let c: Scale = qround(
                 (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
                     * fm.c as ::core::ffi::c_double,
             ) as Scale;
-            let mut d: Scale = qround(
+            let d: Scale = qround(
                 (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
                     * fm.d as ::core::ffi::c_double,
             ) as Scale;
@@ -1185,8 +1185,8 @@ unsafe fn apply_cff_matrix(
                 let contour: *mut Contour = &raw mut (&mut (*g).contours)[j as usize];
                 let mut k: ShapeId = 0 as ShapeId;
                 while (k as usize) < (*contour).len() {
-                    let mut zx: VQ = vq_dup((&(*contour))[k as usize].x.clone());
-                    let mut zy: VQ = vq_dup((&(*contour))[k as usize].y.clone());
+                    let zx: VQ = vq_dup((&(*contour))[k as usize].x.clone());
+                    let zy: VQ = vq_dup((&(*contour))[k as usize].y.clone());
                     vq_replace(
                         &raw mut (&mut (*contour))[k as usize].x,
                         vq_point_linear_tfm(x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone())
@@ -1213,8 +1213,8 @@ unsafe fn apply_cff_matrix(
 }
 pub unsafe fn otfcc_read_cff_and_glyf_tables(
     packet: &Packet,
-    mut options: &Options,
-    mut head: *const HeadTable,
+    options: &Options,
+    head: *const HeadTable,
 ) -> CffAndGlyf {
     let mut ret: CffAndGlyf = CffAndGlyf {
         meta: ::core::ptr::null_mut::<CffTable>(),
@@ -1245,9 +1245,9 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
             if table.tag == crate::tag::TAG_CFF {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
-                    let mut cff_file: *mut CffFile =
+                    let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
+                    let length: u32 = table.length;
+                    let cff_file: *mut CffFile =
                         cff_open_stream(data as *mut u8, length, options);
                     context.cff_file = cff_file;
                     // A CFF table's Top DICT INDEX with a declared `count`
@@ -1385,7 +1385,7 @@ unsafe fn pd_delta_to_json(
     }
     json_object_push(target, field, a);
 }
-unsafe fn pd_to_json(mut pd: *const CffPrivateDict) -> *mut BuiltValue {
+unsafe fn pd_to_json(pd: *const CffPrivateDict) -> *mut BuiltValue {
     let mut _pd: *mut BuiltValue = json_object_new(24 as usize);
     pd_delta_to_json(
         _pd,
@@ -1496,7 +1496,7 @@ unsafe fn pd_to_json(mut pd: *const CffPrivateDict) -> *mut BuiltValue {
     }
     return _pd;
 }
-unsafe fn fd_to_json(mut table: *const CffTable) -> *mut BuiltValue {
+unsafe fn fd_to_json(table: *const CffTable) -> *mut BuiltValue {
     let mut _cff: *mut BuiltValue = json_object_new(24 as usize);
     if (*table).is_cid {
         json_object_push(
@@ -1708,9 +1708,9 @@ unsafe fn fd_to_json(mut table: *const CffTable) -> *mut BuiltValue {
     return _cff;
 }
 pub unsafe fn otfcc_dump_cff(
-    mut table: Option<&CffTable>,
-    mut root: *mut BuiltValue,
-    mut options: &Options,
+    table: Option<&CffTable>,
+    root: *mut BuiltValue,
+    options: &Options,
 ) {
     let table: *const CffTable = table.map_or(::core::ptr::null(), |t| t as *const CffTable);
     if table.is_null() {
@@ -1739,7 +1739,7 @@ unsafe fn pd_delta_from_json(dump: *const ParsedValue) -> Vec<::core::ffi::c_dou
         .map(|j| json_numof(json_arr_at(dump, j)))
         .collect()
 }
-unsafe fn pd_from_json(mut dump: *const ParsedValue) -> Option<Box<CffPrivateDict>> {
+unsafe fn pd_from_json(dump: *const ParsedValue) -> Option<Box<CffPrivateDict>> {
     if dump.is_null() || json_type_of(dump) != JsonType::Object {
         return None;
     }
@@ -1806,11 +1806,11 @@ unsafe fn pd_from_json(mut dump: *const ParsedValue) -> Option<Box<CffPrivateDic
     return Some(pd_box);
 }
 unsafe fn fd_from_json(
-    mut dump: *const ParsedValue,
-    mut options: &Options,
-    mut top_level: bool,
+    dump: *const ParsedValue,
+    options: &Options,
+    top_level: bool,
 ) -> *mut CffTable {
-    let mut table: *mut CffTable = (table_cff_create)();
+    let table: *mut CffTable = (table_cff_create)();
     if dump.is_null() || json_type_of(dump) != JsonType::Object {
         return table;
     }
@@ -1916,7 +1916,7 @@ unsafe fn fd_from_json(
         dump,
         b"cidFontRevision\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    let mut fdarraydump: *const ParsedValue = json_obj_get_type(
+    let fdarraydump: *const ParsedValue = json_obj_get_type(
         dump,
         b"fdArray\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,
@@ -1974,10 +1974,10 @@ unsafe fn fd_from_json(
     return table;
 }
 pub unsafe fn otfcc_parse_cff(
-    mut root: *const ParsedValue,
-    mut options: &Options,
+    root: *const ParsedValue,
+    options: &Options,
 ) -> Option<Box<CffTable>> {
-    let mut dump: *const ParsedValue = json_obj_get_type(
+    let dump: *const ParsedValue = json_obj_get_type(
         root,
         b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
         JsonType::Object,
@@ -2000,10 +2000,10 @@ pub unsafe fn otfcc_parse_cff(
     };
 }
 unsafe fn cff_make_charstrings(
-    mut context: *mut CffCharstringBuilderContext,
-    mut s: *mut *mut Buffer,
-    mut gs: *mut *mut Buffer,
-    mut ls: *mut *mut Buffer,
+    context: *mut CffCharstringBuilderContext,
+    s: *mut *mut Buffer,
+    gs: *mut *mut Buffer,
+    ls: *mut *mut Buffer,
 ) {
     if (*(*context).glyf).is_empty() {
         // The caller (`writecff_cid_keyed`) initializes `*s`/`*gs`/`*ls` to
@@ -2066,7 +2066,7 @@ unsafe fn sidof(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>, s: &[u8]) -> ::cor
     (*h).insert(key, s.to_vec());
     return 391 as ::core::ffi::c_int + idx as ::core::ffi::c_int;
 }
-unsafe fn cffdict_givemeablank(mut dict: *mut CffDict) -> *mut CffDictEntry {
+unsafe fn cffdict_givemeablank(dict: *mut CffDict) -> *mut CffDictEntry {
     (*dict).ents.push(CffDictEntry {
         op: CffDictOperator(0),
         vals: Vec::new(),
@@ -2129,10 +2129,10 @@ unsafe fn cffdict_input_array(
     cffdict_input_doubles(dict, op, arr);
 }
 unsafe fn cff_make_fd_dict(
-    mut fd: *mut CffTable,
-    mut h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
+    fd: *mut CffTable,
+    h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> *mut CffDict {
-    let mut dict: *mut CffDict = (cff_dict_create)();
+    let dict: *mut CffDict = (cff_dict_create)();
     if !(*fd).cid_registry.is_empty() && !(*fd).cid_ordering.is_empty() {
         cffdict_input_ints(
             dict,
@@ -2232,7 +2232,7 @@ unsafe fn cff_make_fd_dict(
     }
     return dict;
 }
-unsafe fn cff_make_private_dict(mut pd: *mut CffPrivateDict) -> *mut CffDict {
+unsafe fn cff_make_private_dict(pd: *mut CffPrivateDict) -> *mut CffDict {
     // Was `__caryll_allocate_clean` (calloc) -- unsound now that `CffDict`
     // owns `ents: Vec<CffDictEntry>`; an all-zero bit pattern is not a
     // valid `Vec`. `cff_make_fd_dict` two functions above already gets
@@ -2273,10 +2273,10 @@ unsafe fn cff_make_private_dict(mut pd: *mut CffPrivateDict) -> *mut CffDict {
     return dict;
 }
 unsafe extern "C" fn callback_makestringindex(
-    mut context: *mut ::core::ffi::c_void,
-    mut i: u32,
+    context: *mut ::core::ffi::c_void,
+    i: u32,
 ) -> *mut Buffer {
-    let mut blobs: *mut *mut Buffer = context as *mut *mut Buffer;
+    let blobs: *mut *mut Buffer = context as *mut *mut Buffer;
     return *blobs.offset(i as isize);
 }
 unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> *mut Buffer {
@@ -2296,7 +2296,7 @@ unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) 
         bufnwrite8(blob, &value);
         blobs.push(blob);
     }
-    let mut strings: *mut CffIndex = new_index_by_callback(
+    let strings: *mut CffIndex = new_index_by_callback(
         blobs.as_mut_ptr() as *mut ::core::ffi::c_void,
         n,
         Some(
@@ -2304,12 +2304,12 @@ unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) 
                 as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
         ),
     );
-    let mut final_blob: *mut Buffer = build_index(strings);
+    let final_blob: *mut Buffer = build_index(strings);
     cff_index_free(strings);
     return final_blob;
 }
-unsafe fn cff_compile_nameindex(mut cff: *mut CffTable) -> *mut Buffer {
-    let mut name_index: *mut CffIndex = (cff_index_create)();
+unsafe fn cff_compile_nameindex(cff: *mut CffTable) -> *mut Buffer {
+    let name_index: *mut CffIndex = (cff_index_create)();
     (*name_index).count = 1 as Arity;
     (*name_index).off_size = 4 as u8;
     if (*cff).font_name.is_empty() {
@@ -2325,15 +2325,15 @@ unsafe fn cff_compile_nameindex(mut cff: *mut CffTable) -> *mut Buffer {
     let mut name_data: Vec<u8> = (*cff).font_name.clone();
     name_data.push(0 as u8);
     (*name_index).data = name_data;
-    let mut buf: *mut Buffer = build_index(name_index);
+    let buf: *mut Buffer = build_index(name_index);
     cff_index_free(name_index);
     (*cff).font_name = Vec::new();
     return buf;
 }
 unsafe fn cff_make_charset(
-    mut cff: *mut CffTable,
-    mut glyf: *mut GlyfTable,
-    mut string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
+    cff: *mut CffTable,
+    glyf: *mut GlyfTable,
+    string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> *mut Buffer {
     let charset: CffCharset = if (*glyf).len() > 1 as usize {
         let (first, nleft) = if (*cff).is_cid {
@@ -2367,7 +2367,7 @@ unsafe fn cff_make_charset(
 // own scratch-buffer conversions. `.s`'s old dual role (a running write
 // cursor through the loop, overwritten with the final range count right
 // after) collapses into a single sequential `.push()` per transition.
-unsafe fn cff_make_fdselect(mut cff: *mut CffTable, mut glyf: *mut GlyfTable) -> *mut Buffer {
+unsafe fn cff_make_fdselect(cff: *mut CffTable, glyf: *mut GlyfTable) -> *mut Buffer {
     if !(*cff).is_cid {
         return bufnew();
     }
@@ -2408,14 +2408,14 @@ unsafe fn cff_make_fdselect(mut cff: *mut CffTable, mut glyf: *mut GlyfTable) ->
 }
 unsafe extern "C" fn callback_makefd(
     mut _context: *mut ::core::ffi::c_void,
-    mut i: u32,
+    i: u32,
 ) -> *mut Buffer {
-    let mut context: *mut FdArrayCompileContext = _context as *mut FdArrayCompileContext;
-    let mut fd: *mut CffDict = cff_make_fd_dict(
+    let context: *mut FdArrayCompileContext = _context as *mut FdArrayCompileContext;
+    let fd: *mut CffDict = cff_make_fd_dict(
         (&(*(*context).fd_array))[i as usize].as_ref() as *const CffTable as *mut CffTable,
         (*context).string_hash,
     );
-    let mut blob: *mut Buffer = build_dict(fd);
+    let blob: *mut Buffer = build_dict(fd);
     bufwrite_bufdel(
         blob,
         cff_build_offset(0xeeeeeeee as ::core::ffi::c_uint as i32),
@@ -2429,8 +2429,8 @@ unsafe extern "C" fn callback_makefd(
     return blob;
 }
 unsafe fn cff_make_fdarray(
-    mut fd_array: *const Vec<Box<CffTable>>,
-    mut string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
+    fd_array: *const Vec<Box<CffTable>>,
+    string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> *mut CffIndex {
     let mut context: FdArrayCompileContext = FdArrayCompileContext {
         fd_array: ::core::ptr::null::<Vec<Box<CffTable>>>(),
@@ -2445,9 +2445,9 @@ unsafe fn cff_make_fdarray(
     );
 }
 unsafe fn writecff_cid_keyed(
-    mut cff: *mut CffTable,
+    cff: *mut CffTable,
     mut glyf: *mut GlyfTable,
-    mut options: &Options,
+    options: &Options,
 ) -> *mut Buffer {
     // `glyf` is null when the font has a `CFF_` table but no `glyf` table
     // at all (e.g. `{"CFF_": {}}`) -- every function below this point
@@ -2459,27 +2459,27 @@ unsafe fn writecff_cid_keyed(
     if glyf.is_null() {
         glyf = &raw mut empty_glyf;
     }
-    let mut blob: *mut Buffer = bufnew();
+    let blob: *mut Buffer = bufnew();
     let mut string_hash: indexmap::IndexMap<Vec<u8>, Vec<u8>> = indexmap::IndexMap::new();
-    let mut h: *mut Buffer = cff_build_header();
-    let mut n: *mut Buffer = cff_compile_nameindex(cff);
-    let mut top: *mut CffDict = cff_make_fd_dict(cff, &raw mut string_hash);
-    let mut t: *mut Buffer = build_dict(top);
+    let h: *mut Buffer = cff_build_header();
+    let n: *mut Buffer = cff_compile_nameindex(cff);
+    let top: *mut CffDict = cff_make_fd_dict(cff, &raw mut string_hash);
+    let t: *mut Buffer = build_dict(top);
     cff_dict_free(top);
-    let mut top_pd: *mut CffDict = cff_make_private_dict(
+    let top_pd: *mut CffDict = cff_make_private_dict(
         (*cff)
             .private_dict
             .as_deref_mut()
             .map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict),
     );
-    let mut p: *mut Buffer = build_dict(top_pd);
+    let p: *mut Buffer = build_dict(top_pd);
     bufwrite_bufdel(
         p,
         cff_build_offset(0xffffffff as ::core::ffi::c_uint as i32),
     );
     bufwrite_bufdel(p, cff_encode_cff_operator(OP_SUBRS));
     cff_dict_free(top_pd);
-    let mut e: *mut Buffer = cff_make_fdselect(cff, glyf);
+    let e: *mut Buffer = cff_make_fdselect(cff, glyf);
     let mut fd_array_index: *mut CffIndex = ::core::ptr::null_mut::<CffIndex>();
     let mut r: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     if (*cff).is_cid {
@@ -2488,8 +2488,8 @@ unsafe fn writecff_cid_keyed(
     } else {
         r = bufnew();
     }
-    let mut c: *mut Buffer = cff_make_charset(cff, glyf, &raw mut string_hash);
-    let mut i: *mut Buffer = cffstrings_to_indexblob(&raw mut string_hash);
+    let c: *mut Buffer = cff_make_charset(cff, glyf, &raw mut string_hash);
+    let i: *mut Buffer = cffstrings_to_indexblob(&raw mut string_hash);
     let mut s: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     let mut gs: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     let mut ls: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
@@ -2532,7 +2532,7 @@ unsafe fn writecff_cid_keyed(
     }
     bufwrite_bufdel(blob, h);
     bufwrite_bufdel(blob, n);
-    let mut delta_size: i32 = (*t)
+    let delta_size: i32 = (*t)
         .data
         .len()
         .wrapping_add(additional_top_dict_ops_size as usize)
@@ -2601,13 +2601,13 @@ unsafe fn writecff_cid_keyed(
             vec![::core::ptr::null_mut::<Buffer>(); (*cff).fd_array.len()];
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*cff).fd_array.len() {
-            let mut pd: *mut CffDict = cff_make_private_dict(
+            let pd: *mut CffDict = cff_make_private_dict(
                 (&mut (*cff).fd_array)[j as usize]
                     .private_dict
                     .as_deref_mut()
                     .map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict),
             );
-            let mut p_0: *mut Buffer = build_dict(pd);
+            let p_0: *mut Buffer = build_dict(pd);
             bufwrite_bufdel(
                 p_0,
                 cff_build_offset(0xffffffff as ::core::ffi::c_uint as i32),
@@ -2615,7 +2615,7 @@ unsafe fn writecff_cid_keyed(
             bufwrite_bufdel(p_0, cff_encode_cff_operator(OP_SUBRS));
             cff_dict_free(pd);
             fd_array_privates[j as usize] = p_0;
-            let mut private_length_ptr: *mut u8 = {
+            let private_length_ptr: *mut u8 = {
                 let fd_array_offset = &(*fd_array_index).offset;
                 let off = (fd_array_offset
                     [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
@@ -2630,7 +2630,7 @@ unsafe fn writecff_cid_keyed(
                 ((*p_0).data.len() >> 8 as ::core::ffi::c_int & 0xff as usize) as u8;
             *private_length_ptr.offset(3 as ::core::ffi::c_int as isize) =
                 ((*p_0).data.len() >> 0 as ::core::ffi::c_int & 0xff as usize) as u8;
-            let mut private_offset_ptr: *mut u8 = {
+            let private_offset_ptr: *mut u8 = {
                 let fd_array_offset = &(*fd_array_index).offset;
                 let off = (fd_array_offset
                     [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
@@ -2664,15 +2664,15 @@ unsafe fn writecff_cid_keyed(
     } else {
         bufwrite_bufdel(blob, r);
     }
-    let mut position_of_local_subroutines: usize = (*blob).cursor;
+    let position_of_local_subroutines: usize = (*blob).cursor;
     bufwrite_bufdel(blob, ls);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as ::core::ffi::c_int)
         < (*cff).fd_array.len() as ::core::ffi::c_int + 1 as ::core::ffi::c_int
     {
-        let mut ls_offset: usize =
+        let ls_offset: usize =
             position_of_local_subroutines.wrapping_sub(starting_position_of_privates[j_1 as usize]);
-        let mut ptr: *mut u8 =
+        let ptr: *mut u8 =
             (*blob).data.as_mut_ptr().offset(
                 (ending_position_of_privates[j_1 as usize]).wrapping_sub(5 as usize) as isize,
             ) as *mut u8;
@@ -2688,7 +2688,7 @@ unsafe fn writecff_cid_keyed(
     }
     return blob;
 }
-pub unsafe fn otfcc_build_cff(cff_and_glyf: CffAndGlyf, mut options: &Options) -> *mut Buffer {
+pub unsafe fn otfcc_build_cff(cff_and_glyf: CffAndGlyf, options: &Options) -> *mut Buffer {
     return writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options);
 }
 #[inline]

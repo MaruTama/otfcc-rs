@@ -7,10 +7,10 @@ use crate::table::otl::classdef::{ClassDef, shrink_class_def};
 use crate::table::otl::{GposPairSubtable, OtlTable, Subtable};
 
 pub unsafe fn consolidate_gpos_pair(
-    mut font: *mut Font,
+    font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: &Options,
+    options: &Options,
 ) -> bool {
     unsafe {
         let Subtable::GposPair(mut_subtable) = &mut *_subtable else {

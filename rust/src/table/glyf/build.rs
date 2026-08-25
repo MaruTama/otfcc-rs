@@ -21,11 +21,11 @@ use crate::support::buffer::{
 };
 use crate::support::primitives::otfcc_to_f2dot14;
 use crate::vf::vq::vq_get_still;
-pub unsafe fn shrink_flags(mut flags: *mut Buffer) -> *mut Buffer {
+pub unsafe fn shrink_flags(flags: *mut Buffer) -> *mut Buffer {
     if buflen(flags) == 0 {
         return flags;
     }
-    let mut shrunk: *mut Buffer = bufnew();
+    let shrunk: *mut Buffer = bufnew();
     let flags_data: &Vec<u8> = &(*flags).data;
     bufwrite8(shrunk, flags_data[0]);
     let mut repeating: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -59,10 +59,10 @@ pub unsafe fn shrink_flags(mut flags: *mut Buffer) -> *mut Buffer {
     return shrunk;
 }
 pub const EPSILON: ::core::ffi::c_double = 1e-5f64;
-unsafe fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffer) {
+unsafe fn glyf_build_simple(g: *const Glyph, gbuf: *mut Buffer) {
     let mut flags: *mut Buffer = bufnew();
-    let mut xs: *mut Buffer = bufnew();
-    let mut ys: *mut Buffer = bufnew();
+    let xs: *mut Buffer = bufnew();
+    let ys: *mut Buffer = bufnew();
     bufwrite16b(gbuf, (*g).contours.len() as u16);
     bufwrite16b(gbuf, pos_to_u16((*g).stat.x_min));
     bufwrite16b(gbuf, pos_to_u16((*g).stat.y_min));
@@ -98,10 +98,10 @@ unsafe fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffer) {
             } else {
                 PointFlags::empty()
             };
-            let mut px: i32 = round(vq_get_still((*p).x.clone()) as ::core::ffi::c_double) as i32;
-            let mut py: i32 = round(vq_get_still((*p).y.clone()) as ::core::ffi::c_double) as i32;
-            let mut dx: i16 = (px - cx) as i16;
-            let mut dy: i16 = (py - cy) as i16;
+            let px: i32 = round(vq_get_still((*p).x.clone()) as ::core::ffi::c_double) as i32;
+            let py: i32 = round(vq_get_still((*p).y.clone()) as ::core::ffi::c_double) as i32;
+            let dx: i16 = (px - cx) as i16;
+            let dy: i16 = (py - cy) as i16;
             if dx as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
                 flag.insert(PointFlags::SAME_X);
             } else if dx as ::core::ffi::c_int >= -(0xff as ::core::ffi::c_int)
@@ -147,7 +147,7 @@ unsafe fn glyf_build_simple(mut g: *const Glyph, mut gbuf: *mut Buffer) {
     buffree(xs);
     buffree(ys);
 }
-unsafe fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
+unsafe fn glyf_build_composite(g: *const Glyph, gbuf: *mut Buffer) {
     bufwrite16b(gbuf, -(1 as ::core::ffi::c_int) as u16);
     bufwrite16b(gbuf, pos_to_u16((*g).stat.x_min));
     bufwrite16b(gbuf, pos_to_u16((*g).stat.y_min));
@@ -164,7 +164,7 @@ unsafe fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
             } else {
                 ComponentFlags::empty()
             };
-        let mut output_anchor: bool = (*r).is_anchored == RefAnchorStatus::AnchorConsolidated;
+        let output_anchor: bool = (*r).is_anchored == RefAnchorStatus::AnchorConsolidated;
         // Was a `union { pointid: u16, coord: i16 }` -- `arg1`/`arg2` are
         // written as whichever type this glyph's arguments actually are,
         // then always read back as `u16` further down (`bufwrite16b`/
@@ -269,13 +269,13 @@ unsafe fn glyf_build_composite(mut g: *const Glyph, mut gbuf: *mut Buffer) {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_glyf(
     table: Option<&GlyfTable>,
-    mut head: *mut HeadTable,
+    head: *mut HeadTable,
 ) -> GlyfAndLocaBuffers {
     let table: *const GlyfTable = table.map_or(::core::ptr::null(), |t| t as *const GlyfTable);
-    let mut bufglyf: *mut Buffer = bufnew();
-    let mut bufloca: *mut Buffer = bufnew();
+    let bufglyf: *mut Buffer = bufnew();
+    let bufloca: *mut Buffer = bufnew();
     if !table.is_null() && !head.is_null() {
-        let mut gbuf: *mut Buffer = bufnew();
+        let gbuf: *mut Buffer = bufnew();
         let mut loca: Vec<u32> = vec![0; (*table).len().wrapping_add(1 as usize)];
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*table).len() {
@@ -311,7 +311,7 @@ pub unsafe fn otfcc_build_glyf(
         }
         buffree(gbuf);
     }
-    let mut pair: GlyfAndLocaBuffers = GlyfAndLocaBuffers {
+    let pair: GlyfAndLocaBuffers = GlyfAndLocaBuffers {
         glyf: bufglyf,
         loca: bufloca,
     };

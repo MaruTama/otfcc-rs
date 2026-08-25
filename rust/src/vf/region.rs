@@ -58,7 +58,7 @@ pub unsafe fn vq_compare_region(a: *const VqRegion, b: *const VqRegion) -> ::cor
         _ => 0,
     }
 }
-pub unsafe fn vq_axis_span_is_one(mut s: *const VqAxisSpan) -> bool {
+pub unsafe fn vq_axis_span_is_one(s: *const VqAxisSpan) -> bool {
     let a: Pos = (*s).start;
     let p: Pos = (*s).peak;
     let z: Pos = (*s).end;
@@ -70,7 +70,7 @@ pub unsafe fn vq_axis_span_is_one(mut s: *const VqAxisSpan) -> bool {
         || p == 0 as ::core::ffi::c_int as Pos;
 }
 #[inline]
-unsafe fn weight_axis_region(mut as_0: *const VqAxisSpan, x: Pos) -> Pos {
+unsafe fn weight_axis_region(as_0: *const VqAxisSpan, x: Pos) -> Pos {
     let a: Pos = (*as_0).start;
     let p: Pos = (*as_0).peak;
     let z: Pos = (*as_0).end;
@@ -93,7 +93,7 @@ unsafe fn weight_axis_region(mut as_0: *const VqAxisSpan, x: Pos) -> Pos {
         return (z - x) / (z - p);
     };
 }
-pub unsafe fn vq_region_get_weight(mut r: *const VqRegion, v: *const VV) -> Pos {
+pub unsafe fn vq_region_get_weight(r: *const VqRegion, v: *const VV) -> Pos {
     let coords: &Vec<Pos> = &*v;
     let mut w: Pos = 1 as ::core::ffi::c_int as Pos;
     let mut j: usize = 0 as usize;

@@ -33,11 +33,11 @@ pub unsafe fn otl_parse_chaining(
     if _match.is_null() || _apply.is_null() {
         return ::core::ptr::null_mut::<Subtable>();
     }
-    let mut subtable: *mut ChainingSubtable = (subtable_chaining_create)();
+    let subtable: *mut ChainingSubtable = (subtable_chaining_create)();
     // `create()` already hands back a valid `Canonical(ChainingRule::
     // default())` -- no separate tag assignment or placement-construct
     // needed, unlike the pre-enum version.
-    let mut rule: *mut ChainingRule = chaining_rule_mut(subtable);
+    let rule: *mut ChainingRule = chaining_rule_mut(subtable);
     (*rule).match_count = json_arr_len(_match) as TableId;
     (*rule).match_0 = Vec::with_capacity((*rule).match_count as usize);
     (*rule).apply = Vec::with_capacity(json_arr_len(_apply) as usize);

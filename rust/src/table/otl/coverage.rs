@@ -30,7 +30,7 @@ pub(crate) unsafe fn otl_coverage_create() -> *mut Coverage {
     // is exactly the hazard this conversion removes.
     Box::into_raw(Box::new(Vec::new()))
 }
-pub(crate) unsafe fn otl_coverage_free(mut x: *mut Coverage) {
+pub(crate) unsafe fn otl_coverage_free(x: *mut Coverage) {
     if x.is_null() {
         return;
     }
@@ -147,14 +147,14 @@ pub(crate) unsafe fn read_coverage(
     coverage
 }
 pub(crate) unsafe extern "C" fn dump_coverage(coverage: *const Coverage) -> *mut BuiltValue {
-    let mut a: *mut BuiltValue = json_array_new((*coverage).len());
+    let a: *mut BuiltValue = json_array_new((*coverage).len());
     for j in 0..(*coverage).len() {
         json_array_push(a, json_string_new_from_bytes(&(&(*coverage))[j].name));
     }
     return preserialize(a);
 }
-pub(crate) unsafe extern "C" fn parse_coverage(mut cov: *const ParsedValue) -> *mut Coverage {
-    let mut c: *mut Coverage = otl_coverage_create();
+pub(crate) unsafe extern "C" fn parse_coverage(cov: *const ParsedValue) -> *mut Coverage {
+    let c: *mut Coverage = otl_coverage_create();
     if cov.is_null() || json_type_of(cov) != JsonType::Array {
         return c;
     }
@@ -171,11 +171,11 @@ pub(crate) unsafe extern "C" fn parse_coverage(mut cov: *const ParsedValue) -> *
     return c;
 }
 pub(crate) unsafe extern "C" fn build_coverage_format(
-    mut coverage: *const Coverage,
-    mut format: u16,
+    coverage: *const Coverage,
+    format: u16,
 ) -> *mut Buffer {
     if (*coverage).is_empty() {
-        let mut buf: *mut Buffer = bufnew();
+        let buf: *mut Buffer = bufnew();
         bufwrite16b(buf, 2 as u16);
         bufwrite16b(buf, 0 as u16);
         return buf;
@@ -188,7 +188,7 @@ pub(crate) unsafe extern "C" fn build_coverage_format(
     let mut r: Vec<GlyphId> = (*coverage).iter().map(|h| h.index).collect();
     r.sort_by_key(|&gid| gid);
     let jj: GlyphId = r.len() as GlyphId;
-    let mut format1: *mut Buffer = bufnew();
+    let format1: *mut Buffer = bufnew();
     bufwrite16b(format1, 1 as u16);
     bufwrite16b(format1, jj as u16);
     let mut j_0: GlyphId = 0 as GlyphId;
@@ -199,16 +199,16 @@ pub(crate) unsafe extern "C" fn build_coverage_format(
     if (jj as ::core::ffi::c_int) < 2 as ::core::ffi::c_int {
         return format1;
     }
-    let mut format2: *mut Buffer = bufnew();
+    let format2: *mut Buffer = bufnew();
     bufwrite16b(format2, 2 as u16);
-    let mut ranges: *mut Buffer = bufnew();
+    let ranges: *mut Buffer = bufnew();
     let mut start_gid: GlyphId = r[0];
     let mut end_gid: GlyphId = start_gid;
     let mut last_gid: GlyphId = start_gid;
     let mut n_ranges: GlyphId = 0 as GlyphId;
     let mut j_1: GlyphId = 1 as GlyphId;
     while (j_1 as ::core::ffi::c_int) < jj as ::core::ffi::c_int {
-        let mut current: GlyphId = r[j_1 as usize];
+        let current: GlyphId = r[j_1 as usize];
         if !(current as ::core::ffi::c_int <= last_gid as ::core::ffi::c_int) {
             if current as ::core::ffi::c_int
                 == end_gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int
@@ -256,7 +256,7 @@ pub(crate) unsafe extern "C" fn build_coverage_format(
         return format2;
     };
 }
-pub(crate) unsafe extern "C" fn build_coverage(mut coverage: *const Coverage) -> *mut Buffer {
+pub(crate) unsafe extern "C" fn build_coverage(coverage: *const Coverage) -> *mut Buffer {
     return build_coverage_format(coverage, 0 as u16);
 }
 pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {

@@ -17,12 +17,12 @@ use std::cell::RefCell;
 
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfccbuild_json_otf(
-    mut inlen: u32,
-    mut injson: *const ::core::ffi::c_char,
-    mut olevel: u8,
-    mut for_webfont: bool,
+    inlen: u32,
+    injson: *const ::core::ffi::c_char,
+    olevel: u8,
+    for_webfont: bool,
 ) -> *mut Buffer {
-    let mut options: *mut Options = otfcc_new_options();
+    let options: *mut Options = otfcc_new_options();
     (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
     logger_indent(
         &mut *(*options).logger.borrow_mut(),
@@ -33,33 +33,33 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         (*options).ignore_glyph_order = true;
         (*options).force_cid = true;
     }
-    let mut json_root: *mut ParsedValue = json_parse(injson, inlen as usize);
+    let json_root: *mut ParsedValue = json_parse(injson, inlen as usize);
     if json_root.is_null() {
         otfcc_delete_options(options);
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut font: *mut Font = read_json(json_root as *mut ::core::ffi::c_void, 0 as u32, &*options);
+    let font: *mut Font = read_json(json_root as *mut ::core::ffi::c_void, 0 as u32, &*options);
     json_value_free(json_root);
     if font.is_null() {
         otfcc_delete_options(options);
         return ::core::ptr::null_mut::<Buffer>();
     }
     otfcc_consolidate_font(font, &*options);
-    let mut otf: *mut Buffer = serialize_to_otf(font, &*options) as *mut Buffer;
+    let otf: *mut Buffer = serialize_to_otf(font, &*options) as *mut Buffer;
     otfcc_font_free(font);
     otfcc_delete_options(options);
     return otf;
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn otfcc_get_buf_len(mut buf: *mut Buffer) -> usize {
+pub unsafe extern "C" fn otfcc_get_buf_len(buf: *mut Buffer) -> usize {
     return (*buf).data.len();
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn otfcc_get_buf_data(mut buf: *mut Buffer) -> *mut u8 {
+pub unsafe extern "C" fn otfcc_get_buf_data(buf: *mut Buffer) -> *mut u8 {
     return (*buf).data.as_mut_ptr();
 }
 #[unsafe(no_mangle)]
-pub unsafe extern "C" fn otfccbuild_free_otfbuf(mut buf: *mut Buffer) {
+pub unsafe extern "C" fn otfccbuild_free_otfbuf(buf: *mut Buffer) {
     buffree(buf);
 }
 

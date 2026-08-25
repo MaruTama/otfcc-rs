@@ -121,10 +121,10 @@ pub unsafe extern "C" fn otl_gpos_dump_cursive(mut _subtable: *const Subtable) -
         unreachable!()
     };
     let subtable: *const GposCursiveSubtable = mut_subtable;
-    let mut st: *mut BuiltValue = json_object_new((*subtable).len());
+    let st: *mut BuiltValue = json_object_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
-        let mut rec: *mut BuiltValue = json_object_new(2 as usize);
+        let rec: *mut BuiltValue = json_object_new(2 as usize);
         json_object_push(
             rec,
             b"enter\0" as *const u8 as *const ::core::ffi::c_char,
@@ -181,7 +181,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_cursive(
         unreachable!()
     };
     let subtable: *const GposCursiveSubtable = mut_subtable;
-    let mut cov: *mut Coverage = otl_coverage_create();
+    let cov: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
         push_to_coverage(
@@ -190,7 +190,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_cursive(
         );
         j = j.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 1 as u32),
         bk_ptr(
             BkCellType::P16,

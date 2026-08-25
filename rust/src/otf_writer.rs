@@ -67,7 +67,7 @@ impl FontSerializer for OtfSerializer {
         let font = font as *mut Font;
         let options: &Options = &*(options as *const Options);
         otfcc_stat_font(font, options);
-        let mut builder: *mut SfntBuilder = otfcc_new_sfnt_builder(
+        let builder: *mut SfntBuilder = otfcc_new_sfnt_builder(
             (if (*font).subtype == FontSubtype::Cff {
                 crate::tag::SFNT_VERSION_OTTO as ::core::ffi::c_int
             } else {
@@ -76,7 +76,7 @@ impl FontSerializer for OtfSerializer {
             options,
         );
         if (*font).subtype == FontSubtype::Ttf {
-            let mut pair: GlyfAndLocaBuffers = otfcc_build_glyf(
+            let pair: GlyfAndLocaBuffers = otfcc_build_glyf(
                 (*font).glyf.as_ref(),
                 (*font)
                     .head
@@ -86,7 +86,7 @@ impl FontSerializer for OtfSerializer {
             otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_GLYF, pair.glyf);
             otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_LOCA, pair.loca);
         } else {
-            let mut r: CffAndGlyf = CffAndGlyf {
+            let r: CffAndGlyf = CffAndGlyf {
                 meta: (*font)
                     .cff
                     .as_deref_mut()
@@ -181,8 +181,8 @@ impl FontSerializer for OtfSerializer {
             );
         }
         if (*font).hhea.is_some() && (*font).maxp.is_some() && (*font).hmtx.is_some() {
-            let mut hmtx_counta: u16 = (*font).hhea.as_deref().unwrap().number_of_metrics;
-            let mut hmtx_countk: u16 = ((*font).maxp.as_deref().unwrap().num_glyphs
+            let hmtx_counta: u16 = (*font).hhea.as_deref().unwrap().number_of_metrics;
+            let hmtx_countk: u16 = ((*font).maxp.as_deref().unwrap().num_glyphs
                 as ::core::ffi::c_int
                 - (*font).hhea.as_deref().unwrap().number_of_metrics as ::core::ffi::c_int)
                 as u16;
@@ -202,8 +202,8 @@ impl FontSerializer for OtfSerializer {
             otfcc_build_vhea((*font).vhea.as_deref()),
         );
         if (*font).vhea.is_some() && (*font).maxp.is_some() && (*font).vmtx.is_some() {
-            let mut vmtx_counta: u16 = (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics;
-            let mut vmtx_countk: u16 = ((*font).maxp.as_deref().unwrap().num_glyphs
+            let vmtx_counta: u16 = (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics;
+            let vmtx_countk: u16 = ((*font).maxp.as_deref().unwrap().num_glyphs
                 as ::core::ffi::c_int
                 - (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics as ::core::ffi::c_int)
                 as u16;
@@ -265,10 +265,10 @@ impl FontSerializer for OtfSerializer {
             crate::tag::TAG_SVG,
             otfcc_build_svg((*font).svg.as_ref()),
         );
-        let mut target: TsiBuildTarget = otfcc_build_tsi((*font).tsi_01.as_ref());
+        let target: TsiBuildTarget = otfcc_build_tsi((*font).tsi_01.as_ref());
         otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI0, target.index_part);
         otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI1, target.text_part);
-        let mut target_0: TsiBuildTarget = otfcc_build_tsi((*font).tsi_23.as_ref());
+        let target_0: TsiBuildTarget = otfcc_build_tsi((*font).tsi_23.as_ref());
         otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI2, target_0.index_part);
         otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI3, target_0.text_part);
         if let Some(glyf) = (*font).glyf.as_ref() {
@@ -279,21 +279,21 @@ impl FontSerializer for OtfSerializer {
             );
         }
         if options.dummy_dsig {
-            let mut dsig: *mut Buffer = bufnew();
+            let dsig: *mut Buffer = bufnew();
             bufwrite32b(dsig, 0x1 as u32);
             bufwrite16b(dsig, 0 as u16);
             bufwrite16b(dsig, 0 as u16);
             otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_DSIG, dsig);
         }
-        let mut otf: *mut Buffer = otfcc_sfnt_builder_serialize(builder);
+        let otf: *mut Buffer = otfcc_sfnt_builder_serialize(builder);
         otfcc_delete_sfnt_builder(builder);
         otfcc_unstat_font(font);
         return otf as *mut ::core::ffi::c_void;
     }
 }
 pub unsafe fn serialize_to_otf(
-    mut font: *mut Font,
-    mut options: &Options,
+    font: *mut Font,
+    options: &Options,
 ) -> *mut ::core::ffi::c_void {
     <OtfSerializer as FontSerializer>::serialize(
         font as *mut ::core::ffi::c_void,

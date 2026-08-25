@@ -130,7 +130,7 @@ pub unsafe extern "C" fn otl_gpos_dump_single(mut _subtable: *const Subtable) ->
         unreachable!()
     };
     let subtable: *const GposSingleSubtable = mut_subtable;
-    let mut st: *mut BuiltValue = json_object_new((*subtable).len());
+    let st: *mut BuiltValue = json_object_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
         json_object_push_bytes_key(
@@ -188,7 +188,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
             j = j.wrapping_add(1);
         }
     }
-    let mut cov: *mut Coverage = otl_coverage_create();
+    let cov: *mut Coverage = otl_coverage_create();
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).len() {
         push_to_coverage(
@@ -197,9 +197,9 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut coverage_buf: *mut Buffer = build_coverage(cov);
+    let coverage_buf: *mut Buffer = build_coverage(cov);
     if is_const {
-        let mut b: *mut BkBlock = bk_new_block(&[
+        let b: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 1 as u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
             bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32),
@@ -211,7 +211,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_single(
         otl_coverage_free(cov);
         return bk_build_block(b);
     } else {
-        let mut b_0: *mut BkBlock = bk_new_block(&[
+        let b_0: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 2 as u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
             bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32),

@@ -10,13 +10,13 @@ use crate::support::built_json::{
 };
 use crate::table::meta::types::{MetaEntry, MetaTable};
 #[inline]
-unsafe fn is_string_tag(mut tag: u32) -> bool {
+unsafe fn is_string_tag(tag: u32) -> bool {
     return tag == crate::tag::TAG_DLNG || tag == crate::tag::TAG_SLNG;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_meta(
     meta: Option<&MetaTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let meta = match meta {
@@ -45,7 +45,7 @@ pub unsafe fn otfcc_dump_meta(
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
         while keep != 0 && __caryll_index < entries.len() {
-            let mut e: *const MetaEntry = &entries[__caryll_index];
+            let e: *const MetaEntry = &entries[__caryll_index];
             while keep != 0 {
                 let mut _e: *mut BuiltValue = json_object_new(2 as usize);
                 let mut _tag: [::core::ffi::c_char; 4] = [0; 4];
@@ -103,7 +103,7 @@ pub unsafe fn otfcc_dump_meta(
     }
 }
 #[inline]
-unsafe fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {
+unsafe fn tag2str(tag: u32, tags: *mut ::core::ffi::c_char) {
     *tags.offset(0 as ::core::ffi::c_int as isize) =
         (tag >> 24 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(1 as ::core::ffi::c_int as isize) =

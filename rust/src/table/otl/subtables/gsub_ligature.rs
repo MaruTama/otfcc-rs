@@ -167,10 +167,10 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) 
         unreachable!()
     };
     let subtable: *const GsubLigatureSubtable = mut_subtable;
-    let mut st: *mut BuiltValue = json_array_new((*subtable).len());
+    let st: *mut BuiltValue = json_array_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
-        let mut entry: *mut BuiltValue = json_object_new(2 as usize);
+        let entry: *mut BuiltValue = json_object_new(2 as usize);
         json_object_push(
             entry,
             b"from\0" as *const u8 as *const ::core::ffi::c_char,
@@ -184,7 +184,7 @@ pub unsafe extern "C" fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) 
         json_array_push(st, preserialize(entry));
         j = j.wrapping_add(1);
     }
-    let mut ret: *mut BuiltValue = json_object_new(1 as usize);
+    let ret: *mut BuiltValue = json_object_new(1 as usize);
     json_object_push(
         ret,
         b"substitutions\0" as *const u8 as *const ::core::ffi::c_char,
@@ -209,10 +209,10 @@ pub unsafe fn otl_gsub_parse_ligature(
             JsonType::Array,
         );
         let st: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
-        let mut n: GlyphId = json_arr_len(_subtable) as GlyphId;
+        let n: GlyphId = json_arr_len(_subtable) as GlyphId;
         let mut k: GlyphId = 0 as GlyphId;
         while (k as ::core::ffi::c_int) < n as ::core::ffi::c_int {
-            let mut entry: *const ParsedValue = json_arr_at(_subtable, k as u32);
+            let entry: *const ParsedValue = json_arr_at(_subtable, k as u32);
             let mut _from: *const ParsedValue = json_obj_get_type(
                 entry,
                 b"from\0" as *const u8 as *const ::core::ffi::c_char,
@@ -234,7 +234,7 @@ pub unsafe fn otl_gsub_parse_ligature(
         return subtable_from_raw(st, Subtable::GsubLigature);
     } else {
         let st_0: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
-        let mut n_0: GlyphId = json_obj_len(_subtable) as GlyphId;
+        let n_0: GlyphId = json_obj_len(_subtable) as GlyphId;
         let mut k_0: GlyphId = 0 as GlyphId;
         while (k_0 as ::core::ffi::c_int) < n_0 as ::core::ffi::c_int {
             let mut _from_0: *const ParsedValue = json_obj_val_at(_subtable, k_0 as u32);
@@ -278,11 +278,11 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
         start_gids.insert(sgid);
         j = j.wrapping_add(1);
     }
-    let mut startcov: *mut Coverage = otl_coverage_create();
+    let startcov: *mut Coverage = otl_coverage_create();
     for &gid in start_gids.iter() {
         push_to_coverage(startcov, handle_from_index(gid as GlyphId) as GlyphHandle);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 1 as u32),
         bk_ptr(
             BkCellType::P16,
@@ -302,14 +302,14 @@ pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
             }
             j_0 = j_0.wrapping_add(1);
         }
-        let mut ligset: *mut BkBlock = bk_new_block(&[bk_int(
+        let ligset: *mut BkBlock = bk_new_block(&[bk_int(
             BkCellType::B16,
             (n_ligs_here as ::core::ffi::c_int) as u32,
         )]);
         let mut j_1: GlyphId = 0 as GlyphId;
         while (j_1 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
             if (&(*subtable))[j_1 as usize].from[0].index as ::core::ffi::c_int == gid {
-                let mut ligdef: *mut BkBlock = bk_new_block(&[
+                let ligdef: *mut BkBlock = bk_new_block(&[
                     bk_int(
                         BkCellType::B16,
                         ((&(*subtable))[j_1 as usize].to.index as ::core::ffi::c_int) as u32,

@@ -15,10 +15,10 @@ use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chai
 use crate::table::otl::{ChainingRule, ChainingSubtable, OtlTable, Subtable};
 
 pub unsafe fn consolidate_chaining(
-    mut font: *mut Font,
-    mut table: *mut OtlTable,
+    font: *mut Font,
+    table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: &Options,
+    options: &Options,
 ) -> bool {
     let Subtable::Chaining(mut_subtable) = &mut *_subtable else {
         unreachable!()
@@ -33,7 +33,7 @@ pub unsafe fn consolidate_chaining(
         );
         return false;
     }
-    let mut rule: *mut ChainingRule = chaining_rule_mut(subtable);
+    let rule: *mut ChainingRule = chaining_rule_mut(subtable);
     let mut possible: bool = true;
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
@@ -59,7 +59,7 @@ pub unsafe fn consolidate_chaining(
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < (*rule).apply.len() {
         let mut found_lookup: bool = false;
-        let mut h: *mut LookupHandle = &raw mut (&mut (*rule).apply)[j_0 as usize].lookup;
+        let h: *mut LookupHandle = &raw mut (&mut (*rule).apply)[j_0 as usize].lookup;
         if !(*h).name.is_empty() {
             let mut k: TableId = 0 as TableId;
             while (k as usize) < (*table).lookups.len() {

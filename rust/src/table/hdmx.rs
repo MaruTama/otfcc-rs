@@ -62,7 +62,7 @@ fn parse_hdmx(
     Ok((version, num_records, size_device_record, records))
 }
 
-pub unsafe fn otfcc_read_hdmx(packet: &Packet, mut maxp: *mut MaxpTable) -> Option<Box<HdmxTable>> {
+pub unsafe fn otfcc_read_hdmx(packet: &Packet, maxp: *mut MaxpTable) -> Option<Box<HdmxTable>> {
     let table = packet
         .pieces
         .iter()

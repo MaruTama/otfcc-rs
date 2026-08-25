@@ -33,12 +33,12 @@ use crate::table::otl::{
     new_feature, new_language, new_lookup, otl_feature_ref_list_dispose, subtable_list_slot,
 };
 pub unsafe fn otfcc_read_otl_subtable(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut subtable_offset: u32,
-    mut lookup_type: LookupType,
+    data: FontFilePointer,
+    table_length: u32,
+    subtable_offset: u32,
+    lookup_type: LookupType,
     max_glyphs: GlyphId,
-    mut options: &Options,
+    options: &Options,
 ) -> *mut Subtable {
     match lookup_type {
         OTL_TYPE_GSUB_SINGLE => {

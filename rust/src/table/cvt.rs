@@ -36,7 +36,7 @@ pub struct CvtTable {
 // always holds and no read can go past the end. Migrated anyway for
 // consistency with the rest of this batch (dropping `__fortable_*`/
 // `.offset()`), not because it fixes a bug.
-pub unsafe fn otfcc_read_cvt(packet: &Packet, mut tag: u32) -> Option<Box<CvtTable>> {
+pub unsafe fn otfcc_read_cvt(packet: &Packet, tag: u32) -> Option<Box<CvtTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == tag)?;
     let table_length = (table.data.len() / 2) as u32;
     let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);
@@ -51,9 +51,9 @@ pub unsafe fn otfcc_read_cvt(packet: &Packet, mut tag: u32) -> Option<Box<CvtTab
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_cvt(
     table: Option<&CvtTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
-    mut tag: *const ::core::ffi::c_char,
+    tag: *const ::core::ffi::c_char,
 ) {
     let table = match table {
         Some(t) => t,
@@ -65,7 +65,7 @@ pub unsafe fn otfcc_dump_cvt(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut arr: *mut BuiltValue = json_array_new(table.words.len());
+        let arr: *mut BuiltValue = json_array_new(table.words.len());
         for &w in &table.words {
             json_array_push(arr, json_integer_new(w as i64));
         }
@@ -75,9 +75,9 @@ pub unsafe fn otfcc_dump_cvt(
     }
 }
 pub unsafe fn otfcc_parse_cvt(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
-    mut tag: *const ::core::ffi::c_char,
+    tag: *const ::core::ffi::c_char,
 ) -> Option<Box<CvtTable>> {
     let mut t: Option<Box<CvtTable>> = None;
     let mut table: *const ParsedValue = ::core::ptr::null();
@@ -93,7 +93,7 @@ pub unsafe fn otfcc_parse_cvt(
             let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);
             let mut j: u16 = 0 as u16;
             while (j as u32) < table_length {
-                let mut record: *const ParsedValue = json_arr_at(table, j as u32);
+                let record: *const ParsedValue = json_arr_at(table, j as u32);
                 if json_type_of(record) == JsonType::Integer {
                     words.push(json_int_val(record) as u16);
                 } else if json_type_of(record) == JsonType::Double {
@@ -147,7 +147,7 @@ pub unsafe fn otfcc_build_cvt(table: Option<&CvtTable>) -> *mut Buffer {
         Some(t) => t,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     for &w in &table.words {
         bufwrite16b(buf, w);
     }

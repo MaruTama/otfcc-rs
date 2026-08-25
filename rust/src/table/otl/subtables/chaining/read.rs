@@ -55,7 +55,7 @@ pub struct ClassDefs {
 pub unsafe fn single_coverage(
     mut _data: FontFilePointer,
     mut _table_length: u32,
-    mut gid: u16,
+    gid: u16,
     mut _offset: u32,
     mut _kind: u16,
     _max_glyphs: GlyphId,
@@ -68,9 +68,9 @@ pub unsafe fn single_coverage(
 pub unsafe fn class_coverage(
     mut _data: FontFilePointer,
     mut _table_length: u32,
-    mut cls: u16,
+    cls: u16,
     mut _offset: u32,
-    mut kind: u16,
+    kind: u16,
     max_glyphs: GlyphId,
     mut _classdefs: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
@@ -164,9 +164,9 @@ pub unsafe fn class_coverage(
     return cov;
 }
 pub unsafe fn format3_coverage(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut shift: u16,
+    data: FontFilePointer,
+    table_length: u32,
+    shift: u16,
     mut _offset: u32,
     mut _kind: u16,
     _max_glyphs: GlyphId,
@@ -191,14 +191,14 @@ pub unsafe fn format3_coverage(
 // note below) -- always in the safe direction (rejecting strictly less
 // than before), documented per-function where it applies.
 pub unsafe fn general_read_contextual_rule(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
-    mut start_gid: u16,
-    mut minus_one: bool,
-    mut fn_0: CoverageReaderHandler,
+    data: FontFilePointer,
+    table_length: u32,
+    offset: u32,
+    start_gid: u16,
+    minus_one: bool,
+    fn_0: CoverageReaderHandler,
     max_glyphs: GlyphId,
-    mut userdata: *mut ::core::ffi::c_void,
+    userdata: *mut ::core::ffi::c_void,
 ) -> Option<Box<ChainingRule>> {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let minus_one_q: u16 = minus_one as u16;
@@ -283,10 +283,10 @@ pub unsafe fn general_read_contextual_rule(
     Some(rule)
 }
 unsafe fn read_contextual_format1(
-    mut subtable: *mut ChainingSubtable,
+    subtable: *mut ChainingSubtable,
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
@@ -403,10 +403,10 @@ unsafe fn read_contextual_format1(
     ::core::ptr::null_mut::<ChainingSubtable>()
 }
 unsafe fn read_contextual_format2(
-    mut subtable: *mut ChainingSubtable,
+    subtable: *mut ChainingSubtable,
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
@@ -550,13 +550,13 @@ unsafe fn read_contextual_format2(
 }
 pub unsafe fn otl_read_contextual(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     max_glyphs: GlyphId,
-    mut options: &Options,
+    options: &Options,
 ) -> *mut Subtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-    let mut subtable: *mut ChainingSubtable = (subtable_chaining_create)();
+    let subtable: *mut ChainingSubtable = (subtable_chaining_create)();
     // `subtable` is fresh from `create()` (a valid, empty `Canonical`
     // value) -- replace it wholesale with a valid, empty `Poly` ruleset.
     // Every downstream construction path (format1/format2/format3, and the
@@ -618,14 +618,14 @@ pub unsafe fn otl_read_contextual(
     return ::core::ptr::null_mut::<Subtable>();
 }
 pub unsafe fn general_read_chaining_rule(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
-    mut start_gid: u16,
-    mut minus_one: bool,
-    mut fn_0: CoverageReaderHandler,
+    data: FontFilePointer,
+    table_length: u32,
+    offset: u32,
+    start_gid: u16,
+    minus_one: bool,
+    fn_0: CoverageReaderHandler,
     max_glyphs: GlyphId,
-    mut userdata: *mut ::core::ffi::c_void,
+    userdata: *mut ::core::ffi::c_void,
 ) -> Option<Box<ChainingRule>> {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let minus_one_q: u16 = minus_one as u16;
@@ -764,10 +764,10 @@ pub unsafe fn general_read_chaining_rule(
     Some(rule)
 }
 unsafe fn read_chaining_format1(
-    mut subtable: *mut ChainingSubtable,
+    subtable: *mut ChainingSubtable,
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
@@ -879,10 +879,10 @@ unsafe fn read_chaining_format1(
     ::core::ptr::null_mut::<ChainingSubtable>()
 }
 unsafe fn read_chaining_format2(
-    mut subtable: *mut ChainingSubtable,
+    subtable: *mut ChainingSubtable,
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
@@ -1030,13 +1030,13 @@ unsafe fn read_chaining_format2(
 }
 pub unsafe fn otl_read_chaining(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
     max_glyphs: GlyphId,
-    mut options: &Options,
+    options: &Options,
 ) -> *mut Subtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-    let mut subtable: *mut ChainingSubtable = (subtable_chaining_create)();
+    let subtable: *mut ChainingSubtable = (subtable_chaining_create)();
     // See the identical comment in `otl_read_contextual`.
     *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
     let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
@@ -1098,7 +1098,7 @@ pub unsafe fn otl_read_chaining(
 // `*mut *mut Coverage` -- exactly `[T]::reverse` on the backtrack
 // sub-slice, now that `match_0` is a real `Vec<Coverage>`. `input_begins
 // == 0` (nothing to reverse) falls out of slicing an empty range.
-unsafe fn reverse_backtracks(mut rule: *mut ChainingRule) {
+unsafe fn reverse_backtracks(rule: *mut ChainingRule) {
     let input_begins = (*rule).input_begins as usize;
     (&mut (*rule).match_0)[..input_begins].reverse();
 }

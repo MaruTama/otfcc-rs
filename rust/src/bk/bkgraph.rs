@@ -232,12 +232,12 @@ unsafe fn otfcc_bkblock_size(b: *mut BkBlock) -> usize {
 }
 unsafe fn getoffset(
     offsets: &[usize],
-    mut ref_0: *mut BkBlock,
-    mut target: *mut BkBlock,
-    mut bits: u8,
+    ref_0: *mut BkBlock,
+    target: *mut BkBlock,
+    bits: u8,
 ) -> u32 {
-    let mut offref: usize = offsets[(*ref_0)._index as usize];
-    let mut offtgt: usize = offsets[(*target)._index as usize];
+    let offref: usize = offsets[(*ref_0)._index as usize];
+    let offtgt: usize = offsets[(*target)._index as usize];
     if (bits as ::core::ffi::c_int) < 32 as ::core::ffi::c_int
         && (offtgt < offref || offtgt.wrapping_sub(offref) >> bits as ::core::ffi::c_int != 0)
     {
@@ -253,11 +253,11 @@ unsafe fn getoffset(
 }
 unsafe fn getoffset_untangle(
     offsets: &[usize],
-    mut ref_0: *mut BkBlock,
-    mut target: *mut BkBlock,
+    ref_0: *mut BkBlock,
+    target: *mut BkBlock,
 ) -> i64 {
-    let mut offref: usize = offsets[(*ref_0)._index as usize];
-    let mut offtgt: usize = offsets[(*target)._index as usize];
+    let offref: usize = offsets[(*ref_0)._index as usize];
+    let offtgt: usize = offsets[(*target)._index as usize];
     return offtgt.wrapping_sub(offref) as i64;
 }
 unsafe fn escalate_sppointers(b: *mut BkBlock, f: *mut BkGraph, order: *mut u32, depth: u32) {

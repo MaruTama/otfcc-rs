@@ -111,7 +111,7 @@ pub unsafe fn otfcc_read_maxp(packet: &Packet, options: &Options) -> Option<Box<
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_maxp(
     table: Option<&MaxpTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -124,7 +124,7 @@ pub unsafe fn otfcc_dump_maxp(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut maxp: *mut BuiltValue = json_object_new(15 as usize);
+        let maxp: *mut BuiltValue = json_object_new(15 as usize);
         json_object_push(
             maxp,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -210,7 +210,7 @@ pub unsafe fn otfcc_dump_maxp(
     }
 }
 pub unsafe fn otfcc_parse_maxp(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<MaxpTable>> {
     // `.version` carries `init_maxp`'s `0x10000` default through if the
@@ -280,7 +280,7 @@ pub unsafe fn otfcc_build_maxp(maxp: Option<&MaxpTable>) -> *mut Buffer {
         Some(m) => m as *const MaxpTable,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*maxp).version as u32);
     bufwrite16b(buf, (*maxp).num_glyphs);
     if (*maxp).version > 0x5000 as F16Dot16 {

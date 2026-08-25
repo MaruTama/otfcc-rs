@@ -25,7 +25,7 @@ use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubReverseSubtable, Subtable, subtable_from_raw};
 
 #[inline]
-unsafe fn subtable_gsub_reverse_free(mut x: *mut GsubReverseSubtable) {
+unsafe fn subtable_gsub_reverse_free(x: *mut GsubReverseSubtable) {
     if x.is_null() {
         return;
     }
@@ -213,7 +213,7 @@ pub unsafe fn otl_gsub_parse_reverse(
     if _match.is_null() || _to.is_null() {
         return ::core::ptr::null_mut::<Subtable>();
     }
-    let mut subtable: *mut GsubReverseSubtable = (subtable_gsub_reverse_create)();
+    let subtable: *mut GsubReverseSubtable = (subtable_gsub_reverse_create)();
     (*subtable).match_count = json_arr_len(_match) as TableId;
     (*subtable).match_0 = Vec::with_capacity((*subtable).match_count as usize);
     (*subtable).input_index = json_obj_getnum_fallback(
@@ -250,7 +250,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_reverse(
         &mut (*(subtable as *mut GsubReverseSubtable)).match_0,
         (*subtable).input_index,
     );
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 1 as u32),
         bk_ptr(
             BkCellType::P16,

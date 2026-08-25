@@ -78,8 +78,8 @@ pub struct GdefTable {
 // memcpy would double-free `lig_carets` now that it owns a `Vec`.
 unsafe fn read_caret_value(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
 ) -> CaretValue {
     let mut v: CaretValue = CaretValue {
         format: 0,
@@ -112,8 +112,8 @@ unsafe fn read_caret_value(
 #[allow(improper_ctypes_definitions)]
 unsafe fn read_lig_caret_record(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    table_length: u32,
+    offset: u32,
 ) -> CaretValueRecord {
     let mut caret_count: ShapeId = 0;
     let mut g: CaretValueRecord = CaretValueRecord {
@@ -167,8 +167,8 @@ pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
             if table.tag == crate::tag::TAG_GDEF {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut table_length: u32 = table.length;
+                    let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
+                    let table_length: u32 = table.length;
                     if !(table_length < 12 as u32) {
                         gdef = Some(Box::new(GdefTable {
                             glyph_class_def: None,
@@ -194,7 +194,7 @@ pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
                             {
                                 current_block = 10802812094495641425;
                             } else {
-                                let mut cov: *mut Coverage =
+                                let cov: *mut Coverage =
                                     read_coverage(
                                         data as *const u8,
                                         table_length,
@@ -295,7 +295,7 @@ pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     }
     return gdef;
 }
-unsafe fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut BuiltValue {
+unsafe fn dump_gdef_lig_carets(gdef: *const GdefTable) -> *mut BuiltValue {
     let lig_carets: &Vec<CaretValueRecord> = &(*gdef).lig_carets;
     let mut _carets: *mut BuiltValue = json_object_new(lig_carets.len());
     let mut j: GlyphId = 0 as GlyphId;
@@ -330,7 +330,7 @@ unsafe fn dump_gdef_lig_carets(mut gdef: *const GdefTable) -> *mut BuiltValue {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_gdef(
     gdef: Option<&GdefTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let gdef = match gdef {
@@ -374,13 +374,13 @@ pub unsafe fn otfcc_dump_gdef(
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-unsafe fn lig_caret_from_json(mut _carets: *const ParsedValue, mut lc: *mut LigCaretTable) {
+unsafe fn lig_caret_from_json(mut _carets: *const ParsedValue, lc: *mut LigCaretTable) {
     if _carets.is_null() || json_type_of(_carets) != JsonType::Object {
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < json_obj_len(_carets) {
-        let mut a: *const ParsedValue = json_obj_val_at(_carets, j as u32);
+        let a: *const ParsedValue = json_obj_val_at(_carets, j as u32);
         if !(a.is_null() || json_type_of(a) != JsonType::Array) {
             let mut v: CaretValueRecord = CaretValueRecord {
                 glyph: Handle {
@@ -392,7 +392,7 @@ unsafe fn lig_caret_from_json(mut _carets: *const ParsedValue, mut lc: *mut LigC
             };
             v.glyph =
                 handle_from_name(Some(json_obj_key_bytes_at(_carets, j as u32))) as GlyphHandle;
-            let mut caret_count: ShapeId = json_arr_len(a) as ShapeId;
+            let caret_count: ShapeId = json_arr_len(a) as ShapeId;
             let mut k: GlyphId = 0 as GlyphId;
             while (k as ::core::ffi::c_int) < caret_count as ::core::ffi::c_int {
                 let mut caret: CaretValue = CaretValue {
@@ -433,7 +433,7 @@ unsafe fn lig_caret_from_json(mut _carets: *const ParsedValue, mut lc: *mut LigC
     }
 }
 pub unsafe fn otfcc_parse_gdef(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<GdefTable>> {
     let mut gdef: Option<Box<GdefTable>> = None;
@@ -478,9 +478,9 @@ pub unsafe fn otfcc_parse_gdef(
     }
     return gdef;
 }
-unsafe fn write_lig_caret_rec(mut cr: *mut CaretValueRecord) -> *mut BkBlock {
+unsafe fn write_lig_caret_rec(cr: *mut CaretValueRecord) -> *mut BkBlock {
     let carets: &Vec<CaretValue> = &(*cr).carets;
-    let mut bcr: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (carets.len()) as u32)]);
+    let bcr: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (carets.len()) as u32)]);
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < carets.len() {
         let caret = &carets[j as usize];
@@ -505,9 +505,9 @@ unsafe fn write_lig_caret_rec(mut cr: *mut CaretValueRecord) -> *mut BkBlock {
     }
     return bcr;
 }
-unsafe fn write_lig_carets(mut lc: *const LigCaretTable) -> *mut BkBlock {
+unsafe fn write_lig_carets(lc: *const LigCaretTable) -> *mut BkBlock {
     let records: &Vec<CaretValueRecord> = &*lc;
-    let mut cov: *mut Coverage = otl_coverage_create();
+    let cov: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < records.len() {
         push_to_coverage(
@@ -516,7 +516,7 @@ unsafe fn write_lig_carets(mut lc: *const LigCaretTable) -> *mut BkBlock {
         );
         j = j.wrapping_add(1);
     }
-    let mut lct: *mut BkBlock = bk_new_block(&[
+    let lct: *mut BkBlock = bk_new_block(&[
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(build_coverage(cov)),
@@ -546,7 +546,7 @@ pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> *mut Buffer {
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
     let mut b_glyph_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
-    let mut b_attach_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
+    let b_attach_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let mut b_lig_caret_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let mut b_mark_attach_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     if let Some(cd) = (*gdef).glyph_class_def.as_deref() {
@@ -558,7 +558,7 @@ pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> *mut Buffer {
     if let Some(cd) = (*gdef).mark_attach_class_def.as_deref() {
         b_mark_attach_class_def = bk_new_block_from_buffer(build_class_def(cd));
     }
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B32, 0x10000 as u32),
         bk_ptr(BkCellType::P16, b_glyph_class_def),
         bk_ptr(BkCellType::P16, b_attach_list),

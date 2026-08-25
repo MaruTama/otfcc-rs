@@ -93,10 +93,10 @@ impl Default for Logger {
     }
 }
 pub static OTFCC_LOGGER_TYPE_NAMES: [&::core::ffi::CStr; 3] = [c"[ERROR]", c"[WARNING]", c"[NOTE]"];
-pub unsafe fn logger_indent(_self: &mut Logger, mut segment: *const ::core::ffi::c_char) {
+pub unsafe fn logger_indent(_self: &mut Logger, segment: *const ::core::ffi::c_char) {
     logger_indent_sds(_self, crate::bytesbuild!(segment));
 }
-pub unsafe fn logger_indent_sds(self_0: &mut Logger, mut segment: Vec<u8>) {
+pub unsafe fn logger_indent_sds(self_0: &mut Logger, segment: Vec<u8>) {
     self_0.indents.push(segment);
     self_0.level = self_0.indents.len() as u16;
 }
@@ -130,9 +130,9 @@ pub unsafe fn logger_start_sds(self_0: &mut Logger, segment: Vec<u8>) {
 }
 pub unsafe fn logger_log_sds(
     self_0: &mut Logger,
-    mut verbosity: u8,
-    mut type_0: LoggerType,
-    mut data: Vec<u8>,
+    verbosity: u8,
+    type_0: LoggerType,
+    data: Vec<u8>,
 ) {
     let mut demand: Vec<u8> = Vec::new();
     let mut level: u16 = 0 as u16;

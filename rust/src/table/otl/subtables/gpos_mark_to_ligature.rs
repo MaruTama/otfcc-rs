@@ -194,7 +194,7 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
     ::core::ptr::null_mut::<Subtable>()
 }
 pub unsafe extern "C" fn otl_gpos_dump_mark_to_ligature(
-    mut st: *const Subtable,
+    st: *const Subtable,
 ) -> *mut BuiltValue {
     let Subtable::GposMarkToLigature(mut_subtable) = &*st else {
         unreachable!()
@@ -286,14 +286,14 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_ligature(
 }
 unsafe fn parse_bases(
     mut _bases: *const ParsedValue,
-    mut subtable: *mut GposMarkToLigatureSubtable,
-    mut h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
-    mut options: &Options,
+    subtable: *mut GposMarkToLigatureSubtable,
+    h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
+    options: &Options,
 ) {
     let class_count: GlyphClass = (*h).len() as GlyphClass;
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < json_obj_len(_bases) {
-        let mut gname: *mut ::core::ffi::c_char = json_obj_key_at(_bases, j as u32);
+        let gname: *mut ::core::ffi::c_char = json_obj_key_at(_bases, j as u32);
         let mut lig: LigatureBaseRecord = LigatureBaseRecord {
             glyph: Handle {
                 state: HandleState::Empty,
@@ -306,7 +306,7 @@ unsafe fn parse_bases(
         lig.component_count = 0 as GlyphId;
         lig.anchors = Vec::new();
         lig.glyph = handle_from_name(Some(json_obj_key_bytes_at(_bases, j as u32))) as GlyphHandle;
-        let mut base_record: *const ParsedValue = json_obj_val_at(_bases, j as u32);
+        let base_record: *const ParsedValue = json_obj_val_at(_bases, j as u32);
         if base_record.is_null() || json_type_of(base_record) != JsonType::Array {
             (*subtable).lig_array.push(lig);
         } else {
@@ -365,7 +365,7 @@ unsafe fn parse_bases(
 }
 pub unsafe fn otl_gpos_parse_mark_to_ligature(
     mut _subtable: *const ParsedValue,
-    mut options: &Options,
+    options: &Options,
 ) -> *mut Subtable {
     let mut _marks: *const ParsedValue = json_obj_get_type(
         _subtable,
@@ -380,7 +380,7 @@ pub unsafe fn otl_gpos_parse_mark_to_ligature(
     if _marks.is_null() || _bases.is_null() {
         return ::core::ptr::null_mut::<Subtable>();
     }
-    let mut st: *mut GposMarkToLigatureSubtable = subtable_gpos_mark_to_ligature_create();
+    let st: *mut GposMarkToLigatureSubtable = subtable_gpos_mark_to_ligature_create();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
     otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h);
     (*st).class_count = h.len() as GlyphClass;
@@ -394,8 +394,8 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
     let Subtable::GposMarkToLigature(mut_subtable) = &*_subtable else {
         unreachable!()
     };
-    let mut subtable: *const GposMarkToLigatureSubtable = mut_subtable;
-    let mut marks: *mut Coverage = otl_coverage_create();
+    let subtable: *const GposMarkToLigatureSubtable = mut_subtable;
+    let marks: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).mark_array.len() {
         push_to_coverage(
@@ -405,7 +405,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
         );
         j = j.wrapping_add(1);
     }
-    let mut bases: *mut Coverage = otl_coverage_create();
+    let bases: *mut Coverage = otl_coverage_create();
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).lig_array.len() {
         push_to_coverage(
@@ -415,7 +415,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 1 as u32),
         bk_ptr(
             BkCellType::P16,
@@ -430,7 +430,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
             ((*subtable).class_count as ::core::ffi::c_int) as u32,
         ),
     ]);
-    let mut mark_array: *mut BkBlock = bk_new_block(&[bk_int(
+    let mark_array: *mut BkBlock = bk_new_block(&[bk_int(
         BkCellType::B16,
         ((*subtable).mark_array.len()) as u32,
     )]);
@@ -452,13 +452,13 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
         );
         j_1 = j_1.wrapping_add(1);
     }
-    let mut ligature_array: *mut BkBlock = bk_new_block(&[bk_int(
+    let ligature_array: *mut BkBlock = bk_new_block(&[bk_int(
         BkCellType::B16,
         ((*subtable).lig_array.len()) as u32,
     )]);
     let mut j_2: GlyphId = 0 as GlyphId;
     while (j_2 as usize) < (*subtable).lig_array.len() {
-        let mut attach: *mut BkBlock = bk_new_block(&[bk_int(
+        let attach: *mut BkBlock = bk_new_block(&[bk_int(
             BkCellType::B16,
             ((&(*subtable).lig_array)[j_2 as usize].component_count as ::core::ffi::c_int) as u32,
         )]);

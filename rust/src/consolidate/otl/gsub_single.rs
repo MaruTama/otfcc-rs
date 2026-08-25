@@ -14,10 +14,10 @@ use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
 use crate::table::otl::subtables::gsub_single::dispose_gsub_single_subtable;
 
 pub unsafe fn consolidate_gsub_single(
-    mut font: *mut Font,
+    font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: &Options,
+    options: &Options,
 ) -> bool {
     let glyph_order: *mut GlyphOrder = (*font)
         .glyph_order

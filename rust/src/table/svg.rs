@@ -86,7 +86,7 @@ pub unsafe fn otfcc_read_svg(packet: &Packet) -> Option<SvgTable> {
                                 let mut j: GlyphId = 0 as GlyphId;
                                 while (j as ::core::ffi::c_int) < num_entries as ::core::ffi::c_int
                                 {
-                                    let mut record: FontFilePointer = table
+                                    let record: FontFilePointer = table
                                         .data
                                         .as_ptr()
                                         .offset(offset_to_svg_doc_index as isize)
@@ -102,10 +102,10 @@ pub unsafe fn otfcc_read_svg(packet: &Packet) -> Option<SvgTable> {
                                         read_16u(record.offset(2 as ::core::ffi::c_int as isize)
                                             as *const u8)
                                             as GlyphId;
-                                    let mut docstart: u32 =
+                                    let docstart: u32 =
                                         read_32u(record.offset(4 as ::core::ffi::c_int as isize)
                                             as *const u8);
-                                    let mut doclen: u32 =
+                                    let doclen: u32 =
                                         read_32u(record.offset(8 as ::core::ffi::c_int as isize)
                                             as *const u8);
                                     if offset_to_svg_doc_index
@@ -160,7 +160,7 @@ fn can_use_plain_format(doc: &[u8]) -> bool {
             && doc[4 as usize] as ::core::ffi::c_int == 'l' as i32;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, mut root: *mut BuiltValue, options: &Options) {
+pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: *mut BuiltValue, options: &Options) {
     let svg = match svg {
         Some(s) => s,
         None => return,
@@ -239,7 +239,7 @@ pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, mut root: *mut BuiltValue, 
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_parse_svg(mut root: *const ParsedValue, options: &Options) -> Option<SvgTable> {
+pub unsafe fn otfcc_parse_svg(root: *const ParsedValue, options: &Options) -> Option<SvgTable> {
     let mut _svg: *const ParsedValue = ::core::ptr::null();
     _svg = json_obj_get_type(
         root,
@@ -260,7 +260,7 @@ pub unsafe fn otfcc_parse_svg(mut root: *const ParsedValue, options: &Options) -
         while (j as ::core::ffi::c_uint) < json_arr_len(_svg) {
             let mut _a: *const ParsedValue = json_arr_at(_svg, j as u32);
             if !(_a.is_null() || json_type_of(_a) != JsonType::Object) {
-                let mut format: *const ::core::ffi::c_char = json_obj_getstr_share(
+                let format: *const ::core::ffi::c_char = json_obj_getstr_share(
                     _a,
                     b"format\0" as *const u8 as *const ::core::ffi::c_char,
                 );
@@ -312,7 +312,7 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
     // ディープコピー（`ColrTable`/`TsiTable` の前例どおり `.clone()` は不可）。
     let mut svg: SvgTable = _svg.iter().map(|a| svg_assignment_dup(a)).collect();
     svg.sort_by(|a, b| a.start.cmp(&b.start));
-    let mut major: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (svg.len()) as u32)]);
+    let major: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (svg.len()) as u32)]);
     let mut __caryll_index: usize = 0 as usize;
     let mut keep: usize = 1 as usize;
     while keep != 0 && __caryll_index < svg.len() {
@@ -347,7 +347,7 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 0 as u32),
         bk_ptr(BkCellType::P32, major),
         bk_int(BkCellType::B32, 0 as u32),

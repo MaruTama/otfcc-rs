@@ -708,7 +708,7 @@ unsafe fn cff_number_subroutines(g: &mut CffSubrGraph) -> u32 {
     return current;
 }
 #[inline]
-unsafe fn subroutine_bias(mut cnt: i32) -> i32 {
+unsafe fn subroutine_bias(cnt: i32) -> i32 {
     if cnt < 1240 as i32 {
         return 107 as i32;
     } else if cnt < 33900 as i32 {
@@ -798,23 +798,23 @@ unsafe fn serialize_node_to_buffer(
         bufwrite_buf(buf, terminal);
     };
 }
-unsafe extern "C" fn from_array(mut _context: *mut ::core::ffi::c_void, mut j: u32) -> *mut Buffer {
-    let mut context: *mut Buffer = _context as *mut Buffer;
-    let mut blob: *mut Buffer = bufnew();
+unsafe extern "C" fn from_array(mut _context: *mut ::core::ffi::c_void, j: u32) -> *mut Buffer {
+    let context: *mut Buffer = _context as *mut Buffer;
+    let blob: *mut Buffer = bufnew();
     bufwrite_buf(blob, context.offset(j as isize));
     return blob;
 }
 pub unsafe fn cff_il_graph_to_buffers(
     g: *mut CffSubrGraph,
-    mut s: *mut *mut Buffer,
-    mut gs: *mut *mut Buffer,
-    mut ls: *mut *mut Buffer,
-    mut options: &Options,
+    s: *mut *mut Buffer,
+    gs: *mut *mut Buffer,
+    ls: *mut *mut Buffer,
+    options: &Options,
 ) {
     let g = &mut *g;
     let root = g.root;
     cff_stat_height(g, root, 0 as u32);
-    let mut max_subroutines: u32 = cff_number_subroutines(g);
+    let max_subroutines: u32 = cff_number_subroutines(g);
     logger_log_sds(
         &mut *options.logger.borrow_mut(),
         LOG_VL_PROGRESS,
@@ -834,7 +834,7 @@ pub unsafe fn cff_il_graph_to_buffers(
     if max_g_subrs > TYPE2_MAX_SUBRS {
         max_g_subrs = TYPE2_MAX_SUBRS;
     }
-    let mut total: u32 = max_l_subrs.wrapping_add(max_g_subrs);
+    let total: u32 = max_l_subrs.wrapping_add(max_g_subrs);
     max_l_subrs = total.wrapping_div(2 as u32);
     max_g_subrs = total.wrapping_sub(max_l_subrs);
     // Was three `__caryll_allocate_clean`'d `*mut Buffer` arrays, each freed
@@ -881,17 +881,17 @@ pub unsafe fn cff_il_graph_to_buffers(
         }
         e = next;
     }
-    let mut is: *mut CffIndex = new_index_by_callback(
+    let is: *mut CffIndex = new_index_by_callback(
         char_strings.as_mut_ptr() as *mut ::core::ffi::c_void,
         g.total_char_strings,
         Some(from_array as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
     );
-    let mut igs: *mut CffIndex = new_index_by_callback(
+    let igs: *mut CffIndex = new_index_by_callback(
         gsubrs.as_mut_ptr() as *mut ::core::ffi::c_void,
         max_g_subrs,
         Some(from_array as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
     );
-    let mut ils: *mut CffIndex = new_index_by_callback(
+    let ils: *mut CffIndex = new_index_by_callback(
         lsubrs.as_mut_ptr() as *mut ::core::ffi::c_void,
         max_l_subrs,
         Some(from_array as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),

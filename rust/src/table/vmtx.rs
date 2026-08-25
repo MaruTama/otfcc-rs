@@ -46,8 +46,8 @@ fn parse_vmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<VmtxTable, 
 pub unsafe fn otfcc_read_vmtx(
     packet: &Packet,
     options: &Options,
-    mut vhea: *mut VheaTable,
-    mut maxp: *mut MaxpTable,
+    vhea: *mut VheaTable,
+    maxp: *mut MaxpTable,
 ) -> Option<Box<VmtxTable>> {
     if vhea.is_null()
         || maxp.is_null()
@@ -79,10 +79,10 @@ pub unsafe fn otfcc_read_vmtx(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_vmtx(
     vmtx: Option<&VmtxTable>,
-    mut count_a: GlyphId,
-    mut count_k: GlyphId,
+    count_a: GlyphId,
+    count_k: GlyphId,
 ) -> *mut Buffer {
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     let vmtx = match vmtx {
         Some(v) => v,
         None => return buf,

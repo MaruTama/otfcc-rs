@@ -60,13 +60,13 @@ fn feature_name_to_tag(name: &[u8]) -> u32 {
     return tag;
 }
 unsafe fn _declare_lookup_writer(
-    mut type_0: LookupType,
-    mut fn_0: OtlBuilder,
-    mut lookup: *const Lookup,
+    type_0: LookupType,
+    fn_0: OtlBuilder,
+    lookup: *const Lookup,
     subtables: &mut Vec<*mut Buffer>,
-    mut last_offset: *mut usize,
-    mut prefer_extension_for_this_lut: *mut bool,
-    mut heuristics: BuildHeuristics,
+    last_offset: *mut usize,
+    prefer_extension_for_this_lut: *mut bool,
+    heuristics: BuildHeuristics,
 ) -> TableId {
     if (*lookup).type_0 == type_0 {
         subtables.clear();
@@ -75,7 +75,7 @@ unsafe fn _declare_lookup_writer(
         let mut total_buf_size_ext: usize = 0 as usize;
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
-            let mut buf: *mut Buffer = fn_0.expect("non-null function pointer")(
+            let buf: *mut Buffer = fn_0.expect("non-null function pointer")(
                 subtable_at(&(*lookup).subtables, j as usize) as *const Subtable,
                 heuristics,
             );
@@ -96,13 +96,13 @@ unsafe fn _declare_lookup_writer(
     return 0 as TableId;
 }
 unsafe fn _declare_lookup_writer_split(
-    mut type_0: LookupType,
-    mut fn_0: OtlSplitBuilder,
-    mut lookup: *const Lookup,
+    type_0: LookupType,
+    fn_0: OtlSplitBuilder,
+    lookup: *const Lookup,
     subtables: &mut Vec<*mut Buffer>,
-    mut last_offset: *mut usize,
-    mut prefer_extension_for_this_lut: *mut bool,
-    mut heuristics: BuildHeuristics,
+    last_offset: *mut usize,
+    prefer_extension_for_this_lut: *mut bool,
+    heuristics: BuildHeuristics,
 ) -> TableId {
     if (*lookup).type_0 == type_0 {
         subtables.clear();
@@ -146,11 +146,11 @@ unsafe fn _declare_lookup_writer_split(
     return 0 as TableId;
 }
 unsafe fn _build_lookup(
-    mut lookup: *const Lookup,
+    lookup: *const Lookup,
     subtables: &mut Vec<*mut Buffer>,
-    mut last_offset: *mut usize,
-    mut prefer_extension_for_this_lut: *mut bool,
-    mut heuristics: BuildHeuristics,
+    last_offset: *mut usize,
+    prefer_extension_for_this_lut: *mut bool,
+    heuristics: BuildHeuristics,
 ) -> TableId {
     if (*lookup).type_0 == OTL_TYPE_GPOS_CHAINING || (*lookup).type_0 == OTL_TYPE_GSUB_CHAINING {
         return otfcc_classified_build_chaining(lookup, subtables, last_offset);
@@ -321,8 +321,8 @@ unsafe fn _build_lookup(
     return written;
 }
 unsafe fn get_lookup_heuristics(
-    mut table: *const OtlTable,
-    mut lut: *const Lookup,
+    table: *const OtlTable,
+    lut: *const Lookup,
 ) -> BuildHeuristics {
     let mut heu: BuildHeuristics = BuildHeuristics::empty();
     if (*lut).type_0 == OTL_TYPE_GSUB_SINGLE {
@@ -344,9 +344,9 @@ unsafe fn get_lookup_heuristics(
     return heu;
 }
 unsafe fn write_otl_lookups(
-    mut table: *const OtlTable,
-    mut options: &Options,
-    mut tag: *const ::core::ffi::c_char,
+    table: *const OtlTable,
+    options: &Options,
+    tag: *const ::core::ffi::c_char,
 ) -> *mut BkBlock {
     // `subtables`/`subtable_quantity`/`prefer_ext_for_this_lut` were three
     // separately `__caryll_allocate_clean`'d, index-parallel arrays, sized
@@ -361,7 +361,7 @@ unsafe fn write_otl_lookups(
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).lookups.len() {
         let lookup: *const Lookup = &raw const *(&(*table).lookups)[j as usize];
-        let mut heu: BuildHeuristics = get_lookup_heuristics(table, lookup);
+        let heu: BuildHeuristics = get_lookup_heuristics(table, lookup);
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
@@ -399,8 +399,8 @@ unsafe fn write_otl_lookups(
         }
         j_0 = j_0.wrapping_add(1);
     }
-    let mut use_extended: bool = last_offset >= (0xff00 as usize).wrapping_sub(header_size);
-    let mut root: *mut BkBlock =
+    let use_extended: bool = last_offset >= (0xff00 as usize).wrapping_sub(header_size);
+    let root: *mut BkBlock =
         bk_new_block(&[bk_int(BkCellType::B16, ((*table).lookups.len()) as u32)]);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as usize) < (*table).lookups.len() {
@@ -437,7 +437,7 @@ unsafe fn write_otl_lookups(
         // The format number the file wants, which is the lookup type with its
         // table's base taken back off -- `LookupType::file_format`, the
         // same nested comparison C spelled out here and again below.
-        let mut lookup_type: u16 = (if use_extended_for_it {
+        let lookup_type: u16 = (if use_extended_for_it {
             if (*lookup_0).type_0 > OTL_TYPE_GPOS_UNKNOWN {
                 OTL_TYPE_GPOS_EXTEND.file_format()
             } else if (*lookup_0).type_0 > OTL_TYPE_GSUB_UNKNOWN {
@@ -451,7 +451,7 @@ unsafe fn write_otl_lookups(
                 .file_format()
                 .wrapping_sub(can_be_contextual as u32)
         }) as u16;
-        let mut blk: *mut BkBlock = bk_new_block(&[
+        let blk: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, (lookup_type as ::core::ffi::c_int) as u32),
             bk_int(
                 BkCellType::B16,
@@ -465,12 +465,12 @@ unsafe fn write_otl_lookups(
         let mut k: TableId = 0 as TableId;
         while (k as ::core::ffi::c_int) < subtable_quantity[j_1 as usize] as ::core::ffi::c_int {
             if use_extended_for_it {
-                let mut extension_lookup_type: u16 = (*lookup_0)
+                let extension_lookup_type: u16 = (*lookup_0)
                     .type_0
                     .file_format()
                     .wrapping_sub(can_be_contextual as u32)
                     as u16;
-                let mut stub: *mut BkBlock = bk_new_block(&[
+                let stub: *mut BkBlock = bk_new_block(&[
                     bk_int(BkCellType::B16, 1 as u32),
                     bk_int(
                         BkCellType::B16,
@@ -499,12 +499,12 @@ unsafe fn write_otl_lookups(
     }
     return root;
 }
-unsafe fn write_otl_features(mut table: *const OtlTable) -> *mut BkBlock {
-    let mut root: *mut BkBlock =
+unsafe fn write_otl_features(table: *const OtlTable) -> *mut BkBlock {
+    let root: *mut BkBlock =
         bk_new_block(&[bk_int(BkCellType::B16, ((*table).features.len()) as u32)]);
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).features.len() {
-        let mut fea: *mut BkBlock = bk_new_block(&[
+        let fea: *mut BkBlock = bk_new_block(&[
             bk_ptr(BkCellType::P16, ::core::ptr::null_mut()),
             bk_int(
                 BkCellType::B16,
@@ -543,7 +543,7 @@ unsafe fn write_otl_features(mut table: *const OtlTable) -> *mut BkBlock {
     }
     return root;
 }
-unsafe fn feature_index(mut feature: *const Feature, mut table: *const OtlTable) -> TableId {
+unsafe fn feature_index(feature: *const Feature, table: *const OtlTable) -> TableId {
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).features.len() {
         if &raw const *(&(*table).features)[j as usize] == feature {
@@ -554,13 +554,13 @@ unsafe fn feature_index(mut feature: *const Feature, mut table: *const OtlTable)
     return 0xffff as TableId;
 }
 unsafe fn write_language(
-    mut lang: *const LanguageSystem,
-    mut table: *const OtlTable,
+    lang: *const LanguageSystem,
+    table: *const OtlTable,
 ) -> *mut BkBlock {
     if lang.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_ptr(BkCellType::P16, ::core::ptr::null_mut()),
         bk_int(
             BkCellType::B16,
@@ -585,11 +585,11 @@ unsafe fn write_language(
 }
 #[allow(improper_ctypes_definitions)] // internal call only, never crosses FFI
 unsafe fn write_script(
-    mut dl: *const LanguageSystem,
-    mut ll: &[*const LanguageSystem],
-    mut table: *const OtlTable,
+    dl: *const LanguageSystem,
+    ll: &[*const LanguageSystem],
+    table: *const OtlTable,
 ) -> *mut BkBlock {
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_ptr(BkCellType::P16, write_language(dl, table)),
         bk_int(BkCellType::B16, (ll.len()) as u32),
     ]);
@@ -613,7 +613,7 @@ unsafe fn write_script(
     }
     return root;
 }
-unsafe fn write_otl_script_and_languages(mut table: *const OtlTable) -> *mut BkBlock {
+unsafe fn write_otl_script_and_languages(table: *const OtlTable) -> *mut BkBlock {
     // Groups languages by script tag (the first 4 bytes of `language.name`),
     // tracking each script's default (dflt/DFLT) language separately from
     // its other languages, in the order languages are first seen. Unlike
@@ -693,7 +693,7 @@ unsafe fn write_otl_script_and_languages(mut table: *const OtlTable) -> *mut BkB
         }
         j = j.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (scripts.len()) as u32)]);
+    let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (scripts.len()) as u32)]);
     for group in &scripts {
         bk_push(
             root,
@@ -709,9 +709,9 @@ unsafe fn write_otl_script_and_languages(mut table: *const OtlTable) -> *mut BkB
     return root;
 }
 pub unsafe fn otfcc_build_otl(
-    mut table: Option<&OtlTable>,
-    mut options: &Options,
-    mut tag: *const ::core::ffi::c_char,
+    table: Option<&OtlTable>,
+    options: &Options,
+    tag: *const ::core::ffi::c_char,
 ) -> *mut Buffer {
     let table: *const OtlTable = table.map_or(::core::ptr::null(), |t| t as *const OtlTable);
     if table.is_null() {
@@ -721,10 +721,10 @@ pub unsafe fn otfcc_build_otl(
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut lookups: *mut BkBlock = write_otl_lookups(table, options, tag);
-        let mut features: *mut BkBlock = write_otl_features(table);
-        let mut languages: *mut BkBlock = write_otl_script_and_languages(table);
-        let mut root: *mut BkBlock = bk_new_block(&[
+        let lookups: *mut BkBlock = write_otl_lookups(table, options, tag);
+        let features: *mut BkBlock = write_otl_features(table);
+        let languages: *mut BkBlock = write_otl_script_and_languages(table);
+        let root: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B32, 0x10000 as u32),
             bk_ptr(BkCellType::P16, languages),
             bk_ptr(BkCellType::P16, features),

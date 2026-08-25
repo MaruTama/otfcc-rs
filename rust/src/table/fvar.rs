@@ -182,8 +182,8 @@ unsafe fn dispose_fvar_master(m: &FvarMaster) {
 // in registration order (`(*fvar).masters.len() + 1` at insert time,
 // exactly reproducing the original's `HASH_COUNT`-at-insert-time scheme).
 pub unsafe fn fvar_register_region(
-    mut fvar: *mut FvarTable,
-    mut region: *mut VqRegion,
+    fvar: *mut FvarTable,
+    region: *mut VqRegion,
 ) -> *const VqRegion {
     let key = RegionKey(region as *const VqRegion);
     if let Some(existing) = (*fvar).masters.get(&key) {
@@ -196,8 +196,8 @@ pub unsafe fn fvar_register_region(
     region as *const VqRegion
 }
 unsafe fn fvar_find_master_by_region(
-    mut fvar: *const FvarTable,
-    mut region: *const VqRegion,
+    fvar: *const FvarTable,
+    region: *const VqRegion,
 ) -> *const FvarMaster {
     match (*fvar).masters.get(&RegionKey(region)) {
         Some(m) => m as *const FvarMaster,
@@ -225,7 +225,7 @@ pub unsafe fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<
             if table.tag == crate::tag::TAG_FVAR {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
+                    let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     if !((table.length as usize) < ::core::mem::size_of::<FVARHeader>()) {
                         header = data as *mut FVARHeader;
                         if !(be16((*header).major_version) as ::core::ffi::c_int
@@ -299,7 +299,7 @@ pub unsafe fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<
                                                     while (j as ::core::ffi::c_int)
                                                         < n_axes as ::core::ffi::c_int
                                                     {
-                                                        let mut axis: VfAxis = VfAxis {
+                                                        let axis: VfAxis = VfAxis {
                                                             tag: be32((*axis_record).axis_tag),
                                                             min_value: otfcc_from_fixed(be32(
                                                                 (*axis_record).min_value as u32,
@@ -421,7 +421,7 @@ pub unsafe fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<
 }
 pub unsafe fn otfcc_dump_fvar(
     table: Option<&FvarTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -436,7 +436,7 @@ pub unsafe fn otfcc_dump_fvar(
     let instances: &Vec<FvarInstance> = &(*table).instances;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut t: *mut BuiltValue = json_object_new(2 as usize);
+        let t: *mut BuiltValue = json_object_new(2 as usize);
         let mut _axes: *mut BuiltValue = json_object_new(axes.len());
         let mut __caryll_index: usize = 0 as usize;
         let mut keep: usize = 1 as usize;
@@ -543,8 +543,8 @@ pub unsafe fn otfcc_dump_fvar(
     }
 }
 pub unsafe fn json_new_vq_segment(
-    mut s: *const VqSegment,
-    mut fvar: *const FvarTable,
+    s: *const VqSegment,
+    fvar: *const FvarTable,
 ) -> *mut BuiltValue {
     match *s {
         VqSegment::Still(still) => return json_new_position(still),
@@ -571,11 +571,11 @@ pub unsafe fn json_new_vq_segment(
         }
     };
 }
-pub unsafe fn json_new_vq(mut z: VQ, mut fvar: *const FvarTable) -> *mut BuiltValue {
+pub unsafe fn json_new_vq(mut z: VQ, fvar: *const FvarTable) -> *mut BuiltValue {
     if z.shift.is_empty() {
         return preserialize(json_new_position(vq_get_still(z)));
     } else {
-        let mut a: *mut BuiltValue = json_array_new(z.shift.len().wrapping_add(1 as usize));
+        let a: *mut BuiltValue = json_array_new(z.shift.len().wrapping_add(1 as usize));
         json_array_push(a, json_new_position(z.kernel));
         let mut j: usize = 0 as usize;
         while j < z.shift.len() {
@@ -628,14 +628,14 @@ pub unsafe fn json_new_v_vp(x: *const VV, fvar: *const FvarTable) -> *mut BuiltV
         return preserialize(_coord_0);
     };
 }
-pub unsafe fn json_vq_of(mut cv: *const ParsedValue, mut _fvar: *const FvarTable) -> VQ {
+pub unsafe fn json_vq_of(cv: *const ParsedValue, mut _fvar: *const FvarTable) -> VQ {
     return vq_create_still(json_numof(cv) as Pos);
 }
-pub unsafe fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut BuiltValue {
+pub unsafe fn json_new_vq_axis_span(s: *const VqAxisSpan) -> *mut BuiltValue {
     if vq_axis_span_is_one(s) {
         return json_string_new(b"*\0" as *const u8 as *const ::core::ffi::c_char);
     } else {
-        let mut a: *mut BuiltValue = json_object_new(3 as usize);
+        let a: *mut BuiltValue = json_object_new(3 as usize);
         json_object_push(
             a,
             b"start\0" as *const u8 as *const ::core::ffi::c_char,
@@ -655,12 +655,12 @@ pub unsafe fn json_new_vq_axis_span(mut s: *const VqAxisSpan) -> *mut BuiltValue
     };
 }
 pub unsafe fn json_new_vq_region_explicit(
-    mut rs: *const VqRegion,
+    rs: *const VqRegion,
     fvar: *const FvarTable,
 ) -> *mut BuiltValue {
     let axes: &Vec<VfAxis> = &(*fvar).axes;
     if axes.len() == (*rs).dimensions as usize {
-        let mut r: *mut BuiltValue = json_object_new((*rs).dimensions as usize);
+        let r: *mut BuiltValue = json_object_new((*rs).dimensions as usize);
         let mut j: usize = 0 as usize;
         while j < (*rs).dimensions as usize {
             json_object_push_tag(
@@ -672,7 +672,7 @@ pub unsafe fn json_new_vq_region_explicit(
         }
         return r;
     } else {
-        let mut r_0: *mut BuiltValue = json_array_new((*rs).dimensions as usize);
+        let r_0: *mut BuiltValue = json_array_new((*rs).dimensions as usize);
         let mut j_0: usize = 0 as usize;
         while j_0 < (*rs).dimensions as usize {
             json_array_push(
@@ -685,10 +685,10 @@ pub unsafe fn json_new_vq_region_explicit(
     };
 }
 pub unsafe fn json_new_vq_region(
-    mut rs: *const VqRegion,
-    mut fvar: *const FvarTable,
+    rs: *const VqRegion,
+    fvar: *const FvarTable,
 ) -> *mut BuiltValue {
-    let mut m: *const FvarMaster = fvar_find_master_by_region(fvar, rs);
+    let m: *const FvarMaster = fvar_find_master_by_region(fvar, rs);
     if !m.is_null() && !(*m).name.is_empty() {
         return json_string_new_from_bytes(&(*m).name);
     } else {
@@ -696,13 +696,13 @@ pub unsafe fn json_new_vq_region(
     };
 }
 #[inline]
-unsafe fn be16(mut x: u16) -> u16 {
+unsafe fn be16(x: u16) -> u16 {
     return ((x as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) << 8 as ::core::ffi::c_int
         | (x as ::core::ffi::c_int & 0xff00 as ::core::ffi::c_int) >> 8 as ::core::ffi::c_int)
         as u16;
 }
 #[inline]
-unsafe fn be32(mut x: u32) -> u32 {
+unsafe fn be32(x: u32) -> u32 {
     return (x & 0xff as u32) << 24 as ::core::ffi::c_int
         | (x & 0xff00 as u32) << 8 as ::core::ffi::c_int
         | (x & 0xff0000 as u32) >> 8 as ::core::ffi::c_int

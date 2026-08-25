@@ -402,7 +402,7 @@ static STRING_STANDARD: [&::core::ffi::CStr; 391] = [
     c"Roman",
     c"Semibold",
 ];
-pub unsafe fn get_cff_sid(mut idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
+pub unsafe fn get_cff_sid(idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
     if idx as ::core::ffi::c_int <= 390 as ::core::ffi::c_int {
         return Some(STRING_STANDARD[idx as usize].to_bytes().to_vec());
     } else if str.count > 0 as Arity

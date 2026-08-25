@@ -15,7 +15,7 @@ use crate::table::meta::types::{MetaEntry, MetaTable};
 // same reasoning as every other `#[allow(improper_ctypes_definitions)]`
 // in this migration.
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn parse_meta_data(mut v: *const ParsedValue) -> Option<Vec<u8>> {
+pub unsafe fn parse_meta_data(v: *const ParsedValue) -> Option<Vec<u8>> {
     if json_type_of(v) == JsonType::String {
         return Some(
             ::core::slice::from_raw_parts(json_str_ptr(v) as *const u8, json_str_len(v) as usize)
@@ -57,7 +57,7 @@ pub unsafe fn parse_meta_data(mut v: *const ParsedValue) -> Option<Vec<u8>> {
     None
 }
 pub unsafe fn otfcc_parse_meta(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<MetaTable>> {
     let mut _meta: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
@@ -98,7 +98,7 @@ pub unsafe fn otfcc_parse_meta(
                 JsonType::String,
             );
             if !(_tag.is_null() || json_str_len(_tag) != 4 as ::core::ffi::c_uint) {
-                let mut tag: u32 = str2tag(json_str_ptr(_tag));
+                let tag: u32 = str2tag(json_str_ptr(_tag));
                 if let Some(data) = parse_meta_data(_e) {
                     (*meta).entries.push(MetaEntry { tag: tag, data });
                 }

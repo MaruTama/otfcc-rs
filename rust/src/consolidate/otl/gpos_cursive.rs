@@ -14,10 +14,10 @@ use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
 use crate::table::otl::subtables::gpos_cursive::dispose_gpos_cursive_subtable;
 
 pub unsafe fn consolidate_gpos_cursive(
-    mut font: *mut Font,
+    font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: &Options,
+    options: &Options,
 ) -> bool {
     let Subtable::GposCursive(mut_subtable) = &mut *_subtable else {
         unreachable!()

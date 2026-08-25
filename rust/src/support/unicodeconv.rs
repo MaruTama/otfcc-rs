@@ -5,7 +5,7 @@
 // boundary) -- goes away with the vtable/extern "C" cleanup, same as
 // every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn utf16be_to_utf8(mut inb: *const u8, mut inlenb: ::core::ffi::c_int) -> Vec<u8> {
+pub unsafe fn utf16be_to_utf8(inb: *const u8, mut inlenb: ::core::ffi::c_int) -> Vec<u8> {
     let mut in_0: *mut u16 = inb as *mut u16;
     let mut inend: *mut u16 = ::core::ptr::null_mut::<u16>();
     let mut c: u32 = 0;
@@ -121,7 +121,7 @@ pub unsafe fn utf16be_to_utf8(mut inb: *const u8, mut inlenb: ::core::ffi::c_int
 pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
     let mut in_0: *const ::core::ffi::c_char = _in.as_ptr() as *const ::core::ffi::c_char;
     let inlen: usize = _in.len();
-    let mut inend: *const ::core::ffi::c_char = in_0.offset(inlen as isize);
+    let inend: *const ::core::ffi::c_char = in_0.offset(inlen as isize);
     let mut words_needed: u32 = 0 as u32;
     let mut trailing: u8 = 0 as u8;
     let mut c: u32 = 0 as u32;
@@ -219,13 +219,13 @@ pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
             out.push((c >> 8 as ::core::ffi::c_int & 0xff as u32) as u8);
             out.push((c & 0xff as u32) as u8);
         } else if c < 0x110000 as u32 {
-            let mut tmp1: u16 = (0xd800 as u32 | c >> 10 as ::core::ffi::c_int) as u16;
+            let tmp1: u16 = (0xd800 as u32 | c >> 10 as ::core::ffi::c_int) as u16;
             out.push(
                 (tmp1 as ::core::ffi::c_int >> 8 as ::core::ffi::c_int & 0xff as ::core::ffi::c_int)
                     as u8,
             );
             out.push((tmp1 as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8);
-            let mut tmp2: u16 = (0xdc00 as u32 | c & 0x3ff as u32) as u16;
+            let tmp2: u16 = (0xdc00 as u32 | c & 0x3ff as u32) as u16;
             out.push(
                 (tmp2 as ::core::ffi::c_int >> 8 as ::core::ffi::c_int & 0xff as ::core::ffi::c_int)
                     as u8,

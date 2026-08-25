@@ -62,7 +62,7 @@ pub struct TsiBuildTarget {
 // glue on their own, so a `TsiEntry` (and therefore a `TsiTable`) tears
 // itself down correctly with no manual per-element walk needed.
 #[inline]
-unsafe fn is_valid_gid(mut gid: u16, mut tag_index: u32) -> bool {
+unsafe fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
     if tag_index == crate::tag::TAG_TSI0 {
         return gid as ::core::ffi::c_int != 0xfffe as ::core::ffi::c_int
             && gid as ::core::ffi::c_int != 0xfffc as ::core::ffi::c_int;
@@ -93,8 +93,8 @@ fn read_tsi_index_entry(index_data: &[u8], idx: u32) -> Result<TsiIndexEntry, Re
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_read_tsi(
     packet: &Packet,
-    mut tag_index: u32,
-    mut tag_text: u32,
+    tag_index: u32,
+    tag_text: u32,
 ) -> Option<TsiTable> {
     let index_part = packet.pieces.iter().find(|p| p.tag == tag_index)?;
     let text_part = packet.pieces.iter().find(|p| p.tag == tag_text)?;
@@ -179,9 +179,9 @@ pub unsafe fn otfcc_read_tsi(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_tsi(
     tsi: Option<&TsiTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
-    mut tag: *const ::core::ffi::c_char,
+    tag: *const ::core::ffi::c_char,
 ) {
     let tsi = match tsi {
         Some(t) => t,
@@ -275,9 +275,9 @@ pub unsafe fn otfcc_dump_tsi(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_tsi(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
-    mut tag: *const ::core::ffi::c_char,
+    tag: *const ::core::ffi::c_char,
 ) -> Option<TsiTable> {
     let mut _tsi: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _tsi = json_obj_get_type(root, tag, JsonType::Object);
@@ -394,8 +394,8 @@ unsafe fn propergid(entry: *mut TsiEntry, type_0: TsiEntryType) -> GlyphId {
     }
 }
 unsafe fn push_tsi_entries(
-    mut target: *mut TsiBuildTarget,
-    mut tsi: *const TsiTable,
+    target: *mut TsiBuildTarget,
+    tsi: *const TsiTable,
     type_0: TsiEntryType,
     min_n: GlyphId,
 ) {
@@ -407,9 +407,9 @@ unsafe fn push_tsi_entries(
         let entry: *mut TsiEntry = &entries[__caryll_index] as *const TsiEntry as *mut TsiEntry;
         while keep != 0 {
             if !((*entry).type_0 as ::core::ffi::c_uint != type_0 as ::core::ffi::c_uint) {
-                let mut length_sofar: usize = (*(*target).text_part).cursor;
+                let length_sofar: usize = (*(*target).text_part).cursor;
                 bufnwrite8((*target).text_part, &(*entry).content);
-                let mut length_after: usize = (*(*target).text_part).cursor;
+                let length_after: usize = (*(*target).text_part).cursor;
                 bufwrite16b((*target).index_part, propergid(entry, type_0) as u16);
                 if length_after.wrapping_sub(length_sofar) < 0x8000 as usize {
                     bufwrite16b(

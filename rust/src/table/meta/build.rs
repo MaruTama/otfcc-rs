@@ -11,7 +11,7 @@ pub unsafe fn otfcc_build_meta(meta: Option<&MetaTable>) -> *mut Buffer {
         _ => return ::core::ptr::null_mut::<Buffer>(),
     };
     let entries: &Vec<MetaEntry> = &meta.entries;
-    let mut root: *mut BkBlock = unsafe {
+    let root: *mut BkBlock = unsafe {
         bk_new_block(&[
             bk_int(BkCellType::B32, (meta.version) as u32),
             bk_int(BkCellType::B32, (meta.flags) as u32),

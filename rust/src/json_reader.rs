@@ -48,7 +48,7 @@ unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
         10 as ::core::ffi::c_int,
     ) as ::core::ffi::c_int;
 }
-unsafe fn otfcc_decide_font_subtype_from_json(mut root: *const ParsedValue) -> FontSubtype {
+unsafe fn otfcc_decide_font_subtype_from_json(root: *const ParsedValue) -> FontSubtype {
     if !json_obj_get_type(
         root,
         b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
@@ -71,10 +71,10 @@ unsafe fn otfcc_decide_font_subtype_from_json(mut root: *const ParsedValue) -> F
 // as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
 unsafe fn set_order_by_name(
-    mut go: *mut GlyphOrder,
-    mut name: Vec<u8>,
-    mut order_type: GlyphOrderPass,
-    mut order_entry: u32,
+    go: *mut GlyphOrder,
+    name: Vec<u8>,
+    order_type: GlyphOrderPass,
+    order_entry: u32,
 ) {
     match (*go).by_name.get(&name).copied() {
         None => {
@@ -96,7 +96,7 @@ unsafe fn set_order_by_name(
         }
     }
 }
-unsafe fn order_glyphs(mut go: *mut GlyphOrder) {
+unsafe fn order_glyphs(go: *mut GlyphOrder) {
     let mut idxs: Vec<usize> = (*go).by_name.values().copied().collect();
     idxs.sort_by(|&a, &b| {
         let ea = &(&(*go).entries)[a];
@@ -118,10 +118,10 @@ unsafe fn order_glyphs(mut go: *mut GlyphOrder) {
 // as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
 unsafe fn escalate_glyph_order_by_name(
-    mut go: *mut GlyphOrder,
+    go: *mut GlyphOrder,
     name: &[u8],
-    mut order_type: GlyphOrderPass,
-    mut order_entry: u32,
+    order_type: GlyphOrderPass,
+    order_entry: u32,
 ) {
     if let Some(&idx) = (*go).by_name.get(name) {
         let entry = &mut (&mut (*go).entries)[idx];
@@ -131,7 +131,7 @@ unsafe fn escalate_glyph_order_by_name(
         }
     }
 }
-unsafe fn place_order_entries_from_glyf(mut table: *const ParsedValue, mut go: *mut GlyphOrder) {
+unsafe fn place_order_entries_from_glyf(table: *const ParsedValue, go: *mut GlyphOrder) {
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(table) as u32 {
         let gname: Vec<u8> = json_obj_key_bytes_at(table, j as u32);
@@ -145,7 +145,7 @@ unsafe fn place_order_entries_from_glyf(mut table: *const ParsedValue, mut go: *
         j = j.wrapping_add(1);
     }
 }
-unsafe fn place_order_entries_from_cmap(mut table: *const ParsedValue, mut go: *mut GlyphOrder) {
+unsafe fn place_order_entries_from_cmap(table: *const ParsedValue, go: *mut GlyphOrder) {
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(table) as u32 {
         // Borrows `json_obj_key_at`'s pointer directly rather than an
@@ -155,7 +155,7 @@ unsafe fn place_order_entries_from_cmap(mut table: *const ParsedValue, mut go: *
         // `table/cmap.rs`'s `parse_unicode` (this function inlines the
         // identical U+XXXX-or-decimal parse).
         let unicode_str: *const ::core::ffi::c_char = json_obj_key_at(table, j as u32);
-        let mut item: *const ParsedValue = json_obj_val_at(table, j as u32);
+        let item: *const ParsedValue = json_obj_val_at(table, j as u32);
         let mut unicode: i32 = 0;
         if strlen(unicode_str) > 2 as usize
             && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
@@ -182,9 +182,9 @@ unsafe fn place_order_entries_from_cmap(mut table: *const ParsedValue, mut go: *
     }
 }
 unsafe fn place_order_entries_from_subtable(
-    mut table: *const ParsedValue,
-    mut go: *mut GlyphOrder,
-    mut zero_only: bool,
+    table: *const ParsedValue,
+    go: *mut GlyphOrder,
+    zero_only: bool,
 ) {
     let mut uplimit: u32 = json_arr_len(table);
     if uplimit >= 1 as u32 && zero_only as ::core::ffi::c_int != 0 {
@@ -192,7 +192,7 @@ unsafe fn place_order_entries_from_subtable(
     }
     let mut j: u32 = 0 as u32;
     while j < uplimit {
-        let mut item: *const ParsedValue = json_arr_at(table, j as u32);
+        let item: *const ParsedValue = json_arr_at(table, j as u32);
         if json_type_of(item) == JsonType::String {
             let gname: Vec<u8> = json_str_bytes(item);
             escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::GlyphOrder, j);
@@ -201,8 +201,8 @@ unsafe fn place_order_entries_from_subtable(
     }
 }
 unsafe fn parse_glyph_order(
-    mut root: *const ParsedValue,
-    mut options: &Options,
+    root: *const ParsedValue,
+    options: &Options,
 ) -> Option<Box<GlyphOrder>> {
     // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
     // (`malloc`) + `Box::from_raw` -- see the matching note in
@@ -271,8 +271,8 @@ impl FontBuilder for JsonReader {
         options: *const ::core::ffi::c_void,
     ) -> *mut ::core::ffi::c_void {
         let options: &Options = &*(options as *const Options);
-        let mut root: *const ParsedValue = _root as *const ParsedValue;
-        let mut font: *mut Font = (otfcc_font_create)();
+        let root: *const ParsedValue = _root as *const ParsedValue;
+        let font: *mut Font = (otfcc_font_create)();
         if font.is_null() {
             return ::core::ptr::null_mut::<::core::ffi::c_void>();
         }
@@ -349,7 +349,7 @@ impl FontBuilder for JsonReader {
 pub unsafe fn read_json(
     mut _root: *mut ::core::ffi::c_void,
     mut _index: u32,
-    mut options: &Options,
+    options: &Options,
 ) -> *mut Font {
     <JsonReader as FontBuilder>::read(
         _root,
