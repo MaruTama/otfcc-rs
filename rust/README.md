@@ -932,6 +932,53 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`lib.rs`'s three crate-root `#![allow(dead_code, unused_assignments,
+  unused_mut)]` are gone -- the last item Stage 7-4 named, scoped to be
+  done last since "most of it should fall out naturally from the earlier
+  stages."** Removing them cold surfaced 1,626 individual violations
+  across ~48 files -- large-sounding, but the actual composition made it
+  far more tractable than that number suggests:
+  - **1,477 `unused_mut` (91%)**: c2rust marks every C-style local `mut`
+    regardless of whether it's ever reassigned; rustc's own lint finds
+    exactly the ones that aren't. Purely mechanical, fixed in one
+    `cargo fix --lib --release --allow-dirty --broken-code` pass, zero
+    manual review needed -- removing `mut` from a binding never
+    reassigned cannot change behavior.
+  - **128 more, after that**: `unused_assignments` on `let mut x: T =
+    dummy;` declarations where every real code path overwrites `x`
+    before ever reading it (c2rust's other standard dummy-init habit).
+    Fixed by a script that stripped each flagged initializer down to
+    `let mut x: T;` (deferred initialization) and rebuilt to let rustc's
+    own definite-assignment analysis be the actual safety check -- it
+    would have refused to compile any site where a path could still read
+    `x` before a real assignment reached it. Zero did; all 128 were
+    genuinely dead every time. A second `cargo fix` pass then dropped the
+    `mut` this revealed as no-longer-needed on some of them (a dummy
+    initializer is itself a write, so removing it can turn a two-write
+    binding into a one-write, no-`mut`-needed one).
+  - **The last 15** needed actual eyes: 6 were genuinely dead functions
+    (`binio.rs`'s `read_8s`/`read_24u`/`read_32s`/`read_64u` -- Stage
+    7-1's `FontReader` conversion outgrew them, though `read_8u`/`16u`/
+    `16s`/`32u` still have real callers; `handle.rs`'s
+    `otfcc_handle_copy_replace`/`handle_name_eq_cstr`, both redundant
+    with a sibling already doing the same thing), deleted outright. The
+    remaining 15 dead-store sites (11 "free then null out" or "reassign
+    then immediately return" writes right before the variable goes out
+    of scope; one `break`-before-the-check-it-fed; one loop's final
+    increment with no read after it; one write on a path that already
+    falls through to a literal `return None` further down that never
+    reads it) were each individually confirmed to have no reader on any
+    path before being deleted.
+  - **Verification**: full pipeline green -- build with *zero* warnings
+    (not just errors) at `-D warnings`, 247/247 tests, clippy clean, ABI
+    unchanged, golden bytes and log output unchanged (every one of these
+    was a dead-code/dead-store removal or a `mut` drop, never a behavior
+    change), round-trips 10/10, lookup-alias regression clean, both fuzz
+    targets `cargo check`-clean, `cargo miri test` clean (225 passed, 0
+    failed, 22 ignored, matching baseline). `survey-unsafe.sh` deltas:
+    `unsafe fn` 895->889, raw pointer types 5534->5528, `.offset(` calls
+    756->747 (the 6 deleted functions' own bodies).
+
 - **Two more real crashes found by fuzzing while investigating the
   `gvar-test.ttf` leak below -- both in the CFF *read* path, unrelated to
   each other and to that investigation.** Neither was reachable from the
