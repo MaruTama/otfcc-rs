@@ -63,10 +63,6 @@ pub(crate) unsafe fn otfcc_handle_copy(dst: *mut Handle, src: *const Handle) {
     *dst = (*src).clone();
 }
 #[inline]
-pub(crate) unsafe fn otfcc_handle_copy_replace(dst: *mut Handle, src: Handle) {
-    *dst = src.clone();
-}
-#[inline]
 pub(crate) unsafe fn otfcc_handle_dup(src: Handle) -> Handle {
     src.clone()
 }
@@ -94,24 +90,10 @@ pub(crate) unsafe fn handle_from_index(id: GlyphId) -> Handle {
     };
     return h;
 }
-/// Compares a `Handle.name`-shaped `Vec<u8>` against a null-terminated
-/// `sds`/C string the way `strcmp(a.name, b.name) == 0` used to, before
-/// `Handle.name` stopped being `SdsRaw`: truncates at the first embedded
-/// NUL on the `Vec<u8>` side (matching `strcmp`'s own behavior on `other`).
-/// Doesn't null-check `other` -- `strcmp` was already UB on a null argument,
-/// so this preserves the original risk profile rather than adding a new one.
-pub(crate) unsafe fn handle_name_eq_cstr(name: &[u8], other: *const ::core::ffi::c_char) -> bool {
-    let name_trunc = match name.iter().position(|&b| b == 0) {
-        Some(p) => &name[..p],
-        None => name,
-    };
-    name_trunc == ::core::ffi::CStr::from_ptr(other).to_bytes()
-}
-/// Same NUL-truncating comparison as `handle_name_eq_cstr`, for the case
-/// where both sides are now a `Vec<u8>`-shaped name (e.g. comparing a
-/// `Handle.name` against a `Lookup.name` now that both have moved off
-/// `sds`) -- truncates *both* sides at their first embedded NUL, matching
-/// what `strcmp`-via-`CStr` did when one side was still a real C string.
+/// NUL-truncating comparison for two `Vec<u8>`-shaped names (e.g. comparing
+/// a `Handle.name` against a `Lookup.name`, both moved off `sds`) --
+/// truncates *both* sides at their first embedded NUL, matching what
+/// `strcmp`-via-`CStr` did back when one side was still a real C string.
 pub(crate) fn handle_name_eq_bytes(a: &[u8], b: &[u8]) -> bool {
     let a_trunc = match a.iter().position(|&x| x == 0) {
         Some(p) => &a[..p],
