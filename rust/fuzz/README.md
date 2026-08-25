@@ -37,19 +37,18 @@ into `tests/payload/`. Seed from there before a real run:
 
 ```bash
 mkdir -p corpus/otf_parse corpus/json_build
-cp ../../tests/payload/*.{ttf,otf} corpus/otf_parse/   # see exclusion below
+cp ../../tests/payload/*.{ttf,otf} corpus/otf_parse/
 echo '{}' > corpus/json_build/empty.json
 ```
 
-**Exclude `Cormorant-Medium.otf` and `WorkSans-Regular.otf` from
-`otf_parse`'s seed corpus.** Both trigger the same pre-existing, already-
-documented stack-overflow in the CFF outline interpreter's unbounded
-recursion (`rust/README.md`, "Status: Phase 1 complete" — confirmed to crash
-the *C* toolchain too, not a migration regression). Fuzzing rediscovers this
-same crash class within seconds of mutation from almost any CFF-bearing
-seed, which is expected and not a new finding — but seeding directly from
-either file means the very first run reports a crash before the fuzzer has
-explored anything else.
+`Cormorant-Medium.otf` and `WorkSans-Regular.otf` no longer need excluding
+from `otf_parse`'s seed corpus. Both used to trigger a stack-overflow from
+the CFF outline interpreter's unbounded `callsubr`/`callgsubr` recursion
+(confirmed to crash the *C* toolchain too, not a migration regression) —
+fixed by capping subroutine call nesting at the Type 2 Charstring spec's
+own limit of 10 (`libcff/cff_parser.rs`'s `MAX_SUBR_CALL_DEPTH`, `rust/
+README.md`'s Stage 7-4 file-I/O-adjacent CFF fix). Both files now parse
+cleanly through `otf_parse`.
 
 ## Known findings, not yet fixed (Phase 5 plan, Stages 7-1/7-3)
 
@@ -111,19 +110,26 @@ point instead of having to rediscover them:
   "clean" advisory job would just hide this class of finding going
   forward too.
 
-- **`otf_parse` cannot yet run a long, unattended fuzzing campaign**, because
-  a short/truncated input very quickly reaches `otfcc_get16u`/`otfcc_get32u`
-  (`font/caryll_sfnt.rs:220,239`) calling **`libc::exit(EXIT_FAILURE)`
-  directly from library code** on a short read. libFuzzer's contract
-  requires the harness function to return, not terminate the process — a
-  target that calls `exit()` makes `cargo fuzz run` itself report `ERROR:
-  libFuzzer: fuzz target exited` and stop, rather than continuing to fuzz.
-  This is precisely the class of bug the Phase 5 plan's Stage 7-3 already
-  scoped for removal ("ライブラリ内の `exit()` 4箇所...を修正" —
-  `support/alloc.rs`'s two OOM handlers and these two short-read handlers);
-  this finding is independent confirmation that fixing it has concrete
-  payoff beyond API cleanliness — it's currently a hard ceiling on how much
-  of `otf_parse`'s state space a fuzzing campaign can actually reach.
+- ~~`otf_parse` cannot yet run a long, unattended fuzzing campaign because a
+  short/truncated input reaches `otfcc_get16u`/`otfcc_get32u` calling
+  `libc::exit(EXIT_FAILURE)` directly from library code~~ — **fixed**: Stage
+  7-3 and Stage 7-4's `font/caryll_sfnt.rs` rewrite moved both functions to
+  `Option`-returning, `std::io`-based reads with no `exit()` anywhere in the
+  read path.
+
+- **`otf_parse` can be made to `malloc()` an attacker-chosen, multi-gigabyte
+  allocation from a single small input** — `font/caryll_sfnt.rs:105`,
+  `otfcc_read_packets` allocates `vec![0u8; length as usize]` for every
+  table directory entry using that entry's raw, unvalidated `length` field
+  (up to `u32::MAX`) *before* checking the entry's bytes actually exist in
+  the file. A 961-byte crafted input reproduces a 3.7GB allocation request
+  (`tests/fuzz-corpus/known-issues/otf-parse-table-length-oom.bin`); found
+  during Stage 7-4 CFF-fix verification, not introduced by it — this
+  allocation site predates that PR by over a week. This is exactly what
+  Stage 7-1's planned `FontReader` (checked offsets/lengths before any read
+  or allocation) is designed to close crate-wide; not fixed here to keep
+  this PR's CFF-recursion fix to one theme.
+  Reproduce: `cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-table-length-oom.bin`
 
 ## CI
 

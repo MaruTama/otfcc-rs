@@ -956,6 +956,7 @@ unsafe fn build_outline(
         &raw mut stack,
         &raw mut bc as *mut ::core::ffi::c_void,
         options,
+        0,
     );
     let mut cx: VQ = (vq_neutral)();
     let mut cy: VQ = (vq_neutral)();

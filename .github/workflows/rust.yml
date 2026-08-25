@@ -140,14 +140,7 @@ jobs:
         run: |
           cd rust/fuzz
           mkdir -p corpus/otf_parse corpus/json_build
-          # Cormorant-Medium.otf/WorkSans-Regular.otf excluded on purpose --
-          # see rust/fuzz/README.md's "Running" section for why.
-          for f in ../../tests/payload/*.ttf ../../tests/payload/*.otf; do
-            case "$f" in
-              *Cormorant-Medium.otf|*WorkSans-Regular.otf) continue ;;
-            esac
-            cp "$f" corpus/otf_parse/
-          done
+          cp ../../tests/payload/*.ttf ../../tests/payload/*.otf corpus/otf_parse/
           echo '{}' > corpus/json_build/empty.json
           cp ../../tests/payload/*.json corpus/json_build/ 2>/dev/null || true
 

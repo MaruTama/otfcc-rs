@@ -932,6 +932,58 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`libcff/cff_parser.rs`: fixed the crash behind the `fuzz` CI job's
+  persistent (advisory, `continue-on-error`) failure on every recent PR --
+  the CFF Type 2 CharString interpreter had no limit on `callsubr`/
+  `callgsubr` recursion depth, and no bounds check on the operand stack
+  (fixed-capacity `Vec<CffValue>`, 65536 slots) before pushing onto it, nor
+  on four operators' (`rcurveline`/`rlinecurve`/`vhcurveto`/`hvcurveto`)
+  unchecked-subtraction operand-count math -- all four are the same root
+  shape (an unsigned subtraction/loop-bound computed without first checking
+  there were enough operands, wrapping to a huge value on malformed input
+  the same way an unsigned integer underflow does in C). None of this was
+  reachable from the migration itself; it's C-inherited (confirmed: the
+  pre-Stage-7-0-a C source had the identical unguarded recursion and
+  identical unguarded subtractions).
+  - **`MAX_SUBR_CALL_DEPTH = 10`** (the Type 2 Charstring spec's own limit)
+    caps `cff_parse_outline`'s recursion; exceeding it logs a warning and
+    stops parsing that outline instead of overflowing the native stack.
+    This alone also resolved the *other*, previously-documented CFF
+    stack-overflow that made `rust/fuzz/README.md` exclude
+    `Cormorant-Medium.otf`/`WorkSans-Regular.otf` from the fuzz seed corpus
+    -- same root cause, confirmed by hand (both now parse cleanly); that
+    exclusion is removed from both the workflow and the fuzz README.
+  - **The operand-stack push sites** (plain operand tokens, `random`,
+    `dup` -- the only three that write before checking capacity) now log a
+    warning and stop parsing that outline if the stack is already full,
+    instead of writing one `CffValue` past the end of its `Vec`.
+  - **`rcurveline`/`rlinecurve`/`vhcurveto`/`hvcurveto`** now check for the
+    minimum operand count (2, 6, and "not exactly 1 leftover coordinate"
+    respectively) before doing arithmetic that assumed it, instead of
+    computing a huge loop bound via unsigned wraparound and walking far
+    past the stack's buffer.
+  - **Found while verifying this fix**: `font/caryll_sfnt.rs:105`
+    (`otfcc_read_packets`) allocates `vec![0u8; length as usize]` for each
+    table using that table's raw, unvalidated declared length -- a small
+    crafted input can request a multi-gigabyte allocation. Predates this
+    PR (and Stage 7-4's file-I/O work) by over a week; not fixed here to
+    keep this PR to one theme. Documented with a reproducer in
+    `rust/fuzz/README.md`'s "Known findings" and
+    `tests/fuzz-corpus/known-issues/otf-parse-table-length-oom.bin` --
+    exactly the class of bug Stage 7-1's planned `FontReader` (checked
+    offsets/lengths before any read or allocation) is meant to close
+    crate-wide.
+  - **Verification**: full pipeline green -- build, 245/245 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged (these
+    fixes only change malformed-input behavior), round-trips 10/10,
+    lookup-alias regression clean, both fuzz targets `cargo check`-clean,
+    `cargo miri test` clean at baseline. Confirmed by hand: the original
+    CI-failing seed (`FDArrayTest257.otf`) and both newly-unexcluded seeds
+    (`Cormorant-Medium.otf`, `WorkSans-Regular.otf`) all parse cleanly
+    now; a 60-second local `cargo fuzz run otf_parse` against the full
+    corpus found no other crash besides the pre-existing, now-documented
+    OOM above.
+
 - **Stage 7-4: the file-I/O item's last two spots -- `bin/otfccbuild.rs`'s
   `readEntireStdin` and `bin/otfccdump.rs`'s `getchar` -- moved off
   `libc::fgets`/`fgetc`/`realloc` onto `std::io`, finishing the item
