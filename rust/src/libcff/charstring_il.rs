@@ -319,7 +319,7 @@ pub unsafe fn cff_compile_glyph_to_il(
 ) -> *mut CffCharstringIl {
     let il: *mut CffCharstringIl =
         Box::into_raw(Box::new(CffCharstringIl { instr: Vec::new() }));
-    let mut temp_contours: *mut Contour = ::core::ptr::null_mut::<Contour>();
+    let mut temp_contours: *mut Contour;
     let mut x: VQ = (vq_neutral)();
     let mut y: VQ = (vq_neutral)();
     temp_contours = __caryll_allocate_clean(
@@ -921,7 +921,7 @@ unsafe fn nextstop(il: *mut CffCharstringIl, j: u32) -> u32 {
     return delta;
 }
 unsafe fn decide_advance(il: *mut CffCharstringIl, j: u32, mut _optimize_level: u8) -> u8 {
-    let mut r: u8 = 0 as u8;
+    let mut r: u8;
     r = zroll(il, j, OP_RLINETO, OP_HLINETO, &[false, true]);
     if r != 0 {
         return r;

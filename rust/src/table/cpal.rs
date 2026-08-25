@@ -55,14 +55,14 @@ pub static WHITE: CpalColor = CpalColor {
     label: 0xffff as u16,
 };
 pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
-    let mut version: u16 = 0;
-    let mut table_header_length: u32 = 0;
-    let mut num_palettes_entries: u16 = 0;
-    let mut num_palettes: u16 = 0;
-    let mut num_color_records: u16 = 0;
-    let mut offset_first_color_record: u32 = 0;
-    let mut color_list: *mut CpalColor = ::core::ptr::null_mut::<CpalColor>();
-    let mut t: Option<Box<CpalTable>> = None;
+    let mut version: u16;
+    let mut table_header_length: u32;
+    let mut num_palettes_entries: u16;
+    let mut num_palettes: u16;
+    let mut num_color_records: u16;
+    let mut offset_first_color_record: u32;
+    let mut color_list: *mut CpalColor;
+    let mut t: Option<Box<CpalTable>>;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -506,7 +506,7 @@ pub unsafe fn otfcc_parse_cpal(
     root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<CpalTable>> {
-    let mut table: *const ParsedValue = ::core::ptr::null();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"CPAL\0" as *const u8 as *const ::core::ffi::c_char,
@@ -686,7 +686,7 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> *mut Buffer {
         let total_colors: ColorId = palette.colorset.len() as ColorId;
         let mut k: ColorId = 0 as ColorId;
         while (k as ::core::ffi::c_int) < num_palettes_entries as ::core::ffi::c_int {
-            let mut color: *const CpalColor = ::core::ptr::null::<CpalColor>();
+            let color: *const CpalColor;
             if (k as ::core::ffi::c_int) < total_colors as ::core::ffi::c_int {
                 color = &palette.colorset[k as usize] as *const CpalColor;
             } else {

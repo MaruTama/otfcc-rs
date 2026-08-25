@@ -115,7 +115,7 @@ unsafe fn read_lig_caret_record(
     table_length: u32,
     offset: u32,
 ) -> CaretValueRecord {
-    let mut caret_count: ShapeId = 0;
+    let caret_count: ShapeId;
     let mut g: CaretValueRecord = CaretValueRecord {
         glyph: Handle {
             state: HandleState::Empty,
@@ -150,9 +150,9 @@ unsafe fn read_lig_caret_record(
     return g;
 }
 pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
-    let mut classdef_offset: u16 = 0;
-    let mut lig_caret_offset: u16 = 0;
-    let mut mark_attach_def_offset: u16 = 0;
+    let mut classdef_offset: u16;
+    let mut lig_caret_offset: u16;
+    let mark_attach_def_offset: u16;
     let mut current_block: u64;
     let mut gdef: Option<Box<GdefTable>> = None;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -437,7 +437,7 @@ pub unsafe fn otfcc_parse_gdef(
     options: &Options,
 ) -> Option<Box<GdefTable>> {
     let mut gdef: Option<Box<GdefTable>> = None;
-    let mut table: *const ParsedValue = ::core::ptr::null();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,

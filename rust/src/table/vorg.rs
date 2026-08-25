@@ -30,7 +30,7 @@ pub struct VorgTable {
 // is a conservative choice that changes no call site beyond the storage
 // mechanism.
 pub unsafe fn otfcc_read_vorg(packet: &Packet, options: &Options) -> Option<Box<VorgTable>> {
-    let mut num_vert_origin_y_metrics: u16 = 0;
+    let mut num_vert_origin_y_metrics: u16;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;

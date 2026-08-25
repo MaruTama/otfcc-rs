@@ -64,12 +64,12 @@ static BASE_GLYPH_REC_LENGTH: usize = 6 as usize;
 static LAYER_REC_LENGTH: usize = 4 as usize;
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<ColrTable> {
-    let mut num_base_glyph_records: u16 = 0;
-    let mut num_layer_records: u16 = 0;
-    let mut offset_base_glyph_record: u32 = 0;
-    let mut offset_layer_record: u32 = 0;
-    let mut gids: Vec<GlyphId> = Vec::new();
-    let mut colors: Vec<ColorId> = Vec::new();
+    let mut num_base_glyph_records: u16;
+    let mut num_layer_records: u16;
+    let mut offset_base_glyph_record: u32;
+    let mut offset_layer_record: u32;
+    let mut gids: Vec<GlyphId>;
+    let mut colors: Vec<ColorId>;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;

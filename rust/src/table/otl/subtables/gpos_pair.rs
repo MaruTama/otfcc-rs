@@ -434,8 +434,8 @@ pub unsafe fn otl_gpos_parse_pair(
     mut _subtable: *const ParsedValue,
     mut _options: &Options,
 ) -> *mut Subtable {
-    let mut class1_count: GlyphClass = 0;
-    let mut class2_count: GlyphClass = 0;
+    let class1_count: GlyphClass;
+    let class2_count: GlyphClass;
     let subtable: *mut GposPairSubtable = (subtable_gpos_pair_create)();
     let mut _mat: *const ParsedValue = json_obj_get_type(
         _subtable,

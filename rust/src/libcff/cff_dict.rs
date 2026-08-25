@@ -67,7 +67,7 @@ pub(crate) unsafe fn parse_to_callback(
     >,
 ) {
     let mut index: u8 = 0 as u8;
-    let mut advance: u32 = 0;
+    let mut advance: u32;
     let mut val: CffValue = CffValue::Unset;
     let mut stack: [CffValue; 256] = [CffValue::Unset; 256];
     let mut temp: *const u8 = data;

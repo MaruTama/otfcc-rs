@@ -323,8 +323,8 @@ unsafe fn strnmatch(
     mut str2: *const ::core::ffi::c_char,
     mut n: ::core::ffi::c_int,
 ) -> ::core::ffi::c_int {
-    let mut ch1: ::core::ffi::c_int = 0;
-    let mut ch2: ::core::ffi::c_int = 0;
+    let mut ch1: ::core::ffi::c_int;
+    let mut ch2: ::core::ffi::c_int;
     loop {
         let fresh19 = n;
         n = n - 1;
@@ -357,17 +357,17 @@ unsafe fn parse_instrs(
     >,
 ) -> Option<Vec<u8>> {
     let mut numberstack: [::core::ffi::c_short; 256] = [0; 256];
-    let mut npos: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut nread: ::core::ffi::c_int = 0;
-    let mut i: ::core::ffi::c_int = 0;
+    let mut npos: ::core::ffi::c_int;
+    let mut nread: ::core::ffi::c_int;
+    let mut i: ::core::ffi::c_int;
     let mut push_left: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut push_size: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut pt: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
+    let mut pt: *mut ::core::ffi::c_char;
     let mut end: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut bend: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut brack: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
+    let mut brack: *mut ::core::ffi::c_char;
     let imax: ::core::ffi::c_int = strlen(text) as ::core::ffi::c_int;
-    let mut val: ::core::ffi::c_int = 0;
+    let mut val: ::core::ffi::c_int;
     let mut instrs: Vec<u8> = Vec::with_capacity(imax as usize);
     pt = text;
     while *pt != 0 {
@@ -686,11 +686,11 @@ unsafe fn parse_instrs(
     Some(instrs)
 }
 unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
-    let mut i: ::core::ffi::c_int = 0;
+    let mut i: ::core::ffi::c_int;
     let len: ::core::ffi::c_int = (*id).instr_cnt as ::core::ffi::c_int;
-    let mut cnt: ::core::ffi::c_int = 0;
-    let mut j: ::core::ffi::c_int = 0;
-    let mut lh: ::core::ffi::c_int = 0;
+    let mut cnt: ::core::ffi::c_int;
+    let mut j: ::core::ffi::c_int;
+    let mut lh: ::core::ffi::c_int;
     let instrs: *mut u8 = (*id).instrs;
     if (*id).bts.is_empty() {
         (*id).bts = vec![ByteType::Instr; (len + 1 as ::core::ffi::c_int) as usize];

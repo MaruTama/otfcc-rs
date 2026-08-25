@@ -902,7 +902,7 @@ unsafe fn build_outline(
         defined_contour_masks: 0 as u8,
         randx: 0 as u64,
     };
-    let mut fd: u8 = 0 as u8;
+    let fd: u8;
     if !matches!((*f).fdselect, CffFdSelect::Unspecified) {
         fd = cff_parse_subr(
             i as u16,
@@ -2481,7 +2481,7 @@ unsafe fn writecff_cid_keyed(
     cff_dict_free(top_pd);
     let e: *mut Buffer = cff_make_fdselect(cff, glyf);
     let mut fd_array_index: *mut CffIndex = ::core::ptr::null_mut::<CffIndex>();
-    let mut r: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
+    let mut r: *mut Buffer;
     if (*cff).is_cid {
         fd_array_index = cff_make_fdarray(&raw const (*cff).fd_array, &raw mut string_hash);
         r = build_index(fd_array_index);

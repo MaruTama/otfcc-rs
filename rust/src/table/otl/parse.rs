@@ -695,11 +695,11 @@ pub unsafe fn otfcc_parse_otl(
     options: &Options,
     tag: *const ::core::ffi::c_char,
 ) -> Option<Box<OtlTable>> {
-    let mut languages: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
-    let mut features: *mut ParsedValue = ::core::ptr::null_mut::<ParsedValue>();
-    let mut lookups: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let languages: *const ParsedValue;
+    let features: *mut ParsedValue;
+    let lookups: *const ParsedValue;
     let current_block: u64;
-    let mut otl: *mut OtlTable = ::core::ptr::null_mut::<OtlTable>();
+    let otl: *mut OtlTable;
     let mut otl_box: Option<Box<OtlTable>> = None;
     let table: *const ParsedValue = json_obj_get_type(root, tag, JsonType::Object);
     if !table.is_null() {

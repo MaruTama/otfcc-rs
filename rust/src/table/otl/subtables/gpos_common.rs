@@ -32,7 +32,7 @@ pub unsafe fn otl_read_mark_array(
     table_length: u32,
     offset: u32,
 ) {
-    let mut mark_count: GlyphId = 0;
+    let mark_count: GlyphId;
     if !(table_length < offset.wrapping_add(2 as u32)) {
         mark_count = read_16u(data.offset(offset as isize) as *const u8) as GlyphId;
         let mut j: GlyphId = 0 as GlyphId;

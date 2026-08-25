@@ -101,8 +101,8 @@ pub unsafe fn stat_single_glyph(
     let mut ymax: Pos = -POS_MAX as Pos;
     let mut nest_depth: u16 = 0 as u16;
     let mut n_points: u16 = 0 as u16;
-    let mut n_composite_points: u16 = 0 as u16;
-    let mut n_composite_contours: u16 = 0 as u16;
+    let mut n_composite_points: u16;
+    let mut n_composite_contours: u16;
     for c in 0..(*g).contours.len() as ShapeId {
         let contour: *const Contour = &(&(*g).contours)[c as usize];
         for pj in 0..(*contour).len() as ShapeId {

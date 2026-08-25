@@ -469,7 +469,7 @@ unsafe fn digit_gen(
     let mut kappa: ::core::ffi::c_int = count_decimal_digit32(p1) as ::core::ffi::c_int;
     *len = 0 as ::core::ffi::c_int;
     while kappa > 0 as ::core::ffi::c_int {
-        let mut d: u32 = 0 as u32;
+        let d: u32;
         match kappa {
             10 => {
                 d = p1.wrapping_div(1000000000 as u32);

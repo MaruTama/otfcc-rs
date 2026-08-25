@@ -680,7 +680,7 @@ pub unsafe fn otfcc_parse_os_2(
     os2_val.version = 4;
     let mut os_2_box: Box<Os2Table> = Box::new(os2_val);
     let os_2: *mut Os2Table = os_2_box.as_mut() as *mut Os2Table;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"OS_2\0" as *const u8 as *const ::core::ffi::c_char,
@@ -894,7 +894,7 @@ pub unsafe fn otfcc_parse_os_2(
                 b"usUpperOpticalPointSize\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            let mut panose: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+            let panose: *const ParsedValue;
             panose = json_obj_get_type(
                 table,
                 b"panose\0" as *const u8 as *const ::core::ffi::c_char,
@@ -912,7 +912,7 @@ pub unsafe fn otfcc_parse_os_2(
                     j = j.wrapping_add(1);
                 }
             }
-            let mut vendorid: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+            let vendorid: *const ParsedValue;
             vendorid = json_obj_get_type(
                 table,
                 b"achVendID\0" as *const u8 as *const ::core::ffi::c_char,

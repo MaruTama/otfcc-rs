@@ -7,12 +7,12 @@
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn utf16be_to_utf8(inb: *const u8, mut inlenb: ::core::ffi::c_int) -> Vec<u8> {
     let mut in_0: *mut u16 = inb as *mut u16;
-    let mut inend: *mut u16 = ::core::ptr::null_mut::<u16>();
-    let mut c: u32 = 0;
-    let mut d: u32 = 0;
-    let mut inlen: u32 = 0;
-    let mut tmp: *mut u8 = ::core::ptr::null_mut::<u8>();
-    let mut bits: ::core::ffi::c_int = 0;
+    let inend: *mut u16;
+    let mut c: u32;
+    let mut d: u32;
+    let inlen: u32;
+    let mut tmp: *mut u8;
+    let mut bits: ::core::ffi::c_int;
     if inlenb % 2 as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
         inlenb -= 1;
     }
@@ -123,8 +123,8 @@ pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
     let inlen: usize = _in.len();
     let inend: *const ::core::ffi::c_char = in_0.offset(inlen as isize);
     let mut words_needed: u32 = 0 as u32;
-    let mut trailing: u8 = 0 as u8;
-    let mut c: u32 = 0 as u32;
+    let mut trailing: u8;
+    let mut c: u32;
     while in_0 < inend {
         let fresh18 = in_0;
         in_0 = in_0.offset(1);

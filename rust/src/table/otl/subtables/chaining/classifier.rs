@@ -219,7 +219,7 @@ pub unsafe fn try_classify_around(
             current_block = 12349973810996921269;
             break;
         }
-        let mut check: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
+        let check: ::core::ffi::c_int;
         if (m as ::core::ffi::c_int) < (*rule0).input_begins as ::core::ffi::c_int {
             check = class_compatible(
                 &mut hb,
@@ -258,7 +258,7 @@ pub unsafe fn try_classify_around(
                 let mut allcheck: bool = true;
                 let mut m_0: TableId = 0 as TableId;
                 while (m_0 as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-                    let mut check_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
+                    let check_0: ::core::ffi::c_int;
                     if (m_0 as ::core::ffi::c_int) < (*rule).input_begins as ::core::ffi::c_int {
                         check_0 = class_compatible(
                             &mut hb,

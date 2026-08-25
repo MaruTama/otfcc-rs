@@ -88,7 +88,7 @@ pub unsafe fn otfcc_parse_fpgm_prep(
     tag: *const ::core::ffi::c_char,
 ) -> Option<Box<FpgmPrepTable>> {
     let mut t: Option<Box<FpgmPrepTable>> = None;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get(root, tag);
     if !table.is_null() {
         logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));

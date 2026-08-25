@@ -233,7 +233,7 @@ pub(crate) unsafe fn build_index(index: *const CffIndex) -> *mut Buffer {
     }
     let offset = &(*index).offset;
     let last_offset: u32 = offset[(*index).count as usize];
-    let mut off_size: u8 = 4 as u8;
+    let off_size: u8;
     if last_offset < 0x100 as u32 {
         off_size = 1 as u8;
     } else if last_offset < 0x10000 as u32 {

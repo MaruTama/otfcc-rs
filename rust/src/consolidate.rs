@@ -655,7 +655,7 @@ unsafe fn __declare_otl_consolidation(
                     ),
                 );
             } else {
-                let mut subtable_removed: bool = false;
+                let subtable_removed: bool;
                 let sub_ptr: SubtablePtr = (&mut (*lookup).subtables)[j as usize]
                     .as_deref_mut()
                     .unwrap() as *mut Subtable;
@@ -1236,7 +1236,7 @@ pub unsafe fn otfcc_consolidate_font(font: *mut Font, options: &Options) {
                     crate::bytesbuild!(b"[Consolidate] Glyph name ", &name, b" is already in use.",),
                 );
                 let mut suffix: u32 = 2 as u32;
-                let mut success: bool = false;
+                let mut success: bool;
                 loop {
                     let newname: Vec<u8> = crate::bytesbuild!(&name, b"_", suffix);
                     success = otfcc_set_glyph_order_by_name(go, newname.clone(), j);

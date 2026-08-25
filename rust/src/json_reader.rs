@@ -156,7 +156,7 @@ unsafe fn place_order_entries_from_cmap(table: *const ParsedValue, go: *mut Glyp
         // identical U+XXXX-or-decimal parse).
         let unicode_str: *const ::core::ffi::c_char = json_obj_key_at(table, j as u32);
         let item: *const ParsedValue = json_obj_val_at(table, j as u32);
-        let mut unicode: i32 = 0;
+        let unicode: i32;
         if strlen(unicode_str) > 2 as usize
             && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
                 == 'U' as i32
@@ -218,7 +218,7 @@ unsafe fn parse_glyph_order(
     if json_type_of(root) != JsonType::Object {
         return Some(go_box);
     }
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let mut table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"glyf\0" as *const u8 as *const ::core::ffi::c_char,

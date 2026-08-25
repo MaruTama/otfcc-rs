@@ -1137,7 +1137,7 @@ pub unsafe fn otfcc_parse_glyf(
         return None;
     }
     let mut glyf: Option<GlyfTable> = None;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"glyf\0" as *const u8 as *const ::core::ffi::c_char,

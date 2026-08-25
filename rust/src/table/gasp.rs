@@ -140,7 +140,7 @@ pub unsafe fn otfcc_parse_gasp(
     options: &Options,
 ) -> Option<Box<GaspTable>> {
     let mut gasp: Option<Box<GaspTable>> = None;
-    let mut table: *const ParsedValue = ::core::ptr::null();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"gasp\0" as *const u8 as *const ::core::ffi::c_char,

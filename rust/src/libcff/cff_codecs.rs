@@ -54,7 +54,7 @@ pub unsafe fn cff_encode_cff_integer(mut val: i32) -> *mut Buffer {
 }
 pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
     let blob: *mut Buffer = bufnew();
-    let mut i: u32 = 0;
+    let mut i: u32;
     let mut j: u32 = 0 as u32;
     let mut temp: [u8; 32] = [
         0 as ::core::ffi::c_int as u8,

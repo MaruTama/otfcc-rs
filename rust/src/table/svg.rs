@@ -55,8 +55,8 @@ unsafe fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_read_svg(packet: &Packet) -> Option<SvgTable> {
-    let mut offset_to_svg_doc_index: u32 = 0;
-    let mut num_entries: u16 = 0;
+    let mut offset_to_svg_doc_index: u32;
+    let mut num_entries: u16;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;

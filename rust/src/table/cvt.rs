@@ -80,7 +80,7 @@ pub unsafe fn otfcc_parse_cvt(
     tag: *const ::core::ffi::c_char,
 ) -> Option<Box<CvtTable>> {
     let mut t: Option<Box<CvtTable>> = None;
-    let mut table: *const ParsedValue = ::core::ptr::null();
+    let mut table: *const ParsedValue;
     table = json_obj_get_type(root, tag, JsonType::Array);
     if !table.is_null() {
         logger_start_sds(

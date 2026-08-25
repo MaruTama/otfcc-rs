@@ -137,8 +137,8 @@ unsafe fn parse_encoding(cff: *mut CffFile, offset: i32) -> CffEncoding {
     result.unwrap_or(CffEncoding::Unspecified)
 }
 unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
-    let mut pos: u32 = 0;
-    let mut offset: i32 = 0;
+    let mut pos: u32;
+    let offset: i32;
     // No length check guarded these 4 header-byte reads at all -- a `raw_
     // length` shorter than 4 read straight past the allocation. Every
     // field now defaults to 0 on a bounds failure instead: `extract_index`
@@ -200,7 +200,7 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
         &raw mut (*cff).global_subr,
     );
     if !(*cff).top_dict.data.is_empty() {
-        let mut offset_0: i32 = 0;
+        let mut offset_0: i32;
         offset_0 = parse_dict_key_int(
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
@@ -403,7 +403,7 @@ pub unsafe fn cff_open_stream(
     len: u32,
     options: &Options,
 ) -> *mut CffFile {
-    let mut file: *mut CffFile = ::core::ptr::null_mut::<CffFile>();
+    let file: *mut CffFile;
     file = __caryll_allocate_clean(
         ::core::mem::size_of::<CffFile>() as usize,
         203 as ::core::ffi::c_ulong,
@@ -460,9 +460,9 @@ pub unsafe fn cff_parse_subr(
     subr: *mut CffIndex,
 ) -> u8 {
     let mut fd: u8 = 0 as u8;
-    let mut off_private: i32 = 0;
-    let mut len_private: i32 = 0;
-    let mut off_subr: i32 = 0;
+    let off_private: i32;
+    let len_private: i32;
+    let off_subr: i32;
     match select {
         CffFdSelect::Format0(fds) => {
             fd = fds[idx as usize];
@@ -638,9 +638,9 @@ pub unsafe fn cff_parse_outline(
     let gsubr_bias: u16 = compute_subr_bias(gsubr.count as u16);
     let lsubr_bias: u16 = compute_subr_bias(lsubr.count as u16);
     let mut start: *mut u8 = data;
-    let mut advance: u32 = 0;
-    let mut i: u32 = 0;
-    let mut cnt_bezier: u32 = 0;
+    let mut advance: u32;
+    let mut i: u32;
+    let mut cnt_bezier: u32;
     let mut val: CffValue = CffValue::Unset;
     while start < data.offset(len as isize) {
         // The outer loop already bounds where a token can *start*, but
@@ -655,7 +655,7 @@ pub unsafe fn cff_parse_outline(
         advance = adv;
         match val {
             CffValue::Operator(op) => {
-                let mut hint_base: ::core::ffi::c_double = 0.;
+                let mut hint_base: ::core::ffi::c_double;
                 match op {
                     1 | 3 | 18 | 23 => {
                         if (*stack).index.wrapping_rem(2 as Arity) != 0 {
@@ -731,7 +731,7 @@ pub unsafe fn cff_parse_outline(
                         let mask_length: u32 =
                             ((*stack).stem as ::core::ffi::c_int + 7 as ::core::ffi::c_int
                                 >> 3 as ::core::ffi::c_int) as u32;
-                        let mut mask: *mut bool = ::core::ptr::null_mut::<bool>();
+                        let mask: *mut bool;
                         mask = __caryll_allocate_clean(
                             (::core::mem::size_of::<bool>() as usize).wrapping_mul(
                                 ((*stack).stem as ::core::ffi::c_int + 7 as ::core::ffi::c_int)

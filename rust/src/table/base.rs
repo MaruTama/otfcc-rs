@@ -284,8 +284,8 @@ pub unsafe fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<
             if table.tag == crate::tag::TAG_BASE {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut offset_h: u16 = 0;
-                    let mut offset_v: u16 = 0;
+                    let offset_h: u16;
+                    let offset_v: u16;
                     let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
                     let table_length: u32 = table.length;
                     if table_length < 8 as u32 {
@@ -471,7 +471,7 @@ pub unsafe fn otfcc_parse_base(
     options: &Options,
 ) -> Option<Box<BaseTable>> {
     let mut base: Option<Box<BaseTable>> = None;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"BASE\0" as *const u8 as *const ::core::ffi::c_char,

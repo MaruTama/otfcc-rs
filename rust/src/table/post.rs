@@ -525,7 +525,7 @@ pub unsafe fn otfcc_parse_post(
     post_val.version = 0x30000 as ::core::ffi::c_int as F16Dot16;
     let mut post_box: Box<PostTable> = Box::new(post_val);
     let post: *mut PostTable = post_box.as_mut() as *mut PostTable;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"post\0" as *const u8 as *const ::core::ffi::c_char,

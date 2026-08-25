@@ -11,11 +11,11 @@ pub unsafe fn base64_encode(
     len: usize,
     out_len: *mut usize,
 ) -> *mut u8 {
-    let mut out: *mut u8 = ::core::ptr::null_mut::<u8>();
-    let mut pos: *mut u8 = ::core::ptr::null_mut::<u8>();
-    let mut end: *const u8 = ::core::ptr::null::<u8>();
-    let mut in_0: *const u8 = ::core::ptr::null::<u8>();
-    let mut olen: usize = 0;
+    let out: *mut u8;
+    let mut pos: *mut u8;
+    let end: *const u8;
+    let mut in_0: *const u8;
+    let mut olen: usize;
     olen = len
         .wrapping_add(3 as usize)
         .wrapping_sub(1 as usize)
@@ -106,13 +106,13 @@ pub unsafe fn base64_decode(
     out_len: *mut usize,
 ) -> *mut u8 {
     let mut dtable: [u8; 256] = [0; 256];
-    let mut out: *mut u8 = ::core::ptr::null_mut::<u8>();
-    let mut pos: *mut u8 = ::core::ptr::null_mut::<u8>();
+    let out: *mut u8;
+    let mut pos: *mut u8;
     let mut in_0: [u8; 4] = [0; 4];
     let mut block: [u8; 4] = [0; 4];
-    let mut tmp: u8 = 0;
-    let mut i: usize = 0;
-    let mut count: usize = 0;
+    let mut tmp: u8;
+    let mut i: usize;
+    let mut count: usize;
     memset(
         &raw mut dtable as *mut u8 as *mut ::core::ffi::c_void,
         0x80 as ::core::ffi::c_int,

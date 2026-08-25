@@ -164,7 +164,7 @@ pub unsafe fn otfcc_parse_hhea(
     hhea_val.version = 0x10000 as ::core::ffi::c_int as F16Dot16;
     let mut hhea_box: Box<HheaTable> = Box::new(hhea_val);
     let hhea: *mut HheaTable = hhea_box.as_mut() as *mut HheaTable;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"hhea\0" as *const u8 as *const ::core::ffi::c_char,

@@ -223,7 +223,7 @@ pub unsafe fn otfcc_parse_maxp(
     maxp_val.version = 0x10000 as ::core::ffi::c_int as F16Dot16;
     let mut maxp_box: Box<MaxpTable> = Box::new(maxp_val);
     let maxp: *mut MaxpTable = maxp_box.as_mut() as *mut MaxpTable;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"maxp\0" as *const u8 as *const ::core::ffi::c_char,

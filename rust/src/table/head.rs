@@ -224,7 +224,7 @@ pub unsafe fn otfcc_parse_head(
     head_val.units_per_em = 1000 as u16;
     let mut head_box: Box<HeadTable> = Box::new(head_val);
     let head: *mut HeadTable = head_box.as_mut() as *mut HeadTable;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"head\0" as *const u8 as *const ::core::ffi::c_char,

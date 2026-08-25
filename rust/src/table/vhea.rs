@@ -186,8 +186,8 @@ pub unsafe fn otfcc_parse_vhea(
     options: &Options,
 ) -> Option<Box<VheaTable>> {
     let mut vhea_box: Option<Box<VheaTable>> = None;
-    let mut vhea: *mut VheaTable = ::core::ptr::null_mut::<VheaTable>();
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let vhea: *mut VheaTable;
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"vhea\0" as *const u8 as *const ::core::ffi::c_char,

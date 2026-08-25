@@ -205,14 +205,14 @@ unsafe fn fvar_find_master_by_region(
     }
 }
 pub unsafe fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTable>> {
-    let mut header: *mut FVARHeader = ::core::ptr::null_mut::<FVARHeader>();
-    let mut n_axes: u16 = 0;
-    let mut instance_size_without_psnid: u16 = 0;
-    let mut instance_size_with_psnid: u16 = 0;
-    let mut axis_record: *mut VariationAxisRecord = ::core::ptr::null_mut::<VariationAxisRecord>();
-    let mut n_instances: u16 = 0;
-    let mut has_postscript_name_id: bool = false;
-    let mut instance: *mut InstanceRecord = ::core::ptr::null_mut::<InstanceRecord>();
+    let mut header: *mut FVARHeader;
+    let mut n_axes: u16;
+    let mut instance_size_without_psnid: u16;
+    let mut instance_size_with_psnid: u16;
+    let mut axis_record: *mut VariationAxisRecord;
+    let n_instances: u16;
+    let has_postscript_name_id: bool;
+    let mut instance: *mut InstanceRecord;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;

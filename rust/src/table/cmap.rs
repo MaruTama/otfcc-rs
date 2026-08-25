@@ -877,8 +877,8 @@ unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
         buf,
         ((segments_count as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as u16,
     );
-    let mut i: u32 = 0;
-    let mut j_1: u32 = 0;
+    let mut i: u32;
+    let mut j_1: u32;
     j_1 = 0 as u32;
     i = 1 as u32;
     while i <= segments_count as u32 {
@@ -988,8 +988,8 @@ unsafe fn build_format14_for_selector(
     dflt: *mut Buffer,
     nondflt: *mut Buffer,
 ) -> u8 {
-    let mut defaults: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
-    let mut non_defaults: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
+    let mut defaults: *mut GlyphId;
+    let mut non_defaults: *mut GlyphId;
     defaults = __caryll_allocate_clean(
         (::core::mem::size_of::<GlyphId>() as usize)
             .wrapping_mul(0x110001 as ::core::ffi::c_int as usize),
