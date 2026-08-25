@@ -932,6 +932,40 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`table/cff.rs`: fixed a real leak in `callback_makefd`** (CID-keyed CFF
+  FDArray compilation), found while confirming the CFF-recursion fix above
+  actually turned the `fuzz` job green -- it didn't, a second, unrelated
+  bug in `json_build`'s path was still failing it. `build_dict(fd)` was
+  called twice: once correctly, whose `Buffer` became the function's
+  return value, and a second time with the result silently discarded --
+  every FD dict compiled that way leaked the second `Buffer`'s heap
+  allocation. Separately, `fd` (the `CffDict` from `cff_make_fd_dict`) was
+  never freed at all -- every other dict in this file (`top`, `top_pd`,
+  `pd`) is `cff_dict_free`'d after use, this one just wasn't. Both are
+  plain omissions, not behavior changes: `build_dict` takes `*const
+  CffDict` (read-only) so calling it twice was memory-safe, just wasteful,
+  and `cff_dict_free` only releases memory, it doesn't touch the already-
+  returned `blob`. Fixed by deleting the redundant call and adding the
+  missing `cff_dict_free(fd)`.
+  - **Not caught locally beforehand**: LeakSanitizer isn't supported on
+    macOS at all (a real LLVM/Darwin allocator limitation, not a project
+    gap), so this crate's fuzz job only ever exercises it in CI (Linux).
+    Diagnosed here via macOS's own `leaks --atExit` tool against a plain
+    (non-ASan) `cargo build --release` binary run directly against each
+    `rust/fuzz/corpus/json_build/` seed file -- `cid-fdselect-test.json`
+    (a CID-keyed CFF payload, the one seed that actually exercises
+    `callback_makefd`) reproduced it immediately, with full symbol names
+    pointing straight at the two lines above.
+  - **Verification**: full pipeline green -- build, 245/245 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged (confirms
+    the fix is a pure leak fix, not a behavior change), round-trips 10/10,
+    lookup-alias regression clean, both fuzz targets `cargo check`-clean,
+    `cargo miri test` clean at baseline. `leaks --atExit` against all 5
+    `json_build` seed files: 0 leaks now (`cid-fdselect-test.json` showed
+    several distinct leak reports, all rooted at `cff_make_fd_dict`/
+    `build_dict`, before the fix). A 60-second local `cargo fuzz run
+    json_build` against the full corpus afterward found nothing else.
+
 - **`libcff/cff_parser.rs`: fixed the crash behind the `fuzz` CI job's
   persistent (advisory, `continue-on-error`) failure on every recent PR --
   the CFF Type 2 CharString interpreter had no limit on `callsubr`/

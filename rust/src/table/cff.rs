@@ -2403,7 +2403,7 @@ unsafe extern "C" fn callback_makefd(
         cff_build_offset(0xffffffff as ::core::ffi::c_uint as i32),
     );
     bufwrite_bufdel(blob, cff_encode_cff_operator(OP_PRIVATE));
-    build_dict(fd);
+    cff_dict_free(fd);
     return blob;
 }
 unsafe fn cff_make_fdarray(
