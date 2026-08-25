@@ -932,6 +932,23 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`rust/fuzz/README.md`'s last "known finding" (the `gvar-test.ttf` leak,
+  Stage 6-4/`VqRegion` scope) no longer reproduces -- confirmed, not newly
+  fixed.** Investigated as the next item after the OOM fix below; the two
+  allocation sites the finding named (a `calloc` in
+  `table/glyf/read.rs::otfcc_read_glyf`, a `format!()` in
+  `table/fvar.rs::fvar_register_region` building `FvarMaster.name`) had
+  both already been rewritten to plain owned `Vec`s as part of Stage 7-1's
+  `glyf`/`gvar` work, done earlier in this same effort but before the
+  finding was last rechecked -- a side effect of that ownership rewrite
+  covering the exact fields this leak was rooted in, not a fix landed for
+  this finding specifically. `leaks --atExit` (macOS's own leak detector --
+  LeakSanitizer itself isn't supported on macOS at all, a real LLVM/Darwin
+  limitation already noted for the `callback_makefd` leak above) finds 0
+  leaks now on `gvar-test.ttf` and every other `otf_parse` corpus file.
+  With this, every finding `rust/fuzz/README.md`'s "Known findings"
+  section ever listed is resolved.
+
 - **`font/caryll_sfnt.rs`: fixed the last `fuzz`-`README.md`-documented
   finding, `otfcc_read_packets`'s multi-gigabyte-allocation OOM.** A table
   directory entry's raw, unvalidated `length` field (up to `u32::MAX`) sized
