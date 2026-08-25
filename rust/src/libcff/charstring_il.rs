@@ -366,9 +366,19 @@ pub unsafe fn cff_compile_glyph_to_il(
     let glyph_adw_const: Pos = vq_get_still((*g).advance_width.clone()) as Pos;
     let mut haswidth: bool = glyph_adw_const != default_width as ::core::ffi::c_int as Pos;
     if haswidth {
+        // `glyph_adw_const` is attacker-controlled JSON (`advanceWidth`),
+        // cast from `f64` -- `as c_int` already saturates a huge magnitude
+        // to `i32::MIN`/`MAX` rather than wrapping, but the *subtraction*
+        // right after was still plain `-`, so a saturated `i32::MIN` minus
+        // a positive `nominal_width` underflowed past `i32::MIN`: a panic
+        // under debug-assertions (found by fuzzing), silent wraparound
+        // producing a nonsensically wrong advance-width delta in an
+        // ordinary release build otherwise. `saturating_sub` makes the
+        // extreme case clamp instead of either.
         il_push_operand(
             il,
-            (glyph_adw_const as ::core::ffi::c_int - nominal_width as ::core::ffi::c_int)
+            (glyph_adw_const as ::core::ffi::c_int)
+                .saturating_sub(nominal_width as ::core::ffi::c_int)
                 as ::core::ffi::c_double,
         );
     }

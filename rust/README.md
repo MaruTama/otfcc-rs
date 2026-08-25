@@ -932,6 +932,175 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`table/cff.rs`/`libcff/charstring_il.rs`: fixed both of the two
+  `json_build` bugs `rust/fuzz/README.md`'s "Known findings" had documented
+  as deliberately deferred to Stage 7-1/7-3.** Found while confirming the
+  CFF-recursion and leak fixes below actually turned the `fuzz` job green
+  -- they didn't either, and the reason had nothing to do with either fix:
+  the `fuzz` job's "Confirm the known findings still reproduce" step runs
+  `cargo fuzz run` against these two bugs' minimized inputs and *expects*
+  them to crash (that's what "still reproduce" verified) -- so `fuzz` had
+  been showing failed on every PR since Stage 7-0-c introduced this
+  infrastructure, regardless of whether `otf_parse`/`json_build`'s own
+  exploratory runs (the only steps actually able to catch a *new*
+  regression) were clean.
+  - **`{"CFF_": {}}` (no `glyf` table at all) null-pointer-dereferenced**
+    in `table/cff.rs`: `cff_make_charset`, `cff_make_fdselect`, and
+    `cff_make_charstrings` all took the same `glyf: *mut GlyfTable` and
+    dereferenced it unconditionally. All three share one caller,
+    `writecff_cid_keyed` (`otfcc_build_cff`'s only path), so the null
+    check moved there instead of being duplicated three times -- a null
+    `glyf` is substituted with a local empty `GlyfTable` before any of the
+    three run. That alone still panicked one level further in:
+    `cff_make_charstrings`'s own "0 glyphs" early return left its three
+    `*mut Buffer` out-params (`s`/`gs`/`ls`) at the null the caller
+    pre-initializes them to, and the caller dereferences all three right
+    after the call returns regardless -- fixed by having that early
+    return populate them with empty (not null) `Buffer`s instead.
+  - **An absurd JSON `advanceWidth` panicked** in
+    `libcff/charstring_il.rs`: `glyph_adw_const as c_int` already
+    saturates a huge-magnitude `f64` to `i32::MIN`/`MAX` rather than
+    wrapping (correct, checked Rust behavior on its own), but the
+    subsequent plain `-` against `nominal_width` could still underflow
+    past `i32::MIN`. Switched to `saturating_sub`, so the extreme case
+    clamps instead of panicking (under debug-assertions) or silently
+    wrapping to a nonsensical advance-width delta (an ordinary release
+    build's quieter version of the same bug).
+  - **`.github/workflows/rust.yml`**: with both bugs fixed, that step's two
+    `cargo fuzz run` commands now exit 0 -- renamed to "Regression-test the
+    fixed findings" and repurposed as a plain positive regression test
+    (these two specific inputs must not start crashing again), rather than
+    a check that they still do.
+  - **Verification**: full pipeline green -- build, 245/245 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged, round-
+    trips 10/10, lookup-alias regression clean, both fuzz targets `cargo
+    check`-clean, `cargo miri test` clean at baseline. Both minimized
+    reproducers confirmed exit 0 locally; a 60-second local `cargo fuzz
+    run` against each target's full corpus afterward found nothing else
+    new (`otf_parse` still reproduces the already-documented, still-open
+    `caryll_sfnt.rs:105` OOM finding, unrelated to any of this).
+
+- **`table/cff.rs`: fixed a real leak in `callback_makefd`** (CID-keyed CFF
+  FDArray compilation), found while confirming the CFF-recursion fix above
+  actually turned the `fuzz` job green -- it didn't, a second, unrelated
+  bug in `json_build`'s path was still failing it. `build_dict(fd)` was
+  called twice: once correctly, whose `Buffer` became the function's
+  return value, and a second time with the result silently discarded --
+  every FD dict compiled that way leaked the second `Buffer`'s heap
+  allocation. Separately, `fd` (the `CffDict` from `cff_make_fd_dict`) was
+  never freed at all -- every other dict in this file (`top`, `top_pd`,
+  `pd`) is `cff_dict_free`'d after use, this one just wasn't. Both are
+  plain omissions, not behavior changes: `build_dict` takes `*const
+  CffDict` (read-only) so calling it twice was memory-safe, just wasteful,
+  and `cff_dict_free` only releases memory, it doesn't touch the already-
+  returned `blob`. Fixed by deleting the redundant call and adding the
+  missing `cff_dict_free(fd)`.
+  - **Not caught locally beforehand**: LeakSanitizer isn't supported on
+    macOS at all (a real LLVM/Darwin allocator limitation, not a project
+    gap), so this crate's fuzz job only ever exercises it in CI (Linux).
+    Diagnosed here via macOS's own `leaks --atExit` tool against a plain
+    (non-ASan) `cargo build --release` binary run directly against each
+    `rust/fuzz/corpus/json_build/` seed file -- `cid-fdselect-test.json`
+    (a CID-keyed CFF payload, the one seed that actually exercises
+    `callback_makefd`) reproduced it immediately, with full symbol names
+    pointing straight at the two lines above.
+  - **Verification**: full pipeline green -- build, 245/245 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged (confirms
+    the fix is a pure leak fix, not a behavior change), round-trips 10/10,
+    lookup-alias regression clean, both fuzz targets `cargo check`-clean,
+    `cargo miri test` clean at baseline. `leaks --atExit` against all 5
+    `json_build` seed files: 0 leaks now (`cid-fdselect-test.json` showed
+    several distinct leak reports, all rooted at `cff_make_fd_dict`/
+    `build_dict`, before the fix). A 60-second local `cargo fuzz run
+    json_build` against the full corpus afterward found nothing else.
+
+- **`libcff/cff_parser.rs`: fixed the crash behind the `fuzz` CI job's
+  persistent (advisory, `continue-on-error`) failure on every recent PR --
+  the CFF Type 2 CharString interpreter had no limit on `callsubr`/
+  `callgsubr` recursion depth, and no bounds check on the operand stack
+  (fixed-capacity `Vec<CffValue>`, 65536 slots) before pushing onto it, nor
+  on four operators' (`rcurveline`/`rlinecurve`/`vhcurveto`/`hvcurveto`)
+  unchecked-subtraction operand-count math -- all four are the same root
+  shape (an unsigned subtraction/loop-bound computed without first checking
+  there were enough operands, wrapping to a huge value on malformed input
+  the same way an unsigned integer underflow does in C). None of this was
+  reachable from the migration itself; it's C-inherited (confirmed: the
+  pre-Stage-7-0-a C source had the identical unguarded recursion and
+  identical unguarded subtractions).
+  - **`MAX_SUBR_CALL_DEPTH = 10`** (the Type 2 Charstring spec's own limit)
+    caps `cff_parse_outline`'s recursion; exceeding it logs a warning and
+    stops parsing that outline instead of overflowing the native stack.
+    This alone also resolved the *other*, previously-documented CFF
+    stack-overflow that made `rust/fuzz/README.md` exclude
+    `Cormorant-Medium.otf`/`WorkSans-Regular.otf` from the fuzz seed corpus
+    -- same root cause, confirmed by hand (both now parse cleanly); that
+    exclusion is removed from both the workflow and the fuzz README.
+  - **The operand-stack push sites** (plain operand tokens, `random`,
+    `dup` -- the only three that write before checking capacity) now log a
+    warning and stop parsing that outline if the stack is already full,
+    instead of writing one `CffValue` past the end of its `Vec`.
+  - **`rcurveline`/`rlinecurve`/`vhcurveto`/`hvcurveto`** now check for the
+    minimum operand count (2, 6, and "not exactly 1 leftover coordinate"
+    respectively) before doing arithmetic that assumed it, instead of
+    computing a huge loop bound via unsigned wraparound and walking far
+    past the stack's buffer.
+  - **Found while verifying this fix**: `font/caryll_sfnt.rs:105`
+    (`otfcc_read_packets`) allocates `vec![0u8; length as usize]` for each
+    table using that table's raw, unvalidated declared length -- a small
+    crafted input can request a multi-gigabyte allocation. Predates this
+    PR (and Stage 7-4's file-I/O work) by over a week; not fixed here to
+    keep this PR to one theme. Documented with a reproducer in
+    `rust/fuzz/README.md`'s "Known findings" and
+    `tests/fuzz-corpus/known-issues/otf-parse-table-length-oom.bin` --
+    exactly the class of bug Stage 7-1's planned `FontReader` (checked
+    offsets/lengths before any read or allocation) is meant to close
+    crate-wide.
+  - **Verification**: full pipeline green -- build, 245/245 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged (these
+    fixes only change malformed-input behavior), round-trips 10/10,
+    lookup-alias regression clean, both fuzz targets `cargo check`-clean,
+    `cargo miri test` clean at baseline. Confirmed by hand: the original
+    CI-failing seed (`FDArrayTest257.otf`) and both newly-unexcluded seeds
+    (`Cormorant-Medium.otf`, `WorkSans-Regular.otf`) all parse cleanly
+    now; a 60-second local `cargo fuzz run otf_parse` against the full
+    corpus found no other crash besides the pre-existing, now-documented
+    OOM above.
+
+- **Stage 7-4: the file-I/O item's last two spots -- `bin/otfccbuild.rs`'s
+  `readEntireStdin` and `bin/otfccdump.rs`'s `getchar` -- moved off
+  `libc::fgets`/`fgetc`/`realloc` onto `std::io`, finishing the item
+  `font/caryll_sfnt.rs` and the previous file-I/O PR started.** `fopen`/
+  `fclose`/`fread`/`fwrite`/`fputc`/`fgets`/`fgetc` are now gone from
+  `rust/src` entirely.
+  - **`readEntireStdin`** (feeds `otfccbuild`'s no-input-file/piped-JSON
+    path) used a `malloc`/`realloc`-growing buffer filled by `fgets` in a
+    loop, measuring each chunk with `strlen` -- which stops at the first
+    embedded NUL byte, so any stdin content after one silently vanished
+    from `length` (and thus from the JSON text handed to `json_parse`)
+    instead of erroring or being kept. `Read::read_to_end` copies exactly
+    the bytes it receives with no such assumption, closing that class of
+    bug structurally, the same way `readEntireFile`'s `std::fs::read`
+    closed the short-read class of bug in the previous PR. The out-param
+    stays a `malloc`'d `*mut c_char` for the same reason as
+    `readEntireFile`'s: it's copied out of a `Vec<u8>` into the same
+    `buffer`/`length` locals `readEntireFile` also writes, freed
+    uniformly downstream with `free()`.
+  - **`getchar`** (only used to block on a keypress for
+    `--debug-wait-on-start`) moved from `fgetc(stdin)` to a single-byte
+    `std::io::stdin().read(...)`, keeping its libc `getchar()`-style
+    return convention (the byte read, or `-1` on EOF/error) since nothing
+    about its one call site needed to change.
+  - **No existing script exercises stdin input** (`compare-with-golden.sh`
+    and friends always pass a file path), so this was verified by hand:
+    piping each of the four `tests/payload/*.json` fixtures through
+    `otfccbuild -q -o ... <` and diffing the result against the same
+    fixture built from a path -- byte-identical in all four cases.
+  - **Verification**: full pipeline green -- build, 245/245 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged,
+    round-trips 10/10, lookup-alias regression clean, both fuzz targets
+    `cargo check`-clean, `cargo miri test` clean with no new ignores, plus
+    the by-hand stdin-vs-file byte comparison above.
+
 - **Stage 7-4: the remaining file I/O -- `bin/otfccbuild.rs`'s
   `readEntireFile`, both binaries' output writes, and `logger.rs`'s stderr
   write -- moved off `libc::fopen`/`fread`/`fwrite`/`fclose`/`fputc` onto
