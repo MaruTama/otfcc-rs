@@ -319,7 +319,7 @@ pub unsafe fn cff_compile_glyph_to_il(
 ) -> *mut CffCharstringIl {
     let il: *mut CffCharstringIl =
         Box::into_raw(Box::new(CffCharstringIl { instr: Vec::new() }));
-    let mut temp_contours: *mut Contour;
+    let temp_contours: *mut Contour;
     let mut x: VQ = (vq_neutral)();
     let mut y: VQ = (vq_neutral)();
     temp_contours = __caryll_allocate_clean(
@@ -499,7 +499,6 @@ pub unsafe fn cff_compile_glyph_to_il(
         c_1 = c_1.wrapping_add(1);
     }
     free(temp_contours as *mut ::core::ffi::c_void);
-    temp_contours = ::core::ptr::null_mut::<Contour>();
     return il;
 }
 unsafe fn il_matchtype(

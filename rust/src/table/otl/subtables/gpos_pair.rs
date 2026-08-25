@@ -566,7 +566,7 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
         }
         j_0 = j_0.wrapping_add(1);
     }
-    let mut cov: *mut Coverage = cov_from_cd(first_cd);
+    let cov: *mut Coverage = cov_from_cd(first_cd);
     shrink_coverage(cov, true);
     let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 1 as u32),
@@ -641,7 +641,6 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
         j_1 = j_1.wrapping_add(1);
     }
     otl_coverage_free(cov);
-    cov = ::core::ptr::null_mut::<Coverage>();
     return root;
 }
 pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *mut BkBlock {
@@ -671,7 +670,7 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
         }
         j = j.wrapping_add(1);
     }
-    let mut cov: *mut Coverage = cov_from_cd(first_cd);
+    let cov: *mut Coverage = cov_from_cd(first_cd);
     let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 2 as u32),
         bk_ptr(
@@ -719,7 +718,6 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
         j_0 = j_0.wrapping_add(1);
     }
     otl_coverage_free(cov);
-    cov = ::core::ptr::null_mut::<Coverage>();
     return root;
 }
 pub unsafe extern "C" fn otfcc_build_gpos_pair(

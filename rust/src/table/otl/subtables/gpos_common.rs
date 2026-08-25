@@ -1587,7 +1587,6 @@ pub unsafe fn read_gpos_value(
     }
     if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
         v.d_height = read_16s(data.offset(offset as isize) as *const u8) as Pos;
-        offset = offset.wrapping_add(2 as u32);
     }
     return v;
 }

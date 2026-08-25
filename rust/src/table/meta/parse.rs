@@ -43,14 +43,13 @@ pub unsafe fn parse_meta_data(v: *const ParsedValue) -> Option<Vec<u8>> {
         );
         if !_base64.is_null() {
             let mut str_len: usize = 0 as usize;
-            let mut str: *mut u8 = base64_decode(
+            let str: *mut u8 = base64_decode(
                 json_str_ptr(_base64) as *mut u8,
                 json_str_len(_base64) as usize,
                 &raw mut str_len,
             );
             let s: Vec<u8> = ::core::slice::from_raw_parts(str, str_len).to_vec();
             free(str as *mut ::core::ffi::c_void);
-            str = ::core::ptr::null_mut::<u8>();
             return Some(s);
         }
     }

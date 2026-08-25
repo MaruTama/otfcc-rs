@@ -70,7 +70,7 @@ pub unsafe fn otfcc_new_options() -> *mut Options {
     }
     return options;
 }
-pub unsafe fn otfcc_delete_options(mut options: *mut Options) {
+pub unsafe fn otfcc_delete_options(options: *mut Options) {
     unsafe {
         if !options.is_null() {
             free((*options).glyph_name_prefix as *mut ::core::ffi::c_void);
@@ -94,7 +94,6 @@ pub unsafe fn otfcc_delete_options(mut options: *mut Options) {
         }
         free(options as *mut ::core::ffi::c_void);
     }
-    options = ::core::ptr::null_mut::<Options>();
 }
 pub unsafe fn otfcc_options_optimize_to(options: *mut Options, level: u8) {
     unsafe {

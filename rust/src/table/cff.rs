@@ -775,7 +775,7 @@ pub(crate) unsafe fn callback_draw_sethint(
 pub(crate) unsafe fn callback_draw_setmask(
     mut _context: *mut ::core::ffi::c_void,
     is_contour_mask: bool,
-    mut mask_array: *mut bool,
+    mask_array: *mut bool,
 ) {
     let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     let mask_list: &mut MaskList = if is_contour_mask as ::core::ffi::c_int != 0 {
@@ -813,7 +813,6 @@ pub(crate) unsafe fn callback_draw_setmask(
         j = j.wrapping_add(1);
     }
     free(mask_array as *mut ::core::ffi::c_void);
-    mask_array = ::core::ptr::null_mut::<bool>();
     if !mask_list.is_empty()
         && mask_list[mask_list.len() - 1].contours_before as ::core::ffi::c_int
             == mask.contours_before as ::core::ffi::c_int

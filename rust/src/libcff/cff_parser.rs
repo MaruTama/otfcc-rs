@@ -422,7 +422,7 @@ pub unsafe fn cff_open_stream(
     parse_cff_bytecode(file, options);
     return file;
 }
-pub unsafe fn cff_close(mut file: *mut CffFile) {
+pub unsafe fn cff_close(file: *mut CffFile) {
     if !file.is_null() {
         if !(*file).raw_data.is_null() {
             free((*file).raw_data as *mut ::core::ffi::c_void);
@@ -442,7 +442,6 @@ pub unsafe fn cff_close(mut file: *mut CffFile) {
         (*file).charsets = CffCharset::IsoAdobe;
         (*file).fdselect = CffFdSelect::Unspecified;
         free(file as *mut ::core::ffi::c_void);
-        file = ::core::ptr::null_mut::<CffFile>();
     }
 }
 // No longer `extern "C"`: `&CffFdSelect` has no C spelling. Only called

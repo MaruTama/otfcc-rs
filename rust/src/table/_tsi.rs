@@ -224,8 +224,7 @@ pub unsafe fn otfcc_dump_tsi(
                 if !((*entry_0).type_0 as ::core::ffi::c_uint
                     == TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint)
                 {
-                    let mut extra_key: *mut ::core::ffi::c_char =
-                        ::core::ptr::null_mut::<::core::ffi::c_char>();
+                    let extra_key: *mut ::core::ffi::c_char;
                     match (*entry_0).type_0 as ::core::ffi::c_uint {
                         3 => {
                             extra_key = b"cvt\0" as *const u8 as *const ::core::ffi::c_char

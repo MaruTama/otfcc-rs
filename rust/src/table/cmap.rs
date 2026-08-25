@@ -988,8 +988,8 @@ unsafe fn build_format14_for_selector(
     dflt: *mut Buffer,
     nondflt: *mut Buffer,
 ) -> u8 {
-    let mut defaults: *mut GlyphId;
-    let mut non_defaults: *mut GlyphId;
+    let defaults: *mut GlyphId;
+    let non_defaults: *mut GlyphId;
     defaults = __caryll_allocate_clean(
         (::core::mem::size_of::<GlyphId>() as usize)
             .wrapping_mul(0x110001 as ::core::ffi::c_int as usize),
@@ -1065,9 +1065,7 @@ unsafe fn build_format14_for_selector(
     bufseek(nondflt, 0 as usize);
     bufwrite32b(nondflt, num_uvs_mappings);
     free(defaults as *mut ::core::ffi::c_void);
-    defaults = ::core::ptr::null_mut::<GlyphId>();
     free(non_defaults as *mut ::core::ffi::c_void);
-    non_defaults = ::core::ptr::null_mut::<GlyphId>();
     return ((if num_unicode_value_ranges != 0 {
         HAS_DEFAULT
     } else {

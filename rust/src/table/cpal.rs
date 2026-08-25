@@ -61,7 +61,7 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
     let mut num_palettes: u16;
     let mut num_color_records: u16;
     let mut offset_first_color_record: u32;
-    let mut color_list: *mut CpalColor;
+    let color_list: *mut CpalColor;
     let mut t: Option<Box<CpalTable>>;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -117,7 +117,6 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
                                             as u32,
                                     ))
                                 {
-                                    color_list = ::core::ptr::null_mut::<CpalColor>();
                                     color_list = __caryll_allocate_clean(
                                         (::core::mem::size_of::<CpalColor>() as usize)
                                             .wrapping_mul(num_color_records as usize),
@@ -340,13 +339,11 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
                                         }
                                     }
                                     free(color_list as *mut ::core::ffi::c_void);
-                                    color_list = ::core::ptr::null_mut::<CpalColor>();
                                     return t;
                                 }
                             }
                         }
                     }
-                    t = None;
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }

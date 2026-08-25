@@ -255,7 +255,7 @@ pub unsafe fn try_classify_around(
                 };
                 let subtable_k: *mut ChainingSubtable = mut_subtable_k;
                 let rule: *mut ChainingRule = chaining_rule_mut(subtable_k);
-                let mut allcheck: bool = true;
+                let allcheck: bool = true;
                 let mut m_0: TableId = 0 as TableId;
                 while (m_0 as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
                     let check_0: ::core::ffi::c_int;
@@ -280,7 +280,6 @@ pub unsafe fn try_classify_around(
                         );
                     }
                     if check_0 == 0 {
-                        allcheck = false;
                         break 's_74;
                     } else {
                         m_0 = m_0.wrapping_add(1);
