@@ -1992,6 +1992,14 @@ unsafe fn cff_make_charstrings(
     mut ls: *mut *mut Buffer,
 ) {
     if (*(*context).glyf).is_empty() {
+        // The caller (`writecff_cid_keyed`) initializes `*s`/`*gs`/`*ls` to
+        // null and dereferences them unconditionally right after this call
+        // returns -- with 0 glyphs, `cff_il_graph_to_buffers` below never
+        // runs to fill them in, so they need an explicit (empty, but not
+        // null) `Buffer` here instead of being left null.
+        *s = bufnew();
+        *gs = bufnew();
+        *ls = bufnew();
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
@@ -2427,6 +2435,16 @@ unsafe fn writecff_cid_keyed(
     mut glyf: *mut GlyfTable,
     mut options: &Options,
 ) -> *mut Buffer {
+    // `glyf` is null when the font has a `CFF_` table but no `glyf` table
+    // at all (e.g. `{"CFF_": {}}`) -- every function below this point
+    // dereferences it unconditionally, assuming a present-but-possibly-
+    // empty `GlyfTable`. None of them mutate its length or write through
+    // it, only read glyph data to emit CFF bytes, so a local empty stand-
+    // in is exactly equivalent to "0 glyphs" for all of them.
+    let mut empty_glyf: GlyfTable = Vec::new();
+    if glyf.is_null() {
+        glyf = &raw mut empty_glyf;
+    }
     let mut blob: *mut Buffer = bufnew();
     let mut string_hash: indexmap::IndexMap<Vec<u8>, Vec<u8>> = indexmap::IndexMap::new();
     let mut h: *mut Buffer = cff_build_header();

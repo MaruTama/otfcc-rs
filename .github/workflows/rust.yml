@@ -158,7 +158,14 @@ jobs:
           cd rust/fuzz
           cargo fuzz run json_build -- -max_total_time=60
 
-      - name: Confirm the known findings still reproduce
+      # Both crash inputs below are now *fixed* bugs (see
+      # rust/fuzz/README.md's "Known findings" -- the null-glyf and
+      # advance-width-overflow entries), so this step now expects both
+      # commands to exit 0: a plain regression test pinning "these two
+      # specific inputs must not start crashing again," not (as its name
+      # used to promise back when they were still open bugs) a check that
+      # they still do.
+      - name: Regression-test the fixed findings
         run: |
           cd rust/fuzz
           cargo fuzz run json_build ../../tests/fuzz-corpus/known-issues/json-build-cff-charset-null-glyf.bin

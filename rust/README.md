@@ -932,6 +932,54 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`table/cff.rs`/`libcff/charstring_il.rs`: fixed both of the two
+  `json_build` bugs `rust/fuzz/README.md`'s "Known findings" had documented
+  as deliberately deferred to Stage 7-1/7-3.** Found while confirming the
+  CFF-recursion and leak fixes below actually turned the `fuzz` job green
+  -- they didn't either, and the reason had nothing to do with either fix:
+  the `fuzz` job's "Confirm the known findings still reproduce" step runs
+  `cargo fuzz run` against these two bugs' minimized inputs and *expects*
+  them to crash (that's what "still reproduce" verified) -- so `fuzz` had
+  been showing failed on every PR since Stage 7-0-c introduced this
+  infrastructure, regardless of whether `otf_parse`/`json_build`'s own
+  exploratory runs (the only steps actually able to catch a *new*
+  regression) were clean.
+  - **`{"CFF_": {}}` (no `glyf` table at all) null-pointer-dereferenced**
+    in `table/cff.rs`: `cff_make_charset`, `cff_make_fdselect`, and
+    `cff_make_charstrings` all took the same `glyf: *mut GlyfTable` and
+    dereferenced it unconditionally. All three share one caller,
+    `writecff_cid_keyed` (`otfcc_build_cff`'s only path), so the null
+    check moved there instead of being duplicated three times -- a null
+    `glyf` is substituted with a local empty `GlyfTable` before any of the
+    three run. That alone still panicked one level further in:
+    `cff_make_charstrings`'s own "0 glyphs" early return left its three
+    `*mut Buffer` out-params (`s`/`gs`/`ls`) at the null the caller
+    pre-initializes them to, and the caller dereferences all three right
+    after the call returns regardless -- fixed by having that early
+    return populate them with empty (not null) `Buffer`s instead.
+  - **An absurd JSON `advanceWidth` panicked** in
+    `libcff/charstring_il.rs`: `glyph_adw_const as c_int` already
+    saturates a huge-magnitude `f64` to `i32::MIN`/`MAX` rather than
+    wrapping (correct, checked Rust behavior on its own), but the
+    subsequent plain `-` against `nominal_width` could still underflow
+    past `i32::MIN`. Switched to `saturating_sub`, so the extreme case
+    clamps instead of panicking (under debug-assertions) or silently
+    wrapping to a nonsensical advance-width delta (an ordinary release
+    build's quieter version of the same bug).
+  - **`.github/workflows/rust.yml`**: with both bugs fixed, that step's two
+    `cargo fuzz run` commands now exit 0 -- renamed to "Regression-test the
+    fixed findings" and repurposed as a plain positive regression test
+    (these two specific inputs must not start crashing again), rather than
+    a check that they still do.
+  - **Verification**: full pipeline green -- build, 245/245 tests, clippy
+    clean, ABI unchanged, golden bytes and log output unchanged, round-
+    trips 10/10, lookup-alias regression clean, both fuzz targets `cargo
+    check`-clean, `cargo miri test` clean at baseline. Both minimized
+    reproducers confirmed exit 0 locally; a 60-second local `cargo fuzz
+    run` against each target's full corpus afterward found nothing else
+    new (`otf_parse` still reproduces the already-documented, still-open
+    `caryll_sfnt.rs:105` OOM finding, unrelated to any of this).
+
 - **`table/cff.rs`: fixed a real leak in `callback_makefd`** (CID-keyed CFF
   FDArray compilation), found while confirming the CFF-recursion fix above
   actually turned the `fuzz` job green -- it didn't, a second, unrelated

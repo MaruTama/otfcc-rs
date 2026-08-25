@@ -60,30 +60,33 @@ infrastructure setup) — but they're documented here and reproducible from
 `tests/fuzz-corpus/known-issues/` so Stage 7-1/7-3 has a concrete starting
 point instead of having to rediscover them:
 
-- **`tests/fuzz-corpus/known-issues/json-build-cff-charset-null-glyf.bin`**
-  (13 bytes, `{"CFF_": {}}`) — `table/cff.rs:2302`, `cff_make_charset`
-  dereferences `glyf: *mut GlyfTable` without checking it for null.
-  `"CFF_"` present with no corresponding glyph data reaches this with a null
-  `glyf` pointer. Under this fuzz build's `-C debug-assertions` (which
-  enables Rust's newer null/alignment checks on raw-pointer-to-reference
-  conversions), this panics with "null reference produced"; in an ordinary
-  `cargo build --release` (no debug-assertions), the same input is a real
-  null-pointer dereference — undefined behavior, not just a panic.
-  Reproduce: `cargo fuzz run json_build ../../tests/fuzz-corpus/known-issues/json-build-cff-charset-null-glyf.bin`
+- ~~`tests/fuzz-corpus/known-issues/json-build-cff-charset-null-glyf.bin`
+  (13 bytes, `{"CFF_": {}}`) — `table/cff.rs`'s `cff_make_charset` (and, one
+  level up, `cff_make_fdselect` and `cff_make_charstrings`) dereferenced
+  `glyf: *mut GlyfTable` without checking it for null~~ — **fixed**: all
+  three shared one caller, `writecff_cid_keyed` (`otfcc_build_cff`'s only
+  path), so the null check moved there instead of being duplicated three
+  times — a null `glyf` is now substituted with a local empty `GlyfTable`
+  before any of the three run. Fixing that alone still panicked one level
+  further in: `cff_make_charstrings`'s own "0 glyphs" early return left its
+  three `*mut Buffer` out-params (`s`/`gs`/`ls`) at the null the caller
+  pre-initialized them to, and the caller dereferences all three
+  unconditionally right after the call returns — fixed by having that
+  early return populate them with empty (not null) `Buffer`s instead.
 
-- **`tests/fuzz-corpus/known-issues/json-build-advance-width-subtract-overflow.bin`**
+- ~~`tests/fuzz-corpus/known-issues/json-build-advance-width-subtract-overflow.bin`
   (a `cid-fdselect-test.json`-derived payload with an absurd `advanceWidth`,
-  e.g. `50188...` repeated to ~90 digits) — `libcff/charstring_il.rs:405`,
-  `glyph_adw_const as c_int - nominal_width as c_int` panics with "attempt
-  to subtract with overflow". `glyph_adw_const` is an `f64` from
-  attacker-controlled JSON; casting a huge float `as c_int` *saturates* to
-  `i32::MAX` (this is correct, checked Rust behavior, not a bug on its own),
-  but the subsequent subtraction against `nominal_width` can then itself
-  overflow `i32`. This specific panic only fires under debug-assertions (a
-  plain `--release` build would silently wrap, producing a nonsensically
-  wrapped advance-width delta in the built font instead of crashing) — a
-  second, quieter bug hiding behind the loud one.
-  Reproduce: `cargo fuzz run json_build ../../tests/fuzz-corpus/known-issues/json-build-advance-width-subtract-overflow.bin`
+  e.g. `50188...` repeated to ~90 digits) — `libcff/charstring_il.rs`,
+  `glyph_adw_const as c_int - nominal_width as c_int` panicked with
+  "attempt to subtract with overflow"~~ — **fixed**: `glyph_adw_const as
+  c_int` already saturates a huge-magnitude `f64` to `i32::MIN`/`MAX`
+  rather than wrapping (correct, checked Rust behavior on its own), but the
+  subsequent plain `-` could still underflow past `i32::MIN` once
+  `nominal_width` was subtracted from a saturated `i32::MIN`. Switched to
+  `saturating_sub`, so the extreme case clamps instead of panicking (under
+  debug-assertions) or silently wrapping to a nonsensical advance-width
+  delta (in an ordinary release build, the quieter bug that was hiding
+  behind the loud one).
 
 - **`otf_parse` leaks 478 bytes across 9 allocations on `tests/payload/gvar-test.ttf`** —
   a real, valid, already-extensively-tested payload, not a malformed or
