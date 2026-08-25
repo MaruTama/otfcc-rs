@@ -932,6 +932,83 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`getopt_long`'s libc FFI dependency is gone -- Stage 7-4's last named
+  item.** `support/getopt.rs` held only an FFI mirror of libc's `struct
+  option` (`LongOption`); the actual `getopt_long` symbol was reached
+  through a raw `unsafe extern "C"` block in each binary, which was already
+  a lie about portability -- `libc` declares `getopt_long` for the BSDs,
+  Apple, Solaris, Android and Hurd, but **not** for
+  `*-unknown-linux-gnu`, this crate's own CI target. Replaced with a
+  hand-rolled, `std::env::args`-based parser reimplementing the two
+  behaviors that made `getopt_long` worth having over a plain positional
+  scan: permuting recognized options in front of positional arguments
+  regardless of where either appears in argv, and matching an unambiguous
+  prefix of a long option's name. Deliberately narrower than the real
+  thing (no `-W longopt`, no `optstring` `+`/`-` mode switches, no
+  `POSIXLY_CORRECT`) -- neither binary used any of those, and glibc's own
+  docs call them rare corners even in C code.
+  - **Tests came first, on purpose.** The plan flagged that the existing
+    suite pinned neither GNU getopt's argv permutation nor long-option
+    abbreviation -- only the `-O2` concatenated form. `support/getopt.rs`'s
+    14 unit tests (permutation, unambiguous-prefix match, exact-match-wins-
+    even-as-a-prefix, ambiguous-prefix reporting, long/short required-arg
+    handling both attached and separate, bundled short flags, a
+    value-taking short mid-bundle consuming the rest of its token, `--`
+    ending option parsing, unknown long/short options, missing required
+    arguments, and a lone `-` as positional) were written and passing
+    against the new parser before either binary was touched.
+  - **A platform-specific quirk, deliberately not reproduced**: empirically,
+    macOS's system `getopt_long` silently drops an ambiguous long-option
+    prefix (e.g. `--merge-`, matching both `--merge-lookups` and
+    `--merge-features`) instead of erroring -- a real divergence from
+    documented glibc/GNU behavior. Implemented the standard glibc semantics
+    (hard, reported ambiguity) instead, since this crate's CI runs both
+    platforms and an undocumented macOS-only quirk isn't a contract worth
+    porting.
+  - **A genuine pre-existing bug, fixed as a side effect of the redesign**:
+    `otfccbuild.rs`'s `--dont-ignore-glyph-order` was registered in
+    `longopts` and documented in `printHelp()` as a synonym for
+    `--keep-glyph-order`, but the old `strcmp` chain checked for the wrong
+    string (`"dont-keep-glyph-order"`, never actually registered under that
+    spelling) -- so the documented flag silently no-op'd. The new dispatch
+    design gives every option a unique `i32` match value directly (no more
+    `option_index` indirection into `longopts`, since there's no C-side
+    `flag`/`val` split left to mirror once this isn't crossing an FFI
+    boundary), so `--dont-ignore-glyph-order` and `--keep-glyph-order` now
+    share one value by construction -- there is no string left to typo.
+  - **A deliberate, documented behavior change**: both binaries' `main()`
+    now build argv via `std::env::args()` (`String`, panics on non-UTF-8)
+    instead of the old `CString`-per-arg conversion, which was already
+    panic-on-non-UTF-8 in practice (`CString::new(arg).expect(...)`) --
+    so this is a no-op in practice, just one less manual conversion layer.
+    Argument values consumed by an option (`-o`, `--optimize`,
+    `--glyph-name-prefix`, `--ttc-index`) go through the same
+    `CString::new(...).expect(...)` panic-on-embedded-NUL path the rest of
+    this migration already uses for CLI strings.
+  - **Verification**: full pipeline green -- build and clippy clean at `-D
+    warnings`, 261/261 tests (247 prior + 14 new getopt unit tests), ABI
+    unchanged, golden bytes and log output unchanged, cycles/lookup-alias/
+    10-payload round-trips all clean, both fuzz targets `cargo check`-clean,
+    `cargo miri test` clean (239 passed, 0 failed, 22 ignored, matching
+    baseline + the 14 new tests). Golden coverage only exercises the
+    concatenated/single-spelling flag forms already in use, so argv
+    permutation, prefix abbreviation, the `--dont-ignore-glyph-order` fix,
+    and the ambiguous/unknown/missing-argument diagnostics were additionally
+    checked empirically against both built binaries with real payloads
+    (`tests/payload/iosevka-r.json`/`.ttf`) -- permuted and non-permuted
+    invocations byte-identical, `--dont-ignore-glyph-order` output
+    byte-identical to `--keep-glyph-order`, prefix abbreviations
+    byte-identical to full spellings. `survey-unsafe.sh` deltas (measured
+    against this branch's parent, `e34a73f5`): raw pointer types
+    5528->5352, `is_null()` calls 363->361, `as ::core::ffi::c_int` casts
+    5037->4957 -- `support/getopt.rs`'s old `#[repr(C)]` `LongOption`
+    array-literal boilerplate (46 struct literals across both binaries'
+    `longopts` tables, each with a `flag: null_mut()` and 1-2 `as
+    *const c_char`/`as c_int` casts) accounted for most of it. `unsafe fn`
+    count is unchanged (889) -- `main_0` and the option-parsing code were
+    already `unsafe fn`/inside `unsafe` blocks before this PR, for reasons
+    unrelated to `getopt_long` itself (raw `Options`/`Logger` pointers).
+
 - **`lib.rs`'s three crate-root `#![allow(dead_code, unused_assignments,
   unused_mut)]` are gone -- the last item Stage 7-4 named, scoped to be
   done last since "most of it should fall out naturally from the earlier
