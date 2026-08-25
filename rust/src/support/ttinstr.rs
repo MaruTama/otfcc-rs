@@ -323,8 +323,8 @@ unsafe fn strnmatch(
     mut str2: *const ::core::ffi::c_char,
     mut n: ::core::ffi::c_int,
 ) -> ::core::ffi::c_int {
-    let mut ch1: ::core::ffi::c_int = 0;
-    let mut ch2: ::core::ffi::c_int = 0;
+    let mut ch1: ::core::ffi::c_int;
+    let mut ch2: ::core::ffi::c_int;
     loop {
         let fresh19 = n;
         n = n - 1;
@@ -346,9 +346,9 @@ unsafe fn strnmatch(
     return 0 as ::core::ffi::c_int;
 }
 unsafe fn parse_instrs(
-    mut text: *mut ::core::ffi::c_char,
-    mut context: *mut ::core::ffi::c_void,
-    mut iv_error: Option<
+    text: *mut ::core::ffi::c_char,
+    context: *mut ::core::ffi::c_void,
+    iv_error: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
             *mut ::core::ffi::c_char,
@@ -357,17 +357,17 @@ unsafe fn parse_instrs(
     >,
 ) -> Option<Vec<u8>> {
     let mut numberstack: [::core::ffi::c_short; 256] = [0; 256];
-    let mut npos: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut nread: ::core::ffi::c_int = 0;
-    let mut i: ::core::ffi::c_int = 0;
+    let mut npos: ::core::ffi::c_int;
+    let mut nread: ::core::ffi::c_int;
+    let mut i: ::core::ffi::c_int;
     let mut push_left: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut push_size: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut pt: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
+    let mut pt: *mut ::core::ffi::c_char;
     let mut end: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut bend: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut brack: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut imax: ::core::ffi::c_int = strlen(text) as ::core::ffi::c_int;
-    let mut val: ::core::ffi::c_int = 0;
+    let mut brack: *mut ::core::ffi::c_char;
+    let imax: ::core::ffi::c_int = strlen(text) as ::core::ffi::c_int;
+    let mut val: ::core::ffi::c_int;
     let mut instrs: Vec<u8> = Vec::with_capacity(imax as usize);
     pt = text;
     while *pt != 0 {
@@ -685,13 +685,13 @@ unsafe fn parse_instrs(
     }
     Some(instrs)
 }
-unsafe fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int {
-    let mut i: ::core::ffi::c_int = 0;
-    let mut len: ::core::ffi::c_int = (*id).instr_cnt as ::core::ffi::c_int;
-    let mut cnt: ::core::ffi::c_int = 0;
-    let mut j: ::core::ffi::c_int = 0;
-    let mut lh: ::core::ffi::c_int = 0;
-    let mut instrs: *mut u8 = (*id).instrs;
+unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
+    let mut i: ::core::ffi::c_int;
+    let len: ::core::ffi::c_int = (*id).instr_cnt as ::core::ffi::c_int;
+    let mut cnt: ::core::ffi::c_int;
+    let mut j: ::core::ffi::c_int;
+    let mut lh: ::core::ffi::c_int;
+    let instrs: *mut u8 = (*id).instrs;
     if (*id).bts.is_empty() {
         (*id).bts = vec![ByteType::Instr; (len + 1 as ::core::ffi::c_int) as usize];
     }
@@ -759,9 +759,9 @@ unsafe fn instr_typify(mut id: *mut InstrData) -> ::core::ffi::c_int {
     return lh;
 }
 pub unsafe fn dump_ttinstr(
-    mut instructions: *mut u8,
-    mut length: u32,
-    mut options: &Options,
+    instructions: *mut u8,
+    length: u32,
+    options: &Options,
 ) -> *mut BuiltValue {
     if options.instr_as_bytes {
         let mut len: usize = 0 as usize;
@@ -783,7 +783,7 @@ pub unsafe fn dump_ttinstr(
         id.instr_cnt = length;
         id.instrs = instructions;
         instr_typify(&raw mut id);
-        let mut ret: *mut BuiltValue = json_array_new(id.instr_cnt as usize);
+        let ret: *mut BuiltValue = json_array_new(id.instr_cnt as usize);
         let mut i: u32 = 0 as u32;
         while i < id.instr_cnt {
             if id.bts[i as usize] == ByteType::WordHi {
@@ -813,10 +813,10 @@ pub unsafe fn dump_ttinstr(
     };
 }
 pub unsafe fn parse_ttinstr(
-    mut col: *const ParsedValue,
-    mut context: *mut ::core::ffi::c_void,
-    mut make: Option<unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()>,
-    mut wrong: Option<
+    col: *const ParsedValue,
+    context: *mut ::core::ffi::c_void,
+    make: Option<unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()>,
+    wrong: Option<
         unsafe extern "C" fn(
             *mut ::core::ffi::c_void,
             *mut ::core::ffi::c_char,
@@ -851,7 +851,7 @@ pub unsafe fn parse_ttinstr(
         let mut istrlen: usize = 0 as usize;
         let mut j: u32 = 0 as u32;
         while j < json_arr_len(col) {
-            let mut record: *const ParsedValue = json_arr_at(col, j as u32);
+            let record: *const ParsedValue = json_arr_at(col, j as u32);
             if json_type_of(record) == JsonType::String {
                 istrlen = istrlen.wrapping_add(
                     json_str_len(record).wrapping_add(1 as ::core::ffi::c_uint) as usize,
@@ -876,7 +876,7 @@ pub unsafe fn parse_ttinstr(
             instr_string.as_mut_ptr() as *mut ::core::ffi::c_char;
         let mut j_0: u32 = 0 as u32;
         while j_0 < json_arr_len(col) {
-            let mut record_0: *const ParsedValue = json_arr_at(col, j_0 as u32);
+            let record_0: *const ParsedValue = json_arr_at(col, j_0 as u32);
             if json_type_of(record_0) == JsonType::String {
                 memcpy(
                     head as *mut ::core::ffi::c_void,
@@ -886,7 +886,7 @@ pub unsafe fn parse_ttinstr(
                 );
                 head = head.offset(json_str_len(record_0) as isize);
             } else if json_type_of(record_0) == JsonType::Integer {
-                let mut n: ::core::ffi::c_int = snprintf(
+                let n: ::core::ffi::c_int = snprintf(
                     head,
                     20 as usize,
                     b"%d\0" as *const u8 as *const ::core::ffi::c_char,

@@ -58,7 +58,7 @@ pub unsafe fn otfcc_read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
     Some(unwrap_class_def(tsi5))
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, mut root: *mut BuiltValue) {
+pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: *mut BuiltValue) {
     let table = match table {
         Some(t) => t as *const Tsi5Table,
         None => return,
@@ -69,7 +69,7 @@ pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, mut root: *mut BuiltVal
         dump_class_def(table as *const ClassDef),
     );
 }
-pub unsafe fn otfcc_parse_tsi5(mut root: *const ParsedValue) -> Option<Box<Tsi5Table>> {
+pub unsafe fn otfcc_parse_tsi5(root: *const ParsedValue) -> Option<Box<Tsi5Table>> {
     let mut _tsi: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
     _tsi = json_obj_get_type(
         root,
@@ -86,7 +86,7 @@ pub unsafe fn otfcc_parse_tsi5(mut root: *const ParsedValue) -> Option<Box<Tsi5T
     return Some(unwrap_class_def(raw as *mut ClassDef));
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, mut num_glyphs: GlyphId) -> *mut Buffer {
+pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> *mut Buffer {
     let tsi5 = match tsi5 {
         Some(t) => t as *const Tsi5Table,
         None => return ::core::ptr::null_mut::<Buffer>(),
@@ -102,7 +102,7 @@ pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, mut num_glyphs: GlyphId
         }
         j = j.wrapping_add(1);
     }
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int {
         bufwrite16b(buf, tsi5cls[j_0 as usize]);

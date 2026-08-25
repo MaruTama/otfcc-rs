@@ -112,7 +112,7 @@ static MAC_STYLE_LABELS: [&::core::ffi::CStr; 7] = [
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_head(
     table: Option<&HeadTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -125,7 +125,7 @@ pub unsafe fn otfcc_dump_head(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut head: *mut BuiltValue = json_object_new(15 as usize);
+        let head: *mut BuiltValue = json_object_new(15 as usize);
         json_object_push(
             head,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -211,7 +211,7 @@ pub unsafe fn otfcc_dump_head(
     }
 }
 pub unsafe fn otfcc_parse_head(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<HeadTable>> {
     // Reproduces `init_head`'s two non-zero defaults exactly:
@@ -224,7 +224,7 @@ pub unsafe fn otfcc_parse_head(
     head_val.units_per_em = 1000 as u16;
     let mut head_box: Box<HeadTable> = Box::new(head_val);
     let head: *mut HeadTable = head_box.as_mut() as *mut HeadTable;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"head\0" as *const u8 as *const ::core::ffi::c_char,
@@ -325,7 +325,7 @@ pub unsafe fn otfcc_build_head(head: Option<&HeadTable>) -> *mut Buffer {
         Some(h) => h as *const HeadTable,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*head).version as u32);
     bufwrite32b(buf, (*head).font_revision);
     bufwrite32b(buf, (*head).check_sum_adjustment);

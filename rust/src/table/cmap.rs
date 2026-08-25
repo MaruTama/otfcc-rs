@@ -89,9 +89,9 @@ unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
     ) as ::core::ffi::c_int;
 }
 pub unsafe fn otfcc_encode_cmap_by_index(
-    mut cmap: *mut CmapTable,
-    mut c: ::core::ffi::c_int,
-    mut gid: u16,
+    cmap: *mut CmapTable,
+    c: ::core::ffi::c_int,
+    gid: u16,
 ) -> bool {
     match (*cmap).unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
@@ -112,9 +112,9 @@ pub unsafe fn otfcc_encode_cmap_by_index(
 // as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_encode_cmap_by_name(
-    mut cmap: *mut CmapTable,
-    mut c: ::core::ffi::c_int,
-    mut name: Vec<u8>,
+    cmap: *mut CmapTable,
+    c: ::core::ffi::c_int,
+    name: Vec<u8>,
 ) -> bool {
     match (*cmap).unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
@@ -124,15 +124,15 @@ pub unsafe fn otfcc_encode_cmap_by_name(
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-pub unsafe fn otfcc_unmap_cmap(mut cmap: *mut CmapTable, mut c: ::core::ffi::c_int) -> bool {
+pub unsafe fn otfcc_unmap_cmap(cmap: *mut CmapTable, c: ::core::ffi::c_int) -> bool {
     // Removing the entry drops its `GlyphHandle` (freeing the glyph
     // name), replacing the explicit `otfcc_handle_dispose` + manual
     // node walk this walk used to do.
     (*cmap).unicodes.remove(&c).is_some()
 }
 pub unsafe fn otfcc_cmap_lookup(
-    mut cmap: *const CmapTable,
-    mut c: ::core::ffi::c_int,
+    cmap: *const CmapTable,
+    c: ::core::ffi::c_int,
 ) -> *mut GlyphHandle {
     // `cmap` is `*const` but the original returned a mutable-looking
     // pointer into the same hash node regardless -- raw-pointer
@@ -144,9 +144,9 @@ pub unsafe fn otfcc_cmap_lookup(
     }
 }
 pub unsafe fn otfcc_encode_cmap_uvs_by_index(
-    mut cmap: *mut CmapTable,
-    mut c: CmapUvsKey,
-    mut gid: u16,
+    cmap: *mut CmapTable,
+    c: CmapUvsKey,
+    gid: u16,
 ) -> bool {
     match (*cmap).uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
@@ -160,9 +160,9 @@ pub unsafe fn otfcc_encode_cmap_uvs_by_index(
 // reason.
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_encode_cmap_uvs_by_name(
-    mut cmap: *mut CmapTable,
-    mut c: CmapUvsKey,
-    mut name: Vec<u8>,
+    cmap: *mut CmapTable,
+    c: CmapUvsKey,
+    name: Vec<u8>,
 ) -> bool {
     match (*cmap).uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
@@ -172,12 +172,12 @@ pub unsafe fn otfcc_encode_cmap_uvs_by_name(
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-pub unsafe fn otfcc_unmap_cmap_uvs(mut cmap: *mut CmapTable, mut c: CmapUvsKey) -> bool {
+pub unsafe fn otfcc_unmap_cmap_uvs(cmap: *mut CmapTable, c: CmapUvsKey) -> bool {
     (*cmap).uvs.remove(&c).is_some()
 }
 pub unsafe fn otfcc_cmap_lookup_uvs(
-    mut cmap: *const CmapTable,
-    mut c: CmapUvsKey,
+    cmap: *const CmapTable,
+    c: CmapUvsKey,
 ) -> *mut GlyphHandle {
     match (*cmap).uvs.get(&c) {
         Some(glyph) => glyph as *const GlyphHandle as *mut GlyphHandle,
@@ -528,7 +528,7 @@ pub unsafe fn otfcc_read_cmap(packet: &Packet, options: &Options) -> Option<Box<
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_cmap(
     table: Option<&CmapTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -542,7 +542,7 @@ pub unsafe fn otfcc_dump_cmap(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         if !(*table).unicodes.is_empty() {
-            let mut cmap: *mut BuiltValue = json_object_new((*table).unicodes.len());
+            let cmap: *mut BuiltValue = json_object_new((*table).unicodes.len());
             for (&unicode, glyph) in (*table).unicodes.iter() {
                 if !glyph.name.is_empty() {
                     let key: Vec<u8> = if options.decimal_cmap {
@@ -560,7 +560,7 @@ pub unsafe fn otfcc_dump_cmap(
             );
         }
         if !(*table).uvs.is_empty() {
-            let mut uvs: *mut BuiltValue = json_object_new((*table).uvs.len());
+            let uvs: *mut BuiltValue = json_object_new((*table).uvs.len());
             for (key, glyph) in (*table).uvs.iter() {
                 if !glyph.name.is_empty() {
                     let key_0: Vec<u8> = if options.decimal_cmap {
@@ -612,8 +612,8 @@ unsafe fn parse_unicode(unicode_str: *const ::core::ffi::c_char) -> Unicode {
     };
 }
 unsafe fn parse_cmap_unicodes(
-    mut cmap: *mut CmapTable,
-    mut table: *const ParsedValue,
+    cmap: *mut CmapTable,
+    table: *const ParsedValue,
     options: &Options,
 ) {
     if table.is_null() || json_type_of(table) != JsonType::Object {
@@ -621,15 +621,15 @@ unsafe fn parse_cmap_unicodes(
     }
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(table) as u32 {
-        let mut item: *const ParsedValue = json_obj_val_at(table, j as u32);
-        let mut unicode: Unicode = parse_unicode(json_obj_key_at(table, j as u32));
+        let item: *const ParsedValue = json_obj_val_at(table, j as u32);
+        let unicode: Unicode = parse_unicode(json_obj_key_at(table, j as u32));
         if json_type_of(item) == JsonType::String
             && unicode > 0 as Unicode
             && unicode <= 0x10ffff as Unicode
         {
             let gname: Vec<u8> = json_str_bytes(item);
             if !otfcc_encode_cmap_by_name(cmap, unicode as ::core::ffi::c_int, gname.clone()) {
-                let mut current_map: *mut GlyphHandle =
+                let current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup(cmap, unicode as ::core::ffi::c_int) as *mut GlyphHandle;
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
@@ -653,7 +653,7 @@ unsafe fn parse_cmap_unicodes(
 // Same borrow-`json_obj_key_at`-directly reasoning as `parse_unicode`.
 #[inline]
 unsafe fn parse_uvs_key(uvs_str: *const ::core::ffi::c_char) -> CmapUvsKey {
-    let mut len: usize = strlen(uvs_str);
+    let len: usize = strlen(uvs_str);
     let mut k: CmapUvsKey = CmapUvsKey {
         unicode: 0 as u32,
         selector: 0 as u32,
@@ -670,8 +670,8 @@ unsafe fn parse_uvs_key(uvs_str: *const ::core::ffi::c_char) -> CmapUvsKey {
     return k;
 }
 unsafe fn parse_cmap_uvs(
-    mut cmap: *mut CmapTable,
-    mut table: *const ParsedValue,
+    cmap: *mut CmapTable,
+    table: *const ParsedValue,
     options: &Options,
 ) {
     if table.is_null() || json_type_of(table) != JsonType::Object {
@@ -679,8 +679,8 @@ unsafe fn parse_cmap_uvs(
     }
     let mut j: u32 = 0 as u32;
     while j < json_obj_len(table) as u32 {
-        let mut k: CmapUvsKey = parse_uvs_key(json_obj_key_at(table, j as u32));
-        let mut item: *const ParsedValue = json_obj_val_at(table, j as u32);
+        let k: CmapUvsKey = parse_uvs_key(json_obj_key_at(table, j as u32));
+        let item: *const ParsedValue = json_obj_val_at(table, j as u32);
         if json_type_of(item) == JsonType::String
             && k.unicode > 0 as u32
             && k.unicode <= 0x10ffff as u32
@@ -689,7 +689,7 @@ unsafe fn parse_cmap_uvs(
         {
             let gname: Vec<u8> = json_str_bytes(item);
             if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname.clone()) {
-                let mut current_map: *mut GlyphHandle =
+                let current_map: *mut GlyphHandle =
                     otfcc_cmap_lookup_uvs(cmap, k) as *mut GlyphHandle;
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
@@ -713,7 +713,7 @@ unsafe fn parse_cmap_uvs(
     }
 }
 pub unsafe fn otfcc_parse_cmap(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<CmapTable>> {
     if json_type_of(root) != JsonType::Object {
@@ -762,13 +762,13 @@ pub unsafe fn otfcc_parse_cmap(
     }
     return Some(cmap_box);
 }
-unsafe fn otfcc_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
-    let mut buf: *mut Buffer = bufnew();
-    let mut end_count: *mut Buffer = bufnew();
-    let mut start_count: *mut Buffer = bufnew();
-    let mut id_delta: *mut Buffer = bufnew();
-    let mut id_range_offset: *mut Buffer = bufnew();
-    let mut glyph_id_array: *mut Buffer = bufnew();
+unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
+    let buf: *mut Buffer = bufnew();
+    let end_count: *mut Buffer = bufnew();
+    let start_count: *mut Buffer = bufnew();
+    let id_delta: *mut Buffer = bufnew();
+    let id_range_offset: *mut Buffer = bufnew();
+    let glyph_id_array: *mut Buffer = bufnew();
     let mut started: bool = false;
     let mut last_unicode_start: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
     let mut last_unicode_end: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
@@ -877,8 +877,8 @@ unsafe fn otfcc_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
         buf,
         ((segments_count as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as u16,
     );
-    let mut i: u32 = 0;
-    let mut j_1: u32 = 0;
+    let mut i: u32;
+    let mut j_1: u32;
     j_1 = 0 as u32;
     i = 1 as u32;
     while i <= segments_count as u32 {
@@ -907,8 +907,8 @@ unsafe fn otfcc_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
     buffree(glyph_id_array);
     return buf;
 }
-unsafe fn otfcc_try_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffer {
-    let mut buf: *mut Buffer = otfcc_build_cmap_format4(cmap);
+unsafe fn otfcc_try_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
+    let buf: *mut Buffer = otfcc_build_cmap_format4(cmap);
     if buflen(buf) > UINT16_MAX as usize {
         buffree(buf);
         return ::core::ptr::null_mut::<Buffer>();
@@ -916,8 +916,8 @@ unsafe fn otfcc_try_build_cmap_format4(mut cmap: *const CmapTable) -> *mut Buffe
         return buf;
     };
 }
-unsafe fn otfcc_build_cmap_format12(mut cmap: *const CmapTable) -> *mut Buffer {
-    let mut buf: *mut Buffer = bufnew();
+unsafe fn otfcc_build_cmap_format12(cmap: *const CmapTable) -> *mut Buffer {
+    let buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 12 as u16);
     bufwrite16b(buf, 0 as u16);
     bufwrite32b(buf, 0 as u32);
@@ -967,10 +967,10 @@ pub const HAS_DEFAULT: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
 pub const HAS_NON_DEFAULT: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
 #[inline]
 unsafe fn write_default_range(
-    mut dflt: *mut Buffer,
-    mut n_ranges: *mut u32,
+    dflt: *mut Buffer,
+    n_ranges: *mut u32,
     mut start: Unicode,
-    mut end: Unicode,
+    end: Unicode,
 ) {
     while end.wrapping_sub(start) > 0xff as Unicode {
         bufwrite24b(dflt, start as u32);
@@ -983,13 +983,13 @@ unsafe fn write_default_range(
     *n_ranges = (*n_ranges).wrapping_add(1 as u32);
 }
 unsafe fn build_format14_for_selector(
-    mut cmap: *const CmapTable,
-    mut selector: Unicode,
-    mut dflt: *mut Buffer,
-    mut nondflt: *mut Buffer,
+    cmap: *const CmapTable,
+    selector: Unicode,
+    dflt: *mut Buffer,
+    nondflt: *mut Buffer,
 ) -> u8 {
-    let mut defaults: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
-    let mut non_defaults: *mut GlyphId = ::core::ptr::null_mut::<GlyphId>();
+    let defaults: *mut GlyphId;
+    let non_defaults: *mut GlyphId;
     defaults = __caryll_allocate_clean(
         (::core::mem::size_of::<GlyphId>() as usize)
             .wrapping_mul(0x110001 as ::core::ffi::c_int as usize),
@@ -1007,11 +1007,11 @@ unsafe fn build_format14_for_selector(
         s = s.wrapping_add(1);
     }
     for (key, glyph) in (*cmap).uvs.iter() {
-        let mut u: Unicode = key.unicode as Unicode;
+        let u: Unicode = key.unicode as Unicode;
         if !(key.selector != selector || u >= MAX_UNICODE as Unicode) {
             if !glyph.name.is_empty() {
-                let mut uvs_gid: GlyphId = glyph.index;
-                let mut g: *mut GlyphHandle = otfcc_cmap_lookup(cmap, u as ::core::ffi::c_int);
+                let uvs_gid: GlyphId = glyph.index;
+                let g: *mut GlyphHandle = otfcc_cmap_lookup(cmap, u as ::core::ffi::c_int);
                 if g.is_null() {
                     *non_defaults.offset(u as isize) = uvs_gid;
                 } else if uvs_gid as ::core::ffi::c_int == (*g).index as ::core::ffi::c_int {
@@ -1065,9 +1065,7 @@ unsafe fn build_format14_for_selector(
     bufseek(nondflt, 0 as usize);
     bufwrite32b(nondflt, num_uvs_mappings);
     free(defaults as *mut ::core::ffi::c_void);
-    defaults = ::core::ptr::null_mut::<GlyphId>();
     free(non_defaults as *mut ::core::ffi::c_void);
-    non_defaults = ::core::ptr::null_mut::<GlyphId>();
     return ((if num_unicode_value_ranges != 0 {
         HAS_DEFAULT
     } else {
@@ -1078,7 +1076,7 @@ unsafe fn build_format14_for_selector(
         0 as ::core::ffi::c_int
     })) as u8;
 }
-unsafe fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
+unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> *mut Buffer {
     let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];
     for (key, _) in (*cmap).uvs.iter() {
         if key.selector < MAX_UNICODE as u32 {
@@ -1093,7 +1091,7 @@ unsafe fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
         }
         selector = selector.wrapping_add(1);
     }
-    let mut st: *mut BkBlock = bk_new_block(&[
+    let st: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 14 as u32),
         bk_int(BkCellType::B32, 0 as u32),
         bk_int(BkCellType::B32, n_selectors as u32),
@@ -1103,7 +1101,7 @@ unsafe fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
         if valid_selectors[selector_0 as usize] {
             let mut dflt: *mut Buffer = bufnew();
             let mut nondflt: *mut Buffer = bufnew();
-            let mut results: u8 = build_format14_for_selector(cmap, selector_0, dflt, nondflt);
+            let results: u8 = build_format14_for_selector(cmap, selector_0, dflt, nondflt);
             if results as ::core::ffi::c_int & HAS_DEFAULT == 0 {
                 buffree(dflt);
                 dflt = ::core::ptr::null_mut::<Buffer>();
@@ -1134,7 +1132,7 @@ unsafe fn otfcc_build_cmap_format14(mut cmap: *const CmapTable) -> *mut Buffer {
         }
         selector_0 = selector_0.wrapping_add(1);
     }
-    let mut buf: *mut Buffer = bk_build_block(st);
+    let buf: *mut Buffer = bk_build_block(st);
     bufseek(buf, 2 as usize);
     bufwrite32b(buf, buflen(buf) as u32);
     return buf;
@@ -1146,7 +1144,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         _ => return ::core::ptr::null_mut::<Buffer>(),
     };
     let mut requires_format12: bool = false;
-    let mut has_uvs: bool = !(*cmap).uvs.is_empty();
+    let has_uvs: bool = !(*cmap).uvs.is_empty();
     for (&unicode, _) in (*cmap).unicodes.iter() {
         if unicode > 0xffff as ::core::ffi::c_int {
             requires_format12 = true;
@@ -1186,8 +1184,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         bufwrite16b(format4, 0 as u16);
         bufwrite16b(format4, 0 as u16);
     }
-    let mut format12: *mut Buffer = otfcc_build_cmap_format12(cmap);
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let format12: *mut Buffer = otfcc_build_cmap_format12(cmap);
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 0 as u32),
         bk_int(BkCellType::B16, (n_tables as ::core::ffi::c_int) as u32),
     ]);
@@ -1210,7 +1208,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         );
     }
     if has_uvs {
-        let mut format14: *mut Buffer = otfcc_build_cmap_format14(cmap);
+        let format14: *mut Buffer = otfcc_build_cmap_format14(cmap);
         bk_push(
             root,
             &[

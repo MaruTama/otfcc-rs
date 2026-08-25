@@ -3,7 +3,7 @@ use libc::free;
 
 use crate::table::otl::{ChainingRule, ChainingRuleSet, ChainingSubtable};
 
-pub unsafe fn otl_init_chaining(mut subtable: *mut ChainingSubtable) {
+pub unsafe fn otl_init_chaining(subtable: *mut ChainingSubtable) {
     // No all-zero bit pattern is a valid `ChainingSubtable` (it owns `Vec`
     // fields through every variant), so place a valid empty `Canonical`
     // value directly instead of the old `memset`.
@@ -12,7 +12,7 @@ pub unsafe fn otl_init_chaining(mut subtable: *mut ChainingSubtable) {
         ChainingSubtable::Canonical(ChainingRule::default()),
     );
 }
-pub unsafe fn otl_dispose_chaining(mut subtable: *mut ChainingSubtable) {
+pub unsafe fn otl_dispose_chaining(subtable: *mut ChainingSubtable) {
     // `ChainingRule`/`ChainingRuleSet` fully self-drop now (see
     // `table/otl.rs`), so running the enum's own `Drop` here does exactly
     // what the old tag-gated free logic did, for whichever variant is live,
@@ -99,7 +99,7 @@ pub(crate) unsafe fn chaining_is_canonical(subtable: *const ChainingSubtable) ->
 /// be exactly the allocator-mismatch hazard Stage 7-2-d elsewhere converts
 /// away from.
 #[inline]
-pub(crate) unsafe fn subtable_chaining_free(mut x: *mut ChainingSubtable) {
+pub(crate) unsafe fn subtable_chaining_free(x: *mut ChainingSubtable) {
     if x.is_null() {
         return;
     }
@@ -107,7 +107,7 @@ pub(crate) unsafe fn subtable_chaining_free(mut x: *mut ChainingSubtable) {
     free(x as *mut ::core::ffi::c_void);
 }
 #[inline]
-unsafe fn subtable_chaining_dispose(mut x: *mut ChainingSubtable) {
+unsafe fn subtable_chaining_dispose(x: *mut ChainingSubtable) {
     otl_dispose_chaining(x);
 }
 #[inline]

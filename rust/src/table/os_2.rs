@@ -423,7 +423,7 @@ pub static UNICODE_RANGE_LABELS4: [&::core::ffi::CStr; 27] = [
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_os_2(
     table: Option<&Os2Table>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -436,7 +436,7 @@ pub unsafe fn otfcc_dump_os_2(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut os_2: *mut BuiltValue = json_object_new(30 as usize);
+        let os_2: *mut BuiltValue = json_object_new(30 as usize);
         json_object_push(
             os_2,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -517,7 +517,7 @@ pub unsafe fn otfcc_dump_os_2(
             b"sFamilyClass\0" as *const u8 as *const ::core::ffi::c_char,
             json_integer_new((*table).s_family_class as i64),
         );
-        let mut panose: *mut BuiltValue = json_array_new(10 as usize);
+        let panose: *mut BuiltValue = json_array_new(10 as usize);
         let mut j: u8 = 0 as u8;
         while (j as ::core::ffi::c_int) < 10 as ::core::ffi::c_int {
             json_array_push(panose, json_integer_new((*table).panose[j as usize] as i64));
@@ -669,7 +669,7 @@ pub unsafe fn otfcc_dump_os_2(
     }
 }
 pub unsafe fn otfcc_parse_os_2(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<Os2Table>> {
     // `Box::new` cannot return null (it aborts on allocation failure), so
@@ -680,7 +680,7 @@ pub unsafe fn otfcc_parse_os_2(
     os2_val.version = 4;
     let mut os_2_box: Box<Os2Table> = Box::new(os2_val);
     let os_2: *mut Os2Table = os_2_box.as_mut() as *mut Os2Table;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"OS_2\0" as *const u8 as *const ::core::ffi::c_char,
@@ -894,7 +894,7 @@ pub unsafe fn otfcc_parse_os_2(
                 b"usUpperOpticalPointSize\0" as *const u8 as *const ::core::ffi::c_char,
                 0 as ::core::ffi::c_int as ::core::ffi::c_double,
             ) as u16;
-            let mut panose: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+            let panose: *const ParsedValue;
             panose = json_obj_get_type(
                 table,
                 b"panose\0" as *const u8 as *const ::core::ffi::c_char,
@@ -903,7 +903,7 @@ pub unsafe fn otfcc_parse_os_2(
             if !panose.is_null() {
                 let mut j: u32 = 0 as u32;
                 while j < json_arr_len(panose) && j < 10 as u32 {
-                    let mut term: *const ParsedValue = json_arr_at(panose, j as u32);
+                    let term: *const ParsedValue = json_arr_at(panose, j as u32);
                     if json_type_of(term) == JsonType::Integer {
                         (*os_2).panose[j as usize] = json_int_val(term) as u8;
                     } else if json_type_of(term) == JsonType::Double {
@@ -912,7 +912,7 @@ pub unsafe fn otfcc_parse_os_2(
                     j = j.wrapping_add(1);
                 }
             }
-            let mut vendorid: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+            let vendorid: *const ParsedValue;
             vendorid = json_obj_get_type(
                 table,
                 b"achVendID\0" as *const u8 as *const ::core::ffi::c_char,
@@ -952,7 +952,7 @@ pub unsafe fn otfcc_build_os_2(os_2: Option<&Os2Table>) -> *mut Buffer {
         Some(o) => o as *const Os2Table,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     bufwrite16b(buf, (*os_2).version);
     bufwrite16b(buf, (*os_2).x_avg_char_width as u16);
     bufwrite16b(buf, (*os_2).us_weight_class);

@@ -19,12 +19,12 @@ use crate::table::otl::{
 // recursive read needs it as the nested lookup's type), so the dependency
 // order is unchanged.
 unsafe fn _caryll_read_otl_extend(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut subtable_offset: u32,
-    mut basis: LookupType,
+    data: FontFilePointer,
+    table_length: u32,
+    subtable_offset: u32,
+    basis: LookupType,
     max_glyphs: GlyphId,
-    mut options: &Options,
+    options: &Options,
 ) -> *mut Subtable {
     unsafe {
         if table_length < subtable_offset.wrapping_add(8 as u32) {
@@ -55,11 +55,11 @@ unsafe fn _caryll_read_otl_extend(
     }
 }
 pub unsafe fn otfcc_read_otl_gsub_extend(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut subtable_offset: u32,
+    data: FontFilePointer,
+    table_length: u32,
+    subtable_offset: u32,
     max_glyphs: GlyphId,
-    mut options: &Options,
+    options: &Options,
 ) -> *mut Subtable {
     return unsafe {
         _caryll_read_otl_extend(
@@ -73,11 +73,11 @@ pub unsafe fn otfcc_read_otl_gsub_extend(
     };
 }
 pub unsafe fn otfcc_read_otl_gpos_extend(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut subtable_offset: u32,
+    data: FontFilePointer,
+    table_length: u32,
+    subtable_offset: u32,
     max_glyphs: GlyphId,
-    mut options: &Options,
+    options: &Options,
 ) -> *mut Subtable {
     return unsafe {
         _caryll_read_otl_extend(

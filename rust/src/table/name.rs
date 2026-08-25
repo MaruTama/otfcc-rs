@@ -48,7 +48,7 @@ pub const COPYRIGHT_LEN: ::core::ffi::c_int = 32 as ::core::ffi::c_int;
 // `.create_table` itself is never read anywhere in the crate --
 // `create_font_table` and its other callee `table_otl_create` are dead
 // for the same reason, deleted alongside it.
-unsafe fn should_decode_as_utf16(mut record: *const NameRecord) -> bool {
+unsafe fn should_decode_as_utf16(record: *const NameRecord) -> bool {
     return (*record).platform_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         || (*record).platform_id as ::core::ffi::c_int == 2 as ::core::ffi::c_int
             && (*record).encoding_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
@@ -57,7 +57,7 @@ unsafe fn should_decode_as_utf16(mut record: *const NameRecord) -> bool {
                 || (*record).encoding_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
                 || (*record).encoding_id as ::core::ffi::c_int == 10 as ::core::ffi::c_int);
 }
-unsafe fn should_decode_as_bytes(mut record: *const NameRecord) -> bool {
+unsafe fn should_decode_as_bytes(record: *const NameRecord) -> bool {
     return (*record).platform_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
         && (*record).encoding_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
         && (*record).language_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int;
@@ -146,7 +146,7 @@ pub unsafe fn otfcc_read_name(packet: &Packet, options: &Options) -> Option<Name
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_name(
     name: Option<&NameTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let name = match name {
@@ -164,7 +164,7 @@ pub unsafe fn otfcc_dump_name(
         let mut j: u16 = 0 as u16;
         while (j as usize) < records.len() {
             let r: *const NameRecord = &records[j as usize];
-            let mut record: *mut BuiltValue = json_object_new(5 as usize);
+            let record: *mut BuiltValue = json_object_new(5 as usize);
             json_object_push(
                 record,
                 b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
@@ -207,11 +207,11 @@ pub unsafe fn otfcc_dump_name(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_name(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<NameTable> {
     let mut name: NameTable = Vec::new();
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"name\0" as *const u8 as *const ::core::ffi::c_char,
@@ -337,7 +337,7 @@ pub unsafe fn otfcc_parse_name(
                             _record,
                             b"nameID\0" as *const u8 as *const ::core::ffi::c_char,
                         ) as u16;
-                        let mut str: *const ParsedValue = json_obj_get_type(
+                        let str: *const ParsedValue = json_obj_get_type(
                             _record,
                             b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
                             JsonType::String,
@@ -372,11 +372,11 @@ pub unsafe fn otfcc_build_name(name: Option<&NameTable>) -> *mut Buffer {
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
     let records: &Vec<NameRecord> = name;
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, records.len() as u16);
     bufwrite16b(buf, 0 as u16);
-    let mut strings: *mut Buffer = bufnew();
+    let strings: *mut Buffer = bufnew();
     let mut j: u16 = 0 as u16;
     while (j as usize) < records.len() {
         let record: *const NameRecord = &records[j as usize];
@@ -384,7 +384,7 @@ pub unsafe fn otfcc_build_name(name: Option<&NameTable>) -> *mut Buffer {
         bufwrite16b(buf, (*record).encoding_id);
         bufwrite16b(buf, (*record).language_id);
         bufwrite16b(buf, (*record).name_id);
-        let mut cbefore: usize = (*strings).cursor;
+        let cbefore: usize = (*strings).cursor;
         if should_decode_as_utf16(record) {
             let u16: Vec<u8> = utf8toutf16be(&(*record).name_string);
             bufwrite_bytes(strings, u16.len(), u16.as_ptr() as *mut u8);
@@ -405,7 +405,7 @@ pub unsafe fn otfcc_build_name(name: Option<&NameTable>) -> *mut Buffer {
             free(decoded as *mut ::core::ffi::c_void);
             decoded = ::core::ptr::null_mut::<u8>();
         }
-        let mut cafter: usize = (*strings).cursor;
+        let cafter: usize = (*strings).cursor;
         bufwrite16b(buf, cafter.wrapping_sub(cbefore) as u16);
         bufwrite16b(buf, cbefore as u16);
         j = j.wrapping_add(1);
@@ -425,7 +425,7 @@ pub unsafe fn otfcc_build_name(name: Option<&NameTable>) -> *mut Buffer {
     // has no such hazard to begin with, so there is nothing to preserve.
     copyright.resize(COPYRIGHT_LEN as usize, 0);
     bufwrite_bytes(strings, COPYRIGHT_LEN as usize, copyright.as_ptr());
-    let mut strings_offset: usize = (*buf).cursor;
+    let strings_offset: usize = (*buf).cursor;
     bufwrite_buf(buf, strings);
     bufseek(buf, 4 as usize);
     bufwrite16b(buf, strings_offset as u16);

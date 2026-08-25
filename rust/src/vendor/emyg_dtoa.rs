@@ -20,21 +20,21 @@ static K_DP_SIGNIFICAND_MASK: u64 = (0xfffff as ::core::ffi::c_int as u64)
 static K_DP_HIDDEN_BIT: u64 = (0x100000 as ::core::ffi::c_int as u64) << 32 as ::core::ffi::c_int
     | 0 as ::core::ffi::c_int as u64;
 #[inline]
-unsafe fn diy_fp_from_parts(mut f: u64, mut e: ::core::ffi::c_int) -> DiyFp {
+unsafe fn diy_fp_from_parts(f: u64, e: ::core::ffi::c_int) -> DiyFp {
     let mut fp: DiyFp = DiyFp { f: 0, e: 0 };
     fp.f = f;
     fp.e = e;
     return fp;
 }
-pub unsafe fn diy_fp_from_double(mut d: ::core::ffi::c_double) -> DiyFp {
+pub unsafe fn diy_fp_from_double(d: ::core::ffi::c_double) -> DiyFp {
     // Was a `DoubleBits` union (`d: f64`/`u64_0: u64`, written via `.d`
     // then read via `.u64_0`); `f64::to_bits` is the same bit-for-bit
     // reinterpretation without a union.
     let bits: u64 = d.to_bits();
     let mut res: DiyFp = DiyFp { f: 0, e: 0 };
-    let mut biased_e: ::core::ffi::c_int =
+    let biased_e: ::core::ffi::c_int =
         ((bits & K_DP_EXPONENT_MASK) >> K_DP_SIGNIFICAND_SIZE) as ::core::ffi::c_int;
-    let mut significand: u64 = bits & K_DP_SIGNIFICAND_MASK;
+    let significand: u64 = bits & K_DP_SIGNIFICAND_MASK;
     if biased_e != 0 as ::core::ffi::c_int {
         res.f = significand.wrapping_add(K_DP_HIDDEN_BIT);
         res.e = biased_e - K_DP_EXPONENT_BIAS;
@@ -72,7 +72,7 @@ unsafe fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
 }
 #[inline]
 unsafe fn normalize(lhs: DiyFp) -> DiyFp {
-    let mut s: ::core::ffi::c_int = (lhs.f as ::core::ffi::c_ulonglong).leading_zeros() as i32;
+    let s: ::core::ffi::c_int = (lhs.f as ::core::ffi::c_ulonglong).leading_zeros() as i32;
     return diy_fp_from_parts(lhs.f << s, lhs.e - s);
 }
 #[inline]
@@ -87,8 +87,8 @@ unsafe fn normalize_boundary(lhs: DiyFp) -> DiyFp {
     return res;
 }
 #[inline]
-unsafe fn normalized_boundaries(mut lhs: DiyFp, mut minus: *mut DiyFp, mut plus: *mut DiyFp) {
-    let mut pl: DiyFp = normalize_boundary(diy_fp_from_parts(
+unsafe fn normalized_boundaries(lhs: DiyFp, minus: *mut DiyFp, plus: *mut DiyFp) {
+    let pl: DiyFp = normalize_boundary(diy_fp_from_parts(
         (lhs.f << 1 as ::core::ffi::c_int).wrapping_add(1 as u64),
         lhs.e - 1 as ::core::ffi::c_int,
     ));
@@ -109,7 +109,7 @@ unsafe fn normalized_boundaries(mut lhs: DiyFp, mut minus: *mut DiyFp, mut plus:
     *minus = mi;
 }
 #[inline]
-unsafe fn get_cached_power(mut e: ::core::ffi::c_int, mut k_out: *mut ::core::ffi::c_int) -> DiyFp {
+unsafe fn get_cached_power(e: ::core::ffi::c_int, k_out: *mut ::core::ffi::c_int) -> DiyFp {
     static K_CACHED_POWERS_F: [u64; 87] = [
         (0xfa8fd5a0 as ::core::ffi::c_uint as u64) << 32 as ::core::ffi::c_int
             | 0x81c0288 as ::core::ffi::c_int as u64,
@@ -375,14 +375,14 @@ unsafe fn get_cached_power(mut e: ::core::ffi::c_int, mut k_out: *mut ::core::ff
         1039 as ::core::ffi::c_int as i16,
         1066 as ::core::ffi::c_int as i16,
     ];
-    let mut dk: ::core::ffi::c_double = (-(61 as ::core::ffi::c_int) - e) as ::core::ffi::c_double
+    let dk: ::core::ffi::c_double = (-(61 as ::core::ffi::c_int) - e) as ::core::ffi::c_double
         * 0.30102999566398114f64
         + 347 as ::core::ffi::c_int as ::core::ffi::c_double;
     let mut k: ::core::ffi::c_int = dk as ::core::ffi::c_int;
     if k as ::core::ffi::c_double != dk {
         k += 1;
     }
-    let mut index: ::core::ffi::c_uint =
+    let index: ::core::ffi::c_uint =
         ((k >> 3 as ::core::ffi::c_int) + 1 as ::core::ffi::c_int) as ::core::ffi::c_uint;
     *k_out =
         -(-(348 as ::core::ffi::c_int) + (index << 3 as ::core::ffi::c_int) as ::core::ffi::c_int);
@@ -393,12 +393,12 @@ unsafe fn get_cached_power(mut e: ::core::ffi::c_int, mut k_out: *mut ::core::ff
 }
 #[inline]
 unsafe fn grisu_round(
-    mut buffer: *mut ::core::ffi::c_char,
-    mut len: ::core::ffi::c_int,
-    mut delta: u64,
+    buffer: *mut ::core::ffi::c_char,
+    len: ::core::ffi::c_int,
+    delta: u64,
     mut rest: u64,
-    mut ten_kappa: u64,
-    mut wp_w: u64,
+    ten_kappa: u64,
+    wp_w: u64,
 ) {
     while rest < wp_w
         && delta.wrapping_sub(rest) >= ten_kappa
@@ -411,7 +411,7 @@ unsafe fn grisu_round(
     }
 }
 #[inline]
-unsafe fn count_decimal_digit32(mut n: u32) -> ::core::ffi::c_uint {
+unsafe fn count_decimal_digit32(n: u32) -> ::core::ffi::c_uint {
     if n < 10 as u32 {
         return 1 as ::core::ffi::c_uint;
     }
@@ -446,9 +446,9 @@ unsafe fn digit_gen(
     w: DiyFp,
     mp: DiyFp,
     mut delta: u64,
-    mut buffer: *mut ::core::ffi::c_char,
-    mut len: *mut ::core::ffi::c_int,
-    mut k_out: *mut ::core::ffi::c_int,
+    buffer: *mut ::core::ffi::c_char,
+    len: *mut ::core::ffi::c_int,
+    k_out: *mut ::core::ffi::c_int,
 ) {
     static K_POW10: [u32; 10] = [
         1 as ::core::ffi::c_int as u32,
@@ -469,7 +469,7 @@ unsafe fn digit_gen(
     let mut kappa: ::core::ffi::c_int = count_decimal_digit32(p1) as ::core::ffi::c_int;
     *len = 0 as ::core::ffi::c_int;
     while kappa > 0 as ::core::ffi::c_int {
-        let mut d: u32 = 0 as u32;
+        let d: u32;
         match kappa {
             10 => {
                 d = p1.wrapping_div(1000000000 as u32);
@@ -523,7 +523,7 @@ unsafe fn digit_gen(
                 as ::core::ffi::c_char;
         }
         kappa -= 1;
-        let mut tmp: u64 = ((p1 as u64) << -one.e).wrapping_add(p2);
+        let tmp: u64 = ((p1 as u64) << -one.e).wrapping_add(p2);
         if tmp <= delta {
             *k_out += kappa;
             grisu_round(
@@ -540,7 +540,7 @@ unsafe fn digit_gen(
     loop {
         p2 = p2.wrapping_mul(10 as u64);
         delta = delta.wrapping_mul(10 as u64);
-        let mut d_0: ::core::ffi::c_char = (p2 >> -one.e) as ::core::ffi::c_char;
+        let d_0: ::core::ffi::c_char = (p2 >> -one.e) as ::core::ffi::c_char;
         if d_0 as ::core::ffi::c_int != 0 || *len != 0 {
             let fresh9 = *len;
             *len = *len + 1;
@@ -566,10 +566,10 @@ unsafe fn digit_gen(
 }
 #[inline]
 unsafe fn grisu2(
-    mut value: ::core::ffi::c_double,
-    mut buffer: *mut ::core::ffi::c_char,
-    mut length: *mut ::core::ffi::c_int,
-    mut k_out: *mut ::core::ffi::c_int,
+    value: ::core::ffi::c_double,
+    buffer: *mut ::core::ffi::c_char,
+    length: *mut ::core::ffi::c_int,
+    k_out: *mut ::core::ffi::c_int,
 ) {
     let v: DiyFp = diy_fp_from_double(value) as DiyFp;
     let mut w_m: DiyFp = DiyFp { f: 0, e: 0 };
@@ -804,7 +804,7 @@ unsafe fn write_exponent(mut k_out: ::core::ffi::c_int, mut buffer: *mut ::core:
             + (k_out / 100 as ::core::ffi::c_int) as ::core::ffi::c_char as ::core::ffi::c_int)
             as ::core::ffi::c_char;
         k_out %= 100 as ::core::ffi::c_int;
-        let mut d: *const ::core::ffi::c_char =
+        let d: *const ::core::ffi::c_char =
             get_digits_lut().offset((k_out * 2 as ::core::ffi::c_int) as isize);
         let fresh3 = buffer;
         buffer = buffer.offset(1);
@@ -813,7 +813,7 @@ unsafe fn write_exponent(mut k_out: ::core::ffi::c_int, mut buffer: *mut ::core:
         buffer = buffer.offset(1);
         *fresh4 = *d.offset(1 as ::core::ffi::c_int as isize);
     } else if k_out >= 10 as ::core::ffi::c_int {
-        let mut d_0: *const ::core::ffi::c_char =
+        let d_0: *const ::core::ffi::c_char =
             get_digits_lut().offset((k_out * 2 as ::core::ffi::c_int) as isize);
         let fresh5 = buffer;
         buffer = buffer.offset(1);
@@ -831,9 +831,9 @@ unsafe fn write_exponent(mut k_out: ::core::ffi::c_int, mut buffer: *mut ::core:
 }
 #[inline]
 unsafe fn prettify(
-    mut buffer: *mut ::core::ffi::c_char,
-    mut length: ::core::ffi::c_int,
-    mut k: ::core::ffi::c_int,
+    buffer: *mut ::core::ffi::c_char,
+    length: ::core::ffi::c_int,
+    k: ::core::ffi::c_int,
 ) {
     let kk: ::core::ffi::c_int = length + k;
     if length <= kk && kk <= 21 as ::core::ffi::c_int {

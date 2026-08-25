@@ -27,10 +27,10 @@ use crate::table::otl::{
     OtlTable, Subtable,
 };
 unsafe fn _declare_lookup_dumper(
-    mut llt: LookupType,
-    mut dumper: Option<unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue>,
-    mut lookup: *const Lookup,
-    mut dump: *mut BuiltValue,
+    llt: LookupType,
+    dumper: Option<unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue>,
+    lookup: *const Lookup,
+    dump: *mut BuiltValue,
 ) {
     if (*lookup).type_0 == llt {
         json_object_push(
@@ -52,7 +52,7 @@ unsafe fn _declare_lookup_dumper(
                 ),
             );
         }
-        let mut subtables: *mut BuiltValue = json_array_new((*lookup).subtables.len());
+        let subtables: *mut BuiltValue = json_array_new((*lookup).subtables.len());
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
             if let Some(sub) = &(&(*lookup).subtables)[j as usize] {
@@ -70,7 +70,7 @@ unsafe fn _declare_lookup_dumper(
         );
     }
 }
-unsafe fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut BuiltValue) {
+unsafe fn _dump_lookup(lookup: *const Lookup, dump: *mut BuiltValue) {
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_SINGLE,
         Some(otl_gsub_dump_single as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
@@ -160,10 +160,10 @@ unsafe fn _dump_lookup(mut lookup: *const Lookup, mut dump: *mut BuiltValue) {
     );
 }
 pub unsafe fn otfcc_dump_otl(
-    mut table: Option<&OtlTable>,
-    mut root: *mut BuiltValue,
-    mut options: &Options,
-    mut tag: *const ::core::ffi::c_char,
+    table: Option<&OtlTable>,
+    root: *mut BuiltValue,
+    options: &Options,
+    tag: *const ::core::ffi::c_char,
 ) {
     let table: *const OtlTable = table.map_or(::core::ptr::null(), |t| t as *const OtlTable);
     if table.is_null()
@@ -176,14 +176,14 @@ pub unsafe fn otfcc_dump_otl(
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut otl: *mut BuiltValue = json_object_new(3 as usize);
+        let otl: *mut BuiltValue = json_object_new(3 as usize);
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"Languages"),
         );
         let mut ___loggedstep_v_0: bool = true;
         while ___loggedstep_v_0 {
-            let mut languages: *mut BuiltValue = json_object_new((*table).languages.len());
+            let languages: *mut BuiltValue = json_object_new((*table).languages.len());
             let mut j: TableId = 0 as TableId;
             while (j as usize) < (*table).languages.len() {
                 let mut _lang: *mut BuiltValue = json_object_new(5 as usize);
@@ -195,7 +195,7 @@ pub unsafe fn otfcc_dump_otl(
                         json_string_new_from_bytes(&(*(*lang).required_feature).name),
                     );
                 }
-                let mut features: *mut BuiltValue = json_array_new((*lang).features.len());
+                let features: *mut BuiltValue = json_array_new((*lang).features.len());
                 let mut k: TableId = 0 as TableId;
                 while (k as usize) < (*lang).features.len() {
                     if !(&(*lang).features)[k as usize].is_null() {
@@ -228,7 +228,7 @@ pub unsafe fn otfcc_dump_otl(
         );
         let mut ___loggedstep_v_1: bool = true;
         while ___loggedstep_v_1 {
-            let mut features_0: *mut BuiltValue = json_object_new((*table).features.len());
+            let features_0: *mut BuiltValue = json_object_new((*table).features.len());
             let mut j_0: TableId = 0 as TableId;
             while (j_0 as usize) < (*table).features.len() {
                 let feature: *const Feature = &raw const *(&(*table).features)[j_0 as usize];
@@ -262,8 +262,8 @@ pub unsafe fn otfcc_dump_otl(
         );
         let mut ___loggedstep_v_2: bool = true;
         while ___loggedstep_v_2 {
-            let mut lookups: *mut BuiltValue = json_object_new((*table).lookups.len());
-            let mut lookup_order: *mut BuiltValue = json_array_new((*table).lookups.len());
+            let lookups: *mut BuiltValue = json_object_new((*table).lookups.len());
+            let lookup_order: *mut BuiltValue = json_array_new((*table).lookups.len());
             let mut j_1: TableId = 0 as TableId;
             while (j_1 as usize) < (*table).lookups.len() {
                 let mut _lookup: *mut BuiltValue = json_object_new(5 as usize);

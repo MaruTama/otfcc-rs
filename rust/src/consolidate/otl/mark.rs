@@ -35,11 +35,11 @@ struct LigHashValue {
     anchors: Vec<Vec<Anchor>>,
 }
 unsafe fn consolidate_mark_array(
-    mut font: *mut Font,
+    font: *mut Font,
     mut _table: *mut OtlTable,
-    mut options: &Options,
-    mut mark_array: *mut MarkArray,
-    mut class_count: GlyphClass,
+    options: &Options,
+    mark_array: *mut MarkArray,
+    class_count: GlyphClass,
 ) {
     let mut h: BTreeMap<GlyphId, MarkHashValue> = BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
@@ -108,10 +108,10 @@ unsafe fn consolidate_mark_array(
     }
 }
 unsafe fn consolidate_base_array(
-    mut font: *mut Font,
+    font: *mut Font,
     mut _table: *mut OtlTable,
-    mut options: &Options,
-    mut base_array: *mut BaseArray,
+    options: &Options,
+    base_array: *mut BaseArray,
 ) {
     let mut h: BTreeMap<GlyphId, BaseHashValue> = BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
@@ -171,10 +171,10 @@ unsafe fn consolidate_base_array(
     }
 }
 unsafe fn consolidate_lig_array(
-    mut font: *mut Font,
+    font: *mut Font,
     mut _table: *mut OtlTable,
-    mut options: &Options,
-    mut lig_array: *mut LigatureArray,
+    options: &Options,
+    lig_array: *mut LigatureArray,
 ) {
     let mut h: BTreeMap<GlyphId, LigHashValue> = BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
@@ -240,10 +240,10 @@ unsafe fn consolidate_lig_array(
     }
 }
 pub unsafe fn consolidate_mark_to_single(
-    mut font: *mut Font,
-    mut table: *mut OtlTable,
+    font: *mut Font,
+    table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: &Options,
+    options: &Options,
 ) -> bool {
     let Subtable::GposMarkToSingle(mut_subtable) = &mut *_subtable else {
         unreachable!()
@@ -261,10 +261,10 @@ pub unsafe fn consolidate_mark_to_single(
         || (*subtable).base_array.len() == 0 as usize;
 }
 pub unsafe fn consolidate_mark_to_ligature(
-    mut font: *mut Font,
-    mut table: *mut OtlTable,
+    font: *mut Font,
+    table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: &Options,
+    options: &Options,
 ) -> bool {
     let Subtable::GposMarkToLigature(mut_subtable) = &mut *_subtable else {
         unreachable!()

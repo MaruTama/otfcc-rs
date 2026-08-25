@@ -1,6 +1,3 @@
-#![allow(dead_code)]
-#![allow(unused_assignments)]
-#![allow(unused_mut)]
 
 //! otfcc — an OpenType font manipulation library, transpiled from C and
 //! progressively rewritten in Rust (see rust/README.md).

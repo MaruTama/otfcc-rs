@@ -30,7 +30,7 @@ pub struct CffGetKeyContext {
     pub idx: u32,
 }
 #[inline]
-unsafe fn dispose_dict(mut dict: *mut CffDict) {
+unsafe fn dispose_dict(dict: *mut CffDict) {
     (*dict).ents = Vec::new();
 }
 #[inline]
@@ -40,7 +40,7 @@ pub(crate) unsafe fn cff_dict_create() -> *mut CffDict {
     Box::into_raw(Box::new(CffDict { ents: Vec::new() }))
 }
 #[inline]
-pub(crate) unsafe fn cff_dict_free(mut x: *mut CffDict) {
+pub(crate) unsafe fn cff_dict_free(x: *mut CffDict) {
     if x.is_null() {
         return;
     }
@@ -55,19 +55,19 @@ pub(crate) unsafe fn cff_dict_free(mut x: *mut CffDict) {
     drop(Box::from_raw(x));
 }
 #[inline]
-unsafe fn cff_dict_dispose(mut x: *mut CffDict) {
+unsafe fn cff_dict_dispose(x: *mut CffDict) {
     dispose_dict(x);
 }
 pub(crate) unsafe fn parse_to_callback(
-    mut data: *const u8,
+    data: *const u8,
     len: u32,
-    mut context: *mut ::core::ffi::c_void,
-    mut callback: Option<
+    context: *mut ::core::ffi::c_void,
+    callback: Option<
         unsafe extern "C" fn(CffDictOperator, u8, *mut CffValue, *mut ::core::ffi::c_void) -> (),
     >,
 ) {
     let mut index: u8 = 0 as u8;
-    let mut advance: u32 = 0;
+    let mut advance: u32;
     let mut val: CffValue = CffValue::Unset;
     let mut stack: [CffValue; 256] = [CffValue::Unset; 256];
     let mut temp: *const u8 = data;
@@ -100,19 +100,19 @@ pub(crate) unsafe fn parse_to_callback(
     }
 }
 unsafe extern "C" fn callback_get_key(
-    mut op: CffDictOperator,
-    mut top: u8,
-    mut stack: *mut CffValue,
+    op: CffDictOperator,
+    top: u8,
+    stack: *mut CffValue,
     mut _context: *mut ::core::ffi::c_void,
 ) {
-    let mut context: *mut CffGetKeyContext = _context as *mut CffGetKeyContext;
+    let context: *mut CffGetKeyContext = _context as *mut CffGetKeyContext;
     if op == (*context).op && (*context).idx <= top as u32 {
         (*context).found = true;
         (*context).res = *stack.offset((*context).idx as isize);
     }
 }
 pub(crate) unsafe fn parse_dict_key(
-    mut data: *const u8,
+    data: *const u8,
     len: u32,
     op: CffDictOperator,
     idx: u32,
@@ -163,8 +163,8 @@ pub(crate) unsafe fn parse_dict_key_int(
         CffValue::Unset | CffValue::Operator(_) => -1,
     }
 }
-pub(crate) unsafe fn build_dict(mut dict: *const CffDict) -> *mut Buffer {
-    let mut blob: *mut Buffer = bufnew();
+pub(crate) unsafe fn build_dict(dict: *const CffDict) -> *mut Buffer {
+    let blob: *mut Buffer = bufnew();
     let ents = &(*dict).ents;
     let mut i: usize = 0;
     while i < ents.len() {

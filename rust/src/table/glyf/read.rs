@@ -63,9 +63,9 @@ pub struct PackedPointRun {
     pub wide: bool,
 }
 unsafe extern "C" fn next_point(
-    mut contours: *mut ContourList,
-    mut cc: *mut ShapeId,
-    mut cp: *mut ShapeId,
+    contours: *mut ContourList,
+    cc: *mut ShapeId,
+    cp: *mut ShapeId,
 ) -> *mut Point {
     if *cp as usize >= (&(*contours))[*cc as usize].len() {
         *cp = 0 as ShapeId;
@@ -486,10 +486,10 @@ unsafe fn read_packed_delta(
     }
     Some(r.pos())
 }
-pub unsafe extern "C" fn get_x(mut z: *mut Point) -> *mut VQ {
+pub unsafe extern "C" fn get_x(z: *mut Point) -> *mut VQ {
     return &raw mut (*z).x;
 }
-pub unsafe extern "C" fn get_y(mut z: *mut Point) -> *mut VQ {
+pub unsafe extern "C" fn get_y(z: *mut Point) -> *mut VQ {
     return &raw mut (*z).y;
 }
 #[inline]
@@ -502,11 +502,11 @@ pub unsafe extern "C" fn get_y(mut z: *mut Point) -> *mut VQ {
 // as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
 unsafe fn fill_the_gaps(
-    mut j_min: ShapeId,
-    mut j_max: ShapeId,
+    j_min: ShapeId,
+    j_max: ShapeId,
     nudges: &mut [VqSegment],
     glyph_refs: &[*mut Point],
-    mut getter: CoordPartGetter,
+    getter: CoordPartGetter,
 ) {
     let mut j: ShapeId = j_min;
     while (j as ::core::ffi::c_int) < j_max as ::core::ffi::c_int {
@@ -536,22 +536,22 @@ unsafe fn fill_the_gaps(
                 }
             }
             if nudges[j_next as usize].is_touched() && nudges[j_prev as usize].is_touched() {
-                let mut untouch_j: F16Dot16 = otfcc_to_fixed(
+                let untouch_j: F16Dot16 = otfcc_to_fixed(
                     (*getter.expect("non-null function pointer")(glyph_refs[j as usize])).kernel
                         as ::core::ffi::c_double,
                 );
-                let mut untouch_prev: F16Dot16 = otfcc_to_fixed(
+                let untouch_prev: F16Dot16 = otfcc_to_fixed(
                     (*getter.expect("non-null function pointer")(glyph_refs[j_prev as usize]))
                         .kernel as ::core::ffi::c_double,
                 );
-                let mut untouch_next: F16Dot16 = otfcc_to_fixed(
+                let untouch_next: F16Dot16 = otfcc_to_fixed(
                     (*getter.expect("non-null function pointer")(glyph_refs[j_next as usize]))
                         .kernel as ::core::ffi::c_double,
                 );
-                let mut delta_prev: F16Dot16 = otfcc_to_fixed(
+                let delta_prev: F16Dot16 = otfcc_to_fixed(
                     nudges[j_prev as usize].unwrap_delta().quantity as ::core::ffi::c_double,
                 );
-                let mut delta_next: F16Dot16 = otfcc_to_fixed(
+                let delta_next: F16Dot16 = otfcc_to_fixed(
                     nudges[j_next as usize].unwrap_delta().quantity as ::core::ffi::c_double,
                 );
                 let mut u_min: F16Dot16 = untouch_prev;
@@ -593,13 +593,13 @@ unsafe fn fill_the_gaps(
 #[allow(improper_ctypes_definitions)]
 unsafe fn apply_coords(
     total_points: ShapeId,
-    mut glyph: *mut Glyph,
+    glyph: *mut Glyph,
     glyph_refs: &[*mut Point],
     n_touched_points: ShapeId,
-    mut tuple_delta: *const Pos,
-    mut points: *const ShapeId,
-    mut r: *const VqRegion,
-    mut getter: CoordPartGetter,
+    tuple_delta: *const Pos,
+    points: *const ShapeId,
+    r: *const VqRegion,
+    getter: CoordPartGetter,
 ) {
     let mut nudges: Vec<VqSegment> = Vec::with_capacity(total_points as usize);
     let mut j: ShapeId = 0 as ShapeId;
@@ -647,7 +647,7 @@ unsafe fn apply_coords(
         if !(nudges[j_1 as usize].unwrap_delta().quantity == 0.
             && nudges[j_1 as usize].is_touched())
         {
-            let mut coordinate_part: *mut VQ =
+            let coordinate_part: *mut VQ =
                 getter.expect("non-null function pointer")(glyph_refs[j_1 as usize]);
             (*coordinate_part).shift.push(nudges[j_1 as usize]);
         }
@@ -657,12 +657,12 @@ unsafe fn apply_coords(
 #[inline]
 unsafe fn apply_polymorphism(
     total_points: ShapeId,
-    mut glyph: GlyphPtr,
+    glyph: GlyphPtr,
     n_touched_points: ShapeId,
-    mut points: *const ShapeId,
-    mut delta_x: *const Pos,
-    mut delta_y: *const Pos,
-    mut r: *const VqRegion,
+    points: *const ShapeId,
+    delta_x: *const Pos,
+    delta_y: *const Pos,
+    r: *const VqRegion,
 ) {
     // A local `Vec<*mut Point>` now, not a `__caryll_allocate_clean`'d/
     // `free`'d array -- built with exactly `total_points` entries by

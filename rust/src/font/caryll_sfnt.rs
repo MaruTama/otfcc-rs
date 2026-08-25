@@ -260,7 +260,7 @@ pub unsafe fn otfcc_read_sfnt_from_reader<R: Read + Seek>(
     }
     return font;
 }
-pub unsafe fn otfcc_delete_sfnt(mut font: *mut SplineFontContainer) {
+pub unsafe fn otfcc_delete_sfnt(font: *mut SplineFontContainer) {
     if font.is_null() {
         return;
     }

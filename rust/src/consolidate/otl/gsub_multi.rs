@@ -17,10 +17,10 @@ use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
 use crate::table::otl::subtables::gsub_multi::dispose_gsub_multi_subtable;
 
 pub unsafe fn consolidate_gsub_multi(
-    mut font: *mut Font,
+    font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: &Options,
+    options: &Options,
 ) -> bool {
     let Subtable::GsubMulti(mut_subtable) = &mut *_subtable else {
         unreachable!()
@@ -100,10 +100,10 @@ pub unsafe fn consolidate_gsub_multi(
     return (*subtable).len() == 0 as usize;
 }
 pub unsafe fn consolidate_gsub_alternative(
-    mut font: *mut Font,
-    mut table: *mut OtlTable,
+    font: *mut Font,
+    table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: &Options,
+    options: &Options,
 ) -> bool {
     return consolidate_gsub_multi(font, table, _subtable, options);
 }

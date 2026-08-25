@@ -103,14 +103,14 @@ pub unsafe fn otfcc_read_vhea(packet: &Packet, options: &Options) -> Option<Box<
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_vhea(
     table: Option<&VheaTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
         Some(t) => t as *const VheaTable,
         None => return,
     };
-    let mut vhea: *mut BuiltValue = json_object_new(11 as usize);
+    let vhea: *mut BuiltValue = json_object_new(11 as usize);
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"vhea"),
@@ -182,12 +182,12 @@ pub unsafe fn otfcc_dump_vhea(
     }
 }
 pub unsafe fn otfcc_parse_vhea(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<VheaTable>> {
     let mut vhea_box: Option<Box<VheaTable>> = None;
-    let mut vhea: *mut VheaTable = ::core::ptr::null_mut::<VheaTable>();
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let vhea: *mut VheaTable;
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"vhea\0" as *const u8 as *const ::core::ffi::c_char,
@@ -268,7 +268,7 @@ pub unsafe fn otfcc_build_vhea(vhea: Option<&VheaTable>) -> *mut Buffer {
         Some(v) => v as *const VheaTable,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*vhea).version as u32);
     bufwrite16b(buf, (*vhea).ascent as u16);
     bufwrite16b(buf, (*vhea).descent as u16);

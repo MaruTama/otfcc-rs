@@ -30,7 +30,7 @@ pub struct VorgTable {
 // is a conservative choice that changes no call site beyond the storage
 // mechanism.
 pub unsafe fn otfcc_read_vorg(packet: &Packet, options: &Options) -> Option<Box<VorgTable>> {
-    let mut num_vert_origin_y_metrics: u16 = 0;
+    let mut num_vert_origin_y_metrics: u16;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -43,8 +43,8 @@ pub unsafe fn otfcc_read_vorg(packet: &Packet, options: &Options) -> Option<Box<
             if table.tag == crate::tag::TAG_VORG {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
+                    let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
+                    let length: u32 = table.length;
                     if !(length < 8 as u32) {
                         num_vert_origin_y_metrics =
                             read_16u(data.offset(6 as ::core::ffi::c_int as isize) as *const u8);
@@ -113,7 +113,7 @@ pub unsafe fn otfcc_build_vorg(table: Option<&VorgTable>) -> *mut Buffer {
         Some(t) => t,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     bufwrite16b(buf, 1 as u16);
     bufwrite16b(buf, 0 as u16);
     bufwrite16b(buf, pos_to_u16((*table).default_vertical_origin));

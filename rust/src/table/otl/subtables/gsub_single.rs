@@ -141,7 +141,7 @@ pub unsafe extern "C" fn otl_gsub_dump_single(mut _subtable: *const Subtable) ->
         unreachable!()
     };
     let subtable: *const GsubSingleSubtable = mut_subtable;
-    let mut st: *mut BuiltValue = json_object_new((*subtable).len());
+    let st: *mut BuiltValue = json_object_new((*subtable).len());
     let mut j: usize = 0 as usize;
     while j < (*subtable).len() {
         json_object_push_bytes_key(
@@ -165,9 +165,9 @@ pub unsafe fn otl_gsub_parse_single(
             && json_type_of(val) as ::core::ffi::c_uint
                 == JsonType::String as ::core::ffi::c_int as ::core::ffi::c_uint
         {
-            let mut from: GlyphHandle =
+            let from: GlyphHandle =
                 handle_from_name(Some(json_obj_key_bytes_at(_subtable, j as u32))) as GlyphHandle;
-            let mut to: GlyphHandle = handle_from_name(Some(json_str_bytes(val))) as GlyphHandle;
+            let to: GlyphHandle = handle_from_name(Some(json_str_bytes(val))) as GlyphHandle;
             (*subtable).push(GsubSingleEntry {
                 from: from as GlyphHandle,
                 to: to as GlyphHandle,
@@ -179,7 +179,7 @@ pub unsafe fn otl_gsub_parse_single(
 }
 pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
     mut _subtable: *const Subtable,
-    mut heuristics: BuildHeuristics,
+    heuristics: BuildHeuristics,
 ) -> *mut Buffer {
     let Subtable::GsubSingle(mut_subtable) = &*_subtable else {
         unreachable!()
@@ -187,14 +187,14 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
     let subtable: *const GsubSingleSubtable = mut_subtable;
     let mut is_constant_difference: bool = (*subtable).len() > 0 as usize;
     if is_constant_difference {
-        let mut difference: i32 =
+        let difference: i32 =
             (&(*subtable))[0].to.index as i32 - (&(*subtable))[0].from.index as i32;
         is_constant_difference = is_constant_difference as ::core::ffi::c_int != 0
             && difference < 0x8000 as i32
             && difference > -(0x8000 as i32);
         let mut j: GlyphId = 1 as GlyphId;
         while (j as usize) < (*subtable).len() {
-            let mut diff_j: i32 = (&(*subtable))[j as usize].to.index as i32
+            let diff_j: i32 = (&(*subtable))[j as usize].to.index as i32
                 - (&(*subtable))[j as usize].from.index as i32;
             is_constant_difference = is_constant_difference as ::core::ffi::c_int != 0
                 && diff_j == difference
@@ -203,7 +203,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
             j = j.wrapping_add(1);
         }
     }
-    let mut cov: *mut Coverage = otl_coverage_create();
+    let cov: *mut Coverage = otl_coverage_create();
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).len() {
         push_to_coverage(
@@ -212,12 +212,12 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut coverage_buf: *mut Buffer =
+    let coverage_buf: *mut Buffer =
         build_coverage_format(cov, heuristics.contains(BuildHeuristics::GSUB_VERT) as u16);
     if is_constant_difference as ::core::ffi::c_int != 0
         && !heuristics.contains(BuildHeuristics::GSUB_VERT)
     {
-        let mut b: *mut BkBlock = bk_new_block(&[
+        let b: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 1 as u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
             bk_int(
@@ -229,7 +229,7 @@ pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
         otl_coverage_free(cov);
         return bk_build_block(b);
     } else {
-        let mut b_0: *mut BkBlock = bk_new_block(&[
+        let b_0: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 2 as u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
             bk_int(BkCellType::B16, ((*subtable).len()) as u32),

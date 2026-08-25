@@ -30,8 +30,8 @@ pub struct ClassifierValue {
 }
 unsafe fn class_compatible(
     h: &mut std::collections::BTreeMap<GlyphId, ClassifierValue>,
-    mut cov: *mut Coverage,
-    mut past: *mut ::core::ffi::c_int,
+    cov: *mut Coverage,
+    past: *mut ::core::ffi::c_int,
 ) -> ::core::ffi::c_int {
     if (*cov).len() == 0 as usize {
         return 1 as ::core::ffi::c_int;
@@ -102,7 +102,7 @@ unsafe fn class_compatible(
     }
 }
 unsafe fn build_rule(
-    mut rule: *mut ChainingRule,
+    rule: *mut ChainingRule,
     hb: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
     hi: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
     hf: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
@@ -192,11 +192,11 @@ unsafe fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> 
     return cd;
 }
 pub unsafe fn try_classify_around(
-    mut lookup: *const Lookup,
-    mut j: TableId,
-    mut classified_st: *mut *mut ChainingSubtable,
+    lookup: *const Lookup,
+    j: TableId,
+    classified_st: *mut *mut ChainingSubtable,
 ) -> TableId {
-    let mut current_block: u64;
+    let current_block: u64;
     let mut compatible_count: TableId = 0 as TableId;
     let mut hb: std::collections::BTreeMap<GlyphId, ClassifierValue> =
         std::collections::BTreeMap::new();
@@ -212,14 +212,14 @@ pub unsafe fn try_classify_around(
     let mut classno_b: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut classno_i: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut classno_f: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut rule0: *mut ChainingRule = chaining_rule_mut(subtable0);
+    let rule0: *mut ChainingRule = chaining_rule_mut(subtable0);
     let mut m: TableId = 0 as TableId;
     loop {
         if !((m as ::core::ffi::c_int) < (*rule0).match_count as ::core::ffi::c_int) {
             current_block = 12349973810996921269;
             break;
         }
-        let mut check: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
+        let check: ::core::ffi::c_int;
         if (m as ::core::ffi::c_int) < (*rule0).input_begins as ::core::ffi::c_int {
             check = class_compatible(
                 &mut hb,
@@ -254,11 +254,11 @@ pub unsafe fn try_classify_around(
                     unreachable!()
                 };
                 let subtable_k: *mut ChainingSubtable = mut_subtable_k;
-                let mut rule: *mut ChainingRule = chaining_rule_mut(subtable_k);
-                let mut allcheck: bool = true;
+                let rule: *mut ChainingRule = chaining_rule_mut(subtable_k);
+                let allcheck: bool = true;
                 let mut m_0: TableId = 0 as TableId;
                 while (m_0 as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-                    let mut check_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
+                    let check_0: ::core::ffi::c_int;
                     if (m_0 as ::core::ffi::c_int) < (*rule).input_begins as ::core::ffi::c_int {
                         check_0 = class_compatible(
                             &mut hb,
@@ -280,7 +280,6 @@ pub unsafe fn try_classify_around(
                         );
                     }
                     if check_0 == 0 {
-                        allcheck = false;
                         break 's_74;
                     } else {
                         m_0 = m_0.wrapping_add(1);
@@ -331,7 +330,7 @@ pub unsafe fn try_classify_around(
                         unreachable!()
                     };
                     let subtable_k_0: *mut ChainingSubtable = mut_subtable_k_0;
-                    let mut rule_0: *mut ChainingRule = chaining_rule_mut(subtable_k_0);
+                    let rule_0: *mut ChainingRule = chaining_rule_mut(subtable_k_0);
                     (*ruleset)
                         .rules
                         .push(Some(build_rule(rule_0, &hb, &hi, &hf)));
@@ -357,11 +356,11 @@ pub unsafe fn try_classify_around(
     };
 }
 pub unsafe fn otfcc_classified_build_chaining(
-    mut lookup: *const Lookup,
+    lookup: *const Lookup,
     subtable_buffers: &mut Vec<*mut Buffer>,
-    mut last_offset: *mut usize,
+    last_offset: *mut usize,
 ) -> TableId {
-    let mut is_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup);
+    let is_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup);
     let mut subtables_written: TableId = 0 as TableId;
     subtable_buffers.clear();
     subtable_buffers.reserve((*lookup).subtables.len());
@@ -377,7 +376,7 @@ pub unsafe fn otfcc_classified_build_chaining(
             j = (j as ::core::ffi::c_int
                 + try_classify_around(lookup, j, &raw mut st) as ::core::ffi::c_int)
                 as TableId;
-            let mut buf: *mut Buffer = if is_contextual as ::core::ffi::c_int != 0 {
+            let buf: *mut Buffer = if is_contextual as ::core::ffi::c_int != 0 {
                 otfcc_build_contextual(st)
             } else {
                 otfcc_build_chaining(st)

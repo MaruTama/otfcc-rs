@@ -10,15 +10,15 @@ pub struct Sha1Ctx {
     pub state: [WORD; 5],
     pub k: [WORD; 4],
 }
-pub unsafe fn sha1_transform(mut ctx: *mut Sha1Ctx, mut data: *const BYTE) {
-    let mut a: WORD = 0;
-    let mut b: WORD = 0;
-    let mut c: WORD = 0;
-    let mut d: WORD = 0;
-    let mut e: WORD = 0;
-    let mut i: WORD = 0;
-    let mut j: WORD = 0;
-    let mut t: WORD = 0;
+pub unsafe fn sha1_transform(ctx: *mut Sha1Ctx, data: *const BYTE) {
+    let mut a: WORD;
+    let mut b: WORD;
+    let mut c: WORD;
+    let mut d: WORD;
+    let mut e: WORD;
+    let mut i: WORD;
+    let mut j: WORD;
+    let mut t: WORD;
     let mut m: [WORD; 80] = [0; 80];
     i = 0 as WORD;
     j = 0 as WORD;
@@ -120,7 +120,7 @@ pub unsafe fn sha1_transform(mut ctx: *mut Sha1Ctx, mut data: *const BYTE) {
     (*ctx).state[4 as ::core::ffi::c_int as usize] =
         (*ctx).state[4 as ::core::ffi::c_int as usize].wrapping_add(e);
 }
-pub unsafe fn sha1_init(mut ctx: *mut Sha1Ctx) {
+pub unsafe fn sha1_init(ctx: *mut Sha1Ctx) {
     (*ctx).datalen = 0 as WORD;
     (*ctx).bitlen = 0 as ::core::ffi::c_ulonglong;
     (*ctx).state[0 as ::core::ffi::c_int as usize] = 0x67452301 as ::core::ffi::c_int as WORD;
@@ -133,8 +133,8 @@ pub unsafe fn sha1_init(mut ctx: *mut Sha1Ctx) {
     (*ctx).k[2 as ::core::ffi::c_int as usize] = 0x8f1bbcdc as ::core::ffi::c_uint as WORD;
     (*ctx).k[3 as ::core::ffi::c_int as usize] = 0xca62c1d6 as ::core::ffi::c_uint as WORD;
 }
-pub unsafe fn sha1_update(mut ctx: *mut Sha1Ctx, mut data: *const BYTE, mut len: usize) {
-    let mut i: usize = 0;
+pub unsafe fn sha1_update(ctx: *mut Sha1Ctx, data: *const BYTE, len: usize) {
+    let mut i: usize;
     i = 0 as usize;
     while i < len {
         (*ctx).data[(*ctx).datalen as usize] = *data.offset(i as isize);
@@ -147,8 +147,8 @@ pub unsafe fn sha1_update(mut ctx: *mut Sha1Ctx, mut data: *const BYTE, mut len:
         i = i.wrapping_add(1);
     }
 }
-pub unsafe fn sha1_final(mut ctx: *mut Sha1Ctx, mut hash: *mut BYTE) {
-    let mut i: WORD = 0;
+pub unsafe fn sha1_final(ctx: *mut Sha1Ctx, hash: *mut BYTE) {
+    let mut i: WORD;
     i = (*ctx).datalen;
     if (*ctx).datalen < 56 as WORD {
         let fresh0 = i;

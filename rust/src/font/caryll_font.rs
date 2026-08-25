@@ -78,7 +78,7 @@ pub enum FontSubtype {
     Ttf = 0,
     Cff = 1,
 }
-pub(crate) unsafe fn delete_font_table(mut font: *mut Font, tag: u32) {
+pub(crate) unsafe fn delete_font_table(font: *mut Font, tag: u32) {
     match tag {
         crate::tag::TAG_HEAD => {
             (*font).head = None;

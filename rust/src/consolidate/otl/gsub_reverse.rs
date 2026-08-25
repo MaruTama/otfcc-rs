@@ -14,10 +14,10 @@ use crate::table::otl::{GsubReverseSubtable, OtlTable, Subtable};
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 
 pub unsafe fn consolidate_gsub_reverse(
-    mut font: *mut Font,
+    font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: &Options,
+    options: &Options,
 ) -> bool {
     let Subtable::GsubReverse(mut_subtable) = &mut *_subtable else {
         unreachable!()

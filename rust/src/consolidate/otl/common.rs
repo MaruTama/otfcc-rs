@@ -12,16 +12,16 @@ use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::classdef::ClassDef;
 
 pub unsafe fn fontop_consolidate_coverage(
-    mut font: *mut Font,
-    mut coverage: *mut Coverage,
-    mut options: &Options,
+    font: *mut Font,
+    coverage: *mut Coverage,
+    options: &Options,
 ) {
     if coverage.is_null() {
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*coverage).len() {
-        let mut h: *mut GlyphHandle = &raw mut (&mut (*coverage))[j as usize];
+        let h: *mut GlyphHandle = &raw mut (&mut (*coverage))[j as usize];
         if !otfcc_gord_consolidate_handle(
             (*font)
                 .glyph_order
@@ -41,16 +41,16 @@ pub unsafe fn fontop_consolidate_coverage(
     }
 }
 pub unsafe fn fontop_consolidate_class_def(
-    mut font: *mut Font,
-    mut cd: *mut ClassDef,
-    mut options: &Options,
+    font: *mut Font,
+    cd: *mut ClassDef,
+    options: &Options,
 ) {
     if cd.is_null() {
         return;
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*cd).glyphs.len() {
-        let mut h: *mut GlyphHandle = &raw mut (&mut (*cd).glyphs)[j as usize];
+        let h: *mut GlyphHandle = &raw mut (&mut (*cd).glyphs)[j as usize];
         if !otfcc_gord_consolidate_handle(
             (*font)
                 .glyph_order

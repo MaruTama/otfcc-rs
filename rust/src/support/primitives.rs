@@ -69,15 +69,15 @@ pub unsafe fn otfcc_to_fixed(x: ::core::ffi::c_double) -> F16Dot16 {
 unsafe fn clamp(value: i64) -> F16Dot16 {
     value.clamp(F16DOT16_NEGATIVE_INFINITY as i64, F16DOT16_INFINITY as i64) as F16Dot16
 }
-pub unsafe fn otfcc_f1616_add(mut a: F16Dot16, mut b: F16Dot16) -> F16Dot16 {
+pub unsafe fn otfcc_f1616_add(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     return a + b;
 }
-pub unsafe fn otfcc_f1616_minus(mut a: F16Dot16, mut b: F16Dot16) -> F16Dot16 {
+pub unsafe fn otfcc_f1616_minus(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     return a - b;
 }
-pub unsafe fn otfcc_f1616_multiply(mut a: F16Dot16, mut b: F16Dot16) -> F16Dot16 {
-    let mut tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
-    let mut product: F16Dot16 = clamp(tmp >> F16DOT16_PRECISION);
+pub unsafe fn otfcc_f1616_multiply(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
+    let tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
+    let product: F16Dot16 = clamp(tmp >> F16DOT16_PRECISION);
     return product;
 }
 #[inline]
@@ -96,10 +96,10 @@ unsafe fn divide(mut a: i64, b: i32) -> F16Dot16 {
     }
     return clamp(a / b as i64);
 }
-pub unsafe fn otfcc_f1616_muldiv(mut a: F16Dot16, mut b: F16Dot16, mut c: F16Dot16) -> F16Dot16 {
-    let mut tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
+pub unsafe fn otfcc_f1616_muldiv(a: F16Dot16, b: F16Dot16, c: F16Dot16) -> F16Dot16 {
+    let tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
     return divide(tmp, c as i32);
 }
-pub unsafe fn otfcc_f1616_divide(mut a: F16Dot16, mut b: F16Dot16) -> F16Dot16 {
+pub unsafe fn otfcc_f1616_divide(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     return divide((a as i64) << F16DOT16_PRECISION, b as i32);
 }

@@ -33,16 +33,16 @@ pub struct CffIndex {
 // `FontReader::u8()`/`u16()`/`u24()`/`u32()` are exactly these four reads,
 // checked against the buffer's real length.
 #[inline]
-unsafe fn dispose_cff_index(mut in_0: *mut CffIndex) {
+unsafe fn dispose_cff_index(in_0: *mut CffIndex) {
     (*in_0).offset = Vec::new();
     (*in_0).data = Vec::new();
 }
 #[inline]
-pub(crate) unsafe fn cff_index_dispose(mut x: *mut CffIndex) {
+pub(crate) unsafe fn cff_index_dispose(x: *mut CffIndex) {
     dispose_cff_index(x);
 }
 #[inline]
-pub(crate) unsafe fn cff_index_free(mut x: *mut CffIndex) {
+pub(crate) unsafe fn cff_index_free(x: *mut CffIndex) {
     if x.is_null() {
         return;
     }
@@ -73,7 +73,7 @@ pub(crate) unsafe fn cff_index_create() -> *mut CffIndex {
     }))
 }
 #[inline]
-pub(crate) unsafe fn cff_index_init(mut x: *mut CffIndex) {
+pub(crate) unsafe fn cff_index_init(x: *mut CffIndex) {
     // No all-zero bit pattern is a valid `CffIndex` any more (it owns two
     // `Vec` fields), so place a valid empty value directly instead of the
     // old `memset`.
@@ -88,7 +88,7 @@ pub(crate) unsafe fn cff_index_init(mut x: *mut CffIndex) {
         },
     );
 }
-pub(crate) unsafe fn get_index_length(mut i: *const CffIndex) -> u32 {
+pub(crate) unsafe fn get_index_length(i: *const CffIndex) -> u32 {
     if (*i).count != 0 as Arity {
         let offset = &(*i).offset;
         return (3 as u32)
@@ -102,7 +102,7 @@ pub(crate) unsafe fn get_index_length(mut i: *const CffIndex) -> u32 {
         return 3 as u32;
     };
 }
-pub(crate) unsafe fn empty_index(mut i: *mut CffIndex) {
+pub(crate) unsafe fn empty_index(i: *mut CffIndex) {
     cff_index_dispose(i);
     (*i).count_type = CffIndexCountType::U16;
     (*i).count = 0 as Arity;
@@ -187,11 +187,11 @@ pub(crate) unsafe fn extract_index(
     }
 }
 pub(crate) unsafe fn new_index_by_callback(
-    mut context: *mut ::core::ffi::c_void,
-    mut length: u32,
-    mut fn_0: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer>,
+    context: *mut ::core::ffi::c_void,
+    length: u32,
+    fn_0: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer>,
 ) -> *mut CffIndex {
-    let mut idx: *mut CffIndex = (cff_index_create)();
+    let idx: *mut CffIndex = (cff_index_create)();
     (*idx).count = length as Arity;
     let mut offset: Vec<u32> = vec![0 as u32; (*idx).count.wrapping_add(1 as Arity) as usize];
     offset[0 as usize] = 1 as u32;
@@ -200,7 +200,7 @@ pub(crate) unsafe fn new_index_by_callback(
     let mut blank: usize = 0 as usize;
     let mut i: Arity = 0 as Arity;
     while i < length {
-        let mut blob: *mut Buffer = fn_0.expect("non-null function pointer")(context, i as u32);
+        let blob: *mut Buffer = fn_0.expect("non-null function pointer")(context, i as u32);
         let blob_size: usize = (*blob).data.len();
         if blank < blob_size {
             used = used.wrapping_add(blob_size);
@@ -223,8 +223,8 @@ pub(crate) unsafe fn new_index_by_callback(
     (*idx).off_size = 4 as u8;
     return idx;
 }
-pub(crate) unsafe fn build_index(mut index: *const CffIndex) -> *mut Buffer {
-    let mut blob: *mut Buffer = bufnew();
+pub(crate) unsafe fn build_index(index: *const CffIndex) -> *mut Buffer {
+    let blob: *mut Buffer = bufnew();
     if (*index).count == 0 {
         bufwrite8(blob, 0 as u8);
         bufwrite8(blob, 0 as u8);
@@ -232,8 +232,8 @@ pub(crate) unsafe fn build_index(mut index: *const CffIndex) -> *mut Buffer {
         return blob;
     }
     let offset = &(*index).offset;
-    let mut last_offset: u32 = offset[(*index).count as usize];
-    let mut off_size: u8 = 4 as u8;
+    let last_offset: u32 = offset[(*index).count as usize];
+    let off_size: u8;
     if last_offset < 0x100 as u32 {
         off_size = 1 as u8;
     } else if last_offset < 0x10000 as u32 {

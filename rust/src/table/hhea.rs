@@ -78,7 +78,7 @@ pub unsafe fn otfcc_read_hhea(packet: &Packet, options: &Options) -> Option<Box<
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_hhea(
     table: Option<&HheaTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -91,7 +91,7 @@ pub unsafe fn otfcc_dump_hhea(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut hhea: *mut BuiltValue = json_object_new(13 as usize);
+        let hhea: *mut BuiltValue = json_object_new(13 as usize);
         json_object_push(
             hhea,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -157,14 +157,14 @@ pub unsafe fn otfcc_dump_hhea(
     }
 }
 pub unsafe fn otfcc_parse_hhea(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<HheaTable>> {
     let mut hhea_val: HheaTable = ::core::mem::zeroed();
     hhea_val.version = 0x10000 as ::core::ffi::c_int as F16Dot16;
     let mut hhea_box: Box<HheaTable> = Box::new(hhea_val);
     let hhea: *mut HheaTable = hhea_box.as_mut() as *mut HheaTable;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"hhea\0" as *const u8 as *const ::core::ffi::c_char,
@@ -244,7 +244,7 @@ pub unsafe fn otfcc_build_hhea(hhea: Option<&HheaTable>) -> *mut Buffer {
         Some(h) => h as *const HheaTable,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*hhea).version as u32);
     bufwrite16b(buf, (*hhea).ascender as u16);
     bufwrite16b(buf, (*hhea).descender as u16);

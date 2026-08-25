@@ -48,8 +48,8 @@ unsafe fn create_segment(tag: u32, buffer: *mut Buffer) -> SfntTableEntry {
         buffer,
     }
 }
-pub unsafe fn otfcc_new_sfnt_builder(mut header: u32, mut options: &Options) -> *mut SfntBuilder {
-    let mut builder: *mut SfntBuilder = __caryll_allocate_clean(
+pub unsafe fn otfcc_new_sfnt_builder(header: u32, options: &Options) -> *mut SfntBuilder {
+    let builder: *mut SfntBuilder = __caryll_allocate_clean(
         ::core::mem::size_of::<SfntBuilder>() as usize,
         40 as ::core::ffi::c_ulong,
     ) as *mut SfntBuilder;
@@ -67,7 +67,7 @@ pub unsafe fn otfcc_new_sfnt_builder(mut header: u32, mut options: &Options) -> 
     (*builder).options = options;
     return builder;
 }
-pub unsafe fn otfcc_delete_sfnt_builder(mut builder: *mut SfntBuilder) {
+pub unsafe fn otfcc_delete_sfnt_builder(builder: *mut SfntBuilder) {
     if builder.is_null() {
         return;
     }
@@ -89,9 +89,9 @@ pub unsafe fn otfcc_delete_sfnt_builder(mut builder: *mut SfntBuilder) {
 // this migration and unlike `ScriptStatHash`/`FvarMaster`'s insertion
 // order.
 pub unsafe fn otfcc_sfnt_builder_push_table(
-    mut builder: *mut SfntBuilder,
-    mut tag: u32,
-    mut buffer: *mut Buffer,
+    builder: *mut SfntBuilder,
+    tag: u32,
+    buffer: *mut Buffer,
 ) {
     if builder.is_null() || buffer.is_null() {
         return;
@@ -117,13 +117,13 @@ pub unsafe fn otfcc_sfnt_builder_push_table(
         ),
     );
 }
-pub unsafe fn otfcc_sfnt_builder_serialize(mut builder: *mut SfntBuilder) -> *mut Buffer {
-    let mut buffer: *mut Buffer = bufnew();
+pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> *mut Buffer {
+    let buffer: *mut Buffer = bufnew();
     if builder.is_null() {
         return buffer;
     }
     let n_tables: u16 = (*builder).tables.len() as u16;
-    let mut search_range: u16 = ((if (n_tables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int {
+    let search_range: u16 = ((if (n_tables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int {
         8 as ::core::ffi::c_int
     } else {
         if (n_tables as ::core::ffi::c_int) < 32 as ::core::ffi::c_int {
@@ -174,7 +174,7 @@ pub unsafe fn otfcc_sfnt_builder_serialize(mut builder: *mut SfntBuilder) -> *mu
         }
         offset = offset.wrapping_add(buflen(table.buffer));
     }
-    let mut whole_checksum: u32 = buf_checksum(buffer);
+    let whole_checksum: u32 = buf_checksum(buffer);
     bufseek(buffer, head_offset.wrapping_add(8 as usize));
     bufwrite32b(buffer, (0xb1b0afba as u32).wrapping_sub(whole_checksum));
     return buffer;

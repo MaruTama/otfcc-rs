@@ -14,10 +14,10 @@ use crate::table::otl::subtables::gsub_ligature::subtable_gsub_ligature_replace;
 use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, OtlTable, Subtable};
 
 pub unsafe fn consolidate_gsub_ligature(
-    mut font: *mut Font,
+    font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: &Options,
+    options: &Options,
 ) -> bool {
     let Subtable::GsubLigature(mut_subtable) = &mut *_subtable else {
         unreachable!()

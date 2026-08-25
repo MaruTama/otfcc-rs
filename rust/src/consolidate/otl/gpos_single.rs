@@ -14,10 +14,10 @@ use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
 use crate::table::otl::subtables::gpos_single::dispose_gpos_single_subtable;
 
 pub unsafe fn consolidate_gpos_single(
-    mut font: *mut Font,
+    font: *mut Font,
     mut _table: *mut OtlTable,
     mut _subtable: *mut Subtable,
-    mut options: &Options,
+    options: &Options,
 ) -> bool {
     let Subtable::GposSingle(mut_subtable) = &mut *_subtable else {
         unreachable!()

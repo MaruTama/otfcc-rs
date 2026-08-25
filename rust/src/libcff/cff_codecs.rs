@@ -13,7 +13,7 @@ unsafe fn atof(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_double 
 }
 /// Every caller passes a DICT operator, so the parameter says so. The body
 /// still works in `i32` -- unchanged arithmetic, unchanged bytes.
-pub unsafe fn cff_encode_cff_operator(mut val: CffDictOperator) -> *mut Buffer {
+pub unsafe fn cff_encode_cff_operator(val: CffDictOperator) -> *mut Buffer {
     let val = val.0 as i32;
     if val > 256 as i32 {
         return bufninit(&[(val / 256 as i32) as u8, (val % 256 as i32) as u8]);
@@ -52,9 +52,9 @@ pub unsafe fn cff_encode_cff_integer(mut val: i32) -> *mut Buffer {
         ]);
     };
 }
-pub unsafe fn cff_encode_cff_float(mut val: ::core::ffi::c_double) -> *mut Buffer {
-    let mut blob: *mut Buffer = bufnew();
-    let mut i: u32 = 0;
+pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
+    let blob: *mut Buffer = bufnew();
+    let mut i: u32;
     let mut j: u32 = 0 as u32;
     let mut temp: [u8; 32] = [
         0 as ::core::ffi::c_int as u8,

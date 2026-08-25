@@ -74,11 +74,11 @@ struct OtfReader;
 impl FontBuilder for OtfReader {
     unsafe fn read(
         mut _sfnt: *mut ::core::ffi::c_void,
-        mut index: u32,
+        index: u32,
         options: *const ::core::ffi::c_void,
     ) -> *mut ::core::ffi::c_void {
         let options: &Options = &*(options as *const Options);
-        let mut sfnt: *mut SplineFontContainer = _sfnt as *mut SplineFontContainer;
+        let sfnt: *mut SplineFontContainer = _sfnt as *mut SplineFontContainer;
         if (*sfnt).count.wrapping_sub(1 as u32) < index {
             return ::core::ptr::null_mut::<::core::ffi::c_void>();
         } else {
@@ -142,7 +142,7 @@ impl FontBuilder for OtfReader {
                 };
                 (*font).glyf = otfcc_read_glyf(packet, options, &raw mut ctx);
             } else {
-                let mut cffpr: CffAndGlyf = otfcc_read_cff_and_glyf_tables(
+                let cffpr: CffAndGlyf = otfcc_read_cff_and_glyf_tables(
                     packet,
                     options,
                     (*font)
@@ -189,8 +189,8 @@ impl FontBuilder for OtfReader {
 }
 pub unsafe fn read_otf(
     mut _sfnt: *mut ::core::ffi::c_void,
-    mut index: u32,
-    mut options: &Options,
+    index: u32,
+    options: &Options,
 ) -> *mut Font {
     <OtfReader as FontBuilder>::read(
         _sfnt,

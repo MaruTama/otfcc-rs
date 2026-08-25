@@ -55,14 +55,14 @@ pub static WHITE: CpalColor = CpalColor {
     label: 0xffff as u16,
 };
 pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
-    let mut version: u16 = 0;
-    let mut table_header_length: u32 = 0;
-    let mut num_palettes_entries: u16 = 0;
-    let mut num_palettes: u16 = 0;
-    let mut num_color_records: u16 = 0;
-    let mut offset_first_color_record: u32 = 0;
-    let mut color_list: *mut CpalColor = ::core::ptr::null_mut::<CpalColor>();
-    let mut t: Option<Box<CpalTable>> = None;
+    let mut version: u16;
+    let mut table_header_length: u32;
+    let mut num_palettes_entries: u16;
+    let mut num_palettes: u16;
+    let mut num_color_records: u16;
+    let mut offset_first_color_record: u32;
+    let color_list: *mut CpalColor;
+    let mut t: Option<Box<CpalTable>>;
     let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
     let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
@@ -75,8 +75,8 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
             if table.tag == crate::tag::TAG_CPAL {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut length: u32 = table.length;
+                    let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
+                    let length: u32 = table.length;
                     if !(length < 2 as u32) {
                         t = Some(Box::new(CpalTable {
                             version: 0,
@@ -117,7 +117,6 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
                                             as u32,
                                     ))
                                 {
-                                    color_list = ::core::ptr::null_mut::<CpalColor>();
                                     color_list = __caryll_allocate_clean(
                                         (::core::mem::size_of::<CpalColor>() as usize)
                                             .wrapping_mul(num_color_records as usize),
@@ -188,7 +187,7 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
                                             type_0: 0,
                                             label: 0xffff,
                                         };
-                                        let mut palette_start_index: TableId = read_16u(
+                                        let palette_start_index: TableId = read_16u(
                                             data.offset(12 as ::core::ffi::c_int as isize).offset(
                                                 (j_0 as ::core::ffi::c_int
                                                     * 2 as ::core::ffi::c_int)
@@ -221,7 +220,7 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
                                     if version as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
                                         let palettes: &mut Vec<CpalPalette> =
                                             &mut t.as_mut().unwrap().palettes;
-                                        let mut offset_palette_type_array: u32 = read_32u(
+                                        let offset_palette_type_array: u32 = read_32u(
                                             data.offset(16 as ::core::ffi::c_int as isize).offset(
                                                 (2 as ::core::ffi::c_int
                                                     * num_palettes as ::core::ffi::c_int)
@@ -241,7 +240,7 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
                                             while (j_2 as ::core::ffi::c_int)
                                                 < num_palettes as ::core::ffi::c_int
                                             {
-                                                let mut type_0: u32 = read_32u(
+                                                let type_0: u32 = read_32u(
                                                     data.offset(
                                                         (j_2 as ::core::ffi::c_int
                                                             * 4 as ::core::ffi::c_int)
@@ -254,7 +253,7 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
                                                 j_2 = j_2.wrapping_add(1);
                                             }
                                         }
-                                        let mut offset_palette_label_array: u32 = read_32u(
+                                        let offset_palette_label_array: u32 = read_32u(
                                             data.offset(20 as ::core::ffi::c_int as isize).offset(
                                                 (2 as ::core::ffi::c_int
                                                     * num_palettes as ::core::ffi::c_int)
@@ -274,7 +273,7 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
                                             while (j_3 as ::core::ffi::c_int)
                                                 < num_palettes as ::core::ffi::c_int
                                             {
-                                                let mut label: u16 = read_16u(
+                                                let label: u16 = read_16u(
                                                     data.offset(
                                                         (j_3 as ::core::ffi::c_int
                                                             * 2 as ::core::ffi::c_int)
@@ -288,7 +287,7 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
                                             }
                                         }
                                         if version as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-                                            let mut offset_palette_entry_label_array: u32 =
+                                            let offset_palette_entry_label_array: u32 =
                                                 read_32u(
                                                     data.offset(24 as ::core::ffi::c_int as isize)
                                                         .offset(
@@ -313,7 +312,7 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
                                                 while (j_4 as ::core::ffi::c_int)
                                                     < num_palettes_entries as ::core::ffi::c_int
                                                 {
-                                                    let mut label_0: u16 = read_16u(
+                                                    let label_0: u16 = read_16u(
                                                         data.offset(
                                                             (j_4 as ::core::ffi::c_int
                                                                 * 2 as ::core::ffi::c_int)
@@ -340,13 +339,11 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
                                         }
                                     }
                                     free(color_list as *mut ::core::ffi::c_void);
-                                    color_list = ::core::ptr::null_mut::<CpalColor>();
                                     return t;
                                 }
                             }
                         }
                     }
-                    t = None;
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;
                 }
@@ -359,7 +356,7 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
     return None;
 }
 #[inline]
-unsafe fn dump_color(mut color: *const CpalColor) -> *mut BuiltValue {
+unsafe fn dump_color(color: *const CpalColor) -> *mut BuiltValue {
     let mut _color: *mut BuiltValue = json_object_new(5 as usize);
     json_object_push(
         _color,
@@ -393,7 +390,7 @@ unsafe fn dump_color(mut color: *const CpalColor) -> *mut BuiltValue {
     return preserialize(_color);
 }
 #[inline]
-unsafe fn dump_palette(mut palette: *const CpalPalette) -> *mut BuiltValue {
+unsafe fn dump_palette(palette: *const CpalPalette) -> *mut BuiltValue {
     let mut _palette: *mut BuiltValue = json_object_new(3 as usize);
     if (*palette).type_0 != 0 {
         json_object_push(
@@ -410,7 +407,7 @@ unsafe fn dump_palette(mut palette: *const CpalPalette) -> *mut BuiltValue {
         );
     }
     let colorset: &Vec<CpalColor> = &(*palette).colorset;
-    let mut a: *mut BuiltValue = json_array_new(colorset.len());
+    let a: *mut BuiltValue = json_array_new(colorset.len());
     let mut j: ColorId = 0 as ColorId;
     while (j as usize) < colorset.len() {
         json_array_push(a, dump_color(&colorset[j as usize] as *const CpalColor));
@@ -426,7 +423,7 @@ unsafe fn dump_palette(mut palette: *const CpalPalette) -> *mut BuiltValue {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_cpal(
     table: Option<&CpalTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -503,10 +500,10 @@ unsafe fn parse_color(mut _color: *const ParsedValue) -> CpalColor {
     return color;
 }
 pub unsafe fn otfcc_parse_cpal(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<CpalTable>> {
-    let mut table: *const ParsedValue = ::core::ptr::null();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"CPAL\0" as *const u8 as *const ::core::ffi::c_char,
@@ -580,7 +577,7 @@ pub unsafe fn otfcc_parse_cpal(
     return cpal;
 }
 #[inline]
-unsafe fn build_palette_type(mut cpal: *const CpalTable) -> *mut BkBlock {
+unsafe fn build_palette_type(cpal: *const CpalTable) -> *mut BkBlock {
     let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     let mut needs_palette_type: bool = false;
     let mut j: TableId = 0 as TableId;
@@ -593,7 +590,7 @@ unsafe fn build_palette_type(mut cpal: *const CpalTable) -> *mut BkBlock {
     if !needs_palette_type {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let mut block: *mut BkBlock = bk_new_block(&[]);
+    let block: *mut BkBlock = bk_new_block(&[]);
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < palettes.len() {
         bk_push(
@@ -608,7 +605,7 @@ unsafe fn build_palette_type(mut cpal: *const CpalTable) -> *mut BkBlock {
     return block;
 }
 #[inline]
-unsafe fn build_palette_label(mut cpal: *const CpalTable) -> *mut BkBlock {
+unsafe fn build_palette_label(cpal: *const CpalTable) -> *mut BkBlock {
     let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     let mut needs_palette_label: bool = false;
     let mut j: TableId = 0 as TableId;
@@ -621,7 +618,7 @@ unsafe fn build_palette_label(mut cpal: *const CpalTable) -> *mut BkBlock {
     if !needs_palette_label {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let mut block: *mut BkBlock = bk_new_block(&[]);
+    let block: *mut BkBlock = bk_new_block(&[]);
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < palettes.len() {
         bk_push(
@@ -636,7 +633,7 @@ unsafe fn build_palette_label(mut cpal: *const CpalTable) -> *mut BkBlock {
     return block;
 }
 #[inline]
-unsafe fn build_palette_entry_label(mut cpal: *const CpalTable) -> *mut BkBlock {
+unsafe fn build_palette_entry_label(cpal: *const CpalTable) -> *mut BkBlock {
     let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     let mut needs_palette_entry_label: bool = false;
     let palette: &CpalPalette = &palettes[0 as usize];
@@ -651,7 +648,7 @@ unsafe fn build_palette_entry_label(mut cpal: *const CpalTable) -> *mut BkBlock 
     if !needs_palette_entry_label {
         return ::core::ptr::null_mut::<BkBlock>();
     }
-    let mut block: *mut BkBlock = bk_new_block(&[]);
+    let block: *mut BkBlock = bk_new_block(&[]);
     let mut j_0: ColorId = 0 as ColorId;
     while (j_0 as usize) < palette.colorset.len() {
         bk_push(
@@ -675,18 +672,18 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> *mut Buffer {
     if palettes.is_empty() {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut num_palettes: u16 = palettes.len() as u16;
-    let mut num_palettes_entries: u16 = palettes[0 as usize].colorset.len() as u16;
-    let mut num_color_records: u16 =
+    let num_palettes: u16 = palettes.len() as u16;
+    let num_palettes_entries: u16 = palettes[0 as usize].colorset.len() as u16;
+    let num_color_records: u16 =
         (num_palettes as ::core::ffi::c_int * num_palettes_entries as ::core::ffi::c_int) as u16;
-    let mut color_records: *mut BkBlock = bk_new_block(&[]);
+    let color_records: *mut BkBlock = bk_new_block(&[]);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < num_palettes as ::core::ffi::c_int {
         let palette: &CpalPalette = &palettes[j as usize];
-        let mut total_colors: ColorId = palette.colorset.len() as ColorId;
+        let total_colors: ColorId = palette.colorset.len() as ColorId;
         let mut k: ColorId = 0 as ColorId;
         while (k as ::core::ffi::c_int) < num_palettes_entries as ::core::ffi::c_int {
-            let mut color: *const CpalColor = ::core::ptr::null::<CpalColor>();
+            let color: *const CpalColor;
             if (k as ::core::ffi::c_int) < total_colors as ::core::ffi::c_int {
                 color = &palette.colorset[k as usize] as *const CpalColor;
             } else {
@@ -711,7 +708,7 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> *mut Buffer {
         }
         j = j.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(
             BkCellType::B16,
             ((*cpal).version as ::core::ffi::c_int) as u32,

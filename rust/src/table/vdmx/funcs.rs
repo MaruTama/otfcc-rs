@@ -85,7 +85,7 @@ pub unsafe fn otfcc_read_vdmx(packet: &Packet, options: &Options) -> Option<Box<
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_vdmx(
     vdmx: Option<&VdmxTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let vdmx = match vdmx {
@@ -186,7 +186,7 @@ pub unsafe fn otfcc_dump_vdmx(
     }
 }
 pub unsafe fn otfcc_parse_vdmx(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<VdmxTable>> {
     let mut _vdmx: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
@@ -290,7 +290,7 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
     if ratios.is_empty() {
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(
             BkCellType::B16,
             ((*vdmx).version as ::core::ffi::c_int) as u32,
@@ -346,7 +346,7 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
                 keep_1 = (keep_1 == 0) as ::core::ffi::c_int as usize;
                 __caryll_index_1 = __caryll_index_1.wrapping_add(1);
             }
-            let mut group: *mut BkBlock = bk_new_block(&[
+            let group: *mut BkBlock = bk_new_block(&[
                 bk_int(BkCellType::B16, (rr_0.records.len()) as u32),
                 bk_int(BkCellType::B8, (startsz as ::core::ffi::c_int) as u32),
                 bk_int(BkCellType::B8, (endsz as ::core::ffi::c_int) as u32),

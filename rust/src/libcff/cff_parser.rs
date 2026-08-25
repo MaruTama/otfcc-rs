@@ -136,9 +136,9 @@ unsafe fn parse_encoding(cff: *mut CffFile, offset: i32) -> CffEncoding {
     };
     result.unwrap_or(CffEncoding::Unspecified)
 }
-unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
-    let mut pos: u32 = 0;
-    let mut offset: i32 = 0;
+unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
+    let mut pos: u32;
+    let offset: i32;
     // No length check guarded these 4 header-byte reads at all -- a `raw_
     // length` shorter than 4 read straight past the allocation. Every
     // field now defaults to 0 on a bounds failure instead: `extract_index`
@@ -200,7 +200,7 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
         &raw mut (*cff).global_subr,
     );
     if !(*cff).top_dict.data.is_empty() {
-        let mut offset_0: i32 = 0;
+        let mut offset_0: i32;
         offset_0 = parse_dict_key_int(
             (*cff).top_dict.data.as_ptr(),
             (*(*cff)
@@ -399,11 +399,11 @@ unsafe fn parse_cff_bytecode(mut cff: *mut CffFile, mut options: &Options) {
     };
 }
 pub unsafe fn cff_open_stream(
-    mut data: *mut u8,
-    mut len: u32,
-    mut options: &Options,
+    data: *mut u8,
+    len: u32,
+    options: &Options,
 ) -> *mut CffFile {
-    let mut file: *mut CffFile = ::core::ptr::null_mut::<CffFile>();
+    let file: *mut CffFile;
     file = __caryll_allocate_clean(
         ::core::mem::size_of::<CffFile>() as usize,
         203 as ::core::ffi::c_ulong,
@@ -422,7 +422,7 @@ pub unsafe fn cff_open_stream(
     parse_cff_bytecode(file, options);
     return file;
 }
-pub unsafe fn cff_close(mut file: *mut CffFile) {
+pub unsafe fn cff_close(file: *mut CffFile) {
     if !file.is_null() {
         if !(*file).raw_data.is_null() {
             free((*file).raw_data as *mut ::core::ffi::c_void);
@@ -442,7 +442,6 @@ pub unsafe fn cff_close(mut file: *mut CffFile) {
         (*file).charsets = CffCharset::IsoAdobe;
         (*file).fdselect = CffFdSelect::Unspecified;
         free(file as *mut ::core::ffi::c_void);
-        file = ::core::ptr::null_mut::<CffFile>();
     }
 }
 // No longer `extern "C"`: `&CffFdSelect` has no C spelling. Only called
@@ -460,9 +459,9 @@ pub unsafe fn cff_parse_subr(
     subr: *mut CffIndex,
 ) -> u8 {
     let mut fd: u8 = 0 as u8;
-    let mut off_private: i32 = 0;
-    let mut len_private: i32 = 0;
-    let mut off_subr: i32 = 0;
+    let off_private: i32;
+    let len_private: i32;
+    let off_subr: i32;
     match select {
         CffFdSelect::Format0(fds) => {
             fd = fds[idx as usize];
@@ -578,7 +577,7 @@ unsafe fn locate_subr(subr_index: &CffIndex, bias: u16, subr: u32) -> Option<(*c
     }
     Some((subr_index.data.as_ptr().add(data_offset), data_len))
 }
-unsafe fn compute_subr_bias(mut cnt: u16) -> u16 {
+unsafe fn compute_subr_bias(cnt: u16) -> u16 {
     if (cnt as ::core::ffi::c_int) < 1240 as ::core::ffi::c_int {
         return 107 as u16;
     } else if (cnt as ::core::ffi::c_int) < 33900 as ::core::ffi::c_int {
@@ -587,7 +586,7 @@ unsafe fn compute_subr_bias(mut cnt: u16) -> u16 {
         return 32768 as u16;
     };
 }
-unsafe fn reverse_stack(mut stack: *mut CffStack, mut left: u8, mut right: u8) {
+unsafe fn reverse_stack(stack: *mut CffStack, left: u8, right: u8) {
     let mut p1: *mut CffValue = (*stack)
         .stack
         .as_mut_ptr()
@@ -597,7 +596,7 @@ unsafe fn reverse_stack(mut stack: *mut CffStack, mut left: u8, mut right: u8) {
         .as_mut_ptr()
         .offset(right as ::core::ffi::c_int as isize);
     while p1 < p2 {
-        let mut temp: CffValue = *p1;
+        let temp: CffValue = *p1;
         *p1 = *p2;
         *p2 = temp;
         p1 = p1.offset(1);
@@ -613,13 +612,13 @@ unsafe fn reverse_stack(mut stack: *mut CffStack, mut left: u8, mut right: u8) {
 // already unreachable dead code; deleted along with the extraction, not
 // just the vtable shell.
 pub unsafe fn cff_parse_outline(
-    mut data: *mut u8,
-    mut len: u32,
+    data: *mut u8,
+    len: u32,
     gsubr: &CffIndex,
     lsubr: &CffIndex,
-    mut stack: *mut CffStack,
-    mut outline: *mut ::core::ffi::c_void,
-    mut options: &Options,
+    stack: *mut CffStack,
+    outline: *mut ::core::ffi::c_void,
+    options: &Options,
     depth: u32,
 ) {
     if depth > MAX_SUBR_CALL_DEPTH {
@@ -635,12 +634,12 @@ pub unsafe fn cff_parse_outline(
         );
         return;
     }
-    let mut gsubr_bias: u16 = compute_subr_bias(gsubr.count as u16);
-    let mut lsubr_bias: u16 = compute_subr_bias(lsubr.count as u16);
+    let gsubr_bias: u16 = compute_subr_bias(gsubr.count as u16);
+    let lsubr_bias: u16 = compute_subr_bias(lsubr.count as u16);
     let mut start: *mut u8 = data;
-    let mut advance: u32 = 0;
-    let mut i: u32 = 0;
-    let mut cnt_bezier: u32 = 0;
+    let mut advance: u32;
+    let mut i: u32;
+    let mut cnt_bezier: u32;
     let mut val: CffValue = CffValue::Unset;
     while start < data.offset(len as isize) {
         // The outer loop already bounds where a token can *start*, but
@@ -655,7 +654,7 @@ pub unsafe fn cff_parse_outline(
         advance = adv;
         match val {
             CffValue::Operator(op) => {
-                let mut hint_base: ::core::ffi::c_double = 0.;
+                let mut hint_base: ::core::ffi::c_double;
                 match op {
                     1 | 3 | 18 | 23 => {
                         if (*stack).index.wrapping_rem(2 as Arity) != 0 {
@@ -675,9 +674,9 @@ pub unsafe fn cff_parse_outline(
                         hint_base = 0 as ::core::ffi::c_int as ::core::ffi::c_double;
                         let mut j: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j as Arity) < (*stack).index {
-                            let mut pos: ::core::ffi::c_double =
+                            let pos: ::core::ffi::c_double =
                                 cffnum(*(*stack).stack.as_mut_ptr().offset(j as isize));
-                            let mut width: ::core::ffi::c_double =
+                            let width: ::core::ffi::c_double =
                                 cffnum(*(*stack).stack.as_mut_ptr().offset(
                                     (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
                                 ));
@@ -704,7 +703,7 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         }
-                        let mut is_vertical: bool =
+                        let is_vertical: bool =
                             (*stack).stem as ::core::ffi::c_int > 0 as ::core::ffi::c_int;
                         (*stack).stem = ((*stack).stem as Arity)
                             .wrapping_add((*stack).index >> 1 as ::core::ffi::c_int)
@@ -713,9 +712,9 @@ pub unsafe fn cff_parse_outline(
                             0 as ::core::ffi::c_int as ::core::ffi::c_double;
                         let mut j_0: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j_0 as Arity) < (*stack).index {
-                            let mut pos_0: ::core::ffi::c_double =
+                            let pos_0: ::core::ffi::c_double =
                                 cffnum(*(*stack).stack.as_mut_ptr().offset(j_0 as isize));
-                            let mut width_0: ::core::ffi::c_double =
+                            let width_0: ::core::ffi::c_double =
                                 cffnum(*(*stack).stack.as_mut_ptr().offset(
                                     (j_0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
                                 ));
@@ -728,10 +727,10 @@ pub unsafe fn cff_parse_outline(
                             hint_base_0 += pos_0 + width_0;
                             j_0 = (j_0 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u16;
                         }
-                        let mut mask_length: u32 =
+                        let mask_length: u32 =
                             ((*stack).stem as ::core::ffi::c_int + 7 as ::core::ffi::c_int
                                 >> 3 as ::core::ffi::c_int) as u32;
-                        let mut mask: *mut bool = ::core::ptr::null_mut::<bool>();
+                        let mask: *mut bool;
                         mask = __caryll_allocate_clean(
                             (::core::mem::size_of::<bool>() as usize).wrapping_mul(
                                 ((*stack).stem as ::core::ffi::c_int + 7 as ::core::ffi::c_int)
@@ -741,7 +740,7 @@ pub unsafe fn cff_parse_outline(
                         ) as *mut bool;
                         let mut byte: u32 = 0 as u32;
                         while byte < mask_length {
-                            let mut mask_byte: u8 =
+                            let mask_byte: u8 =
                                 *start.offset(advance.wrapping_add(byte) as isize);
                             *mask
                                 .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(0 as u32)
@@ -2161,13 +2160,13 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num1: ::core::ffi::c_double = cffnum(
+                            let num1: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
                             );
-                            let mut num2: ::core::ffi::c_double = cffnum(
+                            let num2: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2200,13 +2199,13 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num1_0: ::core::ffi::c_double = cffnum(
+                            let num1_0: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
                             );
-                            let mut num2_0: ::core::ffi::c_double = cffnum(
+                            let num2_0: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2239,7 +2238,7 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num: ::core::ffi::c_double = cffnum(
+                            let num: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2267,7 +2266,7 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num_0: ::core::ffi::c_double = cffnum(
+                            let num_0: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2295,13 +2294,13 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num1_1: ::core::ffi::c_double = cffnum(
+                            let num1_1: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
                             );
-                            let mut num2_1: ::core::ffi::c_double = cffnum(
+                            let num2_1: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2330,13 +2329,13 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num1_2: ::core::ffi::c_double = cffnum(
+                            let num1_2: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
                             );
-                            let mut num2_2: ::core::ffi::c_double = cffnum(
+                            let num2_2: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2365,13 +2364,13 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num1_3: ::core::ffi::c_double = cffnum(
+                            let num1_3: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
                             );
-                            let mut num2_3: ::core::ffi::c_double = cffnum(
+                            let num2_3: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2400,7 +2399,7 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num_1: ::core::ffi::c_double = cffnum(
+                            let num_1: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2428,13 +2427,13 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num1_4: ::core::ffi::c_double = cffnum(
+                            let num1_4: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
                             );
-                            let mut num2_4: ::core::ffi::c_double = cffnum(
+                            let num2_4: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2481,13 +2480,13 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut val_0: ::core::ffi::c_double = cffnum(
+                            let val_0: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
                             );
-                            let mut i_0: i32 = cffnum(
+                            let i_0: i32 = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2513,7 +2512,7 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut i_1: i32 = cffnum(
+                            let i_1: i32 = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2544,25 +2543,25 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut v2: ::core::ffi::c_double = cffnum(
+                            let v2: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
                             );
-                            let mut v1: ::core::ffi::c_double = cffnum(
+                            let v1: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
                             );
-                            let mut s2: ::core::ffi::c_double = cffnum(
+                            let s2: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(3 as Arity) as isize),
                             );
-                            let mut s1: ::core::ffi::c_double = cffnum(
+                            let s1: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2609,13 +2608,13 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num1_5: ::core::ffi::c_double = cffnum(
+                            let num1_5: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
                             );
-                            let mut num2_5: ::core::ffi::c_double = cffnum(
+                            let num2_5: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2644,7 +2643,7 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num_2: ::core::ffi::c_double = cffnum(
+                            let num_2: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2706,13 +2705,13 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut num1_6: ::core::ffi::c_double = cffnum(
+                            let num1_6: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
                             );
-                            let mut num2_6: ::core::ffi::c_double = cffnum(
+                            let num2_6: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2745,8 +2744,8 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            let mut n: u8 = (*stack).index.wrapping_sub(1 as Arity) as u8;
-                            let mut j_1: u8 = (n as ::core::ffi::c_int
+                            let n: u8 = (*stack).index.wrapping_sub(1 as Arity) as u8;
+                            let j_1: u8 = (n as ::core::ffi::c_int
                                 - 1 as ::core::ffi::c_int
                                 - cffnum(*(*stack).stack.as_mut_ptr().offset(n as isize)) as u8
                                     as ::core::ffi::c_int
@@ -2777,7 +2776,7 @@ pub unsafe fn cff_parse_outline(
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
                             ) as i32;
-                            let mut n_0: u32 = cffnum(
+                            let n_0: u32 = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
@@ -2802,9 +2801,9 @@ pub unsafe fn cff_parse_outline(
                                     j_2 = (j_2 as u32).wrapping_add(n_0) as i32 as i32;
                                 }
                                 if !(j_2 == 0) {
-                                    let mut last: u8 =
+                                    let last: u8 =
                                         (*stack).index.wrapping_sub(3 as Arity) as u8;
-                                    let mut first: u8 = (*stack)
+                                    let first: u8 = (*stack)
                                         .index
                                         .wrapping_sub(2 as Arity)
                                         .wrapping_sub(n_0 as Arity)

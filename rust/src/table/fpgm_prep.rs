@@ -38,7 +38,7 @@ pub struct FpgmPrepTable {
 // so this just clones it rather than routing through
 // `__caryll_allocate_clean`/`copy_nonoverlapping` the way the raw-pointer
 // version did.
-pub unsafe fn otfcc_read_fpgm_prep(packet: &Packet, mut tag: u32) -> Option<Box<FpgmPrepTable>> {
+pub unsafe fn otfcc_read_fpgm_prep(packet: &Packet, tag: u32) -> Option<Box<FpgmPrepTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == tag)?;
     Some(Box::new(FpgmPrepTable {
         tag: Vec::new(),
@@ -48,9 +48,9 @@ pub unsafe fn otfcc_read_fpgm_prep(packet: &Packet, mut tag: u32) -> Option<Box<
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn table_dump_table_fpgm_prep(
     table: Option<&FpgmPrepTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
-    mut tag: *const ::core::ffi::c_char,
+    tag: *const ::core::ffi::c_char,
 ) {
     let table = match table {
         Some(t) => t,
@@ -73,7 +73,7 @@ pub unsafe fn table_dump_table_fpgm_prep(
     }
 }
 pub unsafe fn make_fpgm_prep_instr(mut _t: *mut ::core::ffi::c_void, instrs: Vec<u8>) {
-    let mut t: *mut FpgmPrepTable = _t as *mut FpgmPrepTable;
+    let t: *mut FpgmPrepTable = _t as *mut FpgmPrepTable;
     (*t).bytes = instrs;
 }
 pub unsafe extern "C" fn wrong_fpgm_prep_instr(
@@ -83,12 +83,12 @@ pub unsafe extern "C" fn wrong_fpgm_prep_instr(
 ) {
 }
 pub unsafe fn otfcc_parse_fpgm_prep(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
-    mut tag: *const ::core::ffi::c_char,
+    tag: *const ::core::ffi::c_char,
 ) -> Option<Box<FpgmPrepTable>> {
     let mut t: Option<Box<FpgmPrepTable>> = None;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get(root, tag);
     if !table.is_null() {
         logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
@@ -124,7 +124,7 @@ pub unsafe fn otfcc_build_fpgm_prep(table: Option<&FpgmPrepTable>) -> *mut Buffe
         Some(t) => t,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     bufwrite_bytes(buf, (*table).bytes.len(), (*table).bytes.as_ptr());
     return buf;
 }

@@ -11,7 +11,7 @@ unsafe extern "C" {
 pub unsafe fn cff_build_header() -> *mut Buffer {
     return unsafe { bufninit(&[1 as u8, 0 as u8, 4 as u8, 4 as u8]) };
 }
-pub unsafe fn cff_merge_cs2_operator(mut blob: *mut Buffer, mut val: CffCharstringOperator) {
+pub unsafe fn cff_merge_cs2_operator(blob: *mut Buffer, val: CffCharstringOperator) {
     let val = val.0;
     unsafe {
         if val >= 0x100 as i32 {
@@ -27,7 +27,7 @@ pub unsafe fn cff_merge_cs2_operator(mut blob: *mut Buffer, mut val: CffCharstri
         };
     }
 }
-pub unsafe fn cff_merge_cs2_int(mut blob: *mut Buffer, mut val: i32) {
+pub unsafe fn cff_merge_cs2_int(blob: *mut Buffer, val: i32) {
     unsafe {
         if val >= -(1131 as i32) && val <= -(108 as i32) {
             bufnwrite8(
@@ -67,9 +67,9 @@ pub unsafe fn cff_merge_cs2_int(mut blob: *mut Buffer, mut val: i32) {
         };
     }
 }
-unsafe fn merge_cs2_real(mut blob: *mut Buffer, mut val: ::core::ffi::c_double) {
-    let mut integer_part: i16 = unsafe { floor(val) } as i16;
-    let mut fraction_part: u16 =
+unsafe fn merge_cs2_real(blob: *mut Buffer, val: ::core::ffi::c_double) {
+    let integer_part: i16 = unsafe { floor(val) } as i16;
+    let fraction_part: u16 =
         ((val - integer_part as ::core::ffi::c_int as ::core::ffi::c_double) * 65536.0f64) as u16;
     unsafe {
         bufnwrite8(
@@ -84,7 +84,7 @@ unsafe fn merge_cs2_real(mut blob: *mut Buffer, mut val: ::core::ffi::c_double) 
         );
     }
 }
-pub unsafe fn cff_merge_cs2_operand(mut blob: *mut Buffer, mut val: ::core::ffi::c_double) {
+pub unsafe fn cff_merge_cs2_operand(blob: *mut Buffer, val: ::core::ffi::c_double) {
     let mut intpart: ::core::ffi::c_double = 0.;
     unsafe {
         if modf(val, &raw mut intpart) == 0.0f64 {
@@ -94,10 +94,10 @@ pub unsafe fn cff_merge_cs2_operand(mut blob: *mut Buffer, mut val: ::core::ffi:
         };
     }
 }
-pub unsafe fn cff_merge_cs2_special(mut blob: *mut Buffer, mut val: u8) {
+pub unsafe fn cff_merge_cs2_special(blob: *mut Buffer, val: u8) {
     unsafe { bufwrite8(blob, val) };
 }
-pub unsafe fn cff_build_offset(mut val: i32) -> *mut Buffer {
+pub unsafe fn cff_build_offset(val: i32) -> *mut Buffer {
     return unsafe {
         bufninit(&[
             29 as u8,

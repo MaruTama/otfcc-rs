@@ -47,8 +47,8 @@ fn parse_hmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<HmtxTable, 
 pub unsafe fn otfcc_read_hmtx(
     packet: &Packet,
     options: &Options,
-    mut hhea: *mut HheaTable,
-    mut maxp: *mut MaxpTable,
+    hhea: *mut HheaTable,
+    maxp: *mut MaxpTable,
 ) -> Option<Box<HmtxTable>> {
     if hhea.is_null()
         || maxp.is_null()
@@ -80,10 +80,10 @@ pub unsafe fn otfcc_read_hmtx(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_hmtx(
     hmtx: Option<&HmtxTable>,
-    mut count_a: GlyphId,
-    mut count_k: GlyphId,
+    count_a: GlyphId,
+    count_k: GlyphId,
 ) -> *mut Buffer {
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     let hmtx = match hmtx {
         Some(h) => h,
         None => return buf,

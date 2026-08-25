@@ -443,7 +443,7 @@ pub unsafe fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_post(
     table: Option<&PostTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -456,7 +456,7 @@ pub unsafe fn otfcc_dump_post(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut post: *mut BuiltValue = json_object_new(10 as usize);
+        let post: *mut BuiltValue = json_object_new(10 as usize);
         json_object_push(
             post,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -512,7 +512,7 @@ pub unsafe fn otfcc_dump_post(
     }
 }
 pub unsafe fn otfcc_parse_post(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<PostTable>> {
     // `.version`'s `0x30000` default carries through if the "post" JSON key
@@ -525,7 +525,7 @@ pub unsafe fn otfcc_parse_post(
     post_val.version = 0x30000 as ::core::ffi::c_int as F16Dot16;
     let mut post_box: Box<PostTable> = Box::new(post_val);
     let post: *mut PostTable = post_box.as_mut() as *mut PostTable;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"post\0" as *const u8 as *const ::core::ffi::c_char,
@@ -587,13 +587,13 @@ pub unsafe fn otfcc_parse_post(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_post(
     post: Option<&PostTable>,
-    mut glyphorder: *mut GlyphOrder,
+    glyphorder: *mut GlyphOrder,
 ) -> *mut Buffer {
     let post = match post {
         Some(p) => p as *const PostTable,
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
-    let mut buf: *mut Buffer = bufnew();
+    let buf: *mut Buffer = bufnew();
     bufwrite32b(buf, (*post).version as u32);
     bufwrite32b(buf, (*post).italic_angle as u32);
     bufwrite16b(buf, (*post).underline_position as u16);

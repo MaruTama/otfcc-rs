@@ -45,7 +45,7 @@ impl FontSerializer for JsonSerializer {
     ) -> *mut ::core::ffi::c_void {
         let font = font as *mut Font;
         let options: &Options = &*(options as *const Options);
-        let mut root: *mut BuiltValue = json_object_new(48 as usize);
+        let root: *mut BuiltValue = json_object_new(48 as usize);
         if root.is_null() {
             return NULL;
         }
@@ -128,8 +128,8 @@ impl FontSerializer for JsonSerializer {
     }
 }
 pub unsafe fn serialize_to_json(
-    mut font: *mut Font,
-    mut options: &Options,
+    font: *mut Font,
+    options: &Options,
 ) -> *mut ::core::ffi::c_void {
     <JsonSerializer as FontSerializer>::serialize(
         font as *mut ::core::ffi::c_void,

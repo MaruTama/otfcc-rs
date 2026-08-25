@@ -92,24 +92,24 @@ impl CffCharstringInstruction {
 pub struct CffCharstringIl {
     pub instr: Vec<CffCharstringInstruction>,
 }
-pub unsafe fn il_push_operand(mut il: *mut CffCharstringIl, mut x: ::core::ffi::c_double) {
+pub unsafe fn il_push_operand(il: *mut CffCharstringIl, x: ::core::ffi::c_double) {
     (*il).instr.push(CffCharstringInstruction {
         type_0: CffInstructionType::Operand,
         arity: 0 as Arity,
         arg: CffCharstringArgument::D(x),
     });
 }
-pub unsafe fn il_push_vq(mut il: *mut CffCharstringIl, mut x: VQ) {
+pub unsafe fn il_push_vq(il: *mut CffCharstringIl, x: VQ) {
     il_push_operand(il, vq_get_still(x) as ::core::ffi::c_double);
 }
-pub unsafe fn il_push_special(mut il: *mut CffCharstringIl, mut s: i32) {
+pub unsafe fn il_push_special(il: *mut CffCharstringIl, s: i32) {
     (*il).instr.push(CffCharstringInstruction {
         type_0: CffInstructionType::Special,
         arity: 0 as Arity,
         arg: CffCharstringArgument::I(s),
     });
 }
-pub unsafe fn il_push_op(mut il: *mut CffCharstringIl, mut op: CffCharstringOperator) {
+pub unsafe fn il_push_op(il: *mut CffCharstringIl, op: CffCharstringOperator) {
     // The `.i` arm stays a bare `i32`: `CffInstructionType::Special` stores
     // non-operator bytes in the very same field, so the type lives on the way
     // in, not in the storage.
@@ -119,24 +119,24 @@ pub unsafe fn il_push_op(mut il: *mut CffCharstringIl, mut op: CffCharstringOper
         arg: CffCharstringArgument::I(op.0),
     });
 }
-unsafe fn il_moveto(mut il: *mut CffCharstringIl, mut dx: VQ, mut dy: VQ) {
+unsafe fn il_moveto(il: *mut CffCharstringIl, dx: VQ, dy: VQ) {
     il_push_vq(il, dx);
     il_push_vq(il, dy);
     il_push_op(il, OP_RMOVETO);
 }
-unsafe fn il_lineto(mut il: *mut CffCharstringIl, mut dx: VQ, mut dy: VQ) {
+unsafe fn il_lineto(il: *mut CffCharstringIl, dx: VQ, dy: VQ) {
     il_push_vq(il, dx);
     il_push_vq(il, dy);
     il_push_op(il, OP_RLINETO);
 }
 unsafe fn il_curveto(
-    mut il: *mut CffCharstringIl,
-    mut dx1: VQ,
-    mut dy1: VQ,
-    mut dx2: VQ,
-    mut dy2: VQ,
-    mut dx3: VQ,
-    mut dy3: VQ,
+    il: *mut CffCharstringIl,
+    dx1: VQ,
+    dy1: VQ,
+    dx2: VQ,
+    dy2: VQ,
+    dx3: VQ,
+    dy3: VQ,
 ) {
     il_push_vq(il, dx1);
     il_push_vq(il, dy1);
@@ -147,17 +147,17 @@ unsafe fn il_curveto(
     il_push_op(il, OP_RRCURVETO);
 }
 unsafe fn _il_push_maskgroup(
-    mut il: *mut CffCharstringIl,
-    mut masks: *const MaskList,
-    mut contours: u16,
-    mut points: u16,
-    mut nh: u16,
-    mut nv: u16,
-    mut jm: *mut u16,
-    mut op: CffCharstringOperator,
+    il: *mut CffCharstringIl,
+    masks: *const MaskList,
+    contours: u16,
+    points: u16,
+    nh: u16,
+    nv: u16,
+    jm: *mut u16,
+    op: CffCharstringOperator,
 ) {
     let masks: &Vec<PostscriptHintMask> = &*masks;
-    let mut n: ShapeId = masks.len() as ShapeId;
+    let n: ShapeId = masks.len() as ShapeId;
     while (*jm as ::core::ffi::c_int) < n as ::core::ffi::c_int
         && ((masks[*jm as usize].contours_before as ::core::ffi::c_int)
             < contours as ::core::ffi::c_int
@@ -203,12 +203,12 @@ unsafe fn _il_push_maskgroup(
     }
 }
 unsafe fn il_push_masks(
-    mut il: *mut CffCharstringIl,
-    mut g: *const Glyph,
-    mut contours: u16,
-    mut points: u16,
-    mut jh: *mut u16,
-    mut jm: *mut u16,
+    il: *mut CffCharstringIl,
+    g: *const Glyph,
+    contours: u16,
+    points: u16,
+    jh: *mut u16,
+    jm: *mut u16,
 ) {
     if (*g).stem_h.is_empty() && (*g).stem_v.is_empty() {
         return;
@@ -237,12 +237,12 @@ unsafe fn il_push_masks(
     );
 }
 unsafe fn _il_push_stemgroup(
-    mut il: *mut CffCharstringIl,
-    mut stems: *const StemDefList,
-    mut hasmask: bool,
-    mut haswidth: bool,
-    mut ophm: CffCharstringOperator,
-    mut oph: CffCharstringOperator,
+    il: *mut CffCharstringIl,
+    stems: *const StemDefList,
+    hasmask: bool,
+    haswidth: bool,
+    ophm: CffCharstringOperator,
+    oph: CffCharstringOperator,
 ) {
     if stems.is_null() || (*stems).is_empty() {
         return;
@@ -290,10 +290,10 @@ unsafe fn _il_push_stemgroup(
     .arity = nn as Arity;
 }
 unsafe fn il_push_stems(
-    mut il: *mut CffCharstringIl,
-    mut g: *const Glyph,
-    mut hasmask: bool,
-    mut haswidth: bool,
+    il: *mut CffCharstringIl,
+    g: *const Glyph,
+    hasmask: bool,
+    haswidth: bool,
 ) {
     _il_push_stemgroup(
         il,
@@ -313,13 +313,13 @@ unsafe fn il_push_stems(
     );
 }
 pub unsafe fn cff_compile_glyph_to_il(
-    mut g: *const Glyph,
-    mut default_width: u16,
-    mut nominal_width: u16,
+    g: *const Glyph,
+    default_width: u16,
+    nominal_width: u16,
 ) -> *mut CffCharstringIl {
-    let mut il: *mut CffCharstringIl =
+    let il: *mut CffCharstringIl =
         Box::into_raw(Box::new(CffCharstringIl { instr: Vec::new() }));
-    let mut temp_contours: *mut Contour = ::core::ptr::null_mut::<Contour>();
+    let temp_contours: *mut Contour;
     let mut x: VQ = (vq_neutral)();
     let mut y: VQ = (vq_neutral)();
     temp_contours = __caryll_allocate_clean(
@@ -350,8 +350,8 @@ pub unsafe fn cff_compile_glyph_to_il(
         }
         let mut j_0: ShapeId = 0 as ShapeId;
         while (j_0 as usize) < (*newcontour).len() {
-            let mut dx: VQ = vq_minus((&(*newcontour))[j_0 as usize].x.clone(), x.clone());
-            let mut dy: VQ = vq_minus((&(*newcontour))[j_0 as usize].y.clone(), y.clone());
+            let dx: VQ = vq_minus((&(*newcontour))[j_0 as usize].x.clone(), x.clone());
+            let dy: VQ = vq_minus((&(*newcontour))[j_0 as usize].y.clone(), y.clone());
             vq_copy_replace(&raw mut x, (&(*newcontour))[j_0 as usize].x.clone());
             vq_copy_replace(&raw mut y, (&(*newcontour))[j_0 as usize].y.clone());
             vq_replace(&raw mut (&mut (*newcontour))[j_0 as usize].x, dx);
@@ -362,9 +362,9 @@ pub unsafe fn cff_compile_glyph_to_il(
     }
     // `x`/`y` are plain owned locals, never moved out, so they auto-drop
     // when this function returns -- no explicit dispose call is needed.
-    let mut hasmask: bool = !(*g).hint_masks.is_empty() || !(*g).contour_masks.is_empty();
+    let hasmask: bool = !(*g).hint_masks.is_empty() || !(*g).contour_masks.is_empty();
     let glyph_adw_const: Pos = vq_get_still((*g).advance_width.clone()) as Pos;
-    let mut haswidth: bool = glyph_adw_const != default_width as ::core::ffi::c_int as Pos;
+    let haswidth: bool = glyph_adw_const != default_width as ::core::ffi::c_int as Pos;
     if haswidth {
         // `glyph_adw_const` is attacker-controlled JSON (`advanceWidth`),
         // cast from `f64` -- `as c_int` already saturates a huge magnitude
@@ -400,7 +400,7 @@ pub unsafe fn cff_compile_glyph_to_il(
     let mut c_0: ShapeId = 0 as ShapeId;
     while (c_0 as usize) < (*g).contours.len() {
         let contour_0: *const Contour = temp_contours.offset(c_0 as isize);
-        let mut n: ShapeId = (*contour_0).len() as ShapeId;
+        let n: ShapeId = (*contour_0).len() as ShapeId;
         if !(n as ::core::ffi::c_int == 0 as ::core::ffi::c_int) {
             il_moveto(
                 il,
@@ -499,14 +499,13 @@ pub unsafe fn cff_compile_glyph_to_il(
         c_1 = c_1.wrapping_add(1);
     }
     free(temp_contours as *mut ::core::ffi::c_void);
-    temp_contours = ::core::ptr::null_mut::<Contour>();
     return il;
 }
 unsafe fn il_matchtype(
-    mut il: *mut CffCharstringIl,
-    mut j: u32,
-    mut k: u32,
-    mut t: CffInstructionType,
+    il: *mut CffCharstringIl,
+    j: u32,
+    k: u32,
+    t: CffInstructionType,
 ) -> bool {
     if k >= (*il).instr.len() as u32 {
         return false;
@@ -523,9 +522,9 @@ unsafe fn il_matchtype(
     return true;
 }
 unsafe fn il_matchop(
-    mut il: *mut CffCharstringIl,
-    mut j: u32,
-    mut op: CffCharstringOperator,
+    il: *mut CffCharstringIl,
+    j: u32,
+    op: CffCharstringOperator,
 ) -> bool {
     if (*(*il).instr.as_mut_ptr().offset(j as isize)).type_0 != CffInstructionType::Operator {
         return false;
@@ -541,13 +540,13 @@ unsafe fn il_matchop(
 /// `cff_get_standard_arity(op)` and trusted, never checked. As a slice the two can
 /// be compared, and the flags read as the booleans they always were.
 unsafe fn zroll(
-    mut il: *mut CffCharstringIl,
-    mut j: u32,
-    mut op: CffCharstringOperator,
-    mut op2: CffCharstringOperator,
+    il: *mut CffCharstringIl,
+    j: u32,
+    op: CffCharstringOperator,
+    op2: CffCharstringOperator,
     zeros: &[bool],
 ) -> u8 {
-    let mut arity: u8 = cff_get_standard_arity(op);
+    let arity: u8 = cff_get_standard_arity(op);
     if arity as ::core::ffi::c_int > 16 as ::core::ffi::c_int
         || j.wrapping_add(arity as u32) >= (*il).instr.len() as u32
     {
@@ -621,19 +620,19 @@ unsafe fn zroll(
     };
 }
 unsafe fn opop_roll(
-    mut il: *mut CffCharstringIl,
-    mut j: u32,
-    mut op1: CffCharstringOperator,
-    mut arity: i32,
-    mut op2: CffCharstringOperator,
-    mut resultop: CffCharstringOperator,
+    il: *mut CffCharstringIl,
+    j: u32,
+    op1: CffCharstringOperator,
+    arity: i32,
+    op2: CffCharstringOperator,
+    resultop: CffCharstringOperator,
 ) -> u8 {
     if j.wrapping_add(1 as u32).wrapping_add(arity as u32) >= (*il).instr.len() as u32 {
         return 0 as u8;
     }
-    let mut current: *mut CffCharstringInstruction =
+    let current: *mut CffCharstringInstruction =
         (*il).instr.as_mut_ptr().offset(j as isize) as *mut CffCharstringInstruction;
-    let mut nextop: *mut CffCharstringInstruction = (*il)
+    let nextop: *mut CffCharstringInstruction = (*il)
         .instr
         .as_mut_ptr()
         .offset(j.wrapping_add(1 as u32).wrapping_add(arity as u32) as isize)
@@ -659,11 +658,11 @@ unsafe fn opop_roll(
         return 0 as u8;
     };
 }
-unsafe fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
+unsafe fn hvlineto_roll(il: *mut CffCharstringIl, j: u32) -> u8 {
     if j.wrapping_add(3 as u32) >= (*il).instr.len() as u32 {
         return 0 as u8;
     }
-    let mut current: *mut CffCharstringInstruction =
+    let current: *mut CffCharstringInstruction =
         (*il).instr.as_mut_ptr().offset(j as isize) as *mut CffCharstringInstruction;
     // `checkdelta`'s computation reads `current.i()`, which is only valid
     // once `current`'s `type_0` is confirmed `Operator` -- moved below the
@@ -677,7 +676,7 @@ unsafe fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
     {
         return 0 as u8;
     }
-    let mut checkdelta: u32 = (if ((*current).arity & 1 as Arity != 0) as ::core::ffi::c_int
+    let checkdelta: u32 = (if ((*current).arity & 1 as Arity != 0) as ::core::ffi::c_int
         ^ ((*current).i() == OP_VLINETO.0) as ::core::ffi::c_int
         != 0
     {
@@ -722,25 +721,25 @@ unsafe fn hvlineto_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
         return 0 as u8;
     };
 }
-unsafe fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
+unsafe fn hvvhcurve_roll(il: *mut CffCharstringIl, j: u32) -> u8 {
     if !il_matchop(il, j, OP_HVCURVETO) && !il_matchop(il, j, OP_VHCURVETO) {
         return 0 as u8;
     }
-    let mut current: *mut CffCharstringInstruction =
+    let current: *mut CffCharstringInstruction =
         (*il).instr.as_mut_ptr().offset(j as isize) as *mut CffCharstringInstruction;
     if j.wrapping_add(7 as u32) >= (*il).instr.len() as u32 || (*current).arity & 1 as Arity != 0 {
         return 0 as u8;
     }
-    let mut hvcase: bool = ((*current).arity >> 2 as ::core::ffi::c_int & 1 as Arity != 0)
+    let hvcase: bool = ((*current).arity >> 2 as ::core::ffi::c_int & 1 as Arity != 0)
         as ::core::ffi::c_int
         ^ ((*current).i() == OP_HVCURVETO.0) as ::core::ffi::c_int
         != 0;
-    let mut checkdelta1: u32 = (if hvcase as ::core::ffi::c_int != 0 {
+    let checkdelta1: u32 = (if hvcase as ::core::ffi::c_int != 0 {
         2 as ::core::ffi::c_int
     } else {
         1 as ::core::ffi::c_int
     }) as u32;
-    let mut checkdelta2: u32 = (if hvcase as ::core::ffi::c_int != 0 {
+    let checkdelta2: u32 = (if hvcase as ::core::ffi::c_int != 0 {
         5 as ::core::ffi::c_int
     } else {
         6 as ::core::ffi::c_int
@@ -810,7 +809,7 @@ unsafe fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
                 .offset(j.wrapping_add(7 as u32) as isize))
             .arity = (*current).arity.wrapping_add(5 as Arity);
             if hvcase {
-                let mut t: ::core::ffi::c_double = (*(*il)
+                let t: ::core::ffi::c_double = (*(*il)
                     .instr
                     .as_mut_ptr()
                     .offset(j.wrapping_add(5 as u32) as isize))
@@ -839,22 +838,22 @@ unsafe fn hvvhcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
         return 0 as u8;
     };
 }
-unsafe fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
+unsafe fn hhvvcurve_roll(il: *mut CffCharstringIl, j: u32) -> u8 {
     if !il_matchop(il, j, OP_HHCURVETO) && !il_matchop(il, j, OP_VVCURVETO) {
         return 0 as u8;
     }
-    let mut current: *mut CffCharstringInstruction =
+    let current: *mut CffCharstringInstruction =
         (*il).instr.as_mut_ptr().offset(j as isize) as *mut CffCharstringInstruction;
     if j.wrapping_add(7 as u32) >= (*il).instr.len() as u32 {
         return 0 as u8;
     }
-    let mut hh: bool = (*current).i() == OP_HHCURVETO.0;
-    let mut checkdelta1: u32 = (if hh as ::core::ffi::c_int != 0 {
+    let hh: bool = (*current).i() == OP_HHCURVETO.0;
+    let checkdelta1: u32 = (if hh as ::core::ffi::c_int != 0 {
         2 as ::core::ffi::c_int
     } else {
         1 as ::core::ffi::c_int
     }) as u32;
-    let mut checkdelta2: u32 = (if hh as ::core::ffi::c_int != 0 {
+    let checkdelta2: u32 = (if hh as ::core::ffi::c_int != 0 {
         6 as ::core::ffi::c_int
     } else {
         5 as ::core::ffi::c_int
@@ -906,7 +905,7 @@ unsafe fn hhvvcurve_roll(mut il: *mut CffCharstringIl, mut j: u32) -> u8 {
         return 0 as u8;
     };
 }
-unsafe fn nextstop(mut il: *mut CffCharstringIl, mut j: u32) -> u32 {
+unsafe fn nextstop(il: *mut CffCharstringIl, j: u32) -> u32 {
     let mut delta: u32 = 0 as u32;
     while j.wrapping_add(delta) < (*il).instr.len() as u32
         && (*(*il)
@@ -920,8 +919,8 @@ unsafe fn nextstop(mut il: *mut CffCharstringIl, mut j: u32) -> u32 {
     }
     return delta;
 }
-unsafe fn decide_advance(mut il: *mut CffCharstringIl, mut j: u32, mut _optimize_level: u8) -> u8 {
-    let mut r: u8 = 0 as u8;
+unsafe fn decide_advance(il: *mut CffCharstringIl, j: u32, mut _optimize_level: u8) -> u8 {
+    let mut r: u8;
     r = zroll(il, j, OP_RLINETO, OP_HLINETO, &[false, true]);
     if r != 0 {
         return r;
@@ -1028,7 +1027,7 @@ unsafe fn decide_advance(mut il: *mut CffCharstringIl, mut j: u32, mut _optimize
     }
     return 1 as u8;
 }
-pub unsafe fn cff_optimize_il(mut il: *mut CffCharstringIl, mut options: &Options) {
+pub unsafe fn cff_optimize_il(il: *mut CffCharstringIl, options: &Options) {
     if !options.cff_roll_char_string {
         return;
     }
@@ -1037,8 +1036,8 @@ pub unsafe fn cff_optimize_il(mut il: *mut CffCharstringIl, mut options: &Option
         j = j.wrapping_add(decide_advance(il, j, options.cff_roll_char_string as u8) as u32);
     }
 }
-pub unsafe fn cff_build_il(mut il: *mut CffCharstringIl) -> *mut Buffer {
-    let mut blob: *mut Buffer = bufnew();
+pub unsafe fn cff_build_il(il: *mut CffCharstringIl) -> *mut Buffer {
+    let blob: *mut Buffer = bufnew();
     let mut j: u16 = 0 as u16;
     while (j as u32) < (*il).instr.len() as u32 {
         match (*(*il).instr.as_mut_ptr().offset(j as isize)).type_0 as ::core::ffi::c_uint {
@@ -1063,8 +1062,8 @@ pub unsafe fn cff_build_il(mut il: *mut CffCharstringIl) -> *mut Buffer {
     }
     return blob;
 }
-pub unsafe fn cff_shrink_il(mut il: *mut CffCharstringIl) -> *mut CffCharstringIl {
-    let mut out: *mut CffCharstringIl =
+pub unsafe fn cff_shrink_il(il: *mut CffCharstringIl) -> *mut CffCharstringIl {
+    let out: *mut CffCharstringIl =
         Box::into_raw(Box::new(CffCharstringIl { instr: Vec::new() }));
     let mut j: u16 = 0 as u16;
     while (j as u32) < (*il).instr.len() as u32 {
@@ -1087,7 +1086,7 @@ pub unsafe fn cff_shrink_il(mut il: *mut CffCharstringIl) -> *mut CffCharstringI
     }
     return out;
 }
-pub unsafe fn cff_i_lmerge_il(mut self_0: *mut CffCharstringIl, mut il: *mut CffCharstringIl) {
+pub unsafe fn cff_i_lmerge_il(self_0: *mut CffCharstringIl, il: *mut CffCharstringIl) {
     let mut j: u16 = 0 as u16;
     while (j as u32) < (*il).instr.len() as u32 {
         match (*(*il).instr.as_mut_ptr().offset(j as isize)).type_0 as ::core::ffi::c_uint {
@@ -1109,8 +1108,8 @@ pub unsafe fn cff_i_lmerge_il(mut self_0: *mut CffCharstringIl, mut il: *mut Cff
     }
 }
 pub unsafe fn instruction_eq(
-    mut z1: *mut CffCharstringInstruction,
-    mut z2: *mut CffCharstringInstruction,
+    z1: *mut CffCharstringInstruction,
+    z2: *mut CffCharstringInstruction,
 ) -> bool {
     if (*z1).type_0 as ::core::ffi::c_uint == (*z2).type_0 as ::core::ffi::c_uint {
         if (*z1).type_0 == CffInstructionType::Operand
@@ -1124,7 +1123,7 @@ pub unsafe fn instruction_eq(
         return false;
     };
 }
-pub unsafe fn cff_il_equal(mut a: *mut CffCharstringIl, mut b: *mut CffCharstringIl) -> bool {
+pub unsafe fn cff_il_equal(a: *mut CffCharstringIl, b: *mut CffCharstringIl) -> bool {
     if a.is_null() || b.is_null() {
         return false;
     }

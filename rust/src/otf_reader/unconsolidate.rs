@@ -72,7 +72,7 @@ unsafe fn hash_vq(buf: *mut Buffer, x: VQ) {
         hash_vqs(buf, x.shift[j]);
     }
 }
-pub unsafe fn name_glyph_by_hash(mut g: *const Glyph, mut glyf: *const GlyfTable) -> GlyphHash {
+pub unsafe fn name_glyph_by_hash(g: *const Glyph, glyf: *const GlyfTable) -> GlyphHash {
     let buf: *mut Buffer = bufnew();
     bufwrite8(buf, 'H' as i32 as u8);
     hash_vq(buf, (*g).advance_width.clone());
@@ -202,19 +202,19 @@ pub unsafe fn name_glyph_by_hash(mut g: *const Glyph, mut glyf: *const GlyfTable
     buffree(buf);
     return h_0;
 }
-unsafe fn create_glyph_order(mut font: *mut Font, mut options: &Options) -> *mut GlyphOrder {
-    let mut glyph_order: *mut GlyphOrder = (otfcc_glyph_order_create)();
+unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOrder {
+    let glyph_order: *mut GlyphOrder = (otfcc_glyph_order_create)();
     // Only ever called (from `otfcc_unconsolidate_font`) under a
     // `.glyf.is_some()` guard.
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
-    let mut num_glyphs: GlyphId = (*glyf).len() as GlyphId;
+    let num_glyphs: GlyphId = (*glyf).len() as GlyphId;
     let prefix: Vec<u8> = if !options.glyph_name_prefix.is_null() {
         crate::bytesbuild!(options.glyph_name_prefix)
     } else {
         Vec::new()
     };
     for j in 0..num_glyphs {
-        let mut g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
+        let g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
         if options.name_glyphs_by_hash {
             let h: GlyphHash = name_glyph_by_hash(g, glyf);
             let mut gname: Vec<u8> = Vec::new();
@@ -269,7 +269,7 @@ unsafe fn create_glyph_order(mut font: *mut Font, mut options: &Options) -> *mut
         }
     }
     if (*font).cmap.is_some() && !options.name_glyphs_by_gid {
-        let mut aglfn: *mut GlyphOrder = (otfcc_glyph_order_create)();
+        let aglfn: *mut GlyphOrder = (otfcc_glyph_order_create)();
         aglfn_setup_names(aglfn);
         for (&unicode, glyph) in (*font).cmap.as_ref().unwrap().unicodes.iter() {
             if glyph.index as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
@@ -316,7 +316,7 @@ unsafe fn create_glyph_order(mut font: *mut Font, mut options: &Options) -> *mut
     }
     return glyph_order;
 }
-unsafe fn name_glyphs(mut font: *mut Font, mut gord: *mut GlyphOrder) {
+unsafe fn name_glyphs(font: *mut Font, gord: *mut GlyphOrder) {
     if gord.is_null() {
         return;
     }
@@ -504,13 +504,13 @@ unsafe fn merge_ltsh(font: *mut Font) {
         }
     }
 }
-pub unsafe fn otfcc_unconsolidate_font(mut font: *mut Font, mut options: &Options) {
+pub unsafe fn otfcc_unconsolidate_font(font: *mut Font, options: &Options) {
     merge_hmtx(font);
     merge_vmtx(font);
     merge_ltsh(font);
     expand_chaining_lookups(font);
     if (*font).glyf.is_some() {
-        let mut gord: *mut GlyphOrder = create_glyph_order(font, options);
+        let gord: *mut GlyphOrder = create_glyph_order(font, options);
         name_glyphs(font, gord);
         otfcc_glyph_order_free(gord);
     }

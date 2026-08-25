@@ -102,7 +102,7 @@ pub struct GlyphOrder {
 // frees every entry's `name: Vec<u8>`) -- `by_gid`/`by_name` hold
 // non-owning indices, nothing for them to free separately.
 #[inline]
-pub(crate) unsafe fn otfcc_glyph_order_free(mut x: *mut GlyphOrder) {
+pub(crate) unsafe fn otfcc_glyph_order_free(x: *mut GlyphOrder) {
     if x.is_null() {
         return;
     }
@@ -123,8 +123,8 @@ pub(crate) unsafe fn otfcc_glyph_order_create() -> *mut GlyphOrder {
 // so it drops on its own wherever this returns -- no explicit free needed
 // in any branch.
 pub(crate) unsafe fn otfcc_set_glyph_order_by_gid(
-    mut go: *mut GlyphOrder,
-    mut gid: GlyphId,
+    go: *mut GlyphOrder,
+    gid: GlyphId,
     mut name: Vec<u8>,
 ) -> Vec<u8> {
     if let Some(&idx) = (*go).by_gid.get(&gid) {
@@ -152,9 +152,9 @@ pub(crate) unsafe fn otfcc_set_glyph_order_by_gid(
 // needing a comment to explain why -- the caller's own copy was never
 // touched, so there is nothing for it to double-free or leak.
 pub(crate) unsafe fn otfcc_set_glyph_order_by_name(
-    mut go: *mut GlyphOrder,
-    mut name: Vec<u8>,
-    mut gid: GlyphId,
+    go: *mut GlyphOrder,
+    name: Vec<u8>,
+    gid: GlyphId,
 ) -> bool {
     if (*go).by_name.contains_key(&name) {
         return false;
@@ -171,9 +171,9 @@ pub(crate) unsafe fn otfcc_set_glyph_order_by_name(
     return true;
 }
 pub(crate) unsafe fn otfcc_gord_name_a_field_shared(
-    mut go: *mut GlyphOrder,
-    mut gid: GlyphId,
-    mut field: *mut Vec<u8>,
+    go: *mut GlyphOrder,
+    gid: GlyphId,
+    field: *mut Vec<u8>,
 ) -> bool {
     match (*go).by_gid.get(&gid) {
         Some(&idx) => {
@@ -192,8 +192,8 @@ pub(crate) unsafe fn otfcc_gord_name_a_field_shared(
 // throughout the `consolidate/otl/*.rs` sweep, since the name is already
 // the exact `Vec<u8>` a `Handle` wants.
 pub(crate) unsafe fn otfcc_gord_consolidate_handle(
-    mut go: *mut GlyphOrder,
-    mut h: *mut GlyphHandle,
+    go: *mut GlyphOrder,
+    h: *mut GlyphHandle,
 ) -> bool {
     if (*h).state == HandleState::Consolidated {
         let name_bytes = (*h).name.clone();
@@ -250,7 +250,7 @@ pub(crate) unsafe fn otfcc_gord_consolidate_handle(
     }
     return false;
 }
-pub(crate) unsafe fn gord_lookup_name(mut go: *mut GlyphOrder, mut name: Vec<u8>) -> bool {
+pub(crate) unsafe fn gord_lookup_name(go: *mut GlyphOrder, name: Vec<u8>) -> bool {
     (*go).by_name.contains_key(&name)
 }
 #[cfg(test)]

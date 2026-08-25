@@ -18,9 +18,9 @@ use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
 use crate::table::otl::classdef::shrink_class_def;
 
 pub unsafe fn consolidate_gdef(
-    mut font: *mut Font,
-    mut gdef: *mut GdefTable,
-    mut options: &Options,
+    font: *mut Font,
+    gdef: *mut GdefTable,
+    options: &Options,
 ) {
     if font.is_null() || (*font).glyph_order.is_none() || gdef.is_null() {
         return;

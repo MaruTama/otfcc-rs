@@ -26,24 +26,24 @@ pub(crate) unsafe fn dispose_mark_array(arr: *mut MarkArray) {
     *arr = Vec::new();
 }
 pub unsafe fn otl_read_mark_array(
-    mut array: *mut MarkArray,
-    mut cov: *mut Coverage,
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    array: *mut MarkArray,
+    cov: *mut Coverage,
+    data: FontFilePointer,
+    table_length: u32,
+    offset: u32,
 ) {
-    let mut mark_count: GlyphId = 0;
+    let mark_count: GlyphId;
     if !(table_length < offset.wrapping_add(2 as u32)) {
         mark_count = read_16u(data.offset(offset as isize) as *const u8) as GlyphId;
         let mut j: GlyphId = 0 as GlyphId;
         while (j as ::core::ffi::c_int) < mark_count as ::core::ffi::c_int {
-            let mut mark_class: GlyphClass = read_16u(
+            let mark_class: GlyphClass = read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize)
                     .offset((j as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
                     as *const u8,
             ) as GlyphClass;
-            let mut delta: u16 = read_16u(
+            let delta: u16 = read_16u(
                 data.offset(offset as isize)
                     .offset(2 as ::core::ffi::c_int as isize)
                     .offset((j as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
@@ -68,8 +68,8 @@ pub unsafe fn otl_read_mark_array(
 }
 pub unsafe fn otl_parse_mark_array(
     mut _marks: *const ParsedValue,
-    mut array: *mut MarkArray,
-    mut h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
+    array: *mut MarkArray,
+    h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
 ) {
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < json_obj_len(_marks) {
@@ -86,7 +86,7 @@ pub unsafe fn otl_parse_mark_array(
                 y: 0.,
             },
         };
-        let mut anchor_record: *const ParsedValue = json_obj_val_at(_marks, j as u32);
+        let anchor_record: *const ParsedValue = json_obj_val_at(_marks, j as u32);
         mark.glyph = handle_from_name(Some(json_obj_key_bytes_at(_marks, j as u32))) as GlyphHandle;
         mark.mark_class = 0 as GlyphClass;
         mark.anchor = otl_anchor_absent();
@@ -153,7 +153,7 @@ pub unsafe fn otl_parse_mark_array(
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*array).len() {
         if (&(*array))[j_0 as usize].anchor.present {
-            let mut anchor_record_0: *const ParsedValue = json_obj_val_at(_marks, j_0 as u32);
+            let anchor_record_0: *const ParsedValue = json_obj_val_at(_marks, j_0 as u32);
             let mut _class_name_0: *const ParsedValue = json_obj_get_type(
                 anchor_record_0,
                 b"class\0" as *const u8 as *const ::core::ffi::c_char,
@@ -173,7 +173,7 @@ pub unsafe fn otl_parse_mark_array(
     }
 }
 pub unsafe fn otl_anchor_absent() -> Anchor {
-    let mut anchor: Anchor = Anchor {
+    let anchor: Anchor = Anchor {
         present: false,
         x: 0 as ::core::ffi::c_int as Pos,
         y: 0 as ::core::ffi::c_int as Pos,
@@ -181,9 +181,9 @@ pub unsafe fn otl_anchor_absent() -> Anchor {
     return anchor;
 }
 pub unsafe fn otl_read_anchor(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u32,
+    data: FontFilePointer,
+    table_length: u32,
+    offset: u32,
 ) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
@@ -208,9 +208,9 @@ pub unsafe fn otl_read_anchor(
         return anchor;
     };
 }
-pub unsafe fn otl_dump_anchor(mut a: Anchor) -> *mut BuiltValue {
+pub unsafe fn otl_dump_anchor(a: Anchor) -> *mut BuiltValue {
     if a.present {
-        let mut v: *mut BuiltValue = json_object_new(2 as usize);
+        let v: *mut BuiltValue = json_object_new(2 as usize);
         json_object_push(
             v,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
@@ -226,7 +226,7 @@ pub unsafe fn otl_dump_anchor(mut a: Anchor) -> *mut BuiltValue {
         return json_null_new();
     };
 }
-pub unsafe fn otl_parse_anchor(mut v: *const ParsedValue) -> Anchor {
+pub unsafe fn otl_parse_anchor(v: *const ParsedValue) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
         x: 0 as ::core::ffi::c_int as Pos,
@@ -248,7 +248,7 @@ pub unsafe fn otl_parse_anchor(mut v: *const ParsedValue) -> Anchor {
     ) as Pos;
     return anchor;
 }
-pub unsafe fn bk_from_anchor(mut a: Anchor) -> *mut BkBlock {
+pub unsafe fn bk_from_anchor(a: Anchor) -> *mut BkBlock {
     if !a.present {
         return ::core::ptr::null_mut::<BkBlock>();
     }
@@ -1544,13 +1544,13 @@ pub static BITS_IN: [u8; 256] = [
         + 2 as ::core::ffi::c_int
         + 2 as ::core::ffi::c_int) as u8,
 ];
-pub unsafe fn position_format_length(mut format: u16) -> u8 {
+pub unsafe fn position_format_length(format: u16) -> u8 {
     return ((BITS_IN[(format as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as usize]
         as ::core::ffi::c_int)
         << 1 as ::core::ffi::c_int) as u8;
 }
 pub unsafe fn position_zero() -> PositionValue {
-    let mut v: PositionValue = PositionValue {
+    let v: PositionValue = PositionValue {
         dx: 0.0f64,
         dy: 0.0f64,
         d_width: 0.0f64,
@@ -1559,10 +1559,10 @@ pub unsafe fn position_zero() -> PositionValue {
     return v;
 }
 pub unsafe fn read_gpos_value(
-    mut data: FontFilePointer,
-    mut table_length: u32,
+    data: FontFilePointer,
+    table_length: u32,
     mut offset: u32,
-    mut format: u16,
+    format: u16,
 ) -> PositionValue {
     let mut v: PositionValue = PositionValue {
         dx: 0.0f64,
@@ -1587,12 +1587,11 @@ pub unsafe fn read_gpos_value(
     }
     if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
         v.d_height = read_16s(data.offset(offset as isize) as *const u8) as Pos;
-        offset = offset.wrapping_add(2 as u32);
     }
     return v;
 }
-pub unsafe fn gpos_dump_value(mut value: PositionValue) -> *mut BuiltValue {
-    let mut v: *mut BuiltValue = json_object_new(4 as usize);
+pub unsafe fn gpos_dump_value(value: PositionValue) -> *mut BuiltValue {
+    let v: *mut BuiltValue = json_object_new(4 as usize);
     if value.dx != 0. {
         json_object_push(
             v,
@@ -1623,7 +1622,7 @@ pub unsafe fn gpos_dump_value(mut value: PositionValue) -> *mut BuiltValue {
     }
     return preserialize(v);
 }
-pub unsafe fn gpos_parse_value(mut pos: *const ParsedValue) -> PositionValue {
+pub unsafe fn gpos_parse_value(pos: *const ParsedValue) -> PositionValue {
     let mut v: PositionValue = PositionValue {
         dx: 0.0f64,
         dy: 0.0f64,
@@ -1640,7 +1639,7 @@ pub unsafe fn gpos_parse_value(mut pos: *const ParsedValue) -> PositionValue {
         json_obj_getnum(pos, b"dHeight\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
     return v;
 }
-pub unsafe fn required_position_format(mut v: PositionValue) -> u8 {
+pub unsafe fn required_position_format(v: PositionValue) -> u8 {
     return ((if v.dx != 0. {
         FORMAT_DX as ::core::ffi::c_int
     } else {
@@ -1659,7 +1658,7 @@ pub unsafe fn required_position_format(mut v: PositionValue) -> u8 {
         0 as ::core::ffi::c_int
     })) as u8;
 }
-pub unsafe fn write_gpos_value(mut buf: *mut Buffer, mut v: PositionValue, mut format: u16) {
+pub unsafe fn write_gpos_value(buf: *mut Buffer, v: PositionValue, format: u16) {
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
         bufwrite16b(buf, pos_to_u16(v.dx));
     }
@@ -1673,8 +1672,8 @@ pub unsafe fn write_gpos_value(mut buf: *mut Buffer, mut v: PositionValue, mut f
         bufwrite16b(buf, pos_to_u16(v.d_height));
     }
 }
-pub unsafe fn bk_gpos_value(mut v: PositionValue, mut format: u16) -> *mut BkBlock {
-    let mut b: *mut BkBlock = bk_new_block(&[]);
+pub unsafe fn bk_gpos_value(v: PositionValue, format: u16) -> *mut BkBlock {
+    let b: *mut BkBlock = bk_new_block(&[]);
     if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
         bk_push(
             b,

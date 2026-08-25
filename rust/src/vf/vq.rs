@@ -85,11 +85,11 @@ pub struct VQ {
 // `.copy`/`.create`/`.free`/`.init_n`/`.neutral`（`create_neutral_vv`)は
 // crate全体で一度も呼ばれておらず削除。
 #[inline]
-unsafe fn init_vq_segment(mut vqs: *mut VqSegment) {
+unsafe fn init_vq_segment(vqs: *mut VqSegment) {
     *vqs = VqSegment::Still(0 as ::core::ffi::c_int as Pos);
 }
 #[inline]
-unsafe fn copy_vq_segment(mut dst: *mut VqSegment, mut src: *const VqSegment) {
+unsafe fn copy_vq_segment(dst: *mut VqSegment, src: *const VqSegment) {
     match *src {
         VqSegment::Still(v) => {
             *dst = VqSegment::Still(v);
@@ -115,15 +115,15 @@ unsafe fn copy_vq_segment(mut dst: *mut VqSegment, mut src: *const VqSegment) {
     }
 }
 #[inline]
-unsafe fn dispose_vq_segment(mut vqs: *mut VqSegment) {
+unsafe fn dispose_vq_segment(vqs: *mut VqSegment) {
     init_vq_segment(vqs);
 }
 #[inline]
-unsafe fn vq_segment_copy(mut dst: *mut VqSegment, mut src: *const VqSegment) {
+unsafe fn vq_segment_copy(dst: *mut VqSegment, src: *const VqSegment) {
     copy_vq_segment(dst, src);
 }
 #[inline]
-unsafe fn vq_segment_dispose(mut x: *mut VqSegment) {
+unsafe fn vq_segment_dispose(x: *mut VqSegment) {
     dispose_vq_segment(x);
 }
 unsafe fn vqs_compare(a: VqSegment, b: VqSegment) -> ::core::ffi::c_int {
@@ -155,17 +155,17 @@ unsafe fn vqs_compare(a: VqSegment, b: VqSegment) -> ::core::ffi::c_int {
     }
 }
 #[inline]
-pub(crate) unsafe fn vq_init(mut x: *mut VQ) {
+pub(crate) unsafe fn vq_init(x: *mut VQ) {
     (*x).kernel = 0 as ::core::ffi::c_int as Pos;
     (*x).shift = Vec::new();
 }
 #[inline]
-pub(crate) unsafe fn vq_copy(mut dst: *mut VQ, mut src: *const VQ) {
+pub(crate) unsafe fn vq_copy(dst: *mut VQ, src: *const VQ) {
     (*dst).kernel = (*src).kernel;
     (*dst).shift = (*src).shift.clone();
 }
 #[inline]
-pub(crate) unsafe fn vq_dispose(mut x: *mut VQ) {
+pub(crate) unsafe fn vq_dispose(x: *mut VQ) {
     (*x).kernel = 0 as ::core::ffi::c_int as Pos;
     (*x).shift = Vec::new();
 }
@@ -179,12 +179,12 @@ pub(crate) unsafe fn vq_dup(src: VQ) -> VQ {
     return dst;
 }
 #[inline]
-pub(crate) unsafe fn vq_copy_replace(mut dst: *mut VQ, src: VQ) {
+pub(crate) unsafe fn vq_copy_replace(dst: *mut VQ, src: VQ) {
     vq_dispose(dst);
     vq_copy(dst, &raw const src);
 }
 #[inline]
-pub(crate) unsafe fn vq_replace(mut dst: *mut VQ, src: VQ) {
+pub(crate) unsafe fn vq_replace(dst: *mut VQ, src: VQ) {
     vq_dispose(dst);
     *dst = src;
 }
@@ -200,7 +200,7 @@ unsafe fn vqs_compatible(a: VqSegment, b: VqSegment) -> bool {
         _ => false,
     }
 }
-unsafe fn simplify_vq(mut x: *mut VQ) {
+unsafe fn simplify_vq(x: *mut VQ) {
     if (*x).shift.is_empty() {
         return;
     }
@@ -232,7 +232,7 @@ unsafe fn simplify_vq(mut x: *mut VQ) {
     }
     shift.truncate(k.wrapping_add(1 as usize));
 }
-pub(crate) unsafe fn vq_inplace_plus(mut a: *mut VQ, b: VQ) {
+pub(crate) unsafe fn vq_inplace_plus(a: *mut VQ, b: VQ) {
     (*a).kernel += b.kernel;
     let mut p: usize = 0 as usize;
     while p < b.shift.len() {
@@ -248,7 +248,7 @@ pub(crate) unsafe fn vq_inplace_plus(mut a: *mut VQ, b: VQ) {
     }
     simplify_vq(a);
 }
-unsafe fn vq_inplace_scale(mut a: *mut VQ, mut b: Pos) {
+unsafe fn vq_inplace_scale(a: *mut VQ, b: Pos) {
     (*a).kernel *= b;
     let shift: &mut Vec<VqSegment> = &mut (*a).shift;
     let mut j: usize = 0 as usize;
@@ -265,7 +265,7 @@ unsafe fn vq_inplace_scale(mut a: *mut VQ, mut b: Pos) {
         j = j.wrapping_add(1);
     }
 }
-unsafe fn vq_inplace_negate(mut a: *mut VQ) {
+unsafe fn vq_inplace_negate(a: *mut VQ) {
     vq_inplace_scale(a, -(1 as ::core::ffi::c_int) as Pos);
 }
 unsafe fn vq_negate(a: VQ) -> VQ {
@@ -285,19 +285,19 @@ pub(crate) unsafe fn vq_minus(a: VQ, b: VQ) -> VQ {
     return result;
 }
 #[inline]
-unsafe fn vq_inplace_minus(mut a: *mut VQ, b: VQ) {
+unsafe fn vq_inplace_minus(a: *mut VQ, b: VQ) {
     let mut tb: VQ = vq_negate(b);
     vq_inplace_plus(a, tb.clone());
     vq_dispose(&raw mut tb);
 }
 #[inline]
-pub(crate) unsafe fn vq_inplace_plus_scale(mut a: *mut VQ, mut b: Pos, c: VQ) {
+pub(crate) unsafe fn vq_inplace_plus_scale(a: *mut VQ, b: Pos, c: VQ) {
     let mut x: VQ = vq_scale(c, b);
     vq_inplace_plus(a, x.clone());
     vq_dispose(&raw mut x);
 }
 #[inline]
-pub(crate) unsafe fn vq_scale(a: VQ, mut b: Pos) -> VQ {
+pub(crate) unsafe fn vq_scale(a: VQ, b: Pos) -> VQ {
     let mut result: VQ = VQ {
         kernel: 0.,
         shift: Vec::new(),
@@ -315,7 +315,7 @@ pub(crate) unsafe fn vq_compare(a: VQ, b: VQ) -> ::core::ffi::c_int {
     }
     let mut j: usize = 0 as usize;
     while j < a.shift.len() {
-        let mut cr: ::core::ffi::c_int = vqs_compare(a.shift[j], b.shift[j]);
+        let cr: ::core::ffi::c_int = vqs_compare(a.shift[j], b.shift[j]);
         if cr != 0 {
             return cr;
         }
@@ -334,7 +334,7 @@ pub(crate) unsafe fn vq_get_still(v: VQ) -> Pos {
     }
     return result;
 }
-pub(crate) unsafe fn vq_create_still(mut x: Pos) -> VQ {
+pub(crate) unsafe fn vq_create_still(x: Pos) -> VQ {
     let mut vq: VQ = VQ {
         kernel: 0.,
         shift: Vec::new(),
@@ -358,7 +358,7 @@ pub(crate) unsafe fn vq_is_zero(v: VQ, err: Pos) -> bool {
         && fabs(vq_get_still(v) as ::core::ffi::c_double) < err;
 }
 pub(crate) unsafe fn vq_add_delta(
-    mut v: *mut VQ,
+    v: *mut VQ,
     touched: bool,
     r: *const VqRegion,
     quantity: Pos,
@@ -373,7 +373,7 @@ pub(crate) unsafe fn vq_add_delta(
     });
     (*v).shift.push(nudge);
 }
-pub(crate) unsafe fn vq_point_linear_tfm(ax: VQ, mut a: Pos, x: VQ, mut b: Pos, y: VQ) -> VQ {
+pub(crate) unsafe fn vq_point_linear_tfm(ax: VQ, a: Pos, x: VQ, b: Pos, y: VQ) -> VQ {
     let mut target_x: VQ = vq_dup(ax);
     vq_inplace_plus_scale(&raw mut target_x, a as Scale, x);
     vq_inplace_plus_scale(&raw mut target_x, b as Scale, y);

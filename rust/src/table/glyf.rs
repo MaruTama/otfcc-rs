@@ -171,18 +171,18 @@ pub struct GlyfIOContext {
 /// down to bit 0 rather than trusting it -- so this is typed as the `i8` it is
 /// applied to, which is what lets the two sites drop their casts.
 pub const MASK_ON_CURVE: i8 = 1;
-unsafe fn create_point(mut p: *mut Point) {
+unsafe fn create_point(p: *mut Point) {
     (*p).x = vq_create_still(0 as ::core::ffi::c_int as Pos);
     (*p).y = vq_create_still(0 as ::core::ffi::c_int as Pos);
     (*p).on_curve = TRUE_0 as i8;
 }
-unsafe fn copy_point(mut dst: *mut Point, mut src: *const Point) {
+unsafe fn copy_point(dst: *mut Point, src: *const Point) {
     vq_copy(&raw mut (*dst).x, &raw const (*src).x);
     vq_copy(&raw mut (*dst).y, &raw const (*src).y);
     (*dst).on_curve = (*src).on_curve;
 }
 #[inline]
-pub unsafe fn glyf_point_init(mut x: *mut Point) {
+pub unsafe fn glyf_point_init(x: *mut Point) {
     create_point(x);
 }
 #[inline]
@@ -202,7 +202,7 @@ pub unsafe fn glyf_point_dup(src: Point) -> Point {
     return dst;
 }
 #[inline]
-unsafe fn glyf_point_copy(mut dst: *mut Point, mut src: *const Point) {
+unsafe fn glyf_point_copy(dst: *mut Point, src: *const Point) {
     copy_point(dst, src);
 }
 /// Grows `arr` to `n` points, default-constructing each new one via
@@ -228,7 +228,7 @@ unsafe fn glyf_contour_fill(arr: *mut Contour, n: usize) {
     }
 }
 #[inline]
-unsafe fn init_glyf_reference(mut ref_0: *mut ComponentReference) {
+unsafe fn init_glyf_reference(ref_0: *mut ComponentReference) {
     (*ref_0).glyph = otfcc_handle_empty() as GlyphHandle;
     (*ref_0).x = vq_create_still(0 as ::core::ffi::c_int as Pos);
     (*ref_0).y = vq_create_still(0 as ::core::ffi::c_int as Pos);
@@ -272,7 +272,7 @@ pub unsafe fn glyf_component_reference_empty() -> ComponentReference {
     return x;
 }
 #[inline]
-pub unsafe fn glyf_component_reference_init(mut x: *mut ComponentReference) {
+pub unsafe fn glyf_component_reference_init(x: *mut ComponentReference) {
     init_glyf_reference(x);
 }
 /// `Box::new` is the allocation and the struct literal is the zero-init
@@ -346,21 +346,21 @@ pub(crate) unsafe fn table_glyf_create_n(n: usize) -> *mut GlyfTable {
     Box::into_raw(Box::new(v))
 }
 unsafe fn glyf_glyph_dump_contours(
-    mut g: *const Glyph,
-    mut target: *mut BuiltValue,
-    mut ctx: *const GlyfIOContext,
+    g: *const Glyph,
+    target: *mut BuiltValue,
+    ctx: *const GlyfIOContext,
 ) {
     if (*g).contours.is_empty() {
         return;
     }
-    let mut contours: *mut BuiltValue = json_array_new((*g).contours.len());
+    let contours: *mut BuiltValue = json_array_new((*g).contours.len());
     let mut k: ShapeId = 0 as ShapeId;
     while (k as usize) < (*g).contours.len() {
         let c: &Contour = &(&(*g).contours)[k as usize];
-        let mut contour: *mut BuiltValue = json_array_new(c.len());
+        let contour: *mut BuiltValue = json_array_new(c.len());
         let mut m: ShapeId = 0 as ShapeId;
         while (m as usize) < c.len() {
-            let mut point: *mut BuiltValue = json_object_new(4 as usize);
+            let point: *mut BuiltValue = json_object_new(4 as usize);
             json_object_push(
                 point,
                 b"x\0" as *const u8 as *const ::core::ffi::c_char,
@@ -389,18 +389,18 @@ unsafe fn glyf_glyph_dump_contours(
     );
 }
 unsafe fn glyf_glyph_dump_references(
-    mut g: *const Glyph,
-    mut target: *mut BuiltValue,
-    mut ctx: *const GlyfIOContext,
+    g: *const Glyph,
+    target: *mut BuiltValue,
+    ctx: *const GlyfIOContext,
 ) {
     if (*g).references.is_empty() {
         return;
     }
-    let mut references: *mut BuiltValue = json_array_new((*g).references.len());
+    let references: *mut BuiltValue = json_array_new((*g).references.len());
     let mut k: ShapeId = 0 as ShapeId;
     while (k as usize) < (*g).references.len() {
         let r: *const ComponentReference = &raw const (&(*g).references)[k as usize];
-        let mut ref_0: *mut BuiltValue = json_object_new(9 as usize);
+        let ref_0: *mut BuiltValue = json_object_new(9 as usize);
         json_object_push(
             ref_0,
             b"glyph\0" as *const u8 as *const ::core::ffi::c_char,
@@ -476,12 +476,12 @@ unsafe fn glyf_glyph_dump_references(
         references,
     );
 }
-unsafe fn glyf_glyph_dump_stemdefs(mut stems: *const StemDefList) -> *mut BuiltValue {
+unsafe fn glyf_glyph_dump_stemdefs(stems: *const StemDefList) -> *mut BuiltValue {
     let stems: &Vec<PostscriptStemDef> = &*stems;
-    let mut a: *mut BuiltValue = json_array_new(stems.len());
+    let a: *mut BuiltValue = json_array_new(stems.len());
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < stems.len() {
-        let mut stem: *mut BuiltValue = json_object_new(3 as usize);
+        let stem: *mut BuiltValue = json_object_new(3 as usize);
         json_object_push(
             stem,
             b"position\0" as *const u8 as *const ::core::ffi::c_char,
@@ -498,17 +498,17 @@ unsafe fn glyf_glyph_dump_stemdefs(mut stems: *const StemDefList) -> *mut BuiltV
     return a;
 }
 unsafe fn glyf_glyph_dump_maskdefs(
-    mut masks: *const MaskList,
-    mut hh: *const StemDefList,
-    mut vv: *const StemDefList,
+    masks: *const MaskList,
+    hh: *const StemDefList,
+    vv: *const StemDefList,
 ) -> *mut BuiltValue {
     let masks: &Vec<PostscriptHintMask> = &*masks;
     let hh: &Vec<PostscriptStemDef> = &*hh;
     let vv: &Vec<PostscriptStemDef> = &*vv;
-    let mut a: *mut BuiltValue = json_array_new(masks.len());
+    let a: *mut BuiltValue = json_array_new(masks.len());
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < masks.len() {
-        let mut mask: *mut BuiltValue = json_object_new(3 as usize);
+        let mask: *mut BuiltValue = json_object_new(3 as usize);
         json_object_push(
             mask,
             b"contoursBefore\0" as *const u8 as *const ::core::ffi::c_char,
@@ -519,7 +519,7 @@ unsafe fn glyf_glyph_dump_maskdefs(
             b"pointsBefore\0" as *const u8 as *const ::core::ffi::c_char,
             json_integer_new(masks[j as usize].points_before as i64),
         );
-        let mut h: *mut BuiltValue = json_array_new(hh.len());
+        let h: *mut BuiltValue = json_array_new(hh.len());
         let mut k: ShapeId = 0 as ShapeId;
         while (k as usize) < hh.len() {
             json_array_push(
@@ -533,7 +533,7 @@ unsafe fn glyf_glyph_dump_maskdefs(
             b"maskH\0" as *const u8 as *const ::core::ffi::c_char,
             h,
         );
-        let mut v: *mut BuiltValue = json_array_new(vv.len());
+        let v: *mut BuiltValue = json_array_new(vv.len());
         let mut k_0: ShapeId = 0 as ShapeId;
         while (k_0 as usize) < vv.len() {
             json_array_push(
@@ -553,11 +553,11 @@ unsafe fn glyf_glyph_dump_maskdefs(
     return a;
 }
 unsafe fn glyf_dump_glyph(
-    mut g: *const Glyph,
+    g: *const Glyph,
     options: &Options,
-    mut ctx: *const GlyfIOContext,
+    ctx: *const GlyfIOContext,
 ) -> *mut BuiltValue {
-    let mut glyph: *mut BuiltValue = json_object_new(12 as usize);
+    let glyph: *mut BuiltValue = json_object_new(12 as usize);
     json_object_push(
         glyph,
         b"advanceWidth\0" as *const u8 as *const ::core::ffi::c_char,
@@ -657,11 +657,11 @@ unsafe fn glyf_dump_glyph(
     }
     return glyph;
 }
-pub unsafe fn otfcc_dump_glyphorder(mut table: *const GlyfTable, mut root: *mut BuiltValue) {
+pub unsafe fn otfcc_dump_glyphorder(table: *const GlyfTable, root: *mut BuiltValue) {
     if table.is_null() {
         return;
     }
-    let mut order: *mut BuiltValue = json_array_new((*table).len());
+    let order: *mut BuiltValue = json_array_new((*table).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*table).len() {
         let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
@@ -677,9 +677,9 @@ pub unsafe fn otfcc_dump_glyphorder(mut table: *const GlyfTable, mut root: *mut 
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_glyf(
     table: Option<&GlyfTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
-    mut ctx: *const GlyfIOContext,
+    ctx: *const GlyfIOContext,
 ) {
     let table = match table {
         Some(t) => t as *const GlyfTable,
@@ -691,7 +691,7 @@ pub unsafe fn otfcc_dump_glyf(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut glyf: *mut BuiltValue = json_object_new((*table).len());
+        let glyf: *mut BuiltValue = json_object_new((*table).len());
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*table).len() {
             let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
@@ -710,7 +710,7 @@ pub unsafe fn otfcc_dump_glyf(
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-unsafe fn glyf_parse_point(mut pointdump: *const ParsedValue) -> Point {
+unsafe fn glyf_parse_point(pointdump: *const ParsedValue) -> Point {
     let mut point: Point = Point {
         x: VQ {
             kernel: 0.,
@@ -728,8 +728,8 @@ unsafe fn glyf_parse_point(mut pointdump: *const ParsedValue) -> Point {
     }
     let mut _k: u32 = 0 as u32;
     while _k < json_obj_len(pointdump) as u32 {
-        let mut ck: *mut ::core::ffi::c_char = json_obj_key_at(pointdump, _k as u32);
-        let mut cv: *const ParsedValue = json_obj_val_at(pointdump, _k as u32);
+        let ck: *mut ::core::ffi::c_char = json_obj_key_at(pointdump, _k as u32);
+        let cv: *const ParsedValue = json_obj_val_at(pointdump, _k as u32);
         if strcmp(ck, b"x\0" as *const u8 as *const ::core::ffi::c_char) == 0 as ::core::ffi::c_int
         {
             vq_replace(
@@ -752,14 +752,14 @@ unsafe fn glyf_parse_point(mut pointdump: *const ParsedValue) -> Point {
     }
     return point;
 }
-unsafe fn glyf_parse_contours(mut col: *const ParsedValue, mut g: *mut Glyph) {
+unsafe fn glyf_parse_contours(col: *const ParsedValue, g: *mut Glyph) {
     if col.is_null() {
         return;
     }
-    let mut n_contours: ShapeId = json_arr_len(col) as ShapeId;
+    let n_contours: ShapeId = json_arr_len(col) as ShapeId;
     let mut j: ShapeId = 0 as ShapeId;
     while (j as ::core::ffi::c_int) < n_contours as ::core::ffi::c_int {
-        let mut contourdump: *const ParsedValue = json_arr_at(col, j as u32);
+        let contourdump: *const ParsedValue = json_arr_at(col, j as u32);
         let mut contour: Contour = Vec::with_capacity(
             (if !contourdump.is_null() && json_type_of(contourdump) == JsonType::Array {
                 json_arr_len(contourdump)
@@ -778,7 +778,7 @@ unsafe fn glyf_parse_contours(mut col: *const ParsedValue, mut g: *mut Glyph) {
         j = j.wrapping_add(1);
     }
 }
-unsafe fn glyf_parse_reference(mut refdump: *const ParsedValue) -> ComponentReference {
+unsafe fn glyf_parse_reference(refdump: *const ParsedValue) -> ComponentReference {
     let mut _gname: *const ParsedValue = json_obj_get_type(
         refdump,
         b"glyph\0" as *const u8 as *const ::core::ffi::c_char,
@@ -862,7 +862,7 @@ unsafe fn glyf_parse_reference(mut refdump: *const ParsedValue) -> ComponentRefe
     }
     return ref_0;
 }
-unsafe fn glyf_parse_references(mut col: *const ParsedValue, mut g: *mut Glyph) {
+unsafe fn glyf_parse_references(col: *const ParsedValue, g: *mut Glyph) {
     if col.is_null() {
         return;
     }
@@ -874,15 +874,15 @@ unsafe fn glyf_parse_references(mut col: *const ParsedValue, mut g: *mut Glyph) 
     }
 }
 unsafe fn make_instrs_for_glyph(mut _g: *mut ::core::ffi::c_void, instrs: Vec<u8>) {
-    let mut g: *mut Glyph = _g as *mut Glyph;
+    let g: *mut Glyph = _g as *mut Glyph;
     (*g).instructions = instrs;
 }
 unsafe extern "C" fn wrong_instrs_for_glyph(
     mut _g: *mut ::core::ffi::c_void,
-    mut reason: *mut ::core::ffi::c_char,
-    mut pos: ::core::ffi::c_int,
+    reason: *mut ::core::ffi::c_char,
+    pos: ::core::ffi::c_int,
 ) {
-    let mut g: *mut Glyph = _g as *mut Glyph;
+    let g: *mut Glyph = _g as *mut Glyph;
     // `fprintf`'s `%s` needs a NUL-terminated buffer, so a NUL is appended
     // to a byte-copy of `name` here -- this is a diagnostic-only print to
     // stderr (never part of dumped/built output), so it doesn't need the
@@ -899,13 +899,13 @@ unsafe extern "C" fn wrong_instrs_for_glyph(
         name_cstr.as_ptr() as *const ::core::ffi::c_char,
     );
 }
-unsafe fn parse_stems(mut sd: *const ParsedValue, mut stems: *mut StemDefList) {
+unsafe fn parse_stems(sd: *const ParsedValue, stems: *mut StemDefList) {
     if sd.is_null() {
         return;
     }
     let mut j: ShapeId = 0 as ShapeId;
     while (j as ::core::ffi::c_uint) < json_arr_len(sd) {
-        let mut s: *const ParsedValue = json_arr_at(sd, j as u32);
+        let s: *const ParsedValue = json_arr_at(sd, j as u32);
         if !(json_type_of(s) != JsonType::Object) {
             let mut sdef: PostscriptStemDef = PostscriptStemDef {
                 position: 0.,
@@ -922,7 +922,7 @@ unsafe fn parse_stems(mut sd: *const ParsedValue, mut stems: *mut StemDefList) {
         j = j.wrapping_add(1);
     }
 }
-unsafe fn parse_maskbits(mut arr: *mut bool, mut bits: *const ParsedValue) {
+unsafe fn parse_maskbits(arr: *mut bool, bits: *const ParsedValue) {
     if bits.is_null() {
         let mut j: ShapeId = 0 as ShapeId;
         while (j as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int {
@@ -934,7 +934,7 @@ unsafe fn parse_maskbits(mut arr: *mut bool, mut bits: *const ParsedValue) {
         while (j_0 as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int
             && (j_0 as ::core::ffi::c_uint) < json_arr_len(bits)
         {
-            let mut b: *const ParsedValue = json_arr_at(bits, j_0 as u32);
+            let b: *const ParsedValue = json_arr_at(bits, j_0 as u32);
             match json_type_of(b) as ::core::ffi::c_uint {
                 6 => {
                     *arr.offset(j_0 as isize) = json_bool_val(b);
@@ -953,13 +953,13 @@ unsafe fn parse_maskbits(mut arr: *mut bool, mut bits: *const ParsedValue) {
         }
     };
 }
-unsafe fn parse_masks(mut md: *const ParsedValue, mut masks: *mut MaskList) {
+unsafe fn parse_masks(md: *const ParsedValue, masks: *mut MaskList) {
     if md.is_null() {
         return;
     }
     let mut j: ShapeId = 0 as ShapeId;
     while (j as ::core::ffi::c_uint) < json_arr_len(md) {
-        let mut m: *const ParsedValue = json_arr_at(md, j as u32);
+        let m: *const ParsedValue = json_arr_at(md, j as u32);
         if !(json_type_of(m) != JsonType::Object) {
             let mut mask: PostscriptHintMask = PostscriptHintMask {
                 points_before: 0,
@@ -999,7 +999,7 @@ unsafe fn parse_masks(mut md: *const ParsedValue, mut masks: *mut MaskList) {
     }
 }
 unsafe fn otfcc_glyf_parse_glyph(
-    mut glyphdump: *const ParsedValue,
+    glyphdump: *const ParsedValue,
     order_entry: &GlyphOrderEntry,
     options: &Options,
 ) -> Box<Glyph> {
@@ -1129,15 +1129,15 @@ unsafe fn otfcc_glyf_parse_glyph(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_glyf(
-    mut root: *const ParsedValue,
-    mut glyph_order: *mut GlyphOrder,
+    root: *const ParsedValue,
+    glyph_order: *mut GlyphOrder,
     options: &Options,
 ) -> Option<GlyfTable> {
     if json_type_of(root) != JsonType::Object || glyph_order.is_null() {
         return None;
     }
     let mut glyf: Option<GlyfTable> = None;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
@@ -1150,13 +1150,13 @@ pub unsafe fn otfcc_parse_glyf(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            let mut num_glyphs: GlyphId = json_obj_len(table) as GlyphId;
+            let num_glyphs: GlyphId = json_obj_len(table) as GlyphId;
             let mut glyf_val: GlyfTable = Vec::with_capacity(num_glyphs as usize);
             glyf_val.resize_with(num_glyphs as usize, || None);
             let mut j: GlyphId = 0 as GlyphId;
             while (j as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int {
                 let name_bytes: Vec<u8> = json_obj_key_bytes_at(table, j as u32);
-                let mut glyphdump: *const ParsedValue = json_obj_val_at(table, j as u32);
+                let glyphdump: *const ParsedValue = json_obj_val_at(table, j as u32);
                 let order_idx: Option<usize> = (*glyph_order).by_name.get(&name_bytes).copied();
                 if json_type_of(glyphdump) == JsonType::Object {
                     if let Some(idx) = order_idx {

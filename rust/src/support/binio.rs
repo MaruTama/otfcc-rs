@@ -17,11 +17,6 @@ pub(crate) unsafe fn read_8u(src: *const u8) -> u8 {
 }
 
 #[inline]
-pub(crate) unsafe fn read_8s(src: *const u8) -> i8 {
-    read_8u(src) as i8
-}
-
-#[inline]
 pub(crate) unsafe fn read_16u(src: *const u8) -> u16 {
     u16::from_be_bytes([*src, *src.offset(1)])
 }
@@ -32,32 +27,8 @@ pub(crate) unsafe fn read_16s(src: *const u8) -> i16 {
 }
 
 #[inline]
-pub(crate) unsafe fn read_24u(src: *const u8) -> u32 {
-    u32::from_be_bytes([0, *src, *src.offset(1), *src.offset(2)])
-}
-
-#[inline]
 pub(crate) unsafe fn read_32u(src: *const u8) -> u32 {
     u32::from_be_bytes([*src, *src.offset(1), *src.offset(2), *src.offset(3)])
-}
-
-#[inline]
-pub(crate) unsafe fn read_32s(src: *const u8) -> i32 {
-    read_32u(src) as i32
-}
-
-#[inline]
-pub(crate) unsafe fn read_64u(src: *const u8) -> u64 {
-    u64::from_be_bytes([
-        *src,
-        *src.offset(1),
-        *src.offset(2),
-        *src.offset(3),
-        *src.offset(4),
-        *src.offset(5),
-        *src.offset(6),
-        *src.offset(7),
-    ])
 }
 
 /// C's *implicit* `Pos` (f64) -> `uint16_t` narrowing, as it happens at

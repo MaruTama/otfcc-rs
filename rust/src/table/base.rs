@@ -70,9 +70,9 @@ pub struct BaseTagList {
     pub items: Vec<u32>,
 }
 unsafe fn read_base_value(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u16,
+    data: FontFilePointer,
+    table_length: u32,
+    offset: u16,
 ) -> i16 {
     if table_length < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32 {
         return 0 as i16;
@@ -98,10 +98,10 @@ unsafe fn read_base_value(
 #[allow(improper_ctypes_definitions)]
 unsafe fn read_base_script(
     data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u16,
+    table_length: u32,
+    offset: u16,
     base_tag_list: &[u32],
-    mut n_base_tags: u16,
+    n_base_tags: u16,
 ) -> (u32, Vec<BaseValue>) {
     if table_length < (offset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u32 {
         return (0, Vec::new());
@@ -168,9 +168,9 @@ unsafe fn read_base_script(
 /// no-op by the time it could run. `base_tag_list` is a local `Vec<u32>`
 /// now, so it needs no explicit free on any exit path either.
 unsafe fn read_axis(
-    mut data: FontFilePointer,
-    mut table_length: u32,
-    mut offset: u16,
+    data: FontFilePointer,
+    table_length: u32,
+    offset: u16,
 ) -> Option<Box<BaseAxis>> {
     if table_length < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32 {
         return None;
@@ -284,10 +284,10 @@ pub unsafe fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<
             if table.tag == crate::tag::TAG_BASE {
                 let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
                 while __fortable_k2 != 0 {
-                    let mut offset_h: u16 = 0;
-                    let mut offset_v: u16 = 0;
-                    let mut data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let mut table_length: u32 = table.length;
+                    let offset_h: u16;
+                    let offset_v: u16;
+                    let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
+                    let table_length: u32 = table.length;
                     if table_length < 8 as u32 {
                         logger_log_sds(
                             &mut *options.logger.borrow_mut(),
@@ -324,7 +324,7 @@ pub unsafe fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<
     }
     return None;
 }
-unsafe fn axis_to_json(mut axis: *const BaseAxis) -> *mut BuiltValue {
+unsafe fn axis_to_json(axis: *const BaseAxis) -> *mut BuiltValue {
     let mut _axis: *mut BuiltValue = json_object_new((*axis).entries.len());
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*axis).entries.len() {
@@ -369,7 +369,7 @@ unsafe fn axis_to_json(mut axis: *const BaseAxis) -> *mut BuiltValue {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_base(
     base: Option<&BaseTable>,
-    mut root: *mut BuiltValue,
+    root: *mut BuiltValue,
     options: &Options,
 ) {
     let base = match base {
@@ -467,11 +467,11 @@ unsafe fn axis_from_json(mut _axis: *const ParsedValue) -> Option<Box<BaseAxis>>
     Some(Box::new(BaseAxis { entries }))
 }
 pub unsafe fn otfcc_parse_base(
-    mut root: *const ParsedValue,
+    root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<BaseTable>> {
     let mut base: Option<Box<BaseTable>> = None;
-    let mut table: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
+    let table: *const ParsedValue;
     table = json_obj_get_type(
         root,
         b"BASE\0" as *const u8 as *const ::core::ffi::c_char,
@@ -504,7 +504,7 @@ pub unsafe fn otfcc_parse_base(
     }
     return base;
 }
-pub unsafe fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
+pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
     if axis.is_null() {
         return ::core::ptr::null_mut::<BkBlock>();
     }
@@ -528,7 +528,7 @@ pub unsafe fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
         j = j.wrapping_add(1);
     }
     taglist.items.sort();
-    let mut base_tag_list: *mut BkBlock = bk_new_block(&[bk_int(
+    let base_tag_list: *mut BkBlock = bk_new_block(&[bk_int(
         BkCellType::B16,
         (taglist.items.len() as ::core::ffi::c_int) as u32,
     )]);
@@ -540,14 +540,14 @@ pub unsafe fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut base_script_list: *mut BkBlock = bk_new_block(&[bk_int(
+    let base_script_list: *mut BkBlock = bk_new_block(&[bk_int(
         BkCellType::B16,
         ((*axis).entries.len() as ::core::ffi::c_int) as u32,
     )]);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as usize) < (*axis).entries.len() {
         let entry_0: &BaseScriptEntry = &(&(*axis).entries)[j_1 as usize];
-        let mut base_values: *mut BkBlock = bk_new_block(&[]);
+        let base_values: *mut BkBlock = bk_new_block(&[]);
         let mut default_index: TableId = 0 as TableId;
         let mut m: TableId = 0 as TableId;
         while (m as usize) < taglist.items.len() {
@@ -615,7 +615,7 @@ pub unsafe fn axis_to_bk(mut axis: *const BaseAxis) -> *mut BkBlock {
             }
             m_0 = m_0.wrapping_add(1);
         }
-        let mut script_record: *mut BkBlock = bk_new_block(&[
+        let script_record: *mut BkBlock = bk_new_block(&[
             bk_ptr(BkCellType::P16, base_values),
             bk_ptr(BkCellType::P16, ::core::ptr::null_mut()),
             bk_int(BkCellType::B16, 0 as u32),
@@ -652,7 +652,7 @@ pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> *mut Buffer {
         .map_or(::core::ptr::null_mut(), |a| {
             axis_to_bk(a as *const BaseAxis)
         });
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B32, 0x10000 as u32),
         bk_ptr(BkCellType::P16, horizontal_bk),
         bk_ptr(BkCellType::P16, vertical_bk),
@@ -660,7 +660,7 @@ pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> *mut Buffer {
     return bk_build_block(root);
 }
 #[inline]
-unsafe fn tag2str(mut tag: u32, mut tags: *mut ::core::ffi::c_char) {
+unsafe fn tag2str(tag: u32, tags: *mut ::core::ffi::c_char) {
     *tags.offset(0 as ::core::ffi::c_int as isize) =
         (tag >> 24 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
     *tags.offset(1 as ::core::ffi::c_int as isize) =

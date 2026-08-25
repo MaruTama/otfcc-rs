@@ -187,7 +187,7 @@ pub unsafe fn otl_read_gpos_mark_to_single(
         }
     }
 }
-pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(mut st: *const Subtable) -> *mut BuiltValue {
+pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(st: *const Subtable) -> *mut BuiltValue {
     let Subtable::GposMarkToSingle(mut_subtable) = &*st else {
         unreachable!()
     };
@@ -272,14 +272,14 @@ pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(mut st: *const Subtable) -
 }
 unsafe fn parse_bases(
     mut _bases: *const ParsedValue,
-    mut subtable: *mut GposMarkToSingleSubtable,
-    mut h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
-    mut options: &Options,
+    subtable: *mut GposMarkToSingleSubtable,
+    h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
+    options: &Options,
 ) {
     let class_count: GlyphClass = (*h).len() as GlyphClass;
     let mut j: GlyphId = 0 as GlyphId;
     while (j as ::core::ffi::c_uint) < json_obj_len(_bases) {
-        let mut gname: *mut ::core::ffi::c_char = json_obj_key_at(_bases, j as u32);
+        let gname: *mut ::core::ffi::c_char = json_obj_key_at(_bases, j as u32);
         let mut base: BaseRecord = BaseRecord {
             glyph: Handle {
                 state: HandleState::Empty,
@@ -292,7 +292,7 @@ unsafe fn parse_bases(
         // Indexed by `class_id` below, out of JSON key order -- pre-sized
         // and filled with "absent" rather than built with `.push()`.
         base.anchors = vec![otl_anchor_absent(); class_count as usize];
-        let mut base_record: *const ParsedValue = json_obj_val_at(_bases, j as u32);
+        let base_record: *const ParsedValue = json_obj_val_at(_bases, j as u32);
         if base_record.is_null() || json_type_of(base_record) != JsonType::Object {
             (*subtable).base_array.push(base);
         } else {
@@ -331,7 +331,7 @@ unsafe fn parse_bases(
 }
 pub unsafe fn otl_gpos_parse_mark_to_single(
     mut _subtable: *const ParsedValue,
-    mut options: &Options,
+    options: &Options,
 ) -> *mut Subtable {
     let mut _marks: *const ParsedValue = json_obj_get_type(
         _subtable,
@@ -346,7 +346,7 @@ pub unsafe fn otl_gpos_parse_mark_to_single(
     if _marks.is_null() || _bases.is_null() {
         return ::core::ptr::null_mut::<Subtable>();
     }
-    let mut st: *mut GposMarkToSingleSubtable = subtable_gpos_mark_to_single_create();
+    let st: *mut GposMarkToSingleSubtable = subtable_gpos_mark_to_single_create();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
     otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h);
     (*st).class_count = h.len() as GlyphClass;
@@ -361,7 +361,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
         unreachable!()
     };
     let subtable: *const GposMarkToSingleSubtable = mut_subtable;
-    let mut marks: *mut Coverage = otl_coverage_create();
+    let marks: *mut Coverage = otl_coverage_create();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).mark_array.len() {
         push_to_coverage(
@@ -371,7 +371,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
         );
         j = j.wrapping_add(1);
     }
-    let mut bases: *mut Coverage = otl_coverage_create();
+    let bases: *mut Coverage = otl_coverage_create();
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).base_array.len() {
         push_to_coverage(
@@ -381,7 +381,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let mut root: *mut BkBlock = bk_new_block(&[
+    let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 1 as u32),
         bk_ptr(
             BkCellType::P16,
@@ -396,7 +396,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
             ((*subtable).class_count as ::core::ffi::c_int) as u32,
         ),
     ]);
-    let mut mark_array: *mut BkBlock = bk_new_block(&[bk_int(
+    let mark_array: *mut BkBlock = bk_new_block(&[bk_int(
         BkCellType::B16,
         ((*subtable).mark_array.len()) as u32,
     )]);
@@ -418,7 +418,7 @@ pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
         );
         j_1 = j_1.wrapping_add(1);
     }
-    let mut base_array: *mut BkBlock = bk_new_block(&[bk_int(
+    let base_array: *mut BkBlock = bk_new_block(&[bk_int(
         BkCellType::B16,
         ((*subtable).base_array.len()) as u32,
     )]);

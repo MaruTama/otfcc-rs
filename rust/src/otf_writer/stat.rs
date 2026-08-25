@@ -55,12 +55,12 @@ pub enum StatStatus {
 }
 pub const POS_MAX: ::core::ffi::c_float = FLT_MAX;
 pub unsafe fn stat_single_glyph(
-    mut table: *const GlyfTable,
-    mut gr: *mut ComponentReference,
-    mut stated: *mut StatStatus,
-    mut depth: u8,
-    mut topj: GlyphId,
-    mut options: &Options,
+    table: *const GlyfTable,
+    gr: *mut ComponentReference,
+    stated: *mut StatStatus,
+    depth: u8,
+    topj: GlyphId,
+    options: &Options,
 ) -> GlyphStat {
     let mut stat: GlyphStat = GlyphStat {
         x_min: 0 as ::core::ffi::c_int as Pos,
@@ -101,8 +101,8 @@ pub unsafe fn stat_single_glyph(
     let mut ymax: Pos = -POS_MAX as Pos;
     let mut nest_depth: u16 = 0 as u16;
     let mut n_points: u16 = 0 as u16;
-    let mut n_composite_points: u16 = 0 as u16;
-    let mut n_composite_contours: u16 = 0 as u16;
+    let mut n_composite_points: u16;
+    let mut n_composite_contours: u16;
     for c in 0..(*g).contours.len() as ShapeId {
         let contour: *const Contour = &(&(*g).contours)[c as usize];
         for pj in 0..(*contour).len() as ShapeId {
@@ -114,7 +114,7 @@ pub unsafe fn stat_single_glyph(
                     + (*gr).b as ::core::ffi::c_double
                         * vq_get_still((*p).y.clone()) as ::core::ffi::c_double,
             ) as Pos;
-            let mut y: Pos = round(
+            let y: Pos = round(
                 vq_get_still((*gr).y.clone()) as ::core::ffi::c_double
                     + (*gr).c as ::core::ffi::c_double
                         * vq_get_still((*p).x.clone()) as ::core::ffi::c_double
@@ -189,7 +189,7 @@ pub unsafe fn stat_single_glyph(
                     + (*rr).d as Pos * vq_get_still((*gr).y.clone()),
             ) as VQ,
         );
-        let mut thatstat: GlyphStat = stat_single_glyph(
+        let thatstat: GlyphStat = stat_single_glyph(
             table,
             &raw mut ref_0,
             stated,
@@ -242,7 +242,7 @@ pub unsafe fn stat_single_glyph(
     *stated.offset(j as isize) = StatStatus::Completed;
     return stat;
 }
-pub unsafe fn stat_glyf(mut font: *mut Font, mut options: &Options) {
+pub unsafe fn stat_glyf(font: *mut Font, options: &Options) {
     // Only ever called (from `otfcc_stat_font`) under a `.head.is_some()`
     // guard.
     let head: *mut HeadTable = (*font).head.as_deref_mut().unwrap() as *mut HeadTable;
@@ -292,7 +292,7 @@ pub unsafe fn stat_glyf(mut font: *mut Font, mut options: &Options) {
         gr.d = 1 as ::core::ffi::c_int as Scale;
         let ref mut fresh2 = (&mut (*glyf))[j as usize].as_mut().unwrap().stat;
         *fresh2 = stat_single_glyph(glyf, &raw mut gr, stated.as_mut_ptr(), 0 as u8, j, options);
-        let mut thatstat: GlyphStat = *fresh2;
+        let thatstat: GlyphStat = *fresh2;
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
         }
@@ -311,7 +311,7 @@ pub unsafe fn stat_glyf(mut font: *mut Font, mut options: &Options) {
     (*head).y_min = ymin as i16;
     (*head).y_max = ymax as i16;
 }
-pub unsafe fn stat_maxp(mut font: *mut Font) {
+pub unsafe fn stat_maxp(font: *mut Font) {
     // Only ever called (from `otfcc_stat_font`) under a `.maxp.is_some()`
     // guard.
     let maxp: *mut MaxpTable = (*font).maxp.as_deref_mut().unwrap() as *mut MaxpTable;
@@ -364,7 +364,7 @@ pub unsafe fn stat_maxp(mut font: *mut Font) {
     (*maxp).max_component_elements = n_components;
     (*maxp).max_size_of_instructions = inst_size;
 }
-unsafe fn stat_hmtx(mut font: *mut Font) {
+unsafe fn stat_hmtx(font: *mut Font) {
     if (*font).glyf.is_none() {
         return;
     }
@@ -458,7 +458,7 @@ unsafe fn stat_hmtx(mut font: *mut Font) {
             0 as ::core::ffi::c_int
         })) as u16;
 }
-unsafe fn stat_vmtx(mut font: *mut Font, mut options: &Options) {
+unsafe fn stat_vmtx(font: *mut Font, options: &Options) {
     if (*font).glyf.is_none() {
         return;
     }
@@ -533,7 +533,7 @@ unsafe fn stat_vmtx(mut font: *mut Font, mut options: &Options) {
         top_side_bearing,
     }));
 }
-unsafe fn stat_os_2_unicode_ranges(mut font: *mut Font, mut options: &Options) {
+unsafe fn stat_os_2_unicode_ranges(font: *mut Font, options: &Options) {
     let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
     let mut u1: u32 = 0 as u32;
     let mut u2: u32 = 0 as u32;
@@ -1009,7 +1009,7 @@ unsafe fn stat_os_2_unicode_ranges(mut font: *mut Font, mut options: &Options) {
         (*os_2).us_last_char_index = 0xffff as u16;
     };
 }
-unsafe fn stat_os_2_average_width(mut font: *mut Font, mut options: &Options) {
+unsafe fn stat_os_2_average_width(font: *mut Font, options: &Options) {
     if options.keep_average_char_width {
         return;
     }
@@ -1099,30 +1099,30 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
     }
     return maxc;
 }
-unsafe fn stat_max_context(mut font: *mut Font) {
+unsafe fn stat_max_context(font: *mut Font) {
     let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
     let mut maxc: u16 = 1 as u16;
     if let Some(gsub) = (*font).gsub.as_deref() {
-        let mut maxc_gsub: u16 = stat_max_context_otl(gsub as *const OtlTable);
+        let maxc_gsub: u16 = stat_max_context_otl(gsub as *const OtlTable);
         if maxc_gsub as ::core::ffi::c_int > maxc as ::core::ffi::c_int {
             maxc = maxc_gsub;
         }
     }
     if let Some(gpos) = (*font).gpos.as_deref() {
-        let mut maxc_gpos: u16 = stat_max_context_otl(gpos as *const OtlTable);
+        let maxc_gpos: u16 = stat_max_context_otl(gpos as *const OtlTable);
         if maxc_gpos as ::core::ffi::c_int > maxc as ::core::ffi::c_int {
             maxc = maxc_gpos;
         }
     }
     (*os_2).us_max_context = maxc;
 }
-unsafe fn stat_os_2(mut font: *mut Font, mut options: &Options) {
+unsafe fn stat_os_2(font: *mut Font, options: &Options) {
     stat_os_2_unicode_ranges(font, options);
     stat_os_2_average_width(font, options);
     stat_max_context(font);
 }
 pub const MAX_STAT_METRIC: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
-unsafe fn stat_cff_widths(mut font: *mut Font) {
+unsafe fn stat_cff_widths(font: *mut Font) {
     if (*font).glyf.is_none() || (*font).cff.is_none() {
         return;
     }
@@ -1182,7 +1182,7 @@ unsafe fn stat_cff_widths(mut font: *mut Font) {
         pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
     }
 }
-unsafe fn stat_vorg(mut font: *mut Font) {
+unsafe fn stat_vorg(font: *mut Font) {
     if (*font).glyf.is_none()
         || (*font).cff.is_none()
         || (*font).vhea.is_none()
@@ -1252,7 +1252,7 @@ unsafe fn stat_vorg(mut font: *mut Font) {
         entries,
     }));
 }
-unsafe fn stat_ltsh(mut font: *mut Font) {
+unsafe fn stat_ltsh(font: *mut Font) {
     if (*font).glyf.is_none() {
         return;
     }
@@ -1279,7 +1279,7 @@ unsafe fn stat_ltsh(mut font: *mut Font) {
         y_pels,
     }));
 }
-pub unsafe fn otfcc_stat_font(mut font: *mut Font, mut options: &Options) {
+pub unsafe fn otfcc_stat_font(font: *mut Font, options: &Options) {
     // Raw-pointer aliases, derived once: `Font.{head,maxp,hhea,vhea}`
     // are never reassigned anywhere in this function's body (only the
     // table contents they point to are mutated, through calls like
@@ -1308,7 +1308,7 @@ pub unsafe fn otfcc_stat_font(mut font: *mut Font, mut options: &Options) {
         }
     }
     if !head.is_null() && (*font).cff.is_some() {
-        let mut cff: *mut CffTable = (*font).cff.as_deref_mut().unwrap() as *mut CffTable;
+        let cff: *mut CffTable = (*font).cff.as_deref_mut().unwrap() as *mut CffTable;
         if (*cff).font_b_box_bottom > (*head).y_min as ::core::ffi::c_int as ::core::ffi::c_double {
             (*cff).font_b_box_bottom = (*head).y_min as ::core::ffi::c_double;
         }
@@ -1406,7 +1406,7 @@ pub unsafe fn otfcc_stat_font(mut font: *mut Font, mut options: &Options) {
     }
     stat_ltsh(font);
 }
-pub unsafe fn otfcc_unstat_font(mut font: *mut Font) {
+pub unsafe fn otfcc_unstat_font(font: *mut Font) {
     delete_font_table(font, crate::tag::TAG_HDMX);
     delete_font_table(font, crate::tag::TAG_HMTX);
     delete_font_table(font, crate::tag::TAG_VORG);

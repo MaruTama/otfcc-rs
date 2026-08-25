@@ -16,7 +16,7 @@ pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *m
         if !chaining_is_canonical(subtable) {
             return json_null_new();
         }
-        let mut rule: *const ChainingRule = chaining_rule_const(subtable);
+        let rule: *const ChainingRule = chaining_rule_const(subtable);
         let mut _st: *mut BuiltValue = json_object_new(4 as usize);
         let mut _match: *mut BuiltValue = json_array_new((*rule).match_count as usize);
         let mut j: TableId = 0 as TableId;
