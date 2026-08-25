@@ -55,6 +55,20 @@ unsafe fn otfcc_read_packets<R: Read + Seek>(
     file: &mut R,
 ) -> bool {
     let font: &mut SplineFontContainer = &mut *font;
+    // `offset`/`length` below are attacker-controlled (raw fields straight
+    // out of the table directory), so a table declaring a length up to
+    // u32::MAX used to reach `vec![0u8; length as usize]` unconditionally
+    // -- a small crafted file could request a multi-gigabyte allocation
+    // before this function ever tried to read a single byte of that
+    // table. Getting the file's real length once up front (this seek
+    // doesn't disturb anything after it: every read below starts with its
+    // own absolute `SeekFrom::Start`) lets each entry be checked against
+    // it before allocating, the same "fail before doing unbounded work"
+    // shape `read_exact`'s own short-read failure already gave the actual
+    // byte-copying step.
+    let Ok(total_len) = file.seek(SeekFrom::End(0)) else {
+        return false;
+    };
     let mut count: u32 = 0;
     while count < font.count {
         let offset = font.offsets[count as usize];
@@ -97,6 +111,9 @@ unsafe fn otfcc_read_packets<R: Read + Seek>(
                 let Some(length) = otfcc_get32u(file) else {
                     return false;
                 };
+                if offset as u64 + length as u64 > total_len {
+                    return false;
+                }
                 packet.pieces.push(PacketPiece {
                     tag,
                     check_sum,
@@ -318,6 +335,36 @@ mod tests {
             bytes.extend_from_slice(&table_offset.to_be_bytes()); // offset
             bytes.extend_from_slice(&8u32.to_be_bytes()); // length (8, but...)
             bytes.extend_from_slice(&[0xAA; 4]); // ...only 4 bytes follow
+            let path = write_temp_file(&bytes);
+            assert!(otfcc_read_sfnt(path.as_ptr()).is_null());
+            let _ = std::fs::remove_file(std::path::Path::new(
+                std::ffi::OsStr::from_bytes(path.as_bytes()),
+            ));
+        }
+    }
+
+    // The bug fixed alongside the one above: a table's declared length was
+    // used to size an allocation (`vec![0u8; length as usize]`) before ever
+    // checking it against the file's actual size, so a tiny file could
+    // still make this request a multi-gigabyte allocation. This declares a
+    // length one byte short of u32::MAX in a file a few dozen bytes long;
+    // if the length-vs-file-size check regressed, this test would hang or
+    // OOM instead of failing promptly.
+    #[test]
+    #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
+    fn table_length_far_past_file_end_fails_without_allocating_it() {
+        unsafe {
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
+            bytes.extend_from_slice(&1u16.to_be_bytes()); // num_tables
+            bytes.extend_from_slice(&0u16.to_be_bytes()); // search_range
+            bytes.extend_from_slice(&0u16.to_be_bytes()); // entry_selector
+            bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
+            let table_offset = 12 + 16u32;
+            bytes.extend_from_slice(b"TEST"); // tag
+            bytes.extend_from_slice(&0u32.to_be_bytes()); // check_sum
+            bytes.extend_from_slice(&table_offset.to_be_bytes()); // offset
+            bytes.extend_from_slice(&(u32::MAX - 1).to_be_bytes()); // length: ~4GB
             let path = write_temp_file(&bytes);
             assert!(otfcc_read_sfnt(path.as_ptr()).is_null());
             let _ = std::fs::remove_file(std::path::Path::new(

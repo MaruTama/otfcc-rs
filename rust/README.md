@@ -932,6 +932,38 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`font/caryll_sfnt.rs`: fixed the last `fuzz`-`README.md`-documented
+  finding, `otfcc_read_packets`'s multi-gigabyte-allocation OOM.** A table
+  directory entry's raw, unvalidated `length` field (up to `u32::MAX`) sized
+  `vec![0u8; length as usize]` before the function ever tried to read a
+  single byte of that table -- a 961-byte crafted input could make it
+  request a 3.7GB allocation. Fixed by getting the file's real length once
+  up front (`file.seek(SeekFrom::End(0))` -- doesn't disturb anything after
+  it, every read below starts with its own absolute `SeekFrom::Start`) and
+  checking each entry's `offset + length` against it before allocating,
+  the same "fail before doing unbounded work" shape `read_exact`'s own
+  short-read failure already gave the byte-copying step right below it.
+  This was scoped in `rust/fuzz/README.md` as "exactly what Stage 7-1's
+  planned `FontReader` is designed to close crate-wide" and deliberately
+  deferred there -- reconsidered and fixed directly here instead, since
+  the actual change needed turned out to be self-contained to this one
+  function rather than needing the full `FontReader` abstraction first.
+  Added `table_length_far_past_file_end_fails_without_allocating_it`
+  (declares a length one byte short of `u32::MAX` in a few dozen actual
+  bytes; if the check regressed, this test would hang or OOM instead of
+  finishing instantly) alongside the existing short-read test.
+  - **Verification**: full pipeline green -- build, 246/246 tests (the new
+    one included), clippy clean, ABI unchanged, golden bytes and log
+    output unchanged, round-trips 10/10, lookup-alias regression clean,
+    both fuzz targets `cargo check`-clean, `cargo miri test` clean (224
+    passed, 0 failed, 22 ignored -- one more than baseline, the new test
+    itself touches a real file so it's `#[cfg_attr(miri, ignore = "...")]`
+    like its neighbors). The known-issues reproducer
+    (`otf-parse-table-length-oom.bin`) confirmed fixed locally, running in
+    1ms instead of requesting a multi-gigabyte allocation; a 60-second
+    local `cargo fuzz run otf_parse` against the full corpus afterward
+    found nothing else.
+
 - **`table/cff.rs`/`libcff/charstring_il.rs`: fixed both of the two
   `json_build` bugs `rust/fuzz/README.md`'s "Known findings" had documented
   as deliberately deferred to Stage 7-1/7-3.** Found while confirming the
