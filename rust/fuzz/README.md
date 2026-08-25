@@ -50,15 +50,17 @@ own limit of 10 (`libcff/cff_parser.rs`'s `MAX_SUBR_CALL_DEPTH`, `rust/
 README.md`'s Stage 7-4 file-I/O-adjacent CFF fix). Both files now parse
 cleanly through `otf_parse`.
 
-## Known findings, not yet fixed (Phase 5 plan, Stages 7-1/7-3)
+## Known findings (all resolved)
 
 Fuzzing found real bugs within the first ~20 seconds of running each target
-against the seed corpus above. None are fixed in the PR that added this
-infrastructure — see that PR's rationale for why (production-code changes
-belong to the specific plan stage that already scoped them, not to
-infrastructure setup) — but they're documented here and reproducible from
-`tests/fuzz-corpus/known-issues/` so Stage 7-1/7-3 has a concrete starting
-point instead of having to rediscover them:
+against the seed corpus above, none fixed in the PR that added this
+infrastructure — production-code changes belonged to the specific plan
+stage that already scoped them, not to infrastructure setup. All are
+resolved now (most fixed directly; one turned out to already be fixed as a
+side effect of unrelated ownership work by the time it was rechecked).
+Kept here, struck through, with what each one was and how it got resolved
+— minimized reproducers stay committed under `tests/fuzz-corpus/known-issues/`
+as regression pins even though none of them still reproduce:
 
 - ~~`tests/fuzz-corpus/known-issues/json-build-cff-charset-null-glyf.bin`
   (13 bytes, `{"CFF_": {}}`) — `table/cff.rs`'s `cff_make_charset` (and, one
@@ -88,30 +90,50 @@ point instead of having to rediscover them:
   delta (in an ordinary release build, the quieter bug that was hiding
   behind the loud one).
 
-- **`otf_parse` leaks 478 bytes across 9 allocations on `tests/payload/gvar-test.ttf`** —
-  a real, valid, already-extensively-tested payload, not a malformed or
-  synthetic one, so this is a genuine pre-existing production leak in
-  normal operation, not just an edge-case robustness gap. Confirmed
-  reproducible locally with symbols (`cargo fuzz run otf_parse
-  ../../tests/payload/gvar-test.ttf`, `ASAN_OPTIONS=detect_leaks=1`). Two
-  distinct allocation sites in the trace: a `calloc` inside
-  `table/glyf/read.rs::otfcc_read_glyf` (32 bytes), and a `format!()`
-  call inside `table/fvar.rs::fvar_register_region` (the `FvarMaster.name`
-  field, 2 bytes plus its `Vec` backing) reached through the same
-  function. Both are downstream of `VqRegion` — the C flexible-array-member
-  gvar/fvar tuple-variation-region type the Phase 5 plan's Stage 6-4
-  section already flagged as one of the "difficult" remaining raw-pointer
-  types (`FvarMaster.region: *mut VqRegion`, "owned, but `VqRegion` is a
-  C flexible array member so it can't be a plain `Box` until `VqRegion`
-  itself is `Vec`-ified"). Likely root cause: some region-deduplication or
-  error path frees/reassigns `region` without going through the drop chain
-  that would also free the `FvarMaster` entry pointing at it, orphaning
-  the entry's own heap fields. Not investigated further or fixed here —
-  belongs to the same Stage 6-4 ownership work as the rest of `VqRegion`.
-  This is why `otf_parse`'s CI step doesn't use `-detect_leaks=0`: leaving
-  leak detection on is what caught this, and disabling it to get a
-  "clean" advisory job would just hide this class of finding going
-  forward too.
+- ~~`otf_parse` leaks 478 bytes across 9 allocations on
+  `tests/payload/gvar-test.ttf` — a `calloc` inside
+  `table/glyf/read.rs::otfcc_read_glyf` and a `format!()` call inside
+  `table/fvar.rs::fvar_register_region` (the `FvarMaster.name` field),
+  both downstream of `VqRegion`, the C flexible-array-member gvar/fvar
+  tuple-variation-region type Stage 6-4 had flagged as one of the
+  "difficult" remaining raw-pointer types~~ — **no longer reproduces**:
+  by the time this was rechecked, both named allocation sites had already
+  been rewritten as part of Stage 7-1's `glyf`/`gvar` work --
+  `otfcc_read_glyf` no longer `calloc`s (see its own "local `Vec<u32>`
+  now, not a `__caryll_allocate_clean`'d/`free`'d..." comment), and
+  `FvarMaster.name` is a plain owned `Vec<u8>`. `leaks --atExit` (macOS's
+  own leak detector, not LeakSanitizer -- this crate's LSan coverage is
+  Linux CI-only, see the "Running" section above) finds 0 leaks now on
+  `gvar-test.ttf` and every other `otf_parse` corpus file. Not a fix
+  landed for this finding specifically; a side effect of the ownership
+  rewrite already covering the exact fields this leak was rooted in.
+  This is why `otf_parse`'s CI step doesn't use `-detect_leaks=0`:
+  leaving leak detection on is what caught this originally, and would
+  catch any regression the same way. Re-verifying this finding is what
+  turned up the two unrelated, real crashes below.
+
+- ~~`libcff/cff_parser.rs`'s `cff_parse_subr`: `fd` (a glyph's font-dict
+  index, read straight from the FDSelect table) indexed `fdarray.offset`
+  via raw, unchecked `.offset()` arithmetic with nothing bounding it
+  against `fdarray`'s actual size~~ — **fixed**: an `fd` past
+  `fdarray.count` used to read arbitrary memory past the `Vec`'s
+  allocation (a real SEGV, found by two minutes of local fuzzing).
+  Treated the same way the function already treats a well-formed `fd`
+  whose FDArray entry just doesn't declare a Private dict: falls back to
+  `empty_index`. Pinned by a new unit test
+  (`fd_select_index_past_fdarray_count_is_rejected_instead_of_reading_oob`)
+  rather than a fuzz-corpus reproducer -- constructing this shape
+  directly (`fdarray.count: 1`, `CffFdSelect::Format0(vec![99])`) was
+  simple enough not to need one.
+
+- ~~`table/cff.rs`'s `otfcc_read_cff_and_glyf_tables`: a CFF table whose
+  Top DICT INDEX declares `count: 0` indexed `top_dict.offset[0]`/`[1]`
+  unconditionally~~ — **fixed**: panicked ("index out of bounds: the len
+  is 0") since `extract_index` only populates `offset` when `count > 0`.
+  Wrapped the whole top-dict-dependent block in `if (*cff_file).top_dict
+  .count != 0`, the same guard shape already used a few lines below for
+  the FDArray INDEX's `font_dict.count != 0`.
+  Reproduce: `cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-empty-top-dict-index-panic.bin`
 
 - ~~`otf_parse` cannot yet run a long, unattended fuzzing campaign because a
   short/truncated input reaches `otfcc_get16u`/`otfcc_get32u` calling

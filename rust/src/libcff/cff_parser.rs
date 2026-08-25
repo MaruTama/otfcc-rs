@@ -489,6 +489,22 @@ pub unsafe fn cff_parse_subr(
             fd = 0 as u8;
         }
     }
+    // `fd` comes from the FDSelect table -- attacker-controlled bytes from
+    // the font file, not bounded against `fdarray`'s actual size by
+    // anything above. `fdarray.offset` (an INDEX's `count + 1` offset
+    // entries) was then indexed via raw `.offset()` arithmetic with no
+    // bounds check at all: an `fd` past `fdarray.count` read arbitrary
+    // memory past the `Vec`'s allocation, a real SEGV a local fuzzing run
+    // found within two minutes. `locate_subr` (used elsewhere in this
+    // file for `callsubr`/`callgsubr`) already validates its INDEX lookup
+    // the same way this one now does -- treat an out-of-range `fd` as "no
+    // private dict for this glyph" and fall back to `empty_index`, the
+    // same fallback already used a few lines down for a well-formed `fd`
+    // whose FDArray entry just doesn't declare a Private dict.
+    if fd as u32 >= fdarray.count {
+        empty_index(subr);
+        return fd;
+    }
     off_private = parse_dict_key_int(
         fdarray
             .data
@@ -3119,6 +3135,56 @@ mod locate_subr_tests {
         let idx = subr_index(vec![1, 100], vec![0xAA, 0xBB]);
         unsafe {
             assert!(locate_subr(&idx, 0, 0).is_none());
+        }
+    }
+}
+
+#[cfg(test)]
+mod cff_parse_subr_tests {
+    use super::*;
+    use crate::libcff::cff_fdselect::CffFdSelect;
+    use crate::libcff::cff_index::CffIndexCountType;
+
+    fn empty_cff_index() -> CffIndex {
+        CffIndex {
+            count_type: CffIndexCountType::U16,
+            count: 0,
+            off_size: 0,
+            offset: Vec::new(),
+            data: Vec::new(),
+        }
+    }
+
+    // The bug this pins: `fd` comes straight from the FDSelect table (a
+    // glyph's declared font-dict index) with nothing above validating it
+    // against `fdarray`'s actual size. `fdarray.offset` (an INDEX's
+    // `count + 1` offsets) was then indexed with a raw, unchecked
+    // `.offset()` -- an `fd` past `fdarray.count` read arbitrary memory
+    // past the `Vec`'s allocation, a real SEGV a local fuzzing run found.
+    #[test]
+    fn fd_select_index_past_fdarray_count_is_rejected_instead_of_reading_oob() {
+        // One font dict (`count: 1`), but the FDSelect claims glyph 0
+        // belongs to font dict 99.
+        let fdarray = CffIndex {
+            count_type: CffIndexCountType::U16,
+            count: 1,
+            off_size: 1,
+            offset: vec![1, 1],
+            data: Vec::new(),
+        };
+        let select = CffFdSelect::Format0(vec![99]);
+        let mut subr = empty_cff_index();
+        unsafe {
+            let fd = cff_parse_subr(
+                0,
+                ::core::ptr::null_mut(),
+                0,
+                &fdarray,
+                &select,
+                &raw mut subr,
+            );
+            assert_eq!(fd, 99);
+            assert_eq!(subr.count, 0);
         }
     }
 }

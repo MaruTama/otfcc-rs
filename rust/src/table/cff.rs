@@ -1250,101 +1250,115 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                     let mut cff_file: *mut CffFile =
                         cff_open_stream(data as *mut u8, length, options);
                     context.cff_file = cff_file;
-                    context.meta = (table_cff_create)();
-                    parse_to_callback(
-                        (*cff_file).top_dict.data.as_ptr(),
-                        {
-                            let top_dict_offset = &(*cff_file).top_dict.offset;
-                            (top_dict_offset[1 as usize]).wrapping_sub(top_dict_offset[0 as usize])
-                        },
-                        &raw mut context as *mut ::core::ffi::c_void,
-                        Some(
-                            callback_extract_fd
-                                as unsafe extern "C" fn(
-                                    CffDictOperator,
-                                    u8,
-                                    *mut CffValue,
-                                    *mut ::core::ffi::c_void,
-                                ) -> (),
-                        ),
-                    );
-                    if (*context.meta).font_name.is_empty() {
-                        (*context.meta).font_name =
-                            get_cff_sid(391 as u16, &(*cff_file).name).unwrap_or_default();
-                    }
-                    if (*cff_file).font_dict.count != 0 {
-                        let fd_count = (*cff_file).font_dict.count as usize;
-                        (*context.meta).fd_array = Vec::with_capacity(fd_count);
-                        let mut j: TableId = 0 as TableId;
-                        while (j as usize) < fd_count {
-                            // Pushed *before* the recursive parse below (not
-                            // after): `context.fd_array_index` makes
-                            // `callback_extract_fd`/`callback_extract_private`
-                            // re-derive `meta` as `(*meta).fd_array[j]` while
-                            // this element is still being populated, so it
-                            // must already be present in the `Vec` at that
-                            // index -- a `Box`'s heap address never moves,
-                            // even if a later `push` reallocates the `Vec`'s
-                            // own backing buffer of `Box` pointers.
-                            (*context.meta)
-                                .fd_array
-                                .push(unwrap_cff_table((table_cff_create)()).unwrap());
-                            context.fd_array_index = j as i32;
-                            parse_to_callback(
-                                {
-                                    let font_dict_offset = &(*cff_file).font_dict.offset;
-                                    (*cff_file)
-                                        .font_dict
-                                        .data
-                                        .as_ptr()
-                                        .offset(font_dict_offset[j as usize] as isize)
-                                        .offset(-(1 as ::core::ffi::c_int as isize))
-                                },
-                                {
-                                    let font_dict_offset = &(*cff_file).font_dict.offset;
-                                    (font_dict_offset[(j as ::core::ffi::c_int
-                                        + 1 as ::core::ffi::c_int)
-                                        as usize])
-                                        .wrapping_sub(font_dict_offset[j as usize])
-                                },
-                                &raw mut context as *mut ::core::ffi::c_void,
-                                Some(
-                                    callback_extract_fd
-                                        as unsafe extern "C" fn(
-                                            CffDictOperator,
-                                            u8,
-                                            *mut CffValue,
-                                            *mut ::core::ffi::c_void,
-                                        )
-                                            -> (),
-                                ),
-                            );
-                            if (&mut (*context.meta).fd_array)[j as usize]
-                                .font_name
-                                .is_empty()
+                    // A CFF table's Top DICT INDEX with a declared `count`
+                    // of 0 has no entries at all -- `extract_index` only
+                    // populates `offset` (`count + 1` entries) when
+                    // `count > 0`, so it stays empty here. A malformed font
+                    // claiming a CFF table with no top dict used to index
+                    // `top_dict.offset[0]`/`[1]` unconditionally below,
+                    // panicking ("index out of bounds") on real input a
+                    // local fuzzing run found. Same guard shape as
+                    // `font_dict.count != 0` a few lines down for the
+                    // FDArray INDEX.
+                    if (*cff_file).top_dict.count != 0 {
+                        context.meta = (table_cff_create)();
+                        parse_to_callback(
+                            (*cff_file).top_dict.data.as_ptr(),
                             {
-                                (&mut (*context.meta).fd_array)[j as usize].font_name =
-                                    crate::bytesbuild!(b"_Subfont", j as ::core::ffi::c_int);
-                            }
-                            j = j.wrapping_add(1);
+                                let top_dict_offset = &(*cff_file).top_dict.offset;
+                                (top_dict_offset[1 as usize])
+                                    .wrapping_sub(top_dict_offset[0 as usize])
+                            },
+                            &raw mut context as *mut ::core::ffi::c_void,
+                            Some(
+                                callback_extract_fd
+                                    as unsafe extern "C" fn(
+                                        CffDictOperator,
+                                        u8,
+                                        *mut CffValue,
+                                        *mut ::core::ffi::c_void,
+                                    ) -> (),
+                            ),
+                        );
+                        if (*context.meta).font_name.is_empty() {
+                            (*context.meta).font_name =
+                                get_cff_sid(391 as u16, &(*cff_file).name).unwrap_or_default();
                         }
+                        if (*cff_file).font_dict.count != 0 {
+                            let fd_count = (*cff_file).font_dict.count as usize;
+                            (*context.meta).fd_array = Vec::with_capacity(fd_count);
+                            let mut j: TableId = 0 as TableId;
+                            while (j as usize) < fd_count {
+                                // Pushed *before* the recursive parse below (not
+                                // after): `context.fd_array_index` makes
+                                // `callback_extract_fd`/`callback_extract_private`
+                                // re-derive `meta` as `(*meta).fd_array[j]` while
+                                // this element is still being populated, so it
+                                // must already be present in the `Vec` at that
+                                // index -- a `Box`'s heap address never moves,
+                                // even if a later `push` reallocates the `Vec`'s
+                                // own backing buffer of `Box` pointers.
+                                (*context.meta)
+                                    .fd_array
+                                    .push(unwrap_cff_table((table_cff_create)()).unwrap());
+                                context.fd_array_index = j as i32;
+                                parse_to_callback(
+                                    {
+                                        let font_dict_offset = &(*cff_file).font_dict.offset;
+                                        (*cff_file)
+                                            .font_dict
+                                            .data
+                                            .as_ptr()
+                                            .offset(font_dict_offset[j as usize] as isize)
+                                            .offset(-(1 as ::core::ffi::c_int as isize))
+                                    },
+                                    {
+                                        let font_dict_offset = &(*cff_file).font_dict.offset;
+                                        (font_dict_offset[(j as ::core::ffi::c_int
+                                            + 1 as ::core::ffi::c_int)
+                                            as usize])
+                                            .wrapping_sub(font_dict_offset[j as usize])
+                                    },
+                                    &raw mut context as *mut ::core::ffi::c_void,
+                                    Some(
+                                        callback_extract_fd
+                                            as unsafe extern "C" fn(
+                                                CffDictOperator,
+                                                u8,
+                                                *mut CffValue,
+                                                *mut ::core::ffi::c_void,
+                                            )
+                                                -> (),
+                                    ),
+                                );
+                                if (&mut (*context.meta).fd_array)[j as usize]
+                                    .font_name
+                                    .is_empty()
+                                {
+                                    (&mut (*context.meta).fd_array)[j as usize].font_name =
+                                        crate::bytesbuild!(b"_Subfont", j as ::core::ffi::c_int);
+                                }
+                                j = j.wrapping_add(1);
+                            }
+                        }
+                        ret.meta = context.meta;
+                        context.seed = 0x1234567887654321 as u64;
+                        if let Some(pd) = (*context.meta).private_dict.as_deref() {
+                            context.seed =
+                                pd.initial_random_seed as u64 ^ 0x1234567887654321 as u64;
+                        }
+                        let glyphs: *mut GlyfTable =
+                            table_glyf_create_n((*cff_file).char_strings.count as usize);
+                        context.glyphs = glyphs;
+                        let mut j_0: GlyphId = 0 as GlyphId;
+                        while (j_0 as usize) < (*glyphs).len() {
+                            build_outline(j_0, &raw mut context, options);
+                            j_0 = j_0.wrapping_add(1);
+                        }
+                        apply_cff_matrix(context.meta, context.glyphs, head);
+                        name_glyphs_according_to_cff(&raw mut context);
+                        ret.glyphs = context.glyphs;
                     }
-                    ret.meta = context.meta;
-                    context.seed = 0x1234567887654321 as u64;
-                    if let Some(pd) = (*context.meta).private_dict.as_deref() {
-                        context.seed = pd.initial_random_seed as u64 ^ 0x1234567887654321 as u64;
-                    }
-                    let glyphs: *mut GlyfTable =
-                        table_glyf_create_n((*cff_file).char_strings.count as usize);
-                    context.glyphs = glyphs;
-                    let mut j_0: GlyphId = 0 as GlyphId;
-                    while (j_0 as usize) < (*glyphs).len() {
-                        build_outline(j_0, &raw mut context, options);
-                        j_0 = j_0.wrapping_add(1);
-                    }
-                    apply_cff_matrix(context.meta, context.glyphs, head);
-                    name_glyphs_according_to_cff(&raw mut context);
-                    ret.glyphs = context.glyphs;
                     cff_close(cff_file);
                     __fortable_k2 = 0 as ::core::ffi::c_int;
                     __notfound = 0 as ::core::ffi::c_int;

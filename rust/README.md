@@ -932,6 +932,66 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Two more real crashes found by fuzzing while investigating the
+  `gvar-test.ttf` leak below -- both in the CFF *read* path, unrelated to
+  each other and to that investigation.** Neither was reachable from the
+  seed corpus; both surfaced within minutes of local mutation-based
+  fuzzing (`cargo fuzz run otf_parse -- -max_total_time=...`).
+  - **`libcff/cff_parser.rs`'s `cff_parse_subr`: `fd` (a glyph's font-dict
+    index, read straight from the FDSelect table -- attacker-controlled)
+    indexed `fdarray.offset` via raw, unchecked `.offset()` arithmetic
+    with nothing above bounding it against `fdarray`'s actual size.** An
+    `fd` past `fdarray.count` read arbitrary memory past the `Vec`'s
+    allocation -- a real SEGV. Fixed with the same fallback the function
+    already uses when a well-formed `fd`'s FDArray entry just doesn't
+    declare a Private dict: treat an out-of-range `fd` as "no private
+    dict for this glyph" and fall back to `empty_index`. Pinned by a new
+    unit test constructing exactly this shape (`fdarray.count: 1`,
+    `CffFdSelect::Format0(vec![99])`) -- direct enough to test without a
+    fuzz-corpus reproducer.
+  - **`table/cff.rs`'s `otfcc_read_cff_and_glyf_tables`: a CFF table
+    whose Top DICT INDEX declares `count: 0` (no entries at all) indexed
+    `top_dict.offset[0]`/`[1]` unconditionally, panicking ("index out of
+    bounds: the len is 0") since `extract_index` only populates `offset`
+    when `count > 0`.** Same guard shape as the `font_dict.count != 0`
+    check a few lines below it for the FDArray INDEX -- wrapped the
+    whole top-dict-dependent block in `if (*cff_file).top_dict.count !=
+    0`, leaving `ret` at its already-null defaults (matching how this
+    function already signals "nothing usable found here") when it's 0.
+    Pinned by `tests/fuzz-corpus/known-issues/
+    otf-parse-empty-top-dict-index-panic.bin`, not a unit test --
+    reaching this code needs a real `Packet`/`CffFile`, heavier to
+    hand-construct than the `cff_parse_subr` case above.
+  - **Verification**: full pipeline green -- build, 247/247 tests (the
+    new `cff_parse_subr` test included), clippy clean, ABI unchanged,
+    golden bytes and log output unchanged (both fixes only change
+    malformed-input behavior; every payload with real CFF content,
+    including the CID-keyed ones, stayed byte-identical), round-trips
+    10/10, lookup-alias regression clean, both fuzz targets `cargo
+    check`-clean, `cargo miri test` clean (225 passed, 0 failed, 22
+    ignored). Both minimized reproducers confirmed fixed locally (exit
+    cleanly instead of crashing); a 3-minute local `cargo fuzz run
+    otf_parse` and a 1-minute `json_build` run afterward found nothing
+    else.
+
+- **`rust/fuzz/README.md`'s last "known finding" (the `gvar-test.ttf`
+  leak, Stage 6-4/`VqRegion` scope) no longer reproduces -- confirmed,
+  not newly fixed.** Investigated as the next item after the OOM fix
+  below; the two allocation sites the finding named (a `calloc` in
+  `table/glyf/read.rs::otfcc_read_glyf`, a `format!()` in
+  `table/fvar.rs::fvar_register_region` building `FvarMaster.name`) had
+  both already been rewritten to plain owned `Vec`s as part of Stage
+  7-1's `glyf`/`gvar` work, done earlier in this same effort but before
+  the finding was last rechecked -- a side effect of that ownership
+  rewrite covering the exact fields this leak was rooted in, not a fix
+  landed for this finding specifically. `leaks --atExit` (macOS's own
+  leak detector -- LeakSanitizer itself isn't supported on macOS at all,
+  a real LLVM/Darwin limitation already noted for the `callback_makefd`
+  leak above) finds 0 leaks now on `gvar-test.ttf` and every other
+  `otf_parse` corpus file. With this, every finding `rust/fuzz/README.md`'s
+  "Known findings" section ever listed is resolved -- until fuzzing
+  turned up the two new, unrelated ones above while re-verifying that.
+
 - **`font/caryll_sfnt.rs`: fixed the last `fuzz`-`README.md`-documented
   finding, `otfcc_read_packets`'s multi-gigabyte-allocation OOM.** A table
   directory entry's raw, unvalidated `length` field (up to `u32::MAX`) sized
