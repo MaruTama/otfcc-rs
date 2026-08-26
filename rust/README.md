@@ -932,6 +932,60 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`table/fvar.rs` migrated to `FontReader`, closing a worse-than-`cpal.rs`
+  double-wraparound bug.** Found while triaging what was left of the
+  previous Stage 7-1 mop-up's "deliberately out of scope" list --
+  `otfcc_read_fvar` wasn't a plain table-lookup loop like the others on
+  that list, it was a full binary parser for the variable-font axis/
+  instance data still on the pre-`FontReader` idiom (`#[repr(C, packed)]`
+  structs cast directly over the raw bytes, `be16`/`be32` byte-swap
+  helpers, `.offset()` pointer walking).
+  - **The bug**: the overall-length guard computed `instance_size *
+    instance_count` in **32-bit signed** `c_int` arithmetic -- both
+    operands up to 65535 individually legal, but their true product (up
+    to ~4.29 billion) overflows `i32::MAX` and wraps negative in a release
+    build (overflow checks are off by default outside `cargo test`/debug).
+    That negative `c_int`, cast `as usize`, sign-extends into a huge value
+    near `usize::MAX`; the outer `.wrapping_add` then wraps a *second*
+    time around `usize`'s own width, potentially landing back on a small
+    total that passes the guard against a `table.length` nowhere near big
+    enough. Worse than every wraparound bug the previous mop-up PR found
+    (`table/cpal.rs`'s four, `table/svg.rs`'s one, `table/otl/subtables/
+    extend.rs`'s one) -- those each wrap once; this one wraps twice,
+    through two different integer widths. Fixed by routing every
+    multiplication/addition in the guard through `checked_mul`/
+    `checked_add` (`Option`'s `?`-propagation), so an overflow anywhere in
+    the chain rejects the table instead of wrapping either width.
+  - **`#[repr(C, packed)]` `FVARHeader`/`VariationAxisRecord`/
+    `InstanceRecord` and the `be16`/`be32` byte-swap helpers all deleted
+    outright** -- `FontReader`'s `u16()`/`i32()`/`u32()` already read big-
+    endian and bounds-check every access, so once the parser was rewritten
+    around it nothing else in the file referenced these three structs or
+    the two helpers (confirmed by grep before deleting).
+  - **Tests came first**: 8 new tests, including one that pins the exact
+    overflow shape (`axis_count` = 16382, making `instance_size_without_
+    psnid` = 65532 -- both legal individually, product with `instance_
+    count` = 65535 overflowing `i32::MAX` by construction) against the
+    same 44-byte well-formed fixture every other test in the file uses,
+    rather than constructing a multi-gigabyte buffer to reach the bug.
+  - **Verification**: full pipeline green -- build and clippy clean at
+    `-D warnings`, 308/308 tests (300 prior + 8 new), ABI unchanged,
+    golden bytes unchanged (`gvar-test.ttf`, the only committed payload
+    with a real `fvar` table, byte-identical) and log output unchanged,
+    cycles/lookup-alias/10-payload round-trips all clean, `cargo fuzz run
+    otf_parse -- -max_total_time=60` found nothing beyond the expected
+    "Undefined Byte in CFF" warning noise, both fuzz targets `cargo
+    check`-clean, `cargo miri test` clean (286 passed, 0 failed, 22
+    ignored, matching baseline + the 8 new tests). `survey-unsafe.sh`
+    deltas: `__fortable_*` 33->19, raw pointer types 5287->5276, `.offset(`
+    calls 613->609, `as ::core::ffi::c_int` casts 4650->4604.
+  - **Still open**: `table/cff.rs` (67 `.offset(` calls, 12 `__fortable_*`,
+    no `FontReader`) and `table/glyf/read.rs`'s remaining 12 `.offset(`/2
+    `__fortable_*` (mixed in with that file's already-`FontReader`-based
+    per-record readers) -- `table/cvt.rs` and `src/otf_reader.rs`'s single
+    remaining `__fortable_*` each are genuinely just table-lookup loops,
+    confirmed by inspection, and stay deliberately out of scope.
+
 - **Stage 7-1 mop-up: the last 8 tables/helpers still on the pre-`FontReader`
   c2rust idiom (`.offset()` raw-pointer arithmetic, `__fortable_*`/
   `current_block` foreach/goto emulation, `binio::read_*`) are migrated --
