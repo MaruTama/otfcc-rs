@@ -1,12 +1,13 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::Packet;
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
-use crate::support::binio::{pos_to_u16, read_16s, read_16u};
+use crate::support::binio::pos_to_u16;
 use crate::support::buffer::Buffer;
 use crate::support::buffer::{bufnew, bufwrite16b};
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphId, Pos};
+use crate::support::primitives::{GlyphId, Pos};
 
 #[derive(Copy, Clone)]
 pub struct VorgEntry {
@@ -29,83 +30,44 @@ pub struct VorgTable {
 // equals `entries.len()` by construction at every write site, so keeping it
 // is a conservative choice that changes no call site beyond the storage
 // mechanism.
-pub unsafe fn otfcc_read_vorg(packet: &Packet, options: &Options) -> Option<Box<VorgTable>> {
-    let mut num_vert_origin_y_metrics: u16;
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_VORG {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let length: u32 = table.length;
-                    if !(length < 8 as u32) {
-                        num_vert_origin_y_metrics =
-                            read_16u(data.offset(6 as ::core::ffi::c_int as isize) as *const u8);
-                        if !(length
-                            < (8 as ::core::ffi::c_int
-                                + 4 as ::core::ffi::c_int
-                                    * num_vert_origin_y_metrics as ::core::ffi::c_int)
-                                as u32)
-                        {
-                            let default_vertical_origin = read_16s(
-                                data.offset(4 as ::core::ffi::c_int as isize) as *const u8,
-                            ) as Pos;
-                            let mut entries: Vec<VorgEntry> =
-                                Vec::with_capacity(num_vert_origin_y_metrics as usize);
-                            let mut j: u16 = 0 as u16;
-                            while (j as ::core::ffi::c_int)
-                                < num_vert_origin_y_metrics as ::core::ffi::c_int
-                            {
-                                let gid =
-                                    read_16u(data.offset(8 as ::core::ffi::c_int as isize).offset(
-                                        (4 as ::core::ffi::c_int * j as ::core::ffi::c_int)
-                                            as isize,
-                                    ) as *const u8) as GlyphId;
-                                let vertical_origin = read_16s(
-                                    data.offset(8 as ::core::ffi::c_int as isize)
-                                        .offset(
-                                            (4 as ::core::ffi::c_int * j as ::core::ffi::c_int)
-                                                as isize,
-                                        )
-                                        .offset(2 as ::core::ffi::c_int as isize)
-                                        as *const u8,
-                                );
-                                entries.push(VorgEntry {
-                                    gid,
-                                    vertical_origin,
-                                });
-                                j = j.wrapping_add(1);
-                            }
-                            return Some(Box::new(VorgTable {
-                                num_vert_origin_y_metrics: num_vert_origin_y_metrics as GlyphId,
-                                default_vertical_origin,
-                                entries,
-                            }));
-                        }
-                    }
-                    logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(b"Table 'VORG' corrupted."),
-                    );
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
+// `data`'s first 4 bytes (majorVersion/minorVersion) are read by neither
+// this nor the original C -- VORG only ever shipped as version 1.0, and
+// nothing here branches on it.
+fn parse_vorg(data: &[u8]) -> Result<(GlyphId, Pos, Vec<VorgEntry>), ReadError> {
+    let mut r = FontReader::new(data);
+    r.skip(4)?;
+    let default_vertical_origin = r.i16()? as Pos;
+    let num_vert_origin_y_metrics = r.u16()? as GlyphId;
+    r.require_room(num_vert_origin_y_metrics as usize, 4)?;
+    let mut entries = Vec::with_capacity(num_vert_origin_y_metrics as usize);
+    for _ in 0..num_vert_origin_y_metrics {
+        let gid = r.u16()? as GlyphId;
+        let vertical_origin = r.i16()?;
+        entries.push(VorgEntry { gid, vertical_origin });
     }
-    return None;
+    Ok((num_vert_origin_y_metrics, default_vertical_origin, entries))
+}
+
+pub unsafe fn otfcc_read_vorg(packet: &Packet, options: &Options) -> Option<Box<VorgTable>> {
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VORG)?;
+    let (num_vert_origin_y_metrics, default_vertical_origin, entries) =
+        match parse_vorg(&table.data) {
+            Ok(parsed) => parsed,
+            Err(_) => {
+                logger_log_sds(
+                    &mut *options.logger.borrow_mut(),
+                    LOG_VL_IMPORTANT,
+                    LoggerType::Warning,
+                    crate::bytesbuild!(b"Table 'VORG' corrupted."),
+                );
+                return None;
+            }
+        };
+    Some(Box::new(VorgTable {
+        num_vert_origin_y_metrics,
+        default_vertical_origin,
+        entries,
+    }))
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_vorg(table: Option<&VorgTable>) -> *mut Buffer {
@@ -125,4 +87,48 @@ pub unsafe fn otfcc_build_vorg(table: Option<&VorgTable>) -> *mut Buffer {
         j = j.wrapping_add(1);
     }
     return buf;
+}
+
+#[cfg(test)]
+mod parse_vorg_tests {
+    use super::*;
+
+    fn header(default_vertical_origin: i16, num_vert_origin_y_metrics: u16) -> Vec<u8> {
+        let mut b = vec![0u8, 1, 0, 0]; // majorVersion, minorVersion (unused)
+        b.extend_from_slice(&default_vertical_origin.to_be_bytes());
+        b.extend_from_slice(&num_vert_origin_y_metrics.to_be_bytes());
+        b
+    }
+
+    #[test]
+    fn well_formed_table_reads_every_entry() {
+        let mut data = header(-100, 2);
+        data.extend_from_slice(&5u16.to_be_bytes());
+        data.extend_from_slice(&10i16.to_be_bytes());
+        data.extend_from_slice(&9u16.to_be_bytes());
+        data.extend_from_slice(&(-20i16).to_be_bytes());
+        let (num, default_vertical_origin, entries) = parse_vorg(&data).unwrap();
+        assert_eq!(num, 2);
+        assert_eq!(default_vertical_origin, -100.0);
+        assert_eq!(entries[0].gid, 5);
+        assert_eq!(entries[0].vertical_origin, 10);
+        assert_eq!(entries[1].gid, 9);
+        assert_eq!(entries[1].vertical_origin, -20);
+    }
+
+    #[test]
+    fn truncated_header_errs_instead_of_reading_oob() {
+        assert!(parse_vorg(&header(0, 0)[..6]).is_err());
+    }
+
+    #[test]
+    fn entries_array_shorter_than_declared_count_errs_instead_of_reading_oob() {
+        // num_vert_origin_y_metrics says 2 but only one 4-byte entry
+        // actually follows the 8-byte header -- the original read past the
+        // table's real end here unconditionally.
+        let mut data = header(0, 2);
+        data.extend_from_slice(&5u16.to_be_bytes());
+        data.extend_from_slice(&10i16.to_be_bytes());
+        assert!(parse_vorg(&data).is_err());
+    }
 }

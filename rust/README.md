@@ -932,6 +932,117 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **Stage 7-1 mop-up: the last 8 tables/helpers still on the pre-`FontReader`
+  c2rust idiom (`.offset()` raw-pointer arithmetic, `__fortable_*`/
+  `current_block` foreach/goto emulation, `binio::read_*`) are migrated --
+  `table/vorg.rs`, `table/base.rs`, `table/colr.rs`, `table/cpal.rs`,
+  `table/gdef.rs`, `table/svg.rs`, `table/otl/subtables/extend.rs`, and
+  `table/otl/subtables/gpos_common.rs`'s `otl_read_mark_array`/
+  `otl_read_anchor`/`read_gpos_value`.** These were found by re-running
+  `survey-unsafe.sh`-style greps for `__fortable_`/`.offset(` after the
+  `getopt_long` PR and discovering Stage 7-1's flagship named bugs (post/
+  name/cmap/glyf/gvar/ltsh/hdmx/CFF, all already fixed in earlier PRs) were
+  not actually the *entire* list of unmigrated files -- these 8 had never
+  been named individually in the plan and so were never swept up.
+  - **Four newly-found, genuinely exploitable bugs, all the same shape**:
+    an offset or length read straight from the file as a raw `u32` (full
+    attacker control, up to `u32::MAX`), guarded with `x.wrapping_add(n)`
+    or `x.wrapping_add(y).wrapping_add(z)` in **32-bit** arithmetic -- a
+    value close enough to `u32::MAX` wraps the sum back down to something
+    small, so a length check that should reject an out-of-range offset
+    passes instead, and the subsequent `.offset()` reads from (or copies
+    out of) memory nowhere near the table. Distinct from the *shape* of
+    bug `table/gdef.rs`'s/`table/svg.rs`'s/`otl/subtables/gpos_common.rs`'s
+    *other* offsets have (sums of a couple `u16` fields, which can never
+    reach anywhere near `u32::MAX` regardless of arithmetic width) --
+    these four are directly attacker-supplied 32-bit values:
+    - `table/cpal.rs`: **all four** of `offsetFirstColorRecord`,
+      `offsetPaletteTypeArray`, `offsetPaletteLabelArray` and
+      `offsetPaletteEntryLabelArray`.
+    - `table/svg.rs`: the per-record document span, guarded by
+      `offset_to_svg_doc_index.wrapping_add(docstart).wrapping_add(doclen)`
+      -- three raw `u32`s chained, any pair of which can wrap it.
+    - `table/otl/subtables/extend.rs`: the Extension mechanism's whole
+      reason for existing is carrying a real 32-bit subtable offset (every
+      other GSUB/GPOS lookup type is limited to Offset16) -- `subtable_
+      offset.wrapping_add(extensionOffset)` combined a bounded `u16`-scale
+      offset with that fully attacker-controlled `extensionOffset`.
+    All four fixed by `FontReader`'s `checked_add`/`checked_mul` (or, for
+    `extend.rs`, `u32::checked_add` directly, since it doesn't need a full
+    `FontReader` conversion) instead of `wrapping_add`.
+  - **Two more bugs found along the way, different shape**:
+    - `table/otl/subtables/gpos_common.rs`'s `otl_read_mark_array` had *no*
+      room check at all for its `mark_count`-driven record loop (only the
+      2-byte `MarkCount` field itself was bounds-checked) -- a large
+      `mark_count` against a short table read straight past the buffer's
+      end. Also indexed the sibling Coverage table's `Vec` by `mark_count`
+      with no check against the Coverage's own length -- two independent,
+      both attacker-controlled counts a well-formed font keeps equal but
+      nothing enforced, so a mismatched `MarkCount` panicked on `Vec`
+      index out of bounds (a crash, not a memory-safety bug, but still
+      DoS-reachable from a crafted GPOS MarkToBase/MarkToLigature table).
+      Fixed by `require_room` plus capping the loop at `cov.len()`.
+    - `table/gdef.rs`'s `otfcc_read_gdef`: the LigCaretList's `Coverage`
+      (`cov`, allocated via `read_coverage`) was never freed on either of
+      its two "this table is corrupted" abort paths -- only the success
+      path called `otl_coverage_free`. A real pre-existing leak on any
+      malformed LigCaretList, fixed as a natural side effect of replacing
+      the `current_block` goto-emulation with early returns (every new
+      return path frees `cov` first).
+  - **`table/base.rs`'s own narrower version of the same overflow-defeats-
+    guard bug, via truncation instead of wraparound**: the original
+    computed nested `BaseScript`/`BaseValues` offsets as `(x as c_int +
+    offset as c_int) as u16` -- safe 32-bit addition, but then truncating
+    the *result* back down to `u16`, silently wrapping whenever the real
+    combined offset exceeded 65535. Every derived offset now stays `usize`
+    instead of being narrowed back to `u16`.
+  - **Everything else migrated (`table/vorg.rs`, `table/colr.rs`, and the
+    non-buggy parts of the other five) had no live bug** -- their offsets
+    are sums of one or two `u16`-scale fields (a few hundred thousand at
+    most), nowhere near the `u32::MAX` a wraparound needs, so this part of
+    the work is pure modernization: `.offset()`/`FontFilePointer`/
+    `__fortable_*`/`current_block` gone, `FontReader` in their place, same
+    reasoning `otl/coverage.rs`'s own `read_coverage` doc comment already
+    laid out for exactly this class of bug when *it* was migrated.
+  - **Tests came first for every fix**: each of the six confirmed bugs
+    above got its own regression test reproducing the exact wraparound/
+    missing-check/leak shape (`table/cpal.rs`'s 2 near-`u32::MAX` tests,
+    `table/svg.rs`'s 1, `table/otl/subtables/extend.rs`'s 1,
+    `table/otl/subtables/gpos_common.rs`'s 2 for `otl_read_mark_array`),
+    plus well-formed/truncated/malformed-input coverage for every other
+    migrated function (39 new tests total across the 8 files).
+  - **Verification**: full pipeline green -- build and clippy clean at
+    `-D warnings`, 300/300 tests (261 prior + 39 new), ABI unchanged,
+    golden bytes unchanged (including `gdef-ligcaret-dedup` and
+    `mark-consolidate-dedup`, which exercise exactly the GDEF lig-caret and
+    GPOS mark-array paths touched here) and log output unchanged, cycles/
+    lookup-alias/10-payload round-trips all clean, `cargo fuzz run
+    otf_parse -- -max_total_time=60` found nothing beyond expected
+    "Undefined Byte in CFF" warning noise, both fuzz targets `cargo
+    check`-clean, `cargo miri test` clean (278 passed, 0 failed, 22
+    ignored, matching baseline + the 39 new tests). `survey-unsafe.sh`
+    deltas (measured against this branch's parent): `unsafe fn` 889->884,
+    raw pointer types 5352->5287, `.offset(` calls 745->613,
+    `__fortable_*` 117->33, `current_block` 18->12, `as ::core::ffi::c_int`
+    casts 4957->4650, while loops 670->634. `unsafe blocks` rose 276->299
+    and `Result<` usage rose 33->38 -- expected, not a regression: each
+    file went from one giant `unsafe fn` body to several small explicit
+    `unsafe {}` blocks around the handful of calls (`otfcc_handle_dup`,
+    `read_coverage`, `otl_coverage_free`, ...) that still need it, plus a
+    `Result`-returning `parse_*` helper per file, matching every prior
+    Stage 7-1 migration's shape. `files with allow(unsafe_op_in_unsafe_fn)`
+    unchanged at 101/142, same as every prior Stage 7-1 file: the public
+    `otfcc_read_*`/`otfcc_build_*` wrappers still call other `unsafe fn`s
+    without individually wrapping every call, so the file-level allow
+    stays -- removing it crate-wide is Stage 7-4 scope, not this migration's.
+  - **Deliberately out of scope**: the `__fortable_*` table-lookup loops
+    still present in `cff.rs`/`glyf/read.rs`/`fvar.rs`/`cvt.rs`/
+    `otf_reader.rs` are a different, lower-value category -- plain
+    "find this table by tag in `packet.pieces`" iteration, not attacker-
+    facing bounds-unsafe parsing, and already partially interleaved with
+    those files' already-migrated per-record readers. Left for whenever
+    those files get their own dedicated pass.
+
 - **`getopt_long`'s libc FFI dependency is gone -- Stage 7-4's last named
   item.** `support/getopt.rs` held only an FFI mirror of libc's `struct
   option` (`LongOption`); the actual `getopt_long` symbol was reached

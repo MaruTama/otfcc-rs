@@ -12,23 +12,8 @@
 // spelled inline without inviting someone to "simplify" it — see its comment.
 
 #[inline]
-pub(crate) unsafe fn read_8u(src: *const u8) -> u8 {
-    *src
-}
-
-#[inline]
 pub(crate) unsafe fn read_16u(src: *const u8) -> u16 {
     u16::from_be_bytes([*src, *src.offset(1)])
-}
-
-#[inline]
-pub(crate) unsafe fn read_16s(src: *const u8) -> i16 {
-    read_16u(src) as i16
-}
-
-#[inline]
-pub(crate) unsafe fn read_32u(src: *const u8) -> u32 {
-    u32::from_be_bytes([*src, *src.offset(1), *src.offset(2), *src.offset(3)])
 }
 
 /// C's *implicit* `Pos` (f64) -> `uint16_t` narrowing, as it happens at

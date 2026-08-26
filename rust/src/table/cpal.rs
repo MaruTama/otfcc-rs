@@ -1,18 +1,15 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::free;
-
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
-use crate::support::alloc::__caryll_allocate_clean;
-use crate::support::binio::{read_8u, read_16u, read_32u};
 use crate::support::buffer::Buffer;
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
     ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint,
     json_obj_getint_fallback, json_type_of,
 };
-use crate::support::primitives::{ColorId, FontFilePointer, TableId};
+use crate::support::primitives::{ColorId, TableId};
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkgraph::bk_build_block;
@@ -54,306 +51,147 @@ pub static WHITE: CpalColor = CpalColor {
     alpha: 0xff as u8,
     label: 0xffff as u16,
 };
-pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
-    let mut version: u16;
-    let mut table_header_length: u32;
-    let mut num_palettes_entries: u16;
-    let mut num_palettes: u16;
-    let mut num_color_records: u16;
-    let mut offset_first_color_record: u32;
-    let color_list: *mut CpalColor;
-    let mut t: Option<Box<CpalTable>>;
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_CPAL {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let length: u32 = table.length;
-                    if !(length < 2 as u32) {
-                        t = Some(Box::new(CpalTable {
-                            version: 0,
-                            palettes: Vec::new(),
-                        }));
-                        version = read_16u(data as *const u8);
-                        table_header_length =
-                            (if version as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
-                                14 as ::core::ffi::c_int
-                            } else {
-                                26 as ::core::ffi::c_int
-                            }) as u32;
-                        if !(length < table_header_length) {
-                            t.as_mut().unwrap().version = version;
-                            num_palettes_entries = read_16u(
-                                data.offset(2 as ::core::ffi::c_int as isize) as *const u8,
-                            );
-                            num_palettes = read_16u(
-                                data.offset(4 as ::core::ffi::c_int as isize) as *const u8
-                            );
-                            num_color_records = read_16u(
-                                data.offset(6 as ::core::ffi::c_int as isize) as *const u8,
-                            );
-                            offset_first_color_record = read_32u(
-                                data.offset(8 as ::core::ffi::c_int as isize) as *const u8,
-                            );
-                            if !(length
-                                < offset_first_color_record.wrapping_add(
-                                    (num_color_records as ::core::ffi::c_int
-                                        * 4 as ::core::ffi::c_int)
-                                        as u32,
-                                ))
-                            {
-                                if !(length
-                                    < table_header_length.wrapping_add(
-                                        (2 as ::core::ffi::c_int
-                                            * num_palettes as ::core::ffi::c_int)
-                                            as u32,
-                                    ))
-                                {
-                                    color_list = __caryll_allocate_clean(
-                                        (::core::mem::size_of::<CpalColor>() as usize)
-                                            .wrapping_mul(num_color_records as usize),
-                                        55 as ::core::ffi::c_ulong,
-                                    )
-                                        as *mut CpalColor;
-                                    let mut j: u16 = 0 as u16;
-                                    while (j as ::core::ffi::c_int)
-                                        < num_color_records as ::core::ffi::c_int
-                                    {
-                                        *color_list.offset(j as isize) = CpalColor {
-                                            red: read_8u(
-                                                data.offset(offset_first_color_record as isize)
-                                                    .offset(
-                                                        (j as ::core::ffi::c_int
-                                                            * 4 as ::core::ffi::c_int)
-                                                            as isize,
-                                                    )
-                                                    .offset(2 as ::core::ffi::c_int as isize)
-                                                    as *const u8,
-                                            ),
-                                            green: read_8u(
-                                                data.offset(offset_first_color_record as isize)
-                                                    .offset(
-                                                        (j as ::core::ffi::c_int
-                                                            * 4 as ::core::ffi::c_int)
-                                                            as isize,
-                                                    )
-                                                    .offset(1 as ::core::ffi::c_int as isize)
-                                                    as *const u8,
-                                            ),
-                                            blue: read_8u(
-                                                data.offset(offset_first_color_record as isize)
-                                                    .offset(
-                                                        (j as ::core::ffi::c_int
-                                                            * 4 as ::core::ffi::c_int)
-                                                            as isize,
-                                                    )
-                                                    as *const u8,
-                                            ),
-                                            alpha: read_8u(
-                                                data.offset(offset_first_color_record as isize)
-                                                    .offset(
-                                                        (j as ::core::ffi::c_int
-                                                            * 4 as ::core::ffi::c_int)
-                                                            as isize,
-                                                    )
-                                                    .offset(3 as ::core::ffi::c_int as isize)
-                                                    as *const u8,
-                                            ),
-                                            label: 0xffff as u16,
-                                        };
-                                        j = j.wrapping_add(1);
-                                    }
-                                    let mut j_0: TableId = 0 as TableId;
-                                    while (j_0 as ::core::ffi::c_int)
-                                        < num_palettes as ::core::ffi::c_int
-                                    {
-                                        // `label: 0xffff`, not `0` -- matches
-                                        // what the deleted `CPAL_I_PALETTE.init`
-                                        // call used to leave here (nothing
-                                        // overwrites `.label` afterward in
-                                        // this function, unlike `.type_0`
-                                        // and `.colorset`, which init also
-                                        // touched but every caller re-sets).
-                                        let mut palette: CpalPalette = CpalPalette {
-                                            colorset: Vec::new(),
-                                            type_0: 0,
-                                            label: 0xffff,
-                                        };
-                                        let palette_start_index: TableId = read_16u(
-                                            data.offset(12 as ::core::ffi::c_int as isize).offset(
-                                                (j_0 as ::core::ffi::c_int
-                                                    * 2 as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                                as *const u8,
-                                        )
-                                            as TableId;
-                                        let mut j_1: ColorId = 0 as ColorId;
-                                        while (j_1 as ::core::ffi::c_int)
-                                            < num_palettes_entries as ::core::ffi::c_int
-                                        {
-                                            if (palette_start_index as ::core::ffi::c_int
-                                                + j_1 as ::core::ffi::c_int)
-                                                < num_color_records as ::core::ffi::c_int
-                                            {
-                                                palette.colorset.push(*color_list.offset(
-                                                    (j_1 as ::core::ffi::c_int
-                                                        + palette_start_index as ::core::ffi::c_int)
-                                                        as isize,
-                                                ));
-                                            } else {
-                                                palette.colorset.push(WHITE);
-                                            }
-                                            j_1 = j_1.wrapping_add(1);
-                                        }
-                                        t.as_mut().unwrap().palettes.push(palette);
-                                        j_0 = j_0.wrapping_add(1);
-                                    }
-                                    if version as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-                                        let palettes: &mut Vec<CpalPalette> =
-                                            &mut t.as_mut().unwrap().palettes;
-                                        let offset_palette_type_array: u32 = read_32u(
-                                            data.offset(16 as ::core::ffi::c_int as isize).offset(
-                                                (2 as ::core::ffi::c_int
-                                                    * num_palettes as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                                as *const u8,
-                                        );
-                                        if offset_palette_type_array != 0
-                                            && length
-                                                >= offset_palette_type_array.wrapping_add(
-                                                    (4 as ::core::ffi::c_int
-                                                        * num_palettes as ::core::ffi::c_int)
-                                                        as u32,
-                                                )
-                                        {
-                                            let mut j_2: TableId = 0 as TableId;
-                                            while (j_2 as ::core::ffi::c_int)
-                                                < num_palettes as ::core::ffi::c_int
-                                            {
-                                                let type_0: u32 = read_32u(
-                                                    data.offset(
-                                                        (j_2 as ::core::ffi::c_int
-                                                            * 4 as ::core::ffi::c_int)
-                                                            as isize,
-                                                    )
-                                                    .offset(offset_palette_type_array as isize)
-                                                        as *const u8,
-                                                );
-                                                palettes[j_2 as usize].type_0 = type_0;
-                                                j_2 = j_2.wrapping_add(1);
-                                            }
-                                        }
-                                        let offset_palette_label_array: u32 = read_32u(
-                                            data.offset(20 as ::core::ffi::c_int as isize).offset(
-                                                (2 as ::core::ffi::c_int
-                                                    * num_palettes as ::core::ffi::c_int)
-                                                    as isize,
-                                            )
-                                                as *const u8,
-                                        );
-                                        if offset_palette_label_array != 0
-                                            && length
-                                                >= offset_palette_label_array.wrapping_add(
-                                                    (2 as ::core::ffi::c_int
-                                                        * num_palettes as ::core::ffi::c_int)
-                                                        as u32,
-                                                )
-                                        {
-                                            let mut j_3: TableId = 0 as TableId;
-                                            while (j_3 as ::core::ffi::c_int)
-                                                < num_palettes as ::core::ffi::c_int
-                                            {
-                                                let label: u16 = read_16u(
-                                                    data.offset(
-                                                        (j_3 as ::core::ffi::c_int
-                                                            * 2 as ::core::ffi::c_int)
-                                                            as isize,
-                                                    )
-                                                    .offset(offset_palette_label_array as isize)
-                                                        as *const u8,
-                                                );
-                                                palettes[j_3 as usize].label = label as u32;
-                                                j_3 = j_3.wrapping_add(1);
-                                            }
-                                        }
-                                        if version as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
-                                            let offset_palette_entry_label_array: u32 =
-                                                read_32u(
-                                                    data.offset(24 as ::core::ffi::c_int as isize)
-                                                        .offset(
-                                                            (2 as ::core::ffi::c_int
-                                                                * num_palettes
-                                                                    as ::core::ffi::c_int)
-                                                                as isize,
-                                                        )
-                                                        as *const u8,
-                                                );
-                                            if offset_palette_entry_label_array != 0
-                                                && length
-                                                    >= offset_palette_entry_label_array
-                                                        .wrapping_add(
-                                                            (4 as ::core::ffi::c_int
-                                                                * num_palettes_entries
-                                                                    as ::core::ffi::c_int)
-                                                                as u32,
-                                                        )
-                                            {
-                                                let mut j_4: ColorId = 0 as ColorId;
-                                                while (j_4 as ::core::ffi::c_int)
-                                                    < num_palettes_entries as ::core::ffi::c_int
-                                                {
-                                                    let label_0: u16 = read_16u(
-                                                        data.offset(
-                                                            (j_4 as ::core::ffi::c_int
-                                                                * 2 as ::core::ffi::c_int)
-                                                                as isize,
-                                                        )
-                                                        .offset(
-                                                            offset_palette_entry_label_array
-                                                                as isize,
-                                                        )
-                                                            as *const u8,
-                                                    );
-                                                    let mut k: TableId = 0 as TableId;
-                                                    while (k as ::core::ffi::c_int)
-                                                        < num_palettes as ::core::ffi::c_int
-                                                    {
-                                                        palettes[k as usize].colorset
-                                                            [j_4 as usize]
-                                                            .label = label_0;
-                                                        k = k.wrapping_add(1);
-                                                    }
-                                                    j_4 = j_4.wrapping_add(1);
-                                                }
-                                            }
-                                        }
-                                    }
-                                    free(color_list as *mut ::core::ffi::c_void);
-                                    return t;
-                                }
+/// The 3 v1 offset arrays (`offsetPaletteTypeArray`/`...LabelArray`/
+/// `...EntryLabelArray`) are read at absolute offsets `16`/`20`/`24 + 2 *
+/// num_palettes` -- 4 bytes further into the table than the OpenType 'CPAL'
+/// spec places them (`12`/`16`/`20 + 2 * num_palettes`, immediately after
+/// `colorRecordIndices`). Preserved exactly as the original C read them:
+/// this migration's job is bounds-checking the existing byte offsets, not
+/// re-deriving what they "should" be.
+///
+/// `offset_first_color_record`, `offset_palette_type_array`,
+/// `offset_palette_label_array` and `offset_palette_entry_label_array` are
+/// each a raw `u32` read straight from the file (full attacker control, up
+/// to `u32::MAX`) that the original guarded with `x.wrapping_add(count *
+/// stride)`. A value close enough to `u32::MAX` wraps that addition back
+/// down to something small, so `length < wrapped_small_value` could pass
+/// even though `x` itself points nowhere near the table -- the same
+/// overflow-defeats-guard shape `otl/coverage.rs`'s `read_coverage` and
+/// `table/cmap.rs`'s plan writeup describe, and (unlike `table/gdef.rs`'s
+/// or `table/svg.rs`'s offsets, which are sums of a few `u16` fields and so
+/// can never reach anywhere near `u32::MAX`) a *directly attacker-supplied*
+/// `u32`, so this one is really reachable. `FontReader::at`/`require_room`
+/// use `checked_add`/`checked_mul` throughout, closing all four instances
+/// of it in this table at once.
+fn parse_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
+    if data.len() < 2 {
+        return Err(ReadError { needed: 2, available: data.len() });
+    }
+    let version = FontReader::new(data).u16()?;
+    let table_header_length: usize = if version == 0 { 14 } else { 26 };
+    if data.len() < table_header_length {
+        return Err(ReadError {
+            needed: table_header_length,
+            available: data.len(),
+        });
+    }
+    let mut h = FontReader::new(data).at(2)?;
+    let num_palettes_entries = h.u16()? as usize;
+    let num_palettes = h.u16()? as usize;
+    let num_color_records = h.u16()? as usize;
+    let offset_first_color_record = h.u32()? as usize;
+
+    let mut cr = FontReader::new(data).at(offset_first_color_record)?;
+    cr.require_room(num_color_records, 4)?;
+    let mut color_list: Vec<CpalColor> = Vec::with_capacity(num_color_records);
+    for _ in 0..num_color_records {
+        let blue = cr.u8()?;
+        let green = cr.u8()?;
+        let red = cr.u8()?;
+        let alpha = cr.u8()?;
+        color_list.push(CpalColor {
+            red,
+            green,
+            blue,
+            alpha,
+            label: 0xffff,
+        });
+    }
+
+    if data.len() < table_header_length + 2 * num_palettes {
+        return Err(ReadError {
+            needed: table_header_length + 2 * num_palettes,
+            available: data.len(),
+        });
+    }
+    let mut idx = FontReader::new(data).at(12)?;
+    let mut palettes: Vec<CpalPalette> = Vec::with_capacity(num_palettes);
+    for _ in 0..num_palettes {
+        // `label: 0xffff`, not `0` -- matches what the deleted
+        // `CPAL_I_PALETTE.init` call used to leave here (nothing
+        // overwrites `.label` afterward in this function, unlike
+        // `.type_0`/`.colorset`, which init also touched but every caller
+        // re-sets).
+        let palette_start_index = idx.u16()? as usize;
+        let mut colorset = Vec::with_capacity(num_palettes_entries);
+        for j in 0..num_palettes_entries {
+            let color = palette_start_index
+                .checked_add(j)
+                .filter(|&i| i < num_color_records)
+                .map_or(WHITE, |i| color_list[i]);
+            colorset.push(color);
+        }
+        palettes.push(CpalPalette {
+            colorset,
+            type_0: 0,
+            label: 0xffff,
+        });
+    }
+
+    if version > 0 {
+        if let Some(offset_palette_type_array) =
+            FontReader::new(data).at(16 + 2 * num_palettes).ok().and_then(|mut r| r.u32().ok())
+        {
+            let offset_palette_type_array = offset_palette_type_array as usize;
+            if offset_palette_type_array != 0 {
+                if let Ok(mut tr) = FontReader::new(data).at(offset_palette_type_array) {
+                    if tr.require_room(num_palettes, 4).is_ok() {
+                        for p in palettes.iter_mut() {
+                            p.type_0 = tr.u32().unwrap();
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(offset_palette_label_array) =
+            FontReader::new(data).at(20 + 2 * num_palettes).ok().and_then(|mut r| r.u32().ok())
+        {
+            let offset_palette_label_array = offset_palette_label_array as usize;
+            if offset_palette_label_array != 0 {
+                if let Ok(mut lr) = FontReader::new(data).at(offset_palette_label_array) {
+                    if lr.require_room(num_palettes, 2).is_ok() {
+                        for p in palettes.iter_mut() {
+                            p.label = lr.u16().unwrap() as u32;
+                        }
+                    }
+                }
+            }
+        }
+        if let Some(offset_palette_entry_label_array) =
+            FontReader::new(data).at(24 + 2 * num_palettes).ok().and_then(|mut r| r.u32().ok())
+        {
+            let offset_palette_entry_label_array = offset_palette_entry_label_array as usize;
+            if offset_palette_entry_label_array != 0 {
+                if let Ok(mut er) = FontReader::new(data).at(offset_palette_entry_label_array) {
+                    if er.require_room(num_palettes_entries, 4).is_ok() {
+                        for j in 0..num_palettes_entries {
+                            let label = er.u16().unwrap();
+                            for p in palettes.iter_mut() {
+                                p.colorset[j].label = label;
                             }
                         }
                     }
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
                 }
             }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
     }
-    return None;
+
+    Ok((version, palettes))
+}
+pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CPAL)?;
+    let (version, palettes) = parse_cpal(&table.data).ok()?;
+    Some(Box::new(CpalTable { version, palettes }))
 }
 #[inline]
 unsafe fn dump_color(color: *const CpalColor) -> *mut BuiltValue {
@@ -746,4 +584,107 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> *mut Buffer {
         );
     }
     return bk_build_block(root);
+}
+
+#[cfg(test)]
+mod parse_cpal_tests {
+    use super::*;
+
+    // header(12) + colorRecordIndices(2, one palette) + one color record(4)
+    fn well_formed_v0_table() -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&0u16.to_be_bytes()); // version
+        b.extend_from_slice(&1u16.to_be_bytes()); // numPaletteEntries
+        b.extend_from_slice(&1u16.to_be_bytes()); // numPalettes
+        b.extend_from_slice(&1u16.to_be_bytes()); // numColorRecords
+        b.extend_from_slice(&14u32.to_be_bytes()); // offsetFirstColorRecord
+        b.extend_from_slice(&0u16.to_be_bytes()); // colorRecordIndices[0]
+        b.extend_from_slice(&[10, 20, 30, 255]); // blue, green, red, alpha
+        b
+    }
+
+    #[test]
+    fn well_formed_v0_table_reads_one_palette_one_color() {
+        let data = well_formed_v0_table();
+        let (version, palettes) = parse_cpal(&data).unwrap();
+        assert_eq!(version, 0);
+        assert_eq!(palettes.len(), 1);
+        let color = palettes[0].colorset[0];
+        assert_eq!((color.red, color.green, color.blue, color.alpha), (30, 20, 10, 255));
+        assert_eq!(color.label, 0xffff);
+    }
+
+    #[test]
+    fn truncated_header_errs_instead_of_reading_oob() {
+        assert!(parse_cpal(&well_formed_v0_table()[..10]).is_err());
+    }
+
+    #[test]
+    fn palette_entry_past_num_color_records_falls_back_to_white() {
+        // colorRecordIndices[0] (palette_start_index) pointing past the
+        // one real color record must fall back to WHITE, not index OOB
+        // into color_list.
+        let mut data = well_formed_v0_table();
+        data[12..14].copy_from_slice(&5u16.to_be_bytes());
+        let (_, palettes) = parse_cpal(&data).unwrap();
+        let color = palettes[0].colorset[0];
+        assert_eq!((color.red, color.green, color.blue, color.alpha), (255, 255, 255, 255));
+    }
+
+    #[test]
+    fn color_record_offset_near_u32_max_is_rejected_not_wrapped() {
+        // The original guarded `offset_first_color_record` (a raw,
+        // fully attacker-controlled u32 read straight from the file)
+        // with `x.wrapping_add(4 * num_color_records)`: a value this
+        // close to u32::MAX wraps that addition back down to something
+        // small, which could pass `length < wrapped_small_value` even
+        // though the real offset points nowhere near this small table.
+        let mut data = well_formed_v0_table();
+        data[8..12].copy_from_slice(&0xFFFF_FFF0u32.to_be_bytes());
+        assert!(parse_cpal(&data).is_err());
+    }
+
+    // version=1, one palette/entry/color record, plus a palette-type array
+    // so the v1-only offset arithmetic is exercised. `table_header_length`
+    // is 26 for v1, and the colorRecordIndices-region guard conservatively
+    // demands `table_header_length + 2 * num_palettes` (28 bytes here) of
+    // total table length even though colorRecordIndices itself only needs
+    // 14 -- inherited from the original C, not something this migration
+    // tightens -- so the table must reach at least 28 bytes before the v1
+    // arrays are even considered.
+    fn well_formed_v1_table_with_palette_type() -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&1u16.to_be_bytes()); // version
+        b.extend_from_slice(&1u16.to_be_bytes()); // numPaletteEntries
+        b.extend_from_slice(&1u16.to_be_bytes()); // numPalettes
+        b.extend_from_slice(&1u16.to_be_bytes()); // numColorRecords
+        b.extend_from_slice(&14u32.to_be_bytes()); // offsetFirstColorRecord
+        b.extend_from_slice(&0u16.to_be_bytes()); // colorRecordIndices[0], @12
+        b.extend_from_slice(&[10, 20, 30, 255]); // color record, @14
+        // offsetPaletteTypeArray lives at absolute offset 16 + 2*numPalettes
+        // = 18 (this crate's CPAL reads it 4 bytes later than the spec
+        // position -- see parse_cpal's doc comment).
+        b.extend_from_slice(&28u32.to_be_bytes()); // @18: offsetPaletteTypeArray = 28
+        b.resize(28, 0); // padding up to the guard2-mandated 28-byte minimum
+        b.extend_from_slice(&0xCAFEBABEu32.to_be_bytes()); // @28: palette 0's type
+        b
+    }
+
+    #[test]
+    fn v1_palette_type_array_is_read_at_its_shifted_offset() {
+        let data = well_formed_v1_table_with_palette_type();
+        let (version, palettes) = parse_cpal(&data).unwrap();
+        assert_eq!(version, 1);
+        assert_eq!(palettes[0].type_0, 0xCAFEBABE);
+    }
+
+    #[test]
+    fn palette_type_array_offset_near_u32_max_is_rejected_not_wrapped() {
+        let mut data = well_formed_v1_table_with_palette_type();
+        data[18..22].copy_from_slice(&0xFFFF_FFF0u32.to_be_bytes());
+        let (_, palettes) = parse_cpal(&data).unwrap();
+        // The optional array is simply left unpopulated on rejection --
+        // the whole table isn't corrupted by one bad optional offset.
+        assert_eq!(palettes[0].type_0, 0);
+    }
 }

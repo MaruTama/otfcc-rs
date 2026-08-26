@@ -1,22 +1,22 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::bk_build_block;
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::Packet;
 use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
-use crate::support::binio::{read_16s, read_16u, read_32u};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::{
     BuiltValue, json_new_position, json_object_new, json_object_push, json_object_push_tag,
     json_string_new_length,
 };
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
     ParsedValue, json_numof, json_obj_get_type, json_obj_getstr_share, json_obj_key_at,
     json_obj_len, json_obj_val_at, json_type_of,
 };
-use crate::support::primitives::{FontFilePointer, Pos, TableId};
+use crate::support::primitives::{Pos, TableId};
 use crate::vendor::json::JsonType;
 
 #[derive(Copy, Clone)]
@@ -69,19 +69,14 @@ pub struct BaseTable {
 pub struct BaseTagList {
     pub items: Vec<u32>,
 }
-unsafe fn read_base_value(
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u16,
-) -> i16 {
-    if table_length < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32 {
-        return 0 as i16;
-    } else {
-        return read_16s(
-            data.offset(offset as ::core::ffi::c_int as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-        );
-    };
+fn read_base_value(data: &[u8], offset: usize) -> i16 {
+    FontReader::new(data)
+        .at(offset)
+        .and_then(|mut r| {
+            r.skip(2)?;
+            r.i16()
+        })
+        .unwrap_or(0)
 }
 /// Returns `(default_baseline_tag, base_values)` instead of writing
 /// through a `*mut BaseScriptEntry` out-param: every failure branch in
@@ -93,70 +88,61 @@ unsafe fn read_base_value(
 /// just never writes the intermediate values that were always going to
 /// be thrown away.
 ///
-/// Never a real FFI boundary -- internal call site only, same rationale
-/// as every other instance of this allow in the crate.
-#[allow(improper_ctypes_definitions)]
-unsafe fn read_base_script(
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u16,
+/// `offset` is a plain `usize` (not the `u16` the on-disk `BaseValuesOffset`
+/// field is), and every offset this function derives from it stays `usize`
+/// too: the original computed `(base_values_offset as c_int + offset as
+/// c_int) as u16`, adding in 32-bit `c_int` (safe -- both operands are
+/// ≤ 65535) but then *truncating the sum back down to `u16`*, silently
+/// wrapping whenever the real combined offset exceeded 65535. That's the
+/// same "offset arithmetic wraps and defeats the length guard that follows
+/// it" bug shape `otl/coverage.rs`'s `read_coverage` docs and
+/// `table/cmap.rs`'s plan writeup both describe, just reached through a
+/// narrowing cast instead of `wrapping_add`. Keeping every derived offset
+/// as `usize` (max here: two `u16`s summed, nowhere near `usize::MAX`)
+/// removes the wraparound outright instead of just moving where it hides.
+fn read_base_script(
+    data: &[u8],
+    offset: usize,
     base_tag_list: &[u32],
     n_base_tags: u16,
 ) -> (u32, Vec<BaseValue>) {
-    if table_length < (offset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u32 {
+    let Ok(mut r) = FontReader::new(data).at(offset) else {
+        return (0, Vec::new());
+    };
+    let Ok(base_values_rel) = r.u16() else {
+        return (0, Vec::new());
+    };
+    if base_values_rel == 0 {
         return (0, Vec::new());
     }
-    let mut base_values_offset: u16 =
-        read_16u(data.offset(offset as ::core::ffi::c_int as isize) as *const u8);
-    if base_values_offset == 0 {
+    let base_values_offset = offset + base_values_rel as usize;
+    let Ok(mut r2) = FontReader::new(data).at(base_values_offset) else {
+        return (0, Vec::new());
+    };
+    let Ok(default_index_raw) = r2.u16() else {
+        return (0, Vec::new());
+    };
+    let default_index = (default_index_raw % n_base_tags) as usize;
+    let default_baseline_tag: u32 = base_tag_list[default_index];
+    let Ok(base_values_count) = r2.u16() else {
+        return (0, Vec::new());
+    };
+    if base_values_count != n_base_tags {
         return (0, Vec::new());
     }
-    base_values_offset =
-        (base_values_offset as ::core::ffi::c_int + offset as ::core::ffi::c_int) as u16;
-    if table_length < (base_values_offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32 {
-        return (0, Vec::new());
-    }
-    let default_index: u16 =
-        (read_16u(data.offset(base_values_offset as ::core::ffi::c_int as isize) as *const u8)
-            as ::core::ffi::c_int
-            % n_base_tags as ::core::ffi::c_int) as u16;
-    let default_baseline_tag: u32 = base_tag_list[default_index as usize];
-    let base_values_count: TableId = read_16u(
-        data.offset(base_values_offset as ::core::ffi::c_int as isize)
-            .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-    ) as TableId;
-    if base_values_count as ::core::ffi::c_int != n_base_tags as ::core::ffi::c_int {
-        return (0, Vec::new());
-    }
-    if table_length
-        < (base_values_offset as ::core::ffi::c_int
-            + 4 as ::core::ffi::c_int
-            + 2 as ::core::ffi::c_int * base_values_count as ::core::ffi::c_int) as u32
-    {
+    if r2.require_room(base_values_count as usize, 2).is_err() {
         return (0, Vec::new());
     }
     let mut base_values: Vec<BaseValue> = Vec::with_capacity(base_values_count as usize);
-    let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < base_values_count as ::core::ffi::c_int {
+    for j in 0..base_values_count {
         let tag = base_tag_list[j as usize];
-        let _val_offset: u16 = read_16u(
-            data.offset(base_values_offset as ::core::ffi::c_int as isize)
-                .offset(4 as ::core::ffi::c_int as isize)
-                .offset((2 as ::core::ffi::c_int * j as ::core::ffi::c_int) as isize)
-                as *const u8,
-        );
-        let coordinate = if _val_offset != 0 {
-            read_base_value(
-                data,
-                table_length,
-                (base_values_offset as ::core::ffi::c_int + _val_offset as ::core::ffi::c_int)
-                    as u16,
-            ) as Pos
+        let val_offset = r2.u16().unwrap();
+        let coordinate = if val_offset != 0 {
+            read_base_value(data, base_values_offset + val_offset as usize) as Pos
         } else {
             0 as ::core::ffi::c_int as Pos
         };
         base_values.push(BaseValue { tag, coordinate });
-        j = j.wrapping_add(1);
     }
     (default_baseline_tag, base_values)
 }
@@ -167,91 +153,41 @@ unsafe fn read_base_script(
 /// immediately, so `delete_base_axis(axis)` at the bottom was always a
 /// no-op by the time it could run. `base_tag_list` is a local `Vec<u32>`
 /// now, so it needs no explicit free on any exit path either.
-unsafe fn read_axis(
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u16,
-) -> Option<Box<BaseAxis>> {
-    if table_length < (offset as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as u32 {
+///
+/// `offset` and every offset derived from it stay `usize` for the same
+/// reason `read_base_script` does -- the original's `(x as c_int + offset
+/// as c_int) as u16` truncation could wrap a real out-of-range offset back
+/// into range.
+fn read_axis(data: &[u8], offset: usize) -> Option<Box<BaseAxis>> {
+    let mut r = FontReader::new(data).at(offset).ok()?;
+    let base_tag_list_rel = r.u16().ok()?;
+    let base_script_list_rel = r.u16().ok()?;
+    if base_tag_list_rel == 0 || base_script_list_rel == 0 {
         return None;
     }
-    let base_tag_list_offset: u16 = (offset as ::core::ffi::c_int
-        + read_16u(data.offset(offset as ::core::ffi::c_int as isize) as *const u8)
-            as ::core::ffi::c_int) as u16;
-    if base_tag_list_offset as ::core::ffi::c_int <= offset as ::core::ffi::c_int {
-        return None;
-    }
-    if table_length < (base_tag_list_offset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u32
-    {
-        return None;
-    }
-    let n_base_tags: u16 =
-        read_16u(data.offset(base_tag_list_offset as ::core::ffi::c_int as isize) as *const u8);
+    let base_tag_list_offset = offset + base_tag_list_rel as usize;
+    let mut tl = FontReader::new(data).at(base_tag_list_offset).ok()?;
+    let n_base_tags = tl.u16().ok()?;
     if n_base_tags == 0 {
         return None;
     }
-    if table_length
-        < (base_tag_list_offset as ::core::ffi::c_int
-            + 2 as ::core::ffi::c_int
-            + 4 as ::core::ffi::c_int * n_base_tags as ::core::ffi::c_int) as u32
-    {
-        return None;
-    }
+    tl.require_room(n_base_tags as usize, 4).ok()?;
     let mut base_tag_list: Vec<u32> = Vec::with_capacity(n_base_tags as usize);
-    let mut j: u16 = 0 as u16;
-    while (j as ::core::ffi::c_int) < n_base_tags as ::core::ffi::c_int {
-        base_tag_list.push(read_32u(
-            data.offset(base_tag_list_offset as ::core::ffi::c_int as isize)
-                .offset(2 as ::core::ffi::c_int as isize)
-                .offset((j as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
-                as *const u8,
-        ));
-        j = j.wrapping_add(1);
+    for _ in 0..n_base_tags {
+        base_tag_list.push(tl.u32().unwrap());
     }
-    let base_script_list_offset: u16 = (offset as ::core::ffi::c_int
-        + read_16u(
-            data.offset(offset as ::core::ffi::c_int as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-        ) as ::core::ffi::c_int) as u16;
-    if base_script_list_offset as ::core::ffi::c_int <= offset as ::core::ffi::c_int {
-        return None;
-    }
-    if table_length
-        < (base_script_list_offset as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u32
-    {
-        return None;
-    }
-    let n_base_scripts: TableId =
-        read_16u(data.offset(base_script_list_offset as ::core::ffi::c_int as isize) as *const u8)
-            as TableId;
-    if table_length
-        < (base_script_list_offset as ::core::ffi::c_int
-            + 2 as ::core::ffi::c_int
-            + 6 as ::core::ffi::c_int * n_base_scripts as ::core::ffi::c_int) as u32
-    {
-        return None;
-    }
+    let base_script_list_offset = offset + base_script_list_rel as usize;
+    let mut sl = FontReader::new(data).at(base_script_list_offset).ok()?;
+    let n_base_scripts = sl.u16().ok()?;
+    sl.require_room(n_base_scripts as usize, 6).ok()?;
     let mut entries: Vec<BaseScriptEntry> = Vec::with_capacity(n_base_scripts as usize);
-    let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int) < n_base_scripts as ::core::ffi::c_int {
-        let tag = read_32u(
-            data.offset(base_script_list_offset as ::core::ffi::c_int as isize)
-                .offset(2 as ::core::ffi::c_int as isize)
-                .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize)
-                as *const u8,
-        );
-        let base_script_offset: u16 = read_16u(
-            data.offset(base_script_list_offset as ::core::ffi::c_int as isize)
-                .offset(2 as ::core::ffi::c_int as isize)
-                .offset((6 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize)
-                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-        );
-        if base_script_offset != 0 {
+    for _ in 0..n_base_scripts {
+        let tag = sl.u32().unwrap();
+        let base_script_rel = sl.u16().unwrap();
+        if base_script_rel != 0 {
             let (default_baseline_tag, base_values) = read_base_script(
                 data,
-                table_length,
-                (base_script_list_offset as ::core::ffi::c_int
-                    + base_script_offset as ::core::ffi::c_int) as u16,
+                base_script_list_offset + base_script_rel as usize,
                 &base_tag_list,
                 n_base_tags,
             );
@@ -267,62 +203,40 @@ unsafe fn read_axis(
                 base_values: Vec::new(),
             });
         }
-        j_0 = j_0.wrapping_add(1);
     }
     Some(Box::new(BaseAxis { entries }))
 }
+fn parse_base(data: &[u8]) -> Result<(Option<Box<BaseAxis>>, Option<Box<BaseAxis>>), ReadError> {
+    let mut r = FontReader::new(data);
+    r.skip(4)?; // majorVersion(2) + minorVersion(2), unused
+    let offset_h = r.u16()?;
+    let offset_v = r.u16()?;
+    let horizontal = (offset_h != 0)
+        .then(|| read_axis(data, offset_h as usize))
+        .flatten();
+    let vertical = (offset_v != 0)
+        .then(|| read_axis(data, offset_v as usize))
+        .flatten();
+    Ok((horizontal, vertical))
+}
 pub unsafe fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<BaseTable>> {
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_BASE {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let offset_h: u16;
-                    let offset_v: u16;
-                    let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    let table_length: u32 = table.length;
-                    if table_length < 8 as u32 {
-                        logger_log_sds(
-                            &mut *options.logger.borrow_mut(),
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(b"Table 'BASE' Corrupted"),
-                        );
-                    } else {
-                        let mut horizontal: Option<Box<BaseAxis>> = None;
-                        let mut vertical: Option<Box<BaseAxis>> = None;
-                        offset_h =
-                            read_16u(data.offset(4 as ::core::ffi::c_int as isize) as *const u8);
-                        if offset_h != 0 {
-                            horizontal = read_axis(data, table_length, offset_h);
-                        }
-                        offset_v =
-                            read_16u(data.offset(6 as ::core::ffi::c_int as isize) as *const u8);
-                        if offset_v != 0 {
-                            vertical = read_axis(data, table_length, offset_v);
-                        }
-                        return Some(Box::new(BaseTable {
-                            horizontal,
-                            vertical,
-                        }));
-                    }
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_BASE)?;
+    let (horizontal, vertical) = match parse_base(&table.data) {
+        Ok(parsed) => parsed,
+        Err(_) => {
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"Table 'BASE' Corrupted"),
+            );
+            return None;
         }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
-    }
-    return None;
+    };
+    Some(Box::new(BaseTable {
+        horizontal,
+        vertical,
+    }))
 }
 unsafe fn axis_to_json(axis: *const BaseAxis) -> *mut BuiltValue {
     let mut _axis: *mut BuiltValue = json_object_new((*axis).entries.len());
@@ -687,4 +601,134 @@ unsafe fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
         len = len.wrapping_add(1);
     }
     return tag;
+}
+
+#[cfg(test)]
+mod parse_base_tests {
+    use super::*;
+
+    const HANG: u32 = 0x68616e67; // "hang"
+
+    // header(8) + axis(4) + tag list(6, one tag) + script list(8, one
+    // record) + script table(2) + base values(6, one coord) + coord(4)
+    fn well_formed_base_table() -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&0u16.to_be_bytes()); // majorVersion
+        b.extend_from_slice(&1u16.to_be_bytes()); // minorVersion
+        b.extend_from_slice(&8u16.to_be_bytes()); // HorizAxisOffset
+        b.extend_from_slice(&0u16.to_be_bytes()); // VertAxisOffset (none)
+        // Axis table @8
+        b.extend_from_slice(&4u16.to_be_bytes()); // BaseTagListOffset (rel to 8)
+        b.extend_from_slice(&10u16.to_be_bytes()); // BaseScriptListOffset (rel to 8)
+        // BaseTagList @12
+        b.extend_from_slice(&1u16.to_be_bytes()); // BaseTagCount
+        b.extend_from_slice(&HANG.to_be_bytes());
+        // BaseScriptList @18
+        b.extend_from_slice(&1u16.to_be_bytes()); // BaseScriptCount
+        b.extend_from_slice(&HANG.to_be_bytes()); // BaseScriptTag
+        b.extend_from_slice(&8u16.to_be_bytes()); // BaseScriptOffset (rel to 18)
+        // BaseScript table @26
+        b.extend_from_slice(&2u16.to_be_bytes()); // BaseValuesOffset (rel to 26)
+        // BaseValues table @28
+        b.extend_from_slice(&0u16.to_be_bytes()); // DefaultIndex
+        b.extend_from_slice(&1u16.to_be_bytes()); // BaseCoordCount
+        b.extend_from_slice(&6u16.to_be_bytes()); // BaseCoordOffset[0] (rel to 28)
+        // BaseCoord @34
+        b.extend_from_slice(&1u16.to_be_bytes()); // format (unread, format-agnostic)
+        b.extend_from_slice(&500i16.to_be_bytes()); // Coordinate
+        b
+    }
+
+    #[test]
+    fn well_formed_table_reads_the_horizontal_axis() {
+        let data = well_formed_base_table();
+        let (horizontal, vertical) = parse_base(&data).unwrap();
+        assert!(vertical.is_none());
+        let axis = horizontal.unwrap();
+        assert_eq!(axis.entries.len(), 1);
+        assert_eq!(axis.entries[0].tag, HANG);
+        assert_eq!(axis.entries[0].default_baseline_tag, HANG);
+        assert_eq!(axis.entries[0].base_values.len(), 1);
+        assert_eq!(axis.entries[0].base_values[0].tag, HANG);
+        assert_eq!(axis.entries[0].base_values[0].coordinate, 500.0);
+    }
+
+    #[test]
+    fn truncated_header_errs_instead_of_reading_oob() {
+        assert!(parse_base(&well_formed_base_table()[..6]).is_err());
+    }
+
+    #[test]
+    fn zero_axis_offset_is_absent_not_an_error() {
+        let mut data = well_formed_base_table();
+        data[4..6].copy_from_slice(&0u16.to_be_bytes()); // HorizAxisOffset = 0
+        let (horizontal, vertical) = parse_base(&data).unwrap();
+        assert!(horizontal.is_none());
+        assert!(vertical.is_none());
+    }
+
+    #[test]
+    fn zero_base_tag_count_makes_the_axis_absent() {
+        let mut data = well_formed_base_table();
+        data[12..14].copy_from_slice(&0u16.to_be_bytes()); // BaseTagCount = 0
+        let (horizontal, _) = parse_base(&data).unwrap();
+        assert!(horizontal.is_none());
+    }
+
+    #[test]
+    fn base_coord_count_mismatched_with_tag_count_is_rejected() {
+        // BaseCoordCount (absolute offset 30) is 1 in the fixture, but
+        // n_base_tags here is 2 -- must be rejected, not read with the
+        // wrong count.
+        let base_tag_list = vec![HANG, HANG];
+        let data = well_formed_base_table();
+        let (tag, values) = read_base_script(&data, 26, &base_tag_list, 2);
+        assert_eq!(tag, 0);
+        assert!(values.is_empty());
+    }
+
+    #[test]
+    fn base_script_offset_sum_near_u16_boundary_does_not_wrap() {
+        // The original computed `(base_values_offset as c_int + offset as
+        // c_int) as u16` -- truncating the sum back into u16 range. With
+        // `offset` = 60000 and a BaseValuesOffset field of 10000, the true
+        // combined offset is 70000, but the old cast wrapped it down to
+        // 70000 - 65536 = 4464. A well-formed BaseValues structure placed
+        // only at the true offset (70000, left as zeros at the wrapped
+        // address) must be read from there, not from the wrapped address.
+        let base_tag_list = vec![HANG];
+        let mut data = vec![0u8; 70010];
+        data[60000..60002].copy_from_slice(&10000u16.to_be_bytes());
+        data[70000..70002].copy_from_slice(&0u16.to_be_bytes()); // DefaultIndex
+        data[70002..70004].copy_from_slice(&1u16.to_be_bytes()); // BaseCoordCount
+        data[70004..70006].copy_from_slice(&6u16.to_be_bytes()); // BaseCoordOffset[0]
+        data[70006..70008].copy_from_slice(&1u16.to_be_bytes()); // format
+        data[70008..70010].copy_from_slice(&500i16.to_be_bytes()); // Coordinate
+        let (default_baseline_tag, base_values) = read_base_script(&data, 60000, &base_tag_list, 1);
+        assert_eq!(default_baseline_tag, HANG);
+        assert_eq!(base_values.len(), 1);
+        assert_eq!(base_values[0].coordinate, 500.0);
+    }
+
+    #[test]
+    fn axis_tag_list_offset_sum_near_u16_boundary_does_not_wrap() {
+        // Same wraparound shape as the BaseScript test above, but for
+        // `read_axis`'s own `BaseTagListOffset`/`BaseScriptListOffset`
+        // fields.
+        let mut data = vec![0u8; 70020];
+        data[60000..60002].copy_from_slice(&10000u16.to_be_bytes()); // BaseTagListOffset (rel)
+        data[60002..60004].copy_from_slice(&10010u16.to_be_bytes()); // BaseScriptListOffset (rel)
+        // BaseTagList @70000
+        data[70000..70002].copy_from_slice(&1u16.to_be_bytes());
+        data[70002..70006].copy_from_slice(&HANG.to_be_bytes());
+        // BaseScriptList @70010
+        data[70010..70012].copy_from_slice(&1u16.to_be_bytes());
+        data[70012..70016].copy_from_slice(&HANG.to_be_bytes());
+        data[70016..70018].copy_from_slice(&0u16.to_be_bytes()); // BaseScriptOffset = 0 (absent)
+        let axis = read_axis(&data, 60000).unwrap();
+        assert_eq!(axis.entries.len(), 1);
+        assert_eq!(axis.entries[0].tag, HANG);
+        assert_eq!(axis.entries[0].default_baseline_tag, 0);
+        assert!(axis.entries[0].base_values.is_empty());
+    }
 }
