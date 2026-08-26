@@ -10,19 +10,8 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use libc::{fprintf, free, malloc, strcmp, strtol};
+use libc::{fprintf, free, malloc, strtol};
 use otfcc_rust::support::stdio::{stderr, stdout};
-unsafe extern "C" {
-    static mut optarg: *mut ::core::ffi::c_char;
-    static mut optind: ::core::ffi::c_int;
-    fn getopt_long(
-        ___argc: ::core::ffi::c_int,
-        ___argv: *const *mut ::core::ffi::c_char,
-        __shortopts: *const ::core::ffi::c_char,
-        __longopts: *const LongOption,
-        __longind: *mut ::core::ffi::c_int,
-    ) -> ::core::ffi::c_int;
-}
 
 use otfcc_rust::logger::{
     LoggerType, logger_finish, logger_indent, logger_log_sds, logger_set_verbosity,
@@ -40,7 +29,7 @@ use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
 use otfcc_rust::otf_writer::serialize_to_otf;
 use otfcc_rust::support::buffer::buffree;
-use otfcc_rust::support::getopt::{LongOption, NO_ARGUMENT, REQUIRED_ARGUMENT};
+use otfcc_rust::support::getopt::{GetoptItem, LongOpt, getopt_long};
 use otfcc_rust::support::options::{
     otfcc_delete_options, otfcc_new_options, otfcc_options_optimize_to,
 };
@@ -147,10 +136,7 @@ pub unsafe fn readEntireStdin(
     *_buffer = buffer;
     *_length = bytes.len() as ::core::ffi::c_long;
 }
-unsafe fn main_0(
-    mut argc: ::core::ffi::c_int,
-    mut argv: *mut *mut ::core::ffi::c_char,
-) -> ::core::ffi::c_int {
+unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
     let mut begin: timespec = timespec {
         tv_sec: 0,
         tv_nsec: 0,
@@ -160,8 +146,6 @@ unsafe fn main_0(
     let mut show_version: bool = false;
     let mut outputPath: Option<::std::ffi::CString> = None;
     let mut inPath: Option<::std::ffi::CString> = None;
-    let mut option_index: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut c: ::core::ffi::c_int = 0;
     let mut options: *mut Options = otfcc_new_options();
     (*options).logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
     logger_indent(
@@ -169,316 +153,136 @@ unsafe fn main_0(
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
     otfcc_options_optimize_to(options, 1 as u8);
-    let mut longopts: [LongOption; 25] = [
-        LongOption {
-            name: b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 'v' as i32,
+    const OPT_VERSION: i32 = 'v' as i32;
+    const OPT_HELP: i32 = 'h' as i32;
+    // `--keep-glyph-order` and `--dont-ignore-glyph-order` are documented as
+    // synonyms (see `printHelp` above) and always had identical intended
+    // effect. The old c2rust match block checked the long option's name via
+    // `strcmp(..., "dont-keep-glyph-order")` -- a string that was never
+    // actually registered in `longopts` (which spelled it
+    // `dont-ignore-glyph-order`) -- so `--dont-ignore-glyph-order` silently
+    // no-op'd instead of clearing `ignore_glyph_order`. Giving both entries
+    // the same dispatch value fixes that bug structurally: there is no
+    // string to typo anymore.
+    const OPT_KEEP_GLYPH_ORDER: i32 = 'k' as i32;
+    const OPT_IGNORE_GLYPH_ORDER: i32 = 'i' as i32;
+    const OPT_OUTPUT: i32 = 'o' as i32;
+    const OPT_DUMMY_DSIG: i32 = 's' as i32;
+    const OPT_QUIET: i32 = 'q' as i32;
+    const OPT_OPTIMIZE: i32 = 'O' as i32;
+    const OPT_TIME: i32 = 256;
+    const OPT_IGNORE_HINTS: i32 = 257;
+    const OPT_KEEP_AVERAGE_CHAR_WIDTH: i32 = 258;
+    const OPT_KEEP_UNICODE_RANGES: i32 = 259;
+    const OPT_KEEP_MODIFIED_TIME: i32 = 260;
+    const OPT_MERGE_LOOKUPS: i32 = 261;
+    const OPT_MERGE_FEATURES: i32 = 262;
+    const OPT_DONT_MERGE_LOOKUPS: i32 = 263;
+    const OPT_DONT_MERGE_FEATURES: i32 = 264;
+    const OPT_SHORT_POST: i32 = 265;
+    const OPT_FORCE_CID: i32 = 266;
+    const OPT_SUBROUTINIZE: i32 = 267;
+    const OPT_STUB_CMAP4: i32 = 268;
+    const OPT_SHIP: i32 = 269;
+    const OPT_VERBOSE: i32 = 270;
+    const LONGOPTS: &[LongOpt] = &[
+        LongOpt { name: "version", has_arg: false, val: OPT_VERSION },
+        LongOpt { name: "help", has_arg: false, val: OPT_HELP },
+        LongOpt { name: "time", has_arg: false, val: OPT_TIME },
+        LongOpt { name: "ignore-glyph-order", has_arg: false, val: OPT_IGNORE_GLYPH_ORDER },
+        LongOpt { name: "keep-glyph-order", has_arg: false, val: OPT_KEEP_GLYPH_ORDER },
+        LongOpt { name: "dont-ignore-glyph-order", has_arg: false, val: OPT_KEEP_GLYPH_ORDER },
+        LongOpt { name: "ignore-hints", has_arg: false, val: OPT_IGNORE_HINTS },
+        LongOpt {
+            name: "keep-average-char-width",
+            has_arg: false,
+            val: OPT_KEEP_AVERAGE_CHAR_WIDTH,
         },
-        LongOption {
-            name: b"help\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 'h' as i32,
-        },
-        LongOption {
-            name: b"time\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"ignore-glyph-order\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"keep-glyph-order\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"dont-ignore-glyph-order\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"ignore-hints\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"keep-average-char-width\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"keep-unicode-ranges\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"keep-modified-time\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"merge-lookups\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"merge-features\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"dont-merge-lookups\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"dont-merge-features\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"short-post\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"force-cid\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"subroutinize\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"stub-cmap4\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"dummy-dsig\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 's' as i32,
-        },
-        LongOption {
-            name: b"ship\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"verbose\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"quiet\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: NO_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
-        LongOption {
-            name: b"optimize\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: REQUIRED_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 'O' as i32,
-        },
-        LongOption {
-            name: b"output\0" as *const u8 as *const ::core::ffi::c_char,
-            has_arg: REQUIRED_ARGUMENT,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 'o' as i32,
-        },
-        LongOption {
-            name: ::core::ptr::null::<::core::ffi::c_char>(),
-            has_arg: 0 as ::core::ffi::c_int,
-            flag: ::core::ptr::null_mut::<::core::ffi::c_int>(),
-            val: 0 as ::core::ffi::c_int,
-        },
+        LongOpt { name: "keep-unicode-ranges", has_arg: false, val: OPT_KEEP_UNICODE_RANGES },
+        LongOpt { name: "keep-modified-time", has_arg: false, val: OPT_KEEP_MODIFIED_TIME },
+        LongOpt { name: "merge-lookups", has_arg: false, val: OPT_MERGE_LOOKUPS },
+        LongOpt { name: "merge-features", has_arg: false, val: OPT_MERGE_FEATURES },
+        LongOpt { name: "dont-merge-lookups", has_arg: false, val: OPT_DONT_MERGE_LOOKUPS },
+        LongOpt { name: "dont-merge-features", has_arg: false, val: OPT_DONT_MERGE_FEATURES },
+        LongOpt { name: "short-post", has_arg: false, val: OPT_SHORT_POST },
+        LongOpt { name: "force-cid", has_arg: false, val: OPT_FORCE_CID },
+        LongOpt { name: "subroutinize", has_arg: false, val: OPT_SUBROUTINIZE },
+        LongOpt { name: "stub-cmap4", has_arg: false, val: OPT_STUB_CMAP4 },
+        LongOpt { name: "dummy-dsig", has_arg: false, val: OPT_DUMMY_DSIG },
+        LongOpt { name: "ship", has_arg: false, val: OPT_SHIP },
+        LongOpt { name: "verbose", has_arg: false, val: OPT_VERBOSE },
+        LongOpt { name: "quiet", has_arg: false, val: OPT_QUIET },
+        LongOpt { name: "optimize", has_arg: true, val: OPT_OPTIMIZE },
+        LongOpt { name: "output", has_arg: true, val: OPT_OUTPUT },
     ];
-    loop {
-        c = getopt_long(
-            argc,
-            argv as *const *mut ::core::ffi::c_char,
-            b"vhqskiO:o:\0" as *const u8 as *const ::core::ffi::c_char,
-            &raw mut longopts as *mut LongOption,
-            &raw mut option_index,
-        );
-        if !(c != -(1 as ::core::ffi::c_int)) {
-            break;
-        }
-        match c {
-            0 => {
-                if longopts[option_index as usize].flag.is_null() {
-                    if !(strcmp(
-                        longopts[option_index as usize].name,
-                        b"time\0" as *const u8 as *const ::core::ffi::c_char,
-                    ) == 0 as ::core::ffi::c_int)
-                    {
-                        if strcmp(
-                            longopts[option_index as usize].name,
-                            b"ignore-hints\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).ignore_hints = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"keep-average-char-width\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).keep_average_char_width = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"keep-unicode-ranges\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).keep_unicode_ranges = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"keep-modified-time\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).keep_modified_time = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"merge-features\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).merge_features = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"merge-lookups\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).merge_lookups = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"dont-merge-features\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).merge_features = false;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"dont-merge-lookups\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).merge_lookups = false;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"ignore-glyph-order\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).ignore_glyph_order = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"keep-glyph-order\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).ignore_glyph_order = false;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"dont-keep-glyph-order\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).ignore_glyph_order = false;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"short-post\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).short_post = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"force-cid\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).force_cid = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"subroutinize\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).cff_do_subroutinize = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"stub-cmap4\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).stub_cmap4 = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"ship\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).ignore_glyph_order = true;
-                            (*options).short_post = true;
-                            (*options).dummy_dsig = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"verbose\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).verbose = true;
-                        } else if strcmp(
-                            longopts[option_index as usize].name,
-                            b"quiet\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
-                        {
-                            (*options).quiet = true;
-                        }
-                    }
+    let (items, positionals) = getopt_long(&args, "vhqskiO:o:", LONGOPTS);
+    for item in items {
+        match item {
+            GetoptItem::Opt { val, arg } => match val {
+                OPT_VERSION => show_version = true,
+                OPT_HELP => show_help = true,
+                OPT_KEEP_GLYPH_ORDER => (*options).ignore_glyph_order = false,
+                OPT_IGNORE_GLYPH_ORDER => (*options).ignore_glyph_order = true,
+                OPT_OUTPUT => {
+                    outputPath = Some(
+                        ::std::ffi::CString::new(arg.unwrap())
+                            .expect("output path must not contain a NUL byte"),
+                    );
                 }
+                OPT_DUMMY_DSIG => (*options).dummy_dsig = true,
+                OPT_QUIET => (*options).quiet = true,
+                OPT_OPTIMIZE => {
+                    let carg = ::std::ffi::CString::new(arg.unwrap())
+                        .expect("optimize level must not contain a NUL byte");
+                    otfcc_options_optimize_to(options, atoi(carg.as_ptr()) as u8);
+                }
+                OPT_TIME => {}
+                OPT_IGNORE_HINTS => (*options).ignore_hints = true,
+                OPT_KEEP_AVERAGE_CHAR_WIDTH => (*options).keep_average_char_width = true,
+                OPT_KEEP_UNICODE_RANGES => (*options).keep_unicode_ranges = true,
+                OPT_KEEP_MODIFIED_TIME => (*options).keep_modified_time = true,
+                OPT_MERGE_LOOKUPS => (*options).merge_lookups = true,
+                OPT_MERGE_FEATURES => (*options).merge_features = true,
+                OPT_DONT_MERGE_LOOKUPS => (*options).merge_lookups = false,
+                OPT_DONT_MERGE_FEATURES => (*options).merge_features = false,
+                OPT_SHORT_POST => (*options).short_post = true,
+                OPT_FORCE_CID => (*options).force_cid = true,
+                OPT_SUBROUTINIZE => (*options).cff_do_subroutinize = true,
+                OPT_STUB_CMAP4 => (*options).stub_cmap4 = true,
+                OPT_SHIP => {
+                    (*options).ignore_glyph_order = true;
+                    (*options).short_post = true;
+                    (*options).dummy_dsig = true;
+                }
+                OPT_VERBOSE => (*options).verbose = true,
+                _ => {}
+            },
+            GetoptItem::UnknownLong(s) => {
+                let c = ::std::ffi::CString::new(format!("otfccbuild: unrecognized option '{s}'\n"))
+                    .unwrap();
+                fprintf(stderr, b"%s\0" as *const u8 as *const ::core::ffi::c_char, c.as_ptr());
             }
-            118 => {
-                show_version = true;
+            GetoptItem::UnknownShort(ch) => {
+                let c = ::std::ffi::CString::new(format!("otfccbuild: invalid option -- '{ch}'\n"))
+                    .unwrap();
+                fprintf(stderr, b"%s\0" as *const u8 as *const ::core::ffi::c_char, c.as_ptr());
             }
-            104 => {
-                show_help = true;
+            GetoptItem::AmbiguousLong { given, matches } => {
+                let possibilities =
+                    matches.iter().map(|m| format!("'--{m}'")).collect::<Vec<_>>().join(" ");
+                let c = ::std::ffi::CString::new(format!(
+                    "otfccbuild: option '{given}' is ambiguous; possibilities: {possibilities}\n"
+                ))
+                .unwrap();
+                fprintf(stderr, b"%s\0" as *const u8 as *const ::core::ffi::c_char, c.as_ptr());
             }
-            107 => {
-                (*options).ignore_glyph_order = false;
+            GetoptItem::MissingArgument(s) => {
+                let c = ::std::ffi::CString::new(format!(
+                    "otfccbuild: option '{s}' requires an argument\n"
+                ))
+                .unwrap();
+                fprintf(stderr, b"%s\0" as *const u8 as *const ::core::ffi::c_char, c.as_ptr());
             }
-            105 => {
-                (*options).ignore_glyph_order = true;
-            }
-            111 => {
-                outputPath = Some(::std::ffi::CStr::from_ptr(optarg).to_owned());
-            }
-            115 => {
-                (*options).dummy_dsig = true;
-            }
-            113 => {
-                (*options).quiet = true;
-            }
-            79 => {
-                otfcc_options_optimize_to(options, atoi(optarg) as u8);
-            }
-            _ => {}
         }
     }
     logger_set_verbosity(
@@ -500,11 +304,9 @@ unsafe fn main_0(
         printInfo();
         return 0 as ::core::ffi::c_int;
     }
-    if optind >= argc {
-        inPath = None;
-    } else {
-        inPath = Some(::std::ffi::CStr::from_ptr(*argv.offset(optind as isize)).to_owned());
-    }
+    inPath = positionals.into_iter().next().map(|p| {
+        ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte")
+    });
     if outputPath.is_none() {
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),
@@ -700,22 +502,6 @@ unsafe fn main_0(
     return 0 as ::core::ffi::c_int;
 }
 pub fn main() -> ::std::process::ExitCode {
-    let mut args_strings: Vec<Vec<u8>> = ::std::env::args()
-        .map(|arg| {
-            ::std::ffi::CString::new(arg)
-                .expect("Failed to convert argument into CString.")
-                .into_bytes_with_nul()
-        })
-        .collect();
-    let mut args_ptrs: Vec<*mut ::core::ffi::c_char> = args_strings
-        .iter_mut()
-        .map(|arg| arg.as_mut_ptr() as *mut ::core::ffi::c_char)
-        .chain(::core::iter::once(::core::ptr::null_mut()))
-        .collect();
-    unsafe {
-        ::std::process::ExitCode::from(main_0(
-            (args_ptrs.len() - 1) as ::core::ffi::c_int,
-            args_ptrs.as_mut_ptr() as *mut *mut ::core::ffi::c_char,
-        ) as u8)
-    }
+    let args: Vec<String> = ::std::env::args().skip(1).collect();
+    unsafe { ::std::process::ExitCode::from(main_0(args) as u8) }
 }
