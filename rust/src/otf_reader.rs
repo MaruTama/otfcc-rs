@@ -198,3 +198,63 @@ pub unsafe fn read_otf(
         options as *const Options as *const ::core::ffi::c_void,
     ) as *mut Font
 }
+
+#[cfg(test)]
+mod regression_tests {
+    use crate::font::caryll_font::otfcc_font_free;
+    use crate::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
+    use crate::logger::{Logger, otfcc_new_empty_target};
+    use crate::support::options::{otfcc_delete_options, otfcc_new_options};
+    use std::cell::RefCell;
+    use std::io::Cursor;
+    use std::time::{Duration, Instant};
+
+    /// `tests/fuzz-corpus/known-issues/otf-parse-cff-per-glyph-stack-
+    /// realloc-hang.bin` (CID-keyed CFF, `CharStrings` count mutated to
+    /// 65535 -- the corpus's max u16) used to spend 30+ seconds and
+    /// multiple gigabytes of allocator churn in `table/cff.rs`'s
+    /// `build_outline`, which allocated a fresh 0x10000-entry `Vec<
+    /// CffValue>` operand stack on *every glyph* instead of once for the
+    /// whole font (found by `cargo fuzz run otf_parse`, see `rust/
+    /// README.md`'s "Next steps" for the fix and how it was isolated).
+    /// 10 seconds is generous slack over the ~4 seconds this takes under
+    /// `cargo fuzz`'s ASan-instrumented build (this plain `cargo test
+    /// --release` build has no such instrumentation, so it's meaningfully
+    /// faster) -- comfortably below the original bug's 30+ second hang,
+    /// comfortably above any plausible legitimate variance.
+    #[test]
+    // Reads a fixture from disk; same rationale as `parsed_json.rs`'s
+    // `every_committed_payload_json_parses`.
+    #[cfg_attr(
+        miri,
+        ignore = "reads a fixture from disk, needs -Zmiri-disable-isolation; also far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn cff_font_with_huge_glyph_count_parses_promptly() {
+        let bytes = std::fs::read(
+            "../tests/fuzz-corpus/known-issues/otf-parse-cff-per-glyph-stack-realloc-hang.bin",
+        )
+        .unwrap();
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let start = Instant::now();
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+            let elapsed = start.elapsed();
+
+            otfcc_delete_sfnt(sfnt);
+            if !font.is_null() {
+                otfcc_font_free(font);
+            }
+            otfcc_delete_options(options);
+
+            assert!(
+                elapsed < Duration::from_secs(10),
+                "read_otf took {elapsed:?}, expected well under 10s"
+            );
+        }
+    }
+}

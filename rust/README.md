@@ -932,6 +932,68 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`table/cff.rs`'s `build_outline` no longer allocates a fresh
+  0x10000-entry `Vec<CffValue>` charstring-interpreter operand stack for
+  every single glyph.** Found while verifying an unrelated PR
+  ([#260](https://github.com/MaruTama/otfcc-rs/pull/260), `table/fvar.rs`'s
+  `FontReader` migration): that PR's `otf_parse` fuzz job hung for 30+
+  seconds and exceeded the fuzzer's 2GB memory limit on a mutated CID-keyed
+  CFF table whose `CharStrings` count had been pushed to 65535 (the
+  corpus's max `u16`).
+  - **Confirmed unrelated to PR #260 before touching anything**: replayed
+    the exact same input against `master` from *before* that PR and got
+    the identical hang -- a pre-existing bug the fuzz job happened to
+    surface while checking a different change, not a regression from it.
+  - **Isolated to the CFF table specifically** by zeroing every other
+    table in the crash input and rerunning (only the CFF table's presence
+    changed the outcome), then to this one allocation site by
+    `sample`-profiling the hung process (allocator/`RawVecInner::
+    with_capacity_in` frames dominated the samples) and confirming that
+    zeroing just the `CharStrings` count field collapsed the runtime from
+    30+ seconds to under one.
+  - **The bug**: `build_outline` runs once per glyph
+    (`otfcc_read_cff_and_glyf_tables`'s per-glyph loop), and used to
+    construct its own fresh `CffStack` locally on every call --
+    `libcff.rs`'s own doc comment on `CffStack.stack` already noted the
+    `0x10000`-entry sizing is "generous", "never actually approached" by
+    a real charstring (the Type 2 spec caps operand stack depth at 48), so
+    for an ordinary font this per-glyph reallocation was wasted but cheap
+    work relative to everything else `build_outline` does. At 65535
+    glyphs it dominates: every glyph paid for allocating and zero-filling
+    a ~1MB `Vec` it barely touches, and that per-glyph churn is exactly
+    the pattern ASan's allocator instrumentation (always on for `cargo
+    fuzz` builds) amplifies most.
+  - **The fix**: the stack is now allocated once in
+    `otfcc_read_cff_and_glyf_tables`, before the per-glyph loop, and
+    passed into `build_outline` by pointer; only the cheap fields
+    (`index`/`stem`/`transient`, none of them heap-backed) are reset per
+    glyph. Safe to reuse as-is: every push/pop in the interpreter already
+    stays within `[0, index)`, so stale bytes from a previous glyph past
+    the new glyph's own `index` are never read.
+  - **Reproducer** kept as a fuzz-corpus regression pin
+    (`tests/fuzz-corpus/known-issues/
+    otf-parse-cff-per-glyph-stack-realloc-hang.bin`, 492KB -- large for
+    that directory, because reaching 65535 glyphs with distinct,
+    well-formed-enough `CharStrings`/`FDSelect`/`FDArray` structure
+    doesn't compress smaller) plus a new unit test,
+    `otf_reader.rs`'s `cff_font_with_huge_glyph_count_parses_promptly`,
+    which pins it as a **wall-clock budget** (must parse in well under
+    10s) rather than a correctness assertion, since the bug was about
+    time/memory, not a wrong answer or a crash.
+  - **Verification**: full pipeline green -- build and clippy clean at
+    `-D warnings`, 301/301 tests (300 prior + 1 new), ABI unchanged,
+    golden bytes unchanged (`KRName-Regular.otf`/`-O2.otf`, the payloads
+    that actually exercise `build_outline`, byte-identical) and log output
+    unchanged, cycles/lookup-alias/10-payload round-trips all clean, the
+    original crash input now parses in ~4s under `cargo fuzz`'s ASan
+    build (down from a 30+s timeout) and a fresh 60-second `cargo fuzz
+    run otf_parse` afterward found nothing, both fuzz targets `cargo
+    check`-clean, `cargo miri test` clean (278 passed, 0 failed, 23
+    ignored -- the wall-clock regression test is itself `#[cfg_attr(miri,
+    ignore)]`, both because Miri needs `-Zmiri-disable-isolation` for
+    filesystem access and because its interpretation overhead would make
+    a timing-based assertion meaningless).
+
 - **Stage 7-1 mop-up: the last 8 tables/helpers still on the pre-`FontReader`
   c2rust idiom (`.offset()` raw-pointer arithmetic, `__fortable_*`/
   `current_block` foreach/goto emulation, `binio::read_*`) are migrated --
