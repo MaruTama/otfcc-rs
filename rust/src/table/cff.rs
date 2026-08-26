@@ -17,6 +17,7 @@ use crate::libcff::charstring_il::CffCharstringIl;
 use crate::libcff::subr::CffSubrGraph;
 use crate::libcff::{
     CffFile, CffStack, OP_BLUE_FUZZ, OP_BLUE_SCALE, OP_BLUE_SHIFT, OP_BLUE_VALUES, OP_CHAR_STRINGS,
+    TYPE2_TRANSIENT_ARRAY,
     OP_CHARSET, OP_CID_COUNT, OP_CID_FONT_REVISION, OP_CID_FONT_VERSION, OP_COPYRIGHT,
     OP_DEFAULT_WIDTH_X, OP_EXPANSION_FACTOR, OP_FAMILY_BLUES, OP_FAMILY_NAME,
     OP_FAMILY_OTHER_BLUES, OP_FD_ARRAY, OP_FD_SELECT, OP_FONT_BBOX, OP_FONT_MATRIX, OP_FONT_NAME,
@@ -861,11 +862,36 @@ pub(crate) unsafe fn callback_draw_getrand(
     };
     return f64::from_bits(bits) - q;
 }
+// `stack` is caller-owned and reused across every glyph in the font
+// (`otfcc_read_cff_and_glyf_tables`'s per-glyph loop constructs it once,
+// outside the loop) rather than a fresh `CffStack` built on every call --
+// `stack.stack` is a `Vec<CffValue>` fixed at `0x10000` entries (see
+// `libcff.rs`'s `CffStack` doc comment: "generous", never approached by
+// any real charstring), so reallocating and zero-filling it here on every
+// single glyph turned an O(1)-per-glyph reset into an O(0x10000)-per-glyph
+// allocation -- for a font with tens of thousands of glyphs, `cargo fuzz`
+// found a mutated CID-keyed CFF table (`CharStrings` count pushed to
+// 65535, the corpus's max u16) that spent 30+ seconds and multiple
+// gigabytes of allocator churn entirely in this one `vec![CffValue::Unset;
+// 0x10000]` call, repeated once per glyph -- confirmed by zeroing every
+// other table in the fuzzer's input and rerunning (only the CFF table's
+// presence mattered) and by `sample`-profiling the hang (allocator/
+// `RawVecInner::with_capacity_in` frames dominated). Reusing one
+// allocation for the whole font's glyph loop turns that into a single
+// upfront cost; `index`/`stem`/`transient` (small, no heap) are still
+// reset per glyph below, matching the fresh-`CffStack` semantics exactly
+// -- only `stack.stack`'s backing allocation, and its stale byte contents
+// past `index` (never read: every push/pop in the interpreter stays
+// within `[0, index)`), are what's now carried over between glyphs.
 unsafe fn build_outline(
     i: GlyphId,
     context: *mut CffExtractContext,
     options: &Options,
+    stack: *mut CffStack,
 ) {
+    (*stack).index = 0;
+    (*stack).stem = 0;
+    (*stack).transient = [CffValue::Unset; TYPE2_TRANSIENT_ARRAY];
     let f: *mut CffFile = (*context).cff_file;
     // `g` keeps pointing at the same heap allocation for the rest of this
     // function (via `bc.g` below) even after the `Box` that owns it is
@@ -883,12 +909,6 @@ unsafe fn build_outline(
         data: Vec::new(),
     };
     cff_index_init(&raw mut local_subrs);
-    let mut stack: CffStack = CffStack {
-        stack: vec![CffValue::Unset; 0x10000],
-        transient: [CffValue::Unset; 32],
-        index: 0,
-        stem: 0,
-    };
     let mut bc: OutlineBuilderContext = OutlineBuilderContext {
         g: g,
         j_contour: 0 as ShapeId,
@@ -942,20 +962,20 @@ unsafe fn build_outline(
     let char_string_length: u32 = (char_strings_offset
         [(i as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
         .wrapping_sub(char_strings_offset[i as usize]);
-    stack.index = 0 as Arity;
-    stack.stem = 0 as u8;
     bc.j_contour = 0 as ShapeId;
     bc.j_point = 0 as ShapeId;
     bc.randx = seed;
+    let mut total_subr_calls: u32 = 0;
     cff_parse_outline(
         char_string_ptr,
         char_string_length,
         &(*f).global_subr,
         &local_subrs,
-        &raw mut stack,
+        stack,
         &raw mut bc as *mut ::core::ffi::c_void,
         options,
         0,
+        &raw mut total_subr_calls,
     );
     let mut cx: VQ = (vq_neutral)();
     let mut cy: VQ = (vq_neutral)();
@@ -1349,9 +1369,22 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                         let glyphs: *mut GlyfTable =
                             table_glyf_create_n((*cff_file).char_strings.count as usize);
                         context.glyphs = glyphs;
+                        // Allocated once for the whole font, not once per
+                        // glyph -- see `build_outline`'s doc comment.
+                        let mut outline_stack: CffStack = CffStack {
+                            stack: vec![CffValue::Unset; 0x10000],
+                            transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
+                            index: 0,
+                            stem: 0,
+                        };
                         let mut j_0: GlyphId = 0 as GlyphId;
                         while (j_0 as usize) < (*glyphs).len() {
-                            build_outline(j_0, &raw mut context, options);
+                            build_outline(
+                                j_0,
+                                &raw mut context,
+                                options,
+                                &raw mut outline_stack,
+                            );
                             j_0 = j_0.wrapping_add(1);
                         }
                         apply_cff_matrix(context.meta, context.glyphs, head);

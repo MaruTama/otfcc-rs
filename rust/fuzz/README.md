@@ -153,6 +153,35 @@ as regression pins even though none of them still reproduce:
   a 961-byte input that used to request a 3.7GB allocation) confirmed
   fixed, now returning null in ~1ms.
 
+- ~~`table/cff.rs`'s `build_outline` allocated a fresh 0x10000-entry
+  `Vec<CffValue>` charstring-interpreter operand stack on *every glyph*
+  instead of once for the whole font~~ — **fixed**: found while verifying
+  an unrelated PR ([#260](https://github.com/MaruTama/otfcc-rs/pull/260)) —
+  its `otf_parse` fuzz job hung for 30+ seconds and exceeded the 2GB
+  fuzzer memory limit on a mutated CID-keyed CFF table (`CharStrings`
+  count pushed to 65535, the corpus's max `u16`). Confirmed unrelated to
+  that PR's own change (reproduced identically against `master` beforehand)
+  and isolated to the CFF table specifically by zeroing every other table
+  in the input and rerunning (only the CFF table's presence mattered), then
+  to this one allocation by `sample`-profiling the hang (allocator/
+  `RawVecInner::with_capacity_in` frames dominated) and confirming that
+  zeroing just the `CharStrings` count collapsed the runtime from 30+s to
+  under a second. The `Vec` itself was already sized "generously" past
+  what any real charstring needs (`libcff.rs`'s own `CffStack` doc
+  comment), so a font with tens of thousands of glyphs turned a per-glyph
+  O(1) reset into a per-glyph O(0x10000) allocation. Now allocated once in
+  `otfcc_read_cff_and_glyf_tables`'s per-glyph loop and reused, with only
+  the cheap fields (`index`/`stem`/`transient`) reset between glyphs.
+  Reproducer: `tests/fuzz-corpus/known-issues/
+  otf-parse-cff-per-glyph-stack-realloc-hang.bin` (492KB — large for this
+  directory, because reaching 65535 glyphs with distinct, well-formed-
+  enough `CharStrings`/`FDSelect`/`FDArray` structure doesn't compress
+  smaller); a companion test in `rust/src/otf_reader.rs`
+  (`cff_font_with_huge_glyph_count_parses_promptly`) pins it as a
+  wall-clock budget (must parse in well under 10s) rather than a pure
+  correctness assertion, since the bug was about time/memory, not a wrong
+  answer or a crash.
+
 ## CI
 
 The workflow runs both targets for a short, fixed time budget on every push

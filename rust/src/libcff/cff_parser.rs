@@ -52,6 +52,29 @@ const CFF_EXPERT_ENCODING_OFFSET: i32 = 1;
 // toolchain too (`rust/fuzz/README.md`), not a migration regression.
 // `FDArrayTest257.otf` in the fuzz seed corpus triggers exactly this.
 const MAX_SUBR_CALL_DEPTH: u32 = 10;
+// `MAX_SUBR_CALL_DEPTH` bounds how deep `callsubr`/`callgsubr` can nest,
+// but says nothing about how many calls happen *within* one nesting level
+// -- a single charstring can invoke hundreds of different subroutines one
+// after another, each of which is itself within the depth limit and can
+// invoke hundreds more. That makes total work exponential in depth even
+// though nesting itself never exceeds 10: a subroutine graph shaped like a
+// K-ary tree of depth 10 does on the order of K^10 total operator
+// evaluations, unrelated to the recursion-depth guard entirely -- the same
+// "billion laughs" amplification shape XML entity expansion is named for,
+// here via CFF subroutine calls instead of entity references. Found by
+// `cargo fuzz run otf_parse`: a mutated CFF table hung for 30+ seconds and
+// grew past the 2GB fuzzer memory limit on an input with no other
+// attacker-reachable slow path (confirmed by zeroing every other table in
+// the same file and rerunning -- only the CFF table's presence mattered).
+// A shared, whole-glyph call budget (independent of the depth counter)
+// closes it the same way real Type 2 Charstring interpreters (e.g.
+// FreeType's `cff_decoder_parse_charstrings`) bound total operator/call
+// count, not just nesting depth. 10,000 is far beyond what any real
+// subroutinized font's single glyph needs (`KRName-Regular-O2.otf`, the
+// only `-O2`/subroutinize-exercising payload in `tests/payload/`, needs
+// nowhere near it) while stopping the amplification attack at a small
+// fraction of a second.
+const MAX_TOTAL_SUBR_CALLS: u32 = 10_000;
 // `gu1`/`gu2` (no bounds checking, no length parameter at all) are gone --
 // see `libcff/cff_index.rs`'s own conversion for the same move.
 //
@@ -620,6 +643,7 @@ pub unsafe fn cff_parse_outline(
     outline: *mut ::core::ffi::c_void,
     options: &Options,
     depth: u32,
+    total_calls: *mut u32,
 ) {
     if depth > MAX_SUBR_CALL_DEPTH {
         logger_log_sds(
@@ -2842,16 +2866,33 @@ pub unsafe fn cff_parse_outline(
                             ) as u32;
                             if let Some((sub_data, sub_len)) = locate_subr(lsubr, lsubr_bias, subr)
                             {
-                                cff_parse_outline(
-                                    sub_data as *mut u8,
-                                    sub_len,
-                                    gsubr,
-                                    lsubr,
-                                    stack,
-                                    outline,
-                                    options,
-                                    depth + 1,
-                                );
+                                *total_calls = (*total_calls).wrapping_add(1);
+                                if *total_calls > MAX_TOTAL_SUBR_CALLS {
+                                    if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
+                                        logger_log_sds(
+                                            &mut *options.logger.borrow_mut(),
+                                            LOG_VL_IMPORTANT,
+                                            LoggerType::Warning,
+                                            crate::bytesbuild!(
+                                                b"[libcff] Subroutine call budget (",
+                                                MAX_TOTAL_SUBR_CALLS as ::core::ffi::c_int,
+                                                b") exceeded; the rest of this outline is ignored.\n",
+                                            ),
+                                        );
+                                    }
+                                } else {
+                                    cff_parse_outline(
+                                        sub_data as *mut u8,
+                                        sub_len,
+                                        gsubr,
+                                        lsubr,
+                                        stack,
+                                        outline,
+                                        options,
+                                        depth + 1,
+                                        total_calls,
+                                    );
+                                }
                             } else {
                                 logger_log_sds(
                                     &mut *options.logger.borrow_mut(),
@@ -2890,16 +2931,33 @@ pub unsafe fn cff_parse_outline(
                             if let Some((sub_data, sub_len)) =
                                 locate_subr(gsubr, gsubr_bias, subr_0)
                             {
-                                cff_parse_outline(
-                                    sub_data as *mut u8,
-                                    sub_len,
-                                    gsubr,
-                                    lsubr,
-                                    stack,
-                                    outline,
-                                    options,
-                                    depth + 1,
-                                );
+                                *total_calls = (*total_calls).wrapping_add(1);
+                                if *total_calls > MAX_TOTAL_SUBR_CALLS {
+                                    if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
+                                        logger_log_sds(
+                                            &mut *options.logger.borrow_mut(),
+                                            LOG_VL_IMPORTANT,
+                                            LoggerType::Warning,
+                                            crate::bytesbuild!(
+                                                b"[libcff] Subroutine call budget (",
+                                                MAX_TOTAL_SUBR_CALLS as ::core::ffi::c_int,
+                                                b") exceeded; the rest of this outline is ignored.\n",
+                                            ),
+                                        );
+                                    }
+                                } else {
+                                    cff_parse_outline(
+                                        sub_data as *mut u8,
+                                        sub_len,
+                                        gsubr,
+                                        lsubr,
+                                        stack,
+                                        outline,
+                                        options,
+                                        depth + 1,
+                                        total_calls,
+                                    );
+                                }
                             } else {
                                 logger_log_sds(
                                     &mut *options.logger.borrow_mut(),
@@ -3185,5 +3243,151 @@ mod cff_parse_subr_tests {
             assert_eq!(fd, 99);
             assert_eq!(subr.count, 0);
         }
+    }
+}
+
+#[cfg(test)]
+mod cff_parse_outline_total_calls_tests {
+    use super::*;
+    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::support::options::Options;
+
+    fn empty_cff_index() -> CffIndex {
+        CffIndex {
+            count_type: CffIndexCountType::U16,
+            count: 0,
+            off_size: 0,
+            offset: Vec::new(),
+            data: Vec::new(),
+        }
+    }
+
+    // 108 global subroutines: the first 107 are empty (`offset[i] ==
+    // offset[i + 1]`, a valid zero-length INDEX entry -- never invoked by
+    // this test), the last is "push operand 0 (byte 139), return (11)".
+    // With this index's count (108, `compute_subr_bias`'s bias-107
+    // bracket), pushing operand 0 before `callgsubr` resolves to `bias +
+    // 0` = index 107, this index's own last entry -- deliberately avoids
+    // ever needing a *negative* pushed operand (which real fonts use to
+    // reach a low subroutine index): `cffnum(...) as u32`, downstream of
+    // this in `callgsubr`'s own handling, is a float-to-int cast, and
+    // Rust's saturates a negative float to `0` rather than wrapping the
+    // way the C original's cast did, so a negative operand here would
+    // resolve to index `bias + 0` = 107 anyway, not to the small index it
+    // looks like it should -- a real, pre-existing quirk of this already-
+    // migrated cast, unrelated to this test's own purpose, sidestepped
+    // instead of exercised.
+    //
+    // The subroutine's pushed operand is never popped by anything
+    // (`return` doesn't touch the stack), so `stack.index` at the end
+    // counts exactly how many times this subroutine actually *ran* -- the
+    // caller's own operand push for the `callgsubr` index is always
+    // popped by `callgsubr` itself before the recursion decision, so a
+    // *skipped* call leaves no trace on the stack at all.
+    fn one_trivial_gsubr() -> CffIndex {
+        let mut offset = vec![1u32; 108];
+        offset.push(3);
+        CffIndex {
+            count_type: CffIndexCountType::U16,
+            count: 108,
+            off_size: 1,
+            offset,
+            data: vec![139, 11], // push (byte 139 => operand 0), return
+        }
+    }
+
+    // `n` copies of "push operand 0 (byte 139); callgsubr (29)" -- 2 bytes
+    // each, never recursing past nesting depth 1 (see `one_trivial_gsubr`).
+    fn charstring_calling_gsubr_n_times(n: u32) -> Vec<u8> {
+        let mut b = Vec::with_capacity(n as usize * 2);
+        for _ in 0..n {
+            b.push(139); // encodes operand 0
+            b.push(29); // callgsubr
+        }
+        b
+    }
+
+    #[test]
+    fn call_count_within_the_budget_all_execute() {
+        let gsubr = one_trivial_gsubr();
+        let lsubr = empty_cff_index();
+        let requested = MAX_TOTAL_SUBR_CALLS - 1;
+        let mut data = charstring_calling_gsubr_n_times(requested);
+        let len = data.len() as u32;
+        let mut stack = CffStack {
+            stack: vec![CffValue::Unset; 0x10000],
+            transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
+            index: 0,
+            stem: 0,
+        };
+        let options = Options::default();
+        let mut total_calls: u32 = 0;
+        unsafe {
+            cff_parse_outline(
+                data.as_mut_ptr(),
+                len,
+                &gsubr,
+                &lsubr,
+                &raw mut stack,
+                ::core::ptr::null_mut(),
+                &options,
+                0,
+                &raw mut total_calls,
+            );
+        }
+        assert_eq!(total_calls, requested);
+        // Every one of the `requested` calls actually recursed and ran
+        // its subroutine's own push.
+        assert_eq!(stack.index, requested as Arity);
+    }
+
+    // The bug this pins: `MAX_SUBR_CALL_DEPTH` bounds how deep `callsubr`/
+    // `callgsubr` can *nest*, but said nothing about how many calls happen
+    // *within* one nesting level -- a subroutine graph with wide fan-out
+    // at a shallow, spec-legal depth could still do unbounded total work.
+    // `total_calls` (threaded through every recursive `cff_parse_outline`
+    // call, shared across the whole glyph) is what actually bounds it.
+    #[test]
+    fn call_count_past_the_budget_stops_recursing() {
+        let gsubr = one_trivial_gsubr();
+        let lsubr = empty_cff_index();
+        let attempted = MAX_TOTAL_SUBR_CALLS + 500;
+        let mut data = charstring_calling_gsubr_n_times(attempted);
+        let len = data.len() as u32;
+        let mut stack = CffStack {
+            stack: vec![CffValue::Unset; 0x10000],
+            transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
+            index: 0,
+            stem: 0,
+        };
+        let options = Options::default();
+        let mut total_calls: u32 = 0;
+        unsafe {
+            cff_parse_outline(
+                data.as_mut_ptr(),
+                len,
+                &gsubr,
+                &lsubr,
+                &raw mut stack,
+                ::core::ptr::null_mut(),
+                &options,
+                0,
+                &raw mut total_calls,
+            );
+        }
+        // The counter itself still climbs past the budget (every
+        // `callgsubr` byte pair the outer loop walks over is one
+        // attempted call, counted before the budget check decides
+        // whether to recurse) -- charstring interpretation for the
+        // rest of this glyph isn't aborted, only further recursion is.
+        assert_eq!(total_calls, attempted);
+        // But only the first `MAX_TOTAL_SUBR_CALLS` calls actually
+        // recursed and ran their subroutine's own push -- this is the
+        // bug's actual fix: without it, `stack.index` would reach
+        // `attempted` too (each recursive call's own push landing on
+        // the shared stack), the same as the within-budget test above,
+        // with no way to tell the two cases apart from this assertion
+        // alone.
+        assert_eq!(stack.index, MAX_TOTAL_SUBR_CALLS as Arity);
     }
 }
