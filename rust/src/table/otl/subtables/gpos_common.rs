@@ -8,7 +8,8 @@ use crate::support::parsed_json::{
 };
 use crate::table::otl::coverage::Coverage;
 
-use crate::support::binio::{pos_to_u16, read_16s, read_16u};
+use crate::support::binio::pos_to_u16;
+use crate::support::font_reader::FontReader;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};
 use crate::support::buffer::Buffer;
@@ -25,6 +26,19 @@ use crate::vendor::json::JsonType;
 pub(crate) unsafe fn dispose_mark_array(arr: *mut MarkArray) {
     *arr = Vec::new();
 }
+/// The original checked only that `MarkCount` itself (2 bytes at `offset`)
+/// was in bounds, then read `mark_count` 4-byte records with no room check
+/// at all -- a `mark_count` large enough to run past `table_length` read
+/// straight off the end of the table. `require_room` closes that.
+///
+/// It also indexed `cov[j]` for every `j` up to `mark_count` with no check
+/// against `cov`'s own length: `mark_count` (read from this MarkArray) and
+/// `cov.len()` (the sibling Coverage table's glyph count) are two
+/// independent, both attacker-controlled fields that a well-formed font
+/// happens to keep equal but nothing here enforced -- a `MarkCount` larger
+/// than the Coverage table's glyph count panicked on `Vec` index out of
+/// bounds (a real, crafted-font-reachable crash, not a memory-safety bug
+/// but still a DoS). Capping the loop at `cov.len()` too fixes it.
 pub unsafe fn otl_read_mark_array(
     array: *mut MarkArray,
     cov: *mut Coverage,
@@ -32,38 +46,28 @@ pub unsafe fn otl_read_mark_array(
     table_length: u32,
     offset: u32,
 ) {
-    let mark_count: GlyphId;
-    if !(table_length < offset.wrapping_add(2 as u32)) {
-        mark_count = read_16u(data.offset(offset as isize) as *const u8) as GlyphId;
-        let mut j: GlyphId = 0 as GlyphId;
-        while (j as ::core::ffi::c_int) < mark_count as ::core::ffi::c_int {
-            let mark_class: GlyphClass = read_16u(
-                data.offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize)
-                    .offset((j as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
-                    as *const u8,
-            ) as GlyphClass;
-            let delta: u16 = read_16u(
-                data.offset(offset as isize)
-                    .offset(2 as ::core::ffi::c_int as isize)
-                    .offset((j as ::core::ffi::c_int * 4 as ::core::ffi::c_int) as isize)
-                    .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-            );
-            if delta != 0 {
-                (*array).push(MarkRecord {
-                    glyph: otfcc_handle_dup((&(*cov))[j as usize].clone() as Handle) as GlyphHandle,
-                    mark_class: mark_class,
-                    anchor: otl_read_anchor(data, table_length, offset.wrapping_add(delta as u32)),
-                });
-            } else {
-                (*array).push(MarkRecord {
-                    glyph: otfcc_handle_dup((&(*cov))[j as usize].clone() as Handle) as GlyphHandle,
-                    mark_class: mark_class,
-                    anchor: otl_anchor_absent(),
-                });
-            }
-            j = j.wrapping_add(1);
-        }
+    let slice = ::core::slice::from_raw_parts(data as *const u8, table_length as usize);
+    let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
+        return;
+    };
+    let Ok(mark_count) = r.u16() else { return };
+    if r.require_room(mark_count as usize, 4).is_err() {
+        return;
+    }
+    let n = (mark_count as usize).min((*cov).len());
+    for j in 0..n {
+        let mark_class = r.u16().unwrap() as GlyphClass;
+        let delta = r.u16().unwrap();
+        let anchor = if delta != 0 {
+            otl_read_anchor(data, table_length, offset.wrapping_add(delta as u32))
+        } else {
+            otl_anchor_absent()
+        };
+        (*array).push(MarkRecord {
+            glyph: otfcc_handle_dup((&(*cov))[j].clone() as Handle) as GlyphHandle,
+            mark_class,
+            anchor,
+        });
     }
 }
 pub unsafe fn otl_parse_mark_array(
@@ -180,33 +184,22 @@ pub unsafe fn otl_anchor_absent() -> Anchor {
     };
     return anchor;
 }
-pub unsafe fn otl_read_anchor(
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u32,
-) -> Anchor {
+pub unsafe fn otl_read_anchor(data: FontFilePointer, table_length: u32, offset: u32) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
         x: 0 as ::core::ffi::c_int as Pos,
         y: 0 as ::core::ffi::c_int as Pos,
     };
-    if table_length < offset.wrapping_add(6 as u32) {
-        anchor.present = false;
-        anchor.x = 0 as ::core::ffi::c_int as Pos;
-        anchor.y = 0 as ::core::ffi::c_int as Pos;
-        return anchor;
-    } else {
-        anchor.present = true;
-        anchor.x = read_16s(
-            data.offset(offset as isize)
-                .offset(2 as ::core::ffi::c_int as isize) as *const u8,
-        ) as Pos;
-        anchor.y = read_16s(
-            data.offset(offset as isize)
-                .offset(4 as ::core::ffi::c_int as isize) as *const u8,
-        ) as Pos;
+    let slice = ::core::slice::from_raw_parts(data as *const u8, table_length as usize);
+    let Ok(bytes) =
+        FontReader::new(slice).at(offset as usize).and_then(|mut r| r.bytes(6))
+    else {
         return anchor;
     };
+    anchor.present = true;
+    anchor.x = i16::from_be_bytes([bytes[2], bytes[3]]) as Pos;
+    anchor.y = i16::from_be_bytes([bytes[4], bytes[5]]) as Pos;
+    anchor
 }
 pub unsafe fn otl_dump_anchor(a: Anchor) -> *mut BuiltValue {
     if a.present {
@@ -1561,7 +1554,7 @@ pub unsafe fn position_zero() -> PositionValue {
 pub unsafe fn read_gpos_value(
     data: FontFilePointer,
     table_length: u32,
-    mut offset: u32,
+    offset: u32,
     format: u16,
 ) -> PositionValue {
     let mut v: PositionValue = PositionValue {
@@ -1570,25 +1563,30 @@ pub unsafe fn read_gpos_value(
         d_width: 0.0f64,
         d_height: 0.0f64,
     };
-    if table_length < offset.wrapping_add(position_format_length(format) as u32) {
+    let slice = ::core::slice::from_raw_parts(data as *const u8, table_length as usize);
+    let len = position_format_length(format) as usize;
+    let Ok(bytes) =
+        FontReader::new(slice).at(offset as usize).and_then(|mut r| r.bytes(len))
+    else {
         return v;
+    };
+    let mut pos = 0;
+    if format & FORMAT_DX as u16 != 0 {
+        v.dx = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
+        pos += 2;
     }
-    if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
-        v.dx = read_16s(data.offset(offset as isize) as *const u8) as Pos;
-        offset = offset.wrapping_add(2 as u32);
+    if format & FORMAT_DY as u16 != 0 {
+        v.dy = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
+        pos += 2;
     }
-    if format as ::core::ffi::c_int & FORMAT_DY as ::core::ffi::c_int != 0 {
-        v.dy = read_16s(data.offset(offset as isize) as *const u8) as Pos;
-        offset = offset.wrapping_add(2 as u32);
+    if format & FORMAT_DWIDTH as u16 != 0 {
+        v.d_width = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
+        pos += 2;
     }
-    if format as ::core::ffi::c_int & FORMAT_DWIDTH as ::core::ffi::c_int != 0 {
-        v.d_width = read_16s(data.offset(offset as isize) as *const u8) as Pos;
-        offset = offset.wrapping_add(2 as u32);
+    if format & FORMAT_DHEIGHT as u16 != 0 {
+        v.d_height = i16::from_be_bytes([bytes[pos], bytes[pos + 1]]) as Pos;
     }
-    if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
-        v.d_height = read_16s(data.offset(offset as isize) as *const u8) as Pos;
-    }
-    return v;
+    v
 }
 pub unsafe fn gpos_dump_value(value: PositionValue) -> *mut BuiltValue {
     let v: *mut BuiltValue = json_object_new(4 as usize);
@@ -1711,4 +1709,129 @@ pub unsafe fn bk_gpos_value(v: PositionValue, format: u16) -> *mut BkBlock {
         );
     }
     return b;
+}
+
+#[cfg(test)]
+mod read_anchor_and_value_tests {
+    use super::*;
+    use crate::support::handle::handle_from_index;
+    use crate::table::otl::coverage::{otl_coverage_create, otl_coverage_free, push_to_coverage};
+
+    #[test]
+    fn otl_read_anchor_well_formed_reads_x_and_y() {
+        let mut data = vec![0u8; 6];
+        data[2..4].copy_from_slice(&100i16.to_be_bytes());
+        data[4..6].copy_from_slice(&(-50i16).to_be_bytes());
+        let anchor = unsafe { otl_read_anchor(data.as_mut_ptr(), data.len() as u32, 0) };
+        assert!(anchor.present);
+        assert_eq!(anchor.x, 100.0);
+        assert_eq!(anchor.y, -50.0);
+    }
+
+    #[test]
+    fn otl_read_anchor_truncated_is_absent_not_oob() {
+        let mut data = vec![0u8; 4];
+        let anchor = unsafe { otl_read_anchor(data.as_mut_ptr(), data.len() as u32, 0) };
+        assert!(!anchor.present);
+    }
+
+    #[test]
+    fn read_gpos_value_reads_only_the_fields_the_format_selects() {
+        let format = FORMAT_DX as u16 | FORMAT_DY as u16;
+        let mut data = vec![0u8; 4];
+        data[0..2].copy_from_slice(&10i16.to_be_bytes());
+        data[2..4].copy_from_slice(&20i16.to_be_bytes());
+        let v = unsafe { read_gpos_value(data.as_mut_ptr(), data.len() as u32, 0, format) };
+        assert_eq!((v.dx, v.dy, v.d_width, v.d_height), (10.0, 20.0, 0.0, 0.0));
+    }
+
+    #[test]
+    fn read_gpos_value_truncated_is_zero_not_oob() {
+        let format = FORMAT_DX as u16 | FORMAT_DY as u16;
+        let mut data = vec![0u8; 2]; // needs 4 bytes for dx+dy, only 2 present
+        let v = unsafe { read_gpos_value(data.as_mut_ptr(), data.len() as u32, 0, format) };
+        assert_eq!((v.dx, v.dy), (0.0, 0.0));
+    }
+
+    unsafe fn coverage_of(gids: &[GlyphId]) -> *mut Coverage {
+        let cov = otl_coverage_create();
+        for &gid in gids {
+            push_to_coverage(cov, handle_from_index(gid) as GlyphHandle);
+        }
+        cov
+    }
+
+    #[test]
+    fn otl_read_mark_array_reads_one_record_per_covered_glyph() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes()); // MarkCount
+        data.extend_from_slice(&2u16.to_be_bytes()); // Class
+        data.extend_from_slice(&6u16.to_be_bytes()); // MarkAnchorOffset (rel to 0)
+        data.extend_from_slice(&1u16.to_be_bytes()); // Anchor format (unread)
+        data.extend_from_slice(&100i16.to_be_bytes()); // x
+        data.extend_from_slice(&(-30i16).to_be_bytes()); // y
+        let cov = unsafe { coverage_of(&[5]) };
+        let mut array: MarkArray = Vec::new();
+        unsafe {
+            otl_read_mark_array(&raw mut array, cov, data.as_mut_ptr(), data.len() as u32, 0);
+            otl_coverage_free(cov);
+        }
+        assert_eq!(array.len(), 1);
+        assert_eq!(array[0].glyph.index, 5);
+        assert_eq!(array[0].mark_class, 2);
+        assert!(array[0].anchor.present);
+        assert_eq!(array[0].anchor.x, 100.0);
+        assert_eq!(array[0].anchor.y, -30.0);
+    }
+
+    #[test]
+    fn otl_read_mark_array_zero_delta_is_an_absent_anchor() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&1u16.to_be_bytes()); // MarkCount
+        data.extend_from_slice(&0u16.to_be_bytes()); // Class
+        data.extend_from_slice(&0u16.to_be_bytes()); // MarkAnchorOffset = 0
+        let cov = unsafe { coverage_of(&[5]) };
+        let mut array: MarkArray = Vec::new();
+        unsafe {
+            otl_read_mark_array(&raw mut array, cov, data.as_mut_ptr(), data.len() as u32, 0);
+            otl_coverage_free(cov);
+        }
+        assert!(!array[0].anchor.present);
+    }
+
+    #[test]
+    fn otl_read_mark_array_count_larger_than_coverage_is_capped_not_a_panic() {
+        // MarkCount (2) claiming more marks than the sibling Coverage
+        // table actually lists (1 glyph) used to index the Coverage
+        // `Vec` out of bounds and panic -- must clamp to `cov.len()`
+        // instead.
+        let mut data = Vec::new();
+        data.extend_from_slice(&2u16.to_be_bytes()); // MarkCount
+        data.extend_from_slice(&0u16.to_be_bytes()); // record[0].Class
+        data.extend_from_slice(&0u16.to_be_bytes()); // record[0].MarkAnchorOffset
+        data.extend_from_slice(&0u16.to_be_bytes()); // record[1].Class
+        data.extend_from_slice(&0u16.to_be_bytes()); // record[1].MarkAnchorOffset
+        let cov = unsafe { coverage_of(&[5]) };
+        let mut array: MarkArray = Vec::new();
+        unsafe {
+            otl_read_mark_array(&raw mut array, cov, data.as_mut_ptr(), data.len() as u32, 0);
+            otl_coverage_free(cov);
+        }
+        assert_eq!(array.len(), 1);
+    }
+
+    #[test]
+    fn otl_read_mark_array_count_larger_than_buffer_is_rejected_not_read_oob() {
+        // The original had no room check at all for the `mark_count`
+        // 4-byte records -- a `MarkCount` this large against a 2-byte
+        // buffer used to read straight off the end.
+        let mut data = 1000u16.to_be_bytes().to_vec();
+        let cov = unsafe { coverage_of(&[5]) };
+        let mut array: MarkArray = Vec::new();
+        unsafe {
+            otl_read_mark_array(&raw mut array, cov, data.as_mut_ptr(), data.len() as u32, 0);
+            otl_coverage_free(cov);
+        }
+        assert!(array.is_empty());
+    }
 }

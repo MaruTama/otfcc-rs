@@ -2,21 +2,21 @@
 use crate::bk::bkblock::bk_new_block_from_buffer_copy;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::bk_build_block;
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::base64::base64_encode;
-use crate::support::binio::{read_16u, read_32u};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::{
     BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
     json_object_push, json_string_new, json_string_new_length,
 };
+use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
     ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getsds,
     json_obj_getstr_share, json_type_of,
 };
-use crate::support::primitives::{FontFilePointer, GlyphId};
+use crate::support::primitives::GlyphId;
 use crate::vendor::json::JsonType;
 use libc::{free, strcmp};
 
@@ -53,98 +53,45 @@ unsafe fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
     dst.document = src.document.clone();
     dst
 }
+/// `offset_to_svg_doc_index`, `docstart` and `doclen` are each a raw `u32`
+/// read straight from the file (full attacker control, up to `u32::MAX`).
+/// The original guarded the per-record document span with
+/// `offset_to_svg_doc_index.wrapping_add(docstart).wrapping_add(doclen) <=
+/// table.length` -- three chained 32-bit additions, any pair of which can
+/// wrap the sum back down to something small enough to pass the check even
+/// though the real (unwrapped) span reaches nowhere near this table. Same
+/// shape as `table/cpal.rs`'s `offset_first_color_record` bug, just with
+/// three operands chained instead of one. `FontReader::sub`'s
+/// `checked_add` (used twice below, once per addition) closes it.
+fn parse_svg(data: &[u8]) -> Result<SvgTable, ReadError> {
+    if data.len() < 10 {
+        return Err(ReadError { needed: 10, available: data.len() });
+    }
+    let offset_to_svg_doc_index = FontReader::new(data).at(2)?.u32()? as usize;
+    let mut idx = FontReader::new(data).at(offset_to_svg_doc_index)?;
+    let num_entries = idx.u16()?;
+    idx.require_room(num_entries as usize, 12)?;
+
+    let mut svg: SvgTable = Vec::new();
+    for _ in 0..num_entries {
+        let start = idx.u16()? as GlyphId;
+        let end = idx.u16()? as GlyphId;
+        let docstart = idx.u32()? as usize;
+        let doclen = idx.u32()? as usize;
+        let document = offset_to_svg_doc_index
+            .checked_add(docstart)
+            .and_then(|abs| FontReader::new(data).sub(abs, doclen).ok())
+            .and_then(|mut r| r.bytes(doclen).ok())
+            .map(|s| s.to_vec())
+            .unwrap_or_default();
+        svg.push(SvgAssignment { start, end, document });
+    }
+    Ok(svg)
+}
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_read_svg(packet: &Packet) -> Option<SvgTable> {
-    let mut offset_to_svg_doc_index: u32;
-    let mut num_entries: u16;
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_SVG {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    if !(table.length < 10 as u32) {
-                        offset_to_svg_doc_index =
-                            read_32u(table.data.as_ptr().offset(2 as ::core::ffi::c_int as isize));
-                        if !(table.length < offset_to_svg_doc_index.wrapping_add(2 as u32)) {
-                            num_entries = read_16u(
-                                table.data.as_ptr().offset(offset_to_svg_doc_index as isize),
-                            );
-                            if !(table.length
-                                < offset_to_svg_doc_index.wrapping_add(2 as u32).wrapping_add(
-                                    (12 as ::core::ffi::c_int * num_entries as ::core::ffi::c_int)
-                                        as u32,
-                                ))
-                            {
-                                let mut svg: SvgTable = Vec::new();
-                                let mut j: GlyphId = 0 as GlyphId;
-                                while (j as ::core::ffi::c_int) < num_entries as ::core::ffi::c_int
-                                {
-                                    let record: FontFilePointer = table
-                                        .data
-                                        .as_ptr()
-                                        .offset(offset_to_svg_doc_index as isize)
-                                        .offset(2 as ::core::ffi::c_int as isize)
-                                        .offset(
-                                            (12 as ::core::ffi::c_int * j as ::core::ffi::c_int)
-                                                as isize,
-                                        )
-                                        as *mut u8;
-                                    let mut asg: SvgAssignment = svg_assignment_empty();
-                                    asg.start = read_16u(record as *const u8) as GlyphId;
-                                    asg.end =
-                                        read_16u(record.offset(2 as ::core::ffi::c_int as isize)
-                                            as *const u8)
-                                            as GlyphId;
-                                    let docstart: u32 =
-                                        read_32u(record.offset(4 as ::core::ffi::c_int as isize)
-                                            as *const u8);
-                                    let doclen: u32 =
-                                        read_32u(record.offset(8 as ::core::ffi::c_int as isize)
-                                            as *const u8);
-                                    if offset_to_svg_doc_index
-                                        .wrapping_add(docstart)
-                                        .wrapping_add(doclen)
-                                        <= table.length
-                                    {
-                                        let src_ptr = table
-                                            .data
-                                            .as_ptr()
-                                            .offset(offset_to_svg_doc_index as isize)
-                                            .offset(docstart as isize);
-                                        asg.document =
-                                            ::core::slice::from_raw_parts(src_ptr, doclen as usize)
-                                                .to_vec();
-                                    } else {
-                                        asg.document = Vec::new();
-                                    }
-                                    svg.push(asg);
-                                    j = j.wrapping_add(1);
-                                }
-                                return Some(svg);
-                            }
-                        }
-                    }
-                    // No `svg` to dispose here: every path that constructs
-                    // one (deep inside the nested guards above) returns
-                    // immediately afterward, so this branch is only ever
-                    // reached before any allocation happens.
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
-    }
-    return None;
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_SVG)?;
+    parse_svg(&table.data).ok()
 }
 fn can_use_plain_format(doc: &[u8]) -> bool {
     return doc.len() > 4 as usize
@@ -356,4 +303,62 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
     // plain `Vec<u8>` now, self-dropping along with the rest of
     // `SvgAssignment`, so no explicit disposal call is needed here.
     return bk_build_block(root);
+}
+
+#[cfg(test)]
+mod parse_svg_tests {
+    use super::*;
+
+    // header(10) + SVG Document Index (2 + one 12-byte record) + one document
+    fn well_formed_svg_table() -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&0u16.to_be_bytes()); // version
+        b.extend_from_slice(&10u32.to_be_bytes()); // offsetToSVGDocumentIndex
+        b.extend_from_slice(&0u32.to_be_bytes()); // reserved
+        // SVG Document Index @10
+        b.extend_from_slice(&1u16.to_be_bytes()); // numEntries
+        b.extend_from_slice(&5u16.to_be_bytes()); // startGlyphID
+        b.extend_from_slice(&5u16.to_be_bytes()); // endGlyphID
+        b.extend_from_slice(&14u32.to_be_bytes()); // svgDocOffset (rel. to offset 10)
+        b.extend_from_slice(&6u32.to_be_bytes()); // svgDocLength
+        // document @24 (10 + 14)
+        b.extend_from_slice(b"<svg/>");
+        b
+    }
+
+    #[test]
+    fn well_formed_table_reads_the_document() {
+        let data = well_formed_svg_table();
+        let svg = parse_svg(&data).unwrap();
+        assert_eq!(svg.len(), 1);
+        assert_eq!(svg[0].start, 5);
+        assert_eq!(svg[0].end, 5);
+        assert_eq!(svg[0].document, b"<svg/>");
+    }
+
+    #[test]
+    fn truncated_header_errs_instead_of_reading_oob() {
+        assert!(parse_svg(&well_formed_svg_table()[..8]).is_err());
+    }
+
+    #[test]
+    fn entry_count_larger_than_available_is_rejected_instead_of_reading_oob() {
+        let mut data = well_formed_svg_table();
+        data[10..12].copy_from_slice(&5u16.to_be_bytes()); // numEntries = 5, only 1 record present
+        assert!(parse_svg(&data).is_err());
+    }
+
+    #[test]
+    fn doc_offset_near_u32_max_falls_back_to_empty_document_not_oob() {
+        // The original guarded the document span with
+        // `offset_to_svg_doc_index.wrapping_add(docstart).wrapping_add
+        // (doclen) <= table.length` -- a `docstart` this close to
+        // u32::MAX wraps that sum back into range even though the real
+        // span points nowhere near this table.
+        let mut data = well_formed_svg_table();
+        data[16..20].copy_from_slice(&0xFFFF_FFF0u32.to_be_bytes()); // svgDocOffset
+        let svg = parse_svg(&data).unwrap();
+        assert_eq!(svg.len(), 1);
+        assert!(svg[0].document.is_empty());
+    }
 }
