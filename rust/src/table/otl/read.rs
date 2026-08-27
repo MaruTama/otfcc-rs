@@ -1,10 +1,32 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::font::caryll_sfnt::Packet;
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::support::fmt::{Byte, Dec5, Hex2};
+
+// A `ScriptList` entry's own `Script` table offset, and a `Script` table's
+// own `LangSysRecord` offsets, are ordinary offsets into the shared table
+// buffer -- nothing requires them to be distinct or non-overlapping. Nor
+// does anything cap `scriptCount`/`langSysCount` against each other:
+// `require_room` bounds each individually against the table's real length
+// at the position it's read from, but many different (script, langSys)
+// pairs can legally alias the *same* bytes elsewhere in the table. A
+// small `ScriptList` (a few real bytes) can therefore drive an
+// arbitrarily large number of `parse_language` calls, each independently
+// bounded but not bounded *in aggregate* -- `cargo fuzz run otf_parse`
+// found a mutated GSUB table (real tag/count fields, `parse_language`'s
+// own `feature_count` loop dominating a `sample` profile of the hang)
+// that took 30+ minutes in CI. `MAX_TOTAL_LANGUAGES` caps the total
+// number of (script, langSys) pairs `parse_otl_common` will actually
+// process, independent of how many any individual `require_room` check
+// would otherwise allow -- generous past what any real script/language
+// coverage table needs (a script with dozens of language systems is
+// already unusual) while stopping the aliasing amplification at a small
+// fraction of the CI timeout.
+const MAX_TOTAL_LANGUAGES: u32 = 10_000;
 
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
@@ -282,13 +304,18 @@ unsafe fn parse_otl_common(
     let mut sr = FontReader::new(data).at(script_list_offset as usize)?;
     let script_count = sr.u16()?;
     sr.require_room(script_count as usize, 6)?;
-    for _ in 0..script_count {
+    let mut total_languages: u32 = 0;
+    'scripts: for _ in 0..script_count {
         let tag_0 = sr.u32()?;
         let script_offset_0 = script_list_offset.wrapping_add(sr.u16()? as u32);
         let mut so = FontReader::new(data).at(script_offset_0 as usize)?;
         let default_lang_system_0 = so.u16()?;
         let lang_sys_count = so.u16()?;
         if default_lang_system_0 != 0 {
+            if total_languages >= MAX_TOTAL_LANGUAGES {
+                break 'scripts;
+            }
+            total_languages += 1;
             let mut lang: Box<LanguageSystem> = new_language();
             (*lang).name = crate::bytesbuild!(
                 Byte((tag_0 >> 24 & 0xff) as u8),
@@ -313,6 +340,10 @@ unsafe fn parse_otl_common(
         for _ in 0..lang_sys_count {
             let lang_tag = so.u32()?;
             let lang_sys = so.u16()?;
+            if total_languages >= MAX_TOTAL_LANGUAGES {
+                break 'scripts;
+            }
+            total_languages += 1;
             let mut lang_0: Box<LanguageSystem> = new_language();
             (*lang_0).name = crate::bytesbuild!(
                 Byte((tag_0 >> 24 & 0xff) as u8),
@@ -333,6 +364,18 @@ unsafe fn parse_otl_common(
             );
             (*table).languages.push(lang_0);
         }
+    }
+    if total_languages >= MAX_TOTAL_LANGUAGES {
+        logger_log_sds(
+            &mut *options.logger.borrow_mut(),
+            LOG_VL_IMPORTANT,
+            LoggerType::Warning,
+            crate::bytesbuild!(
+                b"[otl] Total script/language count exceeded ",
+                MAX_TOTAL_LANGUAGES as ::core::ffi::c_int,
+                b"; the rest of this table's scripts are ignored.\n",
+            ),
+        );
     }
 
     for j_3 in 0..(*table).lookups.len() {
@@ -607,6 +650,50 @@ mod parse_otl_common_tests {
             assert_eq!(otl.languages.len(), 1);
             assert!(otl.languages[0].features.is_empty());
             assert!(otl.languages[0].required_feature.is_null());
+        }
+    }
+
+    #[test]
+    fn total_language_count_across_the_whole_table_is_capped() {
+        // One script whose own `langSysCount` alone (`MAX_TOTAL_LANGUAGES`
+        // + 100) exceeds the budget -- every `langSysRecord`'s offset
+        // aliases the *same* tiny (0-feature) LangSys table, so this
+        // isn't testing how much distinct data exists in the table, only
+        // how many times `parse_language` actually runs against it. This
+        // is exactly the shape `cargo fuzz` found: a small `ScriptList`
+        // (well-formed on its own) driving an unbounded number of cheap-
+        // looking-individually-but-not-in-aggregate `parse_language`
+        // calls via offset aliasing. Confirms `languages.len()` stops
+        // growing at the budget instead of processing all of them.
+        const N: u32 = MAX_TOTAL_LANGUAGES + 100;
+        let mut data = Vec::new();
+        data.extend_from_slice(&[0u8; 4]); // version
+        data.extend_from_slice(&16u16.to_be_bytes()); // scriptListOffset
+        data.extend_from_slice(&12u16.to_be_bytes()); // featureListOffset
+        data.extend_from_slice(&10u16.to_be_bytes()); // lookupListOffset
+        data.extend_from_slice(&0u16.to_be_bytes()); // LookupList @10, count=0
+        data.extend_from_slice(&0u16.to_be_bytes()); // FeatureList @12, count=0
+        data.extend_from_slice(&[0u8; 2]); // padding up to 16
+        data.extend_from_slice(&1u16.to_be_bytes()); // ScriptList @16, scriptCount=1
+        data.extend_from_slice(b"latn"); // scriptTag
+        data.extend_from_slice(&8u16.to_be_bytes()); // script offset (rel to 16) -> 24
+        // Script table @24
+        data.extend_from_slice(&0u16.to_be_bytes()); // defaultLangSys = 0 (none)
+        data.extend_from_slice(&(N as u16).to_be_bytes()); // langSysCount
+        let shared_lang_sys_rel = 4u16 + 6 * (N as u16); // rel. to 24
+        for i in 0..N {
+            data.extend_from_slice(&i.to_be_bytes()); // lang_tag (arbitrary)
+            data.extend_from_slice(&shared_lang_sys_rel.to_be_bytes());
+        }
+        // The one shared LangSys table every record above points at.
+        data.extend_from_slice(&0u16.to_be_bytes()); // lookupOrder, unused
+        data.extend_from_slice(&0xFFFFu16.to_be_bytes()); // requiredFeatureIndex (none)
+        data.extend_from_slice(&0u16.to_be_bytes()); // featureCount = 0
+
+        let options = zeroed_options();
+        unsafe {
+            let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
+            assert_eq!(otl.languages.len(), MAX_TOTAL_LANGUAGES as usize);
         }
     }
 
