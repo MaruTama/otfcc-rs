@@ -932,6 +932,137 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **A real heap-use-after-free in OTL consolidation, found by hand after
+  `otf_parse` fuzzing turned up a slow/flaky crash it couldn't itself
+  explain** (that target never exercises consolidate/dump -- see the new
+  `otf_dump` fuzz target below, added specifically to close this gap).
+  - **The bug**: `LanguageSystem.required_feature` (`table/otl.rs`) is a
+    lone borrowed `*const Feature` into `OtlTable.features`, set once at
+    parse time (`table/otl/read.rs`) and never revisited. `consolidate_otl_
+    table` (`consolidate.rs`) already prunes stale refs out of `lang.
+    features` (the *list*) once the `Feature` they point at ends up with no
+    valid lookups and gets dropped -- but did nothing for `required_
+    feature`, the *lone* pointer. A `Feature` referenced only via
+    `required_feature` (not also in the list) could be dropped from
+    `table.features` while `required_feature` kept pointing at the freed
+    memory, later read by `otfcc_dump_otl`/the build path.
+  - **Root-caused with an ASan build**, not guesswork: a debug `otfccdump`
+    built with `RUSTFLAGS="-Z sanitizer=address" cargo +nightly build
+    -Zbuild-std` reproduced a clean `AddressSanitizer: heap-use-after-free`
+    on the fuzzer-found input -- freed by `otl_feature_list_filter_env`
+    (dropping the now-empty `Feature`'s `Box`), read 8 bytes later inside
+    `otfcc_dump_otl` while formatting `(*(*lang).required_feature).name` as
+    JSON. (Plain `lldb`/lldb attach did not work in this sandboxed
+    environment; the release build's own crash was also non-deterministic
+    across otherwise-identical runs -- classic heap-layout-sensitive UAF
+    behavior -- so the ASan rebuild, not trial-and-error instrumentation,
+    is what actually pinned this down.)
+  - **The fix**: right where `lang.features` already gets filtered, also
+    null out `required_feature` if the `Feature` it points at has no
+    lookups left -- the exact same emptiness check (`feature_ref_is_not_
+    empty`'s `.lookups.is_empty()`), applied to the one reference that
+    check's own list-filtering left uncovered.
+  - **New unit test** (`consolidate.rs`, `consolidate_otl_table_tests`)
+    builds a minimal `OtlTable` (one lookup with zero subtables, one
+    feature referencing only that lookup, one language whose `required_
+    feature` points at that feature) and asserts `required_feature` comes
+    back null after `consolidate_otl_table` runs; confirmed to fail
+    (assertion, not a crash, thanks to the debug build) with the fix
+    reverted. Fixture pointers are taken via `&raw const *(...)[idx]` only
+    after each value is already resting in its final `Vec` slot -- the
+    same idiom every real call site uses -- because moving a `Box` after
+    taking a pointer to it, or going through a safe `.as_ref()` reference
+    first, are both `Box`/Stacked-Borrows hazards Miri (correctly) rejects
+    on their own, independent of the fix under test.
+  - **New fuzz target, `otf_dump`** (`fuzz/fuzz_targets/otf_dump.rs`):
+    drives `otfcc_read_sfnt` -> `read_otf` -> `otfcc_consolidate_font` ->
+    `serialize_to_json`, the same sequence `otfccdump.rs` runs, so
+    consolidate/dump bugs (this one, and whatever's next) have a fuzz
+    target that can actually find them, not just a manual investigation.
+    Wired into CI (`.github/workflows/rust.yml`) alongside `otf_parse`/
+    `json_build`, with its own corpus seed and a regression-test replay of
+    the fixed input (`tests/fuzz-corpus/known-issues/otf-dump-required-
+    feature-use-after-free.bin`, 497KB).
+  - **Verification**: full pipeline green -- build/clippy clean at `-D
+    warnings`, 322/322 tests, ABI unchanged, golden bytes/log output
+    unchanged, cycles/lookup-alias/10-payload round-trips all clean, `cargo
+    miri test` clean, the fixed input now runs clean end-to-end under both
+    the release build and a debug ASan build (214MB of JSON produced, no
+    sanitizer errors), and both fuzz targets `cargo check`-clean.
+
+- **`table/cmap.rs`: two independent bugs, both found by continuing to fuzz
+  after the fixes below.**
+  - **Directory-entry aliasing amplification**: nothing in the cmap spec
+    requires an encoding record's subtable offset to be distinct from
+    another's (real fonts legitimately point the Windows BMP and
+    full-repertoire records at the same subtable). `parse_cmap` re-parsed
+    -- and re-walked every codepoint of -- the same subtable once per
+    directory entry pointing at it, an amplification bounded only by
+    `numTables` (itself bounded only by the cmap table's size / 8 bytes per
+    entry), not by anything proportional to the subtable's own size. Fixed
+    by deduping on subtable offset before dispatching to `read_format4`/
+    `read_format12`/`read_format14`, which is safe for well-formed fonts
+    because re-parsing the same bytes at the same offset is idempotent --
+    only the redundant work is removed, never the result.
+  - **Format 12's per-group range is unbounded**: `read_format12`'s
+    `startCharCode..endCharCode` walk had no ceiling tied to the group's
+    own 12-byte size -- a single group claiming `endCharCode = 0xffff0000`
+    forces ~4 billion loop iterations from 12 bytes of input, and
+    `endCharCode = 0xFFFFFFFF` is a genuine **infinite** loop (`c.
+    wrapping_add(1)` at `0xFFFFFFFF` wraps back to `0`). Fixed by clamping
+    the walked range to the real Unicode ceiling (`0x10FFFF`) -- a no-op
+    for any well-formed group, since real codepoints never exceed it.
+  - Both found via a 47-second fuzz timeout, bisected by zeroing sfnt
+    tables and `sample`-profiling the isolated repro (hot stack entirely in
+    `otfcc_encode_cmap_by_index`, called an unbounded number of times).
+  - **New tests**: `format12_group_range_past_the_unicode_ceiling_is_
+    clamped_not_walked_in_full` (asserts the walk both terminates promptly
+    and still maps every codepoint up to the ceiling correctly) and
+    `parse_cmap_duplicate_directory_entries_aliasing_the_same_subtable_
+    are_only_parsed_once` (200 duplicate directory entries aliasing one
+    subtable; times out at >2s if dedup regresses, confirmed by reverting
+    the fix locally). The dedup test is `#[cfg_attr(miri, ignore)]` --
+    400,000 real inserts is far too slow to run meaningfully under Miri's
+    interpreter, the same reasoning as the CFF wall-clock test below.
+  - **Verification**: same full pipeline as above, green throughout.
+
+- **`table/otl/read.rs`: unbounded script/language traversal**. Nothing
+  bounded the *total* number of (script, langSys) pairs `parse_otl_common`
+  processes across the whole Script list -- `script_count` and (per-script)
+  `lang_sys_count` were each bounded individually via `require_room`, but
+  many langSysRecords across many scripts can all alias the same tiny
+  LangSys structure, so `parse_language` could still be invoked an
+  unbounded number of times even though every individual read stays inside
+  the table. Same "offset aliasing" shape as the `cmap` directory bug
+  above, in an unrelated subsystem. Fixed with a total-count budget
+  (`MAX_TOTAL_LANGUAGES = 10_000`) independent of any per-position check --
+  a soft cutoff (log once, keep what's already parsed, stop adding more),
+  matching `MAX_SUBR_CALL_DEPTH`'s own "ignore the rest of this outline" as
+  the established convention for this failure mode, and matching this
+  file's own pre-existing "no corrupted-log on parse failure, OTL failures
+  are silent" comment. Reduces the fuzz-found repro's parse time from 30+
+  minutes (CI) to ~10 seconds. New test:
+  `total_language_count_across_the_whole_table_is_capped`, a 1-script table
+  whose every langSysRecord aliases one shared LangSys, asserting the
+  parsed count is capped exactly at `MAX_TOTAL_LANGUAGES`.
+
+- **`libcff/cff_index.rs`/`libcff/cff_string.rs`: CFF String INDEX offset
+  array validated only at its last entry, not pairwise.** `extract_index`
+  checked that the *final* offset was `>= 1` but never that offsets were
+  non-decreasing pairwise; `get_cff_sid` computed a slice length as `end -
+  start` for two adjacent offsets, wrapping to a huge `usize` when `end <
+  start`. `locate_subr` (a sibling consumer of the same array) already had
+  an equivalent guard from an earlier fix; `get_cff_sid` did not. Fixed at
+  the source -- `extract_index` now rejects the whole array if any offset
+  is `< 1` or any adjacent pair decreases -- *and* redundantly in
+  `get_cff_sid` itself (matching `locate_subr`'s own defense-in-depth
+  precedent), which was also rewritten off raw pointer arithmetic onto safe
+  slice indexing. New tests: `non_decreasing_offsets_are_required_not_
+  just_the_last_one` (`cff_index.rs`) and six in a new `get_cff_sid_tests`
+  module (`cff_string.rs`) covering the standard-SID fast path, a normal
+  custom SID, past-count rejection, the non-decreasing-pair rejection, a
+  zero offset, and a range past the INDEX's actual data length.
+
 - **`table/cff.rs`'s `build_outline` no longer allocates a fresh
   0x10000-entry `Vec<CffValue>` charstring-interpreter operand stack for
   every single glyph.** Found while verifying an unrelated PR

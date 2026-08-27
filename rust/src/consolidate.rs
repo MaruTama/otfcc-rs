@@ -935,6 +935,24 @@ unsafe fn consolidate_otl_table(
         let mut j_1: TableId = 0 as TableId;
         while (j_1 as usize) < (*table).languages.len() {
             let lang: *mut LanguageSystem = &raw mut *(&mut (*table).languages)[j_1 as usize];
+            // `required_feature` is a single borrowed `*const Feature`, not
+            // a list element `otl_feature_ref_list_filter_env` (below) ever
+            // touches -- it was set once at parse time and otherwise never
+            // revisited. Below, this same pass drops every `Feature` whose
+            // `.lookups` is empty from `table.features` (freeing its `Box`);
+            // a `required_feature` still pointing at one of those becomes a
+            // dangling read the very next time this language is dumped or
+            // built. `feature_ref_is_not_empty`'s check (`.lookups.is_empty()`)
+            // is applied here too, so a `required_feature` is dropped in the
+            // same pass, by the same rule, as every other reference to that
+            // feature -- closing a real fuzzer-found use-after-free
+            // (heap-use-after-free reading a freed `Feature`'s `name` from
+            // `otfcc_dump_otl`, ASan-confirmed).
+            if !(*lang).required_feature.is_null()
+                && (*(*lang).required_feature).lookups.is_empty()
+            {
+                (*lang).required_feature = ::core::ptr::null::<Feature>();
+            }
             otl_feature_ref_list_filter_env(
                 &raw mut (*lang).features,
                 Some(
@@ -1336,5 +1354,110 @@ pub unsafe fn otfcc_consolidate_font(font: *mut Font, options: &Options) {
         );
         ___loggedstep_v_4 = false;
         logger_finish(&mut *options.logger.borrow_mut());
+    }
+}
+
+#[cfg(test)]
+mod consolidate_otl_table_tests {
+    use super::*;
+    use crate::table::otl::{new_feature, new_language, new_lookup};
+
+    fn empty_font_with_glyph_order() -> Box<Font> {
+        Box::new(Font {
+            subtype: crate::font::caryll_font::FontSubtype::Ttf,
+            fvar: None,
+            head: None,
+            hhea: None,
+            maxp: None,
+            os_2: None,
+            hmtx: None,
+            post: None,
+            hdmx: None,
+            vhea: None,
+            vmtx: None,
+            vorg: None,
+            cff: None,
+            glyf: None,
+            cmap: None,
+            name: None,
+            meta: None,
+            fpgm: None,
+            prep: None,
+            cvt_: None,
+            gasp: None,
+            vdmx: None,
+            ltsh: None,
+            gsub: None,
+            gpos: None,
+            gdef: None,
+            base: None,
+            cpal: None,
+            colr: None,
+            svg: None,
+            tsi_01: None,
+            tsi_23: None,
+            tsi5: None,
+            glyph_order: Some(Box::new(GlyphOrder {
+                entries: Vec::new(),
+                by_gid: Default::default(),
+                by_name: Default::default(),
+            })),
+        })
+    }
+
+    // The fuzzer-found, ASan-confirmed bug this pins down: a
+    // `LanguageSystem.required_feature` is a lone borrowed `*const Feature`
+    // into `table.features` that nothing here used to revisit once set at
+    // parse time. When the `Feature` it points at ends up with no valid
+    // lookups (every lookup referencing it turned out to have zero usable
+    // subtables) and gets dropped from `table.features` by this same
+    // consolidation pass, `required_feature` was left dangling -- read
+    // later by `otfcc_dump_otl`/the build path, an actual heap-use-after-
+    // free (confirmed via a debug-std ASan build: `AddressSanitizer:
+    // heap-use-after-free ... freed by ... otl_feature_list_filter_env ...
+    // READ of size 8 ... in otfcc_dump_otl`). `lang.features` (the *list* of
+    // borrowed feature refs) was already correctly pruned in this same
+    // pass; `required_feature` (the lone one) was not.
+    #[test]
+    fn required_feature_pointing_at_a_lookup_with_no_valid_subtables_is_cleared_not_left_dangling() {
+        // Pointers are taken purely via `&raw const *(...)[idx]`, the same
+        // idiom every real call site uses, and only once each `Box` is
+        // already resting in its final `table.lookups`/`table.features`
+        // slot. Both departures from that -- moving a `Box` into a `Vec`
+        // after already taking a pointer to it, or going through a safe
+        // `.as_ref()` reference instead of staying in raw-pointer land --
+        // are test-fixture-ordering hazards Miri's Stacked Borrows model
+        // (rightly) rejects; neither is a bug in the fix under test.
+        let mut table = Box::new(OtlTable {
+            lookups: vec![new_lookup()], // subtables empty -- "no valid subtables"
+            features: Vec::new(),
+            languages: Vec::new(),
+        });
+        let mut font = empty_font_with_glyph_order();
+        let options = Options::default();
+
+        unsafe {
+            let lookup_ptr: *const Lookup = &raw const *table.lookups[0];
+
+            let mut feature = new_feature();
+            feature.lookups.push(lookup_ptr as LookupRef);
+            table.features.push(feature);
+            let feature_ptr: *const Feature = &raw const *table.features[0];
+
+            let mut lang = new_language();
+            lang.required_feature = feature_ptr;
+            lang.features.push(feature_ptr);
+            table.languages.push(lang);
+
+            consolidate_otl_table(
+                font.as_mut() as *mut Font,
+                table.as_mut() as *mut OtlTable,
+                &options,
+            );
+        }
+
+        assert!(table.languages[0].required_feature.is_null());
+        assert!(table.features.is_empty());
+        assert!(table.lookups.is_empty());
     }
 }

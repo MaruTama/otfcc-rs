@@ -35,3 +35,10 @@ path = "fuzz_targets/json_build.rs"
 test = false
 doc = false
 bench = false
+
+[[bin]]
+name = "otf_dump"
+path = "fuzz_targets/otf_dump.rs"
+test = false
+doc = false
+bench = false

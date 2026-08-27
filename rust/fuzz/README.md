@@ -182,9 +182,74 @@ as regression pins even though none of them still reproduce:
   correctness assertion, since the bug was about time/memory, not a wrong
   answer or a crash.
 
+- ~~`table/cmap.rs`'s `read_format12` walks a group's `startCharCode..
+  endCharCode` range with no ceiling tied to the group's own 12-byte size:
+  a single group claiming `endCharCode = 0xffff0000` forces ~4 billion
+  iterations from 12 bytes of input, and `endCharCode = 0xFFFFFFFF` is a
+  genuine infinite loop (`c.wrapping_add(1)` at `0xFFFFFFFF` wraps back to
+  `0`)~~ — **fixed**: found via a 47-second fuzz timeout, bisected by
+  zeroing sfnt tables (isolated to `cmap`) and `sample`-profiling the
+  isolated repro (hot stack entirely in `otfcc_encode_cmap_by_index`).
+  Clamped the walked range to the real Unicode ceiling (`0x10FFFF`), a
+  no-op for any well-formed group. See `rust/README.md`'s "Next steps" for
+  the accompanying `parse_cmap` directory-entry-aliasing fix found in the
+  same investigation (a `numTables`-bounded amplification, not this one's
+  per-group range) and the other consolidate/dump-path bugs below.
+
+- ~~`table/otl/read.rs`'s `parse_otl_common` bounded `script_count` and
+  (per-script) `lang_sys_count` individually, but nothing bounded the
+  *total* number of (script, langSys) pairs processed across the whole
+  Script list — many langSysRecords across many scripts can alias the same
+  tiny LangSys structure, so `parse_language` could be invoked an unbounded
+  number of times even though every individual read stayed in-bounds~~ —
+  **fixed**: a total-count budget (`MAX_TOTAL_LANGUAGES = 10_000`),
+  independent of any per-position check, reducing the fuzz-found repro's
+  parse time from 30+ minutes to ~10 seconds.
+
+- ~~`libcff/cff_index.rs`'s `extract_index` validated the CFF String
+  INDEX's offset array only at its *last* entry (`>= 1`), never pairwise —
+  `libcff/cff_string.rs`'s `get_cff_sid` then computed a slice length as
+  `end - start` for two adjacent offsets, wrapping to a huge `usize` when
+  `end < start`~~ — **fixed** at the source (`extract_index` now rejects
+  the whole array if any offset is `< 1` or any adjacent pair decreases)
+  and redundantly in `get_cff_sid` itself, matching the sibling `locate_
+  subr`'s pre-existing equivalent guard; `get_cff_sid` was also rewritten
+  off raw pointer arithmetic onto safe slice indexing.
+
+- ~~A real heap-use-after-free in OTL consolidation: `LanguageSystem.
+  required_feature` (`table/otl.rs`) is a lone borrowed `*const Feature`
+  into `OtlTable.features`, set once at parse time and never revisited —
+  `consolidate_otl_table` already pruned stale refs out of `lang.features`
+  (the *list*) once their target `Feature` emptied out and got dropped, but
+  did nothing for `required_feature`, the lone pointer, which could end up
+  pointing at freed memory, read later by `otfcc_dump_otl`/the build
+  path~~ — **fixed**: `otf_parse` (the fuzz target active at the time)
+  never exercises consolidate/dump at all, so this was found by hand —
+  a debug `otfccdump` built with `RUSTFLAGS="-Z sanitizer=address" cargo
+  +nightly build -Zbuild-std` reproduced a clean `AddressSanitizer:
+  heap-use-after-free` (freed by `otl_feature_list_filter_env`, read 8
+  bytes later inside `otfcc_dump_otl`) on an `otf_parse`-found input that
+  had only manifested as a non-deterministic, flaky crash/slowdown under
+  plain fuzzing. Fixed by nulling `required_feature` at the same point,
+  under the same emptiness check, that already prunes `lang.features`.
+  **This gap is exactly why the new `otf_dump` target below exists** — the
+  reproducer is now `tests/fuzz-corpus/known-issues/otf-dump-required-
+  feature-use-after-free.bin` (497KB) under that target, not `otf_parse`.
+
+## Fuzz targets
+
+- **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).
+- **`otf_dump`** — the same, plus `otfcc_consolidate_font` ->
+  `serialize_to_json`: the full `otfccdump.rs` pipeline. Added specifically
+  because `otf_parse` stopping after `read_otf` left consolidate/dump bugs
+  (the `required_feature` use-after-free above) invisible to fuzzing
+  entirely — they could only be found by hand, after the fact.
+- **`json_build`** — the JSON-to-font build path (`otfccbuild.rs`'s
+  equivalent).
+
 ## CI
 
-The workflow runs both targets for a short, fixed time budget on every push
+The workflow runs all three targets for a short, fixed time budget on every push
 (not exhaustive fuzzing — that would need a much longer-running, separately-
 scheduled job) as an **advisory, non-blocking** step
 (`continue-on-error: true`), the same treatment `cargo miri test` gets and

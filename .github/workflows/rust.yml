@@ -139,8 +139,9 @@ jobs:
       - name: Seed the corpora from tests/payload/
         run: |
           cd rust/fuzz
-          mkdir -p corpus/otf_parse corpus/json_build
+          mkdir -p corpus/otf_parse corpus/otf_dump corpus/json_build
           cp ../../tests/payload/*.ttf ../../tests/payload/*.otf corpus/otf_parse/
+          cp ../../tests/payload/*.ttf ../../tests/payload/*.otf corpus/otf_dump/
           echo '{}' > corpus/json_build/empty.json
           cp ../../tests/payload/*.json corpus/json_build/ 2>/dev/null || true
 
@@ -152,6 +153,16 @@ jobs:
         run: |
           cd rust/fuzz
           cargo fuzz run otf_parse -- -max_total_time=60
+
+      # `otf_parse` stops after read_otf; this drives the same input through
+      # otfcc_consolidate_font + serialize_to_json too, so bugs that only
+      # manifest in consolidate/dump (see rust/fuzz/README.md's
+      # required_feature use-after-free) have a fuzz target that can find
+      # them.
+      - name: Fuzz otf_dump
+        run: |
+          cd rust/fuzz
+          cargo fuzz run otf_dump -- -max_total_time=60
 
       - name: Fuzz json_build
         run: |
@@ -170,6 +181,7 @@ jobs:
           cd rust/fuzz
           cargo fuzz run json_build ../../tests/fuzz-corpus/known-issues/json-build-cff-charset-null-glyf.bin
           cargo fuzz run json_build ../../tests/fuzz-corpus/known-issues/json-build-advance-width-subtract-overflow.bin
+          cargo fuzz run otf_dump ../../tests/fuzz-corpus/known-issues/otf-dump-required-feature-use-after-free.bin
 
   # Also advisory (continue-on-error): Miri found a real, crate-wide bug the
   # very first time it ran against this crate's own existing test suite (a
