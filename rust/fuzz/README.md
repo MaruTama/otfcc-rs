@@ -366,6 +366,25 @@ as regression pins even though none of them still reproduce:
   present, the same shape as the read-side fix, applied independently on
   the dump side. See `rust/README.md`'s "Next steps" for the full writeup.
 
+- ~~`tests/fuzz-corpus/known-issues/otf-dump-ttinstr-pushw-orphaned-
+  wordhi-oob-read.bin` (169KB) — a second, independent bug in `support/
+  ttinstr.rs` beyond the `NPUSHB` one already fixed: a truncated `NPUSHW`/
+  `PUSHW[n]` operand left its last byte marked `WordHi` with no paired
+  `WordLo`, and `dump_ttinstr` reads `instrs[i+1]` unconditionally
+  whenever it sees `WordHi` -- one byte past the instruction buffer's own
+  allocation (ASan: heap-buffer-overflow, 1-byte READ, "0 bytes after" the
+  buffer)~~ — **fixed**: this one resisted several local Docker fuzz
+  sessions (`otf_dump`'s own pipeline is far more expensive per input than
+  `otf_parse`'s, so a few minutes of local fuzzing only gets through tens
+  to a couple hundred inputs); recovered instead by re-fetching the CI
+  job's log through the raw GitHub REST API rather than `gh run view
+  --log` (which had been silently truncating the crashing input's byte
+  array), reconstructing the exact CI-found bytes into a file, and
+  reproducing deterministically on the first try. See `rust/README.md`'s
+  "Next steps" for the full writeup, including a fix that needed a second,
+  less obvious half (an unrelated `ImpliedReturn`-write ordering issue the
+  first half of the fix exposed).
+
 ## Fuzz targets
 
 - **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).

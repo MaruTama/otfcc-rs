@@ -932,6 +932,73 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`support/ttinstr.rs`: a truncated `NPUSHW`/`PUSHW[n]` operand left its
+  last byte marked `WordHi` with no paired `WordLo` -- `dump_ttinstr` then
+  read one byte past the instruction buffer to find that missing pair. A
+  real heap-buffer-overflow, and a second, independent bug in this exact
+  file beyond the `NPUSHB` one already fixed earlier.** Found by the very
+  next `cargo fuzz run otf_dump` CI job once the `json_writer.rs` panic
+  above got fixed; this one resisted several rounds of local Docker-based
+  fuzzing (each session executes only tens to a couple hundred inputs in
+  4+ minutes -- `otf_dump`'s own read+consolidate+dump pipeline is far
+  more expensive per input than `otf_parse`'s read-only path). Recovered
+  instead by re-fetching the CI job's log through the raw GitHub REST API
+  (`gh api repos/.../actions/jobs/<id>/logs`) rather than `gh run view
+  --log`, which had been silently truncating the crashing input's
+  `std::fmt::Debug` byte array on the two previous crashes -- the raw API
+  response carried the full array, letting the exact crashing bytes (from
+  CI itself, not a local remutation) be reconstructed into a file and
+  reproduced deterministically on the first try.
+  - **The bug**: `instr_typify`'s `NPUSHW`/`PUSHW[n]` branches (this file
+    also handles the fixed-count `PUSHW_1`..`PUSHW_8` opcodes via the same
+    code path as `NPUSHW`'s attacker-controlled count) mark each 2-byte
+    word operand's high byte `WordHi` and low byte `WordLo` in a loop that
+    already guards each byte individually against running past `len` --
+    but if the operand count claims one more word than actually fits, the
+    loop marks the *first* of that final pair `WordHi`, then hits the
+    length guard before marking a `WordLo`, and `break 'outer`s with that
+    orphaned `WordHi` marker left in place. `dump_ttinstr`, which later
+    walks `bts` to render the instruction stream to JSON, reads
+    `instrs[i+1]` unconditionally whenever it sees `WordHi` (that is the
+    whole point of the marker: "the low byte is right after this one") --
+    for this specific byte, `i+1` is exactly `len`, one past the
+    instruction buffer's own allocation. ASan: `heap-buffer-overflow`,
+    1-byte READ, `0 bytes after` a 3957-byte region (a second, structurally
+    identical crash the round before this one hit a 983-byte region the
+    same way).
+  - **The fix**: before marking a byte `WordHi`, check whether its paired
+    `WordLo` byte would also fit; if not, mark that trailing byte `Byte`
+    instead (a lone byte needs no partner to be read safely) and advance
+    the loop's own position to `len` before breaking -- required because
+    the function's own trailing `*bts.offset(i) = ImpliedReturn` write
+    (unconditional, right after the loop) writes at whatever `i` the loop
+    exited with, and every *other* break path already leaves `i == len`
+    for exactly that reason; breaking with `i` still at the just-written
+    `Byte` slot let that trailing write silently clobber it back to
+    `ImpliedReturn` (caught by this fix's own regression test failing
+    before this second half of the fix was added).
+  - **New test**,
+    `pushw_with_only_one_trailing_byte_marks_it_plain_instead_of_an_
+    orphaned_wordhi` (`support/ttinstr.rs`), mirrors the existing
+    `NPUSHB`-family regression test's shape: a 2-byte `PUSHW[0]` (`0xb8`)
+    instruction with only one trailing byte, asserting `instr_typify`
+    never leaves that byte marked `WordHi`. Verified against both halves
+    of the fix independently: reverting just the `ImpliedReturn`-clobber
+    guard reproduced the exact failure that caught it during development;
+    reverting the whole fix reproduces the original `WordHi` marker.
+    Passes under Miri (this is a plain safe-Rust assertion on `instr_
+    typify`'s own output, not a raw-pointer read, so no `-Zmiri-
+    disable-isolation` or fixture file is needed).
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-dump-ttinstr-
+    pushw-orphaned-wordhi-oob-read.bin` (169KB, reconstructed byte-for-byte
+    from the CI crash log itself).
+  - **Verification**: full pipeline green (332/332 tests, clippy/ABI/
+    golden/log/cycles/lookup-alias/roundtrips clean), all three fuzz
+    targets `cargo check`-clean, and the reconstructed crash input
+    confirmed clean under a local Docker ASan `otf_dump` build (crashed
+    before the fix, executed cleanly after, rebuilt from the exact same
+    source).
+
 - **`json_writer.rs`: `JsonSerializer::serialize` unconditionally
   `.unwrap()`ed `font.head`/`font.maxp` while building `GlyfIOContext` for
   the dump step -- a real, previously-undocumented panic, independent of

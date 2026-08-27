@@ -749,11 +749,31 @@ unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
                 if i >= len {
                     break 'outer;
                 }
-                *bts.offset(i as isize) = ByteType::WordHi;
-                i += 1;
-                if i >= len {
+                // A `WordHi` marker promises `dump_ttinstr` a paired
+                // `WordLo` right after it (it reads `instrs[i+1]`
+                // unconditionally whenever it sees `WordHi`) -- if this
+                // operand's declared count runs off the end with only one
+                // byte of a two-byte word actually present, mark that
+                // trailing byte `Byte` instead so nothing later reads past
+                // `instrs`'s own `len` bytes (ASan-confirmed: a fuzz-found
+                // font's truncated `NPUSHW`/`PUSHW[n]` operand did exactly
+                // this, a 1-byte heap-buffer-overflow read in
+                // `dump_ttinstr`).
+                if i.wrapping_add(1) >= len {
+                    *bts.offset(i as isize) = ByteType::Byte;
+                    // Advance `i` to `len` before breaking -- every other
+                    // break path in this loop leaves `i == len`, which the
+                    // unconditional `ImpliedReturn` write right after this
+                    // loop relies on (it writes at the *current* `i`, on
+                    // the assumption that's the slot past everything this
+                    // loop already wrote). Breaking with `i` still at this
+                    // byte's own index would let that write silently
+                    // clobber the `Byte` marker just set above.
+                    i += 1;
                     break 'outer;
                 }
+                *bts.offset(i as isize) = ByteType::WordHi;
+                i += 1;
                 *bts.offset(i as isize) = ByteType::WordLo;
                 j += 1;
             }
@@ -784,11 +804,22 @@ unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
                 if i >= len {
                     break 'outer;
                 }
-                *bts.offset(i as isize) = ByteType::WordHi;
-                i += 1;
-                if i >= len {
+                // Same "no orphaned WordHi" fix as the NPUSHW branch above.
+                if i.wrapping_add(1) >= len {
+                    *bts.offset(i as isize) = ByteType::Byte;
+                    // Advance `i` to `len` before breaking -- every other
+                    // break path in this loop leaves `i == len`, which the
+                    // unconditional `ImpliedReturn` write right after this
+                    // loop relies on (it writes at the *current* `i`, on
+                    // the assumption that's the slot past everything this
+                    // loop already wrote). Breaking with `i` still at this
+                    // byte's own index would let that write silently
+                    // clobber the `Byte` marker just set above.
+                    i += 1;
                     break 'outer;
                 }
+                *bts.offset(i as isize) = ByteType::WordHi;
+                i += 1;
                 *bts.offset(i as isize) = ByteType::WordLo;
                 j += 1;
             }
@@ -1034,5 +1065,30 @@ mod tests {
         // Reaching here at all -- rather than writing past `bts`'s
         // 3-slot allocation -- is the regression signal.
         assert_eq!(id.bts.len(), 3);
+    }
+
+    /// A `cargo fuzz run otf_dump` CI job found a second, independent bug
+    /// in this same file: a `NPUSHW`/`PUSHW[n]` operand whose declared
+    /// count runs off the end with only *one* of its two operand bytes
+    /// actually present left that trailing byte marked `WordHi` with no
+    /// following `WordLo` -- `dump_ttinstr`'s own read of a `WordHi` byte
+    /// unconditionally reads `instrs[i+1]` to get the paired low byte,
+    /// which read exactly one byte past `instrs`'s own allocation (ASan:
+    /// heap-buffer-overflow, 1-byte READ, "0 bytes after" the buffer).
+    /// `PUSHW[0]` (`0xb8`, declares one 2-byte word operand) with only one
+    /// trailing byte reproduces the exact shape.
+    #[test]
+    fn pushw_with_only_one_trailing_byte_marks_it_plain_instead_of_an_orphaned_wordhi() {
+        let mut instrs: Vec<u8> = vec![0xb8, 0xab];
+        let mut id = InstrData {
+            instrs: instrs.as_mut_ptr(),
+            instr_cnt: instrs.len() as u32,
+            bts: Vec::new(),
+        };
+        unsafe {
+            instr_typify(&raw mut id);
+        }
+        // Must never be `WordHi` with nothing following it in `instrs`.
+        assert_eq!(id.bts[1], ByteType::Byte);
     }
 }
