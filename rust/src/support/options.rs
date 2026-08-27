@@ -45,6 +45,24 @@ pub struct Options {
     // UB. Single-threaded throughout (this crate has no threading), so
     // `RefCell` over `Mutex` costs nothing and needs no `Sync` bound.
     pub logger: RefCell<Logger>,
+    // Bounds the total number of "invalid lookup reference" warnings
+    // `consolidate_chaining` will actually log for one `otfcc_consolidate_
+    // font` call. Each individual contextual/chaining rule's own lookup-
+    // application count is already capped at parse time
+    // (`chaining/read.rs`'s `MAX_APPLY_PER_RULE`), and rules built across a
+    // whole table and one lookup's subtable count are capped too
+    // (`MAX_TOTAL_RULES_PER_TABLE`, `MAX_TOTAL_SUBTABLES_PER_LOOKUP`) --
+    // but those three caps multiply, and fuzzing found a font that rode
+    // all three near their ceiling at once (many subtables, each with many
+    // rules, each with many unresolvable lookup applications), reaching
+    // millions of warnings -- each one a heap-allocating `bytesbuild!` call
+    // plus a stderr write, tens of seconds of pure logging overhead. This
+    // is the backstop that bounds the *product*, not just each factor.
+    // Reset to `CONSOLIDATE_WARNING_BUDGET` at the start of every
+    // `otfcc_consolidate_font` call (not just once at `Options` creation),
+    // since one `Options` can drive many font conversions over its life
+    // (the FFI/DLL entry points, in particular).
+    pub consolidate_warning_budget: std::cell::Cell<u32>,
 }
 pub unsafe fn otfcc_new_options() -> *mut Options {
     let options: *mut Options = unsafe {

@@ -1,10 +1,87 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::font::caryll_sfnt::Packet;
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 use crate::support::fmt::{Byte, Dec5, Hex2};
+
+// A `ScriptList` entry's own `Script` table offset, and a `Script` table's
+// own `LangSysRecord` offsets, are ordinary offsets into the shared table
+// buffer -- nothing requires them to be distinct or non-overlapping. Nor
+// does anything cap `scriptCount`/`langSysCount` against each other:
+// `require_room` bounds each individually against the table's real length
+// at the position it's read from, but many different (script, langSys)
+// pairs can legally alias the *same* bytes elsewhere in the table. A
+// small `ScriptList` (a few real bytes) can therefore drive an
+// arbitrarily large number of `parse_language` calls, each independently
+// bounded but not bounded *in aggregate* -- `cargo fuzz run otf_parse`
+// found a mutated GSUB table (real tag/count fields, `parse_language`'s
+// own `feature_count` loop dominating a `sample` profile of the hang)
+// that took 30+ minutes in CI. `MAX_TOTAL_LANGUAGES` caps the total
+// number of (script, langSys) pairs `parse_otl_common` will actually
+// process, independent of how many any individual `require_room` check
+// would otherwise allow -- generous past what any real script/language
+// coverage table needs (a script with dozens of language systems is
+// already unusual) while stopping the aliasing amplification at a small
+// fraction of the CI timeout.
+const MAX_TOTAL_LANGUAGES: u32 = 10_000;
+// Same amplification shape one level down: `otfcc_read_otl_lookup` reads a
+// `subtable_count` (raw `u16`) whose only guard is that its own
+// offset array fits in the table -- true for any large enough table
+// regardless of how many subtable offsets it declares, and nothing stops
+// those offsets from aliasing each other or from each subtable itself
+// being expensive to build (fuzzing found a lookup with 65535 declared
+// chaining subtables, several thousand of them independently valid and
+// each producing pages of `[Consolidate]` warnings downstream -- see
+// `chaining/read.rs`'s own `MAX_TOTAL_RULES_PER_TABLE`/
+// `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` for the amplification
+// layers underneath this one). Real lookups have at most a few dozen
+// subtables even in large fonts, so this cap is far above legitimate
+// usage.
+const MAX_TOTAL_SUBTABLES_PER_LOOKUP: u16 = 1_000;
+// One level up from `MAX_TOTAL_SUBTABLES_PER_LOOKUP`: `parse_otl_common`'s
+// own `LookupList` loop reads `lookup_count` (raw `u16`, up to 65535) with
+// only `require_room` guarding that its own offset array fits -- true for
+// any large enough table. Every per-lookup cap below this one only bounds
+// what *one* lookup costs; nothing bounded how many lookups a table could
+// declare. Fuzzing found a table with ~10,300 lookups whose combined JSON
+// output alone was ~217MB (and whose combined in-memory footprint, well
+// past what `MAX_TOTAL_RULES_PER_TABLE`'s own budget change was, turned
+// out not to move the needle on -- lookup *count* itself was the
+// remaining uncapped multiplier). Real fonts -- even `tests/payload/
+// NotoNastaliqUrdu-Regular.ttf`, deliberately complex, in this repo's own
+// golden corpus -- have at most a few hundred lookups per table (175, in
+// that font's own GSUB). 300 stays generously above any legitimate use
+// (~1.7x that font's own count) while keeping worst-case output size and
+// memory bounded -- tightened from an initial, still-too-loose 500 after
+// CI's ASan-instrumented fuzzing kept finding OOMs marginally over its
+// 2048MB limit even with every cap in this module active at once; see
+// `MAX_TOTAL_FEATURE_REFS_PER_TABLE`'s own comment for the sibling cap
+// tightened at the same time.
+pub(crate) const MAX_TOTAL_LOOKUPS_PER_TABLE: u16 = 300;
+// A third, independent amplification axis found in the same investigation:
+// `parse_language`'s own `feature_count` (raw `u16`, up to 65535 per
+// language) is bounds-checked only against that one `LangSys` table's own
+// bytes, and nothing capped it against `MAX_TOTAL_LANGUAGES`'s own budget
+// -- up to 10,000 languages, each independently pushing up to 65,535
+// feature references, is billions of pushes in theory. In practice this
+// was the dominant contributor behind one fuzz-found file whose GSUB JSON
+// alone stayed ~213MB regardless of every other cap in this module,
+// traced to a single `LangSys`'s `features` array serializing an enormous
+// number of (mostly duplicate, aliased) feature-name references. Global
+// across the whole table (like `MAX_TOTAL_RULES_PER_TABLE`), not
+// per-language, for the same "per-factor caps still let the product
+// explode" reason relative to `MAX_TOTAL_LANGUAGES`. Tightened from an
+// initial 100,000 to 50,000 -- real usage is tiny (tens, not thousands,
+// even in `NotoNastaliqUrdu-Regular.ttf`), so this still leaves generous
+// headroom; the tightening came from CI's ASan-instrumented fuzzing still
+// finding OOMs marginally over its 2048MB limit with every cap in this
+// module active, not from this cap specifically being identified as the
+// culprit -- several caps across `otl/read.rs` and `chaining/read.rs`
+// were tightened together in that round.
+pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 50_000;
 
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
@@ -122,6 +199,7 @@ unsafe fn parse_language(
     base: u32,
     lang: *mut LanguageSystem,
     features: *mut FeatureList,
+    feature_ref_budget: &mut u32,
 ) {
     let parsed = FontReader::new(data).at(base as usize).and_then(|mut r| {
         r.skip(2)?; // lookupOrder, unused
@@ -141,7 +219,14 @@ unsafe fn parse_language(
             } else {
                 (*lang).required_feature = ::core::ptr::null::<Feature>();
             }
+            // See `MAX_TOTAL_FEATURE_REFS_PER_TABLE`'s own doc comment:
+            // this budget is shared across every `parse_language` call for
+            // the whole table, not reset per language.
             for feature_index in feature_indices {
+                if *feature_ref_budget == 0 {
+                    break;
+                }
+                *feature_ref_budget -= 1;
                 if (feature_index as usize) < (*features).len() {
                     (*lang)
                         .features
@@ -191,7 +276,7 @@ unsafe fn parse_otl_common(
     let mut lr = FontReader::new(data).at(lookup_list_offset as usize)?;
     let lookup_count = lr.u16()?;
     lr.require_room(lookup_count as usize, 2)?;
-    for _ in 0..lookup_count {
+    for _ in 0..lookup_count.min(MAX_TOTAL_LOOKUPS_PER_TABLE) {
         let mut lookup: Box<Lookup> = new_lookup();
         let lookup_offset = lookup_list_offset.wrapping_add(lr.u16()? as u32);
         // Needs 6 bytes at `lookup_offset` (lookupType/lookupFlag/
@@ -282,13 +367,19 @@ unsafe fn parse_otl_common(
     let mut sr = FontReader::new(data).at(script_list_offset as usize)?;
     let script_count = sr.u16()?;
     sr.require_room(script_count as usize, 6)?;
-    for _ in 0..script_count {
+    let mut total_languages: u32 = 0;
+    let mut total_feature_refs: u32 = MAX_TOTAL_FEATURE_REFS_PER_TABLE;
+    'scripts: for _ in 0..script_count {
         let tag_0 = sr.u32()?;
         let script_offset_0 = script_list_offset.wrapping_add(sr.u16()? as u32);
         let mut so = FontReader::new(data).at(script_offset_0 as usize)?;
         let default_lang_system_0 = so.u16()?;
         let lang_sys_count = so.u16()?;
         if default_lang_system_0 != 0 {
+            if total_languages >= MAX_TOTAL_LANGUAGES {
+                break 'scripts;
+            }
+            total_languages += 1;
             let mut lang: Box<LanguageSystem> = new_language();
             (*lang).name = crate::bytesbuild!(
                 Byte((tag_0 >> 24 & 0xff) as u8),
@@ -303,6 +394,7 @@ unsafe fn parse_otl_common(
                 script_offset_0.wrapping_add(default_lang_system_0 as u32),
                 &raw mut *lang,
                 &raw mut (*table).features,
+                &mut total_feature_refs,
             );
             (*table).languages.push(lang);
         }
@@ -313,6 +405,10 @@ unsafe fn parse_otl_common(
         for _ in 0..lang_sys_count {
             let lang_tag = so.u32()?;
             let lang_sys = so.u16()?;
+            if total_languages >= MAX_TOTAL_LANGUAGES {
+                break 'scripts;
+            }
+            total_languages += 1;
             let mut lang_0: Box<LanguageSystem> = new_language();
             (*lang_0).name = crate::bytesbuild!(
                 Byte((tag_0 >> 24 & 0xff) as u8),
@@ -330,9 +426,22 @@ unsafe fn parse_otl_common(
                 script_offset_0.wrapping_add(lang_sys as u32),
                 &raw mut *lang_0,
                 &raw mut (*table).features,
+                &mut total_feature_refs,
             );
             (*table).languages.push(lang_0);
         }
+    }
+    if total_languages >= MAX_TOTAL_LANGUAGES {
+        logger_log_sds(
+            &mut *options.logger.borrow_mut(),
+            LOG_VL_IMPORTANT,
+            LoggerType::Warning,
+            crate::bytesbuild!(
+                b"[otl] Total script/language count exceeded ",
+                MAX_TOTAL_LANGUAGES as ::core::ffi::c_int,
+                b"; the rest of this table's scripts are ignored.\n",
+            ),
+        );
     }
 
     for j_3 in 0..(*table).lookups.len() {
@@ -371,8 +480,9 @@ unsafe fn otfcc_read_otl_lookup(
             let flags = r.u16()?;
             let subtable_count = r.u16()?;
             r.require_room(subtable_count as usize, 2)?;
-            let mut subtable_offsets = Vec::with_capacity(subtable_count as usize);
-            for _ in 0..subtable_count {
+            let capped_count = subtable_count.min(MAX_TOTAL_SUBTABLES_PER_LOOKUP);
+            let mut subtable_offsets = Vec::with_capacity(capped_count as usize);
+            for _ in 0..capped_count {
                 subtable_offsets.push((*lookup)._offset.wrapping_add(r.u16()? as u32));
             }
             if subtable_count == 0 {
@@ -496,6 +606,11 @@ pub unsafe fn otfcc_read_otl(
     // parse failures are silent (unlike most other table readers).
     let mut otl_box = parse_otl_common(&table.data, lookup_type_base, options).ok()?;
     let otl_ptr: *mut OtlTable = otl_box.as_mut() as *mut OtlTable;
+    // See `chaining::read::reset_class_coverage_budgets`'s own doc comment:
+    // this must run once per table (GSUB or GPOS), before any of this
+    // table's lookups are read, so the budget bounds this whole table's
+    // total `class_coverage` cost rather than resetting fresh per subtable.
+    crate::table::otl::subtables::chaining::read::reset_class_coverage_budgets();
     for j in 0..(*otl_ptr).lookups.len() {
         otfcc_read_otl_lookup(
             &table.data,
@@ -607,6 +722,50 @@ mod parse_otl_common_tests {
             assert_eq!(otl.languages.len(), 1);
             assert!(otl.languages[0].features.is_empty());
             assert!(otl.languages[0].required_feature.is_null());
+        }
+    }
+
+    #[test]
+    fn total_language_count_across_the_whole_table_is_capped() {
+        // One script whose own `langSysCount` alone (`MAX_TOTAL_LANGUAGES`
+        // + 100) exceeds the budget -- every `langSysRecord`'s offset
+        // aliases the *same* tiny (0-feature) LangSys table, so this
+        // isn't testing how much distinct data exists in the table, only
+        // how many times `parse_language` actually runs against it. This
+        // is exactly the shape `cargo fuzz` found: a small `ScriptList`
+        // (well-formed on its own) driving an unbounded number of cheap-
+        // looking-individually-but-not-in-aggregate `parse_language`
+        // calls via offset aliasing. Confirms `languages.len()` stops
+        // growing at the budget instead of processing all of them.
+        const N: u32 = MAX_TOTAL_LANGUAGES + 100;
+        let mut data = Vec::new();
+        data.extend_from_slice(&[0u8; 4]); // version
+        data.extend_from_slice(&16u16.to_be_bytes()); // scriptListOffset
+        data.extend_from_slice(&12u16.to_be_bytes()); // featureListOffset
+        data.extend_from_slice(&10u16.to_be_bytes()); // lookupListOffset
+        data.extend_from_slice(&0u16.to_be_bytes()); // LookupList @10, count=0
+        data.extend_from_slice(&0u16.to_be_bytes()); // FeatureList @12, count=0
+        data.extend_from_slice(&[0u8; 2]); // padding up to 16
+        data.extend_from_slice(&1u16.to_be_bytes()); // ScriptList @16, scriptCount=1
+        data.extend_from_slice(b"latn"); // scriptTag
+        data.extend_from_slice(&8u16.to_be_bytes()); // script offset (rel to 16) -> 24
+        // Script table @24
+        data.extend_from_slice(&0u16.to_be_bytes()); // defaultLangSys = 0 (none)
+        data.extend_from_slice(&(N as u16).to_be_bytes()); // langSysCount
+        let shared_lang_sys_rel = 4u16 + 6 * (N as u16); // rel. to 24
+        for i in 0..N {
+            data.extend_from_slice(&i.to_be_bytes()); // lang_tag (arbitrary)
+            data.extend_from_slice(&shared_lang_sys_rel.to_be_bytes());
+        }
+        // The one shared LangSys table every record above points at.
+        data.extend_from_slice(&0u16.to_be_bytes()); // lookupOrder, unused
+        data.extend_from_slice(&0xFFFFu16.to_be_bytes()); // requiredFeatureIndex (none)
+        data.extend_from_slice(&0u16.to_be_bytes()); // featureCount = 0
+
+        let options = zeroed_options();
+        unsafe {
+            let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
+            assert_eq!(otl.languages.len(), MAX_TOTAL_LANGUAGES as usize);
         }
     }
 

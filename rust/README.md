@@ -932,6 +932,707 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`support/ttinstr.rs`: a truncated `NPUSHW`/`PUSHW[n]` operand left its
+  last byte marked `WordHi` with no paired `WordLo` -- `dump_ttinstr` then
+  read one byte past the instruction buffer to find that missing pair. A
+  real heap-buffer-overflow, and a second, independent bug in this exact
+  file beyond the `NPUSHB` one already fixed earlier.** Found by the very
+  next `cargo fuzz run otf_dump` CI job once the `json_writer.rs` panic
+  above got fixed; this one resisted several rounds of local Docker-based
+  fuzzing (each session executes only tens to a couple hundred inputs in
+  4+ minutes -- `otf_dump`'s own read+consolidate+dump pipeline is far
+  more expensive per input than `otf_parse`'s read-only path). Recovered
+  instead by re-fetching the CI job's log through the raw GitHub REST API
+  (`gh api repos/.../actions/jobs/<id>/logs`) rather than `gh run view
+  --log`, which had been silently truncating the crashing input's
+  `std::fmt::Debug` byte array on the two previous crashes -- the raw API
+  response carried the full array, letting the exact crashing bytes (from
+  CI itself, not a local remutation) be reconstructed into a file and
+  reproduced deterministically on the first try.
+  - **The bug**: `instr_typify`'s `NPUSHW`/`PUSHW[n]` branches (this file
+    also handles the fixed-count `PUSHW_1`..`PUSHW_8` opcodes via the same
+    code path as `NPUSHW`'s attacker-controlled count) mark each 2-byte
+    word operand's high byte `WordHi` and low byte `WordLo` in a loop that
+    already guards each byte individually against running past `len` --
+    but if the operand count claims one more word than actually fits, the
+    loop marks the *first* of that final pair `WordHi`, then hits the
+    length guard before marking a `WordLo`, and `break 'outer`s with that
+    orphaned `WordHi` marker left in place. `dump_ttinstr`, which later
+    walks `bts` to render the instruction stream to JSON, reads
+    `instrs[i+1]` unconditionally whenever it sees `WordHi` (that is the
+    whole point of the marker: "the low byte is right after this one") --
+    for this specific byte, `i+1` is exactly `len`, one past the
+    instruction buffer's own allocation. ASan: `heap-buffer-overflow`,
+    1-byte READ, `0 bytes after` a 3957-byte region (a second, structurally
+    identical crash the round before this one hit a 983-byte region the
+    same way).
+  - **The fix**: before marking a byte `WordHi`, check whether its paired
+    `WordLo` byte would also fit; if not, mark that trailing byte `Byte`
+    instead (a lone byte needs no partner to be read safely) and advance
+    the loop's own position to `len` before breaking -- required because
+    the function's own trailing `*bts.offset(i) = ImpliedReturn` write
+    (unconditional, right after the loop) writes at whatever `i` the loop
+    exited with, and every *other* break path already leaves `i == len`
+    for exactly that reason; breaking with `i` still at the just-written
+    `Byte` slot let that trailing write silently clobber it back to
+    `ImpliedReturn` (caught by this fix's own regression test failing
+    before this second half of the fix was added).
+  - **New test**,
+    `pushw_with_only_one_trailing_byte_marks_it_plain_instead_of_an_
+    orphaned_wordhi` (`support/ttinstr.rs`), mirrors the existing
+    `NPUSHB`-family regression test's shape: a 2-byte `PUSHW[0]` (`0xb8`)
+    instruction with only one trailing byte, asserting `instr_typify`
+    never leaves that byte marked `WordHi`. Verified against both halves
+    of the fix independently: reverting just the `ImpliedReturn`-clobber
+    guard reproduced the exact failure that caught it during development;
+    reverting the whole fix reproduces the original `WordHi` marker.
+    Passes under Miri (this is a plain safe-Rust assertion on `instr_
+    typify`'s own output, not a raw-pointer read, so no `-Zmiri-
+    disable-isolation` or fixture file is needed).
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-dump-ttinstr-
+    pushw-orphaned-wordhi-oob-read.bin` (169KB, reconstructed byte-for-byte
+    from the CI crash log itself).
+  - **Verification**: full pipeline green (332/332 tests, clippy/ABI/
+    golden/log/cycles/lookup-alias/roundtrips clean), all three fuzz
+    targets `cargo check`-clean, and the reconstructed crash input
+    confirmed clean under a local Docker ASan `otf_dump` build (crashed
+    before the fix, executed cleanly after, rebuilt from the exact same
+    source).
+
+- **`json_writer.rs`: `JsonSerializer::serialize` unconditionally
+  `.unwrap()`ed `font.head`/`font.maxp` while building `GlyfIOContext` for
+  the dump step -- a real, previously-undocumented panic, independent of
+  (though the same root shape as) an earlier fix one layer over in
+  `OtfReader::read`.** Found by the very next `cargo fuzz run otf_dump` CI
+  job once the entries below got `otf_parse` itself clean; reproduced
+  locally via a Docker-based Linux fuzz session (matching this
+  investigation's usual approach), which pinned the exact panic location
+  from the panic message alone -- no ASan/`addr2line` symbolication
+  needed this time, since a Rust panic already names its own file and line.
+  - **The bug**: `OtfReader::read`'s own TTF branch (`otf_reader.rs`) was
+    already fixed, in an earlier PR, to skip populating `font.glyf`
+    entirely when `font.head`/`font.maxp` are missing -- but that fix only
+    stops `glyf` from being *populated*, not `head`/`maxp` themselves from
+    legitimately staying `None`. `json_writer.rs`'s own `GlyfIOContext`
+    construction (needed to *dump* `glyf`, not read it) never got the same
+    treatment: it built the context unconditionally, `.unwrap()`ing both
+    fields regardless of whether they were present, panicking with `called
+    Option::unwrap() on a None value` on any font missing either table
+    (`src/json_writer.rs:65:49` for `maxp`, the line above it for `head`).
+  - **The fix**: skip building `ctx` (and the `otfcc_dump_glyf` call it
+    feeds) unless both `font.head` and `font.maxp` are `Some` -- the same
+    "skip this block if required tables missing" shape the read-side fix
+    already established, applied independently on the dump side since
+    `otfcc_dump_glyf` itself already no-ops on a `None` table and was
+    never the problem.
+  - **New test**, `dump_of_ttf_font_missing_maxp_does_not_panic`
+    (`otf_reader.rs`), mirrors the existing `ttf_font_missing_maxp_does_
+    not_panic` test's exact hand-crafted minimal-sfnt construction (a
+    9-field TTF directory with only a `head` table, no `maxp`), but
+    additionally calls `json_writer::serialize_to_json` after `read_otf`
+    succeeds (rather than stopping at the read-side assertions the
+    existing test already covers), since that is where this specific
+    panic lives. Verified to actually catch the regression by reverting
+    the fix and confirming the test fails with the exact panic message
+    and line the original crash reported.
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-dump-glyf-context-
+    missing-maxp-panic.bin` (960 bytes).
+  - **Verification**: full pipeline green (331/331 tests, clippy/ABI/
+    golden/log/cycles/lookup-alias/roundtrips clean), both fuzz targets
+    `cargo check`-clean, `cargo miri test --lib` clean (304 passed, 0
+    failed, 27 ignored).
+
+- **`table/otl/read.rs`: a follow-up to the entry directly below -- once
+  the hang/panic there was fixed, the very next CI `fuzz` run found a
+  genuinely different bug in the same general area: an out-of-memory
+  instead.** `parse_otl_common`'s own `lookup_count` and `parse_language`'s
+  own `feature_count` were both still uncapped, one level further out than
+  everything the entry below had already bounded.
+  - **The bug**: two more of the same "individually bounds-checked, never
+    bounded in aggregate" counts this whole investigation kept finding.
+    `lookup_count` (a raw `u16`, up to 65535) is checked only against its
+    own offset array fitting the table; the fuzz-found file had ~10,300
+    lookups, each contributing its own (otherwise now-bounded) content.
+    `feature_count` (also raw, up to 65535, read inside `parse_language`)
+    is checked only against that one `LangSys` table's own bytes, with no
+    cap against `MAX_TOTAL_LANGUAGES`'s own per-table budget -- one
+    pathological `LangSys` pushed millions of (mostly duplicate, aliased)
+    feature references into a single language's `features` list. This one
+    turned out to dominate: bisecting by tightening `chaining/read.rs`'s
+    `MAX_TOTAL_RULES_PER_TABLE` all the way down to 2,000 (10x below what
+    `NotoNastaliqUrdu-Regular.ttf` needs) barely moved this file's peak
+    native RSS at all (~1GB either way), which is what pointed away from
+    rule/apply/position counts and at `lookup_count`/`feature_count`
+    instead. Confirmed directly: reverting just the `feature_count` budget
+    check (keeping the constant, removing only the enforcement) let one
+    fuzz-found file's own language push **84,703,689** feature references.
+  - **The fix**: `MAX_TOTAL_LOOKUPS_PER_TABLE` (500, per table -- 3x
+    `NotoNastaliqUrdu-Regular.ttf`'s own 175) and
+    `MAX_TOTAL_FEATURE_REFS_PER_TABLE` (100,000, **global** across the
+    whole table like `MAX_TOTAL_RULES_PER_TABLE`, threaded into
+    `parse_language` as a `&mut u32` alongside the existing `total_
+    languages` counter it already shares scope with). With both landed,
+    `chaining/read.rs`'s own budgets could come back down closer to their
+    original, tighter intent -- `MAX_TOTAL_RULES_PER_TABLE` 50,000 -> 20,000,
+    `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` 1,000 -> 100 each,
+    `CLASS_ZERO_BUDGET` 200 million -> 30 million, `CLASS_COVERAGE_CALL_
+    BUDGET` 200,000 -> 100,000 -- since `lookup_count`/`feature_count`
+    turned out to be the dominant memory drivers, not those. Peak native
+    RSS (no ASan) on the fuzz-found file dropped from ~1.7GB to ~189MB;
+    processing time dropped from several seconds to well under one.
+  - **New test**, `otl_feature_ref_amplification_font_parses_promptly`
+    (`otf_reader.rs`). A pure wall-clock assertion (matching this
+    investigation's other regression tests) turned out *not* to catch
+    this one -- the file parses in well under a second natively even with
+    both new caps fully disabled, since the memory blowup only crosses
+    libFuzzer's 2048MB `-rss_limit_mb` under ASan's memory-overhead
+    multiplier, which this test doesn't run under. Instead it asserts the
+    actual structural invariant the fix establishes directly: after
+    `read_otf`, both `gsub.lookups.len()` and the sum of every language's
+    `features.len()` stay within `MAX_TOTAL_LOOKUPS_PER_TABLE`/`MAX_
+    TOTAL_FEATURE_REFS_PER_TABLE`. Verified to catch the regression by
+    temporarily removing the `feature_count` budget enforcement (see
+    above) -- the assertion then fails with the real, unbounded count.
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-parse-otl-
+    feature-ref-amplification-oom.bin` (497KB).
+  - **Verification**: full pipeline green (330/330 tests, clippy/ABI/
+    golden -- including `NotoNastaliqUrdu-Regular` again, since tightening
+    `MAX_TOTAL_RULES_PER_TABLE` back down needed re-checking against it --
+    /log/cycles/lookup-alias/roundtrips clean), all three fuzz targets
+    `cargo check`-clean, `cargo miri test --lib` clean.
+
+- **`table/otl/subtables/chaining/read.rs`: a chain of four independently-
+  bounded-but-multiplicatively-unbounded counts in contextual/chaining
+  subtable parsing -- an OOM, then (once memory was capped) a hang, then
+  (once time was capped) a panic.** Found by `cargo fuzz run otf_parse`;
+  root-caused over several rounds of Docker-based Linux repro plus local
+  arm64 timing/`sample`-profiling, because each fix in turn only narrowed
+  the crash to the next layer underneath it.
+  - **The bugs, in the order they were found**:
+    1. `read_contextual_format2`/`read_chaining_format2`'s
+       `chainSubClassSet` loop summed each entry's own (individually
+       bounds-checked) rule count into `total_rules` with no cap on the
+       *total* -- a subtable with `chainSubClassSetCount = 44`, each
+       entry declaring a large-but-legitimately-shaped `srs_count`,
+       summed past 500,000 rules, each paying for its own heap
+       allocation plus a `class_coverage`/`single_coverage` call. ASan:
+       ~1.8GB OOM.
+    2. Capping that alone still hung: `class_coverage` itself is called
+       once per position in every rule, and its own budget (a prior
+       PR's `class_zero_budget`/`call_budget` fields on `ClassDefs`)
+       reset fresh *per subtable* -- `otl/read.rs`'s `subtable_count`
+       (one lookup's own subtable list) was *also* uncapped, so many
+       subtables each getting their own full allowance multiplied right
+       back into a 20-30s hang, confirmed via `sample`-profiling showing
+       the process buried in `class_coverage`'s own `Coverage`
+       allocation/free churn.
+    3. Capping subtable count too still hung, now at a different lookup:
+       `otf_reader/unconsolidate.rs`'s `unconsolidate_chaining` expands
+       *every rule of every subtable* into its own standalone JSON-
+       shaped subtable in one lookup-wide pass -- a lookup with ~700
+       subtables (each individually reasonable) still expanded into
+       80,000+ standalone subtables, each then walked again by
+       `consolidate_chaining` (a real `otfccdump` run additionally hit
+       `consolidate.rs`'s own `[Consolidate] Quoting an invalid lookup`
+       warning path here, another per-entry-unbounded amplifier fixed
+       the same way with a budget on `Options`).
+    4. Capping *that* still hung: `general_read_contextual_rule`/
+       `general_read_chaining_rule`'s own `n_input`/`n_back`/
+       `n_lookaround` counts (raw `u16`s, individually bounds-checked
+       only against the table fitting the array) were still uncapped, so
+       a handful of rules with huge position counts alone drove millions
+       of `class_coverage` calls even after every count *above* this one
+       was bounded.
+    5. A fifth, unrelated bug fell out of the same investigation:
+       `general_read_contextual_rule`/`_chaining_rule` can return `None`
+       for one malformed rule inside an otherwise valid ruleset; the
+       `read_*` call sites pushed that `None` straight into
+       `ChainingRuleSet.rules` regardless, and `unconsolidate_chaining`
+       `.expect()`ed every slot to be `Some` -- this file panicked with
+       `chaining rule slot should never be None here` before the fixes
+       above even got far enough to hang.
+  - **The fix**: a chain of budgets, all following the same "silently
+    truncate, keep what's already built" shape this migration already
+    uses for `MAX_TOTAL_LANGUAGES` --
+    `otl/read.rs::MAX_TOTAL_SUBTABLES_PER_LOOKUP` (1,000, per lookup),
+    `chaining/read.rs::MAX_TOTAL_RULES_PER_TABLE` (20,000 as of the
+    follow-up entry below; originally 50,000, **global** across a whole
+    `otfcc_read_otl` call -- an earlier per-subtable-only version of this
+    cap still let many subtables each spend their own full allowance),
+    `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` (100 each as of the
+    follow-up entry; originally 1,000 each, per rule),
+    `otf_reader/unconsolidate.rs::MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_
+    PER_LOOKUP` (20,000, per lookup), and `consolidate/otl/chaining.rs::
+    CONSOLIDATE_WARNING_BUDGET` (10,000, via a new `Options::
+    consolidate_warning_budget` field reset once per `otfcc_consolidate_
+    font` call). `class_coverage`'s own two budgets (`CLASS_ZERO_BUDGET`/
+    `CLASS_COVERAGE_CALL_BUDGET`) were promoted from `ClassDefs` fields
+    (per subtable) to global statics (per table, reset in
+    `reset_class_coverage_budgets`) for the same "per-factor caps still
+    let the product explode" reason -- which in turn meant
+    `CLASS_ZERO_BUDGET`'s original value (10 million, sized for a single
+    call) needed recalibrating (first to 200 million, later down to 30
+    million -- see the follow-up entry below) after `tests/payload/
+    NotoNastaliqUrdu-Regular.ttf` (a real, legitimately complex Nastaliq-
+    script font already in this repo's golden corpus) turned out to
+    genuinely use ~10.7 million of these units in its own GSUB table
+    alone -- caught by `compare-with-golden.sh` failing on a real font
+    after the naive global conversion, not by fuzzing. The `None`-rule
+    bug is fixed by skipping the push instead of storing the placeholder,
+    matching this crate's usual "malformed sub-part is dropped, not
+    fatal" shape.
+  - **New test**, `otl_contextual_amplification_font_parses_promptly`
+    (`otf_reader.rs`), mirrors the existing `cff_font_with_huge_glyph_
+    count_parses_promptly` wall-clock-budget shape: asserts `read_otf`
+    on the crash input completes in well under 10s. Verified to actually
+    catch the regression by temporarily inflating `MAX_TOTAL_RULES_PER_
+    TABLE` to 500,000,000 and confirming the test then hangs past 40s.
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-parse-otl-
+    contextual-amplification-hang.bin` (497KB).
+  - **Verification**: full pipeline green (329/329 tests, clippy/ABI/
+    golden -- including `NotoNastaliqUrdu-Regular`, the font that caught
+    the too-tight `CLASS_ZERO_BUDGET`/log/cycles/lookup-alias/roundtrips
+    clean), all three fuzz targets `cargo check`-clean, and the crash
+    input dumps successfully (218MB of JSON) in ~7.5s instead of hanging
+    indefinitely, with no panic.
+
+- **`support/ttinstr.rs`: `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]`'s
+  declared operand count could run past the instruction stream's own
+  declared length -- a real heap-buffer-overflow *write*.** Found by the
+  new `otf_dump` fuzz target itself (the same target added specifically
+  because `otf_parse` never exercises consolidate/dump), via another
+  round in the same Docker-based Linux session, symbolicated with
+  `addr2line`.
+  - **The bug**: `instr_typify` (the TrueType hinting-bytecode "what is
+    each byte" classifier, called by `dump_ttinstr` for every `fpgm`/
+    `prep`/glyph-instruction dump) walks `i` forward by however many
+    operand bytes a `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]` opcode
+    declares -- an attacker-controlled count for the first two. Nothing
+    stopped that skip from running `i` past `len` (`instr_cnt`, this
+    instruction stream's own declared length), and `bts` (the parallel
+    byte-classification array) is sized to exactly `len + 1` slots. A
+    `NPUSHB` (or the other three) whose declared count claims more
+    operand bytes than actually exist writes past `bts`'s allocation.
+    ASan: `WRITE of size 1 ... 0 bytes after` a 3958-byte region.
+  - **The fix**: a bounds check (`if i >= len { break 'outer; }`)
+    immediately after every point `i` advances within the four operand-
+    skipping loops, breaking out of the whole classification (leaving the
+    rest of a truncated/malformed instruction stream untypified) the
+    moment it would go out of range. Breaking exactly when `i` reaches
+    `len` lands on the same position the loop's own normal-exit condition
+    would anyway, so the trailing `ImpliedReturn` write after the loop
+    needed no separate guard.
+  - **New test**,
+    `npushb_count_running_past_the_declared_length_stops_cleanly_
+    instead_of_overflowing_bts`, builds a minimal 2-byte instruction
+    stream (`NPUSHB`, declared count 2, but no operand bytes actually
+    present) and confirmed to reproduce the exact same out-of-bounds
+    write *under Miri* with the fix reverted -- the same "no ASan needed"
+    class of regression test as the CFF `hintmask` fix's own.
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-dump-ttinstr-
+    npushb-oob-write.bin` (125KB).
+  - **Verification**: full pipeline green (328/328 tests, clippy/ABI/
+    golden/log/cycles/lookup-alias/roundtrips clean, all three fuzz
+    targets `cargo check`-clean, Miri clean), plus the crash input now
+    dumps cleanly under a local ASan `otf_dump` build.
+
+- **`libcff/cff_parser.rs`: `hintmask`/`cntrmask`'s mask bytes read past
+  the CharString buffer -- a real heap-buffer-overflow.** Found via a
+  second round in the same Docker-based Linux fuzz session as the
+  `glyf` fix below, symbolicated with `addr2line` against the
+  container's own built binary (which has debuginfo, unlike CI's
+  ephemeral runner).
+  - **The bug**: `hintmask`/`cntrmask`'s mask bytes are raw payload
+    embedded directly in the charstring right after the opcode --
+    unlike every other operand, they never go through
+    `cff_decode_cs2_token`'s own bounds checking. `mask_length` is
+    driven by `(*stack).stem`, the accumulated hint count from every
+    `hstem`/`vstem` operator already seen earlier in the *same*
+    charstring, so a font that pushes enough stem hints can make
+    `mask_length` exceed what's actually left of the buffer -- and
+    `cff_parse_outline` read those bytes via raw pointer arithmetic
+    (`*start.offset(advance + byte)`) with no check against the
+    CharString's own length at all. ASan: `heap-buffer-overflow ...
+    READ of size 1 ... 0 bytes after` the buffer's end.
+  - **The fix**: check `advance + mask_length <= remaining` (the same
+    `remaining` bound `cff_decode_cs2_token` itself is already checked
+    against, a few lines up in the same loop iteration) before touching
+    any mask byte; stop cleanly (the same `break`-the-outer-loop shape
+    the sibling truncated-token case right above it already uses)
+    instead of reading past it.
+  - **New test**,
+    `hintmask_past_the_charstring_end_stops_cleanly_instead_of_reading_
+    oob`, builds a minimal 4-byte charstring (`push 0; push 0; hstem;
+    hintmask`, with the mask byte itself missing) and confirmed to
+    reproduce the exact same out-of-bounds read *under Miri* with the
+    fix reverted -- Miri catches this one on its own, no ASan needed,
+    since it's a genuine unsafe-pointer OOB read rather than a
+    sanitizer-only heuristic.
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-parse-cff-
+    hintmask-oob-read.bin` (29KB).
+  - **Verification**: full pipeline green (327/327 tests, clippy/ABI/
+    golden/log/cycles/lookup-alias/roundtrips clean, all three fuzz
+    targets `cargo check`-clean, Miri clean), plus both this crash input
+    and the earlier `glyf` one now parse cleanly under a local ASan
+    build.
+
+- **`table/glyf/read.rs`: a zero-length contour immediately after another
+  one panicked (`index out of bounds: the len is 0 but the index is 0`).**
+  Found by an extended local `cargo fuzz` session against `otf_parse`
+  (run inside a Linux/x86_64 Docker container to match CI's environment
+  and get a symbolicated backtrace, since the CI runner's own crash
+  artifact/binary don't persist past the job).
+  - **The bug**: `endPtsOfContours` has no rule against a contour whose
+    endpoint equals the running point total minus one -- a zero-length
+    contour, geometrically meaningless but arithmetically legal (`n == 0`
+    is explicitly allowed by the existing non-monotonic-rejection check).
+    `next_point`, the shared cursor walked while reading flags/coordinates
+    across every contour in the glyph, used a single `if` to skip past an
+    exhausted contour -- landing on a *following* zero-length contour
+    immediately after skipped nothing further, and indexed it at 0 anyway.
+  - **The fix**: `if` -> `while`, so `next_point` skips every exhausted
+    contour in a row (however many, zero-length or otherwise) before
+    indexing. Also widened `points_in_glyph`'s accumulator from `ShapeId`
+    (`u16`) to `u32` in the same function: the running total is `lastPoint
+    + 1`, and a wire-legal `lastPoint` of `0xFFFF` makes that `65536` --
+    one past `u16::MAX` -- which a `u16` total would silently wrap back to
+    `0`, under-reading every flag/coordinate in the glyph instead of
+    crashing. Not the cause of this specific crash, but the same function,
+    same running total, and the same class of "arithmetic edge the wire
+    format technically allows" this fix was already auditing.
+  - **New test**: `simple_glyph_with_a_zero_length_contour_between_two_
+    real_ones_does_not_panic` builds a minimal 3-contour glyph
+    (`endPtsOfContours = [0, 0, 1]`, giving contour lengths `[1, 0, 1]`)
+    and confirmed to reproduce the exact same panic with the fix reverted.
+    Reproducer kept as `tests/fuzz-corpus/known-issues/otf-parse-glyf-
+    consecutive-zero-length-contours-panic.bin` (151KB).
+  - **Verification**: full pipeline green (326/326 tests, clippy/ABI/
+    golden/log/cycles/lookup-alias/roundtrips clean, all three fuzz
+    targets `cargo check`-clean, Miri clean), plus the crash input itself
+    now parses cleanly end-to-end.
+
+- **The new `otf_dump` fuzz target (previous entry) leaked its entire JSON
+  tree on every single input, including every well-formed seed font.**
+  Found immediately on its own first CI run: LeakSanitizer reported a
+  "Direct leak" of the root `BuiltValue` plus everything reachable from it
+  (a few KB on a small font, 10+ MB on `NotoNastaliqUrdu-Regular.ttf`).
+  This was a bug in the fuzz harness itself (`fuzz/fuzz_targets/
+  otf_dump.rs`), not the library: `serialize_to_json` returns `*mut
+  core::ffi::c_void` (the type-erased `FontSerializer` trait boundary), and
+  the harness called `Box::from_raw` directly on that untyped pointer --
+  reconstructing a `Box<c_void>`, whose drop glue does nothing, instead of
+  the `Box<BuiltValue>` whose `Drop` actually walks the tree.
+  `otfccdump.rs` itself casts this same return value back to `*mut
+  BuiltValue` before freeing it; the harness didn't. Fixed by adding that
+  same cast. Confirmed via `ASAN_OPTIONS=detect_leaks=1` against all of
+  `tests/payload/`'s fonts locally (LeakSanitizer isn't available on macOS
+  outside an explicit opt-in, which is why this didn't surface until CI's
+  Linux runner ran it) -- all clean after the fix.
+
+- **`libcff/cff_codecs.rs`'s `cff_dec_e` (the CFF charstring/DICT "undefined
+  operator byte" decoder) called raw libc `printf` on every single
+  invocation.** Found via a CI fuzz run of `otf_parse` that reported a
+  588-second "slow unit" for one input -- the log was full of repeated
+  `Undefined Byte in CFF: N.` lines (this decoder's own message) right up
+  until the log got cut off. This is a hot per-*token* decode path (called
+  once per byte while walking a charstring/DICT), so a charstring built
+  almost entirely of undefined-opcode bytes turns into one unbuffered
+  `printf` syscall per byte -- exactly the "small input, huge amplified
+  work" shape every other fix in this section closes, just via I/O instead
+  of CPU this time. It was also a real hygiene bug independent of
+  performance: a raw `printf`, not `logger_log_sds`, bypasses the crate's
+  own `Logger` entirely, so it printed unconditionally even with
+  `--quiet`/an empty logger target (the fuzz harness's own setup).
+  - **The fix**: removed the `printf` outright (the `libc::printf` import
+    dropped too, now unused) -- no other decoder in the 256-entry `DE_T2`
+    dispatch table logs anything at all, and the recovery behavior (treat
+    the undefined byte as its own integer value, consume 1 byte) needed no
+    changes.
+  - **New tests**: `undefined_byte_still_decodes_as_its_own_value` pins the
+    unchanged recovery behavior; `undefined_byte_tokens_decode_promptly_
+    even_in_bulk` decodes 500,000 undefined-byte tokens and asserts well
+    under a second, which would have been the regression signal on a
+    machine whose I/O stack is slow enough to expose it -- this repo's own
+    macOS dev machine's terminal/pipe I/O turned out to be fast enough that
+    reverting the fix locally still passed in ~0.05s, so this test alone
+    would not have caught the regression on every machine; the CI-observed
+    588s is the real evidence the bug existed. Full pipeline green
+    (325/325 tests, clippy/ABI/golden/log/cycles/lookup-alias/roundtrips
+    clean, both fuzz targets `cargo check`-clean, Miri clean).
+
+- **`otf_reader.rs`: `OtfReader::read`'s TTF branch panicked on a font
+  missing (or failing to parse) `maxp`.** Found by the new `otf_dump` CI
+  fuzz job (added in the previous entry) on its very first run --
+  `GlyfIOContext` construction `.unwrap()`ed both `head.index_to_loc_format`
+  and `maxp.num_glyphs` unconditionally, unlike the CFF branch two lines
+  below it, which already tolerates a missing `head` via `.map_or(null(),
+  ...)`. Fixed by skipping the whole `glyf`-read block (leaving `font.glyf`
+  at its default `None`) unless both `head` and `maxp` parsed successfully
+  -- the same "skip this table, keep going" shape the `vhea`/`vmtx` guard
+  immediately above it already uses. New test,
+  `ttf_font_missing_maxp_does_not_panic`, builds a minimal synthetic sfnt
+  (one valid `head` table, no `maxp` table at all) and confirmed to
+  reproduce the exact same panic with the fix reverted. Full pipeline green
+  (323/323 tests, clippy/ABI/golden/log/cycles/lookup-alias/roundtrips
+  clean, both fuzz targets `cargo check`-clean, Miri clean).
+
+- **A real heap-use-after-free in OTL consolidation, found by hand after
+  `otf_parse` fuzzing turned up a slow/flaky crash it couldn't itself
+  explain** (that target never exercises consolidate/dump -- see the new
+  `otf_dump` fuzz target below, added specifically to close this gap).
+  - **The bug**: `LanguageSystem.required_feature` (`table/otl.rs`) is a
+    lone borrowed `*const Feature` into `OtlTable.features`, set once at
+    parse time (`table/otl/read.rs`) and never revisited. `consolidate_otl_
+    table` (`consolidate.rs`) already prunes stale refs out of `lang.
+    features` (the *list*) once the `Feature` they point at ends up with no
+    valid lookups and gets dropped -- but did nothing for `required_
+    feature`, the *lone* pointer. A `Feature` referenced only via
+    `required_feature` (not also in the list) could be dropped from
+    `table.features` while `required_feature` kept pointing at the freed
+    memory, later read by `otfcc_dump_otl`/the build path.
+  - **Root-caused with an ASan build**, not guesswork: a debug `otfccdump`
+    built with `RUSTFLAGS="-Z sanitizer=address" cargo +nightly build
+    -Zbuild-std` reproduced a clean `AddressSanitizer: heap-use-after-free`
+    on the fuzzer-found input -- freed by `otl_feature_list_filter_env`
+    (dropping the now-empty `Feature`'s `Box`), read 8 bytes later inside
+    `otfcc_dump_otl` while formatting `(*(*lang).required_feature).name` as
+    JSON. (Plain `lldb`/lldb attach did not work in this sandboxed
+    environment; the release build's own crash was also non-deterministic
+    across otherwise-identical runs -- classic heap-layout-sensitive UAF
+    behavior -- so the ASan rebuild, not trial-and-error instrumentation,
+    is what actually pinned this down.)
+  - **The fix**: right where `lang.features` already gets filtered, also
+    null out `required_feature` if the `Feature` it points at has no
+    lookups left -- the exact same emptiness check (`feature_ref_is_not_
+    empty`'s `.lookups.is_empty()`), applied to the one reference that
+    check's own list-filtering left uncovered.
+  - **New unit test** (`consolidate.rs`, `consolidate_otl_table_tests`)
+    builds a minimal `OtlTable` (one lookup with zero subtables, one
+    feature referencing only that lookup, one language whose `required_
+    feature` points at that feature) and asserts `required_feature` comes
+    back null after `consolidate_otl_table` runs; confirmed to fail
+    (assertion, not a crash, thanks to the debug build) with the fix
+    reverted. Fixture pointers are taken via `&raw const *(...)[idx]` only
+    after each value is already resting in its final `Vec` slot -- the
+    same idiom every real call site uses -- because moving a `Box` after
+    taking a pointer to it, or going through a safe `.as_ref()` reference
+    first, are both `Box`/Stacked-Borrows hazards Miri (correctly) rejects
+    on their own, independent of the fix under test.
+  - **New fuzz target, `otf_dump`** (`fuzz/fuzz_targets/otf_dump.rs`):
+    drives `otfcc_read_sfnt` -> `read_otf` -> `otfcc_consolidate_font` ->
+    `serialize_to_json`, the same sequence `otfccdump.rs` runs, so
+    consolidate/dump bugs (this one, and whatever's next) have a fuzz
+    target that can actually find them, not just a manual investigation.
+    Wired into CI (`.github/workflows/rust.yml`) alongside `otf_parse`/
+    `json_build`, with its own corpus seed and a regression-test replay of
+    the fixed input (`tests/fuzz-corpus/known-issues/otf-dump-required-
+    feature-use-after-free.bin`, 497KB).
+  - **Verification**: full pipeline green -- build/clippy clean at `-D
+    warnings`, 322/322 tests, ABI unchanged, golden bytes/log output
+    unchanged, cycles/lookup-alias/10-payload round-trips all clean, `cargo
+    miri test` clean, the fixed input now runs clean end-to-end under both
+    the release build and a debug ASan build (214MB of JSON produced, no
+    sanitizer errors), and both fuzz targets `cargo check`-clean.
+
+- **`table/cmap.rs`: two independent bugs, both found by continuing to fuzz
+  after the fixes below.**
+  - **Directory-entry aliasing amplification**: nothing in the cmap spec
+    requires an encoding record's subtable offset to be distinct from
+    another's (real fonts legitimately point the Windows BMP and
+    full-repertoire records at the same subtable). `parse_cmap` re-parsed
+    -- and re-walked every codepoint of -- the same subtable once per
+    directory entry pointing at it, an amplification bounded only by
+    `numTables` (itself bounded only by the cmap table's size / 8 bytes per
+    entry), not by anything proportional to the subtable's own size. Fixed
+    by deduping on subtable offset before dispatching to `read_format4`/
+    `read_format12`/`read_format14`, which is safe for well-formed fonts
+    because re-parsing the same bytes at the same offset is idempotent --
+    only the redundant work is removed, never the result.
+  - **Format 12's per-group range is unbounded**: `read_format12`'s
+    `startCharCode..endCharCode` walk had no ceiling tied to the group's
+    own 12-byte size -- a single group claiming `endCharCode = 0xffff0000`
+    forces ~4 billion loop iterations from 12 bytes of input, and
+    `endCharCode = 0xFFFFFFFF` is a genuine **infinite** loop (`c.
+    wrapping_add(1)` at `0xFFFFFFFF` wraps back to `0`). Fixed by clamping
+    the walked range to the real Unicode ceiling (`0x10FFFF`) -- a no-op
+    for any well-formed group, since real codepoints never exceed it.
+  - Both found via a 47-second fuzz timeout, bisected by zeroing sfnt
+    tables and `sample`-profiling the isolated repro (hot stack entirely in
+    `otfcc_encode_cmap_by_index`, called an unbounded number of times).
+  - **New tests**: `format12_group_range_past_the_unicode_ceiling_is_
+    clamped_not_walked_in_full` (asserts the walk both terminates promptly
+    and still maps every codepoint up to the ceiling correctly) and
+    `parse_cmap_duplicate_directory_entries_aliasing_the_same_subtable_
+    are_only_parsed_once` (200 duplicate directory entries aliasing one
+    subtable; times out at >2s if dedup regresses, confirmed by reverting
+    the fix locally). The dedup test is `#[cfg_attr(miri, ignore)]` --
+    400,000 real inserts is far too slow to run meaningfully under Miri's
+    interpreter, the same reasoning as the CFF wall-clock test below.
+  - **Verification**: same full pipeline as above, green throughout.
+
+- **`table/otl/read.rs`: unbounded script/language traversal**. Nothing
+  bounded the *total* number of (script, langSys) pairs `parse_otl_common`
+  processes across the whole Script list -- `script_count` and (per-script)
+  `lang_sys_count` were each bounded individually via `require_room`, but
+  many langSysRecords across many scripts can all alias the same tiny
+  LangSys structure, so `parse_language` could still be invoked an
+  unbounded number of times even though every individual read stays inside
+  the table. Same "offset aliasing" shape as the `cmap` directory bug
+  above, in an unrelated subsystem. Fixed with a total-count budget
+  (`MAX_TOTAL_LANGUAGES = 10_000`) independent of any per-position check --
+  a soft cutoff (log once, keep what's already parsed, stop adding more),
+  matching `MAX_SUBR_CALL_DEPTH`'s own "ignore the rest of this outline" as
+  the established convention for this failure mode, and matching this
+  file's own pre-existing "no corrupted-log on parse failure, OTL failures
+  are silent" comment. Reduces the fuzz-found repro's parse time from 30+
+  minutes (CI) to ~10 seconds. New test:
+  `total_language_count_across_the_whole_table_is_capped`, a 1-script table
+  whose every langSysRecord aliases one shared LangSys, asserting the
+  parsed count is capped exactly at `MAX_TOTAL_LANGUAGES`.
+
+- **`libcff/cff_index.rs`/`libcff/cff_string.rs`: CFF String INDEX offset
+  array validated only at its last entry, not pairwise.** `extract_index`
+  checked that the *final* offset was `>= 1` but never that offsets were
+  non-decreasing pairwise; `get_cff_sid` computed a slice length as `end -
+  start` for two adjacent offsets, wrapping to a huge `usize` when `end <
+  start`. `locate_subr` (a sibling consumer of the same array) already had
+  an equivalent guard from an earlier fix; `get_cff_sid` did not. Fixed at
+  the source -- `extract_index` now rejects the whole array if any offset
+  is `< 1` or any adjacent pair decreases -- *and* redundantly in
+  `get_cff_sid` itself (matching `locate_subr`'s own defense-in-depth
+  precedent), which was also rewritten off raw pointer arithmetic onto safe
+  slice indexing. New tests: `non_decreasing_offsets_are_required_not_
+  just_the_last_one` (`cff_index.rs`) and six in a new `get_cff_sid_tests`
+  module (`cff_string.rs`) covering the standard-SID fast path, a normal
+  custom SID, past-count rejection, the non-decreasing-pair rejection, a
+  zero offset, and a range past the INDEX's actual data length.
+
+- **`table/cff.rs`'s `build_outline` no longer allocates a fresh
+  0x10000-entry `Vec<CffValue>` charstring-interpreter operand stack for
+  every single glyph.** Found while verifying an unrelated PR
+  ([#260](https://github.com/MaruTama/otfcc-rs/pull/260), `table/fvar.rs`'s
+  `FontReader` migration): that PR's `otf_parse` fuzz job hung for 30+
+  seconds and exceeded the fuzzer's 2GB memory limit on a mutated CID-keyed
+  CFF table whose `CharStrings` count had been pushed to 65535 (the
+  corpus's max `u16`).
+  - **Confirmed unrelated to PR #260 before touching anything**: replayed
+    the exact same input against `master` from *before* that PR and got
+    the identical hang -- a pre-existing bug the fuzz job happened to
+    surface while checking a different change, not a regression from it.
+  - **Isolated to the CFF table specifically** by zeroing every other
+    table in the crash input and rerunning (only the CFF table's presence
+    changed the outcome), then to this one allocation site by
+    `sample`-profiling the hung process (allocator/`RawVecInner::
+    with_capacity_in` frames dominated the samples) and confirming that
+    zeroing just the `CharStrings` count field collapsed the runtime from
+    30+ seconds to under one.
+  - **The bug**: `build_outline` runs once per glyph
+    (`otfcc_read_cff_and_glyf_tables`'s per-glyph loop), and used to
+    construct its own fresh `CffStack` locally on every call --
+    `libcff.rs`'s own doc comment on `CffStack.stack` already noted the
+    `0x10000`-entry sizing is "generous", "never actually approached" by
+    a real charstring (the Type 2 spec caps operand stack depth at 48), so
+    for an ordinary font this per-glyph reallocation was wasted but cheap
+    work relative to everything else `build_outline` does. At 65535
+    glyphs it dominates: every glyph paid for allocating and zero-filling
+    a ~1MB `Vec` it barely touches, and that per-glyph churn is exactly
+    the pattern ASan's allocator instrumentation (always on for `cargo
+    fuzz` builds) amplifies most.
+  - **The fix**: the stack is now allocated once in
+    `otfcc_read_cff_and_glyf_tables`, before the per-glyph loop, and
+    passed into `build_outline` by pointer; only the cheap fields
+    (`index`/`stem`/`transient`, none of them heap-backed) are reset per
+    glyph. Safe to reuse as-is: every push/pop in the interpreter already
+    stays within `[0, index)`, so stale bytes from a previous glyph past
+    the new glyph's own `index` are never read.
+  - **Also adds a total subroutine-call budget** (`MAX_TOTAL_SUBR_CALLS`,
+    `libcff/cff_parser.rs`) to `cff_parse_outline`: `MAX_SUBR_CALL_DEPTH`
+    bounds nesting *depth* but says nothing about how many calls happen
+    *within* one level, so a wide-fan-out subroutine graph could still do
+    unbounded total work at a shallow, spec-legal depth. Not what caused
+    this specific hang -- a separate, real gap the same investigation
+    surfaced, verified with its own dedicated pair of unit tests
+    (`call_count_within_the_budget_all_execute`/`call_count_past_the_
+    budget_stops_recursing`) rather than shipped speculatively.
+  - **Reproducer** kept as a fuzz-corpus regression pin
+    (`tests/fuzz-corpus/known-issues/
+    otf-parse-cff-per-glyph-stack-realloc-hang.bin`, 492KB -- large for
+    that directory, because reaching 65535 glyphs with distinct,
+    well-formed-enough `CharStrings`/`FDSelect`/`FDArray` structure
+    doesn't compress smaller) plus a new unit test,
+    `otf_reader.rs`'s `cff_font_with_huge_glyph_count_parses_promptly`,
+    which pins it as a **wall-clock budget** (must parse in well under
+    10s) rather than a correctness assertion, since the bug was about
+    time/memory, not a wrong answer or a crash.
+  - **Verification**: full pipeline green -- build and clippy clean at
+    `-D warnings`, 303/303 tests (300 prior + 3 new: the wall-clock
+    regression plus the two subroutine-call-budget tests), ABI unchanged,
+    golden bytes unchanged (`KRName-Regular.otf`/`-O2.otf`, the payloads
+    that actually exercise `build_outline`, byte-identical) and log output
+    unchanged, cycles/lookup-alias/10-payload round-trips all clean, the
+    original crash input now parses in ~4s under `cargo fuzz`'s ASan
+    build (down from a 30+s timeout) and a fresh 60-second `cargo fuzz
+    run otf_parse` afterward found nothing, both fuzz targets `cargo
+    check`-clean, `cargo miri test` clean (280 passed, 0 failed, 23
+    ignored -- the wall-clock regression test is itself `#[cfg_attr(miri,
+    ignore)]`, both because Miri needs `-Zmiri-disable-isolation` for
+    filesystem access and because its interpretation overhead would make
+    a timing-based assertion meaningless).
+
+- **`table/fvar.rs` migrated to `FontReader`, closing a worse-than-`cpal.rs`
+  double-wraparound bug.** Found while triaging what was left of the
+  previous Stage 7-1 mop-up's "deliberately out of scope" list --
+  `otfcc_read_fvar` wasn't a plain table-lookup loop like the others on
+  that list, it was a full binary parser for the variable-font axis/
+  instance data still on the pre-`FontReader` idiom (`#[repr(C, packed)]`
+  structs cast directly over the raw bytes, `be16`/`be32` byte-swap
+  helpers, `.offset()` pointer walking).
+  - **The bug**: the overall-length guard computed `instance_size *
+    instance_count` in **32-bit signed** `c_int` arithmetic -- both
+    operands up to 65535 individually legal, but their true product (up
+    to ~4.29 billion) overflows `i32::MAX` and wraps negative in a release
+    build (overflow checks are off by default outside `cargo test`/debug).
+    That negative `c_int`, cast `as usize`, sign-extends into a huge value
+    near `usize::MAX`; the outer `.wrapping_add` then wraps a *second*
+    time around `usize`'s own width, potentially landing back on a small
+    total that passes the guard against a `table.length` nowhere near big
+    enough. Worse than every wraparound bug the previous mop-up PR found
+    (`table/cpal.rs`'s four, `table/svg.rs`'s one, `table/otl/subtables/
+    extend.rs`'s one) -- those each wrap once; this one wraps twice,
+    through two different integer widths. Fixed by routing every
+    multiplication/addition in the guard through `checked_mul`/
+    `checked_add` (`Option`'s `?`-propagation), so an overflow anywhere in
+    the chain rejects the table instead of wrapping either width.
+  - **`#[repr(C, packed)]` `FVARHeader`/`VariationAxisRecord`/
+    `InstanceRecord` and the `be16`/`be32` byte-swap helpers all deleted
+    outright** -- `FontReader`'s `u16()`/`i32()`/`u32()` already read big-
+    endian and bounds-check every access, so once the parser was rewritten
+    around it nothing else in the file referenced these three structs or
+    the two helpers (confirmed by grep before deleting).
+  - **Tests came first**: 8 new tests, including one that pins the exact
+    overflow shape (`axis_count` = 16382, making `instance_size_without_
+    psnid` = 65532 -- both legal individually, product with `instance_
+    count` = 65535 overflowing `i32::MAX` by construction) against the
+    same 44-byte well-formed fixture every other test in the file uses,
+    rather than constructing a multi-gigabyte buffer to reach the bug.
+  - **Verification**: full pipeline green -- build and clippy clean at
+    `-D warnings`, 308/308 tests (300 prior + 8 new), ABI unchanged,
+    golden bytes unchanged (`gvar-test.ttf`, the only committed payload
+    with a real `fvar` table, byte-identical) and log output unchanged,
+    cycles/lookup-alias/10-payload round-trips all clean, `cargo fuzz run
+    otf_parse -- -max_total_time=60` found nothing beyond the expected
+    "Undefined Byte in CFF" warning noise, both fuzz targets `cargo
+    check`-clean, `cargo miri test` clean (286 passed, 0 failed, 22
+    ignored, matching baseline + the 8 new tests). `survey-unsafe.sh`
+    deltas: `__fortable_*` 33->19, raw pointer types 5287->5276, `.offset(`
+    calls 613->609, `as ::core::ffi::c_int` casts 4650->4604.
+  - **Still open**: `table/cff.rs` (67 `.offset(` calls, 12 `__fortable_*`,
+    no `FontReader`) and `table/glyf/read.rs`'s remaining 12 `.offset(`/2
+    `__fortable_*` (mixed in with that file's already-`FontReader`-based
+    per-record readers) -- `table/cvt.rs` and `src/otf_reader.rs`'s single
+    remaining `__fortable_*` each are genuinely just table-lookup loops,
+    confirmed by inspection, and stay deliberately out of scope.
+
 - **Stage 7-1 mop-up: the last 8 tables/helpers still on the pre-`FontReader`
   c2rust idiom (`.offset()` raw-pointer arithmetic, `__fortable_*`/
   `current_block` foreach/goto emulation, `binio::read_*`) are migrated --

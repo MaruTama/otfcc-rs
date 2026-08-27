@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{printf, sprintf, strlen, strtod};
+use libc::{sprintf, strlen, strtod};
 
 use crate::libcff::CffDictOperator;
 use crate::libcff::cff_value::CffValue;
@@ -373,10 +373,21 @@ unsafe fn cff_dec_e(start: *const u8, remaining: usize, val: *mut CffValue) -> O
     if remaining < 1 {
         return None;
     }
-    printf(
-        b"Undefined Byte in CFF: %d.\n\0" as *const u8 as *const ::core::ffi::c_char,
-        *start as ::core::ffi::c_int,
-    );
+    // Used to `printf` "Undefined Byte in CFF: %d." here on every call --
+    // a raw libc `printf`, not `logger_log_sds`, so it wrote to real stdout
+    // unconditionally, bypassing `--quiet`/the fuzz harness's empty logger
+    // target entirely. This function decodes one *token* while walking a
+    // charstring/DICT byte-by-byte, so a charstring built almost entirely
+    // of undefined-opcode bytes calls it once per byte -- a CI fuzz run
+    // found a single input that turned this into a genuine hang (a
+    // "slow-unit" of 588 seconds for what should be a near-instant parse),
+    // the unbuffered-`printf`-per-byte cost multiplied across a
+    // charstring/glyph count already large enough on its own (see the
+    // `build_outline` per-glyph-stack fix elsewhere in this README for the
+    // same "small input, huge glyph/byte count" shape). No other decoder
+    // in `DE_T2` logs anything at all; removing this brings `cff_dec_e` in
+    // line with the rest and closes the amplification at the source
+    // instead of trying to rate-limit or dedupe it.
     *val = CffValue::Integer(*start as i32);
     Some(1)
 }
@@ -708,6 +719,55 @@ mod token_decoder_tests {
             assert_eq!(advance, 1);
             assert_eq!(val, CffValue::Integer(61));
         }
+    }
+
+    #[test]
+    fn undefined_byte_still_decodes_as_its_own_value() {
+        // Byte 22 is one of DE_T2's `cff_dec_e` ("undefined operator")
+        // entries -- the recovery behavior (consume 1 byte, treat it as
+        // its own integer value) must survive removing the raw `printf`
+        // that used to fire here on every call.
+        let data = [22u8];
+        let mut val = zeroed_val();
+        unsafe {
+            let advance = cff_decode_cff_token(data.as_ptr(), data.len(), &raw mut val).unwrap();
+            assert_eq!(advance, 1);
+            assert_eq!(val, CffValue::Integer(22));
+        }
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "timing-based; 500,000 iterations is far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn undefined_byte_tokens_decode_promptly_even_in_bulk() {
+        // `cff_dec_e` used to call libc's `printf` on every invocation --
+        // a raw stdout write bypassing the crate's own `Logger` (so it
+        // wasn't even suppressed by `--quiet`/an empty logger target). A
+        // charstring built almost entirely of undefined-opcode bytes calls
+        // this once per byte, and a CI fuzz run turned that into a
+        // 588-second "slow unit" for a single input. This proves the
+        // amplification is gone at the source: 500,000 undefined-byte
+        // tokens (a charstring far larger than any real Type 2 charstring
+        // needs to be) must decode in well under a second now that nothing
+        // here does I/O.
+        let data = [22u8; 500_000];
+        let mut val = zeroed_val();
+        let start = std::time::Instant::now();
+        unsafe {
+            for i in 0..data.len() {
+                let advance =
+                    cff_decode_cff_token(data[i..].as_ptr(), data.len() - i, &raw mut val)
+                        .unwrap();
+                assert_eq!(advance, 1);
+            }
+        }
+        assert!(
+            start.elapsed() < std::time::Duration::from_secs(1),
+            "500,000 undefined-byte tokens took {:?}, expected well under 1s",
+            start.elapsed()
+        );
     }
 
     #[test]

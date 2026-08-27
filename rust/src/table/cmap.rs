@@ -221,8 +221,21 @@ unsafe fn read_format12(data: &[u8], offset: usize, cmap: *mut CmapTable) {
         let start_code = r.u32().unwrap();
         let end_code = r.u32().unwrap();
         let start_gid = r.u32().unwrap();
+        // `startCharCode`/`endCharCode` are raw 32-bit fields with no
+        // structural guard tying them to a sane range: a single 12-byte
+        // group can claim `endCharCode = 0xFFFFFFFF`, which without a
+        // clamp is not just slow but a genuine infinite loop --
+        // `c.wrapping_add(1)` at `0xFFFFFFFF` wraps back to `0`, and
+        // `0 <= 0xFFFFFFFF` is true forever. Even short of that, a group
+        // like `0x0..0xffff0000` forces ~4 billion iterations from 12
+        // bytes of input. No real cmap needs to enumerate past the
+        // Unicode codepoint ceiling, so clamp the walked range to it --
+        // this changes nothing for any well-formed group (real codepoints
+        // are always <= 0x10FFFF) and turns the unbounded/infinite cases
+        // into a bounded, still-correct partial read of the group.
+        let clamped_end = end_code.min(0x10ffff);
         let mut c = start_code;
-        while c <= end_code {
+        while c <= clamped_end {
             otfcc_encode_cmap_by_index(
                 cmap,
                 c as ::core::ffi::c_int,
@@ -483,6 +496,26 @@ unsafe fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     });
     let cmap: *mut CmapTable = cmap_box.as_mut() as *mut CmapTable;
 
+    // Nothing in the cmap directory requires each entry's subtable offset
+    // to be distinct -- the spec explicitly allows encoding records to
+    // share a subtable (e.g. the Windows Unicode BMP and full-repertoire
+    // records legitimately pointing at the same data). `num_tables` valid
+    // entries can all alias one large format 4/12 subtable, and without
+    // dedup every alias re-parses (and re-walks every codepoint of) that
+    // same subtable from scratch -- an offset-aliasing amplification of
+    // the same shape as the OTL script/language one (see
+    // `MAX_TOTAL_LANGUAGES` in `table/otl/read.rs`), except here the
+    // multiplier is `num_tables` itself (bounded only by table size / 8
+    // bytes per entry) rather than a fixed cap. A fuzz session found a
+    // small font with just two aliasing pairs already pushing a single
+    // parse past 47 seconds under the fuzzer's instrumentation.
+    //
+    // Deduping by raw subtable offset is safe for well-formed fonts:
+    // re-parsing the same bytes at the same offset is idempotent (every
+    // insert into `cmap.unicodes`/`cmap.uvs` produces the same mapping
+    // each time), so skipping the repeat parses never changes the final
+    // table -- only the wasted work is removed.
+    let mut processed_offsets: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
     for &required_format in FORMAT_PRIORITIES.iter().take_while(|&&f| f != 0) {
         for j in 0..num_tables {
             let entry_rel = 4 + 8 * j;
@@ -490,19 +523,32 @@ unsafe fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
             let platform = entry.u16()?;
             let encoding = entry.u16()?;
             if is_valid_cmap_encoding(platform, encoding) {
-                let table_offset = FontReader::new(data).at(entry_rel + 4)?.u32()?;
-                read_cmap_mapping_table(data, table_offset as usize, cmap, required_format);
+                let table_offset = FontReader::new(data).at(entry_rel + 4)?.u32()? as usize;
+                let Some(format) = FontReader::new(data)
+                    .at(table_offset)
+                    .ok()
+                    .and_then(|mut r| r.u16().ok())
+                else {
+                    continue;
+                };
+                if format == required_format && processed_offsets.insert(table_offset) {
+                    read_cmap_mapping_table(data, table_offset, cmap, required_format);
+                }
             }
         }
     }
+    let mut processed_uvs_offsets: std::collections::BTreeSet<usize> =
+        std::collections::BTreeSet::new();
     for j in 0..num_tables {
         let entry_rel = 4 + 8 * j;
         let mut entry = FontReader::new(data).at(entry_rel)?;
         let platform = entry.u16()?;
         let encoding = entry.u16()?;
         if is_valid_cmap_encoding(platform, encoding) {
-            let table_offset = FontReader::new(data).at(entry_rel + 4)?.u32()?;
-            read_cmap_mapping_table_uvs(data, table_offset as usize, cmap);
+            let table_offset = FontReader::new(data).at(entry_rel + 4)?.u32()? as usize;
+            if processed_uvs_offsets.insert(table_offset) {
+                read_cmap_mapping_table_uvs(data, table_offset, cmap);
+            }
         }
     }
     Ok(cmap_box)
@@ -1345,6 +1391,38 @@ mod cmap_read_tests {
     }
 
     #[test]
+    fn format12_group_range_past_the_unicode_ceiling_is_clamped_not_walked_in_full() {
+        // A single 12-byte group can claim an endCharCode anywhere in
+        // the full u32 range: `0xFFFFFFFF` makes the walk a genuine
+        // infinite loop (`c.wrapping_add(1)` wraps `0xFFFFFFFF` back to
+        // `0`, so `c <= end_code` is true forever), and anything merely
+        // huge (a fuzz-found font used `0xffff0000`) still forces
+        // billions of iterations from those same 12 bytes. Real
+        // codepoints never exceed the Unicode ceiling, so clamping the
+        // walked range to it must both terminate promptly and still map
+        // every codepoint up to (and including) the ceiling correctly.
+        let mut data = Vec::new();
+        data.extend_from_slice(&12u16.to_be_bytes()); // format
+        data.extend_from_slice(&0u16.to_be_bytes()); // reserved
+        data.extend_from_slice(&28u32.to_be_bytes()); // length (informational)
+        data.extend_from_slice(&0u32.to_be_bytes()); // language
+        data.extend_from_slice(&1u32.to_be_bytes()); // nGroups
+        data.extend_from_slice(&0x10fffeu32.to_be_bytes()); // startCharCode: just below the ceiling
+        data.extend_from_slice(&0xffffffffu32.to_be_bytes()); // endCharCode: the u32 max
+        data.extend_from_slice(&10u32.to_be_bytes()); // startGlyphID
+        assert_eq!(data.len(), 28);
+
+        let mut cmap = empty_cmap();
+        let start = std::time::Instant::now();
+        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        assert!(start.elapsed() < std::time::Duration::from_secs(5));
+
+        assert_eq!(cmap.unicodes.get(&0x10fffe).unwrap().index, 10);
+        assert_eq!(cmap.unicodes.get(&0x10ffff).unwrap().index, 11);
+        assert!(!cmap.unicodes.contains_key(&0x110000));
+    }
+
+    #[test]
     fn uvs_default_num_ranges_overflow_is_a_noop_not_oob() {
         let mut data = Vec::new();
         data.extend_from_slice(&0x4000_0001u32.to_be_bytes()); // numUnicodeValueRanges
@@ -1485,4 +1563,81 @@ mod cmap_read_tests {
         let cmap = unsafe { parse_cmap(&data).unwrap() };
         assert_eq!(cmap.unicodes.get(&0x41).unwrap().index, 5);
     }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "timing-based; 400,000 codepoint inserts is far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn parse_cmap_duplicate_directory_entries_aliasing_the_same_subtable_are_only_parsed_once() {
+        // The cmap spec puts no requirement on encoding-record subtable
+        // offsets being distinct -- real fonts legitimately have several
+        // records point at the very same subtable. Without a dedup,
+        // `parse_cmap` re-parses (and re-walks every codepoint of) the
+        // aliased subtable once per record pointing at it, an
+        // amplification whose multiplier is `numTables` itself, bounded
+        // only by the cmap table's own size divided by 8 bytes per
+        // record -- not by any fixed cap. This builds 200 duplicate,
+        // individually-valid directory entries all pointing at one
+        // format 12 subtable large enough that re-walking it 200 times
+        // (undeduped) takes seconds, while parsing it once (deduped)
+        // is near-instant -- proving the redundant records are actually
+        // skipped, not just that the end result happens to be correct
+        // (parsing the same bytes twice is idempotent either way).
+        const NUM_ENTRIES: usize = 200;
+        const NUM_GROUPS: u32 = 200;
+        const GROUP_SPAN: u32 = 2000; // codepoints per group
+
+        let mut subtable = Vec::new();
+        subtable.extend_from_slice(&12u16.to_be_bytes()); // format
+        subtable.extend_from_slice(&0u16.to_be_bytes()); // reserved
+        subtable.extend_from_slice(&0u32.to_be_bytes()); // length (informational)
+        subtable.extend_from_slice(&0u32.to_be_bytes()); // language
+        subtable.extend_from_slice(&NUM_GROUPS.to_be_bytes());
+        for g in 0..NUM_GROUPS {
+            let start = g * GROUP_SPAN;
+            let end = start + GROUP_SPAN - 1;
+            subtable.extend_from_slice(&start.to_be_bytes());
+            subtable.extend_from_slice(&end.to_be_bytes());
+            subtable.extend_from_slice(&1u32.to_be_bytes()); // startGlyphID
+        }
+
+        let directory_len = 4 + NUM_ENTRIES * 8;
+        let subtable_offset = directory_len as u32;
+
+        let mut data = Vec::new();
+        data.extend_from_slice(&0u16.to_be_bytes()); // version
+        data.extend_from_slice(&(NUM_ENTRIES as u16).to_be_bytes()); // numTables
+        for _ in 0..NUM_ENTRIES {
+            data.extend_from_slice(&3u16.to_be_bytes()); // platformID (Windows)
+            data.extend_from_slice(&10u16.to_be_bytes()); // encodingID (Unicode full repertoire)
+            data.extend_from_slice(&subtable_offset.to_be_bytes());
+        }
+        data.extend_from_slice(&subtable);
+        assert_eq!(data.len(), directory_len + subtable.len());
+
+        let start = std::time::Instant::now();
+        let cmap = unsafe { parse_cmap(&data).unwrap() };
+        let elapsed = start.elapsed();
+
+        assert_eq!(cmap.unicodes.len() as u32, NUM_GROUPS * GROUP_SPAN);
+        assert_eq!(cmap.unicodes.get(&0).unwrap().index, 1);
+        // The last codepoint of the last group: startGlyphID is 1 in
+        // every group, so a codepoint's gid is `1 + its offset within
+        // its own group` -- the last codepoint of any GROUP_SPAN-wide
+        // group is GROUP_SPAN itself, not 1.
+        assert_eq!(
+            cmap.unicodes
+                .get(&((NUM_GROUPS * GROUP_SPAN - 1) as ::core::ffi::c_int))
+                .unwrap()
+                .index,
+            GROUP_SPAN as u16
+        );
+        assert!(
+            elapsed < std::time::Duration::from_secs(2),
+            "parsing {NUM_ENTRIES} aliasing directory entries took {elapsed:?} -- \
+             looks like the same subtable is being re-parsed per entry again"
+        );
+    }
 }
+

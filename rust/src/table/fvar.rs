@@ -4,11 +4,12 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::built_json::{json_new_position, json_object_push_tag, preserialize};
+use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
 use crate::support::parsed_json::{ParsedValue, json_numof};
-use crate::support::primitives::{F16Dot16, FontFilePointer, Pos};
+use crate::support::primitives::Pos;
 
-use crate::font::caryll_sfnt::{Packet, PacketPiece};
+use crate::font::caryll_sfnt::Packet;
 use crate::support::built_json::{
     BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new,
     json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key,
@@ -139,35 +140,6 @@ impl Drop for FvarTable {
         }
     }
 }
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct InstanceRecord {
-    pub subfamily_name_id: u16,
-    pub flags: u16,
-    pub coordinates: [F16Dot16; 0],
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct FVARHeader {
-    pub major_version: u16,
-    pub minor_version: u16,
-    pub axes_array_offset: u16,
-    pub reserved1: u16,
-    pub axis_count: u16,
-    pub axis_size: u16,
-    pub instance_count: u16,
-    pub instance_size: u16,
-}
-#[derive(Copy, Clone)]
-#[repr(C, packed)]
-pub struct VariationAxisRecord {
-    pub axis_tag: u32,
-    pub min_value: F16Dot16,
-    pub default_value: F16Dot16,
-    pub max_value: F16Dot16,
-    pub flags: u16,
-    pub axis_name_id: u16,
-}
 #[inline]
 unsafe fn dispose_fvar_master(m: &FvarMaster) {
     vq_delete_region(m.region);
@@ -204,220 +176,136 @@ unsafe fn fvar_find_master_by_region(
         None => ::core::ptr::null::<FvarMaster>(),
     }
 }
-pub unsafe fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTable>> {
-    let mut header: *mut FVARHeader;
-    let mut n_axes: u16;
-    let mut instance_size_without_psnid: u16;
-    let mut instance_size_with_psnid: u16;
-    let mut axis_record: *mut VariationAxisRecord;
-    let n_instances: u16;
-    let has_postscript_name_id: bool;
-    let mut instance: *mut InstanceRecord;
-    let mut __fortable_keep: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    let mut __fortable_count: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut __notfound: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-    while __notfound != 0
-        && __fortable_keep != 0
-        && __fortable_count < packet.num_tables as ::core::ffi::c_int
-    {
-        let table: &PacketPiece = &packet.pieces[__fortable_count as usize];
-        while __fortable_keep != 0 {
-            if table.tag == crate::tag::TAG_FVAR {
-                let mut __fortable_k2: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-                while __fortable_k2 != 0 {
-                    let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-                    if !((table.length as usize) < ::core::mem::size_of::<FVARHeader>()) {
-                        header = data as *mut FVARHeader;
-                        if !(be16((*header).major_version) as ::core::ffi::c_int
-                            != 1 as ::core::ffi::c_int)
-                        {
-                            if !(be16((*header).minor_version) as ::core::ffi::c_int
-                                != 0 as ::core::ffi::c_int)
-                            {
-                                if !(be16((*header).axes_array_offset) as ::core::ffi::c_int
-                                    == 0 as ::core::ffi::c_int)
-                                {
-                                    if !(be16((*header).axis_count) as ::core::ffi::c_int
-                                        == 0 as ::core::ffi::c_int)
-                                    {
-                                        if !(be16((*header).axis_size) as usize
-                                            != ::core::mem::size_of::<VariationAxisRecord>())
-                                        {
-                                            n_axes = be16((*header).axis_count);
-                                            instance_size_without_psnid = 4_usize.wrapping_add(
-                                                (n_axes as usize).wrapping_mul(
-                                                    ::core::mem::size_of::<F16Dot16>(),
-                                                ),
-                                            )
-                                                as u16;
-                                            instance_size_with_psnid = (2 as ::core::ffi::c_int
-                                                + instance_size_without_psnid as ::core::ffi::c_int)
-                                                as u16;
-                                            if !(be16((*header).instance_size)
-                                                as ::core::ffi::c_int
-                                                != instance_size_without_psnid
-                                                    as ::core::ffi::c_int
-                                                && be16((*header).instance_size)
-                                                    as ::core::ffi::c_int
-                                                    != instance_size_with_psnid
-                                                        as ::core::ffi::c_int)
-                                            {
-                                                if !((table.length as usize)
-                                                    < (be16((*header).axes_array_offset) as usize)
-                                                        .wrapping_add(
-                                                            ::core::mem::size_of::<
-                                                                VariationAxisRecord,
-                                                            >(
-                                                            )
-                                                            .wrapping_mul(n_axes as usize),
-                                                        )
-                                                        .wrapping_add(
-                                                            (be16((*header).instance_size)
-                                                                as ::core::ffi::c_int
-                                                                * be16((*header).instance_count)
-                                                                    as ::core::ffi::c_int)
-                                                                as usize,
-                                                        ))
-                                                {
-                                                    let mut fvar_box: Box<FvarTable> =
-                                                        Box::new(FvarTable {
-                                                            major_version: 0,
-                                                            minor_version: 0,
-                                                            axes: Vec::new(),
-                                                            instances: Vec::new(),
-                                                            masters: indexmap::IndexMap::new(),
-                                                        });
-                                                    let fvar: *mut FvarTable =
-                                                        fvar_box.as_mut() as *mut FvarTable;
-                                                    axis_record = data.offset(be16(
-                                                        (*header).axes_array_offset,
-                                                    )
-                                                        as ::core::ffi::c_int
-                                                        as isize)
-                                                        as *mut VariationAxisRecord;
-                                                    let mut j: u16 = 0 as u16;
-                                                    while (j as ::core::ffi::c_int)
-                                                        < n_axes as ::core::ffi::c_int
-                                                    {
-                                                        let axis: VfAxis = VfAxis {
-                                                            tag: be32((*axis_record).axis_tag),
-                                                            min_value: otfcc_from_fixed(be32(
-                                                                (*axis_record).min_value as u32,
-                                                            )
-                                                                as F16Dot16)
-                                                                as Pos,
-                                                            default_value: otfcc_from_fixed(be32(
-                                                                (*axis_record).default_value as u32,
-                                                            )
-                                                                as F16Dot16)
-                                                                as Pos,
-                                                            max_value: otfcc_from_fixed(be32(
-                                                                (*axis_record).max_value as u32,
-                                                            )
-                                                                as F16Dot16)
-                                                                as Pos,
-                                                            flags: be16((*axis_record).flags),
-                                                            axis_name_id: be16(
-                                                                (*axis_record).axis_name_id,
-                                                            ),
-                                                        };
-                                                        (*fvar).axes.push(axis);
-                                                        axis_record = axis_record.offset(1);
-                                                        j = j.wrapping_add(1);
-                                                    }
-                                                    n_instances = be16((*header).instance_count);
-                                                    has_postscript_name_id =
-                                                        be16((*header).instance_size)
-                                                            as ::core::ffi::c_int
-                                                            == instance_size_with_psnid
-                                                                as ::core::ffi::c_int;
-                                                    instance = axis_record as *mut InstanceRecord;
-                                                    let mut j_0: u16 = 0 as u16;
-                                                    while (j_0 as ::core::ffi::c_int)
-                                                        < n_instances as ::core::ffi::c_int
-                                                    {
-                                                        let mut inst: FvarInstance = FvarInstance {
-                                                            subfamily_name_id: 0,
-                                                            flags: 0,
-                                                            coordinates: Vec::new(),
-                                                            post_script_name_id: 0,
-                                                        };
-                                                        // `FVAR_I_INSTANCE.init` deleted: it only
-                                                        // (re-)zeroed fields the literal above
-                                                        // already set, field for field -- fully
-                                                        // redundant, checked before removing (the
-                                                        // `CpalPalette`/`init_palette` lesson).
-                                                        inst.subfamily_name_id =
-                                                            be16((*instance).subfamily_name_id);
-                                                        inst.flags = be16((*instance).flags);
-                                                        let mut k: u16 = 0 as u16;
-                                                        while (k as ::core::ffi::c_int)
-                                                            < n_axes as ::core::ffi::c_int
-                                                        {
-                                                            inst.coordinates.push(
-                                                                otfcc_from_fixed(be32(
-                                                                    *(&raw mut (*instance)
-                                                                        .coordinates
-                                                                        as *mut F16Dot16)
-                                                                        .offset(k as isize)
-                                                                        as u32,
-                                                                )
-                                                                    as F16Dot16)
-                                                                    as Pos,
-                                                            );
-                                                            k = k.wrapping_add(1);
-                                                        }
-                                                        inst.coordinates.shrink_to_fit();
-                                                        if has_postscript_name_id {
-                                                            inst.post_script_name_id = be16(
-                                                                *((instance as FontFilePointer)
-                                                                    .offset(
-                                                                        instance_size_without_psnid
-                                                                            as ::core::ffi::c_int
-                                                                            as isize,
-                                                                    )
-                                                                    as *mut u16),
-                                                            );
-                                                        }
-                                                        (*fvar).instances.push(inst);
-                                                        instance = (instance as FontFilePointer)
-                                                            .offset(be16((*header).instance_size)
-                                                                as ::core::ffi::c_int
-                                                                as isize)
-                                                            as *mut InstanceRecord;
-                                                        j_0 = j_0.wrapping_add(1);
-                                                    }
-                                                    (*fvar).axes.shrink_to_fit();
-                                                    (*fvar).instances.shrink_to_fit();
-                                                    return Some(fvar_box);
-                                                }
-                                            }
-                                        }
-                                    }
-                                }
-                            }
-                        }
-                    }
-                    logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(b"table 'fvar' corrupted.\n"),
-                    );
-                    // No `fvar` to free here: every path that constructs one
-                    // (deep inside the nested guards above) returns
-                    // immediately afterward, so this branch is only ever
-                    // reached before any allocation happens.
-                    __fortable_k2 = 0 as ::core::ffi::c_int;
-                    __notfound = 0 as ::core::ffi::c_int;
-                }
-            }
-            __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        }
-        __fortable_keep = (__fortable_keep == 0) as ::core::ffi::c_int;
-        __fortable_count += 1;
+/// `axisSize`/`AXIS_RECORD_SIZE`(20 bytes): `axis_tag`(4) + `min`/`default`/
+/// `max_value`(4 each) + `flags`(2) + `axis_name_id`(2).
+const AXIS_RECORD_SIZE: usize = 20;
+/// The original's overall-length guard computed `instance_size *
+/// instance_count` in **32-bit signed** `c_int` arithmetic
+/// (`be16(header.instance_size) as c_int * be16(header.instance_count) as
+/// c_int`) -- both operands up to 65535, so the true product (up to
+/// ~4.29 billion) overflows `i32::MAX` and wraps to a negative value in
+/// release builds (checked overflow is off by default outside `cargo
+/// test`/debug). That negative `c_int`, cast `as usize`, sign-extends into
+/// a huge `usize` near `usize::MAX`; the outer `.wrapping_add` then wraps
+/// *again* around `usize`'s own width, landing back on some small,
+/// wrong-but-plausible-looking total. A `table.length` this small final
+/// value passes against would then have `n_instances` up to 65535 records
+/// of `instance_size` bytes each read via raw `.offset()` past the real
+/// end of the table -- worse than `table/cpal.rs`'s single-wraparound bug,
+/// this one wraps twice (`i32` overflow, then the `usize` sum). Every
+/// multiplication and addition below goes through `checked_mul`/
+/// `checked_add` (via `Option`'s own overflow-is-`None` propagation, `?`),
+/// so an overflow anywhere in the chain rejects the table outright instead
+/// of wrapping either width.
+unsafe fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
+    let mut h = FontReader::new(data);
+    let major_version = h.u16().ok()?;
+    if major_version != 1 {
+        return None;
     }
-    return None;
+    let minor_version = h.u16().ok()?;
+    if minor_version != 0 {
+        return None;
+    }
+    let axes_array_offset = h.u16().ok()? as usize;
+    if axes_array_offset == 0 {
+        return None;
+    }
+    h.skip(2).ok()?; // reserved1
+    let axis_count = h.u16().ok()?;
+    if axis_count == 0 {
+        return None;
+    }
+    let axis_size = h.u16().ok()?;
+    if axis_size as usize != AXIS_RECORD_SIZE {
+        return None;
+    }
+    let instance_count = h.u16().ok()?;
+    let instance_size = h.u16().ok()?;
+
+    let instance_size_without_psnid =
+        4usize.checked_add((axis_count as usize).checked_mul(4)?)?;
+    let instance_size_with_psnid = instance_size_without_psnid.checked_add(2)?;
+    if instance_size as usize != instance_size_without_psnid
+        && instance_size as usize != instance_size_with_psnid
+    {
+        return None;
+    }
+
+    let axes_bytes = AXIS_RECORD_SIZE.checked_mul(axis_count as usize)?;
+    let instances_bytes = (instance_size as usize).checked_mul(instance_count as usize)?;
+    let total_needed = axes_array_offset.checked_add(axes_bytes)?.checked_add(instances_bytes)?;
+    if data.len() < total_needed {
+        return None;
+    }
+
+    let mut axes: VfAxes = Vec::with_capacity(axis_count as usize);
+    let mut r = FontReader::new(data).at(axes_array_offset).ok()?;
+    for _ in 0..axis_count {
+        let tag = r.u32().ok()?;
+        let min_value = r.i32().ok()?;
+        let default_value = r.i32().ok()?;
+        let max_value = r.i32().ok()?;
+        let flags = r.u16().ok()?;
+        let axis_name_id = r.u16().ok()?;
+        axes.push(VfAxis {
+            tag,
+            min_value: otfcc_from_fixed(min_value) as Pos,
+            default_value: otfcc_from_fixed(default_value) as Pos,
+            max_value: otfcc_from_fixed(max_value) as Pos,
+            flags,
+            axis_name_id,
+        });
+    }
+
+    // `r` is now positioned right after the axis array, i.e. exactly where
+    // the instance array starts -- each iteration below consumes exactly
+    // `instance_size` bytes (2 + 2 + 4*axis_count [+ 2]), so it stays in
+    // sync with the next record without needing to re-seek.
+    let has_postscript_name_id = instance_size as usize == instance_size_with_psnid;
+    let mut instances: FvarInstanceList = Vec::with_capacity(instance_count as usize);
+    for _ in 0..instance_count {
+        let subfamily_name_id = r.u16().ok()?;
+        let flags = r.u16().ok()?;
+        let mut coordinates: VV = Vec::with_capacity(axis_count as usize);
+        for _ in 0..axis_count {
+            let v = r.i32().ok()?;
+            coordinates.push(otfcc_from_fixed(v) as Pos);
+        }
+        coordinates.shrink_to_fit();
+        let post_script_name_id = if has_postscript_name_id { r.u16().ok()? } else { 0 };
+        instances.push(FvarInstance {
+            subfamily_name_id,
+            flags,
+            coordinates,
+            post_script_name_id,
+        });
+    }
+
+    axes.shrink_to_fit();
+    instances.shrink_to_fit();
+    Some(FvarTable {
+        major_version,
+        minor_version,
+        axes,
+        instances,
+        masters: indexmap::IndexMap::new(),
+    })
+}
+pub unsafe fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTable>> {
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_FVAR)?;
+    match parse_fvar(&table.data) {
+        Some(fvar) => Some(Box::new(fvar)),
+        None => {
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"table 'fvar' corrupted.\n"),
+            );
+            None
+        }
+    }
 }
 pub unsafe fn otfcc_dump_fvar(
     table: Option<&FvarTable>,
@@ -695,16 +583,112 @@ pub unsafe fn json_new_vq_region(
         return json_new_vq_region_explicit(rs, fvar);
     };
 }
-#[inline]
-unsafe fn be16(x: u16) -> u16 {
-    return ((x as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) << 8 as ::core::ffi::c_int
-        | (x as ::core::ffi::c_int & 0xff00 as ::core::ffi::c_int) >> 8 as ::core::ffi::c_int)
-        as u16;
-}
-#[inline]
-unsafe fn be32(x: u32) -> u32 {
-    return (x & 0xff as u32) << 24 as ::core::ffi::c_int
-        | (x & 0xff00 as u32) << 8 as ::core::ffi::c_int
-        | (x & 0xff0000 as u32) >> 8 as ::core::ffi::c_int
-        | (x & 0xff000000 as u32) >> 24 as ::core::ffi::c_int;
+
+#[cfg(test)]
+mod parse_fvar_tests {
+    use super::*;
+
+    // header(16) + one axis record(20) + one instance without PSNID(8)
+    fn well_formed_fvar_table() -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&1u16.to_be_bytes()); // majorVersion
+        b.extend_from_slice(&0u16.to_be_bytes()); // minorVersion
+        b.extend_from_slice(&16u16.to_be_bytes()); // axesArrayOffset
+        b.extend_from_slice(&0u16.to_be_bytes()); // reserved1
+        b.extend_from_slice(&1u16.to_be_bytes()); // axisCount
+        b.extend_from_slice(&20u16.to_be_bytes()); // axisSize
+        b.extend_from_slice(&1u16.to_be_bytes()); // instanceCount
+        b.extend_from_slice(&8u16.to_be_bytes()); // instanceSize (4 + 4*1)
+        // VariationAxisRecord @16
+        b.extend_from_slice(b"wght"); // axisTag
+        b.extend_from_slice(&3_276_800i32.to_be_bytes()); // minValue = 50.0
+        b.extend_from_slice(&6_553_600i32.to_be_bytes()); // defaultValue = 100.0
+        b.extend_from_slice(&13_107_200i32.to_be_bytes()); // maxValue = 200.0
+        b.extend_from_slice(&0u16.to_be_bytes()); // flags
+        b.extend_from_slice(&256u16.to_be_bytes()); // axisNameID
+        // InstanceRecord @36 (no PostScript name ID)
+        b.extend_from_slice(&2u16.to_be_bytes()); // subfamilyNameID
+        b.extend_from_slice(&0u16.to_be_bytes()); // flags
+        b.extend_from_slice(&6_553_600i32.to_be_bytes()); // coordinates[0] = 100.0
+        b
+    }
+
+    #[test]
+    fn well_formed_table_reads_the_axis_and_instance() {
+        let data = well_formed_fvar_table();
+        let fvar = unsafe { parse_fvar(&data).unwrap() };
+        assert_eq!(fvar.axes.len(), 1);
+        assert_eq!(fvar.axes[0].tag, u32::from_be_bytes(*b"wght"));
+        assert_eq!(fvar.axes[0].min_value, 50.0);
+        assert_eq!(fvar.axes[0].default_value, 100.0);
+        assert_eq!(fvar.axes[0].max_value, 200.0);
+        assert_eq!(fvar.axes[0].axis_name_id, 256);
+        assert_eq!(fvar.instances.len(), 1);
+        assert_eq!(fvar.instances[0].subfamily_name_id, 2);
+        assert_eq!(fvar.instances[0].coordinates, vec![100.0]);
+        assert_eq!(fvar.instances[0].post_script_name_id, 0);
+    }
+
+    #[test]
+    fn instance_with_postscript_name_id_is_read() {
+        let mut b = well_formed_fvar_table();
+        b[14..16].copy_from_slice(&10u16.to_be_bytes()); // instanceSize = 8 + 2
+        b.extend_from_slice(&300u16.to_be_bytes()); // postScriptNameID
+        let fvar = unsafe { parse_fvar(&b).unwrap() };
+        assert_eq!(fvar.instances[0].post_script_name_id, 300);
+    }
+
+    #[test]
+    fn truncated_header_is_rejected() {
+        let data = &well_formed_fvar_table()[..10];
+        assert!(unsafe { parse_fvar(data) }.is_none());
+    }
+
+    #[test]
+    fn wrong_axis_size_is_rejected() {
+        let mut data = well_formed_fvar_table();
+        data[10..12].copy_from_slice(&18u16.to_be_bytes()); // axisSize != 20
+        assert!(unsafe { parse_fvar(&data) }.is_none());
+    }
+
+    #[test]
+    fn instance_size_matching_neither_shape_is_rejected() {
+        let mut data = well_formed_fvar_table();
+        data[14..16].copy_from_slice(&9u16.to_be_bytes()); // neither 8 nor 10
+        assert!(unsafe { parse_fvar(&data) }.is_none());
+    }
+
+    #[test]
+    fn instance_array_shorter_than_declared_is_rejected_not_read_oob() {
+        let mut data = well_formed_fvar_table();
+        data[12..14].copy_from_slice(&2u16.to_be_bytes()); // instanceCount = 2, only 1 present
+        assert!(unsafe { parse_fvar(&data) }.is_none());
+    }
+
+    #[test]
+    fn instance_size_times_count_overflowing_i32_is_rejected_not_wrapped() {
+        // The original computed `instance_size * instance_count` in
+        // 32-bit signed `c_int` arithmetic. With `axis_count` = 16382,
+        // `instance_size_without_psnid` = 4 + 4*16382 = 65532 -- both it
+        // and `instance_count` (65535) are legal `u16` values individually,
+        // but their true product (~4.29 billion) overflows `i32::MAX` and
+        // wraps negative in a release build (checked overflow is off by
+        // default outside `cargo test`/debug), which then sign-extended
+        // into a huge `usize` and wrapped a *second* time in the outer
+        // `wrapping_add`, potentially landing back on a small value that
+        // passes the length guard even though the real table (here, still
+        // just the 44-byte fixture) is nowhere near big enough.
+        let mut data = well_formed_fvar_table();
+        data[8..10].copy_from_slice(&16382u16.to_be_bytes()); // axisCount
+        data[12..14].copy_from_slice(&0xFFFFu16.to_be_bytes()); // instanceCount
+        data[14..16].copy_from_slice(&65532u16.to_be_bytes()); // instanceSize
+        assert!(unsafe { parse_fvar(&data) }.is_none());
+    }
+
+    #[test]
+    fn zero_axes_array_offset_is_rejected() {
+        let mut data = well_formed_fvar_table();
+        data[4..6].copy_from_slice(&0u16.to_be_bytes());
+        assert!(unsafe { parse_fvar(&data) }.is_none());
+    }
 }

@@ -67,7 +67,16 @@ unsafe extern "C" fn next_point(
     cc: *mut ShapeId,
     cp: *mut ShapeId,
 ) -> *mut Point {
-    if *cp as usize >= (&(*contours))[*cc as usize].len() {
+    // A contour can be zero-length: `otfcc_read_simple_glyph`'s endpoint
+    // arithmetic allows `n == 0` (a contour whose endpoint equals the
+    // running total minus one), and the wire format has no rule against
+    // it. A single `if` here only advances past *one* exhausted contour
+    // per call -- two or more consecutive zero-length contours land on
+    // the next-but-one empty contour and index it at 0 anyway, panicking
+    // ("index out of bounds: the len is 0"), a fuzzer-found crash. `while`
+    // instead skips every exhausted contour in a row, however many there
+    // are, before indexing.
+    while *cp as usize >= (&(*contours))[*cc as usize].len() {
         *cp = 0 as ShapeId;
         *cc = (*cc as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
     }
@@ -95,7 +104,13 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
     let contours: *mut ContourList = &raw mut (*g).contours;
     let mut r = FontReader::new(body);
     r.require_room(number_of_contours as usize, 2).ok()?;
-    let mut points_in_glyph: ShapeId = 0;
+    // `u32`, not `ShapeId` (`u16`): the running total is `lastPoint + 1`,
+    // and a wire-legal `lastPoint` of 0xFFFF makes that 65536 -- one past
+    // `u16::MAX`. A `ShapeId` total would wrap that back to 0, silently
+    // under-reading every flag/coordinate below (the loops bounded by it
+    // would run zero times) despite `contours` having been built with the
+    // full, correct point capacity.
+    let mut points_in_glyph: u32 = 0;
     for _ in 0..number_of_contours {
         let last_point_in_current_contour: ShapeId = r.u16().unwrap(); // room already validated above
         // The original computed this length in `c_int` (so a non-monotonic
@@ -106,14 +121,14 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
         // would then try to push that many points -- an unbounded-
         // allocation DoS on a malformed but otherwise tiny font. Reject
         // instead.
-        let n = last_point_in_current_contour as i32 - points_in_glyph as i32 + 1;
+        let n = last_point_in_current_contour as i64 - points_in_glyph as i64 + 1;
         if n < 0 {
             return None;
         }
         let mut contour: Contour = Vec::new();
         glyf_contour_fill(&raw mut contour, n as usize);
         (*contours).push(contour);
-        points_in_glyph = last_point_in_current_contour.wrapping_add(1);
+        points_in_glyph = last_point_in_current_contour as u32 + 1;
     }
     let instruction_length: u16 = r.u16().ok()?;
     let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
@@ -1245,6 +1260,53 @@ mod glyf_read_tests {
                 &options,
             );
             assert!(g.is_none());
+        }
+    }
+
+    #[test]
+    fn simple_glyph_with_a_zero_length_contour_between_two_real_ones_does_not_panic() {
+        // A fuzzer found this: `endPtsOfContours` has no rule against a
+        // contour whose endpoint equals the running point total minus
+        // one -- a zero-length contour, geometrically meaningless but
+        // arithmetically legal. `next_point` (the shared point-cursor
+        // walked while reading flags/coordinates) used to skip past only
+        // *one* exhausted contour per call; landing on a zero-length
+        // contour immediately after skipped nothing further and indexed
+        // it at 0 anyway, panicking ("index out of bounds: the len is 0
+        // but the index is 0").
+        //
+        // Three contours, endPtsOfContours = [0, 0, 1]: contour 0 has 1
+        // point (running total 0->1), contour 1 has 0 points (endpoint 0
+        // against a running total of 1 gives length 0), contour 2 has 1
+        // point (running total 1->2). Reading the second of the 2 total
+        // flags must walk through contour 1 without landing on it.
+        let mut data = [0u8; 28];
+        data[0..2].copy_from_slice(&3i16.to_be_bytes()); // numberOfContours
+        data[10..12].copy_from_slice(&0u16.to_be_bytes()); // endPts[0]
+        data[12..14].copy_from_slice(&0u16.to_be_bytes()); // endPts[1] (zero-length contour)
+        data[14..16].copy_from_slice(&1u16.to_be_bytes()); // endPts[2]
+        data[16..18].copy_from_slice(&0u16.to_be_bytes()); // instructionLength
+        data[18] = 0x01; // flag for contour 0's point: ON_CURVE
+        data[19] = 0x01; // flag for contour 2's point: ON_CURVE
+        data[20..22].copy_from_slice(&5i16.to_be_bytes()); // x0
+        data[22..24].copy_from_slice(&7i16.to_be_bytes()); // x1
+        data[24..26].copy_from_slice(&3i16.to_be_bytes()); // y0
+        data[26..28].copy_from_slice(&9i16.to_be_bytes()); // y1
+        let options = zeroed_options();
+        unsafe {
+            let g = otfcc_read_glyph(
+                data.as_ptr() as FontFilePointer,
+                0,
+                data.len() as u32,
+                &options,
+            );
+            let g = g.unwrap();
+            assert_eq!(g.contours.len(), 3);
+            assert_eq!(g.contours[0].len(), 1);
+            assert_eq!(g.contours[1].len(), 0);
+            assert_eq!(g.contours[2].len(), 1);
+            assert_eq!(still(&g.contours[0][0].x), 5.0);
+            assert_eq!(still(&g.contours[2][0].x), 12.0);
         }
     }
 

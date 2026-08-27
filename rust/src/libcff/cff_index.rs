@@ -165,6 +165,26 @@ pub(crate) unsafe fn extract_index(
                 };
                 offset.push(v);
             }
+            // CFF INDEX offsets are 1-based and required to be non-
+            // decreasing (Adobe TN #5176 section 5) -- every reader of
+            // `.offset[]` (`get_cff_sid`, `locate_subr`) assumes both, but
+            // nothing enforced either here before this. A malformed INDEX
+            // with `offset[i] > offset[i + 1]` for some `i` made a caller
+            // computing `offset[i + 1].wrapping_sub(offset[i])` (subtracting
+            // the *larger* value from the smaller) wrap around to a length
+            // near `u32::MAX`, either requesting a multi-gigabyte
+            // allocation or reading arbitrarily far past `data`'s real end
+            // -- found by `cargo fuzz run otf_parse` as a heap-buffer-
+            // overflow inside `get_cff_sid` (confirmed under a higher
+            // memory limit than the plain OOM report alone showed).
+            // `locate_subr` already guarded its own two-entry read this
+            // way (`start < 1 || end < start`); validating the whole array
+            // once here, at the one place it's actually parsed, covers
+            // every current and future reader instead of relying on each
+            // call site to remember its own copy of the same check.
+            if offset.iter().any(|&v| v < 1) || offset.windows(2).any(|w| w[1] < w[0]) {
+                break 'parse None;
+            }
             let Some(data_len) = offset[count as usize].checked_sub(1) else {
                 break 'parse None;
             };
@@ -381,6 +401,26 @@ mod extract_index_tests {
             assert_eq!((*idx).count, 0);
             assert!((*idx).offset.is_empty());
             assert!((*idx).data.is_empty());
+            cff_index_free(idx);
+        }
+    }
+
+    #[test]
+    fn non_decreasing_offsets_are_required_not_just_the_last_one() {
+        // count=2, off_size=1, offset=[1, 5, 3] -- entry 1 (5) is *larger*
+        // than entry 2 (3), so the array isn't monotonic even though the
+        // final entry (3) alone would pass the old checked_sub(1) check
+        // fine. A consumer computing `offset[i + 1] - offset[i]` for the
+        // *first* entry's length (5 - 1 = 4) would demand data this index
+        // never actually promised -- and one going the other direction
+        // (`offset[2] - offset[1]` = 3 - 5, unsigned) is exactly the
+        // `get_cff_sid` wraparound this guard exists to close.
+        let data = [0x00u8, 0x02, 0x01, 0x01, 0x05, 0x03, 0xAA, 0xBB, 0xCC];
+        unsafe {
+            let idx = cff_index_create();
+            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            assert_eq!((*idx).count, 0);
+            assert!((*idx).offset.is_empty());
             cff_index_free(idx);
         }
     }

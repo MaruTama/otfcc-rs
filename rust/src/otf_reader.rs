@@ -129,18 +129,31 @@ impl FontBuilder for OtfReader {
                 (*font).gasp = otfcc_read_gasp(packet, options);
                 (*font).vdmx = otfcc_read_vdmx(packet, options);
                 (*font).ltsh = otfcc_read_ltsh(packet, options);
-                let mut ctx: GlyfIOContext = GlyfIOContext {
-                    loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
-                    num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
-                    n_phantom_points: 4 as ShapeId,
-                    fvar: (*font)
-                        .fvar
-                        .as_deref_mut()
-                        .map_or(::core::ptr::null_mut(), |f| f as *mut FvarTable),
-                    has_vertical_metrics: false,
-                    export_fd_select: false,
-                };
-                (*font).glyf = otfcc_read_glyf(packet, options, &raw mut ctx);
+                // `loca_is_long`/`num_glyphs` come from `head`/`maxp`, which
+                // -- unlike the CFF branch below, which already tolerates a
+                // missing `head` via `.map_or(null(), ...)` -- this branch
+                // used to `.unwrap()` unconditionally. A malformed font
+                // missing (or failing to parse) either table turned into a
+                // panic here instead of the "skip this table, keep going"
+                // every other reader in this function already does; a
+                // fuzz-found input with a `glyf`/`loca` pair but no `maxp`
+                // hit exactly this. `glyf` genuinely cannot be read without
+                // both, so it is left `None` (its default) rather than
+                // guessing at either value.
+                if (*font).head.is_some() && (*font).maxp.is_some() {
+                    let mut ctx: GlyfIOContext = GlyfIOContext {
+                        loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
+                        num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
+                        n_phantom_points: 4 as ShapeId,
+                        fvar: (*font)
+                            .fvar
+                            .as_deref_mut()
+                            .map_or(::core::ptr::null_mut(), |f| f as *mut FvarTable),
+                        has_vertical_metrics: false,
+                        export_fd_select: false,
+                    };
+                    (*font).glyf = otfcc_read_glyf(packet, options, &raw mut ctx);
+                }
             } else {
                 let cffpr: CffAndGlyf = otfcc_read_cff_and_glyf_tables(
                     packet,
@@ -197,4 +210,320 @@ pub unsafe fn read_otf(
         index,
         options as *const Options as *const ::core::ffi::c_void,
     ) as *mut Font
+}
+
+#[cfg(test)]
+mod regression_tests {
+    use crate::font::caryll_font::otfcc_font_free;
+    use crate::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
+    use crate::logger::{Logger, otfcc_new_empty_target};
+    use crate::support::options::{otfcc_delete_options, otfcc_new_options};
+    use std::cell::RefCell;
+    use std::io::Cursor;
+    use std::time::{Duration, Instant};
+
+    /// `tests/fuzz-corpus/known-issues/otf-parse-cff-per-glyph-stack-
+    /// realloc-hang.bin` (CID-keyed CFF, `CharStrings` count mutated to
+    /// 65535 -- the corpus's max u16) used to spend 30+ seconds and
+    /// multiple gigabytes of allocator churn in `table/cff.rs`'s
+    /// `build_outline`, which allocated a fresh 0x10000-entry `Vec<
+    /// CffValue>` operand stack on *every glyph* instead of once for the
+    /// whole font (found by `cargo fuzz run otf_parse`, see `rust/
+    /// README.md`'s "Next steps" for the fix and how it was isolated).
+    /// 10 seconds is generous slack over the ~4 seconds this takes under
+    /// `cargo fuzz`'s ASan-instrumented build (this plain `cargo test
+    /// --release` build has no such instrumentation, so it's meaningfully
+    /// faster) -- comfortably below the original bug's 30+ second hang,
+    /// comfortably above any plausible legitimate variance.
+    #[test]
+    // Reads a fixture from disk; same rationale as `parsed_json.rs`'s
+    // `every_committed_payload_json_parses`.
+    #[cfg_attr(
+        miri,
+        ignore = "reads a fixture from disk, needs -Zmiri-disable-isolation; also far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn cff_font_with_huge_glyph_count_parses_promptly() {
+        let bytes = std::fs::read(
+            "../tests/fuzz-corpus/known-issues/otf-parse-cff-per-glyph-stack-realloc-hang.bin",
+        )
+        .unwrap();
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let start = Instant::now();
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+            let elapsed = start.elapsed();
+
+            otfcc_delete_sfnt(sfnt);
+            if !font.is_null() {
+                otfcc_font_free(font);
+            }
+            otfcc_delete_options(options);
+
+            assert!(
+                elapsed < Duration::from_secs(10),
+                "read_otf took {elapsed:?}, expected well under 10s"
+            );
+        }
+    }
+
+    /// A `cargo fuzz run otf_parse` CI job found `tests/fuzz-corpus/known-
+    /// issues/otf-parse-otl-contextual-amplification-hang.bin`: a GSUB
+    /// table whose contextual/chaining subtables compound *four* separate
+    /// unbounded counts, each individually bounds-checked against the
+    /// table (its own array fits) but none bounded in aggregate --
+    /// `otl/read.rs`'s lookup list (`lookup_count`, up to 65535), one
+    /// lookup's own subtable list (`subtable_count`), one subtable's
+    /// `chainSubClassSet`/`subRuleSet` rule counts (`chaining/read.rs`'s
+    /// `read_contextual_format2` et al.), and one rule's own backtrack/
+    /// input/lookahead/apply position counts (`general_read_contextual_
+    /// rule`/`general_read_chaining_rule`). This file rode several of
+    /// those close to their ceiling at once: ASan first reported it as a
+    /// ~1.8GB OOM, and once that was capped it became a 30+ second hang
+    /// (millions of `class_coverage` calls, each allocating a `Coverage`
+    /// it immediately discards). Fixed with a chain of budgets: `otl/
+    /// read.rs`'s `MAX_TOTAL_SUBTABLES_PER_LOOKUP` caps subtables per
+    /// lookup; `chaining/read.rs`'s `MAX_TOTAL_RULES_PER_TABLE` (a global,
+    /// per-`otfcc_read_otl`-call budget, not per-subtable -- an earlier,
+    /// per-subtable-only version of this cap still let many subtables
+    /// each spend their own full allowance) caps rules built across the
+    /// whole table; `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` cap one
+    /// rule's own apply/position counts; and `CLASS_ZERO_BUDGET`/
+    /// `CLASS_COVERAGE_CALL_BUDGET` (also globalized from an earlier,
+    /// per-subtable version for the same reason) cap `class_coverage`'s
+    /// total work across the whole table. A fifth, unrelated bug fell out
+    /// of the same file: `general_read_contextual_rule`/`_chaining_rule`
+    /// can return `None` for one malformed rule inside an otherwise valid
+    /// ruleset (its own offset pointed at a truncated/malformed rule
+    /// header) -- the four `read_*` call sites used to push that `None`
+    /// straight into `ChainingRuleSet.rules` regardless, and `otf_reader/
+    /// unconsolidate.rs`'s `unconsolidate_chaining` `.expect()`ed every
+    /// slot to be `Some`, so this file also panicked before it could even
+    /// reach the hang. Now skipped instead of pushed, matching this
+    /// crate's usual "malformed sub-part is dropped, not fatal" shape.
+    #[test]
+    // Reads a fixture from disk; same rationale as `parsed_json.rs`'s
+    // `every_committed_payload_json_parses`.
+    #[cfg_attr(
+        miri,
+        ignore = "reads a fixture from disk, needs -Zmiri-disable-isolation; also far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn otl_contextual_amplification_font_parses_promptly() {
+        let bytes = std::fs::read(
+            "../tests/fuzz-corpus/known-issues/otf-parse-otl-contextual-amplification-hang.bin",
+        )
+        .unwrap();
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let start = Instant::now();
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+            let elapsed = start.elapsed();
+
+            otfcc_delete_sfnt(sfnt);
+            if !font.is_null() {
+                otfcc_font_free(font);
+            }
+            otfcc_delete_options(options);
+
+            assert!(
+                elapsed < Duration::from_secs(10),
+                "read_otf took {elapsed:?}, expected well under 10s"
+            );
+        }
+    }
+
+    /// A follow-up `cargo fuzz run otf_parse` CI job (after the fix above
+    /// landed) found `tests/fuzz-corpus/known-issues/otf-parse-otl-
+    /// feature-ref-amplification-oom.bin`: a genuinely *different* bug in
+    /// the same file (`otl/read.rs`), an out-of-memory this time rather
+    /// than a hang -- libFuzzer's ASan-instrumented build hit its 2048MB
+    /// `-rss_limit_mb`. `parse_language`'s own `feature_count` (a raw
+    /// `u16`, up to 65535 per language) was bounds-checked only against
+    /// that one `LangSys` table's own bytes, with no cap against `MAX_
+    /// TOTAL_LANGUAGES`'s own per-table budget -- one pathological
+    /// `LangSys` table pushed a huge number of (mostly duplicate, aliased)
+    /// feature references into a single language's `features` list.
+    /// Separately, `parse_otl_common`'s own `lookup_count` (also raw,
+    /// up to 65535) had no cap at all: this same file also had ~10,300
+    /// lookups, each contributing its own (otherwise-bounded) content to
+    /// the output. Neither factor alone explained the memory use on its
+    /// own -- bisecting by tightening `MAX_TOTAL_RULES_PER_TABLE` down to
+    /// 2,000 (10x below what `tests/payload/NotoNastaliqUrdu-Regular.ttf`
+    /// needs) barely moved this file's peak RSS at all, which is what
+    /// pointed at `lookup_count`/`feature_count` instead. Fixed with `MAX_
+    /// TOTAL_LOOKUPS_PER_TABLE` (500) and `MAX_TOTAL_FEATURE_REFS_PER_
+    /// TABLE` (100,000, global across the table like `MAX_TOTAL_RULES_
+    /// PER_TABLE`). Confirmed locally (native, no ASan): this exact file's
+    /// peak RSS dropped from ~1GB to ~34MB.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "reads a fixture from disk, needs -Zmiri-disable-isolation; also far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn otl_feature_ref_amplification_font_parses_promptly() {
+        let bytes = std::fs::read(
+            "../tests/fuzz-corpus/known-issues/otf-parse-otl-feature-ref-amplification-oom.bin",
+        )
+        .unwrap();
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let start = Instant::now();
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+            let elapsed = start.elapsed();
+
+            // The wall-clock check below alone doesn't actually catch this
+            // regression: this file's memory blowup happens fast enough on
+            // native, uninstrumented hardware that even the fully-uncapped
+            // version parses in well under a second here -- it only
+            // crossed libFuzzer's 2048MB `-rss_limit_mb` under ASan's
+            // memory-overhead multiplier in CI. Assert the actual
+            // invariant the fix establishes instead: neither cap was
+            // exceeded, for either table.
+            assert!(!font.is_null());
+            for otl in [(*font).gsub.as_deref(), (*font).gpos.as_deref()]
+                .into_iter()
+                .flatten()
+            {
+                assert!(
+                    otl.lookups.len()
+                        <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
+                    "lookups.len() = {} exceeds MAX_TOTAL_LOOKUPS_PER_TABLE",
+                    otl.lookups.len()
+                );
+                let total_feature_refs: usize =
+                    otl.languages.iter().map(|lang| lang.features.len()).sum();
+                assert!(
+                    total_feature_refs
+                        <= crate::table::otl::read::MAX_TOTAL_FEATURE_REFS_PER_TABLE as usize,
+                    "total feature refs = {total_feature_refs} exceeds MAX_TOTAL_FEATURE_REFS_PER_TABLE"
+                );
+            }
+
+            otfcc_delete_sfnt(sfnt);
+            if !font.is_null() {
+                otfcc_font_free(font);
+            }
+            otfcc_delete_options(options);
+
+            assert!(
+                elapsed < Duration::from_secs(10),
+                "read_otf took {elapsed:?}, expected well under 10s"
+            );
+        }
+    }
+
+    /// A `cargo fuzz run otf_parse` CI job found this: a TTF-subtype font
+    /// (no `CFF ` table, so `decide_font_subtype_otf` defaults to `Ttf`)
+    /// with a `head` table but no `maxp` table panicked with `called
+    /// `Option::unwrap()` on a `None` value` at the `GlyfIOContext`
+    /// construction inside `OtfReader::read`'s TTF branch -- unlike the
+    /// CFF branch right below it (which already tolerates a missing
+    /// `head` via `.map_or(null(), ...)`), this branch unconditionally
+    /// `.unwrap()`ed both `head.index_to_loc_format` and `maxp.
+    /// num_glyphs`. Fixed by skipping the whole `glyf`-read block (leaving
+    /// `font.glyf` at its default `None`) unless both are present, the
+    /// same "skip this table, keep going" shape `vhea`/`vmtx` right above
+    /// it already use.
+    ///
+    /// Minimal synthetic sfnt: version `\x00\x01\x00\x00` (TrueType),
+    /// one table (`head`, 54 bytes, valid enough to parse), no `maxp`
+    /// table at all.
+    #[test]
+    fn ttf_font_missing_maxp_does_not_panic() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0x00010000u32.to_be_bytes()); // sfnt version
+        data.extend_from_slice(&1u16.to_be_bytes()); // numTables
+        data.extend_from_slice(&[0u8; 6]); // searchRange, entrySelector, rangeShift
+        data.extend_from_slice(b"head");
+        data.extend_from_slice(&0u32.to_be_bytes()); // checkSum (unverified)
+        data.extend_from_slice(&28u32.to_be_bytes()); // offset: right after the 12+16-byte directory
+        data.extend_from_slice(&54u32.to_be_bytes()); // length
+        assert_eq!(data.len(), 28);
+        data.extend_from_slice(&0x00010000u32.to_be_bytes()); // head.version
+        data.extend_from_slice(&[0u8; 50]); // the rest of head's 54 bytes, all zero is fine
+        assert_eq!(data.len(), 28 + 54);
+
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+
+            otfcc_delete_sfnt(sfnt);
+            assert!(!font.is_null());
+            assert!((*font).maxp.is_none());
+            assert!((*font).glyf.is_none());
+            otfcc_font_free(font);
+            otfcc_delete_options(options);
+        }
+    }
+
+    /// A follow-up `cargo fuzz run otf_dump` CI job found a second,
+    /// independent panic from the exact same "TTF font missing `maxp`"
+    /// shape the test above already covers on the *read* side --
+    /// `json_writer.rs`'s `JsonSerializer::serialize` (the `otf_dump`
+    /// path, not `otf_parse`) builds its own `GlyfIOContext` for the dump
+    /// step and unconditionally `.unwrap()`ed `(*font).head`/`(*font).
+    /// maxp` there too, independently of `OtfReader::read`'s own fix
+    /// above. That fix only stops `font.glyf` from being *populated* when
+    /// `head`/`maxp` are missing -- it does nothing to stop `font.head`/
+    /// `font.maxp` themselves from legitimately being `None`, which is
+    /// exactly what `json_writer.rs`'s own unwraps still choked on.
+    /// `otfcc_dump_glyf` itself already no-ops on a `None` table, so the
+    /// fix is the same shape as the read-side one: skip building `ctx`
+    /// (and calling `otfcc_dump_glyf`) unless both `head` and `maxp` are
+    /// present.
+    #[test]
+    fn dump_of_ttf_font_missing_maxp_does_not_panic() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0x00010000u32.to_be_bytes()); // sfnt version
+        data.extend_from_slice(&1u16.to_be_bytes()); // numTables
+        data.extend_from_slice(&[0u8; 6]); // searchRange, entrySelector, rangeShift
+        data.extend_from_slice(b"head");
+        data.extend_from_slice(&0u32.to_be_bytes()); // checkSum (unverified)
+        data.extend_from_slice(&28u32.to_be_bytes()); // offset: right after the 12+16-byte directory
+        data.extend_from_slice(&54u32.to_be_bytes()); // length
+        assert_eq!(data.len(), 28);
+        data.extend_from_slice(&0x00010000u32.to_be_bytes()); // head.version
+        data.extend_from_slice(&[0u8; 50]); // the rest of head's 54 bytes, all zero is fine
+        assert_eq!(data.len(), 28 + 54);
+
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+            otfcc_delete_sfnt(sfnt);
+            assert!(!font.is_null());
+            assert!((*font).maxp.is_none());
+
+            let json = crate::json_writer::serialize_to_json(font, &*options)
+                as *mut crate::support::built_json::BuiltValue;
+            assert!(!json.is_null());
+            drop(Box::from_raw(json));
+
+            otfcc_font_free(font);
+            otfcc_delete_options(options);
+        }
+    }
 }

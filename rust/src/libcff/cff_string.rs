@@ -402,26 +402,111 @@ static STRING_STANDARD: [&::core::ffi::CStr; 391] = [
     c"Roman",
     c"Semibold",
 ];
+/// `str.offset[]` is only ever populated by `extract_index`, which now
+/// validates the whole array is non-decreasing and 1-based before this
+/// function ever sees it -- but `start < 1 || end < start` (matching
+/// `locate_subr`'s own defense-in-depth comment) and the explicit
+/// `checked_add`/bounds check below are kept anyway, at negligible cost,
+/// so this function stays safe on its own if a `CffIndex` is ever built
+/// any other way in the future. Plain slice indexing (`str.data[start..
+/// end]`) replaces the original's raw `.offset()`/`from_raw_parts` walk --
+/// no unsafe pointer arithmetic left to get wrong here at all.
 pub unsafe fn get_cff_sid(idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
     if idx as ::core::ffi::c_int <= 390 as ::core::ffi::c_int {
         return Some(STRING_STANDARD[idx as usize].to_bytes().to_vec());
-    } else if str.count > 0 as Arity
-        && ((idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as Arity) < str.count
-    {
-        let ptr = str
-            .data
-            .as_ptr()
-            .offset(
-                str.offset[(idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as usize]
-                    as isize,
-            )
-            .offset(-(1 as ::core::ffi::c_int as isize)) as *const u8;
-        let len = (str.offset[(idx as ::core::ffi::c_int - 390 as ::core::ffi::c_int) as usize])
-            .wrapping_sub(
-                str.offset[(idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as usize],
-            ) as usize;
-        return Some(::core::slice::from_raw_parts(ptr, len).to_vec());
-    } else {
+    }
+    if str.count == 0 as Arity {
         return None;
-    };
+    }
+    let sid_index = (idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as Arity;
+    if sid_index >= str.count {
+        return None;
+    }
+    let start = str.offset[sid_index as usize];
+    let end = str.offset[(sid_index + 1) as usize];
+    if start < 1 || end < start {
+        return None;
+    }
+    let data_start = (start - 1) as usize;
+    let len = (end - start) as usize;
+    let data_end = data_start.checked_add(len)?;
+    if data_end > str.data.len() {
+        return None;
+    }
+    Some(str.data[data_start..data_end].to_vec())
+}
+
+#[cfg(test)]
+mod get_cff_sid_tests {
+    use super::*;
+    use crate::libcff::cff_index::CffIndexCountType;
+
+    fn string_index(offset: Vec<u32>, data: Vec<u8>) -> CffIndex {
+        CffIndex {
+            count_type: CffIndexCountType::U16,
+            count: (offset.len().saturating_sub(1)) as Arity,
+            off_size: 1,
+            offset,
+            data,
+        }
+    }
+
+    #[test]
+    fn standard_sid_never_touches_the_custom_index() {
+        // idx <= 390 is always one of the predefined strings, regardless
+        // of what (or whether) a custom String INDEX exists.
+        let str = string_index(Vec::new(), Vec::new());
+        unsafe {
+            assert_eq!(get_cff_sid(0, &str).unwrap(), b".notdef");
+        }
+    }
+
+    #[test]
+    fn custom_sid_reads_the_right_slice() {
+        let str = string_index(vec![1, 3, 6], b"ABCDE".to_vec());
+        unsafe {
+            assert_eq!(get_cff_sid(391, &str).unwrap(), b"AB");
+            assert_eq!(get_cff_sid(392, &str).unwrap(), b"CDE");
+        }
+    }
+
+    #[test]
+    fn sid_past_the_index_count_is_rejected() {
+        let str = string_index(vec![1, 3], b"AB".to_vec());
+        unsafe {
+            assert!(get_cff_sid(392, &str).is_none());
+        }
+    }
+
+    #[test]
+    fn non_decreasing_offset_pair_is_rejected_not_wrapped() {
+        // `extract_index` now refuses to build a `CffIndex` with a
+        // decreasing offset pair at all (see its own test), so this
+        // constructs one by hand to confirm `get_cff_sid` doesn't rely
+        // solely on that -- the exact bug `cargo fuzz run otf_parse`
+        // found as a heap-buffer-overflow: `end.wrapping_sub(start)` with
+        // `end < start` wraps to a length near `u32::MAX`.
+        let str = string_index(vec![5, 1], b"AB".to_vec());
+        unsafe {
+            assert!(get_cff_sid(391, &str).is_none());
+        }
+    }
+
+    #[test]
+    fn zero_offset_is_rejected() {
+        let str = string_index(vec![0, 2], b"AB".to_vec());
+        unsafe {
+            assert!(get_cff_sid(391, &str).is_none());
+        }
+    }
+
+    #[test]
+    fn range_past_the_actual_data_length_is_rejected_instead_of_reading_oob() {
+        // The offsets are internally consistent (non-decreasing, both
+        // >= 1) but claim more data than `str.data` actually holds.
+        let str = string_index(vec![1, 100], b"AB".to_vec());
+        unsafe {
+            assert!(get_cff_sid(391, &str).is_none());
+        }
+    }
 }

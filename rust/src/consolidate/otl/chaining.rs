@@ -14,6 +14,14 @@ use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_mut};
 use crate::table::otl::{ChainingRule, ChainingSubtable, OtlTable, Subtable};
 
+/// See `Options::consolidate_warning_budget`'s own doc comment: bounds the
+/// total "invalid lookup reference" warnings this function will log across
+/// one whole font, since the per-subtable/per-rule caps upstream
+/// (`chaining/read.rs`) bound each factor individually but not their
+/// product. Generous: real fonts essentially never hit even one such
+/// warning, let alone tens of thousands.
+pub(crate) const CONSOLIDATE_WARNING_BUDGET: u32 = 10_000;
+
 pub unsafe fn consolidate_chaining(
     font: *mut Font,
     table: *mut OtlTable,
@@ -79,30 +87,46 @@ pub unsafe fn consolidate_chaining(
                 k = k.wrapping_add(1);
             }
             if !found_lookup && !(&(*rule).apply)[j_0 as usize].lookup.name.is_empty() {
-                logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] Quoting an invalid lookup ",
-                        &(&(*rule).apply)[j_0 as usize].lookup.name,
-                        b". This lookup application is ignored.",
-                    ),
-                );
+                // See `CONSOLIDATE_WARNING_BUDGET`'s doc comment: a font
+                // whose rules apply thousands of unresolvable lookups can
+                // still reach this point despite the per-rule/per-subtable/
+                // per-lookup caps upstream, since those caps bound each
+                // factor individually, not their product -- this budget
+                // bounds the actual cost (heap-allocating log calls), while
+                // the dispose below (which the warning exists to explain)
+                // still always runs.
+                let budget = options.consolidate_warning_budget.get();
+                if budget > 0 {
+                    options.consolidate_warning_budget.set(budget - 1);
+                    logger_log_sds(
+                        &mut *options.logger.borrow_mut(),
+                        LOG_VL_IMPORTANT,
+                        LoggerType::Warning,
+                        crate::bytesbuild!(
+                            b"[Consolidate] Quoting an invalid lookup ",
+                            &(&(*rule).apply)[j_0 as usize].lookup.name,
+                            b". This lookup application is ignored.",
+                        ),
+                    );
+                }
                 otfcc_handle_dispose(&raw mut (&mut (*rule).apply)[j_0 as usize].lookup);
             }
         } else if (*h).state == HandleState::Index {
             if (*h).index as usize >= (*table).lookups.len() {
-                logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] Quoting an invalid lookup #",
-                        (*h).index as ::core::ffi::c_int,
-                        b".",
-                    ),
-                );
+                let budget = options.consolidate_warning_budget.get();
+                if budget > 0 {
+                    options.consolidate_warning_budget.set(budget - 1);
+                    logger_log_sds(
+                        &mut *options.logger.borrow_mut(),
+                        LOG_VL_IMPORTANT,
+                        LoggerType::Warning,
+                        crate::bytesbuild!(
+                            b"[Consolidate] Quoting an invalid lookup #",
+                            (*h).index as ::core::ffi::c_int,
+                            b".",
+                        ),
+                    );
+                }
                 (*h).index = 0 as GlyphId;
             }
             let idx = (*h).index;
