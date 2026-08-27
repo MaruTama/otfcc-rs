@@ -41,6 +41,36 @@ const MAX_TOTAL_LANGUAGES: u32 = 10_000;
 // subtables even in large fonts, so this cap is far above legitimate
 // usage.
 const MAX_TOTAL_SUBTABLES_PER_LOOKUP: u16 = 1_000;
+// One level up from `MAX_TOTAL_SUBTABLES_PER_LOOKUP`: `parse_otl_common`'s
+// own `LookupList` loop reads `lookup_count` (raw `u16`, up to 65535) with
+// only `require_room` guarding that its own offset array fits -- true for
+// any large enough table. Every per-lookup cap below this one only bounds
+// what *one* lookup costs; nothing bounded how many lookups a table could
+// declare. Fuzzing found a table with ~10,300 lookups whose combined JSON
+// output alone was ~217MB (and whose combined in-memory footprint, well
+// past what `MAX_TOTAL_RULES_PER_TABLE`'s own budget change was, turned
+// out not to move the needle on -- lookup *count* itself was the
+// remaining uncapped multiplier). Real fonts -- even `tests/payload/
+// NotoNastaliqUrdu-Regular.ttf`, deliberately complex, in this repo's own
+// golden corpus -- have at most a few hundred lookups per table (175, in
+// that font's own GSUB). 500 is generously above any legitimate use (3x
+// that font's own count) while keeping worst-case output size and memory
+// bounded.
+pub(crate) const MAX_TOTAL_LOOKUPS_PER_TABLE: u16 = 500;
+// A third, independent amplification axis found in the same investigation:
+// `parse_language`'s own `feature_count` (raw `u16`, up to 65535 per
+// language) is bounds-checked only against that one `LangSys` table's own
+// bytes, and nothing capped it against `MAX_TOTAL_LANGUAGES`'s own budget
+// -- up to 10,000 languages, each independently pushing up to 65,535
+// feature references, is billions of pushes in theory. In practice this
+// was the dominant contributor behind one fuzz-found file whose GSUB JSON
+// alone stayed ~213MB regardless of every other cap in this module,
+// traced to a single `LangSys`'s `features` array serializing an enormous
+// number of (mostly duplicate, aliased) feature-name references. Global
+// across the whole table (like `MAX_TOTAL_RULES_PER_TABLE`), not
+// per-language, for the same "per-factor caps still let the product
+// explode" reason relative to `MAX_TOTAL_LANGUAGES`.
+pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 100_000;
 
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
@@ -158,6 +188,7 @@ unsafe fn parse_language(
     base: u32,
     lang: *mut LanguageSystem,
     features: *mut FeatureList,
+    feature_ref_budget: &mut u32,
 ) {
     let parsed = FontReader::new(data).at(base as usize).and_then(|mut r| {
         r.skip(2)?; // lookupOrder, unused
@@ -177,7 +208,14 @@ unsafe fn parse_language(
             } else {
                 (*lang).required_feature = ::core::ptr::null::<Feature>();
             }
+            // See `MAX_TOTAL_FEATURE_REFS_PER_TABLE`'s own doc comment:
+            // this budget is shared across every `parse_language` call for
+            // the whole table, not reset per language.
             for feature_index in feature_indices {
+                if *feature_ref_budget == 0 {
+                    break;
+                }
+                *feature_ref_budget -= 1;
                 if (feature_index as usize) < (*features).len() {
                     (*lang)
                         .features
@@ -227,7 +265,7 @@ unsafe fn parse_otl_common(
     let mut lr = FontReader::new(data).at(lookup_list_offset as usize)?;
     let lookup_count = lr.u16()?;
     lr.require_room(lookup_count as usize, 2)?;
-    for _ in 0..lookup_count {
+    for _ in 0..lookup_count.min(MAX_TOTAL_LOOKUPS_PER_TABLE) {
         let mut lookup: Box<Lookup> = new_lookup();
         let lookup_offset = lookup_list_offset.wrapping_add(lr.u16()? as u32);
         // Needs 6 bytes at `lookup_offset` (lookupType/lookupFlag/
@@ -319,6 +357,7 @@ unsafe fn parse_otl_common(
     let script_count = sr.u16()?;
     sr.require_room(script_count as usize, 6)?;
     let mut total_languages: u32 = 0;
+    let mut total_feature_refs: u32 = MAX_TOTAL_FEATURE_REFS_PER_TABLE;
     'scripts: for _ in 0..script_count {
         let tag_0 = sr.u32()?;
         let script_offset_0 = script_list_offset.wrapping_add(sr.u16()? as u32);
@@ -344,6 +383,7 @@ unsafe fn parse_otl_common(
                 script_offset_0.wrapping_add(default_lang_system_0 as u32),
                 &raw mut *lang,
                 &raw mut (*table).features,
+                &mut total_feature_refs,
             );
             (*table).languages.push(lang);
         }
@@ -375,6 +415,7 @@ unsafe fn parse_otl_common(
                 script_offset_0.wrapping_add(lang_sys as u32),
                 &raw mut *lang_0,
                 &raw mut (*table).features,
+                &mut total_feature_refs,
             );
             (*table).languages.push(lang_0);
         }

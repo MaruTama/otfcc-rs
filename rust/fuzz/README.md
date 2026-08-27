@@ -330,6 +330,29 @@ as regression pins even though none of them still reproduce:
   `CLASS_ZERO_BUDGET`) being recalibrated too tight once its scope changed
   from per-subtable to per-table.
 
+- ~~`tests/fuzz-corpus/known-issues/otf-parse-otl-feature-ref-
+  amplification-oom.bin` (497KB) — a follow-up find in the very next
+  `cargo fuzz run otf_parse` CI run after the entry above landed: `table/
+  otl/read.rs`'s `parse_otl_common`/`parse_language` had two more of the
+  same "individually bounds-checked, never bounded in aggregate" counts
+  one level further out than everything the entry above had bounded —
+  `lookup_count` (~10,300 lookups in this file) and `feature_count` (one
+  pathological `LangSys` pushing 84.7 million feature references) —
+  crossing libFuzzer's 2048MB `-rss_limit_mb` under ASan~~ — **fixed**:
+  `MAX_TOTAL_LOOKUPS_PER_TABLE` (500) and `MAX_TOTAL_FEATURE_REFS_PER_
+  TABLE` (100,000, global across the table). Found by bisecting: tightening
+  the *previous* entry's own rule-count budget by 10x barely moved this
+  file's peak memory, which is what pointed at lookup/feature counts
+  instead. With both landed, the previous entry's own budgets could come
+  back down closer to their original intent (they'd been loosened as a
+  first attempt at fixing this same memory blowup, before realizing
+  lookup/feature count were the actual dominant factors). See `rust/
+  README.md`'s "Next steps" for the full writeup, including how the
+  regression test for this one needed to assert a structural invariant
+  directly rather than wall-clock time, since this file parses fast enough
+  natively (without ASan's memory multiplier) that a timing-only test
+  didn't actually catch it.
+
 ## Fuzz targets
 
 - **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).

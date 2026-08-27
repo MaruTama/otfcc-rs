@@ -932,6 +932,65 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`table/otl/read.rs`: a follow-up to the entry directly below -- once
+  the hang/panic there was fixed, the very next CI `fuzz` run found a
+  genuinely different bug in the same general area: an out-of-memory
+  instead.** `parse_otl_common`'s own `lookup_count` and `parse_language`'s
+  own `feature_count` were both still uncapped, one level further out than
+  everything the entry below had already bounded.
+  - **The bug**: two more of the same "individually bounds-checked, never
+    bounded in aggregate" counts this whole investigation kept finding.
+    `lookup_count` (a raw `u16`, up to 65535) is checked only against its
+    own offset array fitting the table; the fuzz-found file had ~10,300
+    lookups, each contributing its own (otherwise now-bounded) content.
+    `feature_count` (also raw, up to 65535, read inside `parse_language`)
+    is checked only against that one `LangSys` table's own bytes, with no
+    cap against `MAX_TOTAL_LANGUAGES`'s own per-table budget -- one
+    pathological `LangSys` pushed millions of (mostly duplicate, aliased)
+    feature references into a single language's `features` list. This one
+    turned out to dominate: bisecting by tightening `chaining/read.rs`'s
+    `MAX_TOTAL_RULES_PER_TABLE` all the way down to 2,000 (10x below what
+    `NotoNastaliqUrdu-Regular.ttf` needs) barely moved this file's peak
+    native RSS at all (~1GB either way), which is what pointed away from
+    rule/apply/position counts and at `lookup_count`/`feature_count`
+    instead. Confirmed directly: reverting just the `feature_count` budget
+    check (keeping the constant, removing only the enforcement) let one
+    fuzz-found file's own language push **84,703,689** feature references.
+  - **The fix**: `MAX_TOTAL_LOOKUPS_PER_TABLE` (500, per table -- 3x
+    `NotoNastaliqUrdu-Regular.ttf`'s own 175) and
+    `MAX_TOTAL_FEATURE_REFS_PER_TABLE` (100,000, **global** across the
+    whole table like `MAX_TOTAL_RULES_PER_TABLE`, threaded into
+    `parse_language` as a `&mut u32` alongside the existing `total_
+    languages` counter it already shares scope with). With both landed,
+    `chaining/read.rs`'s own budgets could come back down closer to their
+    original, tighter intent -- `MAX_TOTAL_RULES_PER_TABLE` 50,000 -> 20,000,
+    `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` 1,000 -> 100 each,
+    `CLASS_ZERO_BUDGET` 200 million -> 30 million, `CLASS_COVERAGE_CALL_
+    BUDGET` 200,000 -> 100,000 -- since `lookup_count`/`feature_count`
+    turned out to be the dominant memory drivers, not those. Peak native
+    RSS (no ASan) on the fuzz-found file dropped from ~1.7GB to ~189MB;
+    processing time dropped from several seconds to well under one.
+  - **New test**, `otl_feature_ref_amplification_font_parses_promptly`
+    (`otf_reader.rs`). A pure wall-clock assertion (matching this
+    investigation's other regression tests) turned out *not* to catch
+    this one -- the file parses in well under a second natively even with
+    both new caps fully disabled, since the memory blowup only crosses
+    libFuzzer's 2048MB `-rss_limit_mb` under ASan's memory-overhead
+    multiplier, which this test doesn't run under. Instead it asserts the
+    actual structural invariant the fix establishes directly: after
+    `read_otf`, both `gsub.lookups.len()` and the sum of every language's
+    `features.len()` stay within `MAX_TOTAL_LOOKUPS_PER_TABLE`/`MAX_
+    TOTAL_FEATURE_REFS_PER_TABLE`. Verified to catch the regression by
+    temporarily removing the `feature_count` budget enforcement (see
+    above) -- the assertion then fails with the real, unbounded count.
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-parse-otl-
+    feature-ref-amplification-oom.bin` (497KB).
+  - **Verification**: full pipeline green (330/330 tests, clippy/ABI/
+    golden -- including `NotoNastaliqUrdu-Regular` again, since tightening
+    `MAX_TOTAL_RULES_PER_TABLE` back down needed re-checking against it --
+    /log/cycles/lookup-alias/roundtrips clean), all three fuzz targets
+    `cargo check`-clean, `cargo miri test --lib` clean.
+
 - **`table/otl/subtables/chaining/read.rs`: a chain of four independently-
   bounded-but-multiplicatively-unbounded counts in contextual/chaining
   subtable parsing -- an OOM, then (once memory was capped) a hang, then
@@ -986,11 +1045,12 @@ on the other platform before a commit is trusted.
     truncate, keep what's already built" shape this migration already
     uses for `MAX_TOTAL_LANGUAGES` --
     `otl/read.rs::MAX_TOTAL_SUBTABLES_PER_LOOKUP` (1,000, per lookup),
-    `chaining/read.rs::MAX_TOTAL_RULES_PER_TABLE` (50,000, **global**
-    across a whole `otfcc_read_otl` call -- an earlier per-subtable-only
-    version of this cap still let many subtables each spend their own
-    full allowance),
-    `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` (1,000 each, per rule),
+    `chaining/read.rs::MAX_TOTAL_RULES_PER_TABLE` (20,000 as of the
+    follow-up entry below; originally 50,000, **global** across a whole
+    `otfcc_read_otl` call -- an earlier per-subtable-only version of this
+    cap still let many subtables each spend their own full allowance),
+    `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` (100 each as of the
+    follow-up entry; originally 1,000 each, per rule),
     `otf_reader/unconsolidate.rs::MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_
     PER_LOOKUP` (20,000, per lookup), and `consolidate/otl/chaining.rs::
     CONSOLIDATE_WARNING_BUDGET` (10,000, via a new `Options::
@@ -1001,7 +1061,8 @@ on the other platform before a commit is trusted.
     `reset_class_coverage_budgets`) for the same "per-factor caps still
     let the product explode" reason -- which in turn meant
     `CLASS_ZERO_BUDGET`'s original value (10 million, sized for a single
-    call) was recalibrated to 200 million after `tests/payload/
+    call) needed recalibrating (first to 200 million, later down to 30
+    million -- see the follow-up entry below) after `tests/payload/
     NotoNastaliqUrdu-Regular.ttf` (a real, legitimately complex Nastaliq-
     script font already in this repo's golden corpus) turned out to
     genuinely use ~10.7 million of these units in its own GSUB table

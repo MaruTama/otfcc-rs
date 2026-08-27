@@ -341,6 +341,91 @@ mod regression_tests {
         }
     }
 
+    /// A follow-up `cargo fuzz run otf_parse` CI job (after the fix above
+    /// landed) found `tests/fuzz-corpus/known-issues/otf-parse-otl-
+    /// feature-ref-amplification-oom.bin`: a genuinely *different* bug in
+    /// the same file (`otl/read.rs`), an out-of-memory this time rather
+    /// than a hang -- libFuzzer's ASan-instrumented build hit its 2048MB
+    /// `-rss_limit_mb`. `parse_language`'s own `feature_count` (a raw
+    /// `u16`, up to 65535 per language) was bounds-checked only against
+    /// that one `LangSys` table's own bytes, with no cap against `MAX_
+    /// TOTAL_LANGUAGES`'s own per-table budget -- one pathological
+    /// `LangSys` table pushed a huge number of (mostly duplicate, aliased)
+    /// feature references into a single language's `features` list.
+    /// Separately, `parse_otl_common`'s own `lookup_count` (also raw,
+    /// up to 65535) had no cap at all: this same file also had ~10,300
+    /// lookups, each contributing its own (otherwise-bounded) content to
+    /// the output. Neither factor alone explained the memory use on its
+    /// own -- bisecting by tightening `MAX_TOTAL_RULES_PER_TABLE` down to
+    /// 2,000 (10x below what `tests/payload/NotoNastaliqUrdu-Regular.ttf`
+    /// needs) barely moved this file's peak RSS at all, which is what
+    /// pointed at `lookup_count`/`feature_count` instead. Fixed with `MAX_
+    /// TOTAL_LOOKUPS_PER_TABLE` (500) and `MAX_TOTAL_FEATURE_REFS_PER_
+    /// TABLE` (100,000, global across the table like `MAX_TOTAL_RULES_
+    /// PER_TABLE`). Confirmed locally (native, no ASan): this exact file's
+    /// peak RSS dropped from ~1GB to ~34MB.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "reads a fixture from disk, needs -Zmiri-disable-isolation; also far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn otl_feature_ref_amplification_font_parses_promptly() {
+        let bytes = std::fs::read(
+            "../tests/fuzz-corpus/known-issues/otf-parse-otl-feature-ref-amplification-oom.bin",
+        )
+        .unwrap();
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let start = Instant::now();
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+            let elapsed = start.elapsed();
+
+            // The wall-clock check below alone doesn't actually catch this
+            // regression: this file's memory blowup happens fast enough on
+            // native, uninstrumented hardware that even the fully-uncapped
+            // version parses in well under a second here -- it only
+            // crossed libFuzzer's 2048MB `-rss_limit_mb` under ASan's
+            // memory-overhead multiplier in CI. Assert the actual
+            // invariant the fix establishes instead: neither cap was
+            // exceeded, for either table.
+            assert!(!font.is_null());
+            for otl in [(*font).gsub.as_deref(), (*font).gpos.as_deref()]
+                .into_iter()
+                .flatten()
+            {
+                assert!(
+                    otl.lookups.len()
+                        <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
+                    "lookups.len() = {} exceeds MAX_TOTAL_LOOKUPS_PER_TABLE",
+                    otl.lookups.len()
+                );
+                let total_feature_refs: usize =
+                    otl.languages.iter().map(|lang| lang.features.len()).sum();
+                assert!(
+                    total_feature_refs
+                        <= crate::table::otl::read::MAX_TOTAL_FEATURE_REFS_PER_TABLE as usize,
+                    "total feature refs = {total_feature_refs} exceeds MAX_TOTAL_FEATURE_REFS_PER_TABLE"
+                );
+            }
+
+            otfcc_delete_sfnt(sfnt);
+            if !font.is_null() {
+                otfcc_font_free(font);
+            }
+            otfcc_delete_options(options);
+
+            assert!(
+                elapsed < Duration::from_secs(10),
+                "read_otf took {elapsed:?}, expected well under 10s"
+            );
+        }
+    }
+
     /// A `cargo fuzz run otf_parse` CI job found this: a TTF-subtype font
     /// (no `CFF ` table, so `decide_font_subtype_otf` defaults to `Ttf`)
     /// with a `head` table but no `maxp` table panicked with `called
