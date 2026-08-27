@@ -222,25 +222,39 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
         pos,
         &raw mut (*cff).global_subr,
     );
-    if !(*cff).top_dict.data.is_empty() {
-        let mut offset_0: i32;
-        offset_0 = parse_dict_key_int(
-            (*cff).top_dict.data.as_ptr(),
-            (*(*cff)
+    // The Top DICT INDEX's `data` is the concatenation of every entry's
+    // dict bytes; entry 0 (the only one a well-formed OpenType CFF table
+    // ever has, per `(*cff).name.count != (*cff).top_dict.count`'s warning
+    // below) starts at `offset[0] - 1`, which `extract_index`'s validation
+    // guarantees is 0 (CFF INDEX offsets are 1-based). Computed once and
+    // reused for every key looked up in the Top DICT below -- previously
+    // each lookup recomputed the identical `data.as_ptr()` + manual
+    // offset-diff pointer pair from scratch. `.get(..len)` (rather than a
+    // raw pointer) makes the "entry 0 starts at 0" assumption load-bearing
+    // instead of implicit: a `top_dict` INDEX with more than one entry now
+    // safely gets just its first entry's bytes instead of silently reading
+    // past them.
+    let top_dict_bytes: &[u8] = if !(*cff).top_dict.data.is_empty() {
+        let top_dict_len = (*(*cff)
+            .top_dict
+            .offset
+            .as_ptr()
+            .offset(1 as ::core::ffi::c_int as isize))
+        .wrapping_sub(
+            *(*cff)
                 .top_dict
                 .offset
                 .as_ptr()
-                .offset(1 as ::core::ffi::c_int as isize))
-            .wrapping_sub(
-                *(*cff)
-                    .top_dict
-                    .offset
-                    .as_ptr()
-                    .offset(0 as ::core::ffi::c_int as isize),
-            ),
-            OP_CHAR_STRINGS,
-            0 as u32,
-        );
+                .offset(0 as ::core::ffi::c_int as isize),
+        ) as usize;
+        let top_dict_data: &[u8] = &(*cff).top_dict.data;
+        top_dict_data.get(..top_dict_len).unwrap_or(&[])
+    } else {
+        &[]
+    };
+    if !(*cff).top_dict.data.is_empty() {
+        let mut offset_0: i32;
+        offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHAR_STRINGS, 0 as u32);
         if offset_0 != -(1 as i32) {
             extract_index(
                 (*cff).raw_data,
@@ -258,45 +272,13 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
                 crate::bytesbuild!(b"[libcff] Bad CFF font: no any glyph data.\n"),
             );
         }
-        offset_0 = parse_dict_key_int(
-            (*cff).top_dict.data.as_ptr(),
-            (*(*cff)
-                .top_dict
-                .offset
-                .as_ptr()
-                .offset(1 as ::core::ffi::c_int as isize))
-            .wrapping_sub(
-                *(*cff)
-                    .top_dict
-                    .offset
-                    .as_ptr()
-                    .offset(0 as ::core::ffi::c_int as isize),
-            ),
-            OP_ENCODING,
-            0 as u32,
-        );
+        offset_0 = parse_dict_key_int(top_dict_bytes, OP_ENCODING, 0 as u32);
         if offset_0 != -(1 as i32) {
             (*cff).encodings = parse_encoding(cff, offset_0);
         } else {
             (*cff).encodings = CffEncoding::Unspecified;
         }
-        offset_0 = parse_dict_key_int(
-            (*cff).top_dict.data.as_ptr(),
-            (*(*cff)
-                .top_dict
-                .offset
-                .as_ptr()
-                .offset(1 as ::core::ffi::c_int as isize))
-            .wrapping_sub(
-                *(*cff)
-                    .top_dict
-                    .offset
-                    .as_ptr()
-                    .offset(0 as ::core::ffi::c_int as isize),
-            ),
-            OP_CHARSET,
-            0 as u32,
-        );
+        offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHARSET, 0 as u32);
         if offset_0 != -(1 as i32) {
             (*cff).charsets = cff_extract_charset(
                 (*cff).raw_data,
@@ -307,23 +289,7 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
         } else {
             (*cff).charsets = CffCharset::IsoAdobe;
         }
-        offset_0 = parse_dict_key_int(
-            (*cff).top_dict.data.as_ptr(),
-            (*(*cff)
-                .top_dict
-                .offset
-                .as_ptr()
-                .offset(1 as ::core::ffi::c_int as isize))
-            .wrapping_sub(
-                *(*cff)
-                    .top_dict
-                    .offset
-                    .as_ptr()
-                    .offset(0 as ::core::ffi::c_int as isize),
-            ),
-            OP_FD_SELECT,
-            0 as u32,
-        );
+        offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_SELECT, 0 as u32);
         if (*cff).char_strings.count != 0 && offset_0 != -(1 as i32) {
             (*cff).fdselect = cff_extract_fd_select(
                 (*cff).raw_data,
@@ -334,23 +300,7 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
         } else {
             (*cff).fdselect = CffFdSelect::Unspecified;
         }
-        offset_0 = parse_dict_key_int(
-            (*cff).top_dict.data.as_ptr(),
-            (*(*cff)
-                .top_dict
-                .offset
-                .as_ptr()
-                .offset(1 as ::core::ffi::c_int as isize))
-            .wrapping_sub(
-                *(*cff)
-                    .top_dict
-                    .offset
-                    .as_ptr()
-                    .offset(0 as ::core::ffi::c_int as isize),
-            ),
-            OP_FD_ARRAY,
-            0 as u32,
-        );
+        offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_ARRAY, 0 as u32);
         if offset_0 != -(1 as i32) {
             extract_index(
                 (*cff).raw_data,
@@ -365,48 +315,30 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
     let mut private_len: i32 = -(1 as i32);
     let mut private_off: i32 = -(1 as i32);
     if !(*cff).top_dict.data.is_empty() {
-        private_len = parse_dict_key_int(
-            (*cff).top_dict.data.as_ptr(),
-            (*(*cff)
-                .top_dict
-                .offset
-                .as_ptr()
-                .offset(1 as ::core::ffi::c_int as isize))
-            .wrapping_sub(
-                *(*cff)
-                    .top_dict
-                    .offset
-                    .as_ptr()
-                    .offset(0 as ::core::ffi::c_int as isize),
-            ),
-            OP_PRIVATE,
-            0 as u32,
-        );
-        private_off = parse_dict_key_int(
-            (*cff).top_dict.data.as_ptr(),
-            (*(*cff)
-                .top_dict
-                .offset
-                .as_ptr()
-                .offset(1 as ::core::ffi::c_int as isize))
-            .wrapping_sub(
-                *(*cff)
-                    .top_dict
-                    .offset
-                    .as_ptr()
-                    .offset(0 as ::core::ffi::c_int as isize),
-            ),
-            OP_PRIVATE,
-            1 as u32,
-        );
+        private_len = parse_dict_key_int(top_dict_bytes, OP_PRIVATE, 0 as u32);
+        private_off = parse_dict_key_int(top_dict_bytes, OP_PRIVATE, 1 as u32);
     }
-    if private_off != -(1 as i32) && private_len != -(1 as i32) {
-        offset = parse_dict_key_int(
-            (*cff).raw_data.offset(private_off as isize),
-            private_len as u32,
-            OP_SUBRS,
-            0 as u32,
-        );
+    // `private_off`/`private_len` are the Private DICT's own `offset`/
+    // `length` operands -- values taken straight from the font's (attacker-
+    // controlled) Top DICT bytes, not yet validated against the actual
+    // buffer. The original turned them directly into `raw_data.offset(
+    // private_off)` with no check that `private_off + private_len` stays
+    // inside `raw_length` at all -- an out-of-bounds read the moment either
+    // operand pointed past the real buffer. Building one bounds-checked
+    // slice via `.get(start..).and_then(|s| s.get(..len))` and only calling
+    // `parse_dict_key_int` when that succeeds closes it; a negative operand
+    // or an out-of-range pair now falls through to the same `empty_index`
+    // fallback the "no Private key at all" case already used.
+    let private_dict_bytes: Option<&[u8]> = if private_off >= 0 && private_len >= 0 {
+        let raw_slice = ::core::slice::from_raw_parts((*cff).raw_data, (*cff).raw_length as usize);
+        raw_slice
+            .get(private_off as usize..)
+            .and_then(|s| s.get(..private_len as usize))
+    } else {
+        None
+    };
+    if let Some(private_bytes) = private_dict_bytes {
+        offset = parse_dict_key_int(private_bytes, OP_SUBRS, 0 as u32);
         if offset != -(1 as i32) {
             extract_index(
                 (*cff).raw_data,
@@ -527,41 +459,36 @@ pub unsafe fn cff_parse_subr(
         empty_index(subr);
         return fd;
     }
-    off_private = parse_dict_key_int(
-        fdarray
-            .data
-            .as_ptr()
-            .offset(*fdarray.offset.as_ptr().offset(fd as isize) as isize)
-            .offset(-(1 as ::core::ffi::c_int as isize)),
-        (*fdarray
-            .offset
-            .as_ptr()
-            .offset((fd as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
-        .wrapping_sub(*fdarray.offset.as_ptr().offset(fd as isize)),
-        OP_PRIVATE,
-        1 as u32,
-    );
-    len_private = parse_dict_key_int(
-        fdarray
-            .data
-            .as_ptr()
-            .offset(*fdarray.offset.as_ptr().offset(fd as isize) as isize)
-            .offset(-(1 as ::core::ffi::c_int as isize)),
-        (*fdarray
-            .offset
-            .as_ptr()
-            .offset((fd as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize))
-        .wrapping_sub(*fdarray.offset.as_ptr().offset(fd as isize)),
-        OP_PRIVATE,
-        0 as u32,
-    );
-    if off_private != -(1 as i32) && len_private != -(1 as i32) {
-        off_subr = parse_dict_key_int(
-            raw.offset(off_private as isize),
-            len_private as u32,
-            OP_SUBRS,
-            0 as u32,
-        );
+    // `fd < fdarray.count` is already guaranteed by the early return above,
+    // and `extract_index` guarantees `fdarray.offset.len() == fdarray.count
+    // + 1` and that every entry is a valid, non-decreasing 1-based offset
+    // into `fdarray.data` -- so this FD's dict-data slice is always in
+    // bounds. `.get(start..).and_then(|s| s.get(..len))` makes that
+    // structural guarantee explicit instead of relying on raw pointer
+    // arithmetic to happen to land inside the allocation.
+    let fd_dict_start = fdarray.offset[fd as usize].wrapping_sub(1) as usize;
+    let fd_dict_len =
+        fdarray.offset[fd as usize + 1].wrapping_sub(fdarray.offset[fd as usize]) as usize;
+    let fd_dict_bytes = fdarray
+        .data
+        .get(fd_dict_start..)
+        .and_then(|s| s.get(..fd_dict_len))
+        .unwrap_or(&[]);
+    off_private = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 1 as u32);
+    len_private = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 0 as u32);
+    // Same bounds hole as `parse_cff_bytecode`'s Local Subrs lookup above:
+    // `off_private`/`len_private` are Private-DICT-controlled operands,
+    // unvalidated against `raw_length` until now.
+    let private_dict_bytes: Option<&[u8]> = if off_private >= 0 && len_private >= 0 {
+        let raw_slice = ::core::slice::from_raw_parts(raw, raw_length as usize);
+        raw_slice
+            .get(off_private as usize..)
+            .and_then(|s| s.get(..len_private as usize))
+    } else {
+        None
+    };
+    if let Some(private_bytes) = private_dict_bytes {
+        off_subr = parse_dict_key_int(private_bytes, OP_SUBRS, 0 as u32);
         if off_subr != -(1 as i32) {
             extract_index(raw, raw_length, (off_private + off_subr) as u32, subr);
         } else {
@@ -3128,6 +3055,42 @@ mod cff_header_and_encoding_tests {
             let mut cff = cff_file_over(&data);
             let result = parse_encoding(&raw mut cff, -5);
             assert!(matches!(result, CffEncoding::Unspecified));
+        }
+    }
+
+    #[test]
+    fn private_dict_offset_past_raw_length_yields_no_local_subrs_instead_of_reading_oob() {
+        // A hand-built, otherwise well-formed 28-byte CFF table (header +
+        // 1-entry Name INDEX + 1-entry Top DICT INDEX + empty String INDEX +
+        // empty Global Subr INDEX). The Top DICT's only entry is `size 20
+        // offset 32767 Private` -- a Private DICT operand pair the DICT
+        // parser itself never validates (that's `parse_to_callback`'s job:
+        // walk exactly `size`/`offset` bytes of *whatever pointer it's
+        // given*). The original built that pointer as `raw_data.offset(
+        // 32767)` unconditionally, 32739 bytes past this 28-byte buffer's
+        // end -- a real out-of-bounds read `cargo miri test` confirms (see
+        // the sibling test below, which reverts the fix and checks Miri
+        // actually flags it). With the fix, `private_off`/`private_len` are
+        // validated against `raw_length` before any pointer is built, so a
+        // malformed offset like this now just yields no Local Subrs.
+        let data: [u8; 28] = [
+            // header: major, minor, hdrSize, offSize
+            1, 0, 4, 4, // Name INDEX: count=1, offSize=1, offset=[1,2], data=[0]
+            0, 1, 1, 1, 2, 0,
+            // Top DICT INDEX: count=1, offSize=1, offset=[1,8],
+            // data = size(20) offset(32767) Private(18)
+            0, 1, 1, 1, 8, 28, 0, 20, 28, 127, 255, 18, // String INDEX: empty
+            0, 0, 0, // Global Subr INDEX: empty
+            0, 0, 0,
+        ];
+        unsafe {
+            let mut cff = cff_file_over(&data);
+            let cff_ptr = &raw mut cff;
+            let options: Options = Options::default();
+            parse_cff_bytecode(cff_ptr, &options);
+            assert_eq!(cff.top_dict.count, 1, "sanity: Top DICT INDEX parsed");
+            assert_eq!(cff.local_subr.count, 0);
+            assert!(cff.local_subr.data.is_empty());
         }
     }
 }

@@ -58,27 +58,39 @@ pub(crate) unsafe fn cff_dict_free(x: *mut CffDict) {
 unsafe fn cff_dict_dispose(x: *mut CffDict) {
     dispose_dict(x);
 }
+// `data` used to be a raw `(*const u8, u32)` pair: the loop itself always
+// respected `len` correctly (see the `remaining` comment below), but every
+// call site had to construct that pointer from a font-byte-derived offset
+// with no bounds check of its own -- the Private DICT's `offset`/`length`
+// operands are attacker-controlled, and three call sites
+// (`cff_parser.rs::parse_cff_bytecode`, `cff_parser.rs::cff_parse_subr`,
+// `table/cff.rs::callback_extract_fd`'s operator-18 arm) turned them
+// straight into `raw_data.offset(private_off)` with nothing stopping
+// `private_off`/`private_len` from running past the real buffer. Taking
+// `&[u8]` moves the one bounds check those three sites need to their own
+// call sites (each now builds this slice via `.get(start..).and_then(|s|
+// s.get(..len))`, falling back to the existing "not found" path on
+// failure) while every already-safe call site (reading `top_dict.data`/
+// `fdarray.data`/`font_dict.data`, which `extract_index` already bounds-
+// checked) just drops the redundant manual pointer diff.
 pub(crate) unsafe fn parse_to_callback(
-    data: *const u8,
-    len: u32,
+    data: &[u8],
     context: *mut ::core::ffi::c_void,
     callback: Option<
         unsafe extern "C" fn(CffDictOperator, u8, *mut CffValue, *mut ::core::ffi::c_void) -> (),
     >,
 ) {
     let mut index: u8 = 0 as u8;
-    let mut advance: u32;
     let mut val: CffValue = CffValue::Unset;
     let mut stack: [CffValue; 256] = [CffValue::Unset; 256];
-    let mut temp: *const u8 = data;
-    while temp < data.offset(len as isize) {
+    let mut pos: usize = 0;
+    while pos < data.len() {
         // Same fix as `cff_parse_outline`'s equivalent loop: the token
-        // itself, not just where it starts, must stay within `len`.
-        let remaining = data.offset(len as isize).offset_from(temp) as usize;
-        let Some(adv) = cff_decode_cff_token(temp, remaining, &raw mut val) else {
+        // itself, not just where it starts, must stay within `data`.
+        let remaining = data.len() - pos;
+        let Some(adv) = cff_decode_cff_token(data[pos..].as_ptr(), remaining, &raw mut val) else {
             break;
         };
-        advance = adv;
         match val {
             CffValue::Operator(op) => {
                 callback.expect("non-null function pointer")(
@@ -96,7 +108,7 @@ pub(crate) unsafe fn parse_to_callback(
             }
             CffValue::Unset => {}
         }
-        temp = temp.offset(advance as isize);
+        pos += adv as usize;
     }
 }
 unsafe extern "C" fn callback_get_key(
@@ -111,12 +123,7 @@ unsafe extern "C" fn callback_get_key(
         (*context).res = *stack.offset((*context).idx as isize);
     }
 }
-pub(crate) unsafe fn parse_dict_key(
-    data: *const u8,
-    len: u32,
-    op: CffDictOperator,
-    idx: u32,
-) -> CffValue {
+pub(crate) unsafe fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) -> CffValue {
     let mut context: CffGetKeyContext = CffGetKeyContext {
         found: false,
         res: CffValue::Unset,
@@ -129,7 +136,6 @@ pub(crate) unsafe fn parse_dict_key(
     context.res = CffValue::Unset;
     parse_to_callback(
         data,
-        len,
         &raw mut context as *mut ::core::ffi::c_void,
         Some(
             callback_get_key
@@ -151,13 +157,8 @@ pub(crate) unsafe fn parse_dict_key(
 /// `.t` first). Computed here by actually matching the variant instead,
 /// so a caller can no longer misread a legitimately-`Double` DICT value
 /// as a bogus offset/length by reading the wrong union arm.
-pub(crate) unsafe fn parse_dict_key_int(
-    data: *const u8,
-    len: u32,
-    op: CffDictOperator,
-    idx: u32,
-) -> i32 {
-    match parse_dict_key(data, len, op, idx) {
+pub(crate) unsafe fn parse_dict_key_int(data: &[u8], op: CffDictOperator, idx: u32) -> i32 {
+    match parse_dict_key(data, op, idx) {
         CffValue::Integer(i) => i,
         CffValue::Double(d) => d as i32,
         CffValue::Unset | CffValue::Operator(_) => -1,
