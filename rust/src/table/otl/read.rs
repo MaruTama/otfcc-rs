@@ -53,10 +53,14 @@ const MAX_TOTAL_SUBTABLES_PER_LOOKUP: u16 = 1_000;
 // remaining uncapped multiplier). Real fonts -- even `tests/payload/
 // NotoNastaliqUrdu-Regular.ttf`, deliberately complex, in this repo's own
 // golden corpus -- have at most a few hundred lookups per table (175, in
-// that font's own GSUB). 500 is generously above any legitimate use (3x
-// that font's own count) while keeping worst-case output size and memory
-// bounded.
-pub(crate) const MAX_TOTAL_LOOKUPS_PER_TABLE: u16 = 500;
+// that font's own GSUB). 300 stays generously above any legitimate use
+// (~1.7x that font's own count) while keeping worst-case output size and
+// memory bounded -- tightened from an initial, still-too-loose 500 after
+// CI's ASan-instrumented fuzzing kept finding OOMs marginally over its
+// 2048MB limit even with every cap in this module active at once; see
+// `MAX_TOTAL_FEATURE_REFS_PER_TABLE`'s own comment for the sibling cap
+// tightened at the same time.
+pub(crate) const MAX_TOTAL_LOOKUPS_PER_TABLE: u16 = 300;
 // A third, independent amplification axis found in the same investigation:
 // `parse_language`'s own `feature_count` (raw `u16`, up to 65535 per
 // language) is bounds-checked only against that one `LangSys` table's own
@@ -69,8 +73,15 @@ pub(crate) const MAX_TOTAL_LOOKUPS_PER_TABLE: u16 = 500;
 // number of (mostly duplicate, aliased) feature-name references. Global
 // across the whole table (like `MAX_TOTAL_RULES_PER_TABLE`), not
 // per-language, for the same "per-factor caps still let the product
-// explode" reason relative to `MAX_TOTAL_LANGUAGES`.
-pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 100_000;
+// explode" reason relative to `MAX_TOTAL_LANGUAGES`. Tightened from an
+// initial 100,000 to 50,000 -- real usage is tiny (tens, not thousands,
+// even in `NotoNastaliqUrdu-Regular.ttf`), so this still leaves generous
+// headroom; the tightening came from CI's ASan-instrumented fuzzing still
+// finding OOMs marginally over its 2048MB limit with every cap in this
+// module active, not from this cap specifically being identified as the
+// culprit -- several caps across `otl/read.rs` and `chaining/read.rs`
+// were tightened together in that round.
+pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 50_000;
 
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};

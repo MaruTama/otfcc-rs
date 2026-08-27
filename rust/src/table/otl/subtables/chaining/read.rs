@@ -67,23 +67,23 @@ pub struct ClassDefs {
 /// real, legitimately complex Nastaliq-script font already in this
 /// repo's golden corpus -- genuinely uses ~10.7 million of these units in
 /// its own GSUB table alone (confirmed by instrumenting a debug build).
-/// 30 million leaves that font ~2.8x of headroom while still only costing
-/// well under a second even if a whole table's worth of subtables all hit
-/// it (the original 10 million figure came from timing a single call in
-/// isolation, before this budget's scope changed from per-subtable to
-/// per-table; a later, separate fix -- `otl/read.rs`'s `MAX_TOTAL_LOOKUPS_
-/// PER_TABLE`/`MAX_TOTAL_FEATURE_REFS_PER_TABLE` -- turned out to matter
-/// far more for peak memory than this budget's exact size did, so this
-/// stays modestly above real usage rather than as generous as the earlier
-/// 200-million figure this comment used to cite).
-const MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS: u32 = 30_000_000;
+/// 20 million leaves that font ~1.87x of headroom while still only
+/// costing well under a second even if a whole table's worth of
+/// subtables all hit it (the original 10 million figure came from timing
+/// a single call in isolation, before this budget's scope changed from
+/// per-subtable to per-table; a later, separate fix -- `otl/read.rs`'s
+/// `MAX_TOTAL_LOOKUPS_PER_TABLE`/`MAX_TOTAL_FEATURE_REFS_PER_TABLE` --
+/// turned out to matter far more for peak memory than this budget's exact
+/// size did, so this stays modestly above real usage rather than as
+/// generous as an earlier, since-retightened 200-million figure).
+const MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS: u32 = 20_000_000;
 /// See `CLASS_COVERAGE_CALL_BUDGET` below: bounds the number of
 /// `class_coverage` *calls* themselves, independent of how much work (if
 /// any) each one does internally -- what actually stops a fuzz-found
 /// font whose rules reference an empty classdef, so `CLASS_ZERO_BUDGET`
 /// above never triggers at all, from taking 20-30s on sheer call volume
 /// (well past a million calls/second's worth of fixed per-call overhead).
-const MAX_TOTAL_CLASS_COVERAGE_CALLS: u32 = 100_000;
+const MAX_TOTAL_CLASS_COVERAGE_CALLS: u32 = 70_000;
 /// These two budgets used to live as fields on `ClassDefs`, reset fresh
 /// for every subtable (one `ClassDefs` per `read_contextual_format2`/
 /// `read_chaining_format2` call). That bounded each *subtable's* cost,
@@ -145,7 +145,7 @@ pub(crate) fn reset_class_coverage_budgets() {
 /// a few hundred contextual rules per subtable and nowhere near this many
 /// subtables per table, so this cap is far above any legitimate usage
 /// while keeping worst-case adversarial cost to well under a second.
-const MAX_TOTAL_RULES_PER_TABLE: u32 = 20_000;
+const MAX_TOTAL_RULES_PER_TABLE: u32 = 15_000;
 static TOTAL_RULES_BUILT_BUDGET: ::core::sync::atomic::AtomicU32 =
     ::core::sync::atomic::AtomicU32::new(MAX_TOTAL_RULES_PER_TABLE);
 /// Atomically consumes one unit of `TOTAL_RULES_BUILT_BUDGET`; `true` means
@@ -175,7 +175,7 @@ fn take_rule_budget() -> bool {
 /// writes. Real rules apply a handful of lookups at most, so this cap is
 /// far above any legitimate usage while keeping worst-case log volume
 /// (and the allocation/read work building the `apply` vec itself) small.
-const MAX_APPLY_PER_RULE: usize = 100;
+const MAX_APPLY_PER_RULE: usize = 50;
 /// Bounds how many backtrack/input/lookahead positions a single
 /// contextual/chaining rule actually builds `match_0` entries for.
 /// `n_input` (and, in the chaining format, `n_back`/`n_lookaround` too)
@@ -201,7 +201,7 @@ const MAX_APPLY_PER_RULE: usize = 100;
 /// they always agree with `match_0`'s actual (possibly truncated) length
 /// -- using the uncapped counts there would let downstream code (e.g.
 /// `consolidate_chaining`) index past the end of `match_0`.
-const MAX_POSITIONS_PER_RULE: u16 = 100;
+const MAX_POSITIONS_PER_RULE: u16 = 50;
 pub unsafe fn single_coverage(
     mut _data: FontFilePointer,
     mut _table_length: u32,
