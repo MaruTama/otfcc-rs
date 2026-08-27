@@ -737,6 +737,10 @@ mod token_decoder_tests {
     }
 
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "timing-based; 500,000 iterations is far too slow to run meaningfully under Miri's interpreter"
+    )]
     fn undefined_byte_tokens_decode_promptly_even_in_bulk() {
         // `cff_dec_e` used to call libc's `printf` on every invocation --
         // a raw stdout write bypassing the crate's own `Logger` (so it
