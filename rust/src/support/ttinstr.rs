@@ -698,30 +698,62 @@ unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
     let bts: *mut ByteType = (*id).bts.as_mut_ptr();
     lh = 0 as ::core::ffi::c_int;
     i = lh;
-    while i < len {
+    // `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]` each carry their own
+    // attacker-controlled operand count, skipped by advancing `i` several
+    // steps within a single outer-loop iteration -- nothing previously
+    // stopped that skip from running `i` past `len` (this instruction
+    // block's own declared length). `bts` is sized to exactly `len + 1`
+    // slots (0..=len, the last for the trailing `ImpliedReturn` marker
+    // below), so any write at an `i` past that -- reachable via a
+    // `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]` whose declared count runs
+    // off the end -- is a heap-buffer-overflow (ASan-confirmed: a
+    // fuzz-found font's hinting bytecode did exactly this). `'outer`
+    // breaks the moment `i` would go out of range, leaving the rest of a
+    // truncated/malformed instruction stream untypified instead of
+    // reading or writing past `bts` or `instrs` (whose own declared
+    // length is the same `len`) -- breaking exactly when `i` reaches
+    // `len` lands on the same position the loop's own normal exit
+    // condition would anyway, so the trailing `ImpliedReturn` write below
+    // needs no separate guard.
+    'outer: while i < len {
         *bts.offset(i as isize) = ByteType::Instr;
         lh += 1;
         if *instrs.offset(i as isize) == TTF_NPUSHB {
             i += 1;
+            if i >= len {
+                break 'outer;
+            }
             *bts.offset(i as isize) = ByteType::Cnt;
             cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
+                if i >= len {
+                    break 'outer;
+                }
                 *bts.offset(i as isize) = ByteType::Byte;
                 j += 1;
             }
             lh += 1 as ::core::ffi::c_int + cnt;
         } else if *instrs.offset(i as isize) == TTF_NPUSHW {
             i += 1;
+            if i >= len {
+                break 'outer;
+            }
             *bts.offset(i as isize) = ByteType::Cnt;
             lh += 1;
             cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
+                if i >= len {
+                    break 'outer;
+                }
                 *bts.offset(i as isize) = ByteType::WordHi;
                 i += 1;
+                if i >= len {
+                    break 'outer;
+                }
                 *bts.offset(i as isize) = ByteType::WordLo;
                 j += 1;
             }
@@ -734,6 +766,9 @@ unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
+                if i >= len {
+                    break 'outer;
+                }
                 *bts.offset(i as isize) = ByteType::Byte;
                 j += 1;
             }
@@ -746,8 +781,14 @@ unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
             j = 0 as ::core::ffi::c_int;
             while j < cnt {
                 i += 1;
+                if i >= len {
+                    break 'outer;
+                }
                 *bts.offset(i as isize) = ByteType::WordHi;
                 i += 1;
+                if i >= len {
+                    break 'outer;
+                }
                 *bts.offset(i as isize) = ByteType::WordLo;
                 j += 1;
             }
@@ -965,5 +1006,33 @@ mod tests {
                 format!("PUSHW_{}", n + 1).as_bytes()
             );
         }
+    }
+
+    // A fuzz-found font found this: `NPUSHB`'s declared count is
+    // attacker-controlled and skipped by advancing `i` once per byte --
+    // nothing stopped that skip from running past `instr_cnt` (this
+    // instruction stream's own declared length). `bts` is sized to
+    // exactly `instr_cnt + 1` slots; without the fix, walking past the
+    // declared length here writes `bts[3]`, one past its 3-slot
+    // allocation (ASan-confirmed heap-buffer-overflow, found via
+    // `dump_ttinstr`, this function's only caller).
+    //
+    // `NPUSHB`, declared count 2 -- but the instruction stream is only 2
+    // bytes long (the opcode plus the count byte itself), so the 2
+    // "pushed" operand bytes the count promises don't exist.
+    #[test]
+    fn npushb_count_running_past_the_declared_length_stops_cleanly_instead_of_overflowing_bts() {
+        let mut instrs: Vec<u8> = vec![TTF_NPUSHB, 2];
+        let mut id = InstrData {
+            instrs: instrs.as_mut_ptr(),
+            instr_cnt: instrs.len() as u32,
+            bts: Vec::new(),
+        };
+        unsafe {
+            instr_typify(&raw mut id);
+        }
+        // Reaching here at all -- rather than writing past `bts`'s
+        // 3-slot allocation -- is the regression signal.
+        assert_eq!(id.bts.len(), 3);
     }
 }

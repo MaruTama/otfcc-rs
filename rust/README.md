@@ -932,6 +932,46 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`support/ttinstr.rs`: `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]`'s
+  declared operand count could run past the instruction stream's own
+  declared length -- a real heap-buffer-overflow *write*.** Found by the
+  new `otf_dump` fuzz target itself (the same target added specifically
+  because `otf_parse` never exercises consolidate/dump), via another
+  round in the same Docker-based Linux session, symbolicated with
+  `addr2line`.
+  - **The bug**: `instr_typify` (the TrueType hinting-bytecode "what is
+    each byte" classifier, called by `dump_ttinstr` for every `fpgm`/
+    `prep`/glyph-instruction dump) walks `i` forward by however many
+    operand bytes a `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]` opcode
+    declares -- an attacker-controlled count for the first two. Nothing
+    stopped that skip from running `i` past `len` (`instr_cnt`, this
+    instruction stream's own declared length), and `bts` (the parallel
+    byte-classification array) is sized to exactly `len + 1` slots. A
+    `NPUSHB` (or the other three) whose declared count claims more
+    operand bytes than actually exist writes past `bts`'s allocation.
+    ASan: `WRITE of size 1 ... 0 bytes after` a 3958-byte region.
+  - **The fix**: a bounds check (`if i >= len { break 'outer; }`)
+    immediately after every point `i` advances within the four operand-
+    skipping loops, breaking out of the whole classification (leaving the
+    rest of a truncated/malformed instruction stream untypified) the
+    moment it would go out of range. Breaking exactly when `i` reaches
+    `len` lands on the same position the loop's own normal-exit condition
+    would anyway, so the trailing `ImpliedReturn` write after the loop
+    needed no separate guard.
+  - **New test**,
+    `npushb_count_running_past_the_declared_length_stops_cleanly_
+    instead_of_overflowing_bts`, builds a minimal 2-byte instruction
+    stream (`NPUSHB`, declared count 2, but no operand bytes actually
+    present) and confirmed to reproduce the exact same out-of-bounds
+    write *under Miri* with the fix reverted -- the same "no ASan needed"
+    class of regression test as the CFF `hintmask` fix's own.
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-dump-ttinstr-
+    npushb-oob-write.bin` (125KB).
+  - **Verification**: full pipeline green (328/328 tests, clippy/ABI/
+    golden/log/cycles/lookup-alias/roundtrips clean, all three fuzz
+    targets `cargo check`-clean, Miri clean), plus the crash input now
+    dumps cleanly under a local ASan `otf_dump` build.
+
 - **`libcff/cff_parser.rs`: `hintmask`/`cntrmask`'s mask bytes read past
   the CharString buffer -- a real heap-buffer-overflow.** Found via a
   second round in the same Docker-based Linux fuzz session as the

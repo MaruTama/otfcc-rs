@@ -291,6 +291,20 @@ as regression pins even though none of them still reproduce:
   mask_length <= remaining` (the same bound the token decoder itself
   already uses) before touching a mask byte.
 
+- ~~`support/ttinstr.rs`'s `instr_typify` walked `i` forward by however
+  many operand bytes a `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]` opcode
+  declares (an attacker-controlled count for the first two) with no check
+  against the instruction stream's own declared length — `bts`, the
+  parallel byte-classification array sized to exactly that length + 1,
+  could be written one or more bytes past its allocation (ASan:
+  heap-buffer-overflow WRITE)~~ — **fixed**: found by the `otf_dump`
+  target itself (the reason it exists — this is exactly the class of
+  consolidate/dump-path bug `otf_parse` alone could never surface), via
+  another round in the same Docker-based Linux session as the CFF
+  `hintmask` finding above. Breaks out of classification the moment `i`
+  would go out of range, leaving a truncated/malformed instruction stream
+  partially untypified instead of writing past `bts`.
+
 ## Fuzz targets
 
 - **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).
