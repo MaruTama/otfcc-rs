@@ -474,4 +474,56 @@ mod regression_tests {
             otfcc_delete_options(options);
         }
     }
+
+    /// A follow-up `cargo fuzz run otf_dump` CI job found a second,
+    /// independent panic from the exact same "TTF font missing `maxp`"
+    /// shape the test above already covers on the *read* side --
+    /// `json_writer.rs`'s `JsonSerializer::serialize` (the `otf_dump`
+    /// path, not `otf_parse`) builds its own `GlyfIOContext` for the dump
+    /// step and unconditionally `.unwrap()`ed `(*font).head`/`(*font).
+    /// maxp` there too, independently of `OtfReader::read`'s own fix
+    /// above. That fix only stops `font.glyf` from being *populated* when
+    /// `head`/`maxp` are missing -- it does nothing to stop `font.head`/
+    /// `font.maxp` themselves from legitimately being `None`, which is
+    /// exactly what `json_writer.rs`'s own unwraps still choked on.
+    /// `otfcc_dump_glyf` itself already no-ops on a `None` table, so the
+    /// fix is the same shape as the read-side one: skip building `ctx`
+    /// (and calling `otfcc_dump_glyf`) unless both `head` and `maxp` are
+    /// present.
+    #[test]
+    fn dump_of_ttf_font_missing_maxp_does_not_panic() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0x00010000u32.to_be_bytes()); // sfnt version
+        data.extend_from_slice(&1u16.to_be_bytes()); // numTables
+        data.extend_from_slice(&[0u8; 6]); // searchRange, entrySelector, rangeShift
+        data.extend_from_slice(b"head");
+        data.extend_from_slice(&0u32.to_be_bytes()); // checkSum (unverified)
+        data.extend_from_slice(&28u32.to_be_bytes()); // offset: right after the 12+16-byte directory
+        data.extend_from_slice(&54u32.to_be_bytes()); // length
+        assert_eq!(data.len(), 28);
+        data.extend_from_slice(&0x00010000u32.to_be_bytes()); // head.version
+        data.extend_from_slice(&[0u8; 50]); // the rest of head's 54 bytes, all zero is fine
+        assert_eq!(data.len(), 28 + 54);
+
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+            otfcc_delete_sfnt(sfnt);
+            assert!(!font.is_null());
+            assert!((*font).maxp.is_none());
+
+            let json = crate::json_writer::serialize_to_json(font, &*options)
+                as *mut crate::support::built_json::BuiltValue;
+            assert!(!json.is_null());
+            drop(Box::from_raw(json));
+
+            otfcc_font_free(font);
+            otfcc_delete_options(options);
+        }
+    }
 }

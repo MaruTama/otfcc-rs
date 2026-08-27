@@ -932,6 +932,49 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`json_writer.rs`: `JsonSerializer::serialize` unconditionally
+  `.unwrap()`ed `font.head`/`font.maxp` while building `GlyfIOContext` for
+  the dump step -- a real, previously-undocumented panic, independent of
+  (though the same root shape as) an earlier fix one layer over in
+  `OtfReader::read`.** Found by the very next `cargo fuzz run otf_dump` CI
+  job once the entries below got `otf_parse` itself clean; reproduced
+  locally via a Docker-based Linux fuzz session (matching this
+  investigation's usual approach), which pinned the exact panic location
+  from the panic message alone -- no ASan/`addr2line` symbolication
+  needed this time, since a Rust panic already names its own file and line.
+  - **The bug**: `OtfReader::read`'s own TTF branch (`otf_reader.rs`) was
+    already fixed, in an earlier PR, to skip populating `font.glyf`
+    entirely when `font.head`/`font.maxp` are missing -- but that fix only
+    stops `glyf` from being *populated*, not `head`/`maxp` themselves from
+    legitimately staying `None`. `json_writer.rs`'s own `GlyfIOContext`
+    construction (needed to *dump* `glyf`, not read it) never got the same
+    treatment: it built the context unconditionally, `.unwrap()`ing both
+    fields regardless of whether they were present, panicking with `called
+    Option::unwrap() on a None value` on any font missing either table
+    (`src/json_writer.rs:65:49` for `maxp`, the line above it for `head`).
+  - **The fix**: skip building `ctx` (and the `otfcc_dump_glyf` call it
+    feeds) unless both `font.head` and `font.maxp` are `Some` -- the same
+    "skip this block if required tables missing" shape the read-side fix
+    already established, applied independently on the dump side since
+    `otfcc_dump_glyf` itself already no-ops on a `None` table and was
+    never the problem.
+  - **New test**, `dump_of_ttf_font_missing_maxp_does_not_panic`
+    (`otf_reader.rs`), mirrors the existing `ttf_font_missing_maxp_does_
+    not_panic` test's exact hand-crafted minimal-sfnt construction (a
+    9-field TTF directory with only a `head` table, no `maxp`), but
+    additionally calls `json_writer::serialize_to_json` after `read_otf`
+    succeeds (rather than stopping at the read-side assertions the
+    existing test already covers), since that is where this specific
+    panic lives. Verified to actually catch the regression by reverting
+    the fix and confirming the test fails with the exact panic message
+    and line the original crash reported.
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-dump-glyf-context-
+    missing-maxp-panic.bin` (960 bytes).
+  - **Verification**: full pipeline green (331/331 tests, clippy/ABI/
+    golden/log/cycles/lookup-alias/roundtrips clean), both fuzz targets
+    `cargo check`-clean, `cargo miri test --lib` clean (304 passed, 0
+    failed, 27 ignored).
+
 - **`table/otl/read.rs`: a follow-up to the entry directly below -- once
   the hang/panic there was fixed, the very next CI `fuzz` run found a
   genuinely different bug in the same general area: an out-of-memory

@@ -353,6 +353,19 @@ as regression pins even though none of them still reproduce:
   natively (without ASan's memory multiplier) that a timing-only test
   didn't actually catch it.
 
+- ~~`tests/fuzz-corpus/known-issues/otf-dump-glyf-context-missing-maxp-
+  panic.bin` (960 bytes) — the very next `cargo fuzz run otf_dump` CI job
+  once `otf_parse` itself went clean: `json_writer.rs`'s `JsonSerializer::
+  serialize` unconditionally `.unwrap()`ed `font.head`/`font.maxp` while
+  building `GlyfIOContext` for the dump step, panicking on any font
+  missing either table -- the same root shape as an earlier, independent
+  fix in `OtfReader::read` (which only stops `font.glyf` from being
+  *populated* when those tables are missing, not `font.head`/`font.maxp`
+  themselves from being `None`)~~ — **fixed**: skip building the context
+  (and the `otfcc_dump_glyf` call it feeds) unless both tables are
+  present, the same shape as the read-side fix, applied independently on
+  the dump side. See `rust/README.md`'s "Next steps" for the full writeup.
+
 ## Fuzz targets
 
 - **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).
