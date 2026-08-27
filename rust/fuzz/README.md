@@ -280,6 +280,17 @@ as regression pins even though none of them still reproduce:
   same function, same edge-case class, not the cause of this crash but
   found in the same audit).
 
+- ~~`libcff/cff_parser.rs`'s `cff_parse_outline` read `hintmask`/
+  `cntrmask`'s mask bytes (raw payload embedded directly in the
+  charstring, sized by the accumulated `hstem`/`vstem` hint count) via
+  raw pointer arithmetic with no check against the CharString's own
+  length — a font pushing enough stem hints could read past the buffer
+  (ASan: heap-buffer-overflow, 1-byte READ just past the end)~~ —
+  **fixed**: found via the same Docker-based Linux fuzz session as the
+  `glyf` finding above, symbolicated with `addr2line`. Checks `advance +
+  mask_length <= remaining` (the same bound the token decoder itself
+  already uses) before touching a mask byte.
+
 ## Fuzz targets
 
 - **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).

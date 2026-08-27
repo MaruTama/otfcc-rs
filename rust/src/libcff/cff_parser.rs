@@ -754,6 +754,26 @@ pub unsafe fn cff_parse_outline(
                         let mask_length: u32 =
                             ((*stack).stem as ::core::ffi::c_int + 7 as ::core::ffi::c_int
                                 >> 3 as ::core::ffi::c_int) as u32;
+                        // `hintmask`/`cntrmask`'s mask bytes are raw payload
+                        // embedded directly in the charstring right after
+                        // the opcode -- unlike every other operand, they
+                        // never go through `cff_decode_cs2_token`'s own
+                        // bounds checking, so nothing here previously
+                        // stopped `mask_length` (driven by `(*stack).stem`,
+                        // the accumulated hint count from every `hstem`/
+                        // `vstem` operator already seen) from reading past
+                        // the actual CharString buffer. A fuzz-found input
+                        // pushed enough stem hints to make `mask_length`
+                        // exceed what was left of the charstring by a
+                        // single byte -- an ASan-confirmed heap-buffer-
+                        // overflow. `remaining` (this token's own
+                        // already-computed distance to the buffer's end)
+                        // is the same bound `cff_decode_cs2_token` itself
+                        // is checked against a few lines up; stop cleanly
+                        // here too instead of reading past it.
+                        if (advance as usize).wrapping_add(mask_length as usize) > remaining {
+                            break;
+                        }
                         let mask: *mut bool;
                         mask = __caryll_allocate_clean(
                             (::core::mem::size_of::<bool>() as usize).wrapping_mul(
@@ -3389,5 +3409,85 @@ mod cff_parse_outline_total_calls_tests {
         // with no way to tell the two cases apart from this assertion
         // alone.
         assert_eq!(stack.index, MAX_TOTAL_SUBR_CALLS as Arity);
+    }
+}
+
+#[cfg(test)]
+mod cff_parse_outline_hintmask_tests {
+    use super::*;
+    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::support::options::Options;
+    use crate::table::cff::OutlineBuilderContext;
+    use crate::table::glyf::otfcc_new_glyf_glyph;
+
+    fn empty_cff_index() -> CffIndex {
+        CffIndex {
+            count_type: CffIndexCountType::U16,
+            count: 0,
+            off_size: 0,
+            offset: Vec::new(),
+            data: Vec::new(),
+        }
+    }
+
+    // A fuzz-found font found this: `hintmask`/`cntrmask`'s mask bytes are
+    // raw payload embedded directly in the charstring right after the
+    // opcode -- unlike every other operand, they never go through
+    // `cff_decode_cs2_token`'s own bounds checking, so nothing stopped
+    // `mask_length` (driven by `(*stack).stem`, the accumulated hint count
+    // from every `hstem`/`vstem` operator already seen in this charstring)
+    // from reading past the actual CharString buffer -- an ASan-confirmed
+    // heap-buffer-overflow.
+    //
+    // Charstring: push 0, push 0, `hstem` (one hint pair -> stem count
+    // becomes 1, needing a 1-byte mask), `hintmask` -- with the mask byte
+    // itself missing (the charstring ends right at the opcode). Reaching
+    // the end of this function at all, rather than reading one byte past
+    // `data`'s 4-byte allocation, is the regression signal.
+    #[test]
+    fn hintmask_past_the_charstring_end_stops_cleanly_instead_of_reading_oob() {
+        let mut data: Vec<u8> = vec![139, 139, 1, 19];
+        let len = data.len() as u32;
+        let gsubr = empty_cff_index();
+        let lsubr = empty_cff_index();
+        let mut stack = CffStack {
+            stack: vec![CffValue::Unset; 0x10000],
+            transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
+            index: 0,
+            stem: 0,
+        };
+        let options = Options::default();
+        let mut total_calls: u32 = 0;
+        unsafe {
+            let g_ptr = Box::into_raw(otfcc_new_glyf_glyph());
+            let mut ctx = OutlineBuilderContext {
+                g: g_ptr,
+                j_contour: 0,
+                j_point: 0,
+                default_width_x: 0.0,
+                nominal_width_x: 0.0,
+                defined_h_stems: 0,
+                defined_v_stems: 0,
+                defined_hint_masks: 0,
+                defined_contour_masks: 0,
+                randx: 0,
+            };
+            cff_parse_outline(
+                data.as_mut_ptr(),
+                len,
+                &gsubr,
+                &lsubr,
+                &raw mut stack,
+                &raw mut ctx as *mut ::core::ffi::c_void,
+                &options,
+                0,
+                &raw mut total_calls,
+            );
+            drop(Box::from_raw(g_ptr));
+        }
+        // The `hstem` operator ran (and only it -- `hintmask` bailed
+        // before doing anything observable) -- `stem` reflects the one
+        // hint pair pushed before the truncated `hintmask`.
+        assert_eq!(stack.stem, 1);
     }
 }

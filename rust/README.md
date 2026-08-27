@@ -932,6 +932,46 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`libcff/cff_parser.rs`: `hintmask`/`cntrmask`'s mask bytes read past
+  the CharString buffer -- a real heap-buffer-overflow.** Found via a
+  second round in the same Docker-based Linux fuzz session as the
+  `glyf` fix below, symbolicated with `addr2line` against the
+  container's own built binary (which has debuginfo, unlike CI's
+  ephemeral runner).
+  - **The bug**: `hintmask`/`cntrmask`'s mask bytes are raw payload
+    embedded directly in the charstring right after the opcode --
+    unlike every other operand, they never go through
+    `cff_decode_cs2_token`'s own bounds checking. `mask_length` is
+    driven by `(*stack).stem`, the accumulated hint count from every
+    `hstem`/`vstem` operator already seen earlier in the *same*
+    charstring, so a font that pushes enough stem hints can make
+    `mask_length` exceed what's actually left of the buffer -- and
+    `cff_parse_outline` read those bytes via raw pointer arithmetic
+    (`*start.offset(advance + byte)`) with no check against the
+    CharString's own length at all. ASan: `heap-buffer-overflow ...
+    READ of size 1 ... 0 bytes after` the buffer's end.
+  - **The fix**: check `advance + mask_length <= remaining` (the same
+    `remaining` bound `cff_decode_cs2_token` itself is already checked
+    against, a few lines up in the same loop iteration) before touching
+    any mask byte; stop cleanly (the same `break`-the-outer-loop shape
+    the sibling truncated-token case right above it already uses)
+    instead of reading past it.
+  - **New test**,
+    `hintmask_past_the_charstring_end_stops_cleanly_instead_of_reading_
+    oob`, builds a minimal 4-byte charstring (`push 0; push 0; hstem;
+    hintmask`, with the mask byte itself missing) and confirmed to
+    reproduce the exact same out-of-bounds read *under Miri* with the
+    fix reverted -- Miri catches this one on its own, no ASan needed,
+    since it's a genuine unsafe-pointer OOB read rather than a
+    sanitizer-only heuristic.
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-parse-cff-
+    hintmask-oob-read.bin` (29KB).
+  - **Verification**: full pipeline green (327/327 tests, clippy/ABI/
+    golden/log/cycles/lookup-alias/roundtrips clean, all three fuzz
+    targets `cargo check`-clean, Miri clean), plus both this crash input
+    and the earlier `glyf` one now parse cleanly under a local ASan
+    build.
+
 - **`table/glyf/read.rs`: a zero-length contour immediately after another
   one panicked (`index out of bounds: the len is 0 but the index is 0`).**
   Found by an extended local `cargo fuzz` session against `otf_parse`

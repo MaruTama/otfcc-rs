@@ -183,6 +183,7 @@ jobs:
           cargo fuzz run json_build ../../tests/fuzz-corpus/known-issues/json-build-advance-width-subtract-overflow.bin
           cargo fuzz run otf_dump ../../tests/fuzz-corpus/known-issues/otf-dump-required-feature-use-after-free.bin
           cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-glyf-consecutive-zero-length-contours-panic.bin
+          cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-cff-hintmask-oob-read.bin
 
   # Also advisory (continue-on-error): Miri found a real, crate-wide bug the
   # very first time it ran against this crate's own existing test suite (a
