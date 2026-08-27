@@ -602,20 +602,36 @@ unsafe extern "C" fn callback_extract_fd(
                     *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
                 ) as u32;
                 (*meta).private_dict = Some(otfcc_new_cff_private());
-                parse_to_callback(
-                    (*file).raw_data.offset(private_offset as isize),
-                    private_length,
-                    context as *mut ::core::ffi::c_void,
-                    Some(
-                        callback_extract_private
-                            as unsafe extern "C" fn(
-                                CffDictOperator,
-                                u8,
-                                *mut CffValue,
-                                *mut ::core::ffi::c_void,
-                            ) -> (),
-                    ),
-                );
+                // `private_offset`/`private_length` are DICT operator-18's
+                // own operands -- attacker-controlled bytes from the font's
+                // Top/Font DICT, not yet checked against the real buffer.
+                // The original built `raw_data.offset(private_offset)`
+                // unconditionally; a value past `raw_length` read straight
+                // out of bounds. Same fix as `cff_parser.rs`'s two other
+                // Private-DICT-offset call sites: build one bounds-checked
+                // slice and simply skip the callback (leaving the just-
+                // created, all-default `private_dict` in place) when it
+                // doesn't fit.
+                let raw_slice =
+                    ::core::slice::from_raw_parts((*file).raw_data, (*file).raw_length as usize);
+                if let Some(private_bytes) = raw_slice
+                    .get(private_offset as usize..)
+                    .and_then(|s| s.get(..private_length as usize))
+                {
+                    parse_to_callback(
+                        private_bytes,
+                        context as *mut ::core::ffi::c_void,
+                        Some(
+                            callback_extract_private
+                                as unsafe extern "C" fn(
+                                    CffDictOperator,
+                                    u8,
+                                    *mut CffValue,
+                                    *mut ::core::ffi::c_void,
+                                ) -> (),
+                        ),
+                    );
+                }
             }
         }
         3102 => {
@@ -1282,11 +1298,14 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                     if (*cff_file).top_dict.count != 0 {
                         context.meta = (table_cff_create)();
                         parse_to_callback(
-                            (*cff_file).top_dict.data.as_ptr(),
                             {
-                                let top_dict_offset = &(*cff_file).top_dict.offset;
-                                (top_dict_offset[1 as usize])
-                                    .wrapping_sub(top_dict_offset[0 as usize])
+                                let top_dict_len = {
+                                    let top_dict_offset = &(*cff_file).top_dict.offset;
+                                    (top_dict_offset[1 as usize])
+                                        .wrapping_sub(top_dict_offset[0 as usize])
+                                } as usize;
+                                let top_dict_data: &[u8] = &(*cff_file).top_dict.data;
+                                top_dict_data.get(..top_dict_len).unwrap_or(&[])
                             },
                             &raw mut context as *mut ::core::ffi::c_void,
                             Some(
@@ -1324,19 +1343,18 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                                 parse_to_callback(
                                     {
                                         let font_dict_offset = &(*cff_file).font_dict.offset;
-                                        (*cff_file)
-                                            .font_dict
-                                            .data
-                                            .as_ptr()
-                                            .offset(font_dict_offset[j as usize] as isize)
-                                            .offset(-(1 as ::core::ffi::c_int as isize))
-                                    },
-                                    {
-                                        let font_dict_offset = &(*cff_file).font_dict.offset;
-                                        (font_dict_offset[(j as ::core::ffi::c_int
+                                        let start =
+                                            font_dict_offset[j as usize].wrapping_sub(1) as usize;
+                                        let len = (font_dict_offset[(j as ::core::ffi::c_int
                                             + 1 as ::core::ffi::c_int)
                                             as usize])
                                             .wrapping_sub(font_dict_offset[j as usize])
+                                            as usize;
+                                        let font_dict_data: &[u8] = &(*cff_file).font_dict.data;
+                                        font_dict_data
+                                            .get(start..)
+                                            .and_then(|s| s.get(..len))
+                                            .unwrap_or(&[])
                                     },
                                     &raw mut context as *mut ::core::ffi::c_void,
                                     Some(
