@@ -1212,6 +1212,12 @@ unsafe fn consolidate_tsi(
     *_tsi = Some(consolidated);
 }
 pub unsafe fn otfcc_consolidate_font(font: *mut Font, options: &Options) {
+    // See `Options::consolidate_warning_budget`'s own doc comment: reset
+    // once per font here, not just once at `Options` creation, since one
+    // `Options` can drive many conversions over its life.
+    options
+        .consolidate_warning_budget
+        .set(crate::consolidate::otl::chaining::CONSOLIDATE_WARNING_BUDGET);
     let glyf: *mut GlyfTable = (*font)
         .glyf
         .as_mut()

@@ -27,6 +27,20 @@ use crate::support::fmt::{Byte, Dec5, Hex2};
 // already unusual) while stopping the aliasing amplification at a small
 // fraction of the CI timeout.
 const MAX_TOTAL_LANGUAGES: u32 = 10_000;
+// Same amplification shape one level down: `otfcc_read_otl_lookup` reads a
+// `subtable_count` (raw `u16`) whose only guard is that its own
+// offset array fits in the table -- true for any large enough table
+// regardless of how many subtable offsets it declares, and nothing stops
+// those offsets from aliasing each other or from each subtable itself
+// being expensive to build (fuzzing found a lookup with 65535 declared
+// chaining subtables, several thousand of them independently valid and
+// each producing pages of `[Consolidate]` warnings downstream -- see
+// `chaining/read.rs`'s own `MAX_TOTAL_RULES_PER_TABLE`/
+// `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` for the amplification
+// layers underneath this one). Real lookups have at most a few dozen
+// subtables even in large fonts, so this cap is far above legitimate
+// usage.
+const MAX_TOTAL_SUBTABLES_PER_LOOKUP: u16 = 1_000;
 
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
@@ -414,8 +428,9 @@ unsafe fn otfcc_read_otl_lookup(
             let flags = r.u16()?;
             let subtable_count = r.u16()?;
             r.require_room(subtable_count as usize, 2)?;
-            let mut subtable_offsets = Vec::with_capacity(subtable_count as usize);
-            for _ in 0..subtable_count {
+            let capped_count = subtable_count.min(MAX_TOTAL_SUBTABLES_PER_LOOKUP);
+            let mut subtable_offsets = Vec::with_capacity(capped_count as usize);
+            for _ in 0..capped_count {
                 subtable_offsets.push((*lookup)._offset.wrapping_add(r.u16()? as u32));
             }
             if subtable_count == 0 {
@@ -539,6 +554,11 @@ pub unsafe fn otfcc_read_otl(
     // parse failures are silent (unlike most other table readers).
     let mut otl_box = parse_otl_common(&table.data, lookup_type_base, options).ok()?;
     let otl_ptr: *mut OtlTable = otl_box.as_mut() as *mut OtlTable;
+    // See `chaining::read::reset_class_coverage_budgets`'s own doc comment:
+    // this must run once per table (GSUB or GPOS), before any of this
+    // table's lookups are read, so the budget bounds this whole table's
+    // total `class_coverage` cost rather than resetting fresh per subtable.
+    crate::table::otl::subtables::chaining::read::reset_class_coverage_budgets();
     for j in 0..(*otl_ptr).lookups.len() {
         otfcc_read_otl_lookup(
             &table.data,

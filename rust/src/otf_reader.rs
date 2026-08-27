@@ -271,6 +271,76 @@ mod regression_tests {
         }
     }
 
+    /// A `cargo fuzz run otf_parse` CI job found `tests/fuzz-corpus/known-
+    /// issues/otf-parse-otl-contextual-amplification-hang.bin`: a GSUB
+    /// table whose contextual/chaining subtables compound *four* separate
+    /// unbounded counts, each individually bounds-checked against the
+    /// table (its own array fits) but none bounded in aggregate --
+    /// `otl/read.rs`'s lookup list (`lookup_count`, up to 65535), one
+    /// lookup's own subtable list (`subtable_count`), one subtable's
+    /// `chainSubClassSet`/`subRuleSet` rule counts (`chaining/read.rs`'s
+    /// `read_contextual_format2` et al.), and one rule's own backtrack/
+    /// input/lookahead/apply position counts (`general_read_contextual_
+    /// rule`/`general_read_chaining_rule`). This file rode several of
+    /// those close to their ceiling at once: ASan first reported it as a
+    /// ~1.8GB OOM, and once that was capped it became a 30+ second hang
+    /// (millions of `class_coverage` calls, each allocating a `Coverage`
+    /// it immediately discards). Fixed with a chain of budgets: `otl/
+    /// read.rs`'s `MAX_TOTAL_SUBTABLES_PER_LOOKUP` caps subtables per
+    /// lookup; `chaining/read.rs`'s `MAX_TOTAL_RULES_PER_TABLE` (a global,
+    /// per-`otfcc_read_otl`-call budget, not per-subtable -- an earlier,
+    /// per-subtable-only version of this cap still let many subtables
+    /// each spend their own full allowance) caps rules built across the
+    /// whole table; `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` cap one
+    /// rule's own apply/position counts; and `CLASS_ZERO_BUDGET`/
+    /// `CLASS_COVERAGE_CALL_BUDGET` (also globalized from an earlier,
+    /// per-subtable version for the same reason) cap `class_coverage`'s
+    /// total work across the whole table. A fifth, unrelated bug fell out
+    /// of the same file: `general_read_contextual_rule`/`_chaining_rule`
+    /// can return `None` for one malformed rule inside an otherwise valid
+    /// ruleset (its own offset pointed at a truncated/malformed rule
+    /// header) -- the four `read_*` call sites used to push that `None`
+    /// straight into `ChainingRuleSet.rules` regardless, and `otf_reader/
+    /// unconsolidate.rs`'s `unconsolidate_chaining` `.expect()`ed every
+    /// slot to be `Some`, so this file also panicked before it could even
+    /// reach the hang. Now skipped instead of pushed, matching this
+    /// crate's usual "malformed sub-part is dropped, not fatal" shape.
+    #[test]
+    // Reads a fixture from disk; same rationale as `parsed_json.rs`'s
+    // `every_committed_payload_json_parses`.
+    #[cfg_attr(
+        miri,
+        ignore = "reads a fixture from disk, needs -Zmiri-disable-isolation; also far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn otl_contextual_amplification_font_parses_promptly() {
+        let bytes = std::fs::read(
+            "../tests/fuzz-corpus/known-issues/otf-parse-otl-contextual-amplification-hang.bin",
+        )
+        .unwrap();
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let start = Instant::now();
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+            let elapsed = start.elapsed();
+
+            otfcc_delete_sfnt(sfnt);
+            if !font.is_null() {
+                otfcc_font_free(font);
+            }
+            otfcc_delete_options(options);
+
+            assert!(
+                elapsed < Duration::from_secs(10),
+                "read_otf took {elapsed:?}, expected well under 10s"
+            );
+        }
+    }
+
     /// A `cargo fuzz run otf_parse` CI job found this: a TTF-subtype font
     /// (no `CFF ` table, so `decide_font_subtype_otf` defaults to `Ttf`)
     /// with a `head` table but no `maxp` table panicked with `called

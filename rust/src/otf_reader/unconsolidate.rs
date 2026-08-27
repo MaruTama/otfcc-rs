@@ -330,6 +330,19 @@ unsafe fn name_glyphs(font: *mut Font, gord: *mut GlyphOrder) {
         (*g).name = glyph_name;
     }
 }
+// This function expands every rule of every `Poly` (binary-read) chaining
+// subtable into its own standalone `Canonical` subtable -- the shape the
+// rest of the dump pipeline (and the JSON output) expects. Each factor
+// feeding that expansion is individually capped upstream at parse time
+// (`chaining/read.rs`'s `MAX_TOTAL_RULES_PER_TABLE` bounds rules built
+// across a whole table; `otl/read.rs`'s `MAX_TOTAL_SUBTABLES_PER_LOOKUP`
+// bounds one lookup's own subtable count), but those two caps multiply
+// here: fuzzing found a lookup with ~700 subtables that, combined,
+// expanded into 80,000+ standalone subtables -- each one then walked
+// again by `consolidate_chaining` and serialized to JSON, tens of seconds
+// of work from what was a ~500KB file. This is the backstop that bounds
+// the product, not just each factor.
+const MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP: usize = 20_000;
 unsafe fn unconsolidate_chaining(_font: *mut Font, lookup: *mut Lookup, _table: *mut OtlTable) {
     // The original C (c/lib/otf-reader/unconsolidate.c) computes a
     // `total_rules` count in a first pass over the subtables and never uses
@@ -338,7 +351,10 @@ unsafe fn unconsolidate_chaining(_font: *mut Font, lookup: *mut Lookup, _table: 
     // inspection: the loop body only reads subtable fields into a local
     // accumulator with no other side effects. Omitted here.
     let mut newsts: SubtableList = Vec::new();
-    for j in 0..(*lookup).subtables.len() {
+    'subtables: for j in 0..(*lookup).subtables.len() {
+        if newsts.len() >= MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP {
+            break 'subtables;
+        }
         // `.take()` moves the `Box` out of the slot, leaving `None` behind.
         // `Subtable` implements `Drop`, so its payload can't be moved out
         // by value through a pattern match (even via `*sub_box`) -- only
@@ -359,8 +375,15 @@ unsafe fn unconsolidate_chaining(_font: *mut Font, lookup: *mut Lookup, _table: 
                 // placeholder; provably never the case for any payload this
                 // crate builds successfully, so `.expect` turns that into a
                 // clean panic instead of reproducing the old
-                // null-pointer-deref UB.
+                // null-pointer-deref UB. (Fuzzing did find a `None` here
+                // before `chaining/read.rs`'s per-rule read functions were
+                // changed to never push a failed individual rule into
+                // `ruleset.rules` in the first place -- see that file's own
+                // comment at each push site.)
                 for rule_slot in ::core::mem::take(&mut ruleset.rules) {
+                    if newsts.len() >= MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_PER_LOOKUP {
+                        break 'subtables;
+                    }
                     let boxed_rule: Box<ChainingRule> =
                         rule_slot.expect("chaining rule slot should never be None here");
                     newsts.push(Some(Box::new(Subtable::Chaining(
@@ -396,8 +419,9 @@ unsafe fn unconsolidate_chaining(_font: *mut Font, lookup: *mut Lookup, _table: 
     // Was `otl_subtable_list_dispose_dependent(..); (*lookup).subtables =
     // newsts;` -- the plain assignment already drops the old
     // `Vec<Option<Box<Subtable>>>` in place (correctly disposing anything
-    // left as `Some`: entries this loop didn't touch, e.g. a `Classified`
-    // subtable) before replacing it, so there is nothing left to do eagerly.
+    // left as `Some`: entries this loop didn't touch -- e.g. a `Classified`
+    // subtable, or every remaining slot once the budget above cuts the loop
+    // short -- before replacing it, so there is nothing left to do eagerly.
     (*lookup).subtables = newsts;
 }
 unsafe fn expand_chain(font: *mut Font, lookup: *mut Lookup, table: *mut OtlTable) {

@@ -932,6 +932,99 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`table/otl/subtables/chaining/read.rs`: a chain of four independently-
+  bounded-but-multiplicatively-unbounded counts in contextual/chaining
+  subtable parsing -- an OOM, then (once memory was capped) a hang, then
+  (once time was capped) a panic.** Found by `cargo fuzz run otf_parse`;
+  root-caused over several rounds of Docker-based Linux repro plus local
+  arm64 timing/`sample`-profiling, because each fix in turn only narrowed
+  the crash to the next layer underneath it.
+  - **The bugs, in the order they were found**:
+    1. `read_contextual_format2`/`read_chaining_format2`'s
+       `chainSubClassSet` loop summed each entry's own (individually
+       bounds-checked) rule count into `total_rules` with no cap on the
+       *total* -- a subtable with `chainSubClassSetCount = 44`, each
+       entry declaring a large-but-legitimately-shaped `srs_count`,
+       summed past 500,000 rules, each paying for its own heap
+       allocation plus a `class_coverage`/`single_coverage` call. ASan:
+       ~1.8GB OOM.
+    2. Capping that alone still hung: `class_coverage` itself is called
+       once per position in every rule, and its own budget (a prior
+       PR's `class_zero_budget`/`call_budget` fields on `ClassDefs`)
+       reset fresh *per subtable* -- `otl/read.rs`'s `subtable_count`
+       (one lookup's own subtable list) was *also* uncapped, so many
+       subtables each getting their own full allowance multiplied right
+       back into a 20-30s hang, confirmed via `sample`-profiling showing
+       the process buried in `class_coverage`'s own `Coverage`
+       allocation/free churn.
+    3. Capping subtable count too still hung, now at a different lookup:
+       `otf_reader/unconsolidate.rs`'s `unconsolidate_chaining` expands
+       *every rule of every subtable* into its own standalone JSON-
+       shaped subtable in one lookup-wide pass -- a lookup with ~700
+       subtables (each individually reasonable) still expanded into
+       80,000+ standalone subtables, each then walked again by
+       `consolidate_chaining` (a real `otfccdump` run additionally hit
+       `consolidate.rs`'s own `[Consolidate] Quoting an invalid lookup`
+       warning path here, another per-entry-unbounded amplifier fixed
+       the same way with a budget on `Options`).
+    4. Capping *that* still hung: `general_read_contextual_rule`/
+       `general_read_chaining_rule`'s own `n_input`/`n_back`/
+       `n_lookaround` counts (raw `u16`s, individually bounds-checked
+       only against the table fitting the array) were still uncapped, so
+       a handful of rules with huge position counts alone drove millions
+       of `class_coverage` calls even after every count *above* this one
+       was bounded.
+    5. A fifth, unrelated bug fell out of the same investigation:
+       `general_read_contextual_rule`/`_chaining_rule` can return `None`
+       for one malformed rule inside an otherwise valid ruleset; the
+       `read_*` call sites pushed that `None` straight into
+       `ChainingRuleSet.rules` regardless, and `unconsolidate_chaining`
+       `.expect()`ed every slot to be `Some` -- this file panicked with
+       `chaining rule slot should never be None here` before the fixes
+       above even got far enough to hang.
+  - **The fix**: a chain of budgets, all following the same "silently
+    truncate, keep what's already built" shape this migration already
+    uses for `MAX_TOTAL_LANGUAGES` --
+    `otl/read.rs::MAX_TOTAL_SUBTABLES_PER_LOOKUP` (1,000, per lookup),
+    `chaining/read.rs::MAX_TOTAL_RULES_PER_TABLE` (50,000, **global**
+    across a whole `otfcc_read_otl` call -- an earlier per-subtable-only
+    version of this cap still let many subtables each spend their own
+    full allowance),
+    `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE` (1,000 each, per rule),
+    `otf_reader/unconsolidate.rs::MAX_TOTAL_UNCONSOLIDATED_SUBTABLES_
+    PER_LOOKUP` (20,000, per lookup), and `consolidate/otl/chaining.rs::
+    CONSOLIDATE_WARNING_BUDGET` (10,000, via a new `Options::
+    consolidate_warning_budget` field reset once per `otfcc_consolidate_
+    font` call). `class_coverage`'s own two budgets (`CLASS_ZERO_BUDGET`/
+    `CLASS_COVERAGE_CALL_BUDGET`) were promoted from `ClassDefs` fields
+    (per subtable) to global statics (per table, reset in
+    `reset_class_coverage_budgets`) for the same "per-factor caps still
+    let the product explode" reason -- which in turn meant
+    `CLASS_ZERO_BUDGET`'s original value (10 million, sized for a single
+    call) was recalibrated to 200 million after `tests/payload/
+    NotoNastaliqUrdu-Regular.ttf` (a real, legitimately complex Nastaliq-
+    script font already in this repo's golden corpus) turned out to
+    genuinely use ~10.7 million of these units in its own GSUB table
+    alone -- caught by `compare-with-golden.sh` failing on a real font
+    after the naive global conversion, not by fuzzing. The `None`-rule
+    bug is fixed by skipping the push instead of storing the placeholder,
+    matching this crate's usual "malformed sub-part is dropped, not
+    fatal" shape.
+  - **New test**, `otl_contextual_amplification_font_parses_promptly`
+    (`otf_reader.rs`), mirrors the existing `cff_font_with_huge_glyph_
+    count_parses_promptly` wall-clock-budget shape: asserts `read_otf`
+    on the crash input completes in well under 10s. Verified to actually
+    catch the regression by temporarily inflating `MAX_TOTAL_RULES_PER_
+    TABLE` to 500,000,000 and confirming the test then hangs past 40s.
+  - **Reproducer**: `tests/fuzz-corpus/known-issues/otf-parse-otl-
+    contextual-amplification-hang.bin` (497KB).
+  - **Verification**: full pipeline green (329/329 tests, clippy/ABI/
+    golden -- including `NotoNastaliqUrdu-Regular`, the font that caught
+    the too-tight `CLASS_ZERO_BUDGET`/log/cycles/lookup-alias/roundtrips
+    clean), all three fuzz targets `cargo check`-clean, and the crash
+    input dumps successfully (218MB of JSON) in ~7.5s instead of hanging
+    indefinitely, with no panic.
+
 - **`support/ttinstr.rs`: `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]`'s
   declared operand count could run past the instruction stream's own
   declared length -- a real heap-buffer-overflow *write*.** Found by the

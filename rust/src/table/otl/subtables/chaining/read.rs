@@ -52,6 +52,153 @@ pub struct ClassDefs {
     pub ic: Option<Box<ClassDef>>,
     pub fc: Option<Box<ClassDef>>,
 }
+/// See the two budgets below (`CLASS_ZERO_BUDGET`/`CLASS_COVERAGE_CALL_
+/// BUDGET`) for what this bounds and why: a single `class_coverage` call
+/// can scan up to `max_glyphs` (the font's own declared glyph count, up
+/// to 65535) or `cd.glyphs.len()` candidates, and it is called once per
+/// input/backtrack/lookahead position in a rule (see
+/// `general_read_contextual_rule`'s own loop) -- a subtable holding many
+/// rules, each with several positions, against a font declaring many
+/// glyphs, multiplies into gigabytes from a subtable of only a few
+/// hundred KB (ASan-confirmed: a fuzz-found font OOM'd at ~1.8GB this
+/// way). Sized around real usage, not just adversarial safety: this
+/// budget is global across a whole table now (see `CLASS_ZERO_BUDGET`'s
+/// own comment), and `tests/payload/NotoNastaliqUrdu-Regular.ttf` -- a
+/// real, legitimately complex Nastaliq-script font already in this
+/// repo's golden corpus -- genuinely uses ~10.7 million of these units in
+/// its own GSUB table alone (confirmed by instrumenting a debug build).
+/// 200 million leaves that font roughly 18x of headroom while still only
+/// costing low hundreds of milliseconds even if a whole table's worth of
+/// subtables all hit it (the original 10 million figure came from timing
+/// a single call in isolation, before this budget's scope changed from
+/// per-subtable to per-table -- multiplying it by a realistic subtable
+/// count is what actually calibrates it now).
+const MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS: u32 = 200_000_000;
+/// See `CLASS_COVERAGE_CALL_BUDGET` below: bounds the number of
+/// `class_coverage` *calls* themselves, independent of how much work (if
+/// any) each one does internally -- what actually stops a fuzz-found
+/// font whose rules reference an empty classdef, so `CLASS_ZERO_BUDGET`
+/// above never triggers at all, from taking 20-30s on sheer call volume
+/// (well past a million calls/second's worth of fixed per-call overhead).
+const MAX_TOTAL_CLASS_COVERAGE_CALLS: u32 = 200_000;
+/// These two budgets used to live as fields on `ClassDefs`, reset fresh
+/// for every subtable (one `ClassDefs` per `read_contextual_format2`/
+/// `read_chaining_format2` call). That bounded each *subtable's* cost,
+/// but not a *lookup's* or a *table's*: `otl/read.rs`'s
+/// `MAX_TOTAL_SUBTABLES_PER_LOOKUP` caps subtable count at 1,000 per
+/// lookup precisely because it was previously unbounded, and 1,000
+/// subtables each getting their own fresh 10-million/200,000 allowance
+/// multiplies right back into the same class of hang this budget exists
+/// to prevent (fuzzing confirmed it: capping rules-per-subtable and
+/// subtables-per-lookup individually still left a lookup with ~700
+/// subtables taking 20+ seconds in `class_coverage` alone). Global,
+/// process-wide statics -- reset once per `otfcc_read_otl` call (see
+/// `reset_class_coverage_budgets`), i.e. once per GSUB or GPOS table, not
+/// once per subtable -- close that gap by bounding the whole table's
+/// total `class_coverage` cost, not each subtable's independently. Safe
+/// as plain statics (no `Mutex`/`RefCell` needed) because this crate is
+/// single-threaded throughout, same reasoning as `Options::logger`'s own
+/// `RefCell`.
+static CLASS_ZERO_BUDGET: ::core::sync::atomic::AtomicU32 =
+    ::core::sync::atomic::AtomicU32::new(MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS);
+static CLASS_COVERAGE_CALL_BUDGET: ::core::sync::atomic::AtomicU32 =
+    ::core::sync::atomic::AtomicU32::new(MAX_TOTAL_CLASS_COVERAGE_CALLS);
+/// Must be called once per `otfcc_read_otl` call (once per GSUB/GPOS table
+/// read), before that table's lookups are read -- see the doc comment on
+/// the two statics above for why table-wide scope, not per-subtable, is
+/// what actually bounds the cost.
+pub(crate) fn reset_class_coverage_budgets() {
+    CLASS_ZERO_BUDGET.store(
+        MAX_TOTAL_CLASS_ZERO_COVERAGE_GLYPHS,
+        ::core::sync::atomic::Ordering::Relaxed,
+    );
+    CLASS_COVERAGE_CALL_BUDGET.store(
+        MAX_TOTAL_CLASS_COVERAGE_CALLS,
+        ::core::sync::atomic::Ordering::Relaxed,
+    );
+    TOTAL_RULES_BUILT_BUDGET.store(
+        MAX_TOTAL_RULES_PER_TABLE,
+        ::core::sync::atomic::Ordering::Relaxed,
+    );
+}
+/// Bounds the number of contextual/chaining rules actually built across a
+/// *whole table* (every subtable of every lookup combined -- see
+/// `reset_class_coverage_budgets`, called once per `otfcc_read_otl` call).
+/// Each `chainSubClassSet`/`subRuleSet` entry's own rule count is
+/// individually bounds-checked against the table (its rule-offset array
+/// must fit), but nothing stopped an attacker from declaring dozens of such
+/// entries that each carry a legitimately-shaped but enormous count:
+/// fuzzing found a single format2 subtable with `chainSubClassSetCount =
+/// 44`, whose per-entry rule counts summed past 500,000 rules, each paying
+/// for its own heap allocation plus a `class_coverage`/`single_coverage`
+/// call. An earlier version of this fix capped the count *per subtable*
+/// instead of per table, which bounded one subtable's cost but not a
+/// lookup's or a table's: `otl/read.rs`'s `MAX_TOTAL_SUBTABLES_PER_LOOKUP`
+/// caps subtable count at 1,000 per lookup precisely because it was
+/// previously unbounded too, and up to 1,000 subtables each getting their
+/// own fresh per-subtable rule allowance multiplies right back into the
+/// same hang (fuzzing confirmed a lookup with ~700 subtables still took
+/// 20+ seconds after the per-subtable cap alone). Real fonts have at most
+/// a few hundred contextual rules per subtable and nowhere near this many
+/// subtables per table, so this cap is far above any legitimate usage
+/// while keeping worst-case adversarial cost to well under a second.
+const MAX_TOTAL_RULES_PER_TABLE: u32 = 50_000;
+static TOTAL_RULES_BUILT_BUDGET: ::core::sync::atomic::AtomicU32 =
+    ::core::sync::atomic::AtomicU32::new(MAX_TOTAL_RULES_PER_TABLE);
+/// Atomically consumes one unit of `TOTAL_RULES_BUILT_BUDGET`; `true` means
+/// the caller may build (and push) one more rule, `false` means the
+/// table-wide budget is exhausted and the caller should stop adding rules
+/// to this subtable (and, transitively, stop processing further
+/// chainSubClassSets/subRuleSets/subtables/lookups in this table, since
+/// every further rule would hit the same exhausted budget).
+fn take_rule_budget() -> bool {
+    TOTAL_RULES_BUILT_BUDGET
+        .try_update(
+            ::core::sync::atomic::Ordering::Relaxed,
+            ::core::sync::atomic::Ordering::Relaxed,
+            |b| b.checked_sub(1),
+        )
+        .is_ok()
+}
+/// Bounds how many `ChainLookupApplication` entries a single contextual/
+/// chaining rule builds. `n_apply` is a raw `u16` read straight from the
+/// rule header; the only existing guard (`require_room`) just checks the
+/// array fits inside the table, which a large enough table happily allows.
+/// `consolidate_chaining` logs one `[Consolidate] Quoting an invalid
+/// lookup #N` warning (a heap-allocating `bytesbuild!` call, plus a stderr
+/// write) for every entry whose `lookup_index` doesn't resolve --
+/// fuzzing found a rule with tens of thousands of such entries, most
+/// pointing nowhere, turning one rule into tens of thousands of log
+/// writes. Real rules apply a handful of lookups at most, so this cap is
+/// far above any legitimate usage while keeping worst-case log volume
+/// (and the allocation/read work building the `apply` vec itself) small.
+const MAX_APPLY_PER_RULE: usize = 1_000;
+/// Bounds how many backtrack/input/lookahead positions a single
+/// contextual/chaining rule actually builds `match_0` entries for.
+/// `n_input` (and, in the chaining format, `n_back`/`n_lookaround` too)
+/// are raw `u16`s read straight from the rule header, each independently
+/// bounds-checked only against the table fitting the array it introduces
+/// -- true for a large enough table. Even after `MAX_TOTAL_RULES_PER_
+/// TABLE` bounds how many *rules* get built, fuzzing found that a handful
+/// of rules with a huge position count each was enough on its own: every
+/// position triggers a `class_coverage`/`single_coverage` call (and its
+/// `Coverage` allocation) even once `CLASS_COVERAGE_CALL_BUDGET` makes
+/// that call's own internal work free, since the call itself -- and the
+/// allocation it always makes before checking anything -- still happens.
+/// Real rules match a handful of positions (single digits, rarely more
+/// than a dozen), so this cap is far above legitimate usage. Only the
+/// loop bounds are capped, not the byte offsets derived from the
+/// uncapped counts (`lookup_base`/`input_base`/`lookaround_base`/
+/// `apply_base` below) -- those offsets are already guaranteed in-bounds
+/// by the `require_room` calls above (which validated the *uncapped*
+/// sizes), so reading from them is safe regardless; only the resulting
+/// glyph sequence for a rule this pathological is arbitrary, which is
+/// fine for input this malformed. `match_count`/`input_begins`/
+/// `input_ends` are computed from the *capped* counts specifically so
+/// they always agree with `match_0`'s actual (possibly truncated) length
+/// -- using the uncapped counts there would let downstream code (e.g.
+/// `consolidate_chaining`) index past the end of `match_0`.
+const MAX_POSITIONS_PER_RULE: u16 = 1_000;
 pub unsafe fn single_coverage(
     mut _data: FontFilePointer,
     mut _table_length: u32,
@@ -92,65 +239,85 @@ pub unsafe fn class_coverage(
         (*defs).fc.as_deref()
     }
     .expect("class_coverage: ClassDefs field for this `kind` was not populated");
+    // Charged unconditionally, before doing anything else: a rule set
+    // built almost entirely of degenerate rules referencing an *empty*
+    // classdef (`cd.glyphs.len() == 0`) never enters either loop below,
+    // so the per-iteration budget charges further down never fire at
+    // all -- yet a fuzz-found font still called this well past a
+    // million times in a few seconds (each call's own fixed overhead,
+    // starting with the `Coverage` allocation right below, is what adds
+    // up at that volume, not anything inside the loops). Bounding the
+    // call *count* itself, not just work done inside any one call, is
+    // what actually stops this on that input.
+    if CLASS_COVERAGE_CALL_BUDGET
+        .try_update(
+            ::core::sync::atomic::Ordering::Relaxed,
+            ::core::sync::atomic::Ordering::Relaxed,
+            |b| b.checked_sub(1),
+        )
+        .is_err()
+    {
+        return otl_coverage_create();
+    }
     let cov: *mut Coverage = otl_coverage_create();
-    let mut count: GlyphId = 0 as GlyphId;
+    // `general_read_contextual_rule`/`general_read_chaining_rule` call
+    // this once per input/backtrack/lookahead position in a rule, and a
+    // subtable can hold a huge number of tiny rules -- so *every* loop
+    // below (not just the ones that end up pushing a glyph) is charged
+    // against `(*defs).class_zero_budget`, one unit per iteration,
+    // shared across every call this `ClassDefs` sees while reading the
+    // whole subtable. That bounds TOTAL scanning work across the whole
+    // subtable to a fixed budget regardless of `cls`, `max_glyphs`, this
+    // classdef's own size, or how many times this gets called -- a
+    // per-push-only budget (an earlier version of this fix) still let a
+    // "dense" classdef (few glyphs actually pushed, but every one of
+    // `max_glyphs` still has to be checked) or the plain `cls != 0`
+    // linear scan (already O(cd.glyphs.len()), no quadratic factor to
+    // fix, but still uncapped per call) hang on the same fuzz-found
+    // font this was found on, by racking up iterations that never
+    // decremented anything.
+    //
+    // `cls == 0` ("every glyph not otherwise classified") used to also
+    // be a *quadratic* linear scan over `(*cd).glyphs` for every one of
+    // up to `max_glyphs` candidates -- O(max_glyphs * cd.glyphs.len())
+    // just to find which glyphs are classified, on top of the memory
+    // amplification this same budget also guards against (ASan-
+    // confirmed OOM: ~1.8GB from a fuzz-found font). A bitmap over
+    // `0..max_glyphs` (at most 65535 bits, built once in
+    // O(cd.glyphs.len())) turns the lookup into O(1), making that part
+    // O(max_glyphs + cd.glyphs.len()) -- also drops the original's
+    // separate, identical count-then-populate double scan: counting
+    // ahead only ever fed a since-removed `Vec::with_capacity`-style
+    // early return, so folding it into one pass changes nothing
+    // observable for any input this budget doesn't itself cut off.
+    let zero_budget_left =
+        || CLASS_ZERO_BUDGET.load(::core::sync::atomic::Ordering::Relaxed) > 0;
+    let charge_zero_budget =
+        || CLASS_ZERO_BUDGET.fetch_sub(1, ::core::sync::atomic::Ordering::Relaxed);
     if cls as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
-        let mut k: GlyphId = 0 as GlyphId;
-        while (k as ::core::ffi::c_int) < max_glyphs as ::core::ffi::c_int {
-            let mut found: bool = false;
-            let mut j: GlyphId = 0 as GlyphId;
-            while (j as usize) < (*cd).glyphs.len() {
-                if (&(*cd).classes)[j as usize] as ::core::ffi::c_int > 0 as ::core::ffi::c_int
-                    && (&(*cd).glyphs)[j as usize].index as ::core::ffi::c_int
-                        == k as ::core::ffi::c_int
-                {
-                    found = true;
-                    break;
-                } else {
-                    j = j.wrapping_add(1);
+        let mut classified = vec![false; max_glyphs as usize];
+        let mut j: usize = 0;
+        while j < (*cd).glyphs.len() && zero_budget_left() {
+            if (&(*cd).classes)[j] as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+                let idx = (&(*cd).glyphs)[j].index as usize;
+                if idx < classified.len() {
+                    classified[idx] = true;
                 }
             }
-            if !found {
-                count = (count as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+            charge_zero_budget();
+            j += 1;
+        }
+        let mut k: GlyphId = 0 as GlyphId;
+        while (k as ::core::ffi::c_int) < max_glyphs as ::core::ffi::c_int && zero_budget_left() {
+            if !classified[k as usize] {
+                push_to_coverage(cov, handle_from_index(k) as GlyphHandle);
             }
+            charge_zero_budget();
             k = k.wrapping_add(1);
         }
     } else {
-        let mut j_0: GlyphId = 0 as GlyphId;
-        while (j_0 as usize) < (*cd).glyphs.len() {
-            if (&(*cd).classes)[j_0 as usize] as ::core::ffi::c_int == cls as ::core::ffi::c_int {
-                count = count.wrapping_add(1);
-            }
-            j_0 = j_0.wrapping_add(1);
-        }
-    }
-    if count == 0 {
-        return cov;
-    }
-    if cls as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
-        let mut k_0: GlyphId = 0 as GlyphId;
-        while (k_0 as ::core::ffi::c_int) < max_glyphs as ::core::ffi::c_int {
-            let mut found_0: bool = false;
-            let mut j_1: GlyphId = 0 as GlyphId;
-            while (j_1 as usize) < (*cd).glyphs.len() {
-                if (&(*cd).classes)[j_1 as usize] as ::core::ffi::c_int > 0 as ::core::ffi::c_int
-                    && (&(*cd).glyphs)[j_1 as usize].index as ::core::ffi::c_int
-                        == k_0 as ::core::ffi::c_int
-                {
-                    found_0 = true;
-                    break;
-                } else {
-                    j_1 = j_1.wrapping_add(1);
-                }
-            }
-            if !found_0 {
-                push_to_coverage(cov, handle_from_index(k_0) as GlyphHandle);
-            }
-            k_0 = k_0.wrapping_add(1);
-        }
-    } else {
         let mut j_2: GlyphId = 0 as GlyphId;
-        while (j_2 as usize) < (*cd).glyphs.len() {
+        while (j_2 as usize) < (*cd).glyphs.len() && zero_budget_left() {
             if (&(*cd).classes)[j_2 as usize] as ::core::ffi::c_int == cls as ::core::ffi::c_int {
                 push_to_coverage(
                     cov,
@@ -158,6 +325,7 @@ pub unsafe fn class_coverage(
                         as GlyphHandle,
                 );
             }
+            charge_zero_budget();
             j_2 = j_2.wrapping_add(1);
         }
     }
@@ -213,13 +381,27 @@ pub unsafe fn general_read_contextual_rule(
     let needed = (n_input as usize) * 2 + (n_apply as usize) * 4;
     header.require_room(needed, 1).ok()?;
 
+    // `n_input - minus_one_q` in the original ran in signed `c_int`
+    // arithmetic, so a malformed `n_input < minus_one_q` (possible: the
+    // `minus_one` slot above is unconditional, independent of `n_input`'s
+    // own value) gave a negative loop bound and simply ran zero
+    // iterations. `saturating_sub` reproduces that same "zero iterations"
+    // outcome without the panic a plain `u16` subtraction would give here.
+    let n_input_read = n_input.saturating_sub(minus_one_q);
+    // See `MAX_POSITIONS_PER_RULE`'s own doc comment: only the *build*
+    // loop below is capped, not `n_input_read` itself (still used
+    // uncapped for `lookup_base` below, matching the original's byte
+    // layout).
+    let n_input_built = n_input_read.min(MAX_POSITIONS_PER_RULE);
+    let match_count = minus_one_q.wrapping_add(n_input_built);
+
     // `Box` is the allocation, the struct literal is the zero-init the old
     // `__caryll_allocate_clean` provided -- same shape as `new_lookup`/
     // `otfcc_new_glyf_glyph`.
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
-        match_count: n_input as TableId,
+        match_count: match_count as TableId,
         input_begins: 0 as TableId,
-        input_ends: n_input as TableId,
+        input_ends: match_count as TableId,
         match_0: Vec::new(),
         apply: Vec::new(),
     });
@@ -242,14 +424,7 @@ pub unsafe fn general_read_contextual_rule(
                 userdata,
             )));
     }
-    // `n_input - minus_one_q` in the original ran in signed `c_int`
-    // arithmetic, so a malformed `n_input < minus_one_q` (possible: the
-    // `minus_one` slot above is unconditional, independent of `n_input`'s
-    // own value) gave a negative loop bound and simply ran zero
-    // iterations. `saturating_sub` reproduces that same "zero iterations"
-    // outcome without the panic a plain `u16` subtraction would give here.
-    let n_input_read = n_input.saturating_sub(minus_one_q);
-    for j in 0..n_input_read {
+    for j in 0..n_input_built {
         let gid = FontReader::new(slice)
             .at(offset as usize + 4 + 2 * j as usize)
             .unwrap()
@@ -267,9 +442,9 @@ pub unsafe fn general_read_contextual_rule(
             )));
     }
 
-    rule.apply = Vec::with_capacity(n_apply as usize);
+    rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
     let lookup_base = offset as usize + 4 + 2 * n_input_read as usize;
-    for j0 in 0..n_apply {
+    for j0 in 0..n_apply.min(MAX_APPLY_PER_RULE as u16) {
         let mut lr = FontReader::new(slice)
             .at(lookup_base + 4 * j0 as usize)
             .unwrap();
@@ -341,8 +516,8 @@ unsafe fn read_contextual_format1(
         // pass did (nothing here is retained across passes, matching the
         // original's own two-pass structure).
         let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-        (*ruleset).rules = Vec::with_capacity(total_rules);
-        for j in 0..chain_sub_rule_set_count {
+        (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+        'rulesets: for j in 0..chain_sub_rule_set_count {
             let srs_rel = FontReader::new(slice)
                 .at(offset as usize + 6 + 2 * j as usize)
                 .unwrap()
@@ -355,6 +530,9 @@ unsafe fn read_contextual_format1(
                 .u16()
                 .unwrap();
             for k in 0..srs_count {
+                if !take_rule_budget() {
+                    break 'rulesets;
+                }
                 let sr_rel = FontReader::new(slice)
                     .at(srs_offset as usize + 2 + 2 * k as usize)
                     .unwrap()
@@ -382,7 +560,22 @@ unsafe fn read_contextual_format1(
                     max_glyphs,
                     NULL,
                 );
-                (*ruleset).rules.push(rule_ptr);
+                // A `None` here means this one rule's own offset/header was
+                // malformed (`general_read_contextual_rule`/`_chaining_rule`
+                // returned early via `?`) -- the *outer* class-set/rule-set
+                // array that pointed at it was still validated and fits the
+                // table, so this is an isolated bad rule, not a reason to
+                // fail the whole subtable. `unconsolidate_chaining` asserts
+                // every slot here is `Some` (fuzzing found a font that
+                // pushed a `None` and hit that `.expect()`), so drop it here
+                // instead of ever storing a placeholder.
+                if rule_ptr.is_some() {
+                    // Same "malformed individual rule, not the whole subtable" case as
+        // the format1/format2 loops above -- see their comment.
+        if rule_ptr.is_some() {
+            (*ruleset).rules.push(rule_ptr);
+        }
+                }
             }
         }
         break 'parse Some(());
@@ -473,8 +666,8 @@ unsafe fn read_contextual_format2(
         }
 
         let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-        (*ruleset).rules = Vec::with_capacity(total_rules);
-        for j in 0..chain_sub_class_set_cnt {
+        (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+        'class_sets: for j in 0..chain_sub_class_set_cnt {
             let src_rel = FontReader::new(slice)
                 .at(offset as usize + 8 + 2 * j as usize)
                 .unwrap()
@@ -489,6 +682,9 @@ unsafe fn read_contextual_format2(
                 .u16()
                 .unwrap();
             for k in 0..srs_count {
+                if !take_rule_budget() {
+                    break 'class_sets;
+                }
                 let sr_rel = FontReader::new(slice)
                     .at(offset as usize + src_rel as usize + 2 + 2 * k as usize)
                     .unwrap()
@@ -518,7 +714,22 @@ unsafe fn read_contextual_format2(
                     max_glyphs,
                     cds as *mut ::core::ffi::c_void,
                 );
-                (*ruleset).rules.push(rule_ptr);
+                // A `None` here means this one rule's own offset/header was
+                // malformed (`general_read_contextual_rule`/`_chaining_rule`
+                // returned early via `?`) -- the *outer* class-set/rule-set
+                // array that pointed at it was still validated and fits the
+                // table, so this is an isolated bad rule, not a reason to
+                // fail the whole subtable. `unconsolidate_chaining` asserts
+                // every slot here is `Some` (fuzzing found a font that
+                // pushed a `None` and hit that `.expect()`), so drop it here
+                // instead of ever storing a placeholder.
+                if rule_ptr.is_some() {
+                    // Same "malformed individual rule, not the whole subtable" case as
+        // the format1/format2 loops above -- see their comment.
+        if rule_ptr.is_some() {
+            (*ruleset).rules.push(rule_ptr);
+        }
+                }
             }
         }
         break 'parse Some(());
@@ -602,7 +813,11 @@ pub unsafe fn otl_read_contextual(
             max_glyphs,
             NULL,
         );
-        (*ruleset).rules.push(rule_ptr);
+        // Same "malformed individual rule, not the whole subtable" case as
+        // the format1/format2 loops above -- see their comment.
+        if rule_ptr.is_some() {
+            (*ruleset).rules.push(rule_ptr);
+        }
         return subtable_from_raw(subtable, Subtable::Chaining);
     }
     logger_log_sds(
@@ -653,18 +868,27 @@ pub unsafe fn general_read_chaining_rule(
     let n_apply = header.u16().ok()?;
     header.require_room(n_apply as usize, 4).ok()?;
 
+    // See `MAX_POSITIONS_PER_RULE`'s own doc comment: only the *build*
+    // loops below are capped, not `n_back`/`n_input_read`/`n_lookaround`
+    // themselves (still used uncapped for `input_base`/`lookaround_base`/
+    // `apply_base` below, matching the original's byte layout).
+    // `match_count`/`input_begins`/`input_ends` are computed purely from
+    // these *built* (capped) counts, so they always agree with
+    // `match_0`'s actual length by construction -- including the
+    // `n_input < minus_one_q` edge case the pre-existing comment below
+    // already had to reason about, which this sidesteps rather than
+    // duplicates.
+    let n_back_built = n_back.min(MAX_POSITIONS_PER_RULE);
+    let n_input_built = n_input_read.min(MAX_POSITIONS_PER_RULE);
+    let n_lookaround_built = n_lookaround.min(MAX_POSITIONS_PER_RULE);
+    let input_begins = n_back_built;
+    let input_ends = n_back_built.wrapping_add(minus_one_q).wrapping_add(n_input_built);
+    let match_count = input_ends.wrapping_add(n_lookaround_built);
     // `Box` is the allocation, the struct literal is the zero-init the old
     // `__caryll_allocate_clean` provided -- see `general_read_contextual_rule`.
-    // `match_count`/`input_ends` used `c_int` addition then truncated to
-    // `TableId` (u16) in the original; `wrapping_add` reproduces that
-    // truncation instead of panicking on an overflowing plain `+` (each of
-    // `n_back`/`n_input`/`n_lookaround` is individually u16-bounded, but
-    // their sum is not).
-    let match_count = n_back.wrapping_add(n_input).wrapping_add(n_lookaround);
-    let input_ends = n_back.wrapping_add(n_input);
     let mut rule: Box<ChainingRule> = Box::new(ChainingRule {
         match_count: match_count as TableId,
-        input_begins: n_back,
+        input_begins,
         input_ends: input_ends as TableId,
         match_0: Vec::new(),
         apply: Vec::new(),
@@ -675,7 +899,7 @@ pub unsafe fn general_read_chaining_rule(
     // direct replacement for the old `jj`-indexed writes (`jj` itself is
     // gone: it was only ever used as that index).
     rule.match_0 = Vec::with_capacity(match_count as usize);
-    for j in 0..n_back {
+    for j in 0..n_back_built {
         let gid = FontReader::new(slice)
             .at(offset as usize + 2 + 2 * j as usize)
             .unwrap()
@@ -712,7 +936,7 @@ pub unsafe fn general_read_chaining_rule(
     // makes those two disagree (see `n_input_read` above), and always
     // agrees with them when they don't.
     let input_base = offset as usize + 4 + 2 * n_back as usize;
-    for j0 in 0..n_input_read {
+    for j0 in 0..n_input_built {
         let gid = FontReader::new(slice)
             .at(input_base + 2 * j0 as usize)
             .unwrap()
@@ -730,7 +954,7 @@ pub unsafe fn general_read_chaining_rule(
             )));
     }
     let lookaround_base = input_base + 2 * n_input_read as usize + 2;
-    for j1 in 0..n_lookaround {
+    for j1 in 0..n_lookaround_built {
         let gid = FontReader::new(slice)
             .at(lookaround_base + 2 * j1 as usize)
             .unwrap()
@@ -748,9 +972,9 @@ pub unsafe fn general_read_chaining_rule(
             )));
     }
 
-    rule.apply = Vec::with_capacity(n_apply as usize);
+    rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
     let apply_base = lookaround_base + 2 * n_lookaround as usize + 2;
-    for j2 in 0..n_apply {
+    for j2 in 0..n_apply.min(MAX_APPLY_PER_RULE as u16) {
         let mut lr = FontReader::new(slice)
             .at(apply_base + 4 * j2 as usize)
             .unwrap();
@@ -818,8 +1042,8 @@ unsafe fn read_chaining_format1(
         }
 
         let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-        (*ruleset).rules = Vec::with_capacity(total_rules);
-        for j in 0..chain_sub_rule_set_count {
+        (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+        'rulesets: for j in 0..chain_sub_rule_set_count {
             let srs_rel = FontReader::new(slice)
                 .at(offset as usize + 6 + 2 * j as usize)
                 .unwrap()
@@ -832,6 +1056,9 @@ unsafe fn read_chaining_format1(
                 .u16()
                 .unwrap();
             for k in 0..srs_count {
+                if !take_rule_budget() {
+                    break 'rulesets;
+                }
                 let sr_rel = FontReader::new(slice)
                     .at(srs_offset as usize + 2 + 2 * k as usize)
                     .unwrap()
@@ -859,7 +1086,22 @@ unsafe fn read_chaining_format1(
                     max_glyphs,
                     NULL,
                 );
-                (*ruleset).rules.push(rule_ptr);
+                // A `None` here means this one rule's own offset/header was
+                // malformed (`general_read_contextual_rule`/`_chaining_rule`
+                // returned early via `?`) -- the *outer* class-set/rule-set
+                // array that pointed at it was still validated and fits the
+                // table, so this is an isolated bad rule, not a reason to
+                // fail the whole subtable. `unconsolidate_chaining` asserts
+                // every slot here is `Some` (fuzzing found a font that
+                // pushed a `None` and hit that `.expect()`), so drop it here
+                // instead of ever storing a placeholder.
+                if rule_ptr.is_some() {
+                    // Same "malformed individual rule, not the whole subtable" case as
+        // the format1/format2 loops above -- see their comment.
+        if rule_ptr.is_some() {
+            (*ruleset).rules.push(rule_ptr);
+        }
+                }
             }
         }
         break 'parse Some(());
@@ -958,8 +1200,8 @@ unsafe fn read_chaining_format2(
         }
 
         let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-        (*ruleset).rules = Vec::with_capacity(total_rules);
-        for j in 0..chain_sub_class_set_cnt {
+        (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+        'class_sets: for j in 0..chain_sub_class_set_cnt {
             let src_rel = FontReader::new(slice)
                 .at(offset as usize + 12 + 2 * j as usize)
                 .unwrap()
@@ -974,6 +1216,9 @@ unsafe fn read_chaining_format2(
                 .u16()
                 .unwrap();
             for k in 0..srs_count {
+                if !take_rule_budget() {
+                    break 'class_sets;
+                }
                 let dsr_rel = FontReader::new(slice)
                     .at(offset as usize + src_rel as usize + 2 + 2 * k as usize)
                     .unwrap()
@@ -1003,7 +1248,22 @@ unsafe fn read_chaining_format2(
                     max_glyphs,
                     cds as *mut ::core::ffi::c_void,
                 );
-                (*ruleset).rules.push(rule_ptr);
+                // A `None` here means this one rule's own offset/header was
+                // malformed (`general_read_contextual_rule`/`_chaining_rule`
+                // returned early via `?`) -- the *outer* class-set/rule-set
+                // array that pointed at it was still validated and fits the
+                // table, so this is an isolated bad rule, not a reason to
+                // fail the whole subtable. `unconsolidate_chaining` asserts
+                // every slot here is `Some` (fuzzing found a font that
+                // pushed a `None` and hit that `.expect()`), so drop it here
+                // instead of ever storing a placeholder.
+                if rule_ptr.is_some() {
+                    // Same "malformed individual rule, not the whole subtable" case as
+        // the format1/format2 loops above -- see their comment.
+        if rule_ptr.is_some() {
+            (*ruleset).rules.push(rule_ptr);
+        }
+                }
             }
         }
         break 'parse Some(());
@@ -1078,7 +1338,11 @@ pub unsafe fn otl_read_chaining(
             max_glyphs,
             NULL,
         );
-        (*ruleset).rules.push(rule_ptr);
+        // Same "malformed individual rule, not the whole subtable" case as
+        // the format1/format2 loops above -- see their comment.
+        if rule_ptr.is_some() {
+            (*ruleset).rules.push(rule_ptr);
+        }
         return subtable_from_raw(subtable, Subtable::Chaining);
     }
     logger_log_sds(

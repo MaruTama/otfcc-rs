@@ -305,6 +305,31 @@ as regression pins even though none of them still reproduce:
   would go out of range, leaving a truncated/malformed instruction stream
   partially untypified instead of writing past `bts`.
 
+- ~~`tests/fuzz-corpus/known-issues/otf-parse-otl-contextual-amplification-
+  hang.bin` (497KB) — `table/otl/subtables/chaining/read.rs`'s contextual/
+  chaining subtable parsing had *four* independently-bounds-checked counts
+  (a lookup's subtable count, one subtable's rule count, one rule's
+  position/apply counts, and `class_coverage`'s own per-call work) whose
+  product was unbounded: first a ~1.8GB OOM (ASan), then — once memory was
+  capped — a 20-30s hang (millions of `class_coverage` calls, each
+  allocating and discarding a `Coverage`), then — once that was capped —
+  a panic (`chaining rule slot should never be None here`, a fifth,
+  unrelated bug: a malformed individual rule inside an otherwise valid
+  ruleset was pushed as `None` instead of skipped)~~ — **fixed**: found
+  via `cargo fuzz run otf_parse`, root-caused over several rounds of
+  Docker-based Linux repro plus local arm64 `sample`-profiling, because
+  each fix in turn only narrowed the crash to the next layer underneath
+  it. A chain of budgets (`MAX_TOTAL_SUBTABLES_PER_LOOKUP`, `MAX_TOTAL_
+  RULES_PER_TABLE`, `MAX_APPLY_PER_RULE`/`MAX_POSITIONS_PER_RULE`, plus
+  `class_coverage`'s own two budgets promoted from per-subtable fields to
+  per-table global statics) plus skipping (not storing) a malformed
+  individual rule. See `rust/README.md`'s "Next steps" for the full
+  layer-by-layer writeup, including how `tests/payload/NotoNastaliqUrdu-
+  Regular.ttf` — a real, legitimately complex font already in this repo's
+  golden corpus — caught one of the budgets (`class_coverage`'s own
+  `CLASS_ZERO_BUDGET`) being recalibrated too tight once its scope changed
+  from per-subtable to per-table.
+
 ## Fuzz targets
 
 - **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).
