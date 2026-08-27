@@ -265,6 +265,21 @@ as regression pins even though none of them still reproduce:
   (LeakSanitizer). Confirmed clean against all of `tests/payload/` with
   `ASAN_OPTIONS=detect_leaks=1` afterward.
 
+- ~~`table/glyf/read.rs`'s `next_point` (the shared point-cursor walked
+  while reading a simple glyph's flags/coordinates) only skipped past one
+  exhausted contour per call — a zero-length contour (arithmetically legal:
+  its endpoint can equal the running point total minus one) landing right
+  after another one got indexed at 0 without being skipped, panicking
+  ("index out of bounds: the len is 0 but the index is 0")~~ — **fixed**:
+  found via an extended local fuzz session run inside a Linux/x86_64
+  Docker container (to match CI and get a symbolicated backtrace, since
+  CI's own runner doesn't persist crash artifacts). `if` → `while` so it
+  skips every exhausted contour in a row. Also widened `points_in_glyph`'s
+  accumulator to `u32` (a wire-legal `lastPoint = 0xFFFF` overflows a
+  `u16` total to 0, silently under-reading the glyph instead of crashing —
+  same function, same edge-case class, not the cause of this crash but
+  found in the same audit).
+
 ## Fuzz targets
 
 - **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).

@@ -932,6 +932,41 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`table/glyf/read.rs`: a zero-length contour immediately after another
+  one panicked (`index out of bounds: the len is 0 but the index is 0`).**
+  Found by an extended local `cargo fuzz` session against `otf_parse`
+  (run inside a Linux/x86_64 Docker container to match CI's environment
+  and get a symbolicated backtrace, since the CI runner's own crash
+  artifact/binary don't persist past the job).
+  - **The bug**: `endPtsOfContours` has no rule against a contour whose
+    endpoint equals the running point total minus one -- a zero-length
+    contour, geometrically meaningless but arithmetically legal (`n == 0`
+    is explicitly allowed by the existing non-monotonic-rejection check).
+    `next_point`, the shared cursor walked while reading flags/coordinates
+    across every contour in the glyph, used a single `if` to skip past an
+    exhausted contour -- landing on a *following* zero-length contour
+    immediately after skipped nothing further, and indexed it at 0 anyway.
+  - **The fix**: `if` -> `while`, so `next_point` skips every exhausted
+    contour in a row (however many, zero-length or otherwise) before
+    indexing. Also widened `points_in_glyph`'s accumulator from `ShapeId`
+    (`u16`) to `u32` in the same function: the running total is `lastPoint
+    + 1`, and a wire-legal `lastPoint` of `0xFFFF` makes that `65536` --
+    one past `u16::MAX` -- which a `u16` total would silently wrap back to
+    `0`, under-reading every flag/coordinate in the glyph instead of
+    crashing. Not the cause of this specific crash, but the same function,
+    same running total, and the same class of "arithmetic edge the wire
+    format technically allows" this fix was already auditing.
+  - **New test**: `simple_glyph_with_a_zero_length_contour_between_two_
+    real_ones_does_not_panic` builds a minimal 3-contour glyph
+    (`endPtsOfContours = [0, 0, 1]`, giving contour lengths `[1, 0, 1]`)
+    and confirmed to reproduce the exact same panic with the fix reverted.
+    Reproducer kept as `tests/fuzz-corpus/known-issues/otf-parse-glyf-
+    consecutive-zero-length-contours-panic.bin` (151KB).
+  - **Verification**: full pipeline green (326/326 tests, clippy/ABI/
+    golden/log/cycles/lookup-alias/roundtrips clean, all three fuzz
+    targets `cargo check`-clean, Miri clean), plus the crash input itself
+    now parses cleanly end-to-end.
+
 - **The new `otf_dump` fuzz target (previous entry) leaked its entire JSON
   tree on every single input, including every well-formed seed font.**
   Found immediately on its own first CI run: LeakSanitizer reported a
