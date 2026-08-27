@@ -932,6 +932,22 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **`otf_reader.rs`: `OtfReader::read`'s TTF branch panicked on a font
+  missing (or failing to parse) `maxp`.** Found by the new `otf_dump` CI
+  fuzz job (added in the previous entry) on its very first run --
+  `GlyfIOContext` construction `.unwrap()`ed both `head.index_to_loc_format`
+  and `maxp.num_glyphs` unconditionally, unlike the CFF branch two lines
+  below it, which already tolerates a missing `head` via `.map_or(null(),
+  ...)`. Fixed by skipping the whole `glyf`-read block (leaving `font.glyf`
+  at its default `None`) unless both `head` and `maxp` parsed successfully
+  -- the same "skip this table, keep going" shape the `vhea`/`vmtx` guard
+  immediately above it already uses. New test,
+  `ttf_font_missing_maxp_does_not_panic`, builds a minimal synthetic sfnt
+  (one valid `head` table, no `maxp` table at all) and confirmed to
+  reproduce the exact same panic with the fix reverted. Full pipeline green
+  (323/323 tests, clippy/ABI/golden/log/cycles/lookup-alias/roundtrips
+  clean, both fuzz targets `cargo check`-clean, Miri clean).
+
 - **A real heap-use-after-free in OTL consolidation, found by hand after
   `otf_parse` fuzzing turned up a slow/flaky crash it couldn't itself
   explain** (that target never exercises consolidate/dump -- see the new

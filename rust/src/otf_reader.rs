@@ -129,18 +129,31 @@ impl FontBuilder for OtfReader {
                 (*font).gasp = otfcc_read_gasp(packet, options);
                 (*font).vdmx = otfcc_read_vdmx(packet, options);
                 (*font).ltsh = otfcc_read_ltsh(packet, options);
-                let mut ctx: GlyfIOContext = GlyfIOContext {
-                    loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
-                    num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
-                    n_phantom_points: 4 as ShapeId,
-                    fvar: (*font)
-                        .fvar
-                        .as_deref_mut()
-                        .map_or(::core::ptr::null_mut(), |f| f as *mut FvarTable),
-                    has_vertical_metrics: false,
-                    export_fd_select: false,
-                };
-                (*font).glyf = otfcc_read_glyf(packet, options, &raw mut ctx);
+                // `loca_is_long`/`num_glyphs` come from `head`/`maxp`, which
+                // -- unlike the CFF branch below, which already tolerates a
+                // missing `head` via `.map_or(null(), ...)` -- this branch
+                // used to `.unwrap()` unconditionally. A malformed font
+                // missing (or failing to parse) either table turned into a
+                // panic here instead of the "skip this table, keep going"
+                // every other reader in this function already does; a
+                // fuzz-found input with a `glyf`/`loca` pair but no `maxp`
+                // hit exactly this. `glyf` genuinely cannot be read without
+                // both, so it is left `None` (its default) rather than
+                // guessing at either value.
+                if (*font).head.is_some() && (*font).maxp.is_some() {
+                    let mut ctx: GlyfIOContext = GlyfIOContext {
+                        loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
+                        num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
+                        n_phantom_points: 4 as ShapeId,
+                        fvar: (*font)
+                            .fvar
+                            .as_deref_mut()
+                            .map_or(::core::ptr::null_mut(), |f| f as *mut FvarTable),
+                        has_vertical_metrics: false,
+                        export_fd_select: false,
+                    };
+                    (*font).glyf = otfcc_read_glyf(packet, options, &raw mut ctx);
+                }
             } else {
                 let cffpr: CffAndGlyf = otfcc_read_cff_and_glyf_tables(
                     packet,
@@ -255,6 +268,55 @@ mod regression_tests {
                 elapsed < Duration::from_secs(10),
                 "read_otf took {elapsed:?}, expected well under 10s"
             );
+        }
+    }
+
+    /// A `cargo fuzz run otf_parse` CI job found this: a TTF-subtype font
+    /// (no `CFF ` table, so `decide_font_subtype_otf` defaults to `Ttf`)
+    /// with a `head` table but no `maxp` table panicked with `called
+    /// `Option::unwrap()` on a `None` value` at the `GlyfIOContext`
+    /// construction inside `OtfReader::read`'s TTF branch -- unlike the
+    /// CFF branch right below it (which already tolerates a missing
+    /// `head` via `.map_or(null(), ...)`), this branch unconditionally
+    /// `.unwrap()`ed both `head.index_to_loc_format` and `maxp.
+    /// num_glyphs`. Fixed by skipping the whole `glyf`-read block (leaving
+    /// `font.glyf` at its default `None`) unless both are present, the
+    /// same "skip this table, keep going" shape `vhea`/`vmtx` right above
+    /// it already use.
+    ///
+    /// Minimal synthetic sfnt: version `\x00\x01\x00\x00` (TrueType),
+    /// one table (`head`, 54 bytes, valid enough to parse), no `maxp`
+    /// table at all.
+    #[test]
+    fn ttf_font_missing_maxp_does_not_panic() {
+        let mut data = Vec::new();
+        data.extend_from_slice(&0x00010000u32.to_be_bytes()); // sfnt version
+        data.extend_from_slice(&1u16.to_be_bytes()); // numTables
+        data.extend_from_slice(&[0u8; 6]); // searchRange, entrySelector, rangeShift
+        data.extend_from_slice(b"head");
+        data.extend_from_slice(&0u32.to_be_bytes()); // checkSum (unverified)
+        data.extend_from_slice(&28u32.to_be_bytes()); // offset: right after the 12+16-byte directory
+        data.extend_from_slice(&54u32.to_be_bytes()); // length
+        assert_eq!(data.len(), 28);
+        data.extend_from_slice(&0x00010000u32.to_be_bytes()); // head.version
+        data.extend_from_slice(&[0u8; 50]); // the rest of head's 54 bytes, all zero is fine
+        assert_eq!(data.len(), 28 + 54);
+
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+
+            otfcc_delete_sfnt(sfnt);
+            assert!(!font.is_null());
+            assert!((*font).maxp.is_none());
+            assert!((*font).glyf.is_none());
+            otfcc_font_free(font);
+            otfcc_delete_options(options);
         }
     }
 }

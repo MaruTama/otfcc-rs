@@ -236,6 +236,15 @@ as regression pins even though none of them still reproduce:
   reproducer is now `tests/fuzz-corpus/known-issues/otf-dump-required-
   feature-use-after-free.bin` (497KB) under that target, not `otf_parse`.
 
+- ~~`otf_reader.rs`'s `OtfReader::read` panicked (`called Option::unwrap()
+  on a None value`) on a TTF-subtype font missing (or failing to parse)
+  `maxp` — `GlyfIOContext` construction unconditionally unwrapped both
+  `head`/`maxp`, unlike the CFF branch a few lines below it, which already
+  tolerates a missing `head`~~ — **fixed**: found on the very first CI run
+  of the new `otf_dump` target below (validating the whole reason it was
+  added). Skips the `glyf`-read block entirely, leaving `font.glyf` at its
+  default `None`, unless both `head` and `maxp` parsed successfully.
+
 ## Fuzz targets
 
 - **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).
