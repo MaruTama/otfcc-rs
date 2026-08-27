@@ -245,6 +245,26 @@ as regression pins even though none of them still reproduce:
   added). Skips the `glyf`-read block entirely, leaving `font.glyf` at its
   default `None`, unless both `head` and `maxp` parsed successfully.
 
+- ~~`libcff/cff_codecs.rs`'s `cff_dec_e` (the "undefined operator byte"
+  charstring/DICT decoder) called raw libc `printf` on every invocation —
+  a hot per-token decode path, so a charstring built almost entirely of
+  undefined-opcode bytes turned into one unbuffered `printf` syscall per
+  byte, and bypassed the crate's own `Logger` (so it printed even under
+  `--quiet`/an empty logger target)~~ — **fixed**: found via a CI run of
+  `otf_parse` reporting a 588-second slow unit, log full of repeated
+  `Undefined Byte in CFF: N.` lines. Removed the `printf` outright — no
+  other decoder in the 256-entry `DE_T2` table logs anything.
+
+- ~~The `otf_dump` target itself leaked its entire JSON tree on every
+  input — a bug in this harness, not the library. `serialize_to_json`
+  returns `*mut core::ffi::c_void`; the harness called `Box::from_raw`
+  directly on that untyped pointer, reconstructing a `Box<c_void>` whose
+  drop glue does nothing, instead of casting back to `*mut BuiltValue`
+  first (the way `otfccdump.rs` itself does with this same return
+  value)~~ — **fixed**: found on this target's own first CI run
+  (LeakSanitizer). Confirmed clean against all of `tests/payload/` with
+  `ASAN_OPTIONS=detect_leaks=1` afterward.
+
 ## Fuzz targets
 
 - **`otf_parse`** — `otfcc_read_sfnt` -> `read_otf` (binary parsing only).

@@ -932,6 +932,55 @@ on the other platform before a commit is trusted.
 
 ## Next steps
 
+- **The new `otf_dump` fuzz target (previous entry) leaked its entire JSON
+  tree on every single input, including every well-formed seed font.**
+  Found immediately on its own first CI run: LeakSanitizer reported a
+  "Direct leak" of the root `BuiltValue` plus everything reachable from it
+  (a few KB on a small font, 10+ MB on `NotoNastaliqUrdu-Regular.ttf`).
+  This was a bug in the fuzz harness itself (`fuzz/fuzz_targets/
+  otf_dump.rs`), not the library: `serialize_to_json` returns `*mut
+  core::ffi::c_void` (the type-erased `FontSerializer` trait boundary), and
+  the harness called `Box::from_raw` directly on that untyped pointer --
+  reconstructing a `Box<c_void>`, whose drop glue does nothing, instead of
+  the `Box<BuiltValue>` whose `Drop` actually walks the tree.
+  `otfccdump.rs` itself casts this same return value back to `*mut
+  BuiltValue` before freeing it; the harness didn't. Fixed by adding that
+  same cast. Confirmed via `ASAN_OPTIONS=detect_leaks=1` against all of
+  `tests/payload/`'s fonts locally (LeakSanitizer isn't available on macOS
+  outside an explicit opt-in, which is why this didn't surface until CI's
+  Linux runner ran it) -- all clean after the fix.
+
+- **`libcff/cff_codecs.rs`'s `cff_dec_e` (the CFF charstring/DICT "undefined
+  operator byte" decoder) called raw libc `printf` on every single
+  invocation.** Found via a CI fuzz run of `otf_parse` that reported a
+  588-second "slow unit" for one input -- the log was full of repeated
+  `Undefined Byte in CFF: N.` lines (this decoder's own message) right up
+  until the log got cut off. This is a hot per-*token* decode path (called
+  once per byte while walking a charstring/DICT), so a charstring built
+  almost entirely of undefined-opcode bytes turns into one unbuffered
+  `printf` syscall per byte -- exactly the "small input, huge amplified
+  work" shape every other fix in this section closes, just via I/O instead
+  of CPU this time. It was also a real hygiene bug independent of
+  performance: a raw `printf`, not `logger_log_sds`, bypasses the crate's
+  own `Logger` entirely, so it printed unconditionally even with
+  `--quiet`/an empty logger target (the fuzz harness's own setup).
+  - **The fix**: removed the `printf` outright (the `libc::printf` import
+    dropped too, now unused) -- no other decoder in the 256-entry `DE_T2`
+    dispatch table logs anything at all, and the recovery behavior (treat
+    the undefined byte as its own integer value, consume 1 byte) needed no
+    changes.
+  - **New tests**: `undefined_byte_still_decodes_as_its_own_value` pins the
+    unchanged recovery behavior; `undefined_byte_tokens_decode_promptly_
+    even_in_bulk` decodes 500,000 undefined-byte tokens and asserts well
+    under a second, which would have been the regression signal on a
+    machine whose I/O stack is slow enough to expose it -- this repo's own
+    macOS dev machine's terminal/pipe I/O turned out to be fast enough that
+    reverting the fix locally still passed in ~0.05s, so this test alone
+    would not have caught the regression on every machine; the CI-observed
+    588s is the real evidence the bug existed. Full pipeline green
+    (325/325 tests, clippy/ABI/golden/log/cycles/lookup-alias/roundtrips
+    clean, both fuzz targets `cargo check`-clean, Miri clean).
+
 - **`otf_reader.rs`: `OtfReader::read`'s TTF branch panicked on a font
   missing (or failing to parse) `maxp`.** Found by the new `otf_dump` CI
   fuzz job (added in the previous entry) on its very first run --
