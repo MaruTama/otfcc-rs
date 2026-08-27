@@ -31,6 +31,7 @@ use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_read
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
 use otfcc_rust::otf_reader::read_otf;
+use otfcc_rust::support::built_json::BuiltValue;
 use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use std::cell::RefCell;
 use std::io::Cursor;
@@ -60,7 +61,17 @@ fuzz_target!(|data: &[u8]| {
 
         if !font.is_null() {
             otfcc_consolidate_font(font, &*options);
-            let root = serialize_to_json(font, &*options);
+            // `serialize_to_json` returns `*mut c_void` (the type-erased
+            // FontSerializer trait boundary), not `*mut BuiltValue` --
+            // `Box::from_raw` on the untyped pointer would reconstruct a
+            // `Box<c_void>`, whose drop glue does nothing and never runs
+            // `BuiltValue`'s own recursive `Object`/`Array` teardown. That
+            // was exactly this bug: every dump leaked its entire JSON tree
+            // (LeakSanitizer-confirmed, ~2.7KB direct plus everything
+            // reachable from it -- megabytes on a real font). Cast back to
+            // `*mut BuiltValue` first, matching what `otfccdump.rs` itself
+            // does with this same return value.
+            let root = serialize_to_json(font, &*options) as *mut BuiltValue;
             if !root.is_null() {
                 drop(Box::from_raw(root));
             }
