@@ -330,13 +330,17 @@ pub unsafe fn cff_compile_glyph_to_il(
     while (c as usize) < (*g).contours.len() {
         let contour: *const Contour = &(&(*g).contours)[c as usize];
         let newcontour: *mut Contour = temp_contours.offset(c as isize);
-        // `__caryll_allocate_clean` is calloc, so this field assignment reads
-        // an all-zero (not garbage) `Contour` first -- a `Vec` with capacity
-        // 0 never touches its pointer field when dropped, so the drop this
-        // assignment performs is a safe no-op regardless of the zero bytes
-        // underneath. Same reasoning as `vq_init` on calloc'd memory
-        // (rust/README.md).
-        *newcontour = Vec::new();
+        // The comment this replaced argued a plain `=` here was safe
+        // because dropping an all-zero (not garbage) `Contour` is a no-op
+        // -- but that belief is exactly what this crate's own Miri-found
+        // UB (see [[otfcc-vec-field-assign-needs-calloc]]) retracted: a
+        // plain assignment drops the *old* value first, and constructing
+        // an all-zero bit pattern as a typed `Vec` value is UB the
+        // instant it happens, independent of whether the drop body goes
+        // on to read/free anything. `ptr::write` doesn't run that drop at
+        // all, which is what a freshly calloc'd, not-yet-valid slot
+        // actually needs.
+        ::core::ptr::write(newcontour, Vec::new());
         let mut j: ShapeId = 0 as ShapeId;
         while (j as usize) < (*contour).len() {
             (*newcontour).push(glyf_point_dup((&(*contour))[j as usize].clone()));
@@ -1141,4 +1145,38 @@ pub unsafe fn cff_il_equal(a: *mut CffCharstringIl, b: *mut CffCharstringIl) -> 
         j = j.wrapping_add(1);
     }
     return true;
+}
+
+#[cfg(test)]
+mod cff_compile_glyph_to_il_tests {
+    use super::*;
+    use crate::table::glyf::{Point, otfcc_new_glyf_glyph};
+    use crate::vf::vq::vq_create_still;
+
+    // `cff_compile_glyph_to_il` calloc's a scratch `*mut Contour` array
+    // (one slot per source contour) and used to write each slot's first
+    // value via a plain `*newcontour = Vec::new();` -- an all-zero bit
+    // pattern is not a valid `Vec`, so that assignment's implicit drop of
+    // the "old" value was UB under Miri regardless of whether a real
+    // contour ever made it through afterward (see
+    // [[otfcc-vec-field-assign-needs-calloc]]; this crate's own
+    // in-code comment arguing the opposite -- "a Vec with capacity 0
+    // never touches its pointer field when dropped" -- is exactly the
+    // belief the project's README later retracted). Needs at least one
+    // contour with at least one point to actually reach the scratch
+    // array's write at all.
+    #[test]
+    fn compiling_a_glyph_with_one_contour_does_not_construct_invalid_scratch_values() {
+        unsafe {
+            let mut g = otfcc_new_glyf_glyph();
+            g.contours.push(vec![Point {
+                x: vq_create_still(0.0),
+                y: vq_create_still(0.0),
+                on_curve: 1,
+            }]);
+            let il = cff_compile_glyph_to_il(&*g as *const Glyph, 0, 0);
+            assert!(!il.is_null());
+            drop(Box::from_raw(il));
+        }
+    }
 }

@@ -16,7 +16,7 @@ use crate::libcff::cff_dict::parse_dict_key_int;
 use crate::libcff::cff_fdselect::CffFdSelect;
 use crate::libcff::cff_fdselect::cff_extract_fd_select;
 use crate::libcff::cff_index::CffIndex;
-use crate::libcff::cff_index::{cff_index_dispose, empty_index, extract_index, get_index_length};
+use crate::libcff::cff_index::{empty_index, extract_index, get_index_length, new_empty_cff_index};
 use crate::libcff::cff_value::{CffValue, cffnum};
 use crate::libcff::{
     CffEncoding, CffEncodingRangeFormat1, CffEncodingSupplement, CffFile, CffStack, OP_ABS, OP_ADD,
@@ -358,11 +358,45 @@ pub unsafe fn cff_open_stream(
     len: u32,
     options: &Options,
 ) -> *mut CffFile {
-    let file: *mut CffFile;
-    file = __caryll_allocate_clean(
-        ::core::mem::size_of::<CffFile>() as usize,
-        203 as ::core::ffi::c_ulong,
-    ) as *mut CffFile;
+    // `CffFile` owns several `Vec`-backed fields (each `CffIndex`'s
+    // `offset`/`data`, and `CffEncoding`/`CffCharset`/`CffFdSelect`'s
+    // `Vec`-carrying variants) -- calloc'ing it and then letting
+    // `parse_cff_bytecode` fill each field in with a plain `(*file).field
+    // = value;` assignment is UB the instant the first such assignment
+    // runs: the assignment drops the *old* value first, and an all-zero
+    // bit pattern is never a valid `Vec`/enum-with-a-`Vec`-variant to
+    // begin with ("constructing invalid value... encountered 0" under
+    // Miri) -- see [[otfcc-vec-field-assign-needs-calloc]]. The same bug
+    // also fires on `cff_close`ing a malformed font whose empty Top DICT
+    // left `char_strings`/`font_dict`/`encodings`/`charsets`/`fdselect`
+    // never written by `parse_cff_bytecode` at all: `cff_close` disposes
+    // them unconditionally, which is the identical first-write-onto-
+    // zeroed-memory pattern. Building the whole value via `Box::new` up
+    // front (instead of calloc) closes both: every field starts out as a
+    // real, valid (empty) value, so every later plain `=` -- in
+    // `parse_cff_bytecode` or in `cff_close` -- safely drops a real prior
+    // value instead of an invalid zeroed one.
+    let file: *mut CffFile = Box::into_raw(Box::new(CffFile {
+        raw_data: ::core::ptr::null_mut(),
+        raw_length: 0,
+        cnt_glyph: 0,
+        head: crate::libcff::CffHeader {
+            major: 0,
+            minor: 0,
+            hdr_size: 0,
+            off_size: 0,
+        },
+        name: new_empty_cff_index(),
+        top_dict: new_empty_cff_index(),
+        string: new_empty_cff_index(),
+        global_subr: new_empty_cff_index(),
+        encodings: CffEncoding::Unspecified,
+        charsets: CffCharset::IsoAdobe,
+        fdselect: CffFdSelect::Unspecified,
+        char_strings: new_empty_cff_index(),
+        font_dict: new_empty_cff_index(),
+        local_subr: new_empty_cff_index(),
+    }));
     (*file).raw_data = __caryll_allocate_clean(
         (::core::mem::size_of::<u8>() as usize).wrapping_mul(len as usize),
         205 as ::core::ffi::c_ulong,
@@ -383,20 +417,16 @@ pub unsafe fn cff_close(file: *mut CffFile) {
             free((*file).raw_data as *mut ::core::ffi::c_void);
             (*file).raw_data = ::core::ptr::null_mut::<u8>();
         }
-        cff_index_dispose(&raw mut (*file).name);
-        cff_index_dispose(&raw mut (*file).top_dict);
-        cff_index_dispose(&raw mut (*file).string);
-        cff_index_dispose(&raw mut (*file).global_subr);
-        cff_index_dispose(&raw mut (*file).char_strings);
-        cff_index_dispose(&raw mut (*file).font_dict);
-        cff_index_dispose(&raw mut (*file).local_subr);
-        // Reassigning drops whatever Vec the previous variant owned, before the
-        // struct itself is freed via a bare `free()` below (which does not run
-        // Drop glue) -- same pattern as `dispose_glyph_order`.
-        (*file).encodings = CffEncoding::Unspecified;
-        (*file).charsets = CffCharset::IsoAdobe;
-        (*file).fdselect = CffFdSelect::Unspecified;
-        free(file as *mut ::core::ffi::c_void);
+        // `file` is `Box`-allocated now (`cff_open_stream`), not calloc'd
+        // -- `Box::from_raw` + `drop` runs every field's own `Drop` (each
+        // `CffIndex`'s `Vec`s, the `CffEncoding`/`CffCharset`/
+        // `CffFdSelect` variants' `Vec`s) and reclaims the struct's own
+        // memory correctly, replacing the manual per-field
+        // `cff_index_dispose`/reset calls and the raw `free()` a calloc'd
+        // struct used to need (a bare `free()` doesn't run Drop glue, and
+        // freeing a `Box` allocation with libc's `free()` would itself be
+        // a mismatched-allocator UB).
+        drop(Box::from_raw(file));
     }
 }
 // No longer `extern "C"`: `&CffFdSelect` has no C spelling. Only called
@@ -3148,6 +3178,54 @@ mod cff_header_and_encoding_tests {
             assert_eq!(cff.top_dict.count, 1, "sanity: Top DICT INDEX parsed");
             assert_eq!(cff.local_subr.count, 0);
             assert!(cff.local_subr.data.is_empty());
+        }
+    }
+}
+
+#[cfg(test)]
+mod cff_open_stream_tests {
+    use super::*;
+    use crate::support::options::Options;
+
+    // A minimal CFF blob whose Top DICT INDEX is empty (`count == 0`):
+    // header + 4 empty INDEXes (Name/Top DICT/String/Global Subr). With
+    // an empty Top DICT, `parse_cff_bytecode` never writes
+    // `char_strings`/`font_dict`/`encodings`/`charsets`/`fdselect` at
+    // all -- this exercises `cff_close`'s *unconditional* disposal of
+    // those fields on whatever `cff_open_stream` initialized them to.
+    //
+    // Before this fix, `cff_open_stream` calloc'd the whole `CffFile`
+    // and left every field an invalid all-zero bit pattern until first
+    // written. `cff_close`'s disposal of the never-written fields was
+    // itself the first "write" to them (a plain `=` inside
+    // `cff_index_dispose`) -- UB under Miri ("constructing invalid
+    // value... encountered 0") the instant that assignment drops the
+    // old, invalid value, regardless of whether this test's assertions
+    // below ever observe anything wrong at runtime. Building the whole
+    // `CffFile` via `Box::new` up front (this fix) makes every field a
+    // real, valid (empty) value from construction, so `cff_close`'s
+    // disposal is always dropping a real prior value.
+    #[test]
+    fn open_and_close_on_a_font_with_an_empty_top_dict_does_not_construct_invalid_values() {
+        let mut data: [u8; 16] = [
+            1, 0, 4, 4, // header: major, minor, hdrSize, offSize
+            0, 0, 0, // Name INDEX: empty
+            0, 0, 0, // Top DICT INDEX: empty
+            0, 0, 0, // String INDEX: empty
+            0, 0, 0, // Global Subr INDEX: empty
+        ];
+        let options = Options::default();
+        unsafe {
+            let file = cff_open_stream(data.as_mut_ptr(), data.len() as u32, &options);
+            assert_eq!((*file).top_dict.count, 0);
+            assert_eq!((*file).char_strings.count, 0);
+            assert!((*file).char_strings.data.is_empty());
+            assert_eq!((*file).font_dict.count, 0);
+            assert!(matches!((*file).encodings, CffEncoding::Unspecified));
+            assert!(matches!((*file).charsets, CffCharset::IsoAdobe));
+            assert!(matches!((*file).fdselect, CffFdSelect::Unspecified));
+            assert_eq!((*file).local_subr.count, 0);
+            cff_close(file);
         }
     }
 }
