@@ -50,7 +50,10 @@ pub struct TuplePolymorphizerCtx {
     pub allow_iup: bool,
     pub n_phantom_points: ShapeId,
 }
-pub type CoordPartGetter = Option<unsafe extern "C" fn(*mut Point) -> *mut VQ>;
+// No longer `extern "C"`: `get_x`/`get_y` never cross the crate's real FFI
+// boundary (`ffi/dll.rs`) -- purely internal Rust-to-Rust indirect calls,
+// same reasoning as `cff_dict.rs`'s `parse_to_callback` and friends.
+pub type CoordPartGetter = Option<unsafe fn(*mut Point) -> *mut VQ>;
 #[derive(Copy, Clone)]
 pub struct PackedDeltaRun {
     pub length: ShapeId,
@@ -495,10 +498,10 @@ unsafe fn read_packed_delta(
     }
     Some(r.pos())
 }
-pub unsafe extern "C" fn get_x(z: *mut Point) -> *mut VQ {
+pub unsafe fn get_x(z: *mut Point) -> *mut VQ {
     return &raw mut (*z).x;
 }
-pub unsafe extern "C" fn get_y(z: *mut Point) -> *mut VQ {
+pub unsafe fn get_y(z: *mut Point) -> *mut VQ {
     return &raw mut (*z).y;
 }
 #[inline]
@@ -643,7 +646,7 @@ unsafe fn apply_coords(
                 (j_first as usize).wrapping_add((*c).len()) as ShapeId,
                 &mut nudges,
                 glyph_refs,
-                Some(get_x as unsafe extern "C" fn(*mut Point) -> *mut VQ),
+                Some(get_x as unsafe fn(*mut Point) -> *mut VQ),
             );
             j_first = (j_first as usize).wrapping_add((*c).len()) as ShapeId as ShapeId;
             keep = (keep == 0) as ::core::ffi::c_int as usize;
@@ -719,7 +722,7 @@ unsafe fn apply_polymorphism(
         delta_x,
         points,
         r,
-        Some(get_x as unsafe extern "C" fn(*mut Point) -> *mut VQ),
+        Some(get_x as unsafe fn(*mut Point) -> *mut VQ),
     );
     apply_coords(
         total_points,
@@ -729,7 +732,7 @@ unsafe fn apply_polymorphism(
         delta_y,
         points,
         r,
-        Some(get_y as unsafe extern "C" fn(*mut Point) -> *mut VQ),
+        Some(get_y as unsafe fn(*mut Point) -> *mut VQ),
     );
     if (total_points as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
         < n_touched_points as ::core::ffi::c_int
