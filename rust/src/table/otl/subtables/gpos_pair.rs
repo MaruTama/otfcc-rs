@@ -355,7 +355,7 @@ pub unsafe fn otl_read_gpos_pair(
     subtable_gpos_pair_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe extern "C" fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltValue {
     let Subtable::GposPair(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -720,7 +720,7 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
     otl_coverage_free(cov);
     return root;
 }
-pub unsafe extern "C" fn otfcc_build_gpos_pair(
+pub unsafe fn otfcc_build_gpos_pair(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {

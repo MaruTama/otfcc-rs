@@ -162,7 +162,7 @@ pub unsafe fn otl_read_gsub_ligature(
     }
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe extern "C" fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) -> *mut BuiltValue {
     let Subtable::GsubLigature(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -260,7 +260,7 @@ pub unsafe fn otl_gsub_parse_ligature(
 // deduplicated set directly -- there is no value to carry, so this isn't
 // even a map the way every other uthash instance in this migration has
 // been.
-pub unsafe extern "C" fn otfcc_build_gsub_ligature_subtable(
+pub unsafe fn otfcc_build_gsub_ligature_subtable(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {

@@ -116,7 +116,7 @@ pub unsafe fn otl_read_gpos_cursive(
     subtable_gpos_cursive_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe extern "C" fn otl_gpos_dump_cursive(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gpos_dump_cursive(mut _subtable: *const Subtable) -> *mut BuiltValue {
     let Subtable::GposCursive(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -173,7 +173,7 @@ pub unsafe fn otl_gpos_parse_cursive(
     }
     return subtable_from_raw(subtable, Subtable::GposCursive);
 }
-pub unsafe extern "C" fn otfcc_build_gpos_cursive(
+pub unsafe fn otfcc_build_gpos_cursive(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {

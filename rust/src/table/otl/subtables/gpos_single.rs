@@ -125,7 +125,7 @@ pub unsafe fn otl_read_gpos_single(
     subtable_gpos_single_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe extern "C" fn otl_gpos_dump_single(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gpos_dump_single(mut _subtable: *const Subtable) -> *mut BuiltValue {
     let Subtable::GposSingle(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -164,7 +164,7 @@ pub unsafe fn otl_gpos_parse_single(
     }
     return subtable_from_raw(subtable, Subtable::GposSingle);
 }
-pub unsafe extern "C" fn otfcc_build_gpos_single(
+pub unsafe fn otfcc_build_gpos_single(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {

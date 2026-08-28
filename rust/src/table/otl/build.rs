@@ -30,10 +30,16 @@ use crate::table::otl::{
     OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN,
     OtlTable, Subtable, subtable_at,
 };
-pub type OtlBuilder = Option<unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer>;
-pub type OtlSplitBuilder = Option<
-    unsafe extern "C" fn(*const Subtable, BuildHeuristics, *mut TableId) -> *mut *mut Buffer,
->;
+// No longer `extern "C"`: each of the 9 concrete builders passed into
+// `_declare_lookup_writer`/`_declare_lookup_writer_split` below is used in
+// exactly one fixed association with its own `LookupType` -- the
+// `_build_lookup` sequence is a `match` in disguise (first-match-wins via
+// `written == 0`), not real runtime dispatch through a varying value
+// (confirmed by grep: none of the 9 builder functions are referenced
+// anywhere outside this file).
+pub type OtlBuilder = Option<unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer>;
+pub type OtlSplitBuilder =
+    Option<unsafe fn(*const Subtable, BuildHeuristics, *mut TableId) -> *mut *mut Buffer>;
 pub const LARGE_SUBTABLE_LIMIT: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
 fn feature_name_to_tag(name: &[u8]) -> u32 {
     let mut tag: u32 = 0 as u32;
@@ -161,7 +167,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GSUB_SINGLE,
             Some(
                 otfcc_build_gsub_single_subtable
-                    as unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
             ),
             lookup,
             subtables,
@@ -175,11 +181,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GSUB_MULTIPLE,
             Some(
                 otfcc_build_gsub_multi_subtable_split
-                    as unsafe extern "C" fn(
-                        *const Subtable,
-                        BuildHeuristics,
-                        *mut TableId,
-                    ) -> *mut *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics, *mut TableId) -> *mut *mut Buffer,
             ),
             lookup,
             subtables,
@@ -193,11 +195,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GSUB_ALTERNATE,
             Some(
                 otfcc_build_gsub_multi_subtable_split
-                    as unsafe extern "C" fn(
-                        *const Subtable,
-                        BuildHeuristics,
-                        *mut TableId,
-                    ) -> *mut *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics, *mut TableId) -> *mut *mut Buffer,
             ),
             lookup,
             subtables,
@@ -211,7 +209,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GSUB_LIGATURE,
             Some(
                 otfcc_build_gsub_ligature_subtable
-                    as unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
             ),
             lookup,
             subtables,
@@ -225,7 +223,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GSUB_REVERSE,
             Some(
                 otfcc_build_gsub_reverse
-                    as unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
             ),
             lookup,
             subtables,
@@ -239,7 +237,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_SINGLE,
             Some(
                 otfcc_build_gpos_single
-                    as unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
             ),
             lookup,
             subtables,
@@ -253,7 +251,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_PAIR,
             Some(
                 otfcc_build_gpos_pair
-                    as unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
             ),
             lookup,
             subtables,
@@ -267,7 +265,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_CURSIVE,
             Some(
                 otfcc_build_gpos_cursive
-                    as unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
             ),
             lookup,
             subtables,
@@ -281,7 +279,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_MARK_TO_BASE,
             Some(
                 otfcc_build_gpos_mark_to_single
-                    as unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
             ),
             lookup,
             subtables,
@@ -295,7 +293,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_MARK_TO_MARK,
             Some(
                 otfcc_build_gpos_mark_to_single
-                    as unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
             ),
             lookup,
             subtables,
@@ -309,7 +307,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_MARK_TO_LIGATURE,
             Some(
                 otfcc_build_gpos_mark_to_ligature
-                    as unsafe extern "C" fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
             ),
             lookup,
             subtables,
