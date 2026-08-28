@@ -348,12 +348,13 @@ unsafe fn strnmatch(
 unsafe fn parse_instrs(
     text: *mut ::core::ffi::c_char,
     context: *mut ::core::ffi::c_void,
+    // No longer `extern "C"`: like `make` above, this callback varies at
+    // each call site (`table/fpgm_prep.rs`'s `wrong_fpgm_prep_instr`,
+    // `table/glyf.rs`'s `wrong_instrs_for_glyph`), but neither crosses the
+    // crate's real FFI boundary (`ffi/dll.rs`) -- purely internal
+    // Rust-to-Rust indirect calls.
     iv_error: Option<
-        unsafe extern "C" fn(
-            *mut ::core::ffi::c_void,
-            *mut ::core::ffi::c_char,
-            ::core::ffi::c_int,
-        ) -> (),
+        unsafe fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_char, ::core::ffi::c_int) -> (),
     >,
 ) -> Option<Vec<u8>> {
     let mut numberstack: [::core::ffi::c_short; 256] = [0; 256];
@@ -889,11 +890,7 @@ pub unsafe fn parse_ttinstr(
     context: *mut ::core::ffi::c_void,
     make: Option<unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()>,
     wrong: Option<
-        unsafe extern "C" fn(
-            *mut ::core::ffi::c_void,
-            *mut ::core::ffi::c_char,
-            ::core::ffi::c_int,
-        ) -> (),
+        unsafe fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_char, ::core::ffi::c_int) -> (),
     >,
 ) {
     if col.is_null() {

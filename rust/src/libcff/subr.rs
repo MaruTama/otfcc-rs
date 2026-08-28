@@ -798,7 +798,7 @@ unsafe fn serialize_node_to_buffer(
         bufwrite_buf(buf, terminal);
     };
 }
-unsafe extern "C" fn from_array(mut _context: *mut ::core::ffi::c_void, j: u32) -> *mut Buffer {
+unsafe fn from_array(mut _context: *mut ::core::ffi::c_void, j: u32) -> *mut Buffer {
     let context: *mut Buffer = _context as *mut Buffer;
     let blob: *mut Buffer = bufnew();
     bufwrite_buf(blob, context.offset(j as isize));
@@ -884,17 +884,17 @@ pub unsafe fn cff_il_graph_to_buffers(
     let is: *mut CffIndex = new_index_by_callback(
         char_strings.as_mut_ptr() as *mut ::core::ffi::c_void,
         g.total_char_strings,
-        Some(from_array as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
+        Some(from_array as unsafe fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
     );
     let igs: *mut CffIndex = new_index_by_callback(
         gsubrs.as_mut_ptr() as *mut ::core::ffi::c_void,
         max_g_subrs,
-        Some(from_array as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
+        Some(from_array as unsafe fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
     );
     let ils: *mut CffIndex = new_index_by_callback(
         lsubrs.as_mut_ptr() as *mut ::core::ffi::c_void,
         max_l_subrs,
-        Some(from_array as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
+        Some(from_array as unsafe fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
     );
     for entry in char_strings.iter_mut().take(g.total_char_strings as usize) {
         entry.data = Vec::new();

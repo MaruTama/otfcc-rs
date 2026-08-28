@@ -283,7 +283,7 @@ pub(crate) unsafe fn unwrap_cff_table(raw: *mut CffTable) -> Option<Box<CffTable
     }
     Some(Box::from_raw(raw))
 }
-unsafe extern "C" fn callback_extract_private(
+unsafe fn callback_extract_private(
     op: CffDictOperator,
     top: u8,
     stack: *mut CffValue,
@@ -410,7 +410,7 @@ unsafe extern "C" fn callback_extract_private(
         _ => {}
     };
 }
-unsafe extern "C" fn callback_extract_fd(
+unsafe fn callback_extract_fd(
     op: CffDictOperator,
     top: u8,
     stack: *mut CffValue,
@@ -623,7 +623,7 @@ unsafe extern "C" fn callback_extract_fd(
                         context as *mut ::core::ffi::c_void,
                         Some(
                             callback_extract_private
-                                as unsafe extern "C" fn(
+                                as unsafe fn(
                                     CffDictOperator,
                                     u8,
                                     *mut CffValue,
@@ -1310,7 +1310,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                             &raw mut context as *mut ::core::ffi::c_void,
                             Some(
                                 callback_extract_fd
-                                    as unsafe extern "C" fn(
+                                    as unsafe fn(
                                         CffDictOperator,
                                         u8,
                                         *mut CffValue,
@@ -1359,7 +1359,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                                     &raw mut context as *mut ::core::ffi::c_void,
                                     Some(
                                         callback_extract_fd
-                                            as unsafe extern "C" fn(
+                                            as unsafe fn(
                                                 CffDictOperator,
                                                 u8,
                                                 *mut CffValue,
@@ -2322,7 +2322,7 @@ unsafe fn cff_make_private_dict(pd: *mut CffPrivateDict) -> *mut CffDict {
     cffdict_input_doubles(dict, OP_NOMINAL_WIDTH_X, &[((*pd).nominal_width_x) as f64]);
     return dict;
 }
-unsafe extern "C" fn callback_makestringindex(
+unsafe fn callback_makestringindex(
     context: *mut ::core::ffi::c_void,
     i: u32,
 ) -> *mut Buffer {
@@ -2351,7 +2351,7 @@ unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) 
         n,
         Some(
             callback_makestringindex
-                as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
+                as unsafe fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
         ),
     );
     let final_blob: *mut Buffer = build_index(strings);
@@ -2456,7 +2456,7 @@ unsafe fn cff_make_fdselect(cff: *mut CffTable, glyf: *mut GlyfTable) -> *mut Bu
     let e: *mut Buffer = cff_build_fd_select(&fds);
     return e;
 }
-unsafe extern "C" fn callback_makefd(
+unsafe fn callback_makefd(
     mut _context: *mut ::core::ffi::c_void,
     i: u32,
 ) -> *mut Buffer {
@@ -2491,7 +2491,7 @@ unsafe fn cff_make_fdarray(
     return new_index_by_callback(
         &raw mut context as *mut ::core::ffi::c_void,
         (*fd_array).len() as u32,
-        Some(callback_makefd as unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
+        Some(callback_makefd as unsafe fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
     );
 }
 unsafe fn writecff_cid_keyed(

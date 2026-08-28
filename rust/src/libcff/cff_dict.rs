@@ -73,12 +73,18 @@ unsafe fn cff_dict_dispose(x: *mut CffDict) {
 // failure) while every already-safe call site (reading `top_dict.data`/
 // `fdarray.data`/`font_dict.data`, which `extract_index` already bounds-
 // checked) just drops the redundant manual pointer diff.
+// No longer `extern "C"`: this callback varies at each call site
+// (`callback_get_key`, `table/cff.rs`'s `callback_extract_private`/
+// `callback_extract_fd`), but none of the concrete functions ever cross
+// the crate's real FFI boundary (`ffi/dll.rs`) -- they're purely internal
+// Rust-to-Rust indirect calls, so nothing requires the C calling
+// convention. A plain (default-ABI) function pointer works identically
+// for this "varies per call, never touches C" case, as long as every
+// concrete function assigned to it uses the same (default) ABI too.
 pub(crate) unsafe fn parse_to_callback(
     data: &[u8],
     context: *mut ::core::ffi::c_void,
-    callback: Option<
-        unsafe extern "C" fn(CffDictOperator, u8, *mut CffValue, *mut ::core::ffi::c_void) -> (),
-    >,
+    callback: Option<unsafe fn(CffDictOperator, u8, *mut CffValue, *mut ::core::ffi::c_void) -> ()>,
 ) {
     let mut index: u8 = 0 as u8;
     let mut val: CffValue = CffValue::Unset;
@@ -111,7 +117,7 @@ pub(crate) unsafe fn parse_to_callback(
         pos += adv as usize;
     }
 }
-unsafe extern "C" fn callback_get_key(
+unsafe fn callback_get_key(
     op: CffDictOperator,
     top: u8,
     stack: *mut CffValue,
@@ -139,12 +145,7 @@ pub(crate) unsafe fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) 
         &raw mut context as *mut ::core::ffi::c_void,
         Some(
             callback_get_key
-                as unsafe extern "C" fn(
-                    CffDictOperator,
-                    u8,
-                    *mut CffValue,
-                    *mut ::core::ffi::c_void,
-                ) -> (),
+                as unsafe fn(CffDictOperator, u8, *mut CffValue, *mut ::core::ffi::c_void) -> (),
         ),
     );
     return context.res;

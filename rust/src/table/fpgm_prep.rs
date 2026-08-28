@@ -76,7 +76,7 @@ pub unsafe fn make_fpgm_prep_instr(mut _t: *mut ::core::ffi::c_void, instrs: Vec
     let t: *mut FpgmPrepTable = _t as *mut FpgmPrepTable;
     (*t).bytes = instrs;
 }
-pub unsafe extern "C" fn wrong_fpgm_prep_instr(
+pub unsafe fn wrong_fpgm_prep_instr(
     mut _t: *mut ::core::ffi::c_void,
     mut _reason: *mut ::core::ffi::c_char,
     mut _pos: ::core::ffi::c_int,
@@ -104,7 +104,7 @@ pub unsafe fn otfcc_parse_fpgm_prep(
                 Some(make_fpgm_prep_instr as unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()),
                 Some(
                     wrong_fpgm_prep_instr
-                        as unsafe extern "C" fn(
+                        as unsafe fn(
                             *mut ::core::ffi::c_void,
                             *mut ::core::ffi::c_char,
                             ::core::ffi::c_int,
