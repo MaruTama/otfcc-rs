@@ -26,9 +26,14 @@ use crate::table::otl::{
     OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE,
     OtlTable, Subtable,
 };
+// No longer `extern "C"`: each of the 10 concrete dumpers passed in below
+// is used in exactly one fixed association with its own `LookupType` --
+// this whole sequence of calls is a `match` in disguise, not real runtime
+// dispatch through a varying value (confirmed by grep: none of the 10
+// dumper functions are referenced anywhere outside this file).
 unsafe fn _declare_lookup_dumper(
     llt: LookupType,
-    dumper: Option<unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue>,
+    dumper: Option<unsafe fn(*const Subtable) -> *mut BuiltValue>,
     lookup: *const Lookup,
     dump: *mut BuiltValue,
 ) {
@@ -73,61 +78,61 @@ unsafe fn _declare_lookup_dumper(
 unsafe fn _dump_lookup(lookup: *const Lookup, dump: *mut BuiltValue) {
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_SINGLE,
-        Some(otl_gsub_dump_single as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
+        Some(otl_gsub_dump_single as unsafe fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_MULTIPLE,
-        Some(otl_gsub_dump_multi as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
+        Some(otl_gsub_dump_multi as unsafe fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_ALTERNATE,
-        Some(otl_gsub_dump_multi as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
+        Some(otl_gsub_dump_multi as unsafe fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_LIGATURE,
-        Some(otl_gsub_dump_ligature as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
+        Some(otl_gsub_dump_ligature as unsafe fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_CHAINING,
-        Some(otl_dump_chaining as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
+        Some(otl_dump_chaining as unsafe fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GSUB_REVERSE,
-        Some(otl_gsub_dump_reverse as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
+        Some(otl_gsub_dump_reverse as unsafe fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GPOS_CHAINING,
-        Some(otl_dump_chaining as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
+        Some(otl_dump_chaining as unsafe fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GPOS_SINGLE,
-        Some(otl_gpos_dump_single as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
+        Some(otl_gpos_dump_single as unsafe fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GPOS_PAIR,
-        Some(otl_gpos_dump_pair as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
+        Some(otl_gpos_dump_pair as unsafe fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
     _declare_lookup_dumper(
         OTL_TYPE_GPOS_CURSIVE,
-        Some(otl_gpos_dump_cursive as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue),
+        Some(otl_gpos_dump_cursive as unsafe fn(*const Subtable) -> *mut BuiltValue),
         lookup,
         dump,
     );
@@ -135,7 +140,7 @@ unsafe fn _dump_lookup(lookup: *const Lookup, dump: *mut BuiltValue) {
         OTL_TYPE_GPOS_MARK_TO_BASE,
         Some(
             otl_gpos_dump_mark_to_single
-                as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue,
+                as unsafe fn(*const Subtable) -> *mut BuiltValue,
         ),
         lookup,
         dump,
@@ -144,7 +149,7 @@ unsafe fn _dump_lookup(lookup: *const Lookup, dump: *mut BuiltValue) {
         OTL_TYPE_GPOS_MARK_TO_MARK,
         Some(
             otl_gpos_dump_mark_to_single
-                as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue,
+                as unsafe fn(*const Subtable) -> *mut BuiltValue,
         ),
         lookup,
         dump,
@@ -153,7 +158,7 @@ unsafe fn _dump_lookup(lookup: *const Lookup, dump: *mut BuiltValue) {
         OTL_TYPE_GPOS_MARK_TO_LIGATURE,
         Some(
             otl_gpos_dump_mark_to_ligature
-                as unsafe extern "C" fn(*const Subtable) -> *mut BuiltValue,
+                as unsafe fn(*const Subtable) -> *mut BuiltValue,
         ),
         lookup,
         dump,

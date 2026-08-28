@@ -187,7 +187,7 @@ pub unsafe fn otl_read_gpos_mark_to_single(
         }
     }
 }
-pub unsafe extern "C" fn otl_gpos_dump_mark_to_single(st: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gpos_dump_mark_to_single(st: *const Subtable) -> *mut BuiltValue {
     let Subtable::GposMarkToSingle(mut_subtable) = &*st else {
         unreachable!()
     };
@@ -353,7 +353,7 @@ pub unsafe fn otl_gpos_parse_mark_to_single(
     parse_bases(_bases, st, &raw mut h, options);
     return subtable_from_raw(st, Subtable::GposMarkToSingle);
 }
-pub unsafe extern "C" fn otfcc_build_gpos_mark_to_single(
+pub unsafe fn otfcc_build_gpos_mark_to_single(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {

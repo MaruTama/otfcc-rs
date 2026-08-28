@@ -193,7 +193,7 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
     subtable_gpos_mark_to_ligature_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe extern "C" fn otl_gpos_dump_mark_to_ligature(
+pub unsafe fn otl_gpos_dump_mark_to_ligature(
     st: *const Subtable,
 ) -> *mut BuiltValue {
     let Subtable::GposMarkToLigature(mut_subtable) = &*st else {
@@ -387,7 +387,7 @@ pub unsafe fn otl_gpos_parse_mark_to_ligature(
     parse_bases(_bases, st, &raw mut h, options);
     return subtable_from_raw(st, Subtable::GposMarkToLigature);
 }
-pub unsafe extern "C" fn otfcc_build_gpos_mark_to_ligature(
+pub unsafe fn otfcc_build_gpos_mark_to_ligature(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {

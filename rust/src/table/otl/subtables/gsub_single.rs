@@ -136,7 +136,7 @@ pub unsafe fn otl_read_gsub_single(
     }
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe extern "C" fn otl_gsub_dump_single(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gsub_dump_single(mut _subtable: *const Subtable) -> *mut BuiltValue {
     let Subtable::GsubSingle(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -177,7 +177,7 @@ pub unsafe fn otl_gsub_parse_single(
     }
     return subtable_from_raw(subtable, Subtable::GsubSingle);
 }
-pub unsafe extern "C" fn otfcc_build_gsub_single_subtable(
+pub unsafe fn otfcc_build_gsub_single_subtable(
     mut _subtable: *const Subtable,
     heuristics: BuildHeuristics,
 ) -> *mut Buffer {

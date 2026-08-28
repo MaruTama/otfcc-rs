@@ -7,7 +7,7 @@ use crate::table::otl::coverage::{Coverage, dump_coverage};
 use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_const};
 use crate::table::otl::{ChainingRule, ChainingSubtable, Subtable};
 
-pub unsafe extern "C" fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut BuiltValue {
     unsafe {
         let Subtable::Chaining(mut_subtable) = &*_subtable else {
             unreachable!()

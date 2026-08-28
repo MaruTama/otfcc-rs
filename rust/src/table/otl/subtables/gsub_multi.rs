@@ -117,7 +117,7 @@ pub unsafe fn otl_read_gsub_multi(
     subtable_gsub_multi_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe extern "C" fn otl_gsub_dump_multi(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gsub_dump_multi(mut _subtable: *const Subtable) -> *mut BuiltValue {
     let Subtable::GsubMulti(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -194,7 +194,7 @@ unsafe fn build_gsub_multi_subtable_range(
     return bk_build_block(root);
 }
 pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: ::core::ffi::c_int = 0xff00 as ::core::ffi::c_int;
-pub unsafe extern "C" fn otfcc_build_gsub_multi_subtable_split(
+pub unsafe fn otfcc_build_gsub_multi_subtable_split(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
     count: *mut TableId,

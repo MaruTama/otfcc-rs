@@ -164,7 +164,7 @@ pub unsafe fn otl_read_gsub_reverse(
     subtable_gsub_reverse_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe extern "C" fn otl_gsub_dump_reverse(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gsub_dump_reverse(mut _subtable: *const Subtable) -> *mut BuiltValue {
     let Subtable::GsubReverse(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -233,7 +233,7 @@ pub unsafe fn otl_gsub_parse_reverse(
     (*subtable).to = coverage_from_raw(parse_coverage(_to));
     return subtable_from_raw(subtable, Subtable::GsubReverse);
 }
-pub unsafe extern "C" fn otfcc_build_gsub_reverse(
+pub unsafe fn otfcc_build_gsub_reverse(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> *mut Buffer {
