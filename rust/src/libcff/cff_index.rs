@@ -55,6 +55,22 @@ pub(crate) unsafe fn cff_index_free(x: *mut CffIndex) {
     cff_index_dispose(x);
     drop(Box::from_raw(x));
 }
+// A real, valid, empty `CffIndex` value -- as opposed to the all-zero bit
+// pattern `__caryll_allocate_clean` (calloc) would produce, which is NOT a
+// valid `CffIndex` since it owns two `Vec`s. Also used by `cff_parser.rs`'s
+// `cff_open_stream` to build a whole `CffFile` (which embeds 7 of these) as
+// one real value up front, instead of calloc'ing `CffFile` and letting each
+// field's first write be a plain `=` onto still-invalid zeroed memory (see
+// [[otfcc-vec-field-assign-needs-calloc]]).
+pub(crate) fn new_empty_cff_index() -> CffIndex {
+    CffIndex {
+        count_type: CffIndexCountType::U16,
+        count: 0 as Arity,
+        off_size: 0,
+        offset: Vec::new(),
+        data: Vec::new(),
+    }
+}
 #[inline]
 pub(crate) unsafe fn cff_index_create() -> *mut CffIndex {
     // `Box::new` of an explicit all-zero literal, not `malloc` + `cff_index_
@@ -64,13 +80,7 @@ pub(crate) unsafe fn cff_index_create() -> *mut CffIndex {
     // it also zero-initializes a stack-local `CffIndex` at its one other
     // call site (`table/cff.rs`), which was never a `malloc`/`Box`
     // allocation to begin with.
-    Box::into_raw(Box::new(CffIndex {
-        count_type: CffIndexCountType::U16,
-        count: 0 as Arity,
-        off_size: 0,
-        offset: Vec::new(),
-        data: Vec::new(),
-    }))
+    Box::into_raw(Box::new(new_empty_cff_index()))
 }
 #[inline]
 pub(crate) unsafe fn cff_index_init(x: *mut CffIndex) {
