@@ -698,7 +698,6 @@ pub unsafe fn otfcc_parse_otl(
     let languages: *const ParsedValue;
     let features: *mut ParsedValue;
     let lookups: *const ParsedValue;
-    let current_block: u64;
     let otl: *mut OtlTable;
     let mut otl_box: Option<Box<OtlTable>> = None;
     let table: *const ParsedValue = json_obj_get_type(root, tag, JsonType::Object);
@@ -726,101 +725,96 @@ pub unsafe fn otfcc_parse_otl(
         );
         if !(languages.is_null() || features.is_null() || lookups.is_null()) {
             logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
-            let mut ___loggedstep_v: bool = true;
-            loop {
-                if !___loggedstep_v {
-                    current_block = 5279571973604048562;
-                    break;
-                }
-                let mut lh: Vec<LookupEntry> = figure_out_lookups_from_json(lookups, options);
-                let lookup_order: *const ParsedValue = json_obj_get_type(
-                    table,
-                    b"lookupOrder\0" as *const u8 as *const ::core::ffi::c_char,
-                    JsonType::Array,
-                );
-                if !lookup_order.is_null() {
-                    let mut j: TableId = 0 as TableId;
-                    while (j as ::core::ffi::c_uint) < json_arr_len(lookup_order) {
-                        let mut _ln: *const ParsedValue = json_arr_at(lookup_order, j as u32);
-                        if !_ln.is_null() && json_type_of(_ln) == JsonType::String {
-                            let ln_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(json_str_ptr(_ln))
-                                .to_bytes()
-                                .to_vec();
-                            if let Some(item) = lh.iter_mut().rev().find(|e| e.name == ln_bytes) {
-                                item.order_type = LookupOrderType::Force;
-                                item.order_val = j as u16;
-                            }
-                        }
-                        j = j.wrapping_add(1);
-                    }
-                }
-                let mut fh: Vec<FeatureEntry> =
-                    figure_out_features_from_json(features, &lh, tag, options);
-                let sh: std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> =
-                    figure_out_languages_from_json(languages, &fh, tag, options);
-                if lh.is_empty() || fh.is_empty() || sh.is_empty() {
-                    logger_dedent(&mut *options.logger.borrow_mut());
-                    current_block = 12498981253432484999;
-                    break;
-                } else {
-                    // `lh` is an owned `Vec` now, not a chain of uthash
-                    // nodes reached via a raw pointer, so there is no
-                    // manual HASH_ITER+HASH_DEL+free walk here -- sorting
-                    // by (order_type, order_val) (what `HASH_SORT` with
-                    // `by_lookup_order` did, deferred from where that call
-                    // used to sit, right after the lookupOrder loop above,
-                    // since nothing in between needed `lh` in sorted order,
-                    // only by-name lookup) and then draining it are both
-                    // just `Vec` operations, and the `Vec` itself drops
-                    // for free once this scope ends.
-                    lh.sort_by(|a, b| {
-                        a.order_type
-                            .cmp(&b.order_type)
-                            .then(a.order_val.cmp(&b.order_val))
-                    });
-                    for entry in lh.into_iter() {
-                        if !entry.alias {
-                            // Takes ownership back from the transient
-                            // owner (see the `Box::into_raw`/`new_lookup`
-                            // at construction); an alias entry's copy of
-                            // the same pointer is never pushed and never
-                            // freed on its own -- see `LookupEntry.alias`'s
-                            // doc comment.
-                            (*otl).lookups.push(Box::from_raw(entry.lookup));
+            // No longer a `___loggedstep_v`/`current_block`-flagged `loop`
+            // simulating "run this block once, then jump past the
+            // `logger_finish`+early-return on failure" -- the block below
+            // always runs exactly once; the only branch is whether the
+            // parsed table came out non-empty. On success, `logger_finish`
+            // + `return otl_box` immediately; on failure, `logger_dedent`
+            // and fall through to the shared "log a warning, return None"
+            // tail below instead.
+            let mut lh: Vec<LookupEntry> = figure_out_lookups_from_json(lookups, options);
+            let lookup_order: *const ParsedValue = json_obj_get_type(
+                table,
+                b"lookupOrder\0" as *const u8 as *const ::core::ffi::c_char,
+                JsonType::Array,
+            );
+            if !lookup_order.is_null() {
+                let mut j: TableId = 0 as TableId;
+                while (j as ::core::ffi::c_uint) < json_arr_len(lookup_order) {
+                    let mut _ln: *const ParsedValue = json_arr_at(lookup_order, j as u32);
+                    if !_ln.is_null() && json_type_of(_ln) == JsonType::String {
+                        let ln_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(json_str_ptr(_ln))
+                            .to_bytes()
+                            .to_vec();
+                        if let Some(item) = lh.iter_mut().rev().find(|e| e.name == ln_bytes) {
+                            item.order_type = LookupOrderType::Force;
+                            item.order_val = j as u16;
                         }
                     }
-                    // Same shape as `lh` above: `by_feature_name` sorted
-                    // by `name` (which happened to equal the would-be
-                    // dedup key, unlike `lh`'s order_type/order_val), so
-                    // the sort is `.name`'s byte-wise `Ord` -- matching
-                    // `strcmp` on NUL-free byte sequences, the same
-                    // equivalence this migration relies on for every
-                    // `Vec<u8>`-keyed sort (see `ClassNameHash`).
-                    fh.sort_by(|a, b| a.name.cmp(&b.name));
-                    for entry in fh.into_iter() {
-                        if !entry.alias {
-                            // Takes ownership back from the transient
-                            // owner (see the `Box::into_raw` above); an
-                            // alias entry's copy of the same pointer is
-                            // never pushed and never freed on its own.
-                            (*otl).features.push(Box::from_raw(entry.feature));
-                        }
-                    }
-                    for (_, language) in sh.into_iter() {
-                        // Takes ownership back from the transient owner
-                        // (see the `Box::into_raw` in
-                        // `figure_out_languages_from_json`); every entry
-                        // reaches this push -- `LanguageHash` has no
-                        // alias mechanism to skip.
-                        (*otl).languages.push(Box::from_raw(language));
-                    }
-                    ___loggedstep_v = false;
-                    logger_finish(&mut *options.logger.borrow_mut());
+                    j = j.wrapping_add(1);
                 }
             }
-            match current_block {
-                12498981253432484999 => {}
-                _ => return otl_box,
+            let mut fh: Vec<FeatureEntry> =
+                figure_out_features_from_json(features, &lh, tag, options);
+            let sh: std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> =
+                figure_out_languages_from_json(languages, &fh, tag, options);
+            if lh.is_empty() || fh.is_empty() || sh.is_empty() {
+                logger_dedent(&mut *options.logger.borrow_mut());
+            } else {
+                // `lh` is an owned `Vec` now, not a chain of uthash
+                // nodes reached via a raw pointer, so there is no
+                // manual HASH_ITER+HASH_DEL+free walk here -- sorting
+                // by (order_type, order_val) (what `HASH_SORT` with
+                // `by_lookup_order` did, deferred from where that call
+                // used to sit, right after the lookupOrder loop above,
+                // since nothing in between needed `lh` in sorted order,
+                // only by-name lookup) and then draining it are both
+                // just `Vec` operations, and the `Vec` itself drops
+                // for free once this scope ends.
+                lh.sort_by(|a, b| {
+                    a.order_type
+                        .cmp(&b.order_type)
+                        .then(a.order_val.cmp(&b.order_val))
+                });
+                for entry in lh.into_iter() {
+                    if !entry.alias {
+                        // Takes ownership back from the transient
+                        // owner (see the `Box::into_raw`/`new_lookup`
+                        // at construction); an alias entry's copy of
+                        // the same pointer is never pushed and never
+                        // freed on its own -- see `LookupEntry.alias`'s
+                        // doc comment.
+                        (*otl).lookups.push(Box::from_raw(entry.lookup));
+                    }
+                }
+                // Same shape as `lh` above: `by_feature_name` sorted
+                // by `name` (which happened to equal the would-be
+                // dedup key, unlike `lh`'s order_type/order_val), so
+                // the sort is `.name`'s byte-wise `Ord` -- matching
+                // `strcmp` on NUL-free byte sequences, the same
+                // equivalence this migration relies on for every
+                // `Vec<u8>`-keyed sort (see `ClassNameHash`).
+                fh.sort_by(|a, b| a.name.cmp(&b.name));
+                for entry in fh.into_iter() {
+                    if !entry.alias {
+                        // Takes ownership back from the transient
+                        // owner (see the `Box::into_raw` above); an
+                        // alias entry's copy of the same pointer is
+                        // never pushed and never freed on its own.
+                        (*otl).features.push(Box::from_raw(entry.feature));
+                    }
+                }
+                for (_, language) in sh.into_iter() {
+                    // Takes ownership back from the transient owner
+                    // (see the `Box::into_raw` in
+                    // `figure_out_languages_from_json`); every entry
+                    // reaches this push -- `LanguageHash` has no
+                    // alias mechanism to skip.
+                    (*otl).languages.push(Box::from_raw(language));
+                }
+                logger_finish(&mut *options.logger.borrow_mut());
+                return otl_box;
             }
         }
     }
