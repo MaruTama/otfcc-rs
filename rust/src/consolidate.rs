@@ -874,28 +874,28 @@ pub unsafe fn otfcc_consolidate_lookup(
         options,
     );
 }
-unsafe extern "C" fn lookup_ref_is_not_empty(
+// No longer `extern "C"`: each of these 4 predicates is passed into its own
+// dedicated `otl_*_filter_env` helper (`table/otl.rs`) from exactly one call
+// site below -- a fixed 1:1 association, not runtime-varying dispatch -- so
+// the function-pointer parameter type they flow through dropped `extern "C"`
+// too (confirmed by grep: neither the predicates nor the `otl_*_filter_env`
+// helpers are called from anywhere else in the crate).
+unsafe fn lookup_ref_is_not_empty(
     r_lut: *const LookupRef,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
     return !r_lut.is_null() && !(*r_lut).is_null() && !(**r_lut).subtables.is_empty();
 }
-unsafe extern "C" fn feature_ref_is_not_empty(
+unsafe fn feature_ref_is_not_empty(
     r_feat: *const FeatureRef,
     mut _env: *mut ::core::ffi::c_void,
 ) -> bool {
     return !r_feat.is_null() && !(*r_feat).is_null() && !(**r_feat).lookups.is_empty();
 }
-unsafe extern "C" fn lookup_is_not_empty(
-    r_lut: *const Lookup,
-    mut _env: *mut ::core::ffi::c_void,
-) -> bool {
+unsafe fn lookup_is_not_empty(r_lut: *const Lookup, mut _env: *mut ::core::ffi::c_void) -> bool {
     return !r_lut.is_null() && !(*r_lut).subtables.is_empty();
 }
-unsafe extern "C" fn feature_is_not_empty(
-    r_feat: *const Feature,
-    mut _env: *mut ::core::ffi::c_void,
-) -> bool {
+unsafe fn feature_is_not_empty(r_feat: *const Feature, mut _env: *mut ::core::ffi::c_void) -> bool {
     return !r_feat.is_null() && !(*r_feat).lookups.is_empty();
 }
 unsafe fn consolidate_otl_table(
@@ -926,7 +926,7 @@ unsafe fn consolidate_otl_table(
                 &raw mut (*feature).lookups,
                 Some(
                     lookup_ref_is_not_empty
-                        as unsafe extern "C" fn(*const LookupRef, *mut ::core::ffi::c_void) -> bool,
+                        as unsafe fn(*const LookupRef, *mut ::core::ffi::c_void) -> bool,
                 ),
                 NULL,
             );
@@ -957,10 +957,7 @@ unsafe fn consolidate_otl_table(
                 &raw mut (*lang).features,
                 Some(
                     feature_ref_is_not_empty
-                        as unsafe extern "C" fn(
-                            *const FeatureRef,
-                            *mut ::core::ffi::c_void,
-                        ) -> bool,
+                        as unsafe fn(*const FeatureRef, *mut ::core::ffi::c_void) -> bool,
                 ),
                 NULL,
             );
@@ -968,17 +965,13 @@ unsafe fn consolidate_otl_table(
         }
         otl_lookup_list_filter_env(
             &raw mut (*table).lookups,
-            Some(
-                lookup_is_not_empty
-                    as unsafe extern "C" fn(*const Lookup, *mut ::core::ffi::c_void) -> bool,
-            ),
+            Some(lookup_is_not_empty as unsafe fn(*const Lookup, *mut ::core::ffi::c_void) -> bool),
             NULL,
         );
         otl_feature_list_filter_env(
             &raw mut (*table).features,
             Some(
-                feature_is_not_empty
-                    as unsafe extern "C" fn(*const Feature, *mut ::core::ffi::c_void) -> bool,
+                feature_is_not_empty as unsafe fn(*const Feature, *mut ::core::ffi::c_void) -> bool,
             ),
             NULL,
         );

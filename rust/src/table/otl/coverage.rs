@@ -146,14 +146,18 @@ pub(crate) unsafe fn read_coverage(
     }
     coverage
 }
-pub(crate) unsafe extern "C" fn dump_coverage(coverage: *const Coverage) -> *mut BuiltValue {
+// No longer `extern "C"`: every call site (`gsub_multi.rs`, `gsub_ligature.rs`,
+// `gsub_reverse.rs`, `chaining/dump.rs`) calls this directly by name, never
+// through a function-pointer value -- confirmed by grep across the crate.
+// Same for `parse_coverage`/`build_coverage_format`/`build_coverage` below.
+pub(crate) unsafe fn dump_coverage(coverage: *const Coverage) -> *mut BuiltValue {
     let a: *mut BuiltValue = json_array_new((*coverage).len());
     for j in 0..(*coverage).len() {
         json_array_push(a, json_string_new_from_bytes(&(&(*coverage))[j].name));
     }
     return preserialize(a);
 }
-pub(crate) unsafe extern "C" fn parse_coverage(cov: *const ParsedValue) -> *mut Coverage {
+pub(crate) unsafe fn parse_coverage(cov: *const ParsedValue) -> *mut Coverage {
     let c: *mut Coverage = otl_coverage_create();
     if cov.is_null() || json_type_of(cov) != JsonType::Array {
         return c;
@@ -170,7 +174,7 @@ pub(crate) unsafe extern "C" fn parse_coverage(cov: *const ParsedValue) -> *mut 
     }
     return c;
 }
-pub(crate) unsafe extern "C" fn build_coverage_format(
+pub(crate) unsafe fn build_coverage_format(
     coverage: *const Coverage,
     format: u16,
 ) -> *mut Buffer {
@@ -256,7 +260,7 @@ pub(crate) unsafe extern "C" fn build_coverage_format(
         return format2;
     };
 }
-pub(crate) unsafe extern "C" fn build_coverage(coverage: *const Coverage) -> *mut Buffer {
+pub(crate) unsafe fn build_coverage(coverage: *const Coverage) -> *mut Buffer {
     return build_coverage_format(coverage, 0 as u16);
 }
 pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
