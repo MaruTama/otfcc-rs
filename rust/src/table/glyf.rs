@@ -877,7 +877,7 @@ unsafe fn make_instrs_for_glyph(mut _g: *mut ::core::ffi::c_void, instrs: Vec<u8
     let g: *mut Glyph = _g as *mut Glyph;
     (*g).instructions = instrs;
 }
-unsafe extern "C" fn wrong_instrs_for_glyph(
+unsafe fn wrong_instrs_for_glyph(
     mut _g: *mut ::core::ffi::c_void,
     reason: *mut ::core::ffi::c_char,
     pos: ::core::ffi::c_int,
@@ -1071,7 +1071,7 @@ unsafe fn otfcc_glyf_parse_glyph(
             Some(make_instrs_for_glyph as unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()),
             Some(
                 wrong_instrs_for_glyph
-                    as unsafe extern "C" fn(
+                    as unsafe fn(
                         *mut ::core::ffi::c_void,
                         *mut ::core::ffi::c_char,
                         ::core::ffi::c_int,

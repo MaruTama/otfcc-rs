@@ -216,10 +216,17 @@ pub(crate) unsafe fn extract_index(
         (*in_0).data = Vec::new();
     }
 }
+// No longer `extern "C"`: this callback varies at each call site
+// (`libcff/subr.rs`'s `from_array`, `table/cff.rs`'s
+// `callback_makestringindex`/`callback_makefd`), but none of them ever
+// cross the crate's real FFI boundary (`ffi/dll.rs`) -- purely internal
+// Rust-to-Rust indirect calls, so the default (non-`extern "C"`) function
+// pointer ABI works identically here, same reasoning as `cff_dict.rs`'s
+// `parse_to_callback`.
 pub(crate) unsafe fn new_index_by_callback(
     context: *mut ::core::ffi::c_void,
     length: u32,
-    fn_0: Option<unsafe extern "C" fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer>,
+    fn_0: Option<unsafe fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer>,
 ) -> *mut CffIndex {
     let idx: *mut CffIndex = (cff_index_create)();
     (*idx).count = length as Arity;
