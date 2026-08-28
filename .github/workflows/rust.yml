@@ -189,6 +189,7 @@ jobs:
           cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-otl-feature-ref-amplification-oom.bin
           cargo fuzz run otf_dump ../../tests/fuzz-corpus/known-issues/otf-dump-glyf-context-missing-maxp-panic.bin
           cargo fuzz run otf_dump ../../tests/fuzz-corpus/known-issues/otf-dump-ttinstr-pushw-orphaned-wordhi-oob-read.bin
+          cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-otl-feature-list-amplification-hang.bin
 
   # Also advisory (continue-on-error): Miri found a real, crate-wide bug the
   # very first time it ran against this crate's own existing test suite (a

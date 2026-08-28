@@ -426,6 +426,80 @@ mod regression_tests {
         }
     }
 
+    /// A follow-up `cargo fuzz run otf_parse` CI job (this time triggered
+    /// by an unrelated PR that merely touched nearby code, not this
+    /// amplification itself) found a *third*, independent amplification
+    /// axis in the same file: `parse_otl_common`'s own Feature List loop
+    /// (not `parse_language`'s) had no cap on `feature_count` (a raw
+    /// `u16`, up to 65535), and each feature's own `lookup_count_0` (also
+    /// raw, up to 65535, bounds-checked only against that one feature's
+    /// own bytes) was read independently. A crafted table pointing many
+    /// `feature_count` entries at overlapping/repeated `feature_offset`s,
+    /// each claiming a large `lookup_count_0`, made total inner-loop
+    /// reads scale with `feature_count * lookup_count_0` rather than the
+    /// table's real size -- CI hung for 25+ seconds and exceeded
+    /// libFuzzer's 2048MB `-rss_limit_mb`. Fixed by capping both factors
+    /// independently: `MAX_TOTAL_FEATURES_PER_TABLE` on the outer loop,
+    /// `MAX_TOTAL_LOOKUPS_PER_TABLE` (reused) on the inner one.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "reads a fixture from disk, needs -Zmiri-disable-isolation; also far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn otl_feature_list_amplification_font_parses_promptly() {
+        let bytes = std::fs::read(
+            "../tests/fuzz-corpus/known-issues/otf-parse-otl-feature-list-amplification-hang.bin",
+        )
+        .unwrap();
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let start = Instant::now();
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+            let elapsed = start.elapsed();
+
+            // Same reasoning as the feature-ref-amplification test above:
+            // assert the actual invariant the fix establishes, not just
+            // wall-clock time (which may not reliably distinguish "fixed"
+            // from "fast enough on this hardware" alone).
+            assert!(!font.is_null());
+            for otl in [(*font).gsub.as_deref(), (*font).gpos.as_deref()]
+                .into_iter()
+                .flatten()
+            {
+                assert!(
+                    otl.features.len()
+                        <= crate::table::otl::read::MAX_TOTAL_FEATURES_PER_TABLE as usize,
+                    "features.len() = {} exceeds MAX_TOTAL_FEATURES_PER_TABLE",
+                    otl.features.len()
+                );
+                for feature in &otl.features {
+                    assert!(
+                        feature.lookups.len()
+                            <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
+                        "feature.lookups.len() = {} exceeds MAX_TOTAL_LOOKUPS_PER_TABLE",
+                        feature.lookups.len()
+                    );
+                }
+            }
+
+            otfcc_delete_sfnt(sfnt);
+            if !font.is_null() {
+                otfcc_font_free(font);
+            }
+            otfcc_delete_options(options);
+
+            assert!(
+                elapsed < Duration::from_secs(10),
+                "read_otf took {elapsed:?}, expected well under 10s"
+            );
+        }
+    }
+
     /// A `cargo fuzz run otf_parse` CI job found this: a TTF-subtype font
     /// (no `CFF ` table, so `decide_font_subtype_otf` defaults to `Ttf`)
     /// with a `head` table but no `maxp` table panicked with `called
