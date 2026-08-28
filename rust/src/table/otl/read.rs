@@ -82,6 +82,33 @@ pub(crate) const MAX_TOTAL_LOOKUPS_PER_TABLE: u16 = 300;
 // culprit -- several caps across `otl/read.rs` and `chaining/read.rs`
 // were tightened together in that round.
 pub(crate) const MAX_TOTAL_FEATURE_REFS_PER_TABLE: u32 = 50_000;
+// A fourth amplification axis, in `parse_otl_common`'s own Feature List
+// loop (not `parse_language`'s -- a different function, despite the
+// similar-sounding name): `feature_count` (raw `u16`, up to 65535) had no
+// cap at all, unlike `lookup_count` a few lines above it, and each
+// feature's own `lookup_count_0` (also up to 65535, bounds-checked only
+// against that one feature table's own bytes) is read independently. A
+// crafted table can point many different `feature_count` entries at
+// `feature_offset`s that overlap or repeat, each claiming a large
+// `lookup_count_0` -- the total inner-loop reads scale with
+// `feature_count * lookup_count_0`, not with the table's real size,
+// exactly the "per-factor caps still let the product explode" shape
+// `MAX_TOTAL_FEATURE_REFS_PER_TABLE` already closed one level up.
+// CI's fuzz job found a table whose Feature List alone hung
+// `parse_otl_common` for 25+ seconds and pushed RSS over the 2048MB
+// limit. Capping each factor independently (this constant on the outer
+// loop, `MAX_TOTAL_LOOKUPS_PER_TABLE` -- reused, since a feature cannot
+// legitimately reference more distinct lookups than the table itself
+// declares -- on the inner one) bounds the worst-case product to
+// `MAX_TOTAL_FEATURES_PER_TABLE * MAX_TOTAL_LOOKUPS_PER_TABLE`
+// (150,000), without needing a shared cross-call budget the way
+// `MAX_TOTAL_FEATURE_REFS_PER_TABLE` did -- unlike languages (up to
+// 10,000 per table), a table's own feature count is capped right here,
+// in the same loop, not accumulated across many separate calls. Real
+// fonts have at most a few dozen features per table (`NotoNastaliqUrdu-
+// Regular.ttf`'s own GSUB has well under 100); 500 stays generously
+// above any legitimate use.
+pub(crate) const MAX_TOTAL_FEATURES_PER_TABLE: u16 = 500;
 
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::subtables::chaining::read::{otl_read_chaining, otl_read_contextual};
@@ -295,7 +322,7 @@ unsafe fn parse_otl_common(
     let feature_count = fr.u16()?;
     fr.require_room(feature_count as usize, 6)?;
     let mut lnk: TableId = 0;
-    for j in 0..feature_count {
+    for j in 0..feature_count.min(MAX_TOTAL_FEATURES_PER_TABLE) {
         let tag = fr.u32()?;
         let feature_offset = feature_list_offset.wrapping_add(fr.u16()? as u32);
         let mut feature: Box<Feature> = new_feature();
@@ -324,7 +351,7 @@ unsafe fn parse_otl_common(
         fer.skip(2)?; // featureParams, unused
         let lookup_count_0 = fer.u16()?;
         fer.require_room(lookup_count_0 as usize, 2)?;
-        for _ in 0..lookup_count_0 {
+        for _ in 0..lookup_count_0.min(MAX_TOTAL_LOOKUPS_PER_TABLE) {
             let lookupid = fer.u16()?;
             if (lookupid as usize) < (*table).lookups.len() {
                 let lookup_0: *mut Lookup = &raw mut *(&mut (*table).lookups)[lookupid as usize];

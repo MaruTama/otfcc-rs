@@ -62,7 +62,11 @@ pub struct PackedPointRun {
     pub length: ShapeId,
     pub wide: bool,
 }
-unsafe extern "C" fn next_point(
+// No longer `extern "C"`: called directly by name at every site in this
+// file (confirmed by grep) -- two call sites even cast it to its own exact
+// function-pointer type immediately before calling it inline, a c2rust
+// artifact with no actual indirection behind it, simplified below.
+unsafe fn next_point(
     contours: *mut ContourList,
     cc: *mut ShapeId,
     cp: *mut ShapeId,
@@ -190,12 +194,7 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
             r.i16().ok()?
         };
         vq_replace(
-            &raw mut (*(next_point
-                as unsafe extern "C" fn(
-                    *mut ContourList,
-                    *mut ShapeId,
-                    *mut ShapeId,
-                ) -> *mut Point)(
+            &raw mut (*next_point(
                 contours,
                 &raw mut current_contour,
                 &raw mut current_contour_point_index,
@@ -223,12 +222,7 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
             r.i16().ok()?
         };
         vq_replace(
-            &raw mut (*(next_point
-                as unsafe extern "C" fn(
-                    *mut ContourList,
-                    *mut ShapeId,
-                    *mut ShapeId,
-                ) -> *mut Point)(
+            &raw mut (*next_point(
                 contours,
                 &raw mut current_contour,
                 &raw mut current_contour_point_index,

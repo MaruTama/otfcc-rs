@@ -595,7 +595,7 @@ pub(crate) fn new_lookup() -> Box<Lookup> {
 // 元の「スワップして末尾を切り詰め」ループを`Vec::retain`に素直に置き換え。
 pub(crate) unsafe fn otl_lookup_list_filter_env(
     arr: *mut LookupList,
-    fn_0: Option<unsafe extern "C" fn(*const Lookup, *mut ::core::ffi::c_void) -> bool>,
+    fn_0: Option<unsafe fn(*const Lookup, *mut ::core::ffi::c_void) -> bool>,
     env: *mut ::core::ffi::c_void,
 ) {
     (*arr).retain(|item| {
@@ -627,7 +627,7 @@ pub(crate) unsafe fn otl_lookup_ref_list_dispose(arr: *mut LookupRefList) {
 // 述語の結果をそのまま`retain`の判定に使うだけで済む。
 pub(crate) unsafe fn otl_lookup_ref_list_filter_env(
     arr: *mut LookupRefList,
-    fn_0: Option<unsafe extern "C" fn(*const LookupRef, *mut ::core::ffi::c_void) -> bool>,
+    fn_0: Option<unsafe fn(*const LookupRef, *mut ::core::ffi::c_void) -> bool>,
     env: *mut ::core::ffi::c_void,
 ) {
     (*arr).retain(|&item| fn_0.expect("non-null function pointer")(&item as *const LookupRef, env));
@@ -656,7 +656,7 @@ pub(crate) fn new_feature() -> Box<Feature> {
 // 自動的にフルドロップされる。
 pub(crate) unsafe fn otl_feature_list_filter_env(
     arr: *mut FeatureList,
-    fn_0: Option<unsafe extern "C" fn(*const Feature, *mut ::core::ffi::c_void) -> bool>,
+    fn_0: Option<unsafe fn(*const Feature, *mut ::core::ffi::c_void) -> bool>,
     env: *mut ::core::ffi::c_void,
 ) {
     (*arr).retain(|item| {
@@ -686,7 +686,7 @@ pub(crate) unsafe fn otl_feature_ref_list_dispose(arr: *mut FeatureRefList) {
 }
 pub(crate) unsafe fn otl_feature_ref_list_filter_env(
     arr: *mut FeatureRefList,
-    fn_0: Option<unsafe extern "C" fn(*const FeatureRef, *mut ::core::ffi::c_void) -> bool>,
+    fn_0: Option<unsafe fn(*const FeatureRef, *mut ::core::ffi::c_void) -> bool>,
     env: *mut ::core::ffi::c_void,
 ) {
     (*arr)
