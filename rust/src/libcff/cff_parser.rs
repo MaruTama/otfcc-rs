@@ -2463,7 +2463,20 @@ pub unsafe fn cff_parse_outline(
                                     .as_mut_ptr()
                                     .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
                             ) as i32;
-                            (*stack).transient[(i_0 % TYPE2_TRANSIENT_ARRAY as i32) as usize] =
+                            // `i_0` is a charstring-supplied operand, not a
+                            // trusted cursor -- Rust's `%` keeps the
+                            // dividend's sign, so a negative `i_0` (e.g.
+                            // pushing `-1` before `put`) made this a
+                            // negative array index once cast `as usize`
+                            // (wrapping to a huge value), panicking. Real
+                            // Type 2 charstrings only ever address this
+                            // array with small in-range indices, so
+                            // `rem_euclid` (always non-negative for a
+                            // positive divisor) matches well-formed input
+                            // exactly and just gives malformed input a
+                            // well-defined slot instead of a crash.
+                            (*stack).transient
+                                [i_0.rem_euclid(TYPE2_TRANSIENT_ARRAY as i32) as usize] =
                                 CffValue::Double(val_0);
                             (*stack).index = (*stack).index.wrapping_sub(2 as Arity);
                         }
@@ -2494,8 +2507,12 @@ pub unsafe fn cff_parse_outline(
                                 .as_mut_ptr()
                                 .offset((*stack).index.wrapping_sub(1 as Arity) as isize)) =
                                 CffValue::Double(cffnum(
+                                    // Same fix as `op_put` above: `rem_euclid`
+                                    // instead of `%` so a negative `i_1`
+                                    // can't turn into an out-of-bounds
+                                    // array index.
                                     (*stack).transient
-                                        [(i_1 % TYPE2_TRANSIENT_ARRAY as i32) as usize],
+                                        [i_1.rem_euclid(TYPE2_TRANSIENT_ARRAY as i32) as usize],
                                 ));
                         }
                     }
@@ -2716,14 +2733,42 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let n: u8 = (*stack).index.wrapping_sub(1 as Arity) as u8;
-                            let j_1: u8 = (n as ::core::ffi::c_int
-                                - 1 as ::core::ffi::c_int
-                                - cffnum(*(*stack).stack.as_mut_ptr().offset(n as isize)) as u8
-                                    as ::core::ffi::c_int
-                                    % n as ::core::ffi::c_int)
-                                as u8;
-                            *(*stack).stack.as_mut_ptr().offset(n as isize) =
-                                *(*stack).stack.as_mut_ptr().offset(j_1 as isize);
+                            // `n` is `(*stack).index - 1` truncated to `u8`
+                            // -- the real value is always >= 1 here (the
+                            // `index < 2` guard above already ensures at
+                            // least 2 operands are on the stack), but
+                            // truncation wraps `n` back to 0 whenever the
+                            // real value is a multiple of 256 (a
+                            // charstring pushing 257+ operands before
+                            // `index`, well within the stack's real
+                            // capacity). `n` is used below both as the
+                            // modulus and as the stack offset the index
+                            // operand itself was read from, so a truncated
+                            // 0 divided by zero and panicked. Treat it the
+                            // same as "not enough operands": skip the
+                            // operation instead.
+                            if n == 0 {
+                                logger_log_sds(
+                                    &mut *options.logger.borrow_mut(),
+                                    LOG_VL_IMPORTANT,
+                                    LoggerType::Warning,
+                                    crate::bytesbuild!(
+                                        b"[libcff] op_index",
+                                        b" (",
+                                        Hex4(OP_INDEX.0 as u32),
+                                        b") operand count overflowed a byte; this operation is ignored.\n",
+                                    ),
+                                );
+                            } else {
+                                let j_1: u8 = (n as ::core::ffi::c_int
+                                    - 1 as ::core::ffi::c_int
+                                    - cffnum(*(*stack).stack.as_mut_ptr().offset(n as isize)) as u8
+                                        as ::core::ffi::c_int
+                                        % n as ::core::ffi::c_int)
+                                    as u8;
+                                *(*stack).stack.as_mut_ptr().offset(n as isize) =
+                                    *(*stack).stack.as_mut_ptr().offset(j_1 as isize);
+                            }
                         }
                     }
                     3102 => {
@@ -2766,6 +2811,18 @@ pub unsafe fn cff_parse_outline(
                                         b"). This operation is ignored.\n",
                                     ),
                                 );
+                            } else if n_0 == 0 {
+                                // `n_0` (the roll's element count operand)
+                                // is charstring-supplied and cast `as u32`
+                                // from a float, which saturates any
+                                // negative value to 0 -- so pushing `0` or
+                                // a negative count for N reaches here.
+                                // "roll 0 elements" is a legitimate no-op
+                                // (the `j_2 == 0` branch a few lines down
+                                // already treats "nothing to rotate" as a
+                                // no-op the same way), but the
+                                // `wrapping_rem(n_0)` below panics on a
+                                // zero divisor -- skip it instead.
                             } else {
                                 j_2 = (-j_2 as u32).wrapping_rem(n_0) as i32;
                                 if j_2 < 0 as i32 {
@@ -3452,5 +3509,138 @@ mod cff_parse_outline_hintmask_tests {
         // before doing anything observable) -- `stem` reflects the one
         // hint pair pushed before the truncated `hintmask`.
         assert_eq!(stack.stem, 1);
+    }
+}
+
+#[cfg(test)]
+mod cff_parse_outline_stack_operator_tests {
+    use super::*;
+    use crate::libcff::cff_index::CffIndexCountType;
+    use crate::support::options::Options;
+
+    // A charstring's `put`/`get`/`index`/`roll` operators each take a
+    // charstring-supplied stack *value* (not the trusted `(*stack).index`
+    // cursor) and use it as an array index or modulus divisor into a
+    // small fixed-size structure (`transient[32]`, or the operand stack
+    // itself), with no range check. Found by reading the interpreter
+    // directly (not fuzzing) while investigating this file as the
+    // successor to `cff_dict.rs`'s Private-DICT-offset fix (PR #262):
+    // that fix closed an out-of-bounds *read*, these are guaranteed
+    // Rust *panics* (array-index or divide-by-zero) reachable with a
+    // handful of ordinary charstring bytes -- a different bug class
+    // (DoS, not memory corruption), but real and previously unguarded.
+
+    fn empty_cff_index() -> CffIndex {
+        CffIndex {
+            count_type: CffIndexCountType::U16,
+            count: 0,
+            off_size: 0,
+            offset: Vec::new(),
+            data: Vec::new(),
+        }
+    }
+
+    fn fresh_stack() -> CffStack {
+        CffStack {
+            stack: vec![CffValue::Unset; 0x10000],
+            transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
+            index: 0,
+            stem: 0,
+        }
+    }
+
+    unsafe fn run(data: &mut [u8], stack: &mut CffStack) {
+        let gsubr = empty_cff_index();
+        let lsubr = empty_cff_index();
+        let options = Options::default();
+        let mut total_calls: u32 = 0;
+        unsafe {
+            cff_parse_outline(
+                data.as_mut_ptr(),
+                data.len() as u32,
+                &gsubr,
+                &lsubr,
+                &raw mut *stack,
+                ::core::ptr::null_mut(),
+                &options,
+                0,
+                &raw mut total_calls,
+            );
+        }
+    }
+
+    #[test]
+    fn op_get_with_negative_index_operand_does_not_panic() {
+        // `-1` (byte 138) then `get` (escape `12 21` = OP_GET). The
+        // pre-fix `i_1 % TYPE2_TRANSIENT_ARRAY as i32` kept the
+        // dividend's sign (Rust's `%`), so `i_1 == -1` produced a
+        // negative remainder that panicked once cast `as usize` for the
+        // `transient[]` index.
+        let mut data: Vec<u8> = vec![138, 12, 21];
+        let mut stack = fresh_stack();
+        unsafe {
+            run(&mut data, &mut stack);
+        }
+        // `-1` `rem_euclid` 32 == 31, a never-written transient slot --
+        // `cffnum` reads that as 0.0. Reaching this assertion at all
+        // (rather than panicking mid-parse) is the regression signal.
+        assert_eq!(stack.index, 1);
+        assert!(matches!(stack.stack[0], CffValue::Double(v) if v == 0.0));
+    }
+
+    #[test]
+    fn op_put_with_negative_index_operand_does_not_panic() {
+        // Push a value (0), push `-1` (byte 138) as the index, then
+        // `put` (escape `12 20` = OP_PUT). Same bug/fix as `get` above.
+        let mut data: Vec<u8> = vec![139, 138, 12, 20];
+        let mut stack = fresh_stack();
+        unsafe {
+            run(&mut data, &mut stack);
+        }
+        assert_eq!(stack.index, 0);
+        assert!(matches!(stack.transient[31], CffValue::Double(v) if v == 0.0));
+    }
+
+    #[test]
+    fn op_roll_with_zero_count_operand_does_not_panic() {
+        // Push J=0, push N=0, then `roll` (escape `12 30` = OP_ROLL).
+        // `n_0` is `cffnum(...) as u32`, a saturating float-to-int cast
+        // (a *negative* N reaches the same `n_0 == 0` path this way,
+        // not just a literal 0 -- see the analogous comment in
+        // `cff_parse_outline_total_calls_tests`). The pre-fix code fell
+        // through to `wrapping_rem(n_0)` unconditionally once the
+        // "enough operands" guard passed, panicking on the zero
+        // divisor -- "roll 0 elements" is a legitimate no-op (the
+        // `j_2 == 0` case a few lines below already treats "nothing to
+        // rotate" the same way), not a malformed-input case.
+        let mut data: Vec<u8> = vec![139, 139, 12, 30];
+        let mut stack = fresh_stack();
+        unsafe {
+            run(&mut data, &mut stack);
+        }
+        // No-op: both pushed operands (J and N) are still on the stack,
+        // untouched, exactly like the pre-existing `j_2 == 0` no-op case.
+        assert_eq!(stack.index, 2);
+    }
+
+    #[test]
+    fn op_index_with_operand_count_multiple_of_256_does_not_panic() {
+        // Push 257 zero-operands (each 1 byte: value 0 encodes as byte
+        // 139), then `index` (escape `12 29` = OP_INDEX). `(*stack).index
+        // - 1 == 256` truncates to `0` once cast `as u8` -- the pre-fix
+        // code then used that truncated `0` as both a stack offset and a
+        // modulus divisor, panicking on the divide.
+        let mut data: Vec<u8> = vec![139u8; 257];
+        data.push(12);
+        data.push(29);
+        let mut stack = fresh_stack();
+        unsafe {
+            run(&mut data, &mut stack);
+        }
+        // The operation was skipped (truncated `n == 0`), not executed
+        // -- reaching this assertion at all (rather than panicking
+        // mid-parse) is the regression signal. All 257 pushed operands
+        // are still on the stack, untouched.
+        assert_eq!(stack.index, 257);
     }
 }
