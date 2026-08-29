@@ -290,9 +290,9 @@ pub unsafe fn stat_glyf(font: *mut Font, options: &Options) {
         gr.b = 0_i32 as Scale;
         gr.c = 0_i32 as Scale;
         gr.d = 1_i32 as Scale;
-        let ref mut fresh2 = (&mut (*glyf))[j as usize].as_mut().unwrap().stat;
-        *fresh2 = stat_single_glyph(glyf, &raw mut gr, stated.as_mut_ptr(), 0_u8, j, options);
-        let thatstat: GlyphStat = *fresh2;
+        let thatstat: GlyphStat =
+            stat_single_glyph(glyf, &raw mut gr, stated.as_mut_ptr(), 0_u8, j, options);
+        (&mut (*glyf))[j as usize].as_mut().unwrap().stat = thatstat;
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
         }

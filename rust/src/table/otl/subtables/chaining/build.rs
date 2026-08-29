@@ -201,8 +201,7 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
         let ib: TableId = (*rule_j0).input_begins;
         let start_class: TableId = (&(*rule_j0).match_0)[ib as usize][0].index as TableId;
         if start_class as i32 <= (*ic).maxclass as i32 {
-            let fresh2 = &mut rcpg[start_class as usize];
-            *fresh2 = (*fresh2 as i32 + 1_i32) as GlyphClass;
+            rcpg[start_class as usize] = rcpg[start_class as usize].wrapping_add(1);
         }
         j_0 = j_0.wrapping_add(1);
     }
@@ -428,8 +427,7 @@ pub unsafe fn otfcc_build_contextual_classes(
         let ib: TableId = (*rule_j0).input_begins;
         let start_class: TableId = (&(*rule_j0).match_0)[ib as usize][0].index as TableId;
         if start_class as i32 <= (*ic).maxclass as i32 {
-            let fresh3 = &mut rcpg[start_class as usize];
-            *fresh3 = (*fresh3 as i32 + 1_i32) as GlyphClass;
+            rcpg[start_class as usize] = rcpg[start_class as usize].wrapping_add(1);
         }
         j_0 = j_0.wrapping_add(1);
     }

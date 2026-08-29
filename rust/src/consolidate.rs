@@ -1236,8 +1236,7 @@ pub unsafe fn otfcc_consolidate_font(font: *mut Font, options: &Options) {
                 name = (&(*glyf))[j as usize].as_deref().unwrap().name.clone();
             } else {
                 name = crate::bytesbuild!(b"$$gid", j as i32);
-                let ref mut fresh0 = (&mut (*glyf))[j as usize].as_mut().unwrap().name;
-                *fresh0 = name.clone();
+                (&mut (*glyf))[j as usize].as_mut().unwrap().name = name.clone();
             }
             // `.clone()`, not a move: `otfcc_set_glyph_order_by_name` always
             // consumes its own copy (no ownership contract to track any
@@ -1271,8 +1270,7 @@ pub unsafe fn otfcc_consolidate_font(font: *mut Font, options: &Options) {
                                 b".",
                             ),
                         );
-                        let ref mut fresh1 = (&mut (*glyf))[j as usize].as_mut().unwrap().name;
-                        *fresh1 = newname;
+                        (&mut (*glyf))[j as usize].as_mut().unwrap().name = newname;
                     }
                     if success {
                         break;

@@ -405,8 +405,7 @@ unsafe fn grisu_round(
         && (rest.wrapping_add(ten_kappa) < wp_w
             || wp_w.wrapping_sub(rest) > rest.wrapping_add(ten_kappa).wrapping_sub(wp_w))
     {
-        let ref mut fresh10 = *buffer.offset((len - 1_i32) as isize);
-        *fresh10 -= 1;
+        *buffer.offset((len - 1_i32) as isize) -= 1;
         rest = rest.wrapping_add(ten_kappa);
     }
 }

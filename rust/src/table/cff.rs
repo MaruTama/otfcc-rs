@@ -1054,8 +1054,7 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                     let glyphname: Option<Vec<u8>> =
                         get_cff_sid(sid as u16, &(*cff_file).string);
                     if let Some(glyphname) = glyphname {
-                        let ref mut fresh2 = (&mut (*glyphs))[j + 1].as_mut().unwrap().name;
-                        *fresh2 = glyphname;
+                        (&mut (*glyphs))[j + 1].as_mut().unwrap().name = glyphname;
                         (&mut (*glyphs))[j + 1].as_mut().unwrap().cid = sid as GlyphId;
                     }
                 }
@@ -1070,11 +1069,10 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                             (first as i32 + k as i32) as CffSid;
                         let glyphname_0: Vec<u8> = form_cid_string(sid_0);
                         if (glyphs_named_sofar as usize) < (*glyphs).len() {
-                            let ref mut fresh3 = (&mut (*glyphs))[glyphs_named_sofar as usize]
+                            (&mut (*glyphs))[glyphs_named_sofar as usize]
                                 .as_mut()
                                 .unwrap()
-                                .name;
-                            *fresh3 = glyphname_0;
+                                .name = glyphname_0;
                             (&mut (*glyphs))[glyphs_named_sofar as usize]
                                 .as_mut()
                                 .unwrap()
@@ -1095,11 +1093,10 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                             (first_0 as i32 + k_0 as i32) as CffSid;
                         let glyphname_1: Vec<u8> = form_cid_string(sid_1);
                         if (glyphs_named_sofar_0 as usize) < (*glyphs).len() {
-                            let ref mut fresh4 = (&mut (*glyphs))[glyphs_named_sofar_0 as usize]
+                            (&mut (*glyphs))[glyphs_named_sofar_0 as usize]
                                 .as_mut()
                                 .unwrap()
-                                .name;
-                            *fresh4 = glyphname_1;
+                                .name = glyphname_1;
                             (&mut (*glyphs))[glyphs_named_sofar_0 as usize]
                                 .as_mut()
                                 .unwrap()
@@ -1120,8 +1117,7 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                     let glyphname_2: Option<Vec<u8>> =
                         get_cff_sid(sid_2 as u16, &(*cff_file).string);
                     if let Some(glyphname_2) = glyphname_2 {
-                        let ref mut fresh5 = (&mut (*glyphs))[j_2 + 1].as_mut().unwrap().name;
-                        *fresh5 = glyphname_2;
+                        (&mut (*glyphs))[j_2 + 1].as_mut().unwrap().name = glyphname_2;
                     }
                 }
             }
@@ -1137,12 +1133,10 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                             get_cff_sid(sid_3 as u16, &(*cff_file).string);
                         if (glyphs_named_sofar_1 as usize) < (*glyphs).len() {
                             if let Some(glyphname_3) = glyphname_3 {
-                                let ref mut fresh6 = (&mut (*glyphs))
-                                    [glyphs_named_sofar_1 as usize]
+                                (&mut (*glyphs))[glyphs_named_sofar_1 as usize]
                                     .as_mut()
                                     .unwrap()
-                                    .name;
-                                *fresh6 = glyphname_3;
+                                    .name = glyphname_3;
                             }
                         }
                         glyphs_named_sofar_1 = glyphs_named_sofar_1.wrapping_add(1);
@@ -1162,12 +1156,10 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                             get_cff_sid(sid_4 as u16, &(*cff_file).string);
                         if (glyphs_named_sofar_2 as usize) < (*glyphs).len() {
                             if let Some(glyphname_4) = glyphname_4 {
-                                let ref mut fresh7 = (&mut (*glyphs))
-                                    [glyphs_named_sofar_2 as usize]
+                                (&mut (*glyphs))[glyphs_named_sofar_2 as usize]
                                     .as_mut()
                                     .unwrap()
-                                    .name;
-                                *fresh7 = glyphname_4;
+                                    .name = glyphname_4;
                             }
                         }
                         glyphs_named_sofar_2 = glyphs_named_sofar_2.wrapping_add(1);

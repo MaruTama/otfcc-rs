@@ -559,8 +559,7 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
                     as i32
                 != 0
             {
-                let ref mut fresh10 = pair_counts[j_0 as usize];
-                *fresh10 = (*fresh10 as i32 + 1_i32) as GlyphId;
+                pair_counts[j_0 as usize] = pair_counts[j_0 as usize].wrapping_add(1);
             }
             k_0 = k_0.wrapping_add(1);
         }

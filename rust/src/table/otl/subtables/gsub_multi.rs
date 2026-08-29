@@ -228,8 +228,7 @@ pub unsafe fn otfcc_build_gsub_multi_subtable_split(
                 .wrapping_mul((n_parts as i32 + 1_i32) as usize),
             125 as ::core::ffi::c_ulong,
         ) as *mut *mut Buffer;
-        let ref mut fresh2 = *parts.offset(n_parts as isize);
-        *fresh2 = build_gsub_multi_subtable_range(subtable, start, end);
+        *parts.offset(n_parts as isize) = build_gsub_multi_subtable_range(subtable, start, end);
         n_parts = n_parts.wrapping_add(1);
         start = end;
     }
@@ -239,8 +238,8 @@ pub unsafe fn otfcc_build_gsub_multi_subtable_split(
             (::core::mem::size_of::<*mut Buffer>() as usize).wrapping_mul(1_usize),
             132 as ::core::ffi::c_ulong,
         ) as *mut *mut Buffer;
-        let ref mut fresh3 = *parts.offset(0_i32 as isize);
-        *fresh3 = build_gsub_multi_subtable_range(subtable, 0 as GlyphId, 0 as GlyphId);
+        *parts.offset(0_i32 as isize) =
+            build_gsub_multi_subtable_range(subtable, 0 as GlyphId, 0 as GlyphId);
         n_parts = 1 as TableId;
     }
     *count = n_parts;

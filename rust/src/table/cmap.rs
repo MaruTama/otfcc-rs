@@ -1068,12 +1068,10 @@ unsafe fn build_format14_for_selector(
             }
         }
     }
-    let ref mut fresh8 = *non_defaults.offset(0_i32 as isize);
-    *fresh8 = 0xffff as GlyphId;
-    *defaults.offset(0_i32 as isize) = *fresh8;
-    let ref mut fresh9 = *non_defaults.offset((MAX_UNICODE - 1_i32) as isize);
-    *fresh9 = 0xffff as GlyphId;
-    *defaults.offset((MAX_UNICODE - 1_i32) as isize) = *fresh9;
+    *non_defaults.offset(0_i32 as isize) = 0xffff as GlyphId;
+    *defaults.offset(0_i32 as isize) = 0xffff as GlyphId;
+    *non_defaults.offset((MAX_UNICODE - 1_i32) as isize) = 0xffff as GlyphId;
+    *defaults.offset((MAX_UNICODE - 1_i32) as isize) = 0xffff as GlyphId;
     let mut num_unicode_value_ranges: u32 = 0_u32;
     let mut start_unicode_value: Unicode = 0 as Unicode;
     let mut num_uvs_mappings: u32 = 0_u32;
