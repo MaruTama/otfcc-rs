@@ -123,7 +123,19 @@ unsafe fn callback_get_key(
     mut _context: *mut ::core::ffi::c_void,
 ) {
     let context: *mut CffGetKeyContext = _context as *mut CffGetKeyContext;
-    if op == (*context).op && (*context).idx <= top as u32 {
+    // `idx` is a 0-based operand index, so a valid read needs `idx <
+    // top` (there are exactly `top` operands, at indices `0..top`) --
+    // this was `idx <= top`, an off-by-one that let `idx == top` (no
+    // operand at all, e.g. this operator with zero pushed operands and
+    // `idx == 0`) through. Against the original's raw pointer into a
+    // fixed 256-entry array that silently read a stale/adjacent slot
+    // rather than panicking; converting `stack` to a `top`-length slice
+    // (this PR) turned that same off-by-one into a reachable
+    // `index out of bounds` panic, caught by `cargo fuzz run otf_parse`.
+    // Tightening to `idx < top` is the actual fix -- not a change in
+    // what counts as "found", just removing an already-wrong read of
+    // one index past the operator's real operand list.
+    if op == (*context).op && (*context).idx < top as u32 {
         (*context).found = true;
         (*context).res = stack[((*context).idx as isize) as usize];
     }
