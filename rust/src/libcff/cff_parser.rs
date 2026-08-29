@@ -566,21 +566,15 @@ unsafe fn compute_subr_bias(cnt: u16) -> u16 {
         return 32768_u16;
     };
 }
+// The original's two-pointer swap-until-cross is a plain reversal of
+// `stack[left..=right]` -- but only when `left <= right`: `p1 < p2`
+// starts out false (a graceful no-op) whenever `left > right`, while
+// indexing with an inverted `a..=b` range panics rather than yielding
+// an empty slice, so that guard has to be explicit here where it was
+// implicit in the pointer comparison.
 unsafe fn reverse_stack(stack: *mut CffStack, left: u8, right: u8) {
-    let mut p1: *mut CffValue = (*stack)
-        .stack
-        .as_mut_ptr()
-        .offset(left as i32 as isize);
-    let mut p2: *mut CffValue = (*stack)
-        .stack
-        .as_mut_ptr()
-        .offset(right as i32 as isize);
-    while p1 < p2 {
-        let temp: CffValue = *p1;
-        *p1 = *p2;
-        *p2 = temp;
-        p1 = p1.offset(1);
-        p2 = p2.offset(-1);
+    if left <= right {
+        (&mut (*stack).stack)[left as usize..=right as usize].reverse();
     }
 }
 // `methods: CffIOutlineBuilder` parameter dropped: this was called from
@@ -617,19 +611,28 @@ pub unsafe fn cff_parse_outline(
     }
     let gsubr_bias: u16 = compute_subr_bias(gsubr.count as u16);
     let lsubr_bias: u16 = compute_subr_bias(lsubr.count as u16);
-    let mut start: *mut u8 = data;
+    // `data`/`len` reconstructed as a real slice once here rather than
+    // walked with `.offset()` at every step -- `pos` (into `data_slice`)
+    // replaces `start` (a `*mut u8` cursor), the same "cursor into a
+    // safe slice instead of raw pointer arithmetic" shape the rest of
+    // this crate's parse-boundary work already uses. `cff_decode_cs2_token`
+    // itself is unchanged (still takes a raw pointer + a length), since
+    // it does its own `slice::from_raw_parts` reconstruction internally.
+    let data_slice: &[u8] = ::core::slice::from_raw_parts(data, len as usize);
+    let mut pos: usize = 0;
     let mut advance: u32;
     let mut i: u32;
     let mut cnt_bezier: u32;
     let mut val: CffValue = CffValue::Unset;
-    while start < data.offset(len as isize) {
+    while pos < data_slice.len() {
         // The outer loop already bounds where a token can *start*, but
         // not that the token itself stays within `len` -- a token
         // starting near the end of a truncated CharString used to read
         // past it (see `cff_codecs.rs`'s own conversion). Stop cleanly
         // instead of reading on.
-        let remaining = data.offset(len as isize).offset_from(start) as usize;
-        let Some(adv) = cff_decode_cs2_token(start, remaining, &raw mut val) else {
+        let remaining = data_slice.len() - pos;
+        let Some(adv) = cff_decode_cs2_token(data_slice[pos..].as_ptr(), remaining, &raw mut val)
+        else {
             break;
         };
         advance = adv;
@@ -734,7 +737,7 @@ pub unsafe fn cff_parse_outline(
                         let mut byte: u32 = 0_u32;
                         while byte < mask_length {
                             let mask_byte: u8 =
-                                *start.offset(advance.wrapping_add(byte) as isize);
+                                data_slice[pos + advance.wrapping_add(byte) as usize];
                             *mask
                                 .offset((byte << 3_i32).wrapping_add(0_u32)
                                     as isize) = mask_byte as i32
@@ -2517,7 +2520,7 @@ pub unsafe fn cff_parse_outline(
             }
             CffValue::Unset => {}
         }
-        start = start.offset(advance as isize);
+        pos += advance as usize;
     }
 }
 
