@@ -36,13 +36,12 @@ pub unsafe fn shrink_flags(flags: *mut Buffer) -> *mut Buffer {
         {
             if repeating != 0 && repeating < 0xfe_i32 {
                 let shrunk_data: &mut Vec<u8> = &mut (*shrunk).data;
-                let fresh0 = &mut shrunk_data[(*shrunk).cursor.wrapping_sub(1_usize)];
-                *fresh0 = (*fresh0 as i32 + 1_i32) as u8;
+                let idx = (*shrunk).cursor.wrapping_sub(1_usize);
+                shrunk_data[idx] = shrunk_data[idx].wrapping_add(1);
                 repeating += 1_i32;
             } else if repeating == 0_i32 {
                 let shrunk_data: &mut Vec<u8> = &mut (*shrunk).data;
-                let fresh1 = &mut shrunk_data[(*shrunk).cursor.wrapping_sub(1_usize)];
-                *fresh1 |= PointFlags::REPEAT.bits();
+                shrunk_data[(*shrunk).cursor.wrapping_sub(1_usize)] |= PointFlags::REPEAT.bits();
                 bufwrite8(shrunk, 1_u8);
                 repeating += 1_i32;
             } else {
