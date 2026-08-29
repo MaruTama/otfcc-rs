@@ -235,18 +235,8 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
     // safely gets just its first entry's bytes instead of silently reading
     // past them.
     let top_dict_bytes: &[u8] = if !(*cff).top_dict.data.is_empty() {
-        let top_dict_len = (*(*cff)
-            .top_dict
-            .offset
-            .as_ptr()
-            .offset(1_i32 as isize))
-        .wrapping_sub(
-            *(*cff)
-                .top_dict
-                .offset
-                .as_ptr()
-                .offset(0_i32 as isize),
-        ) as usize;
+        let top_dict_offset = &(*cff).top_dict.offset;
+        let top_dict_len = top_dict_offset[1].wrapping_sub(top_dict_offset[0]) as usize;
         let top_dict_data: &[u8] = &(*cff).top_dict.data;
         top_dict_data.get(..top_dict_len).unwrap_or(&[])
     } else {
