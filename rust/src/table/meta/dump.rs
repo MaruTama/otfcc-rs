@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::options::Options;
-use libc::free;
 
 use crate::support::base64::base64_encode;
 use crate::support::built_json::{
@@ -68,19 +67,15 @@ pub unsafe fn otfcc_dump_meta(
                         ),
                     );
                 } else {
-                    let mut out_len: usize = 0_usize;
-                    let mut out: *mut u8 =
-                        base64_encode((*e).data.as_ptr(), (*e).data.len(), &raw mut out_len);
+                    let encoded = base64_encode(&(*e).data);
                     json_object_push(
                         _e,
                         b"base64\0" as *const u8 as *const ::core::ffi::c_char,
                         json_string_new_length(
-                            out_len as ::core::ffi::c_uint,
-                            out as *mut ::core::ffi::c_char,
+                            encoded.len() as ::core::ffi::c_uint,
+                            encoded.as_ptr() as *mut ::core::ffi::c_char,
                         ),
                     );
-                    free(out as *mut ::core::ffi::c_void);
-                    out = ::core::ptr::null_mut::<u8>();
                 }
                 json_array_push(_entries, _e);
                 keep = (keep == 0) as i32 as usize;

@@ -19,7 +19,6 @@ use crate::support::parsed_json::{
 use crate::support::unicodeconv::{utf8toutf16be, utf16be_to_utf8};
 use crate::vendor::json::JsonType;
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
-use libc::free;
 
 // `Copy` dropped (`name_string` is now `Vec<u8>`, the `sds` sweep's last
 // leaf field) -- `Clone` alone is enough, and nothing relied on
@@ -112,11 +111,7 @@ unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
                 record.name_string =
                     utf16be_to_utf8(bytes.as_ptr(), bytes.len() as i32);
             } else {
-                let mut len: usize = 0_usize;
-                let mut buf: *mut u8 = base64_encode(bytes.as_ptr(), bytes.len(), &raw mut len);
-                record.name_string = ::core::slice::from_raw_parts(buf as *const u8, len).to_vec();
-                free(buf as *mut ::core::ffi::c_void);
-                buf = ::core::ptr::null_mut::<u8>();
+                record.name_string = base64_encode(bytes);
             }
         }
         name.push(record);
@@ -394,16 +389,8 @@ pub unsafe fn otfcc_build_name(name: Option<&NameTable>) -> *mut Buffer {
                 (*record).name_string.len(),
                 (*record).name_string.as_ptr() as *mut u8,
             );
-        } else {
-            let mut length: usize = 0;
-            let mut decoded: *mut u8 = base64_decode(
-                (*record).name_string.as_ptr() as *mut u8,
-                (*record).name_string.len(),
-                &raw mut length,
-            );
-            bufwrite_bytes(strings, length, decoded);
-            free(decoded as *mut ::core::ffi::c_void);
-            decoded = ::core::ptr::null_mut::<u8>();
+        } else if let Some(decoded) = base64_decode(&(*record).name_string) {
+            bufwrite_bytes(strings, decoded.len(), decoded.as_ptr() as *mut u8);
         }
         let cafter: usize = (*strings).cursor;
         bufwrite16b(buf, cafter.wrapping_sub(cbefore) as u16);

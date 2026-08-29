@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, memcpy, snprintf, strlen, strtol};
+use libc::{memcpy, snprintf, strlen, strtol};
 
 use crate::support::parsed_json::{
     ParsedValue, json_arr_at, json_arr_len, json_int_val, json_str_len, json_str_ptr, json_type_of,
@@ -837,16 +837,18 @@ pub unsafe fn dump_ttinstr(
     options: &Options,
 ) -> *mut BuiltValue {
     if options.instr_as_bytes {
-        let mut len: usize = 0_usize;
-        let buf: *mut u8 = base64_encode(instructions, length as usize, &raw mut len);
-        // `json_string_new_length` copies `buf`'s bytes into a fresh `Vec`
-        // rather than taking ownership of it (see its own definition) --
-        // `buf` itself was never freed on this path, unlike `table/name.rs`'s
-        // three sibling `base64_encode`/`base64_decode` call sites, which do.
-        let result =
-            json_string_new_length(len as ::core::ffi::c_uint, buf as *mut ::core::ffi::c_char);
-        free(buf as *mut ::core::ffi::c_void);
-        return result;
+        let encoded = base64_encode(::core::slice::from_raw_parts(
+            instructions,
+            length as usize,
+        ));
+        // `json_string_new_length` copies `encoded`'s bytes into a fresh
+        // `Vec` rather than taking ownership of it (see its own
+        // definition), so `encoded` just drops normally at the end of this
+        // scope.
+        return json_string_new_length(
+            encoded.len() as ::core::ffi::c_uint,
+            encoded.as_ptr() as *mut ::core::ffi::c_char,
+        );
     } else {
         let mut id: InstrData = InstrData {
             instrs: ::core::ptr::null_mut::<u8>(),
@@ -896,25 +898,11 @@ pub unsafe fn parse_ttinstr(
     if col.is_null() {
         make.expect("non-null function pointer")(context, Vec::new());
     } else if json_type_of(col) == JsonType::String {
-        let mut instrlen: usize = 0;
-        let instructions: *mut u8 = base64_decode(
-            json_str_ptr(col) as *mut u8,
+        let instructions_vec = base64_decode(::core::slice::from_raw_parts(
+            json_str_ptr(col) as *const u8,
             json_str_len(col) as usize,
-            &raw mut instrlen,
-        );
-        // `base64_decode` hands back a `malloc`ed buffer (or null on a
-        // decode failure/empty input) -- copy it into an owned `Vec` and
-        // free the original, rather than growing `base64_decode` itself
-        // into a `Vec`-returning function (out of scope for this
-        // conversion; it has its own unrelated call sites).
-        let instructions_vec: Vec<u8> = if instructions.is_null() || instrlen == 0 {
-            Vec::new()
-        } else {
-            ::core::slice::from_raw_parts(instructions, instrlen).to_vec()
-        };
-        if !instructions.is_null() {
-            free(instructions as *mut ::core::ffi::c_void);
-        }
+        ))
+        .unwrap_or_default();
         make.expect("non-null function pointer")(context, instructions_vec);
     } else if json_type_of(col) == JsonType::Array {
         let mut istrlen: usize = 0_usize;
