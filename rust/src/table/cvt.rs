@@ -122,12 +122,12 @@ pub unsafe fn otfcc_parse_cvt(
                     json_str_len(table) as usize,
                     &raw mut len,
                 );
-                let table_length = (len >> 1 as ::core::ffi::c_int) as u32;
+                let table_length = (len >> 1_i32) as u32;
                 let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);
                 let mut j_0: u16 = 0_u16;
                 while (j_0 as u32) < table_length {
                     words.push(read_16u(raw.offset(
-                        (2 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize,
+                        (2_i32 * j_0 as i32) as isize,
                     )));
                     j_0 = j_0.wrapping_add(1);
                 }

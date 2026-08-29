@@ -155,9 +155,9 @@ pub unsafe fn otfcc_dump_vdmx(
                             json_integer_new((*r).y_min as i64),
                         );
                         json_array_push(_records, _r);
-                        keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                        keep_0 = (keep_0 == 0) as i32 as usize;
                     }
-                    keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                    keep_0 = (keep_0 == 0) as i32 as usize;
                     __caryll_index_0 = __caryll_index_0.wrapping_add(1);
                 }
                 json_object_push(
@@ -166,9 +166,9 @@ pub unsafe fn otfcc_dump_vdmx(
                     _records,
                 );
                 json_array_push(_ratios, _rr);
-                keep = (keep == 0) as ::core::ffi::c_int as usize;
+                keep = (keep == 0) as i32 as usize;
             }
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
         json_object_push(
@@ -293,7 +293,7 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
     let root: *mut BkBlock = bk_new_block(&[
         bk_int(
             BkCellType::B16,
-            ((*vdmx).version as ::core::ffi::c_int) as u32,
+            ((*vdmx).version as i32) as u32,
         ),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
@@ -306,21 +306,21 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
             bk_push(
                 root,
                 &[
-                    bk_int(BkCellType::B8, (rr.b_charset as ::core::ffi::c_int) as u32),
-                    bk_int(BkCellType::B8, (rr.x_ratio as ::core::ffi::c_int) as u32),
+                    bk_int(BkCellType::B8, (rr.b_charset as i32) as u32),
+                    bk_int(BkCellType::B8, (rr.x_ratio as i32) as u32),
                     bk_int(
                         BkCellType::B8,
-                        (rr.y_start_ratio as ::core::ffi::c_int) as u32,
+                        (rr.y_start_ratio as i32) as u32,
                     ),
                     bk_int(
                         BkCellType::B8,
-                        (rr.y_end_ratio as ::core::ffi::c_int) as u32,
+                        (rr.y_end_ratio as i32) as u32,
                     ),
                 ],
             );
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
         }
-        keep = (keep == 0) as ::core::ffi::c_int as usize;
+        keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut __caryll_index_0: usize = 0_usize;
@@ -335,21 +335,21 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
             while keep_1 != 0 && __caryll_index_1 < rr_0.records.len() {
                 let r: &VdmxRecord = &rr_0.records[__caryll_index_1];
                 while keep_1 != 0 {
-                    if startsz as ::core::ffi::c_int > r.y_pel_height as ::core::ffi::c_int {
+                    if startsz as i32 > r.y_pel_height as i32 {
                         startsz = r.y_pel_height;
                     }
-                    if (endsz as ::core::ffi::c_int) < r.y_pel_height as ::core::ffi::c_int {
+                    if (endsz as i32) < r.y_pel_height as i32 {
                         endsz = r.y_pel_height;
                     }
-                    keep_1 = (keep_1 == 0) as ::core::ffi::c_int as usize;
+                    keep_1 = (keep_1 == 0) as i32 as usize;
                 }
-                keep_1 = (keep_1 == 0) as ::core::ffi::c_int as usize;
+                keep_1 = (keep_1 == 0) as i32 as usize;
                 __caryll_index_1 = __caryll_index_1.wrapping_add(1);
             }
             let group: *mut BkBlock = bk_new_block(&[
                 bk_int(BkCellType::B16, (rr_0.records.len()) as u32),
-                bk_int(BkCellType::B8, (startsz as ::core::ffi::c_int) as u32),
-                bk_int(BkCellType::B8, (endsz as ::core::ffi::c_int) as u32),
+                bk_int(BkCellType::B8, (startsz as i32) as u32),
+                bk_int(BkCellType::B8, (endsz as i32) as u32),
             ]);
             let mut __caryll_index_2: usize = 0_usize;
             let mut keep_2: usize = 1_usize;
@@ -361,21 +361,21 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
                         &[
                             bk_int(
                                 BkCellType::B16,
-                                (r_0.y_pel_height as ::core::ffi::c_int) as u32,
+                                (r_0.y_pel_height as i32) as u32,
                             ),
-                            bk_int(BkCellType::B16, (r_0.y_max as ::core::ffi::c_int) as u32),
-                            bk_int(BkCellType::B16, (r_0.y_min as ::core::ffi::c_int) as u32),
+                            bk_int(BkCellType::B16, (r_0.y_max as i32) as u32),
+                            bk_int(BkCellType::B16, (r_0.y_min as i32) as u32),
                         ],
                     );
-                    keep_2 = (keep_2 == 0) as ::core::ffi::c_int as usize;
+                    keep_2 = (keep_2 == 0) as i32 as usize;
                 }
-                keep_2 = (keep_2 == 0) as ::core::ffi::c_int as usize;
+                keep_2 = (keep_2 == 0) as i32 as usize;
                 __caryll_index_2 = __caryll_index_2.wrapping_add(1);
             }
             bk_push(root, &[bk_ptr(BkCellType::P16, group)]);
-            keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+            keep_0 = (keep_0 == 0) as i32 as usize;
         }
-        keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+        keep_0 = (keep_0 == 0) as i32 as usize;
         __caryll_index_0 = __caryll_index_0.wrapping_add(1);
     }
     return bk_build_block_no_minimize(root);

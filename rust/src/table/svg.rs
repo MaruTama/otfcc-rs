@@ -95,16 +95,16 @@ pub unsafe fn otfcc_read_svg(packet: &Packet) -> Option<SvgTable> {
 }
 fn can_use_plain_format(doc: &[u8]) -> bool {
     return doc.len() > 4_usize
-        && doc[0_usize] as ::core::ffi::c_int == '<' as i32
-        && doc[1_usize] as ::core::ffi::c_int == 's' as i32
-        && doc[2_usize] as ::core::ffi::c_int == 'v' as i32
-        && doc[3_usize] as ::core::ffi::c_int == 'g' as i32
+        && doc[0_usize] as i32 == '<' as i32
+        && doc[1_usize] as i32 == 's' as i32
+        && doc[2_usize] as i32 == 'v' as i32
+        && doc[3_usize] as i32 == 'g' as i32
         || doc.len() > 5_usize
-            && doc[0_usize] as ::core::ffi::c_int == '<' as i32
-            && doc[1_usize] as ::core::ffi::c_int == '?' as i32
-            && doc[2_usize] as ::core::ffi::c_int == 'x' as i32
-            && doc[3_usize] as ::core::ffi::c_int == 'm' as i32
-            && doc[4_usize] as ::core::ffi::c_int == 'l' as i32;
+            && doc[0_usize] as i32 == '<' as i32
+            && doc[1_usize] as i32 == '?' as i32
+            && doc[2_usize] as i32 == 'x' as i32
+            && doc[3_usize] as i32 == 'm' as i32
+            && doc[4_usize] as i32 == 'l' as i32;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: *mut BuiltValue, options: &Options) {
@@ -171,9 +171,9 @@ pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: *mut BuiltValue, opti
                     buf = ::core::ptr::null_mut::<u8>();
                 }
                 json_array_push(_svg, _a);
-                keep = (keep == 0) as ::core::ffi::c_int as usize;
+                keep = (keep == 0) as i32 as usize;
             }
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
         json_object_push(
@@ -227,7 +227,7 @@ pub unsafe fn otfcc_parse_svg(root: *const ParsedValue, options: &Options) -> Op
                         if strcmp(
                             format,
                             b"plain\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0 as ::core::ffi::c_int
+                        ) == 0_i32
                         {
                             asg.document = doc;
                         } else {
@@ -280,8 +280,8 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
             bk_push(
                 major,
                 &[
-                    bk_int(BkCellType::B16, ((*a).start as ::core::ffi::c_int) as u32),
-                    bk_int(BkCellType::B16, ((*a).end as ::core::ffi::c_int) as u32),
+                    bk_int(BkCellType::B16, ((*a).start as i32) as u32),
+                    bk_int(BkCellType::B16, ((*a).end as i32) as u32),
                     bk_ptr(
                         BkCellType::P32,
                         bk_new_block_from_buffer_copy(&doc_buf as *const Buffer),
@@ -289,9 +289,9 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
                     bk_int(BkCellType::B32, (a.document.len()) as u32),
                 ],
             );
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
         }
-        keep = (keep == 0) as ::core::ffi::c_int as usize;
+        keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let root: *mut BkBlock = bk_new_block(&[

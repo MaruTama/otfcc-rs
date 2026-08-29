@@ -116,14 +116,14 @@ unsafe fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
     }
     let mut tag: u32 = 0_u32;
     let mut len: u8 = 0_u8;
-    while *tags as ::core::ffi::c_int != 0 && (len as ::core::ffi::c_int) < 4 as ::core::ffi::c_int
+    while *tags as i32 != 0 && (len as i32) < 4_i32
     {
-        tag = tag << 8 as ::core::ffi::c_int | *tags as u32;
+        tag = tag << 8_i32 | *tags as u32;
         tags = tags.offset(1);
         len = len.wrapping_add(1);
     }
-    while (len as ::core::ffi::c_int) < 4 as ::core::ffi::c_int {
-        tag = tag << 8 as ::core::ffi::c_int | ' ' as i32 as u32;
+    while (len as i32) < 4_i32 {
+        tag = tag << 8_i32 | ' ' as i32 as u32;
         len = len.wrapping_add(1);
     }
     return tag;

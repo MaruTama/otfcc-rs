@@ -41,12 +41,12 @@ use crate::table::vdmx::funcs::otfcc_parse_vdmx;
 use crate::table::vhea::otfcc_parse_vhea;
 
 #[inline]
-unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
+unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> i32 {
     return strtol(
         __nptr,
         NULL as *mut *mut ::core::ffi::c_char,
-        10 as ::core::ffi::c_int,
-    ) as ::core::ffi::c_int;
+        10_i32,
+    ) as i32;
 }
 unsafe fn otfcc_decide_font_subtype_from_json(root: *const ParsedValue) -> FontSubtype {
     if !json_obj_get_type(
@@ -79,7 +79,7 @@ unsafe fn set_order_by_name(
     match (*go).by_name.get(&name).copied() {
         None => {
             (*go).entries.push(GlyphOrderEntry {
-                gid: -(1 as ::core::ffi::c_int) as GlyphId,
+                gid: -1_i32 as GlyphId,
                 name: name.clone(),
                 order_type,
                 order_entry,
@@ -107,7 +107,7 @@ unsafe fn order_glyphs(go: *mut GlyphOrder) {
     for &idx in idxs.iter() {
         (&mut (*go).entries)[idx].gid = gid;
         (*go).by_gid.insert(gid, idx);
-        gid = (gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+        gid = (gid as i32 + 1_i32) as GlyphId;
     }
 }
 // `name` is a borrowed `&[u8]` now, not `SdsRaw` -- this function only
@@ -158,18 +158,18 @@ unsafe fn place_order_entries_from_cmap(table: *const ParsedValue, go: *mut Glyp
         let item: *const ParsedValue = json_obj_val_at(table, j);
         let unicode: i32;
         if strlen(unicode_str) > 2_usize
-            && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
+            && *unicode_str.offset(0_i32 as isize) as i32
                 == 'U' as i32
-            && *unicode_str.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
+            && *unicode_str.offset(1_i32 as isize) as i32
                 == '+' as i32
         {
             unicode = strtol(
-                unicode_str.offset(2 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_char,
+                unicode_str.offset(2_i32 as isize) as *const ::core::ffi::c_char,
                 ::core::ptr::null_mut::<*mut ::core::ffi::c_char>(),
-                16 as ::core::ffi::c_int,
+                16_i32,
             ) as i32;
         } else {
-            unicode = atoi(unicode_str as *const ::core::ffi::c_char) as i32;
+            unicode = atoi(unicode_str as *const ::core::ffi::c_char);
         }
         if json_type_of(item) == JsonType::String
             && unicode > 0_i32
@@ -187,7 +187,7 @@ unsafe fn place_order_entries_from_subtable(
     zero_only: bool,
 ) {
     let mut uplimit: u32 = json_arr_len(table);
-    if uplimit >= 1_u32 && zero_only as ::core::ffi::c_int != 0 {
+    if uplimit >= 1_u32 && zero_only as i32 != 0 {
         uplimit = 1_u32;
     }
     let mut j: u32 = 0_u32;
@@ -241,7 +241,7 @@ unsafe fn parse_glyph_order(
         );
         if !table.is_null() {
             let mut ignore_glyph_order: bool = options.ignore_glyph_order;
-            if ignore_glyph_order as ::core::ffi::c_int != 0
+            if ignore_glyph_order as i32 != 0
                 && !json_obj_get_type(
                     root,
                     b"SVG_\0" as *const u8 as *const ::core::ffi::c_char,

@@ -64,10 +64,10 @@ pub struct TsiBuildTarget {
 #[inline]
 unsafe fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
     if tag_index == crate::tag::TAG_TSI0 {
-        return gid as ::core::ffi::c_int != 0xfffe as ::core::ffi::c_int
-            && gid as ::core::ffi::c_int != 0xfffc as ::core::ffi::c_int;
+        return gid as i32 != 0xfffe_i32
+            && gid as i32 != 0xfffc_i32;
     } else {
-        return (gid as ::core::ffi::c_int) < 0xfffa as ::core::ffi::c_int;
+        return (gid as i32) < 0xfffa_i32;
     };
 }
 // One 8-byte record: gid(u16) + text_length(u16, widened) + text_offset(u32).
@@ -109,7 +109,7 @@ pub unsafe fn otfcc_read_tsi(
             let mut predicted_text_length: u32 = text_len.wrapping_sub(entry.text_offset);
             let mut k: u32 = j.wrapping_add(1_u32);
             while let Ok(entry_k) = read_tsi_index_entry(&index_part.data, k) {
-                if entry_k.gid as ::core::ffi::c_int != 0xfffe as ::core::ffi::c_int
+                if entry_k.gid as i32 != 0xfffe_i32
                     && entry_k.text_offset < text_len
                     && entry_k.text_offset > entry.text_offset
                 {
@@ -152,7 +152,7 @@ pub unsafe fn otfcc_read_tsi(
                 },
                 content,
             };
-            match entry.gid as ::core::ffi::c_int {
+            match entry.gid as i32 {
                 65530 => {
                     tsi_entry.type_0 = TsiEntryType::Prep;
                     otfcc_handle_init(&raw mut tsi_entry.glyph);
@@ -199,7 +199,7 @@ pub unsafe fn otfcc_dump_tsi(
             let entry: *const TsiEntry = &entries[__caryll_index];
             while keep != 0 {
                 if !((*entry).type_0 as ::core::ffi::c_uint
-                    != TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint)
+                    != TsiEntryType::Glyph as i32 as ::core::ffi::c_uint)
                 {
                     json_object_push_bytes_key(
                         _glyphs,
@@ -210,9 +210,9 @@ pub unsafe fn otfcc_dump_tsi(
                         ),
                     );
                 }
-                keep = (keep == 0) as ::core::ffi::c_int as usize;
+                keep = (keep == 0) as i32 as usize;
             }
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
         let mut _extra: *mut BuiltValue = json_object_new(entries.len());
@@ -222,7 +222,7 @@ pub unsafe fn otfcc_dump_tsi(
             let entry_0: *const TsiEntry = &entries[__caryll_index_0];
             while keep_0 != 0 {
                 if !((*entry_0).type_0 as ::core::ffi::c_uint
-                    == TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint)
+                    == TsiEntryType::Glyph as i32 as ::core::ffi::c_uint)
                 {
                     let extra_key: *mut ::core::ffi::c_char;
                     match (*entry_0).type_0 as ::core::ffi::c_uint {
@@ -252,9 +252,9 @@ pub unsafe fn otfcc_dump_tsi(
                         ),
                     );
                 }
-                keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                keep_0 = (keep_0 == 0) as i32 as usize;
             }
-            keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+            keep_0 = (keep_0 == 0) as i32 as usize;
             __caryll_index_0 = __caryll_index_0.wrapping_add(1);
         }
         json_object_push(
@@ -323,7 +323,7 @@ pub unsafe fn otfcc_parse_tsi(
                 let mut _content_0: *const ParsedValue = json_obj_val_at(_extra, j_0);
                 if !(_content_0.is_null() || json_type_of(_content_0) != JsonType::String) {
                     if strcmp(_key, b"cvt\0" as *const u8 as *const ::core::ffi::c_char)
-                        == 0 as ::core::ffi::c_int
+                        == 0_i32
                     {
                         tsi.push(TsiEntry {
                             type_0: TsiEntryType::Cvt,
@@ -335,7 +335,7 @@ pub unsafe fn otfcc_parse_tsi(
                             .to_vec(),
                         });
                     } else if strcmp(_key, b"fpgm\0" as *const u8 as *const ::core::ffi::c_char)
-                        == 0 as ::core::ffi::c_int
+                        == 0_i32
                     {
                         tsi.push(TsiEntry {
                             type_0: TsiEntryType::Fpgm,
@@ -347,7 +347,7 @@ pub unsafe fn otfcc_parse_tsi(
                             .to_vec(),
                         });
                     } else if strcmp(_key, b"prep\0" as *const u8 as *const ::core::ffi::c_char)
-                        == 0 as ::core::ffi::c_int
+                        == 0_i32
                     {
                         tsi.push(TsiEntry {
                             type_0: TsiEntryType::Prep,
@@ -420,21 +420,21 @@ unsafe fn push_tsi_entries(
                 }
                 bufwrite32b((*target).index_part, length_sofar as u32);
                 items_pushed =
-                    (items_pushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+                    (items_pushed as i32 + 1_i32) as GlyphId;
             }
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
         }
-        keep = (keep == 0) as ::core::ffi::c_int as usize;
+        keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    while (items_pushed as ::core::ffi::c_int) < min_n as ::core::ffi::c_int {
+    while (items_pushed as i32) < min_n as i32 {
         bufwrite16b(
             (*target).index_part,
             propergid(::core::ptr::null_mut::<TsiEntry>(), type_0) as u16,
         );
         bufwrite16b((*target).index_part, 0_u16);
         bufwrite32b((*target).index_part, (*(*target).text_part).cursor as u32);
-        items_pushed = (items_pushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+        items_pushed = (items_pushed as i32 + 1_i32) as GlyphId;
     }
 }
 #[allow(improper_ctypes_definitions)]

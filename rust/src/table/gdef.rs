@@ -218,7 +218,7 @@ unsafe fn dump_gdef_lig_carets(gdef: *const GdefTable) -> *mut BuiltValue {
         let mut k: GlyphId = 0 as GlyphId;
         while (k as usize) < carets.len() {
             let mut _cv: *mut BuiltValue = json_object_new(1_usize);
-            if carets[k as usize].format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
+            if carets[k as usize].format as i32 == 2_i32 {
                 json_object_push(
                     _cv,
                     b"atPoint\0" as *const u8 as *const ::core::ffi::c_char,
@@ -306,15 +306,15 @@ unsafe fn lig_caret_from_json(mut _carets: *const ParsedValue, lc: *mut LigCaret
                 handle_from_name(Some(json_obj_key_bytes_at(_carets, j as u32))) as GlyphHandle;
             let caret_count: ShapeId = json_arr_len(a) as ShapeId;
             let mut k: GlyphId = 0 as GlyphId;
-            while (k as ::core::ffi::c_int) < caret_count as ::core::ffi::c_int {
+            while (k as i32) < caret_count as i32 {
                 let mut caret: CaretValue = CaretValue {
                     format: 0,
                     coordiante: 0.,
                     point_index: 0,
                 };
                 caret.format = 1_i8;
-                caret.coordiante = 0 as ::core::ffi::c_int as Pos;
-                caret.point_index = 0xffff as ::core::ffi::c_int as i16;
+                caret.coordiante = 0_i32 as Pos;
+                caret.point_index = 0xffff_i32 as i16;
                 let mut _caret: *const ParsedValue = json_arr_at(a, k as u32);
                 if !_caret.is_null() && json_type_of(_caret) == JsonType::Object {
                     if !json_obj_get_type(
@@ -401,13 +401,13 @@ unsafe fn write_lig_caret_rec(cr: *mut CaretValueRecord) -> *mut BkBlock {
             &[bk_ptr(
                 BkCellType::P16,
                 bk_new_block(&[
-                    bk_int(BkCellType::B16, (caret.format as ::core::ffi::c_int) as u32),
+                    bk_int(BkCellType::B16, (caret.format as i32) as u32),
                     bk_int(
                         BkCellType::B16,
-                        (if caret.format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
-                            caret.point_index as ::core::ffi::c_int
+                        (if caret.format as i32 == 2_i32 {
+                            caret.point_index as i32
                         } else {
-                            caret.coordiante as i16 as ::core::ffi::c_int
+                            caret.coordiante as i16 as i32
                         }) as u32,
                     ),
                 ]),

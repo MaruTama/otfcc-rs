@@ -86,7 +86,7 @@ pub struct VQ {
 // crate全体で一度も呼ばれておらず削除。
 #[inline]
 unsafe fn init_vq_segment(vqs: *mut VqSegment) {
-    *vqs = VqSegment::Still(0 as ::core::ffi::c_int as Pos);
+    *vqs = VqSegment::Still(0_i32 as Pos);
 }
 #[inline]
 unsafe fn copy_vq_segment(dst: *mut VqSegment, src: *const VqSegment) {
@@ -126,37 +126,37 @@ unsafe fn vq_segment_copy(dst: *mut VqSegment, src: *const VqSegment) {
 unsafe fn vq_segment_dispose(x: *mut VqSegment) {
     dispose_vq_segment(x);
 }
-unsafe fn vqs_compare(a: VqSegment, b: VqSegment) -> ::core::ffi::c_int {
+unsafe fn vqs_compare(a: VqSegment, b: VqSegment) -> i32 {
     match (a, b) {
-        (VqSegment::Still(_), VqSegment::Delta(_)) => -(1 as ::core::ffi::c_int),
-        (VqSegment::Delta(_), VqSegment::Still(_)) => 1 as ::core::ffi::c_int,
+        (VqSegment::Still(_), VqSegment::Delta(_)) => -1_i32,
+        (VqSegment::Delta(_), VqSegment::Still(_)) => 1_i32,
         (VqSegment::Still(av), VqSegment::Still(bv)) => {
             if av < bv {
-                return -(1 as ::core::ffi::c_int);
+                return -1_i32;
             }
             if av > bv {
-                return 1 as ::core::ffi::c_int;
+                return 1_i32;
             }
-            0 as ::core::ffi::c_int
+            0_i32
         }
         (VqSegment::Delta(ad), VqSegment::Delta(bd)) => {
-            let vqrc: ::core::ffi::c_int = vq_compare_region(ad.region, bd.region);
+            let vqrc: i32 = vq_compare_region(ad.region, bd.region);
             if vqrc != 0 {
                 return vqrc;
             }
             if ad.quantity < bd.quantity {
-                return -(1 as ::core::ffi::c_int);
+                return -1_i32;
             }
             if ad.quantity > bd.quantity {
-                return 1 as ::core::ffi::c_int;
+                return 1_i32;
             }
-            0 as ::core::ffi::c_int
+            0_i32
         }
     }
 }
 #[inline]
 pub(crate) unsafe fn vq_init(x: *mut VQ) {
-    (*x).kernel = 0 as ::core::ffi::c_int as Pos;
+    (*x).kernel = 0_i32 as Pos;
     (*x).shift = Vec::new();
 }
 #[inline]
@@ -166,7 +166,7 @@ pub(crate) unsafe fn vq_copy(dst: *mut VQ, src: *const VQ) {
 }
 #[inline]
 pub(crate) unsafe fn vq_dispose(x: *mut VQ) {
-    (*x).kernel = 0 as ::core::ffi::c_int as Pos;
+    (*x).kernel = 0_i32 as Pos;
     (*x).shift = Vec::new();
 }
 #[inline]
@@ -189,13 +189,13 @@ pub(crate) unsafe fn vq_replace(dst: *mut VQ, src: VQ) {
     *dst = src;
 }
 pub(crate) unsafe fn vq_neutral() -> VQ {
-    return vq_create_still(0 as ::core::ffi::c_int as Pos);
+    return vq_create_still(0_i32 as Pos);
 }
 unsafe fn vqs_compatible(a: VqSegment, b: VqSegment) -> bool {
     match (a, b) {
         (VqSegment::Still(_), VqSegment::Still(_)) => true,
         (VqSegment::Delta(ad), VqSegment::Delta(bd)) => {
-            0 as ::core::ffi::c_int == vq_compare_region(ad.region, bd.region)
+            0_i32 == vq_compare_region(ad.region, bd.region)
         }
         _ => false,
     }
@@ -205,7 +205,7 @@ unsafe fn simplify_vq(x: *mut VQ) {
         return;
     }
     let shift: &mut Vec<VqSegment> = &mut (*x).shift;
-    shift.sort_by(|a, b| vqs_compare(*a, *b).cmp(&(0 as ::core::ffi::c_int)));
+    shift.sort_by(|a, b| vqs_compare(*a, *b).cmp(&0_i32));
     let mut k: usize = 0_usize;
     let mut j: usize = 1_usize;
     while j < shift.len() {
@@ -266,7 +266,7 @@ unsafe fn vq_inplace_scale(a: *mut VQ, b: Pos) {
     }
 }
 unsafe fn vq_inplace_negate(a: *mut VQ) {
-    vq_inplace_scale(a, -(1 as ::core::ffi::c_int) as Pos);
+    vq_inplace_scale(a, -1_i32 as Pos);
 }
 unsafe fn vq_negate(a: VQ) -> VQ {
     let mut result: VQ = VQ {
@@ -306,22 +306,22 @@ pub(crate) unsafe fn vq_scale(a: VQ, b: Pos) -> VQ {
     vq_inplace_scale(&raw mut result, b);
     return result;
 }
-pub(crate) unsafe fn vq_compare(a: VQ, b: VQ) -> ::core::ffi::c_int {
+pub(crate) unsafe fn vq_compare(a: VQ, b: VQ) -> i32 {
     if a.shift.len() < b.shift.len() {
-        return -(1 as ::core::ffi::c_int);
+        return -1_i32;
     }
     if a.shift.len() > b.shift.len() {
-        return 1 as ::core::ffi::c_int;
+        return 1_i32;
     }
     let mut j: usize = 0_usize;
     while j < a.shift.len() {
-        let cr: ::core::ffi::c_int = vqs_compare(a.shift[j], b.shift[j]);
+        let cr: i32 = vqs_compare(a.shift[j], b.shift[j]);
         if cr != 0 {
             return cr;
         }
         j = j.wrapping_add(1);
     }
-    return (a.kernel - b.kernel) as ::core::ffi::c_int;
+    return (a.kernel - b.kernel) as i32;
 }
 pub(crate) unsafe fn vq_get_still(v: VQ) -> Pos {
     let mut result: Pos = v.kernel;
@@ -354,7 +354,7 @@ pub(crate) unsafe fn vq_is_still(v: VQ) -> bool {
     return true;
 }
 pub(crate) unsafe fn vq_is_zero(v: VQ, err: Pos) -> bool {
-    return vq_is_still(v.clone()) as ::core::ffi::c_int != 0
+    return vq_is_still(v.clone()) as i32 != 0
         && fabs(vq_get_still(v) as ::core::ffi::c_double) < err;
 }
 pub(crate) unsafe fn vq_add_delta(

@@ -46,18 +46,18 @@ use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
 
 #[inline]
-unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
+unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> i32 {
     return strtol(
         __nptr,
         NULL as *mut *mut ::core::ffi::c_char,
-        10 as ::core::ffi::c_int,
-    ) as ::core::ffi::c_int;
+        10_i32,
+    ) as i32;
 }
 #[inline]
-unsafe fn getchar() -> ::core::ffi::c_int {
+unsafe fn getchar() -> i32 {
     let mut byte = [0u8; 1];
     match std::io::stdin().read(&mut byte) {
-        Ok(1) => byte[0] as ::core::ffi::c_int,
+        Ok(1) => byte[0] as i32,
         _ => -1,
     }
 }
@@ -78,7 +78,7 @@ pub unsafe fn printHelp() {
             as *const u8 as *const ::core::ffi::c_char,
     );
 }
-unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
+unsafe fn main_0(args: Vec<String>) -> i32 {
     let mut show_help: bool = false;
     let mut show_version: bool = false;
     let mut show_pretty: bool = false;
@@ -214,22 +214,22 @@ unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
     }
     logger_set_verbosity(
         &mut *(*options).logger.borrow_mut(),
-        (if (*options).quiet as ::core::ffi::c_int != 0 {
-            0 as ::core::ffi::c_int
-        } else if (*options).verbose as ::core::ffi::c_int != 0 {
-            0xff as ::core::ffi::c_int
+        (if (*options).quiet as i32 != 0 {
+            0_i32
+        } else if (*options).verbose as i32 != 0 {
+            0xff_i32
         } else {
-            1 as ::core::ffi::c_int
+            1_i32
         }) as u8,
     );
     if show_help {
         printInfo();
         printHelp();
-        return 0 as ::core::ffi::c_int;
+        return 0_i32;
     }
     if show_version {
         printInfo();
-        return 0 as ::core::ffi::c_int;
+        return 0_i32;
     }
     if let Some(p) = positionals.into_iter().next() {
         inPath =
@@ -394,9 +394,9 @@ unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
             indent_size: 0,
         };
         jsonOptions.mode = JSON_SERIALIZE_MODE_PACKED;
-        jsonOptions.opts = 0 as ::core::ffi::c_int;
-        jsonOptions.indent_size = 4 as ::core::ffi::c_int;
-        if show_pretty as ::core::ffi::c_int != 0
+        jsonOptions.opts = 0_i32;
+        jsonOptions.indent_size = 4_i32;
+        if show_pretty as i32 != 0
             || outputPath.is_none() && isatty(fileno(stdout)) != 0
         {
             jsonOptions.mode = JSON_SERIALIZE_MODE_MULTILINE;
@@ -484,7 +484,7 @@ unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
         logger_finish(&mut *(*options).logger.borrow_mut());
     }
     otfcc_delete_options(options);
-    return 0 as ::core::ffi::c_int;
+    return 0_i32;
 }
 pub fn main() -> ::std::process::ExitCode {
     let args: Vec<String> = ::std::env::args().skip(1).collect();

@@ -67,25 +67,25 @@ pub type OtlConsolidationFunction =
 unsafe fn by_stem_pos(
     a: *const PostscriptStemDef,
     b: *const PostscriptStemDef,
-) -> ::core::ffi::c_int {
+) -> i32 {
     if (*a).position == (*b).position {
-        return (*a).map as ::core::ffi::c_int - (*b).map as ::core::ffi::c_int;
+        return (*a).map as i32 - (*b).map as i32;
     } else if (*a).position > (*b).position {
-        return 1 as ::core::ffi::c_int;
+        return 1_i32;
     } else {
-        return -(1 as ::core::ffi::c_int);
+        return -1_i32;
     };
 }
 unsafe fn by_mask_pointindex(
     a: *const PostscriptHintMask,
     b: *const PostscriptHintMask,
-) -> ::core::ffi::c_int {
-    return if (*a).contours_before as ::core::ffi::c_int
-        == (*b).contours_before as ::core::ffi::c_int
+) -> i32 {
+    return if (*a).contours_before as i32
+        == (*b).contours_before as i32
     {
-        (*a).points_before as ::core::ffi::c_int - (*b).points_before as ::core::ffi::c_int
+        (*a).points_before as i32 - (*b).points_before as i32
     } else {
-        (*a).contours_before as ::core::ffi::c_int - (*b).contours_before as ::core::ffi::c_int
+        (*a).contours_before as i32 - (*b).contours_before as i32
     };
 }
 unsafe fn consolidate_glyph_contours(g: *mut Glyph, options: &Options) {
@@ -104,7 +104,7 @@ unsafe fn consolidate_glyph_contours(g: *mut Glyph, options: &Options) {
                 LoggerType::Warning,
                 crate::bytesbuild!(
                     b"[Consolidate] Removed empty contour #",
-                    j as ::core::ffi::c_int,
+                    j as i32,
                     b" in glyph ",
                     &(*g).name,
                     b".\n",
@@ -328,7 +328,7 @@ pub unsafe fn get_point_coordinates(
     while (c as usize) < (*g).contours.len() {
         let mut pj: ShapeId = 0 as ShapeId;
         while (pj as usize) < (&(*g).contours)[c as usize].len() {
-            if *stated as ::core::ffi::c_int == n as ::core::ffi::c_int {
+            if *stated as i32 == n as i32 {
                 let p: *mut Point = &raw mut (&mut (*g).contours)[c as usize][pj as usize];
                 vq_replace(
                     x,
@@ -352,7 +352,7 @@ pub unsafe fn get_point_coordinates(
                 );
                 return true;
             }
-            *stated = (*stated as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
+            *stated = (*stated as i32 + 1_i32) as ShapeId;
             pj = pj.wrapping_add(1);
         }
         c = c.wrapping_add(1);
@@ -462,7 +462,7 @@ pub unsafe fn consolidate_anchor_ref(
             LoggerType::Warning,
             crate::bytesbuild!(
                 b"Failed to access point ",
-                (*rr).outer as ::core::ffi::c_int,
+                (*rr).outer as i32,
                 b" in outer glyph.",
             ),
         );
@@ -474,7 +474,7 @@ pub unsafe fn consolidate_anchor_ref(
             LoggerType::Warning,
             crate::bytesbuild!(
                 b"Failed to access point ",
-                (*rr).outer as ::core::ffi::c_int,
+                (*rr).outer as i32,
                 b" in reference to ",
                 &(*rr).glyph.name,
                 b".",
@@ -648,7 +648,7 @@ unsafe fn __declare_otl_consolidation(
                     LoggerType::Warning,
                     crate::bytesbuild!(
                         b"[Consolidate] Ignored empty subtable ",
-                        j as ::core::ffi::c_int,
+                        j as i32,
                         b" of lookup ",
                         &(*lookup).name,
                         b".\n",
@@ -679,7 +679,7 @@ unsafe fn __declare_otl_consolidation(
                         LoggerType::Warning,
                         crate::bytesbuild!(
                             b"[Consolidate] Ignored empty subtable ",
-                            j as ::core::ffi::c_int,
+                            j as i32,
                             b" of lookup ",
                             &(*lookup).name,
                             b".\n",
@@ -977,8 +977,8 @@ unsafe fn consolidate_otl_table(
         );
         let feat_n1: TableId = (*table).features.len() as TableId;
         let lut_n1: TableId = (*table).lookups.len() as TableId;
-        if feat_n1 as ::core::ffi::c_int >= feat_n as ::core::ffi::c_int
-            && lut_n1 as ::core::ffi::c_int >= lut_n as ::core::ffi::c_int
+        if feat_n1 as i32 >= feat_n as i32
+            && lut_n1 as i32 >= lut_n as i32
         {
             break;
         }
@@ -1090,9 +1090,9 @@ unsafe fn consolidate_colr(font: *mut Font, options: &Options) {
                         } else {
                             m.layers.push(colr_layer_dup(layer));
                         }
-                        keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                        keep_0 = (keep_0 == 0) as i32 as usize;
                     }
-                    keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                    keep_0 = (keep_0 == 0) as i32 as usize;
                     __caryll_index_0 = __caryll_index_0.wrapping_add(1);
                 }
                 if mapping.layers.len() != 0 {
@@ -1113,9 +1113,9 @@ unsafe fn consolidate_colr(font: *mut Font, options: &Options) {
                     // pushed into `consolidated` -- no manual dispose call needed.
                 }
             }
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
         }
-        keep = (keep == 0) as ::core::ffi::c_int as usize;
+        keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     (*font).colr = Some(consolidated);
@@ -1152,7 +1152,7 @@ unsafe fn consolidate_tsi(
         let entry: *mut TsiEntry = &mut entries[__caryll_index];
         while keep != 0 {
             if (*entry).type_0 as ::core::ffi::c_uint
-                == TsiEntryType::Glyph as ::core::ffi::c_int as ::core::ffi::c_uint
+                == TsiEntryType::Glyph as i32 as ::core::ffi::c_uint
             {
                 if otfcc_gord_consolidate_handle(glyph_order, &raw mut (*entry).glyph) {
                     gid_entries[(*entry).glyph.index as usize] =
@@ -1172,9 +1172,9 @@ unsafe fn consolidate_tsi(
                 let e: TsiEntry = tsi_entry_dup(&*entry);
                 consolidated.push(e);
             }
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
         }
-        keep = (keep == 0) as ::core::ffi::c_int as usize;
+        keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut j: GlyphId = 0 as GlyphId;
@@ -1236,7 +1236,7 @@ pub unsafe fn otfcc_consolidate_font(font: *mut Font, options: &Options) {
             if !glyf_name_empty {
                 name = (&(*glyf))[j as usize].as_deref().unwrap().name.clone();
             } else {
-                name = crate::bytesbuild!(b"$$gid", j as ::core::ffi::c_int);
+                name = crate::bytesbuild!(b"$$gid", j as i32);
                 let ref mut fresh0 = (&mut (*glyf))[j as usize].as_mut().unwrap().name;
                 *fresh0 = name.clone();
             }

@@ -49,7 +49,7 @@ unsafe fn decide_font_subtype_otf(sfnt: *mut SplineFontContainer, index: u32) ->
     // "return FontSubtype::Cff at the first 'cff ' tag, else FontSubtype::Ttf".
     let sfnt_packets = &(*sfnt).packets;
     let packet: &Packet = &sfnt_packets[index as usize];
-    for i in 0..packet.num_tables as ::core::ffi::c_int {
+    for i in 0..packet.num_tables as i32 {
         let table: &PacketPiece = &packet.pieces[i as usize];
         if table.tag == crate::tag::TAG_CFF {
             return FontSubtype::Cff;

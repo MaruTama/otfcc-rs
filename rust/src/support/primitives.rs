@@ -48,13 +48,13 @@ pub type Length = ::core::ffi::c_double;
 
 /// A cursor into the raw bytes of a font file.
 pub type FontFilePointer = *mut u8;
-pub const F16DOT16_PRECISION: ::core::ffi::c_int = 16 as ::core::ffi::c_int;
-pub const F16DOT16_K: ::core::ffi::c_int =
-    (1 as ::core::ffi::c_int) << F16DOT16_PRECISION - 1 as ::core::ffi::c_int;
-pub const F16DOT16_INFINITY: F16Dot16 = 0x7fffffff as ::core::ffi::c_int as F16Dot16;
+pub const F16DOT16_PRECISION: i32 = 16_i32;
+pub const F16DOT16_K: i32 =
+    1_i32 << F16DOT16_PRECISION - 1_i32;
+pub const F16DOT16_INFINITY: F16Dot16 = 0x7fffffff_i32 as F16Dot16;
 pub const F16DOT16_NEGATIVE_INFINITY: F16Dot16 = 0x80000000 as ::core::ffi::c_uint as F16Dot16;
 pub unsafe fn otfcc_from_f2dot14(x: F2Dot14) -> ::core::ffi::c_double {
-    return x as ::core::ffi::c_int as ::core::ffi::c_double / 16384.0f64;
+    return x as i32 as ::core::ffi::c_double / 16384.0f64;
 }
 pub unsafe fn otfcc_to_f2dot14(x: ::core::ffi::c_double) -> i16 {
     return round(x * 16384.0f64) as i16;

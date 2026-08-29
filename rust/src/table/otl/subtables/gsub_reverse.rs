@@ -172,7 +172,7 @@ pub unsafe fn otl_gsub_dump_reverse(mut _subtable: *const Subtable) -> *mut Buil
     let mut _st: *mut BuiltValue = json_object_new(3_usize);
     let mut _match: *mut BuiltValue = json_array_new((*subtable).match_count as usize);
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
+    while (j as i32) < (*subtable).match_count as i32 {
         json_array_push(
             _match,
             dump_coverage(&(&(*subtable).match_0)[j as usize] as *const Coverage),
@@ -219,10 +219,10 @@ pub unsafe fn otl_gsub_parse_reverse(
     (*subtable).input_index = json_obj_getnum_fallback(
         _subtable,
         b"inputIndex\0" as *const u8 as *const ::core::ffi::c_char,
-        0 as ::core::ffi::c_int as ::core::ffi::c_double,
+        0_i32 as ::core::ffi::c_double,
     ) as TableId;
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
+    while (j as i32) < (*subtable).match_count as i32 {
         (*subtable)
             .match_0
             .push(coverage_from_raw(parse_coverage(json_arr_at(
@@ -263,11 +263,11 @@ pub unsafe fn otfcc_build_gsub_reverse(
         root,
         &[bk_int(
             BkCellType::B16,
-            ((*subtable).input_index as ::core::ffi::c_int) as u32,
+            ((*subtable).input_index as i32) as u32,
         )],
     );
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*subtable).input_index as ::core::ffi::c_int {
+    while (j as i32) < (*subtable).input_index as i32 {
         bk_push(
             root,
             &[bk_ptr(
@@ -283,14 +283,14 @@ pub unsafe fn otfcc_build_gsub_reverse(
         root,
         &[bk_int(
             BkCellType::B16,
-            ((*subtable).match_count as ::core::ffi::c_int
-                - (*subtable).input_index as ::core::ffi::c_int
-                - 1 as ::core::ffi::c_int) as u32,
+            ((*subtable).match_count as i32
+                - (*subtable).input_index as i32
+                - 1_i32) as u32,
         )],
     );
     let mut j_0: TableId =
-        ((*subtable).input_index as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
-    while (j_0 as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
+        ((*subtable).input_index as i32 + 1_i32) as TableId;
+    while (j_0 as i32) < (*subtable).match_count as i32 {
         bk_push(
             root,
             &[bk_ptr(
@@ -306,7 +306,7 @@ pub unsafe fn otfcc_build_gsub_reverse(
         root,
         &[bk_int(
             BkCellType::B16,
-            ((*subtable).to.len() as ::core::ffi::c_int) as u32,
+            ((*subtable).to.len() as i32) as u32,
         )],
     );
     let mut j_1: TableId = 0 as TableId;
@@ -315,7 +315,7 @@ pub unsafe fn otfcc_build_gsub_reverse(
             root,
             &[bk_int(
                 BkCellType::B16,
-                ((&(*subtable).to)[j_1 as usize].index as ::core::ffi::c_int) as u32,
+                ((&(*subtable).to)[j_1 as usize].index as i32) as u32,
             )],
         );
         j_1 = j_1.wrapping_add(1);

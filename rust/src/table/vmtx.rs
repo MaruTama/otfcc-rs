@@ -51,9 +51,9 @@ pub unsafe fn otfcc_read_vmtx(
 ) -> Option<Box<VmtxTable>> {
     if vhea.is_null()
         || maxp.is_null()
-        || (*vhea).num_of_long_ver_metrics as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-        || ((*maxp).num_glyphs as ::core::ffi::c_int)
-            < (*vhea).num_of_long_ver_metrics as ::core::ffi::c_int
+        || (*vhea).num_of_long_ver_metrics as i32 == 0_i32
+        || ((*maxp).num_glyphs as i32)
+            < (*vhea).num_of_long_ver_metrics as i32
     {
         return None;
     }
@@ -88,13 +88,13 @@ pub unsafe fn otfcc_build_vmtx(
         None => return buf,
     };
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
+    while (j as i32) < count_a as i32 {
         bufwrite16b(buf, vmtx.metrics[j as usize].advance_height as u16);
         bufwrite16b(buf, pos_to_u16(vmtx.metrics[j as usize].tsb));
         j = j.wrapping_add(1);
     }
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
+    while (j_0 as i32) < count_k as i32 {
         bufwrite16b(buf, pos_to_u16(vmtx.top_side_bearing[j_0 as usize]));
         j_0 = j_0.wrapping_add(1);
     }

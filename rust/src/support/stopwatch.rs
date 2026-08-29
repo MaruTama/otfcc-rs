@@ -12,7 +12,7 @@ use libc::{CLOCK_REALTIME, clock_gettime, snprintf, time_t, timespec};
 pub unsafe fn time_now(tv: *mut timespec) {
     unsafe { clock_gettime(CLOCK_REALTIME, tv) };
 }
-pub const BILLION: ::core::ffi::c_int = 1000000000 as ::core::ffi::c_int;
+pub const BILLION: i32 = 1000000000_i32;
 unsafe fn timespec_diff(
     start: *mut timespec,
     stop: *mut timespec,

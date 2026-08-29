@@ -211,9 +211,9 @@ pub struct FdArrayCompileContext {
 }
 pub static DEFAULT_BLUE_SCALE: ::core::ffi::c_double = 0.039625f64;
 pub static DEFAULT_BLUE_SHIFT: ::core::ffi::c_double =
-    7 as ::core::ffi::c_int as ::core::ffi::c_double;
+    7_i32 as ::core::ffi::c_double;
 pub static DEFAULT_BLUE_FUZZ: ::core::ffi::c_double =
-    1 as ::core::ffi::c_int as ::core::ffi::c_double;
+    1_i32 as ::core::ffi::c_double;
 pub static DEFAULT_EXPANSION_FACTOR: ::core::ffi::c_double = 0.06f64;
 fn otfcc_new_cff_private() -> Box<CffPrivateDict> {
     Box::new(CffPrivateDict {
@@ -249,8 +249,8 @@ unsafe fn table_cff_create() -> *mut CffTable {
         weight: Vec::new(),
         is_fixed_pitch: false,
         italic_angle: 0 as ::core::ffi::c_double,
-        underline_position: -(100 as ::core::ffi::c_int) as ::core::ffi::c_double,
-        underline_thickness: 50 as ::core::ffi::c_int as ::core::ffi::c_double,
+        underline_position: -100_i32 as ::core::ffi::c_double,
+        underline_thickness: 50_i32 as ::core::ffi::c_double,
         font_b_box_top: 0 as ::core::ffi::c_double,
         font_b_box_bottom: 0 as ::core::ffi::c_double,
         font_b_box_left: 0 as ::core::ffi::c_double,
@@ -333,77 +333,77 @@ unsafe fn callback_extract_private(
         3081 => {
             if top != 0 {
                 (*pd).blue_scale = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         3082 => {
             if top != 0 {
                 (*pd).blue_shift = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         3083 => {
             if top != 0 {
                 (*pd).blue_fuzz = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         10 => {
             if top != 0 {
                 (*pd).std_hw = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         11 => {
             if top != 0 {
                 (*pd).std_vw = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         3086 => {
             if top != 0 {
                 (*pd).force_bold = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 ) != 0.;
             }
         }
         3089 => {
             if top != 0 {
                 (*pd).language_group = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 ) as u32;
             }
         }
         3090 => {
             if top != 0 {
                 (*pd).expansion_factor = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         3091 => {
             if top != 0 {
                 (*pd).initial_random_seed = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         20 => {
             if top != 0 {
                 (*pd).default_width_x = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         21 => {
             if top != 0 {
                 (*pd).nominal_width_x = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
@@ -431,7 +431,7 @@ unsafe fn callback_extract_fd(
                 (*meta).version = get_cff_sid(
                     cffnum(
                         *stack
-                            .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                            .offset((top as i32 - 1_i32) as isize),
                     ) as u16,
                     &(*file).string,
                 )
@@ -443,7 +443,7 @@ unsafe fn callback_extract_fd(
                 (*meta).notice = get_cff_sid(
                     cffnum(
                         *stack
-                            .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                            .offset((top as i32 - 1_i32) as isize),
                     ) as u16,
                     &(*file).string,
                 )
@@ -455,7 +455,7 @@ unsafe fn callback_extract_fd(
                 (*meta).copyright = get_cff_sid(
                     cffnum(
                         *stack
-                            .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                            .offset((top as i32 - 1_i32) as isize),
                     ) as u16,
                     &(*file).string,
                 )
@@ -467,7 +467,7 @@ unsafe fn callback_extract_fd(
                 (*meta).font_name = get_cff_sid(
                     cffnum(
                         *stack
-                            .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                            .offset((top as i32 - 1_i32) as isize),
                     ) as u16,
                     &(*file).string,
                 )
@@ -479,7 +479,7 @@ unsafe fn callback_extract_fd(
                 (*meta).full_name = get_cff_sid(
                     cffnum(
                         *stack
-                            .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                            .offset((top as i32 - 1_i32) as isize),
                     ) as u16,
                     &(*file).string,
                 )
@@ -491,7 +491,7 @@ unsafe fn callback_extract_fd(
                 (*meta).family_name = get_cff_sid(
                     cffnum(
                         *stack
-                            .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                            .offset((top as i32 - 1_i32) as isize),
                     ) as u16,
                     &(*file).string,
                 )
@@ -503,7 +503,7 @@ unsafe fn callback_extract_fd(
                 (*meta).weight = get_cff_sid(
                     cffnum(
                         *stack
-                            .offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                            .offset((top as i32 - 1_i32) as isize),
                     ) as u16,
                     &(*file).string,
                 )
@@ -511,23 +511,23 @@ unsafe fn callback_extract_fd(
             }
         }
         5 => {
-            if top as ::core::ffi::c_int >= 4 as ::core::ffi::c_int {
+            if top as i32 >= 4_i32 {
                 (*meta).font_b_box_left = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 4 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 4_i32) as isize),
                 );
                 (*meta).font_b_box_bottom = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 3 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 3_i32) as isize),
                 );
                 (*meta).font_b_box_right = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 2_i32) as isize),
                 );
                 (*meta).font_b_box_top = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         3079 => {
-            if top as ::core::ffi::c_int >= 6 as ::core::ffi::c_int {
+            if top as i32 >= 6_i32 {
                 (*meta).font_matrix = Some(Box::new(CffFontMatrix {
                     a: 0.,
                     b: 0.,
@@ -539,67 +539,67 @@ unsafe fn callback_extract_fd(
                 let fm: *mut CffFontMatrix =
                     (*meta).font_matrix.as_deref_mut().unwrap() as *mut CffFontMatrix;
                 (*fm).a = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 6 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 6_i32) as isize),
                 ) as Scale;
                 (*fm).b = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 5 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 5_i32) as isize),
                 ) as Scale;
                 (*fm).c = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 4 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 4_i32) as isize),
                 ) as Scale;
                 (*fm).d = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 3 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 3_i32) as isize),
                 ) as Scale;
                 (*fm).x = vq_create_still(cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 2_i32) as isize),
                 ) as Pos);
                 (*fm).y = vq_create_still(cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 ) as Pos);
             }
         }
         3073 => {
             if top != 0 {
                 (*meta).is_fixed_pitch = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 ) != 0.;
             }
         }
         3074 => {
             if top != 0 {
                 (*meta).italic_angle = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         3075 => {
             if top != 0 {
                 (*meta).underline_position = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         3076 => {
             if top != 0 {
                 (*meta).underline_thickness = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         3080 => {
             if top != 0 {
                 (*meta).stroke_width = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 );
             }
         }
         18 => {
-            if top as ::core::ffi::c_int >= 2 as ::core::ffi::c_int {
+            if top as i32 >= 2_i32 {
                 let private_length: u32 = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 2_i32) as isize),
                 ) as u32;
                 let private_offset: u32 = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 ) as u32;
                 (*meta).private_dict = Some(otfcc_new_cff_private());
                 // `private_offset`/`private_length` are DICT operator-18's
@@ -635,12 +635,12 @@ unsafe fn callback_extract_fd(
             }
         }
         3102 => {
-            if top as ::core::ffi::c_int >= 3 as ::core::ffi::c_int {
+            if top as i32 >= 3_i32 {
                 (*meta).is_cid = true;
                 (*meta).cid_registry = get_cff_sid(
                     cffnum(
                         *stack
-                            .offset((top as ::core::ffi::c_int - 3 as ::core::ffi::c_int) as isize),
+                            .offset((top as i32 - 3_i32) as isize),
                     ) as u16,
                     &(*file).string,
                 )
@@ -648,13 +648,13 @@ unsafe fn callback_extract_fd(
                 (*meta).cid_ordering = get_cff_sid(
                     cffnum(
                         *stack
-                            .offset((top as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as isize),
+                            .offset((top as i32 - 2_i32) as isize),
                     ) as u16,
                     &(*file).string,
                 )
                 .unwrap_or_default();
                 (*meta).cid_supplement = cffnum(
-                    *stack.offset((top as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as isize),
+                    *stack.offset((top as i32 - 1_i32) as isize),
                 ) as u32;
             }
         }
@@ -685,7 +685,7 @@ pub(crate) unsafe fn callback_draw_lineto(
     let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     if (*context).j_contour != 0 {
         let contour: *mut Contour = &raw mut (&mut (*(*context).g).contours)
-            [((*context).j_contour as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize];
+            [((*context).j_contour as i32 - 1_i32) as usize];
         let mut z: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -703,7 +703,7 @@ pub(crate) unsafe fn callback_draw_lineto(
         vq_copy_replace(&raw mut z.y, vq_create_still(y1 as Pos) as VQ);
         (*contour).push(z);
         (*context).j_point =
-            ((*context).j_point as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
+            ((*context).j_point as i32 + 1_i32) as ShapeId;
     }
 }
 pub(crate) unsafe fn callback_draw_curveto(
@@ -718,7 +718,7 @@ pub(crate) unsafe fn callback_draw_curveto(
     let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     if (*context).j_contour != 0 {
         let contour: *mut Contour = &raw mut (&mut (*(*context).g).contours)
-            [((*context).j_contour as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize];
+            [((*context).j_contour as i32 - 1_i32) as usize];
         let mut z: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -768,7 +768,7 @@ pub(crate) unsafe fn callback_draw_curveto(
         vq_copy_replace(&raw mut z_1.y, vq_create_still(y3 as Pos) as VQ);
         (*contour).push(z_1);
         (*context).j_point =
-            ((*context).j_point as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as ShapeId;
+            ((*context).j_point as i32 + 3_i32) as ShapeId;
     }
 }
 pub(crate) unsafe fn callback_draw_sethint(
@@ -778,7 +778,7 @@ pub(crate) unsafe fn callback_draw_sethint(
     width: ::core::ffi::c_double,
 ) {
     let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    let stems: &mut StemDefList = if is_vertical as ::core::ffi::c_int != 0 {
+    let stems: &mut StemDefList = if is_vertical as i32 != 0 {
         &mut (*(*context).g).stem_v
     } else {
         &mut (*(*context).g).stem_h
@@ -795,7 +795,7 @@ pub(crate) unsafe fn callback_draw_setmask(
     mask_array: *mut bool,
 ) {
     let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    let mask_list: &mut MaskList = if is_contour_mask as ::core::ffi::c_int != 0 {
+    let mask_list: &mut MaskList = if is_contour_mask as i32 != 0 {
         &mut (*(*context).g).contour_masks
     } else {
         &mut (*(*context).g).hint_masks
@@ -808,7 +808,7 @@ pub(crate) unsafe fn callback_draw_setmask(
     };
     if (*context).j_contour != 0 {
         mask.contours_before =
-            ((*context).j_contour as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u16;
+            ((*context).j_contour as i32 - 1_i32) as u16;
     } else {
         mask.contours_before = 0_u16;
     }
@@ -816,29 +816,29 @@ pub(crate) unsafe fn callback_draw_setmask(
     let stem_h_len = (*(*context).g).stem_h.len();
     let stem_v_len = (*(*context).g).stem_v.len();
     let mut j: ShapeId = 0 as ShapeId;
-    while (j as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int {
+    while (j as i32) < 0x100_i32 {
         mask.mask_h[j as usize] = if (j as usize) < stem_h_len {
-            *mask_array.offset(j as isize) as ::core::ffi::c_int
+            *mask_array.offset(j as isize) as i32
         } else {
-            0 as ::core::ffi::c_int
+            0_i32
         } != 0;
         mask.mask_v[j as usize] = if (j as usize) < stem_v_len {
-            *mask_array.offset((j as usize).wrapping_add(stem_h_len) as isize) as ::core::ffi::c_int
+            *mask_array.offset((j as usize).wrapping_add(stem_h_len) as isize) as i32
         } else {
-            0 as ::core::ffi::c_int
+            0_i32
         } != 0;
         j = j.wrapping_add(1);
     }
     free(mask_array as *mut ::core::ffi::c_void);
     if !mask_list.is_empty()
-        && mask_list[mask_list.len() - 1].contours_before as ::core::ffi::c_int
-            == mask.contours_before as ::core::ffi::c_int
-        && mask_list[mask_list.len() - 1].points_before as ::core::ffi::c_int
-            == mask.points_before as ::core::ffi::c_int
+        && mask_list[mask_list.len() - 1].contours_before as i32
+            == mask.contours_before as i32
+        && mask_list[mask_list.len() - 1].points_before as i32
+            == mask.points_before as i32
     {
         let last = mask_list.len() - 1;
         let mut j_0: ShapeId = 0 as ShapeId;
-        while (j_0 as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int {
+        while (j_0 as i32) < 0x100_i32 {
             mask_list[last].mask_h[j_0 as usize] = mask.mask_h[j_0 as usize];
             mask_list[last].mask_v[j_0 as usize] = mask.mask_v[j_0 as usize];
             j_0 = j_0.wrapping_add(1);
@@ -847,11 +847,11 @@ pub(crate) unsafe fn callback_draw_setmask(
         mask_list.push(mask);
         if is_contour_mask {
             (*context).defined_contour_masks = ((*context).defined_contour_masks
-                as ::core::ffi::c_int
-                + 1 as ::core::ffi::c_int) as u8;
+                as i32
+                + 1_i32) as u8;
         } else {
-            (*context).defined_hint_masks = ((*context).defined_hint_masks as ::core::ffi::c_int
-                + 1 as ::core::ffi::c_int) as u8;
+            (*context).defined_hint_masks = ((*context).defined_hint_masks as i32
+                + 1_i32) as u8;
         }
     };
 }
@@ -860,9 +860,9 @@ pub(crate) unsafe fn callback_draw_getrand(
 ) -> ::core::ffi::c_double {
     let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     let mut x: u64 = (*context).randx;
-    x ^= x >> 12 as ::core::ffi::c_int;
-    x ^= x << 25 as ::core::ffi::c_int;
-    x ^= x >> 27 as ::core::ffi::c_int;
+    x ^= x >> 12_i32;
+    x ^= x << 25_i32;
+    x ^= x >> 27_i32;
     (*context).randx = x;
     // Classic xorshift-then-bit-cast trick: pack `bits` into an f64's
     // exponent/mantissa layout to land a uniform double in [1, 2), then
@@ -870,7 +870,7 @@ pub(crate) unsafe fn callback_draw_getrand(
     // `d: f64`, written via `.u` then read via `.d`); `f64::from_bits` is
     // the same bit-for-bit reinterpretation without a union.
     let mut bits: u64 = x.wrapping_mul(2685821657736338717_u64);
-    bits = bits >> 12 as ::core::ffi::c_int | 0x3ff0000000000000_u64;
+    bits = bits >> 12_i32 | 0x3ff0000000000000_u64;
     let q: ::core::ffi::c_double = if bits & 2048_u64 != 0 {
         1.0f64 - 2.2204460492503131E-16f64 / 2.0f64
     } else {
@@ -974,9 +974,9 @@ unsafe fn build_outline(
     let char_strings_offset = &(*f).char_strings.offset;
     let char_string_ptr: *mut u8 = ((*f).char_strings.data.as_ptr() as *mut u8)
         .offset(char_strings_offset[i as usize] as isize)
-        .offset(-(1 as ::core::ffi::c_int as isize));
+        .offset(-(1_i32 as isize));
     let char_string_length: u32 = (char_strings_offset
-        [(i as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
+        [(i as i32 + 1_i32) as usize])
         .wrapping_sub(char_strings_offset[i as usize]);
     bc.j_contour = 0 as ShapeId;
     bc.j_point = 0 as ShapeId;
@@ -1019,9 +1019,9 @@ unsafe fn build_outline(
                     .y
                     .clone(),
             ) == 0
-            && ((&(*contour))[0_usize].on_curve as ::core::ffi::c_int != 0
+            && ((&(*contour))[0_usize].on_curve as i32 != 0
                 && (&(*contour))[(*contour).len().wrapping_sub(1_usize)].on_curve
-                    as ::core::ffi::c_int
+                    as i32
                     != 0)
         {
             (*contour).pop();
@@ -1040,7 +1040,7 @@ unsafe fn build_outline(
 // every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
 unsafe fn form_cid_string(cid: CffSid) -> Vec<u8> {
-    return crate::bytesbuild!(b"CID", cid as ::core::ffi::c_int);
+    return crate::bytesbuild!(b"CID", cid as i32);
 }
 unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
     let cff_file: *mut CffFile = (*context).cff_file;
@@ -1065,9 +1065,9 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                 for r in range1 {
                     let first: CffSid = r.first as CffSid;
                     let mut k: GlyphId = 0 as GlyphId;
-                    while k as ::core::ffi::c_int <= r.nleft as ::core::ffi::c_int {
+                    while k as i32 <= r.nleft as i32 {
                         let sid_0: CffSid =
-                            (first as ::core::ffi::c_int + k as ::core::ffi::c_int) as CffSid;
+                            (first as i32 + k as i32) as CffSid;
                         let glyphname_0: Vec<u8> = form_cid_string(sid_0);
                         if (glyphs_named_sofar as usize) < (*glyphs).len() {
                             let ref mut fresh3 = (&mut (*glyphs))[glyphs_named_sofar as usize]
@@ -1090,9 +1090,9 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                 for r in range2 {
                     let first_0: CffSid = r.first as CffSid;
                     let mut k_0: GlyphId = 0 as GlyphId;
-                    while k_0 as ::core::ffi::c_int <= r.nleft as ::core::ffi::c_int {
+                    while k_0 as i32 <= r.nleft as i32 {
                         let sid_1: CffSid =
-                            (first_0 as ::core::ffi::c_int + k_0 as ::core::ffi::c_int) as CffSid;
+                            (first_0 as i32 + k_0 as i32) as CffSid;
                         let glyphname_1: Vec<u8> = form_cid_string(sid_1);
                         if (glyphs_named_sofar_0 as usize) < (*glyphs).len() {
                             let ref mut fresh4 = (&mut (*glyphs))[glyphs_named_sofar_0 as usize]
@@ -1130,9 +1130,9 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                 for r in range1 {
                     let first_1: GlyphId = r.first as GlyphId;
                     let mut k_1: GlyphId = 0 as GlyphId;
-                    while k_1 as ::core::ffi::c_int <= r.nleft as ::core::ffi::c_int {
+                    while k_1 as i32 <= r.nleft as i32 {
                         let sid_3: CffSid =
-                            (first_1 as ::core::ffi::c_int + k_1 as ::core::ffi::c_int) as CffSid;
+                            (first_1 as i32 + k_1 as i32) as CffSid;
                         let glyphname_3: Option<Vec<u8>> =
                             get_cff_sid(sid_3 as u16, &(*cff_file).string);
                         if (glyphs_named_sofar_1 as usize) < (*glyphs).len() {
@@ -1155,9 +1155,9 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                 for r in range2 {
                     let first_2: GlyphId = r.first as GlyphId;
                     let mut k_2: GlyphId = 0 as GlyphId;
-                    while k_2 as ::core::ffi::c_int <= r.nleft as ::core::ffi::c_int {
+                    while k_2 as i32 <= r.nleft as i32 {
                         let sid_4: CffSid =
-                            (first_2 as ::core::ffi::c_int + k_2 as ::core::ffi::c_int) as CffSid;
+                            (first_2 as i32 + k_2 as i32) as CffSid;
                         let glyphname_4: Option<Vec<u8>> =
                             get_cff_sid(sid_4 as u16, &(*cff_file).string);
                         if (glyphs_named_sofar_2 as usize) < (*glyphs).len() {
@@ -1196,19 +1196,19 @@ unsafe fn apply_cff_matrix(
         }
         if let Some(fm) = (*fd).font_matrix.as_deref() {
             let a: Scale = qround(
-                (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
+                (*head).units_per_em as i32 as ::core::ffi::c_double
                     * fm.a as ::core::ffi::c_double,
             ) as Scale;
             let b: Scale = qround(
-                (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
+                (*head).units_per_em as i32 as ::core::ffi::c_double
                     * fm.b as ::core::ffi::c_double,
             ) as Scale;
             let c: Scale = qround(
-                (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
+                (*head).units_per_em as i32 as ::core::ffi::c_double
                     * fm.c as ::core::ffi::c_double,
             ) as Scale;
             let d: Scale = qround(
-                (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double
+                (*head).units_per_em as i32 as ::core::ffi::c_double
                     * fm.d as ::core::ffi::c_double,
             ) as Scale;
             let mut x: VQ = vq_scale(fm.x.clone(), (*head).units_per_em as Scale);
@@ -1256,7 +1256,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
         glyphs: ::core::ptr::null_mut::<GlyfTable>(),
     };
     let mut context: CffExtractContext = CffExtractContext {
-        fd_array_index: -(1 as ::core::ffi::c_int),
+        fd_array_index: -1_i32,
         meta: ::core::ptr::null_mut::<CffTable>(),
         glyphs: ::core::ptr::null_mut::<GlyfTable>(),
         cff_file: ::core::ptr::null_mut::<CffFile>(),
@@ -1332,8 +1332,8 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                             let font_dict_offset = &(*cff_file).font_dict.offset;
                             let start =
                                 font_dict_offset[j as usize].wrapping_sub(1) as usize;
-                            let len = (font_dict_offset[(j as ::core::ffi::c_int
-                                + 1 as ::core::ffi::c_int)
+                            let len = (font_dict_offset[(j as i32
+                                + 1_i32)
                                 as usize])
                                 .wrapping_sub(font_dict_offset[j as usize])
                                 as usize;
@@ -1360,7 +1360,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                         .is_empty()
                     {
                         (&mut (*context.meta).fd_array)[j as usize].font_name =
-                            crate::bytesbuild!(b"_Subfont", j as ::core::ffi::c_int);
+                            crate::bytesbuild!(b"_Subfont", j as i32);
                     }
                     j = j.wrapping_add(1);
                 }
@@ -1485,7 +1485,7 @@ unsafe fn pd_to_json(pd: *const CffPrivateDict) -> *mut BuiltValue {
         json_object_push(
             _pd,
             b"forceBold\0" as *const u8 as *const ::core::ffi::c_char,
-            json_boolean_new((*pd).force_bold as ::core::ffi::c_int),
+            json_boolean_new((*pd).force_bold as i32),
         );
     }
     if (*pd).language_group != 0 {
@@ -1531,7 +1531,7 @@ unsafe fn fd_to_json(table: *const CffTable) -> *mut BuiltValue {
         json_object_push(
             _cff,
             b"isCID\0" as *const u8 as *const ::core::ffi::c_char,
-            json_boolean_new((*table).is_cid as ::core::ffi::c_int),
+            json_boolean_new((*table).is_cid as i32),
         );
     }
     if !(*table).version.is_empty() {
@@ -1587,7 +1587,7 @@ unsafe fn fd_to_json(table: *const CffTable) -> *mut BuiltValue {
         json_object_push(
             _cff,
             b"isFixedPitch\0" as *const u8 as *const ::core::ffi::c_char,
-            json_boolean_new((*table).is_fixed_pitch as ::core::ffi::c_int),
+            json_boolean_new((*table).is_fixed_pitch as i32),
         );
     }
     if (*table).italic_angle != 0. {
@@ -1597,14 +1597,14 @@ unsafe fn fd_to_json(table: *const CffTable) -> *mut BuiltValue {
             json_double_new((*table).italic_angle),
         );
     }
-    if (*table).underline_position != -(100 as ::core::ffi::c_int) as ::core::ffi::c_double {
+    if (*table).underline_position != -100_i32 as ::core::ffi::c_double {
         json_object_push(
             _cff,
             b"underlinePosition\0" as *const u8 as *const ::core::ffi::c_char,
             json_double_new((*table).underline_position),
         );
     }
-    if (*table).underline_thickness != 50 as ::core::ffi::c_int as ::core::ffi::c_double {
+    if (*table).underline_thickness != 50_i32 as ::core::ffi::c_double {
         json_object_push(
             _cff,
             b"underlineThickness\0" as *const u8 as *const ::core::ffi::c_char,
@@ -1981,8 +1981,8 @@ unsafe fn fd_from_json(
     if (*table).private_dict.is_none() {
         (*table).private_dict = Some(otfcc_new_cff_private());
     }
-    if top_level as ::core::ffi::c_int != 0
-        && options.force_cid as ::core::ffi::c_int != 0
+    if top_level as i32 != 0
+        && options.force_cid as i32 != 0
         && (*table).fd_array.is_empty()
     {
         let mut fd0_box: Box<CffTable> = unwrap_cff_table((table_cff_create)()).unwrap();
@@ -1994,10 +1994,10 @@ unsafe fn fd_from_json(
         (*table).fd_array.push(fd0_box);
         (*table).is_cid = true;
     }
-    if (*table).is_cid as ::core::ffi::c_int != 0 && (*table).cid_registry.is_empty() {
+    if (*table).is_cid as i32 != 0 && (*table).cid_registry.is_empty() {
         (*table).cid_registry = b"CARYLL".to_vec();
     }
-    if (*table).is_cid as ::core::ffi::c_int != 0 && (*table).cid_ordering.is_empty() {
+    if (*table).is_cid as i32 != 0 && (*table).cid_ordering.is_empty() {
         (*table).cid_ordering = b"OTFCCAUTOCID".to_vec();
     }
     return table;
@@ -2083,17 +2083,17 @@ unsafe fn cff_make_charstrings(
 // treated as the same string for dedup purposes (the original's exact
 // behavior), but the winning entry's full byte content, NUL and all, is
 // still what ends up in the output.
-unsafe fn sidof(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>, s: &[u8]) -> ::core::ffi::c_int {
+unsafe fn sidof(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>, s: &[u8]) -> i32 {
     let key: Vec<u8> = match s.iter().position(|&b| b == 0) {
         Some(p) => s[..p].to_vec(),
         None => s.to_vec(),
     };
     if let Some(idx) = (*h).get_index_of(&key) {
-        return 391 as ::core::ffi::c_int + idx as ::core::ffi::c_int;
+        return 391_i32 + idx as i32;
     }
     let idx = (*h).len();
     (*h).insert(key, s.to_vec());
-    return 391 as ::core::ffi::c_int + idx as ::core::ffi::c_int;
+    return 391_i32 + idx as i32;
 }
 unsafe fn cffdict_givemeablank(dict: *mut CffDict) -> *mut CffDictEntry {
     (*dict).ents.push(CffDictEntry {
@@ -2167,33 +2167,33 @@ unsafe fn cff_make_fd_dict(
             dict,
             OP_ROS,
             &[
-                (sidof(h, &(*fd).cid_registry)) as i32,
-                (sidof(h, &(*fd).cid_ordering)) as i32,
+                (sidof(h, &(*fd).cid_registry)),
+                (sidof(h, &(*fd).cid_ordering)),
                 ((*fd).cid_supplement) as i32,
             ],
         );
     }
     if !(*fd).version.is_empty() {
-        cffdict_input_ints(dict, OP_VERSION, &[(sidof(h, &(*fd).version)) as i32]);
+        cffdict_input_ints(dict, OP_VERSION, &[(sidof(h, &(*fd).version))]);
     }
     if !(*fd).notice.is_empty() {
-        cffdict_input_ints(dict, OP_NOTICE, &[(sidof(h, &(*fd).notice)) as i32]);
+        cffdict_input_ints(dict, OP_NOTICE, &[(sidof(h, &(*fd).notice))]);
     }
     if !(*fd).copyright.is_empty() {
-        cffdict_input_ints(dict, OP_COPYRIGHT, &[(sidof(h, &(*fd).copyright)) as i32]);
+        cffdict_input_ints(dict, OP_COPYRIGHT, &[(sidof(h, &(*fd).copyright))]);
     }
     if !(*fd).full_name.is_empty() {
-        cffdict_input_ints(dict, OP_FULL_NAME, &[(sidof(h, &(*fd).full_name)) as i32]);
+        cffdict_input_ints(dict, OP_FULL_NAME, &[(sidof(h, &(*fd).full_name))]);
     }
     if !(*fd).family_name.is_empty() {
         cffdict_input_ints(
             dict,
             OP_FAMILY_NAME,
-            &[(sidof(h, &(*fd).family_name)) as i32],
+            &[(sidof(h, &(*fd).family_name))],
         );
     }
     if !(*fd).weight.is_empty() {
-        cffdict_input_ints(dict, OP_WEIGHT, &[(sidof(h, &(*fd).weight)) as i32]);
+        cffdict_input_ints(dict, OP_WEIGHT, &[(sidof(h, &(*fd).weight))]);
     }
     cffdict_input_doubles(
         dict,
@@ -2208,7 +2208,7 @@ unsafe fn cff_make_fd_dict(
     cffdict_input_ints(
         dict,
         OP_IS_FIXED_PITCH,
-        &[((*fd).is_fixed_pitch as ::core::ffi::c_int)],
+        &[((*fd).is_fixed_pitch as i32)],
     );
     cffdict_input_doubles(dict, OP_ITALIC_ANGLE, &[((*fd).italic_angle)]);
     cffdict_input_doubles(
@@ -2237,7 +2237,7 @@ unsafe fn cff_make_fd_dict(
         );
     }
     if !(*fd).font_name.is_empty() {
-        cffdict_input_ints(dict, OP_FONT_NAME, &[(sidof(h, &(*fd).font_name)) as i32]);
+        cffdict_input_ints(dict, OP_FONT_NAME, &[(sidof(h, &(*fd).font_name))]);
     }
     if (*fd).cid_font_version != 0. {
         cffdict_input_doubles(
@@ -2284,7 +2284,7 @@ unsafe fn cff_make_private_dict(pd: *mut CffPrivateDict) -> *mut CffDict {
     cffdict_input_ints(
         dict,
         OP_FORCE_BOLD,
-        &[((*pd).force_bold as ::core::ffi::c_int)],
+        &[((*pd).force_bold as i32)],
     );
     cffdict_input_ints(dict, OP_LANGUAGE_GROUP, &[((*pd).language_group) as i32]);
     cffdict_input_doubles(
@@ -2416,7 +2416,7 @@ unsafe fn cff_make_fdselect(cff: *mut CffTable, glyf: *mut GlyfTable) -> *mut Bu
             if fdi as usize > (*cff).fd_array.len() {
                 fdi = 0_u8;
             }
-            if fdi as ::core::ffi::c_int != current as ::core::ffi::c_int {
+            if fdi as i32 != current as i32 {
                 current = fdi;
                 range3.push(CffFdSelectRangeFormat3 {
                     first: j as u16,
@@ -2576,9 +2576,9 @@ unsafe fn writecff_cid_keyed(
             0_u8,
             0_u8,
             1_u8,
-            (delta_size >> 24 as ::core::ffi::c_int & 0xff_i32) as u8,
-            (delta_size >> 16 as ::core::ffi::c_int & 0xff_i32) as u8,
-            (delta_size >> 8 as ::core::ffi::c_int & 0xff_i32) as u8,
+            (delta_size >> 24_i32 & 0xff_i32) as u8,
+            (delta_size >> 16_i32 & 0xff_i32) as u8,
+            (delta_size >> 8_i32 & 0xff_i32) as u8,
             (delta_size & 0xff_i32) as u8,
         ]),
     );
@@ -2647,33 +2647,33 @@ unsafe fn writecff_cid_keyed(
             let private_length_ptr: *mut u8 = {
                 let fd_array_offset = &(*fd_array_index).offset;
                 let off = (fd_array_offset
-                    [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
+                    [(j as i32 + 1_i32) as usize])
                     .wrapping_sub(11_u32) as isize;
                 (*fd_array_index).data.as_mut_ptr().offset(off)
             };
-            *private_length_ptr.offset(0 as ::core::ffi::c_int as isize) =
-                ((*p_0).data.len() >> 24 as ::core::ffi::c_int & 0xff_usize) as u8;
-            *private_length_ptr.offset(1 as ::core::ffi::c_int as isize) =
-                ((*p_0).data.len() >> 16 as ::core::ffi::c_int & 0xff_usize) as u8;
-            *private_length_ptr.offset(2 as ::core::ffi::c_int as isize) =
-                ((*p_0).data.len() >> 8 as ::core::ffi::c_int & 0xff_usize) as u8;
-            *private_length_ptr.offset(3 as ::core::ffi::c_int as isize) =
-                ((*p_0).data.len() >> 0 as ::core::ffi::c_int & 0xff_usize) as u8;
+            *private_length_ptr.offset(0_i32 as isize) =
+                ((*p_0).data.len() >> 24_i32 & 0xff_usize) as u8;
+            *private_length_ptr.offset(1_i32 as isize) =
+                ((*p_0).data.len() >> 16_i32 & 0xff_usize) as u8;
+            *private_length_ptr.offset(2_i32 as isize) =
+                ((*p_0).data.len() >> 8_i32 & 0xff_usize) as u8;
+            *private_length_ptr.offset(3_i32 as isize) =
+                ((*p_0).data.len() & 0xff_usize) as u8;
             let private_offset_ptr: *mut u8 = {
                 let fd_array_offset = &(*fd_array_index).offset;
                 let off = (fd_array_offset
-                    [(j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize])
+                    [(j as i32 + 1_i32) as usize])
                     .wrapping_sub(6_u32) as isize;
                 (*fd_array_index).data.as_mut_ptr().offset(off)
             };
-            *private_offset_ptr.offset(0 as ::core::ffi::c_int as isize) =
-                (fd_array_privates_start_offset >> 24 as ::core::ffi::c_int & 0xff_u32) as u8;
-            *private_offset_ptr.offset(1 as ::core::ffi::c_int as isize) =
-                (fd_array_privates_start_offset >> 16 as ::core::ffi::c_int & 0xff_u32) as u8;
-            *private_offset_ptr.offset(2 as ::core::ffi::c_int as isize) =
-                (fd_array_privates_start_offset >> 8 as ::core::ffi::c_int & 0xff_u32) as u8;
-            *private_offset_ptr.offset(3 as ::core::ffi::c_int as isize) =
-                (fd_array_privates_start_offset >> 0 as ::core::ffi::c_int & 0xff_u32) as u8;
+            *private_offset_ptr.offset(0_i32 as isize) =
+                (fd_array_privates_start_offset >> 24_i32 & 0xff_u32) as u8;
+            *private_offset_ptr.offset(1_i32 as isize) =
+                (fd_array_privates_start_offset >> 16_i32 & 0xff_u32) as u8;
+            *private_offset_ptr.offset(2_i32 as isize) =
+                (fd_array_privates_start_offset >> 8_i32 & 0xff_u32) as u8;
+            *private_offset_ptr.offset(3_i32 as isize) =
+                (fd_array_privates_start_offset & 0xff_u32) as u8;
             fd_array_privates_start_offset = (fd_array_privates_start_offset as usize)
                 .wrapping_add((*p_0).data.len()) as u32
                 as u32;
@@ -2696,22 +2696,22 @@ unsafe fn writecff_cid_keyed(
     let position_of_local_subroutines: usize = (*blob).cursor;
     bufwrite_bufdel(blob, ls);
     let mut j_1: TableId = 0 as TableId;
-    while (j_1 as ::core::ffi::c_int)
-        < (*cff).fd_array.len() as ::core::ffi::c_int + 1 as ::core::ffi::c_int
+    while (j_1 as i32)
+        < (*cff).fd_array.len() as i32 + 1_i32
     {
         let ls_offset: usize =
             position_of_local_subroutines.wrapping_sub(starting_position_of_privates[j_1 as usize]);
         let ptr: *mut u8 = (*blob).data.as_mut_ptr().offset(
             (ending_position_of_privates[j_1 as usize]).wrapping_sub(5_usize) as isize,
         );
-        *ptr.offset(0 as ::core::ffi::c_int as isize) =
-            (ls_offset >> 24 as ::core::ffi::c_int & 0xff_usize) as u8;
-        *ptr.offset(1 as ::core::ffi::c_int as isize) =
-            (ls_offset >> 16 as ::core::ffi::c_int & 0xff_usize) as u8;
-        *ptr.offset(2 as ::core::ffi::c_int as isize) =
-            (ls_offset >> 8 as ::core::ffi::c_int & 0xff_usize) as u8;
-        *ptr.offset(3 as ::core::ffi::c_int as isize) =
-            (ls_offset >> 0 as ::core::ffi::c_int & 0xff_usize) as u8;
+        *ptr.offset(0_i32 as isize) =
+            (ls_offset >> 24_i32 & 0xff_usize) as u8;
+        *ptr.offset(1_i32 as isize) =
+            (ls_offset >> 16_i32 & 0xff_usize) as u8;
+        *ptr.offset(2_i32 as isize) =
+            (ls_offset >> 8_i32 & 0xff_usize) as u8;
+        *ptr.offset(3_i32 as isize) =
+            (ls_offset & 0xff_usize) as u8;
         j_1 = j_1.wrapping_add(1);
     }
     return blob;

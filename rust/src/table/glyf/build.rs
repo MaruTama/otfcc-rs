@@ -28,29 +28,29 @@ pub unsafe fn shrink_flags(flags: *mut Buffer) -> *mut Buffer {
     let shrunk: *mut Buffer = bufnew();
     let flags_data: &Vec<u8> = &(*flags).data;
     bufwrite8(shrunk, flags_data[0]);
-    let mut repeating: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
+    let mut repeating: i32 = 0_i32;
     let mut j: usize = 1_usize;
     while j < buflen(flags) {
-        if flags_data[j] as ::core::ffi::c_int
-            == flags_data[j.wrapping_sub(1_usize)] as ::core::ffi::c_int
+        if flags_data[j] as i32
+            == flags_data[j.wrapping_sub(1_usize)] as i32
         {
-            if repeating != 0 && repeating < 0xfe as ::core::ffi::c_int {
+            if repeating != 0 && repeating < 0xfe_i32 {
                 let shrunk_data: &mut Vec<u8> = &mut (*shrunk).data;
                 let fresh0 = &mut shrunk_data[(*shrunk).cursor.wrapping_sub(1_usize)];
-                *fresh0 = (*fresh0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
-                repeating += 1 as ::core::ffi::c_int;
-            } else if repeating == 0 as ::core::ffi::c_int {
+                *fresh0 = (*fresh0 as i32 + 1_i32) as u8;
+                repeating += 1_i32;
+            } else if repeating == 0_i32 {
                 let shrunk_data: &mut Vec<u8> = &mut (*shrunk).data;
                 let fresh1 = &mut shrunk_data[(*shrunk).cursor.wrapping_sub(1_usize)];
                 *fresh1 |= PointFlags::REPEAT.bits();
                 bufwrite8(shrunk, 1_u8);
-                repeating += 1 as ::core::ffi::c_int;
+                repeating += 1_i32;
             } else {
-                repeating = 0 as ::core::ffi::c_int;
+                repeating = 0_i32;
                 bufwrite8(shrunk, flags_data[j]);
             }
         } else {
-            repeating = 0 as ::core::ffi::c_int;
+            repeating = 0_i32;
             bufwrite8(shrunk, flags_data[j]);
         }
         j = j.wrapping_add(1);
@@ -75,7 +75,7 @@ unsafe fn glyf_build_simple(g: *const Glyph, gbuf: *mut Buffer) {
             (ptid as usize).wrapping_add((&(*g).contours)[j as usize].len()) as ShapeId as ShapeId;
         bufwrite16b(
             gbuf,
-            (ptid as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u16,
+            (ptid as i32 - 1_i32) as u16,
         );
         j = j.wrapping_add(1);
     }
@@ -102,32 +102,32 @@ unsafe fn glyf_build_simple(g: *const Glyph, gbuf: *mut Buffer) {
             let py: i32 = round(vq_get_still((*p).y.clone()) as ::core::ffi::c_double) as i32;
             let dx: i16 = (px - cx) as i16;
             let dy: i16 = (py - cy) as i16;
-            if dx as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
+            if dx as i32 == 0_i32 {
                 flag.insert(PointFlags::SAME_X);
-            } else if dx as ::core::ffi::c_int >= -(0xff as ::core::ffi::c_int)
-                && dx as ::core::ffi::c_int <= 0xff as ::core::ffi::c_int
+            } else if dx as i32 >= -0xff_i32
+                && dx as i32 <= 0xff_i32
             {
                 flag.insert(PointFlags::X_SHORT);
-                if dx as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+                if dx as i32 > 0_i32 {
                     flag.insert(PointFlags::POSITIVE_X);
                     bufwrite8(xs, dx as u8);
                 } else {
-                    bufwrite8(xs, -(dx as ::core::ffi::c_int) as u8);
+                    bufwrite8(xs, -(dx as i32) as u8);
                 }
             } else {
                 bufwrite16b(xs, dx as u16);
             }
-            if dy as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
+            if dy as i32 == 0_i32 {
                 flag.insert(PointFlags::SAME_Y);
-            } else if dy as ::core::ffi::c_int >= -(0xff as ::core::ffi::c_int)
-                && dy as ::core::ffi::c_int <= 0xff as ::core::ffi::c_int
+            } else if dy as i32 >= -0xff_i32
+                && dy as i32 <= 0xff_i32
             {
                 flag.insert(PointFlags::Y_SHORT);
-                if dy as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+                if dy as i32 > 0_i32 {
                     flag.insert(PointFlags::POSITIVE_Y);
                     bufwrite8(ys, dy as u8);
                 } else {
-                    bufwrite8(ys, -(dy as ::core::ffi::c_int) as u8);
+                    bufwrite8(ys, -(dy as i32) as u8);
                 }
             } else {
                 bufwrite16b(ys, dy as u16);
@@ -148,7 +148,7 @@ unsafe fn glyf_build_simple(g: *const Glyph, gbuf: *mut Buffer) {
     buffree(ys);
 }
 unsafe fn glyf_build_composite(g: *const Glyph, gbuf: *mut Buffer) {
-    bufwrite16b(gbuf, -(1 as ::core::ffi::c_int) as u16);
+    bufwrite16b(gbuf, -1_i32 as u16);
     bufwrite16b(gbuf, pos_to_u16((*g).stat.x_min));
     bufwrite16b(gbuf, pos_to_u16((*g).stat.y_min));
     bufwrite16b(gbuf, pos_to_u16((*g).stat.x_max));
@@ -175,8 +175,8 @@ unsafe fn glyf_build_composite(g: *const Glyph, gbuf: *mut Buffer) {
         let (arg1, arg2): (u16, u16) = if output_anchor {
             let a1 = (*r).outer as u16;
             let a2 = (*r).inner as u16;
-            if !((a1 as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int
-                && (a2 as ::core::ffi::c_int) < 0x100 as ::core::ffi::c_int)
+            if !((a1 as i32) < 0x100_i32
+                && (a2 as i32) < 0x100_i32)
             {
                 flags.insert(ComponentFlags::ARG_1_AND_2_ARE_WORDS);
             }
@@ -185,10 +185,10 @@ unsafe fn glyf_build_composite(g: *const Glyph, gbuf: *mut Buffer) {
             flags.insert(ComponentFlags::ARGS_ARE_XY_VALUES);
             let c1 = vq_get_still((*r).x.clone()) as i16;
             let c2 = vq_get_still((*r).y.clone()) as i16;
-            if !((c1 as ::core::ffi::c_int) < 128 as ::core::ffi::c_int
-                && c1 as ::core::ffi::c_int >= -(128 as ::core::ffi::c_int)
-                && (c2 as ::core::ffi::c_int) < 128 as ::core::ffi::c_int
-                && c2 as ::core::ffi::c_int >= -(128 as ::core::ffi::c_int))
+            if !((c1 as i32) < 128_i32
+                && c1 as i32 >= -128_i32
+                && (c2 as i32) < 128_i32
+                && c2 as i32 >= -128_i32)
             {
                 flags.insert(ComponentFlags::ARG_1_AND_2_ARE_WORDS);
             }
@@ -199,10 +199,10 @@ unsafe fn glyf_build_composite(g: *const Glyph, gbuf: *mut Buffer) {
         {
             flags.insert(ComponentFlags::WE_HAVE_A_TWO_BY_TWO);
         } else if fabs(
-            (*r).a as ::core::ffi::c_double - 1 as ::core::ffi::c_int as ::core::ffi::c_double,
+            (*r).a as ::core::ffi::c_double - 1_i32 as ::core::ffi::c_double,
         ) > EPSILON
             || fabs(
-                (*r).d as ::core::ffi::c_double - 1 as ::core::ffi::c_int as ::core::ffi::c_double,
+                (*r).d as ::core::ffi::c_double - 1_i32 as ::core::ffi::c_double,
             ) > EPSILON
         {
             if fabs((*r).a as ::core::ffi::c_double - (*r).d as ::core::ffi::c_double) > EPSILON {
@@ -292,7 +292,7 @@ pub unsafe fn otfcc_build_glyf(
             j = j.wrapping_add(1);
         }
         loca[(*table).len()] = (*bufglyf).cursor as u32;
-        if (*bufglyf).cursor >= 0x20000 as ::core::ffi::c_int as usize {
+        if (*bufglyf).cursor >= 0x20000_i32 as usize {
             (*head).index_to_loc_format = 1_i16;
         } else {
             (*head).index_to_loc_format = 0_i16;
@@ -304,7 +304,7 @@ pub unsafe fn otfcc_build_glyf(
             } else {
                 bufwrite16b(
                     bufloca,
-                    (loca[j_0 as usize] >> 1 as ::core::ffi::c_int) as u16,
+                    (loca[j_0 as usize] >> 1_i32) as u16,
                 );
             }
             j_0 = j_0.wrapping_add(1);

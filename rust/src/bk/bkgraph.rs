@@ -238,15 +238,15 @@ unsafe fn getoffset(
 ) -> u32 {
     let offref: usize = offsets[(*ref_0)._index as usize];
     let offtgt: usize = offsets[(*target)._index as usize];
-    if (bits as ::core::ffi::c_int) < 32 as ::core::ffi::c_int
-        && (offtgt < offref || offtgt.wrapping_sub(offref) >> bits as ::core::ffi::c_int != 0)
+    if (bits as i32) < 32_i32
+        && (offtgt < offref || offtgt.wrapping_sub(offref) >> bits as i32 != 0)
     {
         fprintf(
             stderr,
             b"[otfcc-bk] Warning : Unable to fit offset %d into %d bits; output may be corrupted.\n\0"
                 as *const u8 as *const ::core::ffi::c_char,
             offtgt.wrapping_sub(offref) as i32,
-            bits as ::core::ffi::c_int,
+            bits as i32,
         );
     }
     return offtgt.wrapping_sub(offref) as u32;

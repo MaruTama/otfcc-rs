@@ -105,15 +105,15 @@ pub unsafe fn logger_dedent(self_0: &mut Logger) {
         return;
     }
     self_0.indents.pop();
-    self_0.level = (self_0.level as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u16;
-    if (self_0.level as ::core::ffi::c_int) < self_0.last_logged_level as ::core::ffi::c_int {
+    self_0.level = (self_0.level as i32 - 1_i32) as u16;
+    if (self_0.level as i32) < self_0.last_logged_level as i32 {
         self_0.last_logged_level = self_0.level;
     }
 }
 pub unsafe fn logger_finish(self_0: &mut Logger) {
     logger_log_sds(
         self_0,
-        (LOG_VL_PROGRESS as ::core::ffi::c_int + self_0.level as ::core::ffi::c_int) as u8,
+        (LOG_VL_PROGRESS as i32 + self_0.level as i32) as u8,
         LoggerType::Progress,
         crate::bytesbuild!(b"Finish"),
     );
@@ -123,7 +123,7 @@ pub unsafe fn logger_start_sds(self_0: &mut Logger, segment: Vec<u8>) {
     logger_indent_sds(self_0, segment);
     logger_log_sds(
         self_0,
-        (LOG_VL_PROGRESS as ::core::ffi::c_int + self_0.level as ::core::ffi::c_int) as u8,
+        (LOG_VL_PROGRESS as i32 + self_0.level as i32) as u8,
         LoggerType::Progress,
         crate::bytesbuild!(b"Begin"),
     );
@@ -136,9 +136,9 @@ pub unsafe fn logger_log_sds(
 ) {
     let mut demand: Vec<u8> = Vec::new();
     let mut level: u16 = 0_u16;
-    while (level as ::core::ffi::c_int) < self_0.level as ::core::ffi::c_int {
-        if (level as ::core::ffi::c_int)
-            < self_0.last_logged_level as ::core::ffi::c_int - 1 as ::core::ffi::c_int
+    while (level as i32) < self_0.level as i32 {
+        if (level as i32)
+            < self_0.last_logged_level as i32 - 1_i32
         {
             let seg_len = (&self_0.indents)[level as usize].len();
             let mut j: usize = 0_usize;
@@ -146,8 +146,8 @@ pub unsafe fn logger_log_sds(
                 demand.extend_from_slice(b" ");
                 j = j.wrapping_add(1);
             }
-            if (level as ::core::ffi::c_int)
-                < self_0.last_logged_level as ::core::ffi::c_int - 2 as ::core::ffi::c_int
+            if (level as i32)
+                < self_0.last_logged_level as i32 - 2_i32
             {
                 demand.extend_from_slice(b" | ");
             } else {
@@ -168,7 +168,7 @@ pub unsafe fn logger_log_sds(
     }
     // `data` (an owned `Vec<u8>` parameter) drops here, at the same point
     // the old `sdsfree(data)` ran -- no explicit free needed.
-    if verbosity as ::core::ffi::c_int <= self_0.verbosity_limit as ::core::ffi::c_int {
+    if verbosity as i32 <= self_0.verbosity_limit as i32 {
         self_0.target.push(demand);
         self_0.last_logged_level = self_0.level;
     }

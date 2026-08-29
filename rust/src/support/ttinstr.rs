@@ -321,29 +321,29 @@ pub static FF_TTF_INSTRNAMES: [&::core::ffi::CStr; 256] = [
 unsafe fn strnmatch(
     mut str1: *const ::core::ffi::c_char,
     mut str2: *const ::core::ffi::c_char,
-    mut n: ::core::ffi::c_int,
-) -> ::core::ffi::c_int {
-    let mut ch1: ::core::ffi::c_int;
-    let mut ch2: ::core::ffi::c_int;
+    mut n: i32,
+) -> i32 {
+    let mut ch1: i32;
+    let mut ch2: i32;
     loop {
         let fresh19 = n;
         n = n - 1;
-        if !(fresh19 > 0 as ::core::ffi::c_int) {
+        if !(fresh19 > 0_i32) {
             break;
         }
         let fresh20 = str1;
         str1 = str1.offset(1);
-        ch1 = *fresh20 as ::core::ffi::c_int;
+        ch1 = *fresh20 as i32;
         let fresh21 = str2;
         str2 = str2.offset(1);
-        ch2 = *fresh21 as ::core::ffi::c_int;
+        ch2 = *fresh21 as i32;
         ch1 = c_tolower(ch1);
         ch2 = c_tolower(ch2);
         if ch1 != ch2 || ch1 == '\0' as i32 {
             return ch1 - ch2;
         }
     }
-    return 0 as ::core::ffi::c_int;
+    return 0_i32;
 }
 unsafe fn parse_instrs(
     text: *mut ::core::ffi::c_char,
@@ -354,42 +354,42 @@ unsafe fn parse_instrs(
     // crate's real FFI boundary (`ffi/dll.rs`) -- purely internal
     // Rust-to-Rust indirect calls.
     iv_error: Option<
-        unsafe fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_char, ::core::ffi::c_int) -> (),
+        unsafe fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_char, i32) -> (),
     >,
 ) -> Option<Vec<u8>> {
     let mut numberstack: [::core::ffi::c_short; 256] = [0; 256];
-    let mut npos: ::core::ffi::c_int;
-    let mut nread: ::core::ffi::c_int;
-    let mut i: ::core::ffi::c_int;
-    let mut push_left: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut push_size: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
+    let mut npos: i32;
+    let mut nread: i32;
+    let mut i: i32;
+    let mut push_left: i32 = 0_i32;
+    let mut push_size: i32 = 0_i32;
     let mut pt: *mut ::core::ffi::c_char;
     let mut end: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut bend: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
     let mut brack: *mut ::core::ffi::c_char;
-    let imax: ::core::ffi::c_int = strlen(text) as ::core::ffi::c_int;
-    let mut val: ::core::ffi::c_int;
+    let imax: i32 = strlen(text) as i32;
+    let mut val: i32;
     let mut instrs: Vec<u8> = Vec::with_capacity(imax as usize);
     pt = text;
     while *pt != 0 {
-        npos = 0 as ::core::ffi::c_int;
-        while npos < 256 as ::core::ffi::c_int {
-            while *pt as ::core::ffi::c_int == ' ' as i32
-                || *pt as ::core::ffi::c_int == '\t' as i32
+        npos = 0_i32;
+        while npos < 256_i32 {
+            while *pt as i32 == ' ' as i32
+                || *pt as i32 == '\t' as i32
             {
                 pt = pt.offset(1);
             }
-            if !(c_isdigit(*pt as ::core::ffi::c_int) || *pt as ::core::ffi::c_int == '-' as i32) {
+            if !(c_isdigit(*pt as i32) || *pt as i32 == '-' as i32) {
                 break;
             }
-            val = strtol(pt, &raw mut end, 0 as ::core::ffi::c_int) as ::core::ffi::c_int;
-            if val > 32767 as ::core::ffi::c_int || val < -(32768 as ::core::ffi::c_int) {
+            val = strtol(pt, &raw mut end, 0_i32) as i32;
+            if !(-32768_i32..=32767_i32).contains(&val) {
                 iv_error.expect("non-null function pointer")(
                     context,
                     b"A value must be between [-32768,32767]\0" as *const u8
                         as *const ::core::ffi::c_char
                         as *mut ::core::ffi::c_char,
-                    pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
+                    pt.offset_from(text) as ::core::ffi::c_long as i32,
                 );
                 return None;
             }
@@ -398,81 +398,81 @@ unsafe fn parse_instrs(
             npos = npos + 1;
             numberstack[fresh0 as usize] = val as ::core::ffi::c_short;
         }
-        while *pt as ::core::ffi::c_int == ' ' as i32 || *pt as ::core::ffi::c_int == '\t' as i32 {
+        while *pt as i32 == ' ' as i32 || *pt as i32 == '\t' as i32 {
             pt = pt.offset(1);
         }
-        if !(npos == 0 as ::core::ffi::c_int
-            && (*pt as ::core::ffi::c_int == '\r' as i32
-                || *pt as ::core::ffi::c_int == '\n' as i32
-                || *pt as ::core::ffi::c_int == '\0' as i32))
+        if !(npos == 0_i32
+            && (*pt as i32 == '\r' as i32
+                || *pt as i32 == '\n' as i32
+                || *pt as i32 == '\0' as i32))
         {
-            nread = 0 as ::core::ffi::c_int;
-            if push_left == -(1 as ::core::ffi::c_int) {
-                if npos == 0 as ::core::ffi::c_int {
+            nread = 0_i32;
+            if push_left == -1_i32 {
+                if npos == 0_i32 {
                     iv_error.expect("non-null function pointer")(
                         context,
                         b"Expected a number for a push count\0" as *const u8
                             as *const ::core::ffi::c_char
                             as *mut ::core::ffi::c_char,
-                        pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
+                        pt.offset_from(text) as ::core::ffi::c_long as i32,
                     );
-                } else if numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
-                    > 255 as ::core::ffi::c_int
-                    || numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
-                        <= 0 as ::core::ffi::c_int
+                } else if numberstack[0_i32 as usize] as i32
+                    > 255_i32
+                    || numberstack[0_i32 as usize] as i32
+                        <= 0_i32
                 {
                     iv_error.expect("non-null function pointer")(
                         context,
                         b"The push count must be a number between 0 and 255\0" as *const u8
                             as *const ::core::ffi::c_char
                             as *mut ::core::ffi::c_char,
-                        pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
+                        pt.offset_from(text) as ::core::ffi::c_long as i32,
                     );
                     return None;
                 } else {
-                    nread = 1 as ::core::ffi::c_int;
-                    instrs.push(numberstack[0 as ::core::ffi::c_int as usize] as u8);
-                    push_left = numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int;
+                    nread = 1_i32;
+                    instrs.push(numberstack[0_i32 as usize] as u8);
+                    push_left = numberstack[0_i32 as usize] as i32;
                 }
             }
-            if push_left != 0 as ::core::ffi::c_int
+            if push_left != 0_i32
                 && push_left < npos - nread
-                && (*pt as ::core::ffi::c_int == '\r' as i32
-                    || *pt as ::core::ffi::c_int == '\n' as i32
-                    || *pt as ::core::ffi::c_int == '\0' as i32)
+                && (*pt as i32 == '\r' as i32
+                    || *pt as i32 == '\n' as i32
+                    || *pt as i32 == '\0' as i32)
             {
                 iv_error.expect("non-null function pointer")(
                     context,
                     b"More pushes specified than needed\0" as *const u8
                         as *const ::core::ffi::c_char
                         as *mut ::core::ffi::c_char,
-                    pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
+                    pt.offset_from(text) as ::core::ffi::c_long as i32,
                 );
                 return None;
             }
-            while push_left > 0 as ::core::ffi::c_int && nread < npos {
-                if push_size == 2 as ::core::ffi::c_int {
+            while push_left > 0_i32 && nread < npos {
+                if push_size == 2_i32 {
                     instrs.push(
-                        (numberstack[nread as usize] as ::core::ffi::c_int
-                            >> 8 as ::core::ffi::c_int) as u8,
+                        (numberstack[nread as usize] as i32
+                            >> 8_i32) as u8,
                     );
                     let fresh3 = nread;
                     nread = nread + 1;
                     instrs.push(
-                        (numberstack[fresh3 as usize] as ::core::ffi::c_int
-                            & 0xff as ::core::ffi::c_int) as u8,
+                        (numberstack[fresh3 as usize] as i32
+                            & 0xff_i32) as u8,
                     );
-                } else if numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
-                    > 255 as ::core::ffi::c_int
-                    || (numberstack[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
-                        < 0 as ::core::ffi::c_int
+                } else if numberstack[0_i32 as usize] as i32
+                    > 255_i32
+                    || (numberstack[0_i32 as usize] as i32)
+                        < 0_i32
                 {
                     iv_error.expect("non-null function pointer")(
                         context,
                         b"A value to be pushed by a byte push must be between 0 and 255\0"
                             as *const u8 as *const ::core::ffi::c_char
                             as *mut ::core::ffi::c_char,
-                        pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
+                        pt.offset_from(text) as ::core::ffi::c_long as i32,
                     );
                     return None;
                 } else {
@@ -483,50 +483,50 @@ unsafe fn parse_instrs(
                 push_left -= 1;
             }
             if nread < npos
-                && push_left == 0 as ::core::ffi::c_int
-                && (*pt as ::core::ffi::c_int == '\r' as i32
-                    || *pt as ::core::ffi::c_int == '\n' as i32
-                    || *pt as ::core::ffi::c_int == '\0' as i32)
+                && push_left == 0_i32
+                && (*pt as i32 == '\r' as i32
+                    || *pt as i32 == '\n' as i32
+                    || *pt as i32 == '\0' as i32)
             {
                 iv_error.expect("non-null function pointer")(
                     context,
                     b"Unexpected number\0" as *const u8 as *const ::core::ffi::c_char
                         as *mut ::core::ffi::c_char,
-                    pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
+                    pt.offset_from(text) as ::core::ffi::c_long as i32,
                 );
                 return None;
             }
-            if !(*pt as ::core::ffi::c_int == '\r' as i32
-                || *pt as ::core::ffi::c_int == '\n' as i32
-                || *pt as ::core::ffi::c_int == '\0' as i32)
+            if !(*pt as i32 == '\r' as i32
+                || *pt as i32 == '\n' as i32
+                || *pt as i32 == '\0' as i32)
             {
-                if push_left > 0 as ::core::ffi::c_int {
+                if push_left > 0_i32 {
                     iv_error.expect("non-null function pointer")(
                         context,
                         b"Missing pushes\0" as *const u8 as *const ::core::ffi::c_char
                             as *mut ::core::ffi::c_char,
-                        pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
+                        pt.offset_from(text) as ::core::ffi::c_long as i32,
                     );
                     return None;
                 }
                 while nread < npos {
                     i = nread;
-                    if numberstack[nread as usize] as ::core::ffi::c_int >= 0 as ::core::ffi::c_int
-                        && numberstack[nread as usize] as ::core::ffi::c_int
-                            <= 255 as ::core::ffi::c_int
+                    if numberstack[nread as usize] as i32 >= 0_i32
+                        && numberstack[nread as usize] as i32
+                            <= 255_i32
                     {
                         while i < npos
-                            && numberstack[i as usize] as ::core::ffi::c_int
-                                >= 0 as ::core::ffi::c_int
-                            && numberstack[i as usize] as ::core::ffi::c_int
-                                <= 255 as ::core::ffi::c_int
+                            && numberstack[i as usize] as i32
+                                >= 0_i32
+                            && numberstack[i as usize] as i32
+                                <= 255_i32
                         {
                             i += 1;
                         }
-                        if i - nread <= 8 as ::core::ffi::c_int {
+                        if i - nread <= 8_i32 {
                             instrs.push(
-                                (TTF_PUSHB as ::core::ffi::c_int + (i - nread)
-                                    - 1 as ::core::ffi::c_int)
+                                (TTF_PUSHB as i32 + (i - nread)
+                                    - 1_i32)
                                     as u8,
                             );
                         } else {
@@ -540,17 +540,17 @@ unsafe fn parse_instrs(
                         }
                     } else {
                         while i < npos
-                            && ((numberstack[i as usize] as ::core::ffi::c_int)
-                                < 0 as ::core::ffi::c_int
-                                || numberstack[i as usize] as ::core::ffi::c_int
-                                    > 255 as ::core::ffi::c_int)
+                            && ((numberstack[i as usize] as i32)
+                                < 0_i32
+                                || numberstack[i as usize] as i32
+                                    > 255_i32)
                         {
                             i += 1;
                         }
-                        if i - nread <= 8 as ::core::ffi::c_int {
+                        if i - nread <= 8_i32 {
                             instrs.push(
-                                (TTF_PUSHW as ::core::ffi::c_int + (i - nread)
-                                    - 1 as ::core::ffi::c_int)
+                                (TTF_PUSHW as i32 + (i - nread)
+                                    - 1_i32)
                                     as u8,
                             );
                         } else {
@@ -559,15 +559,15 @@ unsafe fn parse_instrs(
                         }
                         while nread < i {
                             instrs.push(
-                                (numberstack[nread as usize] as ::core::ffi::c_int
-                                    >> 8 as ::core::ffi::c_int)
+                                (numberstack[nread as usize] as i32
+                                    >> 8_i32)
                                     as u8,
                             );
                             let fresh16 = nread;
                             nread = nread + 1;
                             instrs.push(
-                                (numberstack[fresh16 as usize] as ::core::ffi::c_int
-                                    & 0xff as ::core::ffi::c_int)
+                                (numberstack[fresh16 as usize] as i32
+                                    & 0xff_i32)
                                     as u8,
                             );
                         }
@@ -575,25 +575,25 @@ unsafe fn parse_instrs(
                 }
                 brack = ::core::ptr::null_mut::<::core::ffi::c_char>();
                 end = pt;
-                while *end as ::core::ffi::c_int != '\r' as i32
-                    && *end as ::core::ffi::c_int != '\n' as i32
-                    && *end as ::core::ffi::c_int != ' ' as i32
-                    && *end as ::core::ffi::c_int != '\0' as i32
+                while *end as i32 != '\r' as i32
+                    && *end as i32 != '\n' as i32
+                    && *end as i32 != ' ' as i32
+                    && *end as i32 != '\0' as i32
                 {
-                    if *end as ::core::ffi::c_int == '[' as i32
-                        || *end as ::core::ffi::c_int == '_' as i32
+                    if *end as i32 == '[' as i32
+                        || *end as i32 == '_' as i32
                     {
                         brack = end;
                     }
                     end = end.offset(1);
                 }
-                i = 0 as ::core::ffi::c_int;
-                while i < 256 as ::core::ffi::c_int {
+                i = 0_i32;
+                while i < 256_i32 {
                     if strnmatch(
                         pt,
                         FF_TTF_INSTRNAMES[i as usize].as_ptr(),
-                        end.offset_from(pt) as ::core::ffi::c_long as ::core::ffi::c_int,
-                    ) == 0 as ::core::ffi::c_int
+                        end.offset_from(pt) as ::core::ffi::c_long as i32,
+                    ) == 0_i32
                         && ::core::mem::size_of::<::core::ffi::c_char>()
                             .wrapping_mul(end.offset_from(pt) as ::core::ffi::c_long as usize)
                             == FF_TTF_INSTRNAMES[i as usize].count_bytes()
@@ -602,49 +602,49 @@ unsafe fn parse_instrs(
                     }
                     i += 1;
                 }
-                if i == 256 as ::core::ffi::c_int && !brack.is_null() {
-                    i = 0 as ::core::ffi::c_int;
-                    while i < 256 as ::core::ffi::c_int {
+                if i == 256_i32 && !brack.is_null() {
+                    i = 0_i32;
+                    while i < 256_i32 {
                         if strnmatch(
                             pt,
                             FF_TTF_INSTRNAMES[i as usize].as_ptr(),
                             (brack.offset_from(pt) as ::core::ffi::c_long
                                 + 1 as ::core::ffi::c_long)
-                                as ::core::ffi::c_int,
-                        ) == 0 as ::core::ffi::c_int
+                                as i32,
+                        ) == 0_i32
                         {
                             break;
                         }
                         i += 1;
                     }
                     val = strtol(
-                        brack.offset(1 as ::core::ffi::c_int as isize),
+                        brack.offset(1_i32 as isize),
                         &raw mut bend,
-                        2 as ::core::ffi::c_int,
-                    ) as ::core::ffi::c_int;
-                    while *bend as ::core::ffi::c_int == ' ' as i32
-                        || *bend as ::core::ffi::c_int == '\t' as i32
+                        2_i32,
+                    ) as i32;
+                    while *bend as i32 == ' ' as i32
+                        || *bend as i32 == '\t' as i32
                     {
                         bend = bend.offset(1);
                     }
-                    if *bend as ::core::ffi::c_int != ']' as i32 {
+                    if *bend as i32 != ']' as i32 {
                         iv_error.expect("non-null function pointer")(
                             context,
                             b"Missing right bracket in command (or bad binary value in bracket)\0"
                                 as *const u8
                                 as *const ::core::ffi::c_char
                                 as *mut ::core::ffi::c_char,
-                            pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
+                            pt.offset_from(text) as ::core::ffi::c_long as i32,
                         );
                         return None;
                     }
-                    if val >= 32 as ::core::ffi::c_int {
+                    if val >= 32_i32 {
                         iv_error.expect("non-null function pointer")(
                             context,
                             b"Bracketted value is too large\0" as *const u8
                                 as *const ::core::ffi::c_char
                                 as *mut ::core::ffi::c_char,
-                            pt.offset_from(text) as ::core::ffi::c_long as ::core::ffi::c_int,
+                            pt.offset_from(text) as ::core::ffi::c_long as i32,
                         );
                         return None;
                     }
@@ -652,32 +652,32 @@ unsafe fn parse_instrs(
                 }
                 pt = end;
                 instrs.push(i as u8);
-                if i == TTF_NPUSHB as ::core::ffi::c_int
-                    || i == TTF_NPUSHW as ::core::ffi::c_int
-                    || i >= TTF_PUSHB as ::core::ffi::c_int
-                        && i <= TTF_PUSHW as ::core::ffi::c_int + 7 as ::core::ffi::c_int
+                if i == TTF_NPUSHB as i32
+                    || i == TTF_NPUSHW as i32
+                    || i >= TTF_PUSHB as i32
+                        && i <= TTF_PUSHW as i32 + 7_i32
                 {
-                    push_size = if i == TTF_NPUSHB as ::core::ffi::c_int
-                        || i >= TTF_PUSHB as ::core::ffi::c_int
-                            && i <= TTF_PUSHB as ::core::ffi::c_int + 7 as ::core::ffi::c_int
+                    push_size = if i == TTF_NPUSHB as i32
+                        || i >= TTF_PUSHB as i32
+                            && i <= TTF_PUSHB as i32 + 7_i32
                     {
-                        1 as ::core::ffi::c_int
+                        1_i32
                     } else {
-                        2 as ::core::ffi::c_int
+                        2_i32
                     };
-                    if i == TTF_NPUSHB as ::core::ffi::c_int
-                        || i == TTF_NPUSHW as ::core::ffi::c_int
+                    if i == TTF_NPUSHB as i32
+                        || i == TTF_NPUSHW as i32
                     {
-                        push_left = -(1 as ::core::ffi::c_int);
-                    } else if i >= TTF_PUSHB as ::core::ffi::c_int
-                        && i <= TTF_PUSHB as ::core::ffi::c_int + 7 as ::core::ffi::c_int
+                        push_left = -1_i32;
+                    } else if i >= TTF_PUSHB as i32
+                        && i <= TTF_PUSHB as i32 + 7_i32
                     {
-                        push_left = i - TTF_PUSHB as ::core::ffi::c_int + 1 as ::core::ffi::c_int;
+                        push_left = i - TTF_PUSHB as i32 + 1_i32;
                     } else {
-                        push_left = i - TTF_PUSHW as ::core::ffi::c_int + 1 as ::core::ffi::c_int;
+                        push_left = i - TTF_PUSHW as i32 + 1_i32;
                     }
                 }
-                if *pt as ::core::ffi::c_int == '\0' as i32 {
+                if *pt as i32 == '\0' as i32 {
                     break;
                 }
             }
@@ -686,18 +686,18 @@ unsafe fn parse_instrs(
     }
     Some(instrs)
 }
-unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
-    let mut i: ::core::ffi::c_int;
-    let len: ::core::ffi::c_int = (*id).instr_cnt as ::core::ffi::c_int;
-    let mut cnt: ::core::ffi::c_int;
-    let mut j: ::core::ffi::c_int;
-    let mut lh: ::core::ffi::c_int;
+unsafe fn instr_typify(id: *mut InstrData) -> i32 {
+    let mut i: i32;
+    let len: i32 = (*id).instr_cnt as i32;
+    let mut cnt: i32;
+    let mut j: i32;
+    let mut lh: i32;
     let instrs: *mut u8 = (*id).instrs;
     if (*id).bts.is_empty() {
-        (*id).bts = vec![ByteType::Instr; (len + 1 as ::core::ffi::c_int) as usize];
+        (*id).bts = vec![ByteType::Instr; (len + 1_i32) as usize];
     }
     let bts: *mut ByteType = (*id).bts.as_mut_ptr();
-    lh = 0 as ::core::ffi::c_int;
+    lh = 0_i32;
     i = lh;
     // `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]` each carry their own
     // attacker-controlled operand count, skipped by advancing `i` several
@@ -725,8 +725,8 @@ unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
                 break 'outer;
             }
             *bts.offset(i as isize) = ByteType::Cnt;
-            cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
-            j = 0 as ::core::ffi::c_int;
+            cnt = *instrs.offset(i as isize) as i32;
+            j = 0_i32;
             while j < cnt {
                 i += 1;
                 if i >= len {
@@ -735,7 +735,7 @@ unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
                 *bts.offset(i as isize) = ByteType::Byte;
                 j += 1;
             }
-            lh += 1 as ::core::ffi::c_int + cnt;
+            lh += 1_i32 + cnt;
         } else if *instrs.offset(i as isize) == TTF_NPUSHW {
             i += 1;
             if i >= len {
@@ -743,8 +743,8 @@ unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
             }
             *bts.offset(i as isize) = ByteType::Cnt;
             lh += 1;
-            cnt = *instrs.offset(i as isize) as ::core::ffi::c_int;
-            j = 0 as ::core::ffi::c_int;
+            cnt = *instrs.offset(i as isize) as i32;
+            j = 0_i32;
             while j < cnt {
                 i += 1;
                 if i >= len {
@@ -778,13 +778,13 @@ unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
                 *bts.offset(i as isize) = ByteType::WordLo;
                 j += 1;
             }
-            lh += 1 as ::core::ffi::c_int + cnt;
-        } else if *instrs.offset(i as isize) as ::core::ffi::c_int & 0xf8 as ::core::ffi::c_int
-            == 0xb0 as ::core::ffi::c_int
+            lh += 1_i32 + cnt;
+        } else if *instrs.offset(i as isize) as i32 & 0xf8_i32
+            == 0xb0_i32
         {
-            cnt = (*instrs.offset(i as isize) as ::core::ffi::c_int & 7 as ::core::ffi::c_int)
-                + 1 as ::core::ffi::c_int;
-            j = 0 as ::core::ffi::c_int;
+            cnt = (*instrs.offset(i as isize) as i32 & 7_i32)
+                + 1_i32;
+            j = 0_i32;
             while j < cnt {
                 i += 1;
                 if i >= len {
@@ -794,12 +794,12 @@ unsafe fn instr_typify(id: *mut InstrData) -> ::core::ffi::c_int {
                 j += 1;
             }
             lh += cnt;
-        } else if *instrs.offset(i as isize) as ::core::ffi::c_int & 0xf8 as ::core::ffi::c_int
-            == 0xb8 as ::core::ffi::c_int
+        } else if *instrs.offset(i as isize) as i32 & 0xf8_i32
+            == 0xb8_i32
         {
-            cnt = (*instrs.offset(i as isize) as ::core::ffi::c_int & 7 as ::core::ffi::c_int)
-                + 1 as ::core::ffi::c_int;
-            j = 0 as ::core::ffi::c_int;
+            cnt = (*instrs.offset(i as isize) as i32 & 7_i32)
+                + 1_i32;
+            j = 0_i32;
             while j < cnt {
                 i += 1;
                 if i >= len {
@@ -863,10 +863,10 @@ pub unsafe fn dump_ttinstr(
                 json_array_push(
                     ret,
                     json_integer_new(
-                        ((*id.instrs.offset(i as isize) as ::core::ffi::c_int)
-                            << 8 as ::core::ffi::c_int
+                        ((*id.instrs.offset(i as isize) as i32)
+                            << 8_i32
                             | *id.instrs.offset(i.wrapping_add(1_u32) as isize)
-                                as ::core::ffi::c_int) as i16 as i64,
+                                as i32) as i16 as i64,
                     ),
                 );
                 i = i.wrapping_add(1);
@@ -890,7 +890,7 @@ pub unsafe fn parse_ttinstr(
     context: *mut ::core::ffi::c_void,
     make: Option<unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()>,
     wrong: Option<
-        unsafe fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_char, ::core::ffi::c_int) -> (),
+        unsafe fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_char, i32) -> (),
     >,
 ) {
     if col.is_null() {
@@ -927,7 +927,7 @@ pub unsafe fn parse_ttinstr(
                 );
             } else if json_type_of(record) == JsonType::Integer {
                 istrlen = istrlen
-                    .wrapping_add((1 as ::core::ffi::c_int + 20 as ::core::ffi::c_int) as usize);
+                    .wrapping_add((1_i32 + 20_i32) as usize);
             } else {
                 make.expect("non-null function pointer")(context, Vec::new());
                 return;
@@ -955,11 +955,11 @@ pub unsafe fn parse_ttinstr(
                 );
                 head = head.offset(json_str_len(record_0) as isize);
             } else if json_type_of(record_0) == JsonType::Integer {
-                let n: ::core::ffi::c_int = snprintf(
+                let n: i32 = snprintf(
                     head,
                     20_usize,
                     b"%d\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_int_val(record_0) as ::core::ffi::c_int,
+                    json_int_val(record_0) as i32,
                 );
                 head = head.offset(n as isize);
             }

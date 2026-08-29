@@ -131,7 +131,7 @@ pub(crate) unsafe fn otfcc_set_glyph_order_by_gid(
         return (&(*go).entries)[idx].name.clone();
     }
     let final_bytes: Vec<u8> = if (*go).by_name.contains_key(&name) {
-        crate::bytesbuild!(b"$$gid", gid as ::core::ffi::c_int)
+        crate::bytesbuild!(b"$$gid", gid as i32)
     } else {
         ::core::mem::take(&mut name)
     };

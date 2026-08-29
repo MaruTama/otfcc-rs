@@ -94,8 +94,8 @@ pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) ->
     let mut tsi5cls: Vec<u16> = vec![0; num_glyphs as usize];
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*tsi5).glyphs.len() {
-        if ((&(*tsi5).glyphs)[j as usize].index as ::core::ffi::c_int)
-            < num_glyphs as ::core::ffi::c_int
+        if ((&(*tsi5).glyphs)[j as usize].index as i32)
+            < num_glyphs as i32
         {
             tsi5cls[(&(*tsi5).glyphs)[j as usize].index as usize] =
                 (&(*tsi5).classes)[j as usize] as u16;
@@ -104,7 +104,7 @@ pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) ->
     }
     let buf: *mut Buffer = bufnew();
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as ::core::ffi::c_int) < num_glyphs as ::core::ffi::c_int {
+    while (j_0 as i32) < num_glyphs as i32 {
         bufwrite16b(buf, tsi5cls[j_0 as usize]);
         j_0 = j_0.wrapping_add(1);
     }

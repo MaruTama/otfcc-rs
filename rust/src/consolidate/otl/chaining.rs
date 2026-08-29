@@ -44,7 +44,7 @@ pub unsafe fn consolidate_chaining(
     let rule: *mut ChainingRule = chaining_rule_mut(subtable);
     let mut possible: bool = true;
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
+    while (j as i32) < (*rule).match_count as i32 {
         fontop_consolidate_coverage(
             font,
             &mut (&mut (*rule).match_0)[j as usize] as *mut Coverage,
@@ -54,14 +54,14 @@ pub unsafe fn consolidate_chaining(
             &mut (&mut (*rule).match_0)[j as usize] as *mut Coverage,
             true,
         );
-        possible = possible as ::core::ffi::c_int != 0
-            && (&(*rule).match_0)[j as usize].len() as ::core::ffi::c_int > 0 as ::core::ffi::c_int;
+        possible = possible as i32 != 0
+            && (&(*rule).match_0)[j as usize].len() as i32 > 0_i32;
         j = j.wrapping_add(1);
     }
-    if (*rule).input_begins as ::core::ffi::c_int > (*rule).match_count as ::core::ffi::c_int {
+    if (*rule).input_begins as i32 > (*rule).match_count as i32 {
         (*rule).input_begins = (*rule).match_count;
     }
-    if (*rule).input_ends as ::core::ffi::c_int > (*rule).match_count as ::core::ffi::c_int {
+    if (*rule).input_ends as i32 > (*rule).match_count as i32 {
         (*rule).input_ends = (*rule).match_count;
     }
     let mut j_0: TableId = 0 as TableId;
@@ -122,7 +122,7 @@ pub unsafe fn consolidate_chaining(
                         LoggerType::Warning,
                         crate::bytesbuild!(
                             b"[Consolidate] Quoting an invalid lookup #",
-                            (*h).index as ::core::ffi::c_int,
+                            (*h).index as i32,
                             b".",
                         ),
                     );

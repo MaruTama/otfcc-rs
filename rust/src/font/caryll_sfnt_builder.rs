@@ -10,7 +10,7 @@ use crate::support::buffer::{
 use crate::support::options::Options;
 use crate::support::fmt::Byte;
 pub struct SfntTableEntry {
-    pub tag: ::core::ffi::c_int,
+    pub tag: i32,
     pub length: u32,
     pub checksum: u32,
     pub buffer: *mut Buffer,
@@ -18,7 +18,7 @@ pub struct SfntTableEntry {
 pub struct SfntBuilder {
     pub count: u32,
     pub header: u32,
-    pub tables: std::collections::BTreeMap<::core::ffi::c_int, SfntTableEntry>,
+    pub tables: std::collections::BTreeMap<i32, SfntTableEntry>,
     pub options: *const Options,
 }
 // sfnt table checksums sum the table's bytes as big-endian u32 words.
@@ -42,7 +42,7 @@ unsafe fn create_segment(tag: u32, buffer: *mut Buffer) -> SfntTableEntry {
     buflongalign(buffer);
     let sum = buf_checksum_bytes(&(*buffer).data);
     SfntTableEntry {
-        tag: tag as ::core::ffi::c_int,
+        tag: tag as i32,
         length,
         checksum: sum,
         buffer,
@@ -97,21 +97,21 @@ pub unsafe fn otfcc_sfnt_builder_push_table(
         return;
     }
     let options: *const Options = (*builder).options;
-    if (*builder).tables.contains_key(&(tag as ::core::ffi::c_int)) {
+    if (*builder).tables.contains_key(&(tag as i32)) {
         buffree(buffer);
         return;
     }
     let entry = create_segment(tag, buffer);
-    (*builder).tables.insert(tag as ::core::ffi::c_int, entry);
+    (*builder).tables.insert(tag as i32, entry);
     logger_log_sds(
         &mut *(*options).logger.borrow_mut(),
         LOG_VL_PROGRESS,
         LoggerType::Progress,
         crate::bytesbuild!(
             b"OpenType table ",
-            Byte((tag >> 24 as ::core::ffi::c_int & 0xff_u32) as u8),
-            Byte((tag >> 16 as ::core::ffi::c_int & 0xff_u32) as u8),
-            Byte((tag >> 8 as ::core::ffi::c_int & 0xff_u32) as u8),
+            Byte((tag >> 24_i32 & 0xff_u32) as u8),
+            Byte((tag >> 16_i32 & 0xff_u32) as u8),
+            Byte((tag >> 8_i32 & 0xff_u32) as u8),
             Byte((tag & 0xff_u32) as u8),
             b" successfully built.\n",
         ),
@@ -123,41 +123,41 @@ pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> *mut Bu
         return buffer;
     }
     let n_tables: u16 = (*builder).tables.len() as u16;
-    let search_range: u16 = ((if (n_tables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int {
-        8 as ::core::ffi::c_int
+    let search_range: u16 = ((if (n_tables as i32) < 16_i32 {
+        8_i32
     } else {
-        if (n_tables as ::core::ffi::c_int) < 32 as ::core::ffi::c_int {
-            16 as ::core::ffi::c_int
+        if (n_tables as i32) < 32_i32 {
+            16_i32
         } else {
-            if (n_tables as ::core::ffi::c_int) < 64 as ::core::ffi::c_int {
-                32 as ::core::ffi::c_int
+            if (n_tables as i32) < 64_i32 {
+                32_i32
             } else {
-                64 as ::core::ffi::c_int
+                64_i32
             }
         }
-    }) * 16 as ::core::ffi::c_int) as u16;
+    }) * 16_i32) as u16;
     bufwrite32b(buffer, (*builder).header);
     bufwrite16b(buffer, n_tables);
     bufwrite16b(buffer, search_range);
     bufwrite16b(
         buffer,
-        (if (n_tables as ::core::ffi::c_int) < 16 as ::core::ffi::c_int {
-            3 as ::core::ffi::c_int
-        } else if (n_tables as ::core::ffi::c_int) < 32 as ::core::ffi::c_int {
-            4 as ::core::ffi::c_int
-        } else if (n_tables as ::core::ffi::c_int) < 64 as ::core::ffi::c_int {
-            5 as ::core::ffi::c_int
+        (if (n_tables as i32) < 16_i32 {
+            3_i32
+        } else if (n_tables as i32) < 32_i32 {
+            4_i32
+        } else if (n_tables as i32) < 64_i32 {
+            5_i32
         } else {
-            6 as ::core::ffi::c_int
+            6_i32
         }) as u16,
     );
     bufwrite16b(
         buffer,
-        (n_tables as ::core::ffi::c_int * 16 as ::core::ffi::c_int
-            - search_range as ::core::ffi::c_int) as u16,
+        (n_tables as i32 * 16_i32
+            - search_range as i32) as u16,
     );
-    let mut offset: usize = (12 as ::core::ffi::c_int
-        + n_tables as ::core::ffi::c_int * 16 as ::core::ffi::c_int)
+    let mut offset: usize = (12_i32
+        + n_tables as i32 * 16_i32)
         as usize;
     let mut head_offset: usize = offset;
     for (tag, table) in (*builder).tables.iter() {

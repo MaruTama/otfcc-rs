@@ -168,8 +168,8 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
             let blob: *mut Buffer = bufnew();
             bufwrite8(blob, 0_u8);
             for &g in glyph.iter() {
-                bufwrite8(blob, (g as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8);
-                bufwrite8(blob, (g as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8);
+                bufwrite8(blob, (g as i32 / 256_i32) as u8);
+                bufwrite8(blob, (g as i32 % 256_i32) as u8);
             }
             blob
         }
@@ -179,11 +179,11 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
             for r in range1.iter() {
                 bufwrite8(
                     blob_0,
-                    (r.first as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8,
+                    (r.first as i32 / 256_i32) as u8,
                 );
                 bufwrite8(
                     blob_0,
-                    (r.first as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8,
+                    (r.first as i32 % 256_i32) as u8,
                 );
                 bufwrite8(blob_0, r.nleft);
             }
@@ -195,19 +195,19 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
             for r in range2.iter() {
                 bufwrite8(
                     blob_1,
-                    (r.first as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8,
+                    (r.first as i32 / 256_i32) as u8,
                 );
                 bufwrite8(
                     blob_1,
-                    (r.first as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8,
+                    (r.first as i32 % 256_i32) as u8,
                 );
                 bufwrite8(
                     blob_1,
-                    (r.nleft as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8,
+                    (r.nleft as i32 / 256_i32) as u8,
                 );
                 bufwrite8(
                     blob_1,
-                    (r.nleft as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8,
+                    (r.nleft as i32 % 256_i32) as u8,
                 );
             }
             blob_1

@@ -53,8 +53,8 @@ pub unsafe fn otfcc_read_hmtx(
     if hhea.is_null()
         || maxp.is_null()
         || (*hhea).number_of_metrics == 0
-        || ((*maxp).num_glyphs as ::core::ffi::c_int)
-            < (*hhea).number_of_metrics as ::core::ffi::c_int
+        || ((*maxp).num_glyphs as i32)
+            < (*hhea).number_of_metrics as i32
     {
         return None;
     }
@@ -89,13 +89,13 @@ pub unsafe fn otfcc_build_hmtx(
         None => return buf,
     };
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
+    while (j as i32) < count_a as i32 {
         bufwrite16b(buf, hmtx.metrics[j as usize].advance_width as u16);
         bufwrite16b(buf, pos_to_u16(hmtx.metrics[j as usize].lsb));
         j = j.wrapping_add(1);
     }
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as ::core::ffi::c_int) < count_k as ::core::ffi::c_int {
+    while (j_0 as i32) < count_k as i32 {
         bufwrite16b(buf, pos_to_u16(hmtx.left_side_bearing[j_0 as usize]));
         j_0 = j_0.wrapping_add(1);
     }

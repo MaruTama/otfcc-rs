@@ -26,8 +26,8 @@ pub mod unicodeconv;
 
 pub const NULL: *mut ::core::ffi::c_void = ::core::ptr::null_mut::<::core::ffi::c_void>();
 
-pub const EXIT_FAILURE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
+pub const EXIT_FAILURE: i32 = 1_i32;
 
-pub const TRUE_0: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
+pub const TRUE_0: i32 = 1_i32;
 
-pub const FALSE_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
+pub const FALSE_0: i32 = 0_i32;

@@ -220,7 +220,7 @@ pub unsafe fn otfcc_parse_maxp(
     // body regardless, so their zeroed default matches the old
     // `memset`-based one exactly.
     let mut maxp_val: MaxpTable = ::core::mem::zeroed();
-    maxp_val.version = 0x10000 as ::core::ffi::c_int as F16Dot16;
+    maxp_val.version = 0x10000_i32 as F16Dot16;
     let mut maxp_box: Box<MaxpTable> = Box::new(maxp_val);
     let maxp: *mut MaxpTable = maxp_box.as_mut() as *mut MaxpTable;
     let table: *const ParsedValue;

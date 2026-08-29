@@ -7,6 +7,6 @@
 //! edit rather than three, and so the two binaries and the `name` table's
 //! "-- By OTFCC %d.%d.%d --" string cannot drift apart.
 
-pub const MAIN_VER: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const SECONDARY_VER: ::core::ffi::c_int = 10 as ::core::ffi::c_int;
-pub const PATCH_VER: ::core::ffi::c_int = 4 as ::core::ffi::c_int;
+pub const MAIN_VER: i32 = 0_i32;
+pub const SECONDARY_VER: i32 = 10_i32;
+pub const PATCH_VER: i32 = 4_i32;

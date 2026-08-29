@@ -46,7 +46,7 @@ warnings = "deny"
 ptr_offset_with_cast = "allow" # 105 -- `ptr.offset(x as isize)`
 
 # Stage 7-4 (C-ism mechanical cleanup) removes these as a direct consequence
-# of the `as ::core::ffi::c_int` / `__fortable_*` / goto-emulation sweep:
+# of further mechanical passes over c2rust's transpile shape:
 needless_return = "allow" # 1426 -- c2rust's explicit `return expr;` at fn end
 explicit_auto_deref = "allow" # 286 -- c2rust's `&raw` / deref-cast idiom
 precedence = "allow" # 24 -- `a & b == c` read as `a & (b == c)`, matches C's precedence table

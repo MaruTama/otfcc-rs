@@ -152,7 +152,7 @@ pub unsafe fn otl_gpos_parse_single(
         let val = json_obj_val_at(_subtable, j as u32);
         if !val.is_null()
             && json_type_of(val) as ::core::ffi::c_uint
-                == JsonType::Object as ::core::ffi::c_int as ::core::ffi::c_uint
+                == JsonType::Object as i32 as ::core::ffi::c_uint
         {
             (*subtable).push(GposSingleEntry {
                 target: handle_from_name(Some(json_obj_key_bytes_at(_subtable, j as u32)))
@@ -177,13 +177,13 @@ pub unsafe fn otfcc_build_gpos_single(
     if (*subtable).len() > 0_usize {
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*subtable).len() {
-            is_const = is_const as ::core::ffi::c_int != 0
+            is_const = is_const as i32 != 0
                 && (&(*subtable))[j as usize].value.dx == (&(*subtable))[0].value.dx
                 && (&(*subtable))[j as usize].value.dy == (&(*subtable))[0].value.dy
                 && (&(*subtable))[j as usize].value.d_width == (&(*subtable))[0].value.d_width
                 && (&(*subtable))[j as usize].value.d_height == (&(*subtable))[0].value.d_height;
-            format = (format as ::core::ffi::c_int
-                | required_position_format((&(*subtable))[j as usize].value) as ::core::ffi::c_int)
+            format = (format as i32
+                | required_position_format((&(*subtable))[j as usize].value) as i32)
                 as u16;
             j = j.wrapping_add(1);
         }
@@ -202,7 +202,7 @@ pub unsafe fn otfcc_build_gpos_single(
         let b: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 1_u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
-            bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32),
+            bk_int(BkCellType::B16, (format as i32) as u32),
             bk_ptr(
                 BkCellType::Embed,
                 bk_gpos_value((&(*subtable))[0].value, format),
@@ -214,7 +214,7 @@ pub unsafe fn otfcc_build_gpos_single(
         let b_0: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 2_u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
-            bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32),
+            bk_int(BkCellType::B16, (format as i32) as u32),
             bk_int(BkCellType::B16, ((*subtable).len()) as u32),
         ]);
         let mut k: GlyphId = 0 as GlyphId;

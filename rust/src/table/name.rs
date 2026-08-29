@@ -35,7 +35,7 @@ pub struct NameRecord {
     pub name_string: Vec<u8>,
 }
 pub type NameTable = Vec<NameRecord>;
-pub const COPYRIGHT_LEN: ::core::ffi::c_int = 32 as ::core::ffi::c_int;
+pub const COPYRIGHT_LEN: i32 = 32_i32;
 // Stage 6-4 "Box化": `Font.name` becomes `Option<Vec<NameRecord>>` (not
 // `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
 // `NameRecord` has no raw pointers (`name_string: Vec<u8>` only), so a plain
@@ -49,18 +49,18 @@ pub const COPYRIGHT_LEN: ::core::ffi::c_int = 32 as ::core::ffi::c_int;
 // `create_font_table` and its other callee `table_otl_create` are dead
 // for the same reason, deleted alongside it.
 unsafe fn should_decode_as_utf16(record: *const NameRecord) -> bool {
-    return (*record).platform_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-        || (*record).platform_id as ::core::ffi::c_int == 2 as ::core::ffi::c_int
-            && (*record).encoding_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
-        || (*record).platform_id as ::core::ffi::c_int == 3 as ::core::ffi::c_int
-            && ((*record).encoding_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-                || (*record).encoding_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
-                || (*record).encoding_id as ::core::ffi::c_int == 10 as ::core::ffi::c_int);
+    return (*record).platform_id as i32 == 0_i32
+        || (*record).platform_id as i32 == 2_i32
+            && (*record).encoding_id as i32 == 1_i32
+        || (*record).platform_id as i32 == 3_i32
+            && ((*record).encoding_id as i32 == 0_i32
+                || (*record).encoding_id as i32 == 1_i32
+                || (*record).encoding_id as i32 == 10_i32);
 }
 unsafe fn should_decode_as_bytes(record: *const NameRecord) -> bool {
-    return (*record).platform_id as ::core::ffi::c_int == 1 as ::core::ffi::c_int
-        && (*record).encoding_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int
-        && (*record).language_id as ::core::ffi::c_int == 0 as ::core::ffi::c_int;
+    return (*record).platform_id as i32 == 1_i32
+        && (*record).encoding_id as i32 == 0_i32
+        && (*record).language_id as i32 == 0_i32;
 }
 // The record *array* (12 bytes/record starting at offset 6) was already
 // guarded (`length < 6 + 12 * count`) -- but each record's *string*, read
@@ -110,7 +110,7 @@ unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
                 record.name_string = bytes.to_vec();
             } else if should_decode_as_utf16(&raw const record) {
                 record.name_string =
-                    utf16be_to_utf8(bytes.as_ptr(), bytes.len() as ::core::ffi::c_int);
+                    utf16be_to_utf8(bytes.as_ptr(), bytes.len() as i32);
             } else {
                 let mut len: usize = 0_usize;
                 let mut buf: *mut u8 = base64_encode(bytes.as_ptr(), bytes.len(), &raw mut len);

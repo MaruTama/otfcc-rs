@@ -69,9 +69,9 @@ impl FontSerializer for OtfSerializer {
         otfcc_stat_font(font, options);
         let builder: *mut SfntBuilder = otfcc_new_sfnt_builder(
             (if (*font).subtype == FontSubtype::Cff {
-                crate::tag::SFNT_VERSION_OTTO as ::core::ffi::c_int
+                crate::tag::SFNT_VERSION_OTTO as i32
             } else {
-                crate::tag::SFNT_VERSION_TRUE_TYPE as ::core::ffi::c_int
+                crate::tag::SFNT_VERSION_TRUE_TYPE as i32
             }) as u32,
             options,
         );
@@ -183,8 +183,8 @@ impl FontSerializer for OtfSerializer {
         if (*font).hhea.is_some() && (*font).maxp.is_some() && (*font).hmtx.is_some() {
             let hmtx_counta: u16 = (*font).hhea.as_deref().unwrap().number_of_metrics;
             let hmtx_countk: u16 = ((*font).maxp.as_deref().unwrap().num_glyphs
-                as ::core::ffi::c_int
-                - (*font).hhea.as_deref().unwrap().number_of_metrics as ::core::ffi::c_int)
+                as i32
+                - (*font).hhea.as_deref().unwrap().number_of_metrics as i32)
                 as u16;
             otfcc_sfnt_builder_push_table(
                 builder,
@@ -204,8 +204,8 @@ impl FontSerializer for OtfSerializer {
         if (*font).vhea.is_some() && (*font).maxp.is_some() && (*font).vmtx.is_some() {
             let vmtx_counta: u16 = (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics;
             let vmtx_countk: u16 = ((*font).maxp.as_deref().unwrap().num_glyphs
-                as ::core::ffi::c_int
-                - (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics as ::core::ffi::c_int)
+                as i32
+                - (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics as i32)
                 as u16;
             otfcc_sfnt_builder_push_table(
                 builder,

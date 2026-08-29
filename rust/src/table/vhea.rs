@@ -209,52 +209,52 @@ pub unsafe fn otfcc_parse_vhea(
             (*vhea).ascent = json_obj_getnum_fallback(
                 table,
                 b"ascent\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*vhea).descent = json_obj_getnum_fallback(
                 table,
                 b"descent\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*vhea).line_gap = json_obj_getnum_fallback(
                 table,
                 b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*vhea).advance_height_max = json_obj_getnum_fallback(
                 table,
                 b"advanceHeightMax\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*vhea).min_top = json_obj_getnum_fallback(
                 table,
                 b"minTop\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*vhea).min_bottom = json_obj_getnum_fallback(
                 table,
                 b"minBottom\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*vhea).y_max_extent = json_obj_getnum_fallback(
                 table,
                 b"yMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*vhea).caret_slope_rise = json_obj_getnum_fallback(
                 table,
                 b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*vhea).caret_slope_run = json_obj_getnum_fallback(
                 table,
                 b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*vhea).caret_offset = json_obj_getnum_fallback(
                 table,
                 b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             ___loggedstep_v = false;
             logger_finish(&mut *options.logger.borrow_mut());

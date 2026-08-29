@@ -85,7 +85,7 @@ unsafe fn next_point(
     // are, before indexing.
     while *cp as usize >= (&(*contours))[*cc as usize].len() {
         *cp = 0 as ShapeId;
-        *cc = (*cc as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
+        *cc = (*cc as i32 + 1_i32) as ShapeId;
     }
     let fresh8 = *cp;
     *cp = (*cp).wrapping_add(1);
@@ -238,7 +238,7 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
     let mut cx: VQ = (vq_neutral)();
     let mut cy: VQ = (vq_neutral)();
     let mut j_1: ShapeId = 0 as ShapeId;
-    while (j_1 as ::core::ffi::c_int) < number_of_contours as ::core::ffi::c_int {
+    while (j_1 as i32) < number_of_contours as i32 {
         let mut k: ShapeId = 0 as ShapeId;
         while (k as usize) < (&(*contours))[j_1 as usize].len() {
             let z: *mut Point = &raw mut (&mut (*contours))[j_1 as usize][k as usize];
@@ -359,11 +359,11 @@ unsafe fn otfcc_read_glyph(
     g.stat.y_max = y_max;
     Some(g)
 }
-pub const GVAR_OFFSETS_ARE_LONG: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const EMBEDDED_PEAK_TUPLE: ::core::ffi::c_int = 0x8000 as ::core::ffi::c_int;
-pub const INTERMEDIATE_REGION: ::core::ffi::c_int = 0x4000 as ::core::ffi::c_int;
-pub const PRIVATE_POINT_NUMBERS: ::core::ffi::c_int = 0x2000 as ::core::ffi::c_int;
-pub const TUPLE_INDEX_MASK: ::core::ffi::c_int = 0xfff as ::core::ffi::c_int;
+pub const GVAR_OFFSETS_ARE_LONG: i32 = 1_i32;
+pub const EMBEDDED_PEAK_TUPLE: i32 = 0x8000_i32;
+pub const INTERMEDIATE_REGION: i32 = 0x4000_i32;
+pub const PRIVATE_POINT_NUMBERS: i32 = 0x2000_i32;
+pub const TUPLE_INDEX_MASK: i32 = 0xfff_i32;
 // A `TupleVariationHeader` array has no length of its own -- each header's
 // end (and so the next one's start) is only known after reading *this*
 // header's own `tupleIndex` flags, which is why this can't be a simple
@@ -383,10 +383,10 @@ unsafe fn next_tvh_offset(gvar: &[u8], tvh_offset: usize, dimensions: u16) -> Op
     }
     Some(tvh_offset + bump)
 }
-pub const POINT_COUNT_IS_WORD: ::core::ffi::c_int = 0x80 as ::core::ffi::c_int;
-pub const POINT_COUNT_LONG_MASK: ::core::ffi::c_int = 0x7fff as ::core::ffi::c_int;
-pub const POINT_RUN_COUNT_MASK: ::core::ffi::c_int = 0x7f as ::core::ffi::c_int;
-pub const POINTS_ARE_WORDS: ::core::ffi::c_int = 0x80 as ::core::ffi::c_int;
+pub const POINT_COUNT_IS_WORD: i32 = 0x80_i32;
+pub const POINT_COUNT_LONG_MASK: i32 = 0x7fff_i32;
+pub const POINT_RUN_COUNT_MASK: i32 = 0x7f_i32;
+pub const POINTS_ARE_WORDS: i32 = 0x80_i32;
 /// Returns `(new absolute offset into `gvar`, point indices)` instead of
 /// writing through two out-params -- `pc` (the count) is just
 /// `point_indeces.len()` once the array is a `Vec`, so it disappears
@@ -401,28 +401,28 @@ unsafe fn parse_point_numbers(
 ) -> Option<(usize, Vec<ShapeId>)> {
     let mut r = FontReader::new(gvar).at(offset).ok()?;
     let first_byte: u8 = r.u8().ok()?;
-    let n_points: u16 = if first_byte as ::core::ffi::c_int & POINT_COUNT_IS_WORD != 0 {
+    let n_points: u16 = if first_byte as i32 & POINT_COUNT_IS_WORD != 0 {
         let second_byte: u8 = r.u8().ok()?;
-        (((first_byte as ::core::ffi::c_int) << 8 as ::core::ffi::c_int
-            | second_byte as ::core::ffi::c_int)
+        (((first_byte as i32) << 8_i32
+            | second_byte as i32)
             & POINT_COUNT_LONG_MASK) as u16
     } else {
         first_byte as u16
     };
     let mut point_indeces: Vec<ShapeId>;
-    if n_points as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+    if n_points as i32 > 0_i32 {
         let mut run: PackedPointRun = PackedPointRun {
             length: 0 as ShapeId,
             wide: false,
         };
         let mut j_point: ShapeId = 0 as ShapeId;
         point_indeces = Vec::with_capacity(n_points as usize);
-        while (point_indeces.len() as ::core::ffi::c_int) < n_points as ::core::ffi::c_int {
-            if run.length as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
+        while (point_indeces.len() as i32) < n_points as i32 {
+            if run.length as i32 == 0_i32 {
                 let run_header: u8 = r.u8().ok()?;
-                run.wide = run_header as ::core::ffi::c_int & POINTS_ARE_WORDS != 0;
-                run.length = ((run_header as ::core::ffi::c_int & POINT_RUN_COUNT_MASK)
-                    + 1 as ::core::ffi::c_int) as ShapeId;
+                run.wide = run_header as i32 & POINTS_ARE_WORDS != 0;
+                run.length = ((run_header as i32 & POINT_RUN_COUNT_MASK)
+                    + 1_i32) as ShapeId;
             }
             let mut point_number: i16 = j_point as i16;
             if run.wide {
@@ -439,11 +439,11 @@ unsafe fn parse_point_numbers(
                 let b = r.bytes(2).ok()?;
                 let raw = u16::from_ne_bytes([b[0], b[1]]);
                 point_number =
-                    (point_number as ::core::ffi::c_int + raw as ::core::ffi::c_int) as i16;
+                    (point_number as i32 + raw as i32) as i16;
             } else {
                 let fresh7: u8 = r.u8().ok()?;
                 point_number =
-                    (point_number as ::core::ffi::c_int + fresh7 as ::core::ffi::c_int) as i16;
+                    (point_number as i32 + fresh7 as i32) as i16;
             }
             point_indeces.push(point_number as ShapeId);
             j_point = point_number as ShapeId;
@@ -452,16 +452,16 @@ unsafe fn parse_point_numbers(
     } else {
         point_indeces = Vec::with_capacity(total_points as usize);
         let mut j: ShapeId = 0 as ShapeId;
-        while (j as ::core::ffi::c_int) < total_points as ::core::ffi::c_int {
+        while (j as i32) < total_points as i32 {
             point_indeces.push(j);
             j = j.wrapping_add(1);
         }
     }
     Some((r.pos(), point_indeces))
 }
-pub const DELTAS_ARE_ZERO: ::core::ffi::c_int = 0x80 as ::core::ffi::c_int;
-pub const DELTAS_ARE_WORDS: ::core::ffi::c_int = 0x40 as ::core::ffi::c_int;
-pub const DELTA_RUN_COUNT_MASK: ::core::ffi::c_int = 0x3f as ::core::ffi::c_int;
+pub const DELTAS_ARE_ZERO: i32 = 0x80_i32;
+pub const DELTAS_ARE_WORDS: i32 = 0x40_i32;
+pub const DELTA_RUN_COUNT_MASK: i32 = 0x3f_i32;
 #[inline]
 unsafe fn read_packed_delta(
     gvar: &[u8],
@@ -476,14 +476,14 @@ unsafe fn read_packed_delta(
         zero: false,
     };
     let mut filled: ShapeId = 0 as ShapeId;
-    while (filled as ::core::ffi::c_int) < n_points as ::core::ffi::c_int {
+    while (filled as i32) < n_points as i32 {
         let mut delta: i16 = 0_i16;
-        if run.length as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
+        if run.length as i32 == 0_i32 {
             let run_header: u8 = r.u8().ok()?;
-            run.zero = run_header as ::core::ffi::c_int & DELTAS_ARE_ZERO != 0;
-            run.wide = run_header as ::core::ffi::c_int & DELTAS_ARE_WORDS != 0;
-            run.length = ((run_header as ::core::ffi::c_int & DELTA_RUN_COUNT_MASK)
-                + 1 as ::core::ffi::c_int) as ShapeId;
+            run.zero = run_header as i32 & DELTAS_ARE_ZERO != 0;
+            run.wide = run_header as i32 & DELTAS_ARE_WORDS != 0;
+            run.length = ((run_header as i32 & DELTA_RUN_COUNT_MASK)
+                + 1_i32) as ShapeId;
         }
         if !run.zero {
             if run.wide {
@@ -521,29 +521,29 @@ unsafe fn fill_the_gaps(
     getter: CoordPartGetter,
 ) {
     let mut j: ShapeId = j_min;
-    while (j as ::core::ffi::c_int) < j_max as ::core::ffi::c_int {
+    while (j as i32) < j_max as i32 {
         if !nudges[j as usize].is_touched() {
             let mut j_next: ShapeId = j;
             while !nudges[j_next as usize].is_touched() {
-                if j_next as ::core::ffi::c_int
-                    == j_max as ::core::ffi::c_int - 1 as ::core::ffi::c_int
+                if j_next as i32
+                    == j_max as i32 - 1_i32
                 {
                     j_next = j_min;
                 } else {
-                    j_next = (j_next as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
+                    j_next = (j_next as i32 + 1_i32) as ShapeId;
                 }
-                if j_next as ::core::ffi::c_int == j as ::core::ffi::c_int {
+                if j_next as i32 == j as i32 {
                     break;
                 }
             }
             let mut j_prev: ShapeId = j;
             while !nudges[j_prev as usize].is_touched() {
-                if j_prev as ::core::ffi::c_int == j_min as ::core::ffi::c_int {
-                    j_prev = (j_max as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as ShapeId;
+                if j_prev as i32 == j_min as i32 {
+                    j_prev = (j_max as i32 - 1_i32) as ShapeId;
                 } else {
-                    j_prev = (j_prev as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as ShapeId;
+                    j_prev = (j_prev as i32 - 1_i32) as ShapeId;
                 }
-                if j_prev as ::core::ffi::c_int == j as ::core::ffi::c_int {
+                if j_prev as i32 == j as i32 {
                     break;
                 }
             }
@@ -615,18 +615,18 @@ unsafe fn apply_coords(
 ) {
     let mut nudges: Vec<VqSegment> = Vec::with_capacity(total_points as usize);
     let mut j: ShapeId = 0 as ShapeId;
-    while (j as ::core::ffi::c_int) < total_points as ::core::ffi::c_int {
+    while (j as i32) < total_points as i32 {
         nudges.push(VqSegment::Delta(VqSegmentDelta {
-            quantity: 0 as ::core::ffi::c_int as Pos,
+            quantity: 0_i32 as Pos,
             touched: false,
             region: r,
         }));
         j = j.wrapping_add(1);
     }
     let mut j_0: ShapeId = 0 as ShapeId;
-    while (j_0 as ::core::ffi::c_int) < n_touched_points as ::core::ffi::c_int {
-        if !(*points.offset(j_0 as isize) as ::core::ffi::c_int
-            >= total_points as ::core::ffi::c_int)
+    while (j_0 as i32) < n_touched_points as i32 {
+        if !(*points.offset(j_0 as isize) as i32
+            >= total_points as i32)
         {
             let idx = *points.offset(j_0 as isize) as usize;
             let d = nudges[idx].delta_mut();
@@ -649,13 +649,13 @@ unsafe fn apply_coords(
                 Some(get_x as unsafe fn(*mut Point) -> *mut VQ),
             );
             j_first = (j_first as usize).wrapping_add((*c).len()) as ShapeId as ShapeId;
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
         }
-        keep = (keep == 0) as ::core::ffi::c_int as usize;
+        keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut j_1: ShapeId = 0 as ShapeId;
-    while (j_1 as ::core::ffi::c_int) < total_points as ::core::ffi::c_int {
+    while (j_1 as i32) < total_points as i32 {
         if !(nudges[j_1 as usize].unwrap_delta().quantity == 0.
             && nudges[j_1 as usize].is_touched())
         {
@@ -693,14 +693,14 @@ unsafe fn apply_polymorphism(
                 let g: *mut Point = &raw mut (&mut (*c))[__caryll_index_0];
                 while keep_0 != 0 {
                     glyph_refs.push(g);
-                    keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                    keep_0 = (keep_0 == 0) as i32 as usize;
                 }
-                keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                keep_0 = (keep_0 == 0) as i32 as usize;
                 __caryll_index_0 = __caryll_index_0.wrapping_add(1);
             }
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
         }
-        keep = (keep == 0) as ::core::ffi::c_int as usize;
+        keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut __caryll_index_1: usize = 0_usize;
@@ -709,9 +709,9 @@ unsafe fn apply_polymorphism(
         let r_0: *mut ComponentReference = &raw mut (&mut (*glyph).references)[__caryll_index_1];
         while keep_1 != 0 {
             glyph_refs.push(&raw mut (*r_0).x as *mut Point);
-            keep_1 = (keep_1 == 0) as ::core::ffi::c_int as usize;
+            keep_1 = (keep_1 == 0) as i32 as usize;
         }
-        keep_1 = (keep_1 == 0) as ::core::ffi::c_int as usize;
+        keep_1 = (keep_1 == 0) as i32 as usize;
         __caryll_index_1 = __caryll_index_1.wrapping_add(1);
     }
     apply_coords(
@@ -734,8 +734,8 @@ unsafe fn apply_polymorphism(
         r,
         Some(get_y as unsafe fn(*mut Point) -> *mut VQ),
     );
-    if (total_points as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
-        < n_touched_points as ::core::ffi::c_int
+    if (total_points as i32 + 1_i32)
+        < n_touched_points as i32
     {
         vq_add_delta(
             &raw mut (*glyph).horizontal_origin,
@@ -748,28 +748,28 @@ unsafe fn apply_polymorphism(
             true,
             r,
             *delta_x
-                .offset((total_points as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize)
+                .offset((total_points as i32 + 1_i32) as isize)
                 - *delta_x.offset(total_points as isize),
         );
     }
-    if (total_points as ::core::ffi::c_int + 3 as ::core::ffi::c_int)
-        < n_touched_points as ::core::ffi::c_int
+    if (total_points as i32 + 3_i32)
+        < n_touched_points as i32
     {
         vq_add_delta(
             &raw mut (*glyph).vertical_origin,
             true,
             r,
             *delta_y
-                .offset((total_points as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize),
+                .offset((total_points as i32 + 2_i32) as isize),
         );
         vq_add_delta(
             &raw mut (*glyph).advance_height,
             true,
             r,
             *delta_y
-                .offset((total_points as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as isize)
+                .offset((total_points as i32 + 2_i32) as isize)
                 - *delta_y.offset(
-                    (total_points as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as isize,
+                    (total_points as i32 + 3_i32) as isize,
                 ),
         );
     }
@@ -790,7 +790,7 @@ unsafe fn create_region_from_tuples(
 ) -> Option<*mut VqRegion> {
     let r: *mut VqRegion = vq_create_region(dimensions as ShapeId);
     let mut d: u16 = 0_u16;
-    while (d as ::core::ffi::c_int) < dimensions as ::core::ffi::c_int {
+    while (d as i32) < dimensions as i32 {
         let Ok(peak_raw) = FontReader::new(gvar)
             .at(peak_offset + d as usize * 2)
             .and_then(|mut x| x.i16())
@@ -800,16 +800,16 @@ unsafe fn create_region_from_tuples(
         };
         let peak_val: Pos = otfcc_from_f2dot14(peak_raw as F2Dot14) as Pos;
         let mut span: VqAxisSpan = VqAxisSpan {
-            start: (if peak_val <= 0 as ::core::ffi::c_int as Pos {
-                -(1 as ::core::ffi::c_int)
+            start: (if peak_val <= 0_i32 as Pos {
+                -1_i32
             } else {
-                0 as ::core::ffi::c_int
+                0_i32
             }) as Pos,
             peak: peak_val,
-            end: (if peak_val >= 0 as ::core::ffi::c_int as Pos {
-                1 as ::core::ffi::c_int
+            end: (if peak_val >= 0_i32 as Pos {
+                1_i32
             } else {
-                0 as ::core::ffi::c_int
+                0_i32
             }) as Pos,
         };
         if let Some(start_offset) = range_offset {
@@ -860,8 +860,8 @@ unsafe fn polymorphize_glyph(
         total_points = (total_points as usize).wrapping_add(c.len()) as ShapeId;
     }
     total_points = (total_points as usize).wrapping_add((*glyph).references.len()) as ShapeId;
-    let total_delta_entries: ShapeId = (total_points as ::core::ffi::c_int
-        + ctx.n_phantom_points as ::core::ffi::c_int)
+    let total_delta_entries: ShapeId = (total_points as i32
+        + ctx.n_phantom_points as i32)
         as ShapeId;
 
     let mut header = FontReader::new(gvar).at(gvd_offset).ok()?;

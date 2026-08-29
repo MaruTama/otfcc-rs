@@ -183,9 +183,9 @@ pub unsafe fn otfcc_dump_colr(
                             json_integer_new(layer.palette_index as i64),
                         );
                         json_array_push(_layers, _layer);
-                        keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                        keep_0 = (keep_0 == 0) as i32 as usize;
                     }
-                    keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                    keep_0 = (keep_0 == 0) as i32 as usize;
                     __caryll_index_0 = __caryll_index_0.wrapping_add(1);
                 }
                 json_object_push(
@@ -194,9 +194,9 @@ pub unsafe fn otfcc_dump_colr(
                     preserialize(_layers),
                 );
                 json_array_push(_colr, _map);
-                keep = (keep == 0) as ::core::ffi::c_int as usize;
+                keep = (keep == 0) as i32 as usize;
             }
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
         json_object_push(
@@ -308,11 +308,11 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
                 &[
                     bk_int(
                         BkCellType::B16,
-                        (mapping.glyph.index as ::core::ffi::c_int) as u32,
+                        (mapping.glyph.index as i32) as u32,
                     ),
                     bk_int(
                         BkCellType::B16,
-                        (current_layer_index as ::core::ffi::c_int) as u32,
+                        (current_layer_index as i32) as u32,
                     ),
                     bk_int(BkCellType::B16, (mapping.layers.len()) as u32),
                 ],
@@ -327,25 +327,25 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
                         &[
                             bk_int(
                                 BkCellType::B16,
-                                (layer.glyph.index as ::core::ffi::c_int) as u32,
+                                (layer.glyph.index as i32) as u32,
                             ),
                             bk_int(
                                 BkCellType::B16,
-                                (layer.palette_index as ::core::ffi::c_int) as u32,
+                                (layer.palette_index as i32) as u32,
                             ),
                         ],
                     );
-                    current_layer_index = (current_layer_index as ::core::ffi::c_int
-                        + 1 as ::core::ffi::c_int)
+                    current_layer_index = (current_layer_index as i32
+                        + 1_i32)
                         as GlyphId;
-                    keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                    keep_0 = (keep_0 == 0) as i32 as usize;
                 }
-                keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                keep_0 = (keep_0 == 0) as i32 as usize;
                 __caryll_index_0 = __caryll_index_0.wrapping_add(1);
             }
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
         }
-        keep = (keep == 0) as ::core::ffi::c_int as usize;
+        keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let root: *mut BkBlock = bk_new_block(&[
@@ -355,7 +355,7 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
         bk_ptr(BkCellType::P32, layer_records),
         bk_int(
             BkCellType::B16,
-            (current_layer_index as ::core::ffi::c_int) as u32,
+            (current_layer_index as i32) as u32,
         ),
     ]);
     // `colr` drops naturally at the end of this scope -- no explicit

@@ -211,14 +211,14 @@ unsafe fn dump_color(color: *const CpalColor) -> *mut BuiltValue {
         b"blue\0" as *const u8 as *const ::core::ffi::c_char,
         json_integer_new((*color).blue as i64),
     );
-    if (*color).alpha as ::core::ffi::c_int != 0xff as ::core::ffi::c_int {
+    if (*color).alpha as i32 != 0xff_i32 {
         json_object_push(
             _color,
             b"alpha\0" as *const u8 as *const ::core::ffi::c_char,
             json_integer_new((*color).alpha as i64),
         );
     }
-    if (*color).label as ::core::ffi::c_int != 0xffff as ::core::ffi::c_int {
+    if (*color).label as i32 != 0xffff_i32 {
         json_object_push(
             _color,
             b"label\0" as *const u8 as *const ::core::ffi::c_char,
@@ -477,7 +477,7 @@ unsafe fn build_palette_entry_label(cpal: *const CpalTable) -> *mut BkBlock {
     let palette: &CpalPalette = &palettes[0_usize];
     let mut j: ColorId = 0 as ColorId;
     while (j as usize) < palette.colorset.len() {
-        if palette.colorset[j as usize].label as ::core::ffi::c_int != 0xffff as ::core::ffi::c_int
+        if palette.colorset[j as usize].label as i32 != 0xffff_i32
         {
             needs_palette_entry_label = true;
         }
@@ -493,7 +493,7 @@ unsafe fn build_palette_entry_label(cpal: *const CpalTable) -> *mut BkBlock {
             block,
             &[bk_int(
                 BkCellType::B16,
-                (palette.colorset[j_0 as usize].label as ::core::ffi::c_int) as u32,
+                (palette.colorset[j_0 as usize].label as i32) as u32,
             )],
         );
         j_0 = j_0.wrapping_add(1);
@@ -513,16 +513,16 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> *mut Buffer {
     let num_palettes: u16 = palettes.len() as u16;
     let num_palettes_entries: u16 = palettes[0_usize].colorset.len() as u16;
     let num_color_records: u16 =
-        (num_palettes as ::core::ffi::c_int * num_palettes_entries as ::core::ffi::c_int) as u16;
+        (num_palettes as i32 * num_palettes_entries as i32) as u16;
     let color_records: *mut BkBlock = bk_new_block(&[]);
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < num_palettes as ::core::ffi::c_int {
+    while (j as i32) < num_palettes as i32 {
         let palette: &CpalPalette = &palettes[j as usize];
         let total_colors: ColorId = palette.colorset.len() as ColorId;
         let mut k: ColorId = 0 as ColorId;
-        while (k as ::core::ffi::c_int) < num_palettes_entries as ::core::ffi::c_int {
+        while (k as i32) < num_palettes_entries as i32 {
             let color: *const CpalColor;
-            if (k as ::core::ffi::c_int) < total_colors as ::core::ffi::c_int {
+            if (k as i32) < total_colors as i32 {
                 color = &palette.colorset[k as usize] as *const CpalColor;
             } else {
                 color = &raw const WHITE;
@@ -530,15 +530,15 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> *mut Buffer {
             bk_push(
                 color_records,
                 &[
-                    bk_int(BkCellType::B8, ((*color).blue as ::core::ffi::c_int) as u32),
+                    bk_int(BkCellType::B8, ((*color).blue as i32) as u32),
                     bk_int(
                         BkCellType::B8,
-                        ((*color).green as ::core::ffi::c_int) as u32,
+                        ((*color).green as i32) as u32,
                     ),
-                    bk_int(BkCellType::B8, ((*color).red as ::core::ffi::c_int) as u32),
+                    bk_int(BkCellType::B8, ((*color).red as i32) as u32),
                     bk_int(
                         BkCellType::B8,
-                        ((*color).alpha as ::core::ffi::c_int) as u32,
+                        ((*color).alpha as i32) as u32,
                     ),
                 ],
             );
@@ -549,31 +549,31 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> *mut Buffer {
     let root: *mut BkBlock = bk_new_block(&[
         bk_int(
             BkCellType::B16,
-            ((*cpal).version as ::core::ffi::c_int) as u32,
+            ((*cpal).version as i32) as u32,
         ),
         bk_int(
             BkCellType::B16,
-            (num_palettes_entries as ::core::ffi::c_int) as u32,
+            (num_palettes_entries as i32) as u32,
         ),
-        bk_int(BkCellType::B16, (num_palettes as ::core::ffi::c_int) as u32),
+        bk_int(BkCellType::B16, (num_palettes as i32) as u32),
         bk_int(
             BkCellType::B16,
-            (num_color_records as ::core::ffi::c_int) as u32,
+            (num_color_records as i32) as u32,
         ),
         bk_ptr(BkCellType::P32, color_records),
     ]);
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int) < num_palettes as ::core::ffi::c_int {
+    while (j_0 as i32) < num_palettes as i32 {
         bk_push(
             root,
             &[bk_int(
                 BkCellType::B16,
-                (num_palettes_entries as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as u32,
+                (num_palettes_entries as i32 * j_0 as i32) as u32,
             )],
         );
         j_0 = j_0.wrapping_add(1);
     }
-    if (*cpal).version as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+    if (*cpal).version as i32 > 0_i32 {
         bk_push(
             root,
             &[

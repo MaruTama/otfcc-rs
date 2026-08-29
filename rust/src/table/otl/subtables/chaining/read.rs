@@ -234,9 +234,9 @@ pub unsafe fn class_coverage(
     // would-be null deref matches this migration's general "UB becomes a
     // panic" idiom (see e.g. `general_read_contextual_rule`'s own
     // `.expect()` calls above).
-    let cd: *const ClassDef = if kind as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
+    let cd: *const ClassDef = if kind as i32 == 1_i32 {
         (*defs).bc.as_deref()
-    } else if kind as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
+    } else if kind as i32 == 2_i32 {
         (*defs).ic.as_deref()
     } else {
         (*defs).fc.as_deref()
@@ -297,11 +297,11 @@ pub unsafe fn class_coverage(
         || CLASS_ZERO_BUDGET.load(::core::sync::atomic::Ordering::Relaxed) > 0;
     let charge_zero_budget =
         || CLASS_ZERO_BUDGET.fetch_sub(1, ::core::sync::atomic::Ordering::Relaxed);
-    if cls as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
+    if cls as i32 == 0_i32 {
         let mut classified = vec![false; max_glyphs as usize];
         let mut j: usize = 0;
         while j < (*cd).glyphs.len() && zero_budget_left() {
-            if (&(*cd).classes)[j] as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+            if (&(*cd).classes)[j] as i32 > 0_i32 {
                 let idx = (&(*cd).glyphs)[j].index as usize;
                 if idx < classified.len() {
                     classified[idx] = true;
@@ -311,7 +311,7 @@ pub unsafe fn class_coverage(
             j += 1;
         }
         let mut k: GlyphId = 0 as GlyphId;
-        while (k as ::core::ffi::c_int) < max_glyphs as ::core::ffi::c_int && zero_budget_left() {
+        while (k as i32) < max_glyphs as i32 && zero_budget_left() {
             if !classified[k as usize] {
                 push_to_coverage(cov, handle_from_index(k) as GlyphHandle);
             }
@@ -321,7 +321,7 @@ pub unsafe fn class_coverage(
     } else {
         let mut j_2: GlyphId = 0 as GlyphId;
         while (j_2 as usize) < (*cd).glyphs.len() && zero_budget_left() {
-            if (&(*cd).classes)[j_2 as usize] as ::core::ffi::c_int == cls as ::core::ffi::c_int {
+            if (&(*cd).classes)[j_2 as usize] as i32 == cls as i32 {
                 push_to_coverage(
                     cov,
                     otfcc_handle_dup((&(*cd).glyphs)[j_2 as usize].clone() as Handle)
@@ -784,17 +784,17 @@ pub unsafe fn otl_read_contextual(
             format = f;
         }
     }
-    if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
+    if format as i32 == 1_i32 {
         return subtable_from_raw(
             read_contextual_format1(subtable, data, table_length, offset, max_glyphs),
             Subtable::Chaining,
         );
-    } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
+    } else if format as i32 == 2_i32 {
         return subtable_from_raw(
             read_contextual_format2(subtable, data, table_length, offset, max_glyphs),
             Subtable::Chaining,
         );
-    } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
+    } else if format as i32 == 3_i32 {
         let rule_ptr = general_read_contextual_rule(
             data,
             table_length,
@@ -827,7 +827,7 @@ pub unsafe fn otl_read_contextual(
         &mut *options.logger.borrow_mut(),
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
-        crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
+        crate::bytesbuild!(b"Unsupported format ", format as i32, b".\n"),
     );
     // Same reasoning as the format1/format2 helpers' own error paths: this
     // is `subtable_chaining_create()`'s own `Box`-allocated result, reclaim
@@ -1309,17 +1309,17 @@ pub unsafe fn otl_read_chaining(
             format = f;
         }
     }
-    if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
+    if format as i32 == 1_i32 {
         return subtable_from_raw(
             read_chaining_format1(subtable, data, table_length, offset, max_glyphs),
             Subtable::Chaining,
         );
-    } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
+    } else if format as i32 == 2_i32 {
         return subtable_from_raw(
             read_chaining_format2(subtable, data, table_length, offset, max_glyphs),
             Subtable::Chaining,
         );
-    } else if format as ::core::ffi::c_int == 3 as ::core::ffi::c_int {
+    } else if format as i32 == 3_i32 {
         let rule_ptr = general_read_chaining_rule(
             data,
             table_length,
@@ -1352,7 +1352,7 @@ pub unsafe fn otl_read_chaining(
         &mut *options.logger.borrow_mut(),
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
-        crate::bytesbuild!(b"Unsupported format ", format as ::core::ffi::c_int, b".\n"),
+        crate::bytesbuild!(b"Unsupported format ", format as i32, b".\n"),
     );
     // Same reasoning as the format1/format2 helpers' own error paths: this
     // is `subtable_chaining_create()`'s own `Box`-allocated result, reclaim

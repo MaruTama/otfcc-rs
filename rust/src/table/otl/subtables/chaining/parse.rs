@@ -44,7 +44,7 @@ pub unsafe fn otl_parse_chaining(
     (*rule).input_begins = json_obj_getnum_fallback(
         _subtable,
         b"inputBegins\0" as *const u8 as *const ::core::ffi::c_char,
-        0 as ::core::ffi::c_int as ::core::ffi::c_double,
+        0_i32 as ::core::ffi::c_double,
     ) as TableId;
     (*rule).input_ends = json_obj_getnum_fallback(
         _subtable,
@@ -52,7 +52,7 @@ pub unsafe fn otl_parse_chaining(
         (*rule).match_count as ::core::ffi::c_double,
     ) as TableId;
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
+    while (j as i32) < (*rule).match_count as i32 {
         (*rule)
             .match_0
             .push(coverage_from_raw(parse_coverage(json_arr_at(
@@ -61,7 +61,7 @@ pub unsafe fn otl_parse_chaining(
         j = j.wrapping_add(1);
     }
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as ::core::ffi::c_int) < json_arr_len(_apply) as ::core::ffi::c_int {
+    while (j_0 as i32) < json_arr_len(_apply) as i32 {
         let mut index: TableId = 0 as TableId;
         let mut lookup: LookupHandle = otfcc_handle_empty() as LookupHandle;
         let mut _application: *const ParsedValue = json_arr_at(_apply, j_0 as u32);

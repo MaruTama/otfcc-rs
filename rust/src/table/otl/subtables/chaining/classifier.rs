@@ -26,15 +26,15 @@ use crate::table::otl::{
 #[derive(Clone)]
 pub struct ClassifierValue {
     pub gname: Vec<u8>,
-    pub cls: ::core::ffi::c_int,
+    pub cls: i32,
 }
 unsafe fn class_compatible(
     h: &mut std::collections::BTreeMap<GlyphId, ClassifierValue>,
     cov: *mut Coverage,
-    past: *mut ::core::ffi::c_int,
-) -> ::core::ffi::c_int {
+    past: *mut i32,
+) -> i32 {
     if (*cov).len() == 0_usize {
-        return 1 as ::core::ffi::c_int;
+        return 1_i32;
     }
     let gid: GlyphId = (&(*cov))[0].index;
     match h.get(&gid).map(|v| v.cls) {
@@ -44,7 +44,7 @@ unsafe fn class_compatible(
                 let gid_0: GlyphId = (&(*cov))[j as usize].index;
                 match h.get(&gid_0) {
                     Some(ss) if ss.cls == cls => {}
-                    _ => return 0 as ::core::ffi::c_int,
+                    _ => return 0_i32,
                 }
                 j = j.wrapping_add(1);
             }
@@ -73,7 +73,7 @@ unsafe fn class_compatible(
             return if allcheck {
                 cls
             } else {
-                0 as ::core::ffi::c_int
+                0_i32
             };
         }
         None => {
@@ -81,11 +81,11 @@ unsafe fn class_compatible(
             while (j_1 as usize) < (*cov).len() {
                 let gid_3: GlyphId = (&(*cov))[j_1 as usize].index;
                 if h.contains_key(&gid_3) {
-                    return 0 as ::core::ffi::c_int;
+                    return 0_i32;
                 }
                 j_1 = j_1.wrapping_add(1);
             }
-            let new_cls: ::core::ffi::c_int = *past + 1 as ::core::ffi::c_int;
+            let new_cls: i32 = *past + 1_i32;
             let mut j_2: GlyphId = 0 as GlyphId;
             while (j_2 as usize) < (*cov).len() {
                 let gid_4: GlyphId = (&(*cov))[j_2 as usize].index;
@@ -96,8 +96,8 @@ unsafe fn class_compatible(
                 });
                 j_2 = j_2.wrapping_add(1);
             }
-            *past += 1 as ::core::ffi::c_int;
-            return 1 as ::core::ffi::c_int;
+            *past += 1_i32;
+            return 1_i32;
         }
     }
 }
@@ -120,13 +120,13 @@ unsafe fn build_rule(
         apply: Vec::new(),
     });
     let mut m: TableId = 0 as TableId;
-    while (m as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
+    while (m as i32) < (*rule).match_count as i32 {
         let cov: *mut Coverage = otl_coverage_create();
         if (&(*rule).match_0)[m as usize].len() > 0_usize {
             let h: &std::collections::BTreeMap<GlyphId, ClassifierValue> =
-                if (m as ::core::ffi::c_int) < (*rule).input_begins as ::core::ffi::c_int {
+                if (m as i32) < (*rule).input_begins as i32 {
                     hb
-                } else if (m as ::core::ffi::c_int) < (*rule).input_ends as ::core::ffi::c_int {
+                } else if (m as i32) < (*rule).input_ends as i32 {
                     hi
                 } else {
                     hf
@@ -208,9 +208,9 @@ pub unsafe fn try_classify_around(
         unreachable!()
     };
     let mut subtable0: *mut ChainingSubtable = mut_subtable0;
-    let mut classno_b: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut classno_i: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut classno_f: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
+    let mut classno_b: i32 = 0_i32;
+    let mut classno_i: i32 = 0_i32;
+    let mut classno_f: i32 = 0_i32;
     let rule0: *mut ChainingRule = chaining_rule_mut(subtable0);
     let mut m: TableId = 0 as TableId;
     // Was a `current_block`-flagged `loop`: this `while` runs to
@@ -219,15 +219,15 @@ pub unsafe fn try_classify_around(
     // records which, replacing the two `current_block` magic-number values
     // the `match` below used to dispatch on.
     let mut rule0_is_compatible = true;
-    while (m as ::core::ffi::c_int) < (*rule0).match_count as ::core::ffi::c_int {
-        let check: ::core::ffi::c_int;
-        if (m as ::core::ffi::c_int) < (*rule0).input_begins as ::core::ffi::c_int {
+    while (m as i32) < (*rule0).match_count as i32 {
+        let check: i32;
+        if (m as i32) < (*rule0).input_begins as i32 {
             check = class_compatible(
                 &mut hb,
                 &mut (&mut (*rule0).match_0)[m as usize] as *mut Coverage,
                 &raw mut classno_b,
             );
-        } else if (m as ::core::ffi::c_int) < (*rule0).input_ends as ::core::ffi::c_int {
+        } else if (m as i32) < (*rule0).input_ends as i32 {
             check = class_compatible(
                 &mut hi,
                 &mut (&mut (*rule0).match_0)[m as usize] as *mut Coverage,
@@ -247,7 +247,7 @@ pub unsafe fn try_classify_around(
         m = m.wrapping_add(1);
     }
     if rule0_is_compatible {
-        let mut k: TableId = (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
+        let mut k: TableId = (j as i32 + 1_i32) as TableId;
         's_74: while (k as usize) < (*lookup).subtables.len() {
             let k_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k as usize);
             let Subtable::Chaining(mut_subtable_k) = &mut *k_ptr else {
@@ -257,15 +257,15 @@ pub unsafe fn try_classify_around(
             let rule: *mut ChainingRule = chaining_rule_mut(subtable_k);
             let allcheck: bool = true;
             let mut m_0: TableId = 0 as TableId;
-            while (m_0 as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-                let check_0: ::core::ffi::c_int;
-                if (m_0 as ::core::ffi::c_int) < (*rule).input_begins as ::core::ffi::c_int {
+            while (m_0 as i32) < (*rule).match_count as i32 {
+                let check_0: i32;
+                if (m_0 as i32) < (*rule).input_begins as i32 {
                     check_0 = class_compatible(
                         &mut hb,
                         &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
                         &raw mut classno_b,
                     );
-                } else if (m_0 as ::core::ffi::c_int) < (*rule).input_ends as ::core::ffi::c_int
+                } else if (m_0 as i32) < (*rule).input_ends as i32
                 {
                     check_0 = class_compatible(
                         &mut hi,
@@ -286,13 +286,13 @@ pub unsafe fn try_classify_around(
                 }
             }
             if allcheck {
-                compatible_count = (compatible_count as ::core::ffi::c_int
-                    + 1 as ::core::ffi::c_int)
+                compatible_count = (compatible_count as i32
+                    + 1_i32)
                     as TableId;
             }
             k = k.wrapping_add(1);
         }
-        if compatible_count as ::core::ffi::c_int > 1 as ::core::ffi::c_int {
+        if compatible_count as i32 > 1_i32 {
             subtable0 = __caryll_allocate_clean(
                 ::core::mem::size_of::<ChainingSubtable>() as usize,
                 170 as ::core::ffi::c_ulong,
@@ -308,7 +308,7 @@ pub unsafe fn try_classify_around(
                 subtable0,
                 ChainingSubtable::Classified(ChainingRuleSet {
                     rules: Vec::with_capacity(
-                        (compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
+                        (compatible_count as i32 + 1_i32)
                             as usize,
                     ),
                     ..Default::default()
@@ -320,10 +320,10 @@ pub unsafe fn try_classify_around(
                 .push(Some(build_rule(rule0, &hb, &hi, &hf)));
             let mut kk: TableId = 1 as TableId;
             let mut k_0: TableId =
-                (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
+                (j as i32 + 1_i32) as TableId;
             while (k_0 as usize) < (*lookup).subtables.len()
-                && (kk as ::core::ffi::c_int)
-                    < compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int
+                && (kk as i32)
+                    < compatible_count as i32 + 1_i32
             {
                 let k_0_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k_0 as usize);
                 let Subtable::Chaining(mut_subtable_k_0) = &mut *k_0_ptr else {
@@ -347,7 +347,7 @@ pub unsafe fn try_classify_around(
     // a raw *mut), so they need no manual HASH_ITER+HASH_DEL+free walk
     // here -- they simply drop when this function returns, whether or
     // not to_class borrowed them above.
-    if compatible_count as ::core::ffi::c_int > 1 as ::core::ffi::c_int {
+    if compatible_count as i32 > 1_i32 {
         return compatible_count;
     } else {
         return 0 as TableId;
@@ -371,10 +371,10 @@ pub unsafe fn otfcc_classified_build_chaining(
         let st0: *mut ChainingSubtable = mut_st0;
         if chaining_is_canonical(st0) {
             let mut st: *mut ChainingSubtable = st0;
-            j = (j as ::core::ffi::c_int
-                + try_classify_around(lookup, j, &raw mut st) as ::core::ffi::c_int)
+            j = (j as i32
+                + try_classify_around(lookup, j, &raw mut st) as i32)
                 as TableId;
-            let buf: *mut Buffer = if is_contextual as ::core::ffi::c_int != 0 {
+            let buf: *mut Buffer = if is_contextual as i32 != 0 {
                 otfcc_build_contextual(st)
             } else {
                 otfcc_build_chaining(st)
@@ -385,7 +385,7 @@ pub unsafe fn otfcc_classified_build_chaining(
             subtable_buffers.push(buf);
             *last_offset = (*last_offset).wrapping_add((*buf).data.len());
             subtables_written =
-                (subtables_written as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
+                (subtables_written as i32 + 1_i32) as TableId;
         }
         j = j.wrapping_add(1);
     }

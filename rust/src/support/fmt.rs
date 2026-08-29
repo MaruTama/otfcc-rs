@@ -108,13 +108,13 @@ pub struct Hex2(pub u32);
 /// `%02X`
 pub struct Hex2Upper(pub u32);
 /// `%05d`
-pub struct Dec5(pub ::core::ffi::c_int);
+pub struct Dec5(pub i32);
 
 fn cat_ascii_vec(v: &mut Vec<u8>, digits: &str) {
     v.extend_from_slice(digits.as_bytes());
 }
 
-impl SdsPart for ::core::ffi::c_int {
+impl SdsPart for i32 {
     unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
         cat_ascii_vec(v, &format!("{self}"));
     }
@@ -320,7 +320,7 @@ mod tests {
             b"_",
             Hex2(0x1f),
             b"_",
-            7 as ::core::ffi::c_int,
+            7_i32,
         );
         assert_eq!(got, b"lookup_ccmp_1f_7");
     }
