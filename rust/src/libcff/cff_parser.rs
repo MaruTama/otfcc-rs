@@ -642,10 +642,7 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_setwidth(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(0_i32 as isize),
+                                    (&mut (*stack).stack)[(0_i32 as isize) as usize],
                                 ),
                             );
                         }
@@ -656,11 +653,10 @@ pub unsafe fn cff_parse_outline(
                         let mut j: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j as Arity) < (*stack).index {
                             let pos: ::core::ffi::c_double =
-                                cffnum(*(*stack).stack.as_mut_ptr().offset(j as isize));
+                                cffnum((&mut (*stack).stack)[(j as isize) as usize]);
                             let width: ::core::ffi::c_double =
-                                cffnum(*(*stack).stack.as_mut_ptr().offset(
-                                    (j as i32 + 1_i32) as isize,
-                                ));
+                                cffnum((&mut (*stack).stack)[(
+                                    (j as i32 + 1_i32) as isize) as usize]);
                             callback_draw_sethint(
                                 outline,
                                 op == OP_VSTEM.0 || op == OP_VSTEMHM.0,
@@ -677,10 +673,7 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_setwidth(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(0_i32 as isize),
+                                    (&mut (*stack).stack)[(0_i32 as isize) as usize],
                                 ),
                             );
                         }
@@ -694,11 +687,10 @@ pub unsafe fn cff_parse_outline(
                         let mut j_0: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j_0 as Arity) < (*stack).index {
                             let pos_0: ::core::ffi::c_double =
-                                cffnum(*(*stack).stack.as_mut_ptr().offset(j_0 as isize));
+                                cffnum((&mut (*stack).stack)[(j_0 as isize) as usize]);
                             let width_0: ::core::ffi::c_double =
-                                cffnum(*(*stack).stack.as_mut_ptr().offset(
-                                    (j_0 as i32 + 1_i32) as isize,
-                                ));
+                                cffnum((&mut (*stack).stack)[(
+                                    (j_0 as i32 + 1_i32) as isize) as usize]);
                             callback_draw_sethint(
                                 outline,
                                 is_vertical,
@@ -815,9 +807,8 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_setwidth(
                                     outline,
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(2 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                                     ),
                                 );
                             }
@@ -826,10 +817,7 @@ pub unsafe fn cff_parse_outline(
                                 outline,
                                 0.0f64,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                                 ),
                             );
                             (*stack).index = 0 as Arity;
@@ -854,9 +842,8 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_setwidth(
                                     outline,
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(3 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(3 as Arity) as isize) as usize],
                                     ),
                                 );
                             }
@@ -864,16 +851,10 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_lineto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                                 ),
                             );
                             (*stack).index = 0 as Arity;
@@ -898,9 +879,8 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_setwidth(
                                     outline,
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(2 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                                     ),
                                 );
                             }
@@ -908,10 +888,7 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_lineto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                                 ),
                                 0.0f64,
                             );
@@ -923,10 +900,7 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_setwidth(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                                 ),
                             );
                         }
@@ -936,12 +910,9 @@ pub unsafe fn cff_parse_outline(
                         while i < (*stack).index {
                             callback_draw_lineto(
                                 outline,
-                                cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(i.wrapping_add(1_u32) as isize),
+                                    (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                 ),
                             );
                             i = i.wrapping_add(2_u32);
@@ -954,27 +925,21 @@ pub unsafe fn cff_parse_outline(
                                 outline,
                                 0.0f64,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(0_i32 as isize),
+                                    (&mut (*stack).stack)[(0_i32 as isize) as usize],
                                 ),
                             );
                             i = 1_u32;
                             while i < (*stack).index {
                                 callback_draw_lineto(
                                     outline,
-                                    cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                    cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                     0.0f64,
                                 );
                                 callback_draw_lineto(
                                     outline,
                                     0.0f64,
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(1_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                 );
                                 i = i.wrapping_add(2_u32);
@@ -985,15 +950,12 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_lineto(
                                     outline,
                                     0.0f64,
-                                    cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                    cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                 );
                                 callback_draw_lineto(
                                     outline,
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(1_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                     0.0f64,
                                 );
@@ -1007,10 +969,7 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_lineto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(0_i32 as isize),
+                                    (&mut (*stack).stack)[(0_i32 as isize) as usize],
                                 ),
                                 0.0f64,
                             );
@@ -1019,15 +978,12 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_lineto(
                                     outline,
                                     0.0f64,
-                                    cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                    cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                 );
                                 callback_draw_lineto(
                                     outline,
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(1_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                     0.0f64,
                                 );
@@ -1038,17 +994,14 @@ pub unsafe fn cff_parse_outline(
                             while i < (*stack).index {
                                 callback_draw_lineto(
                                     outline,
-                                    cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                    cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                     0.0f64,
                                 );
                                 callback_draw_lineto(
                                     outline,
                                     0.0f64,
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(1_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                 );
                                 i = i.wrapping_add(2_u32);
@@ -1061,36 +1014,21 @@ pub unsafe fn cff_parse_outline(
                         while i < (*stack).index {
                             callback_draw_curveto(
                                 outline,
-                                cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(i.wrapping_add(1_u32) as isize),
+                                    (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(i.wrapping_add(2_u32) as isize),
+                                    (&mut (*stack).stack)[(i.wrapping_add(2_u32) as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(i.wrapping_add(3_u32) as isize),
+                                    (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(i.wrapping_add(4_u32) as isize),
+                                    (&mut (*stack).stack)[(i.wrapping_add(4_u32) as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(i.wrapping_add(5_u32) as isize),
+                                    (&mut (*stack).stack)[(i.wrapping_add(5_u32) as isize) as usize],
                                 ),
                             );
                             i = i.wrapping_add(6_u32);
@@ -1113,36 +1051,21 @@ pub unsafe fn cff_parse_outline(
                             while i < (*stack).index.wrapping_sub(2 as Arity) {
                                 callback_draw_curveto(
                                     outline,
-                                    cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                    cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(1_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(2_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(2_u32) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(3_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(4_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(4_u32) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(5_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(5_u32) as isize) as usize],
                                     ),
                                 );
                                 i = i.wrapping_add(6_u32);
@@ -1150,16 +1073,10 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_lineto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                                 ),
                             );
                         }
@@ -1181,12 +1098,9 @@ pub unsafe fn cff_parse_outline(
                             while i < (*stack).index.wrapping_sub(6 as Arity) {
                                 callback_draw_lineto(
                                     outline,
-                                    cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                    cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(1_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                 );
                                 i = i.wrapping_add(2_u32);
@@ -1194,40 +1108,22 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_curveto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(6 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(6 as Arity) as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(5 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(5 as Arity) as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(4 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(4 as Arity) as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(3 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(3 as Arity) as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                    (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                                 ),
                             );
                         }
@@ -1238,35 +1134,20 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_curveto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(0_i32 as isize),
+                                    (&mut (*stack).stack)[(0_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(1_i32 as isize),
+                                    (&mut (*stack).stack)[(1_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(2_i32 as isize),
+                                    (&mut (*stack).stack)[(2_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(3_i32 as isize),
+                                    (&mut (*stack).stack)[(3_i32 as isize) as usize],
                                 ),
                                 0.0f64,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(4_i32 as isize),
+                                    (&mut (*stack).stack)[(4_i32 as isize) as usize],
                                 ),
                             );
                             i = 5_u32;
@@ -1274,25 +1155,16 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_curveto(
                                     outline,
                                     0.0f64,
-                                    cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                    cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(1_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(2_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(2_u32) as isize) as usize],
                                     ),
                                     0.0f64,
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(3_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                     ),
                                 );
                                 i = i.wrapping_add(4_u32);
@@ -1303,25 +1175,16 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_curveto(
                                     outline,
                                     0.0f64,
-                                    cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                    cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(1_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(2_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(2_u32) as isize) as usize],
                                     ),
                                     0.0f64,
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(3_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                     ),
                                 );
                                 i = i.wrapping_add(4_u32);
@@ -1334,34 +1197,19 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_curveto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(1_i32 as isize),
+                                    (&mut (*stack).stack)[(1_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(0_i32 as isize),
+                                    (&mut (*stack).stack)[(0_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(2_i32 as isize),
+                                    (&mut (*stack).stack)[(2_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(3_i32 as isize),
+                                    (&mut (*stack).stack)[(3_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(4_i32 as isize),
+                                    (&mut (*stack).stack)[(4_i32 as isize) as usize],
                                 ),
                                 0.0f64,
                             );
@@ -1369,25 +1217,16 @@ pub unsafe fn cff_parse_outline(
                             while i < (*stack).index {
                                 callback_draw_curveto(
                                     outline,
-                                    cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                    cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                     0.0f64,
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(1_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(2_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(2_u32) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(3_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                     ),
                                     0.0f64,
                                 );
@@ -1398,25 +1237,16 @@ pub unsafe fn cff_parse_outline(
                             while i < (*stack).index {
                                 callback_draw_curveto(
                                     outline,
-                                    cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                    cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                     0.0f64,
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(1_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(2_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(2_u32) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack)
-                                            .stack
-                                            .as_mut_ptr()
-                                            .offset(i.wrapping_add(3_u32) as isize),
+                                        (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                     ),
                                     0.0f64,
                                 );
@@ -1461,50 +1291,32 @@ pub unsafe fn cff_parse_outline(
                                     callback_draw_curveto(
                                         outline,
                                         0.0f64,
-                                        cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                        cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(1_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                         ),
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(2_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(2_u32) as isize) as usize],
                                         ),
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(3_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                         ),
                                         0.0f64,
                                     );
                                 } else {
                                     callback_draw_curveto(
                                         outline,
-                                        cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                        cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                         0.0f64,
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(1_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                         ),
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(2_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(2_u32) as isize) as usize],
                                         ),
                                         0.0f64,
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(3_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                         ),
                                     );
                                 }
@@ -1515,29 +1327,24 @@ pub unsafe fn cff_parse_outline(
                                     outline,
                                     0.0f64,
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(5 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(5 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(4 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(4 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(3 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(3 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(2 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(1 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                                     ),
                                 );
                             }
@@ -1545,30 +1352,25 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_curveto(
                                     outline,
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(5 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(5 as Arity) as isize) as usize],
                                     ),
                                     0.0f64,
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(4 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(4 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(3 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(3 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(1 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(2 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                                     ),
                                 );
                             }
@@ -1605,50 +1407,32 @@ pub unsafe fn cff_parse_outline(
                                 if i.wrapping_div(4_u32).wrapping_rem(2_u32) == 0_u32 {
                                     callback_draw_curveto(
                                         outline,
-                                        cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                        cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                         0.0f64,
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(1_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                         ),
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(2_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(2_u32) as isize) as usize],
                                         ),
                                         0.0f64,
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(3_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                         ),
                                     );
                                 } else {
                                     callback_draw_curveto(
                                         outline,
                                         0.0f64,
-                                        cffnum(*(*stack).stack.as_mut_ptr().offset(i as isize)),
+                                        cffnum((&mut (*stack).stack)[(i as isize) as usize]),
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(1_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                         ),
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(2_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(2_u32) as isize) as usize],
                                         ),
                                         cffnum(
-                                            *(*stack)
-                                                .stack
-                                                .as_mut_ptr()
-                                                .offset(i.wrapping_add(3_u32) as isize),
+                                            (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                         ),
                                         0.0f64,
                                     );
@@ -1659,30 +1443,25 @@ pub unsafe fn cff_parse_outline(
                                 callback_draw_curveto(
                                     outline,
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(5 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(5 as Arity) as isize) as usize],
                                     ),
                                     0.0f64,
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(4 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(4 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(3 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(3 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(1 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(2 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                                     ),
                                 );
                             }
@@ -1691,29 +1470,24 @@ pub unsafe fn cff_parse_outline(
                                     outline,
                                     0.0f64,
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(5 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(5 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(4 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(4 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(3 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(3 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(2 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                                     ),
                                     cffnum(
-                                        *(*stack).stack.as_mut_ptr().offset(
-                                            (*stack).index.wrapping_sub(1 as Arity) as isize,
-                                        ),
+                                        (&mut (*stack).stack)[(
+                                            (*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                                     ),
                                 );
                             }
@@ -1738,58 +1512,34 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_curveto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(0_i32 as isize),
+                                    (&mut (*stack).stack)[(0_i32 as isize) as usize],
                                 ),
                                 0.0f64,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(1_i32 as isize),
+                                    (&mut (*stack).stack)[(1_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(2_i32 as isize),
+                                    (&mut (*stack).stack)[(2_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(3_i32 as isize),
+                                    (&mut (*stack).stack)[(3_i32 as isize) as usize],
                                 ),
                                 0.0f64,
                             );
                             callback_draw_curveto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(4_i32 as isize),
+                                    (&mut (*stack).stack)[(4_i32 as isize) as usize],
                                 ),
                                 0.0f64,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(5_i32 as isize),
+                                    (&mut (*stack).stack)[(5_i32 as isize) as usize],
                                 ),
                                 -cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(2_i32 as isize),
+                                    (&mut (*stack).stack)[(2_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(6_i32 as isize),
+                                    (&mut (*stack).stack)[(6_i32 as isize) as usize],
                                 ),
                                 0.0f64,
                             );
@@ -1814,79 +1564,43 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_curveto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(0_i32 as isize),
+                                    (&mut (*stack).stack)[(0_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(1_i32 as isize),
+                                    (&mut (*stack).stack)[(1_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(2_i32 as isize),
+                                    (&mut (*stack).stack)[(2_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(3_i32 as isize),
+                                    (&mut (*stack).stack)[(3_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(4_i32 as isize),
+                                    (&mut (*stack).stack)[(4_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(5_i32 as isize),
+                                    (&mut (*stack).stack)[(5_i32 as isize) as usize],
                                 ),
                             );
                             callback_draw_curveto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(6_i32 as isize),
+                                    (&mut (*stack).stack)[(6_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(7_i32 as isize),
+                                    (&mut (*stack).stack)[(7_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(8_i32 as isize),
+                                    (&mut (*stack).stack)[(8_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(9_i32 as isize),
+                                    (&mut (*stack).stack)[(9_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(10_i32 as isize),
+                                    (&mut (*stack).stack)[(10_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(11_i32 as isize),
+                                    (&mut (*stack).stack)[(11_i32 as isize) as usize],
                                 ),
                             );
                             (*stack).index = 0 as Arity;
@@ -1910,79 +1624,43 @@ pub unsafe fn cff_parse_outline(
                             callback_draw_curveto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(0_i32 as isize),
+                                    (&mut (*stack).stack)[(0_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(1_i32 as isize),
+                                    (&mut (*stack).stack)[(1_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(2_i32 as isize),
+                                    (&mut (*stack).stack)[(2_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(3_i32 as isize),
+                                    (&mut (*stack).stack)[(3_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(4_i32 as isize),
+                                    (&mut (*stack).stack)[(4_i32 as isize) as usize],
                                 ),
                                 0.0f64,
                             );
                             callback_draw_curveto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(5_i32 as isize),
+                                    (&mut (*stack).stack)[(5_i32 as isize) as usize],
                                 ),
                                 0.0f64,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(6_i32 as isize),
+                                    (&mut (*stack).stack)[(6_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(7_i32 as isize),
+                                    (&mut (*stack).stack)[(7_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(8_i32 as isize),
+                                    (&mut (*stack).stack)[(8_i32 as isize) as usize],
                                 ),
                                 -(cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(1_i32 as isize),
+                                    (&mut (*stack).stack)[(1_i32 as isize) as usize],
                                 ) + cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(3_i32 as isize),
+                                    (&mut (*stack).stack)[(3_i32 as isize) as usize],
                                 ) + cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(7_i32 as isize),
+                                    (&mut (*stack).stack)[(7_i32 as isize) as usize],
                                 )),
                             );
                             (*stack).index = 0 as Arity;
@@ -2004,138 +1682,72 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut dx: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset(0_i32 as isize),
+                                (&mut (*stack).stack)[(0_i32 as isize) as usize],
                             ) + cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset(2_i32 as isize),
+                                (&mut (*stack).stack)[(2_i32 as isize) as usize],
                             ) + cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset(4_i32 as isize),
+                                (&mut (*stack).stack)[(4_i32 as isize) as usize],
                             ) + cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset(6_i32 as isize),
+                                (&mut (*stack).stack)[(6_i32 as isize) as usize],
                             ) + cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset(8_i32 as isize),
+                                (&mut (*stack).stack)[(8_i32 as isize) as usize],
                             );
                             let mut dy: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset(1_i32 as isize),
+                                (&mut (*stack).stack)[(1_i32 as isize) as usize],
                             ) + cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset(3_i32 as isize),
+                                (&mut (*stack).stack)[(3_i32 as isize) as usize],
                             ) + cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset(5_i32 as isize),
+                                (&mut (*stack).stack)[(5_i32 as isize) as usize],
                             ) + cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset(7_i32 as isize),
+                                (&mut (*stack).stack)[(7_i32 as isize) as usize],
                             ) + cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset(9_i32 as isize),
+                                (&mut (*stack).stack)[(9_i32 as isize) as usize],
                             );
                             if fabs(dx) > fabs(dy) {
                                 dx = cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(10_i32 as isize),
+                                    (&mut (*stack).stack)[(10_i32 as isize) as usize],
                                 );
                                 dy = -dy;
                             } else {
                                 dx = -dx;
                                 dy = cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(10_i32 as isize),
+                                    (&mut (*stack).stack)[(10_i32 as isize) as usize],
                                 );
                             }
                             callback_draw_curveto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(0_i32 as isize),
+                                    (&mut (*stack).stack)[(0_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(1_i32 as isize),
+                                    (&mut (*stack).stack)[(1_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(2_i32 as isize),
+                                    (&mut (*stack).stack)[(2_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(3_i32 as isize),
+                                    (&mut (*stack).stack)[(3_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(4_i32 as isize),
+                                    (&mut (*stack).stack)[(4_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(5_i32 as isize),
+                                    (&mut (*stack).stack)[(5_i32 as isize) as usize],
                                 ),
                             );
                             callback_draw_curveto(
                                 outline,
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(6_i32 as isize),
+                                    (&mut (*stack).stack)[(6_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(7_i32 as isize),
+                                    (&mut (*stack).stack)[(7_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(8_i32 as isize),
+                                    (&mut (*stack).stack)[(8_i32 as isize) as usize],
                                 ),
                                 cffnum(
-                                    *(*stack)
-                                        .stack
-                                        .as_mut_ptr()
-                                        .offset(9_i32 as isize),
+                                    (&mut (*stack).stack)[(9_i32 as isize) as usize],
                                 ),
                                 dx,
                                 dy,
@@ -2159,21 +1771,12 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num1: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
                             let num2: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize]) =
                                 CffValue::Double(if num1 != 0. && num2 != 0. {
                                     1.0f64
                                 } else {
@@ -2198,21 +1801,12 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num1_0: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
                             let num2_0: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize]) =
                                 CffValue::Double(if num1_0 != 0. || num2_0 != 0. {
                                     1.0f64
                                 } else {
@@ -2237,15 +1831,9 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize]) =
                                 CffValue::Double(if num != 0. { 0.0f64 } else { 1.0f64 });
                         }
                     }
@@ -2265,15 +1853,9 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num_0: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize]) =
                                 CffValue::Double(if num_0 < 0.0f64 { -num_0 } else { num_0 });
                         }
                     }
@@ -2293,21 +1875,12 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num1_1: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
                             let num2_1: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize]) =
                                 CffValue::Double(num1_1 + num2_1);
                             (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
@@ -2328,21 +1901,12 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num1_2: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                             );
                             let num2_2: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize]) =
                                 CffValue::Double(num1_2 - num2_2);
                             (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
@@ -2363,21 +1927,12 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num1_3: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                             );
                             let num2_3: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize]) =
                                 CffValue::Double(num1_3 / num2_3);
                             (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
@@ -2398,15 +1953,9 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num_1: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize]) =
                                 CffValue::Double(-num_1);
                         }
                     }
@@ -2426,21 +1975,12 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num1_4: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
                             let num2_4: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize]) =
                                 CffValue::Double(if num1_4 == num2_4 { 1.0f64 } else { 0.0f64 });
                             (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
@@ -2479,16 +2019,10 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let val_0: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                             );
                             let i_0: i32 = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             ) as i32;
                             // `i_0` is a charstring-supplied operand, not a
                             // trusted cursor -- Rust's `%` keeps the
@@ -2524,15 +2058,9 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let i_1: i32 = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             ) as i32;
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize]) =
                                 CffValue::Double(cffnum(
                                     // Same fix as `op_put` above: `rem_euclid`
                                     // instead of `%` so a negative `i_1`
@@ -2559,40 +2087,25 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let v2: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
                             let v1: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                             );
                             let s2: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(3 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(3 as Arity) as isize) as usize],
                             );
                             let s1: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(4 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(4 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(4 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(4 as Arity) as isize) as usize]) =
                                 CffValue::Double(if v1 <= v2 { s1 } else { s2 });
                             (*stack).index = (*stack).index.wrapping_sub(3 as Arity);
                         }
                     }
                     3095 => {
                         if ((*stack).index as usize) < (*stack).stack.len() {
-                            *(*stack).stack.as_mut_ptr().offset((*stack).index as isize) =
+                            (&mut (*stack).stack)[((*stack).index as isize) as usize] =
                                 CffValue::Double(callback_draw_getrand(outline));
                             (*stack).index = (*stack).index.wrapping_add(1 as Arity);
                         } else {
@@ -2624,21 +2137,12 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num1_5: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
                             let num2_5: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize]) =
                                 CffValue::Double(num1_5 * num2_5);
                             (*stack).index = (*stack).index.wrapping_sub(1 as Arity);
                         }
@@ -2659,15 +2163,9 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num_2: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize]) =
                                 CffValue::Double(sqrt(num_2));
                         }
                     }
@@ -2686,11 +2184,8 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         } else if ((*stack).index as usize) < (*stack).stack.len() {
-                            *(*stack).stack.as_mut_ptr().offset((*stack).index as isize) =
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize);
+                            (&mut (*stack).stack)[((*stack).index as isize) as usize] =
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize];
                             (*stack).index = (*stack).index.wrapping_add(1 as Arity);
                         } else {
                             logger_log_sds(
@@ -2721,26 +2216,14 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let num1_6: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
                             let num2_6: ::core::ffi::c_double = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                             );
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(1 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize]) =
                                 CffValue::Double(num2_6);
-                            (*(*stack)
-                                .stack
-                                .as_mut_ptr()
-                                .offset((*stack).index.wrapping_sub(2 as Arity) as isize)) =
+                            ((&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize]) =
                                 CffValue::Double(num1_6);
                         }
                     }
@@ -2789,12 +2272,12 @@ pub unsafe fn cff_parse_outline(
                             } else {
                                 let j_1: u8 = (n as i32
                                     - 1_i32
-                                    - cffnum(*(*stack).stack.as_mut_ptr().offset(n as isize)) as u8
+                                    - cffnum((&mut (*stack).stack)[(n as isize) as usize]) as u8
                                         as i32
                                         % n as i32)
                                     as u8;
-                                *(*stack).stack.as_mut_ptr().offset(n as isize) =
-                                    *(*stack).stack.as_mut_ptr().offset(j_1 as isize);
+                                (&mut (*stack).stack)[(n as isize) as usize] =
+                                    (&mut (*stack).stack)[(j_1 as isize) as usize];
                             }
                         }
                     }
@@ -2814,16 +2297,10 @@ pub unsafe fn cff_parse_outline(
                             );
                         } else {
                             let mut j_2: i32 = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(1 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             ) as i32;
                             let n_0: u32 = cffnum(
-                                *(*stack)
-                                    .stack
-                                    .as_mut_ptr()
-                                    .offset((*stack).index.wrapping_sub(2 as Arity) as isize),
+                                (&mut (*stack).stack)[((*stack).index.wrapping_sub(2 as Arity) as isize) as usize],
                             ) as u32;
                             if (*stack).index < 2_u32.wrapping_add(n_0) {
                                 logger_log_sds(
@@ -2893,7 +2370,7 @@ pub unsafe fn cff_parse_outline(
                         } else {
                             (*stack).index = (*stack).index.wrapping_sub(1);
                             let subr: u32 = cffnum(
-                                *(*stack).stack.as_mut_ptr().offset((*stack).index as isize),
+                                (&mut (*stack).stack)[((*stack).index as isize) as usize],
                             ) as u32;
                             if let Some((sub_data, sub_len)) = locate_subr(lsubr, lsubr_bias, subr)
                             {
@@ -2957,7 +2434,7 @@ pub unsafe fn cff_parse_outline(
                         } else {
                             (*stack).index = (*stack).index.wrapping_sub(1);
                             let subr_0: u32 = cffnum(
-                                *(*stack).stack.as_mut_ptr().offset((*stack).index as isize),
+                                (&mut (*stack).stack)[((*stack).index as isize) as usize],
                             ) as u32;
                             if let Some((sub_data, sub_len)) =
                                 locate_subr(gsubr, gsubr_bias, subr_0)
@@ -3023,7 +2500,7 @@ pub unsafe fn cff_parse_outline(
             }
             CffValue::Integer(_) | CffValue::Double(_) => {
                 if ((*stack).index as usize) < (*stack).stack.len() {
-                    *(*stack).stack.as_mut_ptr().offset((*stack).index as isize) = val;
+                    (&mut (*stack).stack)[((*stack).index as isize) as usize] = val;
                     (*stack).index = (*stack).index.wrapping_add(1);
                 } else {
                     logger_log_sds(
