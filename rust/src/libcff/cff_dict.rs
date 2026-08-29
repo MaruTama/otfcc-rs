@@ -86,7 +86,7 @@ pub(crate) unsafe fn parse_to_callback(
     context: *mut ::core::ffi::c_void,
     callback: Option<unsafe fn(CffDictOperator, u8, *mut CffValue, *mut ::core::ffi::c_void) -> ()>,
 ) {
-    let mut index: u8 = 0 as u8;
+    let mut index: u8 = 0_u8;
     let mut val: CffValue = CffValue::Unset;
     let mut stack: [CffValue; 256] = [CffValue::Unset; 256];
     let mut pos: usize = 0;
@@ -105,7 +105,7 @@ pub(crate) unsafe fn parse_to_callback(
                     &raw mut stack as *mut CffValue,
                     context,
                 );
-                index = 0 as u8;
+                index = 0_u8;
             }
             CffValue::Integer(_) | CffValue::Double(_) => {
                 let fresh0 = index;
@@ -176,7 +176,7 @@ pub(crate) unsafe fn build_dict(dict: *const CffDict) -> *mut Buffer {
             let blob_val: *mut Buffer = match vals[j] {
                 CffValue::Integer(i) => cff_encode_cff_integer(i),
                 CffValue::Double(d) => cff_encode_cff_float(d),
-                CffValue::Unset | CffValue::Operator(_) => cff_encode_cff_integer(0 as i32),
+                CffValue::Unset | CffValue::Operator(_) => cff_encode_cff_integer(0_i32),
             };
             bufwrite_bufdel(blob, blob_val);
             j = j.wrapping_add(1);

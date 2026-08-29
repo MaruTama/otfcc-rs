@@ -101,15 +101,15 @@ pub(crate) unsafe fn cff_index_init(x: *mut CffIndex) {
 pub(crate) unsafe fn get_index_length(i: *const CffIndex) -> u32 {
     if (*i).count != 0 as Arity {
         let offset = &(*i).offset;
-        return (3 as u32)
-            .wrapping_add((offset[(*i).count as usize]).wrapping_sub(1 as u32))
+        return 3_u32
+            .wrapping_add((offset[(*i).count as usize]).wrapping_sub(1_u32))
             .wrapping_add(
-                ((*i).count as u32)
-                    .wrapping_add(1 as u32)
+                (*i).count
+                    .wrapping_add(1_u32)
                     .wrapping_mul((*i).off_size as u32),
             );
     } else {
-        return 3 as u32;
+        return 3_u32;
     };
 }
 pub(crate) unsafe fn empty_index(i: *mut CffIndex) {
@@ -230,11 +230,11 @@ pub(crate) unsafe fn new_index_by_callback(
 ) -> *mut CffIndex {
     let idx: *mut CffIndex = (cff_index_create)();
     (*idx).count = length as Arity;
-    let mut offset: Vec<u32> = vec![0 as u32; (*idx).count.wrapping_add(1 as Arity) as usize];
-    offset[0 as usize] = 1 as u32;
+    let mut offset: Vec<u32> = vec![0_u32; (*idx).count.wrapping_add(1 as Arity) as usize];
+    offset[0_usize] = 1_u32;
     let mut data: Vec<u8> = Vec::new();
-    let mut used: usize = 0 as usize;
-    let mut blank: usize = 0 as usize;
+    let mut used: usize = 0_usize;
+    let mut blank: usize = 0_usize;
     let mut i: Arity = 0 as Arity;
     while i < length {
         let blob: *mut Buffer = fn_0.expect("non-null function pointer")(context, i as u32);
@@ -242,12 +242,12 @@ pub(crate) unsafe fn new_index_by_callback(
         if blank < blob_size {
             used = used.wrapping_add(blob_size);
             blank = used >> 1 as ::core::ffi::c_int & 0xffffff as ::core::ffi::c_int as usize;
-            data.resize(used.wrapping_add(blank), 0 as u8);
+            data.resize(used.wrapping_add(blank), 0_u8);
         } else {
             used = used.wrapping_add(blob_size);
             blank = blank.wrapping_sub(blob_size);
         }
-        let write_at: usize = (offset[i as usize] as usize).wrapping_sub(1 as usize);
+        let write_at: usize = (offset[i as usize] as usize).wrapping_sub(1_usize);
         offset[i.wrapping_add(1 as Arity) as usize] =
             blob_size.wrapping_add(offset[i as usize] as usize) as u32;
         data[write_at..write_at.wrapping_add(blob_size)].copy_from_slice(&(*blob).data);
@@ -257,28 +257,28 @@ pub(crate) unsafe fn new_index_by_callback(
     data.truncate(used);
     (*idx).offset = offset;
     (*idx).data = data;
-    (*idx).off_size = 4 as u8;
+    (*idx).off_size = 4_u8;
     return idx;
 }
 pub(crate) unsafe fn build_index(index: *const CffIndex) -> *mut Buffer {
     let blob: *mut Buffer = bufnew();
     if (*index).count == 0 {
-        bufwrite8(blob, 0 as u8);
-        bufwrite8(blob, 0 as u8);
-        bufwrite8(blob, 0 as u8);
+        bufwrite8(blob, 0_u8);
+        bufwrite8(blob, 0_u8);
+        bufwrite8(blob, 0_u8);
         return blob;
     }
     let offset = &(*index).offset;
     let last_offset: u32 = offset[(*index).count as usize];
     let off_size: u8;
-    if last_offset < 0x100 as u32 {
-        off_size = 1 as u8;
-    } else if last_offset < 0x10000 as u32 {
-        off_size = 2 as u8;
-    } else if last_offset < 0x1000000 as u32 {
-        off_size = 3 as u8;
+    if last_offset < 0x100_u32 {
+        off_size = 1_u8;
+    } else if last_offset < 0x10000_u32 {
+        off_size = 2_u8;
+    } else if last_offset < 0x1000000_u32 {
+        off_size = 3_u8;
     } else {
-        off_size = 4 as u8;
+        off_size = 4_u8;
     }
     bufwrite8(blob, (*index).count.wrapping_div(256 as Arity) as u8);
     bufwrite8(blob, (*index).count.wrapping_rem(256 as Arity) as u8);
@@ -292,36 +292,36 @@ pub(crate) unsafe fn build_index(index: *const CffIndex) -> *mut Buffer {
                     bufwrite8(blob, offset_i as u8);
                 }
                 2 => {
-                    bufwrite8(blob, offset_i.wrapping_div(256 as u32) as u8);
-                    bufwrite8(blob, offset_i.wrapping_rem(256 as u32) as u8);
+                    bufwrite8(blob, offset_i.wrapping_div(256_u32) as u8);
+                    bufwrite8(blob, offset_i.wrapping_rem(256_u32) as u8);
                 }
                 3 => {
-                    bufwrite8(blob, offset_i.wrapping_div(65536 as u32) as u8);
+                    bufwrite8(blob, offset_i.wrapping_div(65536_u32) as u8);
                     bufwrite8(
                         blob,
-                        offset_i.wrapping_rem(65536 as u32).wrapping_div(256 as u32) as u8,
+                        offset_i.wrapping_rem(65536_u32).wrapping_div(256_u32) as u8,
                     );
                     bufwrite8(
                         blob,
-                        offset_i.wrapping_rem(65536 as u32).wrapping_rem(256 as u32) as u8,
+                        offset_i.wrapping_rem(65536_u32).wrapping_rem(256_u32) as u8,
                     );
                 }
                 4 => {
                     bufwrite8(
                         blob,
-                        offset_i.wrapping_div(65536 as u32).wrapping_div(256 as u32) as u8,
+                        offset_i.wrapping_div(65536_u32).wrapping_div(256_u32) as u8,
                     );
                     bufwrite8(
                         blob,
-                        offset_i.wrapping_div(65536 as u32).wrapping_rem(256 as u32) as u8,
+                        offset_i.wrapping_div(65536_u32).wrapping_rem(256_u32) as u8,
                     );
                     bufwrite8(
                         blob,
-                        offset_i.wrapping_rem(65536 as u32).wrapping_div(256 as u32) as u8,
+                        offset_i.wrapping_rem(65536_u32).wrapping_div(256_u32) as u8,
                     );
                     bufwrite8(
                         blob,
-                        offset_i.wrapping_rem(65536 as u32).wrapping_rem(256 as u32) as u8,
+                        offset_i.wrapping_rem(65536_u32).wrapping_rem(256_u32) as u8,
                     );
                 }
                 _ => {}
@@ -329,7 +329,7 @@ pub(crate) unsafe fn build_index(index: *const CffIndex) -> *mut Buffer {
             i = i.wrapping_add(1);
         }
         if !(*index).data.is_empty() {
-            let n = (offset[(*index).count as usize]).wrapping_sub(1 as u32) as usize;
+            let n = (offset[(*index).count as usize]).wrapping_sub(1_u32) as usize;
             bufwrite_bytes(blob, n, (*index).data.as_ptr());
         }
     }

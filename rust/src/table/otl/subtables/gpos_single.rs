@@ -172,9 +172,9 @@ pub unsafe fn otfcc_build_gpos_single(
         unreachable!()
     };
     let subtable: *const GposSingleSubtable = mut_subtable;
-    let mut is_const: bool = (*subtable).len() > 0 as usize;
-    let mut format: u16 = 0 as u16;
-    if (*subtable).len() > 0 as usize {
+    let mut is_const: bool = (*subtable).len() > 0_usize;
+    let mut format: u16 = 0_u16;
+    if (*subtable).len() > 0_usize {
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*subtable).len() {
             is_const = is_const as ::core::ffi::c_int != 0
@@ -200,7 +200,7 @@ pub unsafe fn otfcc_build_gpos_single(
     let coverage_buf: *mut Buffer = build_coverage(cov);
     if is_const {
         let b: *mut BkBlock = bk_new_block(&[
-            bk_int(BkCellType::B16, 1 as u32),
+            bk_int(BkCellType::B16, 1_u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
             bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32),
             bk_ptr(
@@ -212,7 +212,7 @@ pub unsafe fn otfcc_build_gpos_single(
         return bk_build_block(b);
     } else {
         let b_0: *mut BkBlock = bk_new_block(&[
-            bk_int(BkCellType::B16, 2 as u32),
+            bk_int(BkCellType::B16, 2_u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
             bk_int(BkCellType::B16, (format as ::core::ffi::c_int) as u32),
             bk_int(BkCellType::B16, ((*subtable).len()) as u32),

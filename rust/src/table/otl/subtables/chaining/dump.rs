@@ -17,7 +17,7 @@ pub unsafe fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut BuiltVal
             return json_null_new();
         }
         let rule: *const ChainingRule = chaining_rule_const(subtable);
-        let mut _st: *mut BuiltValue = json_object_new(4 as usize);
+        let mut _st: *mut BuiltValue = json_object_new(4_usize);
         let mut _match: *mut BuiltValue = json_array_new((*rule).match_count as usize);
         let mut j: TableId = 0 as TableId;
         while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
@@ -35,7 +35,7 @@ pub unsafe fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut BuiltVal
         let mut _apply: *mut BuiltValue = json_array_new((*rule).apply.len());
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*rule).apply.len() {
-            let mut _application: *mut BuiltValue = json_object_new(2 as usize);
+            let mut _application: *mut BuiltValue = json_object_new(2_usize);
             json_object_push(
                 _application,
                 b"at\0" as *const u8 as *const ::core::ffi::c_char,

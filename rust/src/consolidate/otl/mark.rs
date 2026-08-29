@@ -257,8 +257,8 @@ pub unsafe fn consolidate_mark_to_single(
         (*subtable).class_count,
     );
     consolidate_base_array(font, table, options, &raw mut (*subtable).base_array);
-    return (*subtable).mark_array.len() == 0 as usize
-        || (*subtable).base_array.len() == 0 as usize;
+    return (*subtable).mark_array.len() == 0_usize
+        || (*subtable).base_array.len() == 0_usize;
 }
 pub unsafe fn consolidate_mark_to_ligature(
     font: *mut Font,
@@ -278,5 +278,5 @@ pub unsafe fn consolidate_mark_to_ligature(
         (*subtable).class_count,
     );
     consolidate_lig_array(font, table, options, &raw mut (*subtable).lig_array);
-    return (*subtable).mark_array.len() == 0 as usize || (*subtable).lig_array.len() == 0 as usize;
+    return (*subtable).mark_array.len() == 0_usize || (*subtable).lig_array.len() == 0_usize;
 }

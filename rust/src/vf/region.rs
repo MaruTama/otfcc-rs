@@ -96,7 +96,7 @@ unsafe fn weight_axis_region(as_0: *const VqAxisSpan, x: Pos) -> Pos {
 pub unsafe fn vq_region_get_weight(r: *const VqRegion, v: *const VV) -> Pos {
     let coords: &Vec<Pos> = &*v;
     let mut w: Pos = 1 as ::core::ffi::c_int as Pos;
-    let mut j: usize = 0 as usize;
+    let mut j: usize = 0_usize;
     while j < (*r).dimensions as usize && !coords.is_empty() {
         w *= weight_axis_region(&(&(*r).spans)[j] as *const VqAxisSpan, coords[j]);
         j = j.wrapping_add(1);

@@ -71,7 +71,7 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
         - (*rule).input_ends as ::core::ffi::c_int) as TableId;
     let n_subst: TableId = (*rule).apply.len() as TableId;
     reverse_backtracks(rule);
-    let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 3 as u32)]);
+    let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 3_u32)]);
     bk_push(
         root,
         &[bk_int(
@@ -168,7 +168,7 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
     let ic: *mut ClassDef = (*ruleset).ic.as_deref().unwrap() as *const ClassDef as *mut ClassDef;
     let coverage: *mut Coverage = &raw mut (*ic).glyphs;
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B16, 2 as u32),
+        bk_int(BkCellType::B16, 2_u32),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(build_coverage(coverage)),
@@ -348,7 +348,7 @@ pub unsafe fn otfcc_build_contextual_coverage(
         - (*rule).input_begins as ::core::ffi::c_int) as TableId;
     let n_subst: TableId = (*rule).apply.len() as TableId;
     reverse_backtracks(rule);
-    let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 3 as u32)]);
+    let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 3_u32)]);
     bk_push(
         root,
         &[bk_int(
@@ -403,7 +403,7 @@ pub unsafe fn otfcc_build_contextual_classes(
     let ic: *mut ClassDef = (*ruleset).ic.as_deref().unwrap() as *const ClassDef as *mut ClassDef;
     let coverage: *mut Coverage = &raw mut (*ic).glyphs;
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B16, 2 as u32),
+        bk_int(BkCellType::B16, 2_u32),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(build_coverage(coverage)),

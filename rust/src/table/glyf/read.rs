@@ -477,7 +477,7 @@ unsafe fn read_packed_delta(
     };
     let mut filled: ShapeId = 0 as ShapeId;
     while (filled as ::core::ffi::c_int) < n_points as ::core::ffi::c_int {
-        let mut delta: i16 = 0 as i16;
+        let mut delta: i16 = 0_i16;
         if run.length as ::core::ffi::c_int == 0 as ::core::ffi::c_int {
             let run_header: u8 = r.u8().ok()?;
             run.zero = run_header as ::core::ffi::c_int & DELTAS_ARE_ZERO != 0;
@@ -636,8 +636,8 @@ unsafe fn apply_coords(
         j_0 = j_0.wrapping_add(1);
     }
     let mut j_first: ShapeId = 0 as ShapeId;
-    let mut __caryll_index: usize = 0 as usize;
-    let mut keep: usize = 1 as usize;
+    let mut __caryll_index: usize = 0_usize;
+    let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < (*glyph).contours.len() {
         let c: *mut Contour = &raw mut (&mut (*glyph).contours)[__caryll_index];
         while keep != 0 {
@@ -682,13 +682,13 @@ unsafe fn apply_polymorphism(
     // between them, matching what the array used to be pre-sized to),
     // dropped automatically at the end of this function.
     let mut glyph_refs: Vec<*mut Point> = Vec::with_capacity(total_points as usize);
-    let mut __caryll_index: usize = 0 as usize;
-    let mut keep: usize = 1 as usize;
+    let mut __caryll_index: usize = 0_usize;
+    let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < (*glyph).contours.len() {
         let c: *mut Contour = &raw mut (&mut (*glyph).contours)[__caryll_index];
         while keep != 0 {
-            let mut __caryll_index_0: usize = 0 as usize;
-            let mut keep_0: usize = 1 as usize;
+            let mut __caryll_index_0: usize = 0_usize;
+            let mut keep_0: usize = 1_usize;
             while keep_0 != 0 && __caryll_index_0 < (*c).len() {
                 let g: *mut Point = &raw mut (&mut (*c))[__caryll_index_0];
                 while keep_0 != 0 {
@@ -703,8 +703,8 @@ unsafe fn apply_polymorphism(
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut __caryll_index_1: usize = 0 as usize;
-    let mut keep_1: usize = 1 as usize;
+    let mut __caryll_index_1: usize = 0_usize;
+    let mut keep_1: usize = 1_usize;
     while keep_1 != 0 && __caryll_index_1 < (*glyph).references.len() {
         let r_0: *mut ComponentReference = &raw mut (&mut (*glyph).references)[__caryll_index_1];
         while keep_1 != 0 {
@@ -716,7 +716,7 @@ unsafe fn apply_polymorphism(
     }
     apply_coords(
         total_points,
-        glyph as *mut Glyph,
+        glyph,
         &glyph_refs,
         n_touched_points,
         delta_x,
@@ -726,7 +726,7 @@ unsafe fn apply_polymorphism(
     );
     apply_coords(
         total_points,
-        glyph as *mut Glyph,
+        glyph,
         &glyph_refs,
         n_touched_points,
         delta_y,
@@ -789,7 +789,7 @@ unsafe fn create_region_from_tuples(
     range_offset: Option<usize>,
 ) -> Option<*mut VqRegion> {
     let r: *mut VqRegion = vq_create_region(dimensions as ShapeId);
-    let mut d: u16 = 0 as u16;
+    let mut d: u16 = 0_u16;
     while (d as ::core::ffi::c_int) < dimensions as ::core::ffi::c_int {
         let Ok(peak_raw) = FontReader::new(gvar)
             .at(peak_offset + d as usize * 2)
@@ -867,8 +867,8 @@ unsafe fn polymorphize_glyph(
     let mut header = FontReader::new(gvar).at(gvd_offset).ok()?;
     let raw_tuple_variation_count = header.u16().ok()?;
     let data_offset_field = header.u16().ok()?;
-    let n_tuples: u16 = raw_tuple_variation_count & 0xfff as u16;
-    let has_shared_point_numbers: bool = raw_tuple_variation_count & 0x8000 as u16 != 0;
+    let n_tuples: u16 = raw_tuple_variation_count & 0xfff_u16;
+    let has_shared_point_numbers: bool = raw_tuple_variation_count & 0x8000_u16 != 0;
     let mut tvh_offset: usize = gvd_offset + 4;
 
     // `shared_point_indeces` is a local `Vec<ShapeId>` now: empty means
@@ -883,7 +883,7 @@ unsafe fn polymorphize_glyph(
         data_offset = new_offset;
         shared_point_indeces = indeces;
     }
-    let mut tsd_start: usize = 0 as usize;
+    let mut tsd_start: usize = 0_usize;
     for _ in 0..n_tuples {
         let mut th = FontReader::new(gvar).at(tvh_offset).ok()?;
         let variation_data_size = th.u16().ok()?;
@@ -1039,7 +1039,7 @@ unsafe fn polymorphize(
             dimensions,
             shared_tuple_count,
             shared_tuples_offset: shared_tuples_offset as usize,
-            coord_dimensions: 2 as u8,
+            coord_dimensions: 2_u8,
             allow_iup: !(&(*glyf))[j].as_deref().unwrap().contours.is_empty(),
             n_phantom_points: (*ctx).n_phantom_points,
         };

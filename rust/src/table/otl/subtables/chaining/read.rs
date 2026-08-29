@@ -346,7 +346,7 @@ pub unsafe fn format3_coverage(
     return read_coverage(
         data as *const u8,
         table_length,
-        _offset.wrapping_add(shift as u32).wrapping_sub(2 as u32),
+        _offset.wrapping_add(shift as u32).wrapping_sub(2_u32),
     );
 }
 // Every guard below is expressed as a `FontReader` read or `require_room`
@@ -422,7 +422,7 @@ pub unsafe fn general_read_contextual_rule(
                 table_length,
                 start_gid,
                 offset,
-                2 as u16,
+                2_u16,
                 max_glyphs,
                 userdata,
             )));
@@ -439,7 +439,7 @@ pub unsafe fn general_read_contextual_rule(
                 table_length,
                 gid,
                 offset,
-                2 as u16,
+                2_u16,
                 max_glyphs,
                 userdata,
             )));
@@ -700,7 +700,7 @@ unsafe fn read_contextual_format2(
                     data,
                     table_length,
                     sr_offset,
-                    j as u16,
+                    j,
                     true,
                     Some(
                         class_coverage
@@ -778,7 +778,7 @@ pub unsafe fn otl_read_contextual(
     // sees a valid, possibly-still-empty ruleset from this point on.
     *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
     let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-    let mut format: u16 = 0 as u16;
+    let mut format: u16 = 0_u16;
     if let Ok(mut r) = FontReader::new(slice).at(offset as usize) {
         if let Ok(f) = r.u16() {
             format = f;
@@ -798,8 +798,8 @@ pub unsafe fn otl_read_contextual(
         let rule_ptr = general_read_contextual_rule(
             data,
             table_length,
-            offset.wrapping_add(2 as u32),
-            0 as u16,
+            offset.wrapping_add(2_u32),
+            0_u16,
             false,
             Some(
                 format3_coverage
@@ -914,7 +914,7 @@ pub unsafe fn general_read_chaining_rule(
                 table_length,
                 gid,
                 offset,
-                1 as u16,
+                1_u16,
                 max_glyphs,
                 userdata,
             )));
@@ -926,7 +926,7 @@ pub unsafe fn general_read_chaining_rule(
                 table_length,
                 start_gid,
                 offset,
-                2 as u16,
+                2_u16,
                 max_glyphs,
                 userdata,
             )));
@@ -951,7 +951,7 @@ pub unsafe fn general_read_chaining_rule(
                 table_length,
                 gid,
                 offset,
-                2 as u16,
+                2_u16,
                 max_glyphs,
                 userdata,
             )));
@@ -969,7 +969,7 @@ pub unsafe fn general_read_chaining_rule(
                 table_length,
                 gid,
                 offset,
-                3 as u16,
+                3_u16,
                 max_glyphs,
                 userdata,
             )));
@@ -1234,7 +1234,7 @@ unsafe fn read_chaining_format2(
                     data,
                     table_length,
                     sr_offset,
-                    j as u16,
+                    j,
                     true,
                     Some(
                         class_coverage
@@ -1303,7 +1303,7 @@ pub unsafe fn otl_read_chaining(
     // See the identical comment in `otl_read_contextual`.
     *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
     let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
-    let mut format: u16 = 0 as u16;
+    let mut format: u16 = 0_u16;
     if let Ok(mut r) = FontReader::new(slice).at(offset as usize) {
         if let Ok(f) = r.u16() {
             format = f;
@@ -1323,8 +1323,8 @@ pub unsafe fn otl_read_chaining(
         let rule_ptr = general_read_chaining_rule(
             data,
             table_length,
-            offset.wrapping_add(2 as u32),
-            0 as u16,
+            offset.wrapping_add(2_u32),
+            0_u16,
             false,
             Some(
                 format3_coverage

@@ -79,7 +79,7 @@ impl FontBuilder for OtfReader {
     ) -> *mut ::core::ffi::c_void {
         let options: &Options = &*(options as *const Options);
         let sfnt: *mut SplineFontContainer = _sfnt as *mut SplineFontContainer;
-        if (*sfnt).count.wrapping_sub(1 as u32) < index {
+        if (*sfnt).count.wrapping_sub(1_u32) < index {
             return ::core::ptr::null_mut::<::core::ffi::c_void>();
         } else {
             let font: *mut Font = (otfcc_font_create)();

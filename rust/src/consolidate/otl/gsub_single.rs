@@ -36,9 +36,9 @@ pub unsafe fn consolidate_gsub_single(
     // `PositionValue`.
     let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, i32, Vec<u8>)> =
         std::collections::BTreeMap::new();
-    let mut k: usize = 0 as usize;
+    let mut k: usize = 0_usize;
     while k < (*subtable).len() {
-        if !otfcc_gord_consolidate_handle(glyph_order, &raw mut (&mut (*subtable))[k as usize].from)
+        if !otfcc_gord_consolidate_handle(glyph_order, &raw mut (&mut (*subtable))[k].from)
         {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
@@ -46,13 +46,13 @@ pub unsafe fn consolidate_gsub_single(
                 LoggerType::Warning,
                 crate::bytesbuild!(
                     b"[Consolidate] Ignored missing glyph /",
-                    &(&(*subtable))[k as usize].from.name,
+                    &(&(*subtable))[k].from.name,
                     b".\n",
                 ),
             );
         } else if !otfcc_gord_consolidate_handle(
             glyph_order,
-            &raw mut (&mut (*subtable))[k as usize].to,
+            &raw mut (&mut (*subtable))[k].to,
         ) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
@@ -60,12 +60,12 @@ pub unsafe fn consolidate_gsub_single(
                 LoggerType::Warning,
                 crate::bytesbuild!(
                     b"[Consolidate] Ignored missing glyph /",
-                    &(&(*subtable))[k as usize].to.name,
+                    &(&(*subtable))[k].to.name,
                     b".\n",
                 ),
             );
         } else {
-            let fromid: i32 = (&(*subtable))[k as usize].from.index as i32;
+            let fromid: i32 = (&(*subtable))[k].from.index as i32;
             if seen.contains_key(&fromid) {
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
@@ -73,14 +73,14 @@ pub unsafe fn consolidate_gsub_single(
                     LoggerType::Warning,
                     crate::bytesbuild!(
                         b"[Consolidate] Double-mapping a glyph in a single substitution /",
-                        &(&(*subtable))[k as usize].from.name,
+                        &(&(*subtable))[k].from.name,
                         b".\n",
                     ),
                 );
             } else {
-                let toid: i32 = (&(*subtable))[k as usize].to.index as i32;
-                let fromname: Vec<u8> = (&(*subtable))[k as usize].from.name.clone();
-                let toname: Vec<u8> = (&(*subtable))[k as usize].to.name.clone();
+                let toid: i32 = (&(*subtable))[k].to.index as i32;
+                let fromname: Vec<u8> = (&(*subtable))[k].from.name.clone();
+                let toname: Vec<u8> = (&(*subtable))[k].to.name.clone();
                 seen.insert(fromid, (fromname, toid, toname));
             }
         }
@@ -109,5 +109,5 @@ pub unsafe fn consolidate_gsub_single(
             } as GlyphHandle,
         });
     }
-    return (*subtable).len() == 0 as usize;
+    return (*subtable).len() == 0_usize;
 }

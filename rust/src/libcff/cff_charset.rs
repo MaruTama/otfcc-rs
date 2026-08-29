@@ -99,7 +99,7 @@ pub unsafe fn cff_extract_charset(
             }
             1 => {
                 let mut size: usize = 0;
-                let mut glyphs_encoded_sofar: u32 = 1 as u32;
+                let mut glyphs_encoded_sofar: u32 = 1_u32;
                 while glyphs_encoded_sofar < nchars as u32 {
                     let Ok(nleft) = FontReader::new(slice)
                         .at(offset + 3 + 3 * size)
@@ -127,7 +127,7 @@ pub unsafe fn cff_extract_charset(
             }
             2 => {
                 let mut size: usize = 0;
-                let mut glyphs_encoded_sofar: u32 = 1 as u32;
+                let mut glyphs_encoded_sofar: u32 = 1_u32;
                 while glyphs_encoded_sofar < nchars as u32 {
                     let Ok(nleft) = FontReader::new(slice)
                         .at(offset + 3 + 4 * size)
@@ -166,7 +166,7 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
         CffCharset::IsoAdobe | CffCharset::Expert | CffCharset::ExpertSubset => bufnew(),
         CffCharset::Format0(glyph) => {
             let blob: *mut Buffer = bufnew();
-            bufwrite8(blob, 0 as u8);
+            bufwrite8(blob, 0_u8);
             for &g in glyph.iter() {
                 bufwrite8(blob, (g as ::core::ffi::c_int / 256 as ::core::ffi::c_int) as u8);
                 bufwrite8(blob, (g as ::core::ffi::c_int % 256 as ::core::ffi::c_int) as u8);
@@ -175,7 +175,7 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
         }
         CffCharset::Format1(range1) => {
             let blob_0: *mut Buffer = bufnew();
-            bufwrite8(blob_0, 1 as u8);
+            bufwrite8(blob_0, 1_u8);
             for r in range1.iter() {
                 bufwrite8(
                     blob_0,
@@ -191,7 +191,7 @@ pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
         }
         CffCharset::Format2(range2) => {
             let blob_1: *mut Buffer = bufnew();
-            bufwrite8(blob_1, 2 as u8);
+            bufwrite8(blob_1, 2_u8);
             for r in range2.iter() {
                 bufwrite8(
                     blob_1,

@@ -170,7 +170,7 @@ pub unsafe fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) -> *mut Bui
     let st: *mut BuiltValue = json_array_new((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
-        let entry: *mut BuiltValue = json_object_new(2 as usize);
+        let entry: *mut BuiltValue = json_object_new(2_usize);
         json_object_push(
             entry,
             b"from\0" as *const u8 as *const ::core::ffi::c_char,
@@ -184,7 +184,7 @@ pub unsafe fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) -> *mut Bui
         json_array_push(st, preserialize(entry));
         j = j.wrapping_add(1);
     }
-    let ret: *mut BuiltValue = json_object_new(1 as usize);
+    let ret: *mut BuiltValue = json_object_new(1_usize);
     json_object_push(
         ret,
         b"substitutions\0" as *const u8 as *const ::core::ffi::c_char,
@@ -283,7 +283,7 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
         push_to_coverage(startcov, handle_from_index(gid as GlyphId) as GlyphHandle);
     }
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B16, 1 as u32),
+        bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(build_coverage(startcov)),

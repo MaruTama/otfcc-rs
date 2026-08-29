@@ -280,9 +280,9 @@ impl FontSerializer for OtfSerializer {
         }
         if options.dummy_dsig {
             let dsig: *mut Buffer = bufnew();
-            bufwrite32b(dsig, 0x1 as u32);
-            bufwrite16b(dsig, 0 as u16);
-            bufwrite16b(dsig, 0 as u16);
+            bufwrite32b(dsig, 0x1_u32);
+            bufwrite16b(dsig, 0_u16);
+            bufwrite16b(dsig, 0_u16);
             otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_DSIG, dsig);
         }
         let otf: *mut Buffer = otfcc_sfnt_builder_serialize(builder);

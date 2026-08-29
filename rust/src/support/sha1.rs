@@ -135,7 +135,7 @@ pub unsafe fn sha1_init(ctx: *mut Sha1Ctx) {
 }
 pub unsafe fn sha1_update(ctx: *mut Sha1Ctx, data: *const BYTE, len: usize) {
     let mut i: usize;
-    i = 0 as usize;
+    i = 0_usize;
     while i < len {
         (*ctx).data[(*ctx).datalen as usize] = *data.offset(i as isize);
         (*ctx).datalen = (*ctx).datalen.wrapping_add(1);
@@ -172,7 +172,7 @@ pub unsafe fn sha1_final(ctx: *mut Sha1Ctx, hash: *mut BYTE) {
         memset(
             &raw mut (*ctx).data as *mut BYTE as *mut ::core::ffi::c_void,
             0 as ::core::ffi::c_int,
-            56 as usize,
+            56_usize,
         );
     }
     (*ctx).bitlen = (*ctx)

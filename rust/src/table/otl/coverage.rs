@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::handle::{
-    GlyphHandle, Handle, handle_from_index, handle_from_name, otfcc_handle_dispose,
+    GlyphHandle, handle_from_index, handle_from_name, otfcc_handle_dispose,
 };
 use crate::support::parsed_json::{
     ParsedValue, json_arr_at, json_arr_len, json_str_bytes, json_type_of,
@@ -180,8 +180,8 @@ pub(crate) unsafe fn build_coverage_format(
 ) -> *mut Buffer {
     if (*coverage).is_empty() {
         let buf: *mut Buffer = bufnew();
-        bufwrite16b(buf, 2 as u16);
-        bufwrite16b(buf, 0 as u16);
+        bufwrite16b(buf, 2_u16);
+        bufwrite16b(buf, 0_u16);
         return buf;
     }
     // A local `Vec` scratch buffer, not a `__caryll_allocate_clean`/`qsort`/
@@ -193,7 +193,7 @@ pub(crate) unsafe fn build_coverage_format(
     r.sort_by_key(|&gid| gid);
     let jj: GlyphId = r.len() as GlyphId;
     let format1: *mut Buffer = bufnew();
-    bufwrite16b(format1, 1 as u16);
+    bufwrite16b(format1, 1_u16);
     bufwrite16b(format1, jj as u16);
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as ::core::ffi::c_int) < jj as ::core::ffi::c_int {
@@ -204,7 +204,7 @@ pub(crate) unsafe fn build_coverage_format(
         return format1;
     }
     let format2: *mut Buffer = bufnew();
-    bufwrite16b(format2, 2 as u16);
+    bufwrite16b(format2, 2_u16);
     let ranges: *mut Buffer = bufnew();
     let mut start_gid: GlyphId = r[0];
     let mut end_gid: GlyphId = start_gid;
@@ -261,7 +261,7 @@ pub(crate) unsafe fn build_coverage_format(
     };
 }
 pub(crate) unsafe fn build_coverage(coverage: *const Coverage) -> *mut Buffer {
-    return build_coverage_format(coverage, 0 as u16);
+    return build_coverage_format(coverage, 0_u16);
 }
 pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
     if coverage.is_null() {
@@ -281,7 +281,7 @@ pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
             (&mut (*coverage))[k] = elem;
             k += 1;
         } else {
-            otfcc_handle_dispose(&raw mut (&mut (*coverage))[j] as *mut Handle);
+            otfcc_handle_dispose(&raw mut (&mut (*coverage))[j]);
         }
     }
     (*coverage).truncate(k);
@@ -291,7 +291,7 @@ pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
         let mut rear: usize = 1;
         while rear < (*coverage).len() {
             if (&(*coverage))[rear].index == (&(*coverage))[rear - skip - 1].index {
-                otfcc_handle_dispose(&raw mut (&mut (*coverage))[rear] as *mut Handle);
+                otfcc_handle_dispose(&raw mut (&mut (*coverage))[rear]);
                 skip += 1;
             } else {
                 let elem = (&(*coverage))[rear].clone();

@@ -217,7 +217,7 @@ unsafe fn dump_gdef_lig_carets(gdef: *const GdefTable) -> *mut BuiltValue {
         let mut _record: *mut BuiltValue = json_array_new(carets.len());
         let mut k: GlyphId = 0 as GlyphId;
         while (k as usize) < carets.len() {
-            let mut _cv: *mut BuiltValue = json_object_new(1 as usize);
+            let mut _cv: *mut BuiltValue = json_object_new(1_usize);
             if carets[k as usize].format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
                 json_object_push(
                     _cv,
@@ -255,7 +255,7 @@ pub unsafe fn otfcc_dump_gdef(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _gdef: *mut BuiltValue = json_object_new(4 as usize);
+        let mut _gdef: *mut BuiltValue = json_object_new(4_usize);
         if let Some(cd) = (*gdef).glyph_class_def.as_deref() {
             json_object_push(
                 _gdef,
@@ -312,7 +312,7 @@ unsafe fn lig_caret_from_json(mut _carets: *const ParsedValue, lc: *mut LigCaret
                     coordiante: 0.,
                     point_index: 0,
                 };
-                caret.format = 1 as i8;
+                caret.format = 1_i8;
                 caret.coordiante = 0 as ::core::ffi::c_int as Pos;
                 caret.point_index = 0xffff as ::core::ffi::c_int as i16;
                 let mut _caret: *const ParsedValue = json_arr_at(a, k as u32);
@@ -324,7 +324,7 @@ unsafe fn lig_caret_from_json(mut _carets: *const ParsedValue, lc: *mut LigCaret
                     )
                     .is_null()
                     {
-                        caret.format = 2 as i8;
+                        caret.format = 2_i8;
                         caret.point_index = json_obj_getint(
                             _caret,
                             b"atPoint\0" as *const u8 as *const ::core::ffi::c_char,
@@ -471,7 +471,7 @@ pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> *mut Buffer {
         b_mark_attach_class_def = bk_new_block_from_buffer(build_class_def(cd));
     }
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B32, 0x10000 as u32),
+        bk_int(BkCellType::B32, 0x10000_u32),
         bk_ptr(BkCellType::P16, b_glyph_class_def),
         bk_ptr(BkCellType::P16, b_attach_list),
         bk_ptr(BkCellType::P16, b_lig_caret_list),

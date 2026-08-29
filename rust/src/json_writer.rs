@@ -45,7 +45,7 @@ impl FontSerializer for JsonSerializer {
     ) -> *mut ::core::ffi::c_void {
         let font = font as *mut Font;
         let options: &Options = &*(options as *const Options);
-        let root: *mut BuiltValue = json_object_new(48 as usize);
+        let root: *mut BuiltValue = json_object_new(48_usize);
         if root.is_null() {
             return NULL;
         }

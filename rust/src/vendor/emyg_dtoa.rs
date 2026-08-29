@@ -50,7 +50,7 @@ unsafe fn diy_fp_subtract(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
 }
 #[inline]
 unsafe fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
-    let m32: u64 = 0xffffffff as u64;
+    let m32: u64 = 0xffffffff_u64;
     let a: u64 = lhs.f >> 32 as ::core::ffi::c_int;
     let b: u64 = lhs.f & m32;
     let c: u64 = rhs.f >> 32 as ::core::ffi::c_int;
@@ -89,17 +89,17 @@ unsafe fn normalize_boundary(lhs: DiyFp) -> DiyFp {
 #[inline]
 unsafe fn normalized_boundaries(lhs: DiyFp, minus: *mut DiyFp, plus: *mut DiyFp) {
     let pl: DiyFp = normalize_boundary(diy_fp_from_parts(
-        (lhs.f << 1 as ::core::ffi::c_int).wrapping_add(1 as u64),
+        (lhs.f << 1 as ::core::ffi::c_int).wrapping_add(1_u64),
         lhs.e - 1 as ::core::ffi::c_int,
     ));
     let mut mi: DiyFp = if lhs.f == K_DP_HIDDEN_BIT {
         diy_fp_from_parts(
-            (lhs.f << 2 as ::core::ffi::c_int).wrapping_sub(1 as u64),
+            (lhs.f << 2 as ::core::ffi::c_int).wrapping_sub(1_u64),
             lhs.e - 2 as ::core::ffi::c_int,
         )
     } else {
         diy_fp_from_parts(
-            (lhs.f << 1 as ::core::ffi::c_int).wrapping_sub(1 as u64),
+            (lhs.f << 1 as ::core::ffi::c_int).wrapping_sub(1_u64),
             lhs.e - 1 as ::core::ffi::c_int,
         )
     };
@@ -412,31 +412,31 @@ unsafe fn grisu_round(
 }
 #[inline]
 unsafe fn count_decimal_digit32(n: u32) -> ::core::ffi::c_uint {
-    if n < 10 as u32 {
+    if n < 10_u32 {
         return 1 as ::core::ffi::c_uint;
     }
-    if n < 100 as u32 {
+    if n < 100_u32 {
         return 2 as ::core::ffi::c_uint;
     }
-    if n < 1000 as u32 {
+    if n < 1000_u32 {
         return 3 as ::core::ffi::c_uint;
     }
-    if n < 10000 as u32 {
+    if n < 10000_u32 {
         return 4 as ::core::ffi::c_uint;
     }
-    if n < 100000 as u32 {
+    if n < 100000_u32 {
         return 5 as ::core::ffi::c_uint;
     }
-    if n < 1000000 as u32 {
+    if n < 1000000_u32 {
         return 6 as ::core::ffi::c_uint;
     }
-    if n < 10000000 as u32 {
+    if n < 10000000_u32 {
         return 7 as ::core::ffi::c_uint;
     }
-    if n < 100000000 as u32 {
+    if n < 100000000_u32 {
         return 8 as ::core::ffi::c_uint;
     }
-    if n < 1000000000 as u32 {
+    if n < 1000000000_u32 {
         return 9 as ::core::ffi::c_uint;
     }
     return 10 as ::core::ffi::c_uint;
@@ -465,54 +465,54 @@ unsafe fn digit_gen(
     let one: DiyFp = diy_fp_from_parts((1 as ::core::ffi::c_int as u64) << -mp.e, mp.e) as DiyFp;
     let wp_w: DiyFp = diy_fp_subtract(mp, w) as DiyFp;
     let mut p1: u32 = (mp.f >> -one.e) as u32;
-    let mut p2: u64 = mp.f & one.f.wrapping_sub(1 as u64);
+    let mut p2: u64 = mp.f & one.f.wrapping_sub(1_u64);
     let mut kappa: ::core::ffi::c_int = count_decimal_digit32(p1) as ::core::ffi::c_int;
     *len = 0 as ::core::ffi::c_int;
     while kappa > 0 as ::core::ffi::c_int {
         let d: u32;
         match kappa {
             10 => {
-                d = p1.wrapping_div(1000000000 as u32);
-                p1 = p1.wrapping_rem(1000000000 as u32);
+                d = p1.wrapping_div(1000000000_u32);
+                p1 = p1.wrapping_rem(1000000000_u32);
             }
             9 => {
-                d = p1.wrapping_div(100000000 as u32);
-                p1 = p1.wrapping_rem(100000000 as u32);
+                d = p1.wrapping_div(100000000_u32);
+                p1 = p1.wrapping_rem(100000000_u32);
             }
             8 => {
-                d = p1.wrapping_div(10000000 as u32);
-                p1 = p1.wrapping_rem(10000000 as u32);
+                d = p1.wrapping_div(10000000_u32);
+                p1 = p1.wrapping_rem(10000000_u32);
             }
             7 => {
-                d = p1.wrapping_div(1000000 as u32);
-                p1 = p1.wrapping_rem(1000000 as u32);
+                d = p1.wrapping_div(1000000_u32);
+                p1 = p1.wrapping_rem(1000000_u32);
             }
             6 => {
-                d = p1.wrapping_div(100000 as u32);
-                p1 = p1.wrapping_rem(100000 as u32);
+                d = p1.wrapping_div(100000_u32);
+                p1 = p1.wrapping_rem(100000_u32);
             }
             5 => {
-                d = p1.wrapping_div(10000 as u32);
-                p1 = p1.wrapping_rem(10000 as u32);
+                d = p1.wrapping_div(10000_u32);
+                p1 = p1.wrapping_rem(10000_u32);
             }
             4 => {
-                d = p1.wrapping_div(1000 as u32);
-                p1 = p1.wrapping_rem(1000 as u32);
+                d = p1.wrapping_div(1000_u32);
+                p1 = p1.wrapping_rem(1000_u32);
             }
             3 => {
-                d = p1.wrapping_div(100 as u32);
-                p1 = p1.wrapping_rem(100 as u32);
+                d = p1.wrapping_div(100_u32);
+                p1 = p1.wrapping_rem(100_u32);
             }
             2 => {
-                d = p1.wrapping_div(10 as u32);
-                p1 = p1.wrapping_rem(10 as u32);
+                d = p1.wrapping_div(10_u32);
+                p1 = p1.wrapping_rem(10_u32);
             }
             1 => {
                 d = p1;
-                p1 = 0 as u32;
+                p1 = 0_u32;
             }
             _ => {
-                d = 0 as u32;
+                d = 0_u32;
             }
         }
         if d != 0 || *len != 0 {
@@ -538,8 +538,8 @@ unsafe fn digit_gen(
         }
     }
     loop {
-        p2 = p2.wrapping_mul(10 as u64);
-        delta = delta.wrapping_mul(10 as u64);
+        p2 = p2.wrapping_mul(10_u64);
+        delta = delta.wrapping_mul(10_u64);
         let d_0: ::core::ffi::c_char = (p2 >> -one.e) as ::core::ffi::c_char;
         if d_0 as ::core::ffi::c_int != 0 || *len != 0 {
             let fresh9 = *len;
@@ -547,7 +547,7 @@ unsafe fn digit_gen(
             *buffer.offset(fresh9 as isize) =
                 ('0' as i32 + d_0 as ::core::ffi::c_int) as ::core::ffi::c_char;
         }
-        p2 &= one.f.wrapping_sub(1 as u64);
+        p2 &= one.f.wrapping_sub(1_u64);
         kappa -= 1;
         if p2 < delta {
             *k_out += kappa;

@@ -200,12 +200,12 @@ pub unsafe fn otl_gpos_dump_mark_to_ligature(
         unreachable!()
     };
     let subtable: *const GposMarkToLigatureSubtable = mut_subtable;
-    let mut _subtable: *mut BuiltValue = json_object_new(3 as usize);
+    let mut _subtable: *mut BuiltValue = json_object_new(3_usize);
     let mut _marks: *mut BuiltValue = json_object_new((*subtable).mark_array.len());
     let mut _bases: *mut BuiltValue = json_object_new((*subtable).lig_array.len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).mark_array.len() {
-        let mut _mark: *mut BuiltValue = json_object_new(3 as usize);
+        let mut _mark: *mut BuiltValue = json_object_new(3_usize);
         let mark_class_name: Vec<u8> = crate::bytesbuild!(
             b"ac_",
             (&(*subtable).mark_array)[j as usize].mark_class as ::core::ffi::c_int,
@@ -244,7 +244,7 @@ pub unsafe fn otl_gpos_dump_mark_to_ligature(
             let mut m: GlyphClass = 0 as GlyphClass;
             while (m as ::core::ffi::c_int) < (*subtable).class_count as ::core::ffi::c_int {
                 if base_anchors[k as usize][m as usize].present {
-                    let mut _anchor: *mut BuiltValue = json_object_new(2 as usize);
+                    let mut _anchor: *mut BuiltValue = json_object_new(2_usize);
                     json_object_push(
                         _anchor,
                         b"x\0" as *const u8 as *const ::core::ffi::c_char,
@@ -416,7 +416,7 @@ pub unsafe fn otfcc_build_gpos_mark_to_ligature(
         j_0 = j_0.wrapping_add(1);
     }
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B16, 1 as u32),
+        bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(build_coverage(marks)),

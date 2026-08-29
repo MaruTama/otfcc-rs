@@ -575,7 +575,7 @@ unsafe fn append_node_to_graph(g: &mut CffSubrGraph, n: NodeId) {
     x_insert_node_after(g, last, n);
     if g.do_subroutinize {
         if !check_doublet_match(g, last) {
-            if buflen(g.node(n).terminal) > 15 as usize {
+            if buflen(g.node(n).terminal) > 15_usize {
                 check_singlet_match(g, n);
             }
         }
@@ -586,7 +586,7 @@ pub unsafe fn cff_insert_il_to_graph(g: *mut CffSubrGraph, il: *mut CffCharstrin
     let mut blob: *mut Buffer = bufnew();
     let mut flush: bool = false;
     let mut last: bool = false;
-    let mut j: u32 = 0 as u32;
+    let mut j: u32 = 0_u32;
     while j < (*il).instr.len() as u32 {
         match (*(*il).instr.as_mut_ptr().offset(j as isize)).type_0 as ::core::ffi::c_uint {
             0 => {
@@ -641,13 +641,13 @@ pub unsafe fn cff_insert_il_to_graph(g: *mut CffSubrGraph, il: *mut CffCharstrin
     g.node_mut(n_1).terminal = blob;
     g.node_mut(n_1).hard = true;
     append_node_to_graph(g, n_1);
-    g.total_char_strings = g.total_char_strings.wrapping_add(1 as u32);
+    g.total_char_strings = g.total_char_strings.wrapping_add(1_u32);
 }
 unsafe fn cff_stat_height(g: &mut CffSubrGraph, r: RuleId, height: u32) {
     if height > g.rule(r).height {
         g.rule_mut(r).height = height;
     }
-    let mut effective_length: u32 = 0 as u32;
+    let mut effective_length: u32 = 0_u32;
     let guard = g.rule(r).guard;
     let mut e = g.node(guard).next.unwrap();
     while e != guard {
@@ -656,8 +656,8 @@ unsafe fn cff_stat_height(g: &mut CffSubrGraph, r: RuleId, height: u32) {
             (en.rule, en.terminal)
         };
         if let Some(er) = rule {
-            cff_stat_height(g, er, height.wrapping_add(1 as u32));
-            effective_length = effective_length.wrapping_add(4 as u32);
+            cff_stat_height(g, er, height.wrapping_add(1_u32));
+            effective_length = effective_length.wrapping_add(4_u32);
         } else {
             effective_length =
                 (effective_length as usize).wrapping_add((*terminal).data.len()) as u32;
@@ -675,10 +675,10 @@ unsafe fn number_a_subroutine(g: &mut CffSubrGraph, r: RuleId, current: &mut u32
     }
     if g.rule(r)
         .effective_length
-        .wrapping_sub(4 as u32)
-        .wrapping_mul(g.rule(r).refcount.wrapping_sub(1 as u32))
-        .wrapping_sub(4 as u32)
-        <= 0 as u32
+        .wrapping_sub(4_u32)
+        .wrapping_mul(g.rule(r).refcount.wrapping_sub(1_u32))
+        .wrapping_sub(4_u32)
+        == 0_u32
     {
         return;
     }
@@ -695,7 +695,7 @@ unsafe fn number_a_subroutine(g: &mut CffSubrGraph, r: RuleId, current: &mut u32
     }
 }
 unsafe fn cff_number_subroutines(g: &mut CffSubrGraph) -> u32 {
-    let mut current: u32 = 0 as u32;
+    let mut current: u32 = 0_u32;
     let root = g.root;
     let guard = g.rule(root).guard;
     let mut e = g.node(guard).next.unwrap();
@@ -709,12 +709,12 @@ unsafe fn cff_number_subroutines(g: &mut CffSubrGraph) -> u32 {
 }
 #[inline]
 unsafe fn subroutine_bias(cnt: i32) -> i32 {
-    if cnt < 1240 as i32 {
-        return 107 as i32;
-    } else if cnt < 33900 as i32 {
-        return 1131 as i32;
+    if cnt < 1240_i32 {
+        return 107_i32;
+    } else if cnt < 33900_i32 {
+        return 1131_i32;
     } else {
-        return 32768 as i32;
+        return 32768_i32;
     };
 }
 unsafe fn ends_with_end_char(g: &CffSubrGraph, rule: RuleId) -> bool {
@@ -813,7 +813,7 @@ pub unsafe fn cff_il_graph_to_buffers(
 ) {
     let g = &mut *g;
     let root = g.root;
-    cff_stat_height(g, root, 0 as u32);
+    cff_stat_height(g, root, 0_u32);
     let max_subroutines: u32 = cff_number_subroutines(g);
     logger_log_sds(
         &mut *options.logger.borrow_mut(),
@@ -826,7 +826,7 @@ pub unsafe fn cff_il_graph_to_buffers(
         ),
     );
     let mut max_l_subrs: u32 = max_subroutines;
-    let mut max_g_subrs: u32 = 0 as u32;
+    let mut max_g_subrs: u32 = 0_u32;
     if max_l_subrs > TYPE2_MAX_SUBRS {
         max_l_subrs = TYPE2_MAX_SUBRS;
         max_g_subrs = max_subroutines.wrapping_sub(max_l_subrs);
@@ -835,7 +835,7 @@ pub unsafe fn cff_il_graph_to_buffers(
         max_g_subrs = TYPE2_MAX_SUBRS;
     }
     let total: u32 = max_l_subrs.wrapping_add(max_g_subrs);
-    max_l_subrs = total.wrapping_div(2 as u32);
+    max_l_subrs = total.wrapping_div(2_u32);
     max_g_subrs = total.wrapping_sub(max_l_subrs);
     // Was three `__caryll_allocate_clean`'d `*mut Buffer` arrays, each freed
     // field-by-field (every `.data`) and then as a whole -- the same
@@ -853,11 +853,11 @@ pub unsafe fn cff_il_graph_to_buffers(
         data: Vec::new(),
     };
     let mut char_strings: Vec<Buffer> =
-        vec![zero_buffer.clone(); g.total_char_strings.wrapping_add(1 as u32) as usize];
+        vec![zero_buffer.clone(); g.total_char_strings.wrapping_add(1_u32) as usize];
     let mut lsubrs: Vec<Buffer> =
-        vec![zero_buffer.clone(); max_l_subrs.wrapping_add(1 as u32) as usize];
-    let mut gsubrs: Vec<Buffer> = vec![zero_buffer; max_g_subrs.wrapping_add(1 as u32) as usize];
-    let mut j: u32 = 0 as u32;
+        vec![zero_buffer.clone(); max_l_subrs.wrapping_add(1_u32) as usize];
+    let mut gsubrs: Vec<Buffer> = vec![zero_buffer; max_g_subrs.wrapping_add(1_u32) as usize];
+    let mut j: u32 = 0_u32;
     let root = g.root;
     let guard = g.rule(root).guard;
     let mut e = g.node(guard).next.unwrap();

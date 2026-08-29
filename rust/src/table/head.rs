@@ -125,7 +125,7 @@ pub unsafe fn otfcc_dump_head(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let head: *mut BuiltValue = json_object_new(15 as usize);
+        let head: *mut BuiltValue = json_object_new(15_usize);
         json_object_push(
             head,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -220,8 +220,8 @@ pub unsafe fn otfcc_parse_head(
     // `.units_per_em` *is* always overwritten by the `json_obj_getnum_fallback`
     // call below, so its zeroed value here is immediately discarded either way.
     let mut head_val: HeadTable = ::core::mem::zeroed();
-    head_val.magic_number = 0x5f0f3cf5 as u32;
-    head_val.units_per_em = 1000 as u16;
+    head_val.magic_number = 0x5f0f3cf5_u32;
+    head_val.units_per_em = 1000_u16;
     let mut head_box: Box<HeadTable> = Box::new(head_val);
     let head: *mut HeadTable = head_box.as_mut() as *mut HeadTable;
     let table: *const ParsedValue;

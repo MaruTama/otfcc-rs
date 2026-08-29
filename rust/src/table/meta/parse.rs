@@ -42,7 +42,7 @@ pub unsafe fn parse_meta_data(v: *const ParsedValue) -> Option<Vec<u8>> {
             JsonType::String,
         );
         if !_base64.is_null() {
-            let mut str_len: usize = 0 as usize;
+            let mut str_len: usize = 0_usize;
             let str: *mut u8 = base64_decode(
                 json_str_ptr(_base64) as *mut u8,
                 json_str_len(_base64) as usize,
@@ -88,7 +88,7 @@ pub unsafe fn otfcc_parse_meta(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut j: usize = 0 as usize;
+        let mut j: usize = 0_usize;
         while j < json_arr_len(_meta_entries) as usize {
             let mut _e: *const ParsedValue = json_arr_at(_meta_entries, j as u32);
             let mut _tag: *const ParsedValue = json_obj_get_type(
@@ -112,10 +112,10 @@ pub unsafe fn otfcc_parse_meta(
 #[inline]
 unsafe fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
     if tags.is_null() {
-        return 0 as u32;
+        return 0_u32;
     }
-    let mut tag: u32 = 0 as u32;
-    let mut len: u8 = 0 as u8;
+    let mut tag: u32 = 0_u32;
+    let mut len: u8 = 0_u8;
     while *tags as ::core::ffi::c_int != 0 && (len as ::core::ffi::c_int) < 4 as ::core::ffi::c_int
     {
         tag = tag << 8 as ::core::ffi::c_int | *tags as u32;

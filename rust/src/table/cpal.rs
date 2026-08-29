@@ -45,11 +45,11 @@ pub struct CpalTable {
     pub palettes: Vec<CpalPalette>,
 }
 pub static WHITE: CpalColor = CpalColor {
-    red: 0xff as u8,
-    green: 0xff as u8,
-    blue: 0xff as u8,
-    alpha: 0xff as u8,
-    label: 0xffff as u16,
+    red: 0xff_u8,
+    green: 0xff_u8,
+    blue: 0xff_u8,
+    alpha: 0xff_u8,
+    label: 0xffff_u16,
 };
 /// The 3 v1 offset arrays (`offsetPaletteTypeArray`/`...LabelArray`/
 /// `...EntryLabelArray`) are read at absolute offsets `16`/`20`/`24 + 2 *
@@ -195,7 +195,7 @@ pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
 }
 #[inline]
 unsafe fn dump_color(color: *const CpalColor) -> *mut BuiltValue {
-    let mut _color: *mut BuiltValue = json_object_new(5 as usize);
+    let mut _color: *mut BuiltValue = json_object_new(5_usize);
     json_object_push(
         _color,
         b"red\0" as *const u8 as *const ::core::ffi::c_char,
@@ -229,7 +229,7 @@ unsafe fn dump_color(color: *const CpalColor) -> *mut BuiltValue {
 }
 #[inline]
 unsafe fn dump_palette(palette: *const CpalPalette) -> *mut BuiltValue {
-    let mut _palette: *mut BuiltValue = json_object_new(3 as usize);
+    let mut _palette: *mut BuiltValue = json_object_new(3_usize);
     if (*palette).type_0 != 0 {
         json_object_push(
             _palette,
@@ -237,7 +237,7 @@ unsafe fn dump_palette(palette: *const CpalPalette) -> *mut BuiltValue {
             json_integer_new((*palette).type_0 as i64),
         );
     }
-    if (*palette).label != 0xffff as u32 {
+    if (*palette).label != 0xffff_u32 {
         json_object_push(
             _palette,
             b"label\0" as *const u8 as *const ::core::ffi::c_char,
@@ -275,7 +275,7 @@ pub unsafe fn otfcc_dump_cpal(
     let palettes: &Vec<CpalPalette> = &(*table).palettes;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _t: *mut BuiltValue = json_object_new(2 as usize);
+        let mut _t: *mut BuiltValue = json_object_new(2_usize);
         json_object_push(
             _t,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -313,27 +313,27 @@ unsafe fn parse_color(mut _color: *const ParsedValue) -> CpalColor {
     color.red = json_obj_getint_fallback(
         _color,
         b"red\0" as *const u8 as *const ::core::ffi::c_char,
-        0 as i32,
+        0_i32,
     ) as u8;
     color.green = json_obj_getint_fallback(
         _color,
         b"green\0" as *const u8 as *const ::core::ffi::c_char,
-        0 as i32,
+        0_i32,
     ) as u8;
     color.blue = json_obj_getint_fallback(
         _color,
         b"blue\0" as *const u8 as *const ::core::ffi::c_char,
-        0 as i32,
+        0_i32,
     ) as u8;
     color.alpha = json_obj_getint_fallback(
         _color,
         b"alpha\0" as *const u8 as *const ::core::ffi::c_char,
-        0xff as i32,
+        0xff_i32,
     ) as u8;
     color.label = json_obj_getint_fallback(
         _color,
         b"label\0" as *const u8 as *const ::core::ffi::c_char,
-        0xffff as i32,
+        0xffff_i32,
     ) as u16;
     return color;
 }
@@ -395,7 +395,7 @@ pub unsafe fn otfcc_parse_cpal(
                     palette.label = json_obj_getint_fallback(
                         _palette,
                         b"type\0" as *const u8 as *const ::core::ffi::c_char,
-                        0xffff as i32,
+                        0xffff_i32,
                     ) as u32;
                     let mut k: ColorId = 0 as ColorId;
                     while (k as ::core::ffi::c_uint) < json_arr_len(_colors) {
@@ -448,7 +448,7 @@ unsafe fn build_palette_label(cpal: *const CpalTable) -> *mut BkBlock {
     let mut needs_palette_label: bool = false;
     let mut j: TableId = 0 as TableId;
     while (j as usize) < palettes.len() {
-        if palettes[j as usize].label != 0xffff as u32 {
+        if palettes[j as usize].label != 0xffff_u32 {
             needs_palette_label = true;
         }
         j = j.wrapping_add(1);
@@ -474,7 +474,7 @@ unsafe fn build_palette_label(cpal: *const CpalTable) -> *mut BkBlock {
 unsafe fn build_palette_entry_label(cpal: *const CpalTable) -> *mut BkBlock {
     let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     let mut needs_palette_entry_label: bool = false;
-    let palette: &CpalPalette = &palettes[0 as usize];
+    let palette: &CpalPalette = &palettes[0_usize];
     let mut j: ColorId = 0 as ColorId;
     while (j as usize) < palette.colorset.len() {
         if palette.colorset[j as usize].label as ::core::ffi::c_int != 0xffff as ::core::ffi::c_int
@@ -511,7 +511,7 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> *mut Buffer {
         return ::core::ptr::null_mut::<Buffer>();
     }
     let num_palettes: u16 = palettes.len() as u16;
-    let num_palettes_entries: u16 = palettes[0 as usize].colorset.len() as u16;
+    let num_palettes_entries: u16 = palettes[0_usize].colorset.len() as u16;
     let num_color_records: u16 =
         (num_palettes as ::core::ffi::c_int * num_palettes_entries as ::core::ffi::c_int) as u16;
     let color_records: *mut BkBlock = bk_new_block(&[]);

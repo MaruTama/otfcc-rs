@@ -206,8 +206,8 @@ unsafe fn simplify_vq(x: *mut VQ) {
     }
     let shift: &mut Vec<VqSegment> = &mut (*x).shift;
     shift.sort_by(|a, b| vqs_compare(*a, *b).cmp(&(0 as ::core::ffi::c_int)));
-    let mut k: usize = 0 as usize;
-    let mut j: usize = 1 as usize;
+    let mut k: usize = 0_usize;
+    let mut j: usize = 1_usize;
     while j < shift.len() {
         if vqs_compatible(shift[k], shift[j]) {
             let other = shift[j];
@@ -230,11 +230,11 @@ unsafe fn simplify_vq(x: *mut VQ) {
         }
         j = j.wrapping_add(1);
     }
-    shift.truncate(k.wrapping_add(1 as usize));
+    shift.truncate(k.wrapping_add(1_usize));
 }
 pub(crate) unsafe fn vq_inplace_plus(a: *mut VQ, b: VQ) {
     (*a).kernel += b.kernel;
-    let mut p: usize = 0 as usize;
+    let mut p: usize = 0_usize;
     while p < b.shift.len() {
         let k: VqSegment = b.shift[p];
         if let VqSegment::Still(still) = k {
@@ -251,7 +251,7 @@ pub(crate) unsafe fn vq_inplace_plus(a: *mut VQ, b: VQ) {
 unsafe fn vq_inplace_scale(a: *mut VQ, b: Pos) {
     (*a).kernel *= b;
     let shift: &mut Vec<VqSegment> = &mut (*a).shift;
-    let mut j: usize = 0 as usize;
+    let mut j: usize = 0_usize;
     while j < shift.len() {
         let s: &mut VqSegment = &mut shift[j];
         match s {
@@ -313,7 +313,7 @@ pub(crate) unsafe fn vq_compare(a: VQ, b: VQ) -> ::core::ffi::c_int {
     if a.shift.len() > b.shift.len() {
         return 1 as ::core::ffi::c_int;
     }
-    let mut j: usize = 0 as usize;
+    let mut j: usize = 0_usize;
     while j < a.shift.len() {
         let cr: ::core::ffi::c_int = vqs_compare(a.shift[j], b.shift[j]);
         if cr != 0 {
@@ -325,7 +325,7 @@ pub(crate) unsafe fn vq_compare(a: VQ, b: VQ) -> ::core::ffi::c_int {
 }
 pub(crate) unsafe fn vq_get_still(v: VQ) -> Pos {
     let mut result: Pos = v.kernel;
-    let mut j: usize = 0 as usize;
+    let mut j: usize = 0_usize;
     while j < v.shift.len() {
         if let VqSegment::Still(still) = v.shift[j] {
             result += still;
@@ -344,7 +344,7 @@ pub(crate) unsafe fn vq_create_still(x: Pos) -> VQ {
     return vq;
 }
 pub(crate) unsafe fn vq_is_still(v: VQ) -> bool {
-    let mut j: usize = 0 as usize;
+    let mut j: usize = 0_usize;
     while j < v.shift.len() {
         if !matches!(v.shift[j], VqSegment::Still(_)) {
             return false;

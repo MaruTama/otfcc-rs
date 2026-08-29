@@ -293,10 +293,10 @@ unsafe fn consolidate_fd_select(
                     b").\n",
                 ),
             );
-            otfcc_handle_dispose(h as *mut Handle);
+            otfcc_handle_dispose(h);
         }
     } else if !(*h).name.is_empty() {
-        otfcc_handle_dispose(h as *mut Handle);
+        otfcc_handle_dispose(h);
     }
 }
 pub unsafe fn consolidate_glyph(g: *mut Glyph, font: *mut Font, options: &Options) {
@@ -609,9 +609,9 @@ pub unsafe fn consolidate_cmap(font: *mut Font, options: &Options) {
                     LoggerType::Warning,
                     crate::bytesbuild!(
                         b"[Consolidate] Ignored UVS mapping [U+",
-                        Hex4Upper(key.unicode as u32),
+                        Hex4Upper(key.unicode),
                         b" U+",
-                        Hex4Upper(key.selector as u32),
+                        Hex4Upper(key.selector),
                         b"] to non-existent glyph /",
                         &glyph.name,
                         b".\n",
@@ -1047,8 +1047,8 @@ unsafe fn consolidate_colr(font: *mut Font, options: &Options) {
         .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
     let mut consolidated: ColrTable = Vec::new();
     let source: &mut Vec<ColrMapping> = (*font).colr.as_mut().unwrap();
-    let mut __caryll_index: usize = 0 as usize;
-    let mut keep: usize = 1 as usize;
+    let mut __caryll_index: usize = 0_usize;
+    let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < source.len() {
         let mapping: &mut ColrMapping = &mut source[__caryll_index];
         while keep != 0 {
@@ -1072,8 +1072,8 @@ unsafe fn consolidate_colr(font: *mut Font, options: &Options) {
                     layers: Vec::new(),
                 };
                 otfcc_handle_copy(&raw mut m.glyph, &raw mut mapping.glyph);
-                let mut __caryll_index_0: usize = 0 as usize;
-                let mut keep_0: usize = 1 as usize;
+                let mut __caryll_index_0: usize = 0_usize;
+                let mut keep_0: usize = 1_usize;
                 while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
                     let layer: &mut ColrLayer = &mut mapping.layers[__caryll_index_0];
                     while keep_0 != 0 {
@@ -1146,8 +1146,8 @@ unsafe fn consolidate_tsi(
     // free-before-overwrite is now implicit.
     let mut gid_entries: Vec<Option<Vec<u8>>> = vec![None; (*glyf).len()];
     let entries: &mut Vec<TsiEntry> = (*_tsi).as_mut().unwrap();
-    let mut __caryll_index: usize = 0 as usize;
-    let mut keep: usize = 1 as usize;
+    let mut __caryll_index: usize = 0_usize;
+    let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < entries.len() {
         let entry: *mut TsiEntry = &mut entries[__caryll_index];
         while keep != 0 {
@@ -1252,13 +1252,13 @@ pub unsafe fn otfcc_consolidate_font(font: *mut Font, options: &Options) {
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Glyph name ", &name, b" is already in use.",),
                 );
-                let mut suffix: u32 = 2 as u32;
+                let mut suffix: u32 = 2_u32;
                 let mut success: bool;
                 loop {
                     let newname: Vec<u8> = crate::bytesbuild!(&name, b"_", suffix);
                     success = otfcc_set_glyph_order_by_name(go, newname.clone(), j);
                     if !success {
-                        suffix = suffix.wrapping_add(1 as u32);
+                        suffix = suffix.wrapping_add(1_u32);
                     } else {
                         logger_log_sds(
                             &mut *options.logger.borrow_mut(),

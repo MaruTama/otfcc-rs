@@ -112,7 +112,7 @@ unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
                 record.name_string =
                     utf16be_to_utf8(bytes.as_ptr(), bytes.len() as ::core::ffi::c_int);
             } else {
-                let mut len: usize = 0 as usize;
+                let mut len: usize = 0_usize;
                 let mut buf: *mut u8 = base64_encode(bytes.as_ptr(), bytes.len(), &raw mut len);
                 record.name_string = ::core::slice::from_raw_parts(buf as *const u8, len).to_vec();
                 free(buf as *mut ::core::ffi::c_void);
@@ -161,10 +161,10 @@ pub unsafe fn otfcc_dump_name(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _name: *mut BuiltValue = json_array_new(records.len());
-        let mut j: u16 = 0 as u16;
+        let mut j: u16 = 0_u16;
         while (j as usize) < records.len() {
             let r: *const NameRecord = &records[j as usize];
-            let record: *mut BuiltValue = json_object_new(5 as usize);
+            let record: *mut BuiltValue = json_object_new(5_usize);
             json_object_push(
                 record,
                 b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
@@ -224,9 +224,9 @@ pub unsafe fn otfcc_parse_name(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            let mut j: u32 = 0 as u32;
+            let mut j: u32 = 0_u32;
             while j < json_arr_len(table) {
-                let mut _record: *const ParsedValue = json_arr_at(table, j as u32);
+                let mut _record: *const ParsedValue = json_arr_at(table, j);
                 if !_record.is_null() && json_type_of(_record) == JsonType::Object {
                     if json_obj_get_type(
                         _record,
@@ -373,11 +373,11 @@ pub unsafe fn otfcc_build_name(name: Option<&NameTable>) -> *mut Buffer {
     };
     let records: &Vec<NameRecord> = name;
     let buf: *mut Buffer = bufnew();
-    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 0_u16);
     bufwrite16b(buf, records.len() as u16);
-    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 0_u16);
     let strings: *mut Buffer = bufnew();
-    let mut j: u16 = 0 as u16;
+    let mut j: u16 = 0_u16;
     while (j as usize) < records.len() {
         let record: *const NameRecord = &records[j as usize];
         bufwrite16b(buf, (*record).platform_id);
@@ -427,7 +427,7 @@ pub unsafe fn otfcc_build_name(name: Option<&NameTable>) -> *mut Buffer {
     bufwrite_bytes(strings, COPYRIGHT_LEN as usize, copyright.as_ptr());
     let strings_offset: usize = (*buf).cursor;
     bufwrite_buf(buf, strings);
-    bufseek(buf, 4 as usize);
+    bufseek(buf, 4_usize);
     bufwrite16b(buf, strings_offset as u16);
     buffree(strings);
     return buf;

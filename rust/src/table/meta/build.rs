@@ -15,12 +15,12 @@ pub unsafe fn otfcc_build_meta(meta: Option<&MetaTable>) -> *mut Buffer {
         bk_new_block(&[
             bk_int(BkCellType::B32, (meta.version) as u32),
             bk_int(BkCellType::B32, (meta.flags) as u32),
-            bk_int(BkCellType::B32, 0 as u32),
+            bk_int(BkCellType::B32, 0_u32),
             bk_int(BkCellType::B32, (entries.len() as u32) as u32),
         ])
     };
-    let mut __caryll_index: usize = 0 as usize;
-    let mut keep: usize = 1 as usize;
+    let mut __caryll_index: usize = 0_usize;
+    let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < entries.len() {
         let e: &MetaEntry = &entries[__caryll_index];
         while keep != 0 {

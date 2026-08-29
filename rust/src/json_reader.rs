@@ -132,13 +132,13 @@ unsafe fn escalate_glyph_order_by_name(
     }
 }
 unsafe fn place_order_entries_from_glyf(table: *const ParsedValue, go: *mut GlyphOrder) {
-    let mut j: u32 = 0 as u32;
-    while j < json_obj_len(table) as u32 {
-        let gname: Vec<u8> = json_obj_key_bytes_at(table, j as u32);
+    let mut j: u32 = 0_u32;
+    while j < json_obj_len(table) {
+        let gname: Vec<u8> = json_obj_key_bytes_at(table, j);
         if gname.as_slice() == b".notdef" {
-            set_order_by_name(go, gname, GlyphOrderPass::Notdef, 0 as u32);
+            set_order_by_name(go, gname, GlyphOrderPass::Notdef, 0_u32);
         } else if gname.as_slice() == b".null" {
-            set_order_by_name(go, gname, GlyphOrderPass::Notdef, 1 as u32);
+            set_order_by_name(go, gname, GlyphOrderPass::Notdef, 1_u32);
         } else {
             set_order_by_name(go, gname, GlyphOrderPass::Glyf, j);
         }
@@ -146,18 +146,18 @@ unsafe fn place_order_entries_from_glyf(table: *const ParsedValue, go: *mut Glyp
     }
 }
 unsafe fn place_order_entries_from_cmap(table: *const ParsedValue, go: *mut GlyphOrder) {
-    let mut j: u32 = 0 as u32;
-    while j < json_obj_len(table) as u32 {
+    let mut j: u32 = 0_u32;
+    while j < json_obj_len(table) {
         // Borrows `json_obj_key_at`'s pointer directly rather than an
         // owned `sds` copy -- every JSON object key is already
         // NUL-terminated in `ParsedValue`'s own storage, so `strlen` sees
         // the same length `sdslen` used to on the copy. Same reasoning as
         // `table/cmap.rs`'s `parse_unicode` (this function inlines the
         // identical U+XXXX-or-decimal parse).
-        let unicode_str: *const ::core::ffi::c_char = json_obj_key_at(table, j as u32);
-        let item: *const ParsedValue = json_obj_val_at(table, j as u32);
+        let unicode_str: *const ::core::ffi::c_char = json_obj_key_at(table, j);
+        let item: *const ParsedValue = json_obj_val_at(table, j);
         let unicode: i32;
-        if strlen(unicode_str) > 2 as usize
+        if strlen(unicode_str) > 2_usize
             && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
                 == 'U' as i32
             && *unicode_str.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
@@ -172,8 +172,8 @@ unsafe fn place_order_entries_from_cmap(table: *const ParsedValue, go: *mut Glyp
             unicode = atoi(unicode_str as *const ::core::ffi::c_char) as i32;
         }
         if json_type_of(item) == JsonType::String
-            && unicode > 0 as i32
-            && unicode <= 0x10ffff as i32
+            && unicode > 0_i32
+            && unicode <= 0x10ffff_i32
         {
             let gname: Vec<u8> = json_str_bytes(item);
             escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::Cmap, unicode as u32);
@@ -187,12 +187,12 @@ unsafe fn place_order_entries_from_subtable(
     zero_only: bool,
 ) {
     let mut uplimit: u32 = json_arr_len(table);
-    if uplimit >= 1 as u32 && zero_only as ::core::ffi::c_int != 0 {
-        uplimit = 1 as u32;
+    if uplimit >= 1_u32 && zero_only as ::core::ffi::c_int != 0 {
+        uplimit = 1_u32;
     }
-    let mut j: u32 = 0 as u32;
+    let mut j: u32 = 0_u32;
     while j < uplimit {
-        let item: *const ParsedValue = json_arr_at(table, j as u32);
+        let item: *const ParsedValue = json_arr_at(table, j);
         if json_type_of(item) == JsonType::String {
             let gname: Vec<u8> = json_str_bytes(item);
             escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::GlyphOrder, j);

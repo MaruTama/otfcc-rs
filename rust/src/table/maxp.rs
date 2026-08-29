@@ -124,7 +124,7 @@ pub unsafe fn otfcc_dump_maxp(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let maxp: *mut BuiltValue = json_object_new(15 as usize);
+        let maxp: *mut BuiltValue = json_object_new(15_usize);
         json_object_push(
             maxp,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,

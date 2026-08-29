@@ -45,7 +45,7 @@ pub unsafe fn cff_build_fd_select(fd: &CffFdSelect) -> *mut Buffer {
         CffFdSelect::Format3 { range3, sentinel } => {
             let blob_0: *mut Buffer = bufnew();
             let nranges = range3.len() as ::core::ffi::c_int;
-            bufwrite8(blob_0, 3 as u8);
+            bufwrite8(blob_0, 3_u8);
             bufwrite8(blob_0, (nranges / 256 as ::core::ffi::c_int) as u8);
             bufwrite8(blob_0, (nranges % 256 as ::core::ffi::c_int) as u8);
             for r in range3.iter() {

@@ -100,14 +100,14 @@ pub unsafe fn otfcc_read_tsi(
     let text_part = packet.pieces.iter().find(|p| p.tag == tag_text)?;
     let text_len = text_part.data.len() as u32;
     let mut tsi: TsiTable = Vec::new();
-    let mut j: u32 = 0 as u32;
+    let mut j: u32 = 0_u32;
     while let Ok(entry) = read_tsi_index_entry(&index_part.data, j) {
         if is_valid_gid(entry.gid, tag_index)
             && entry.text_offset < text_len
             && entry.text_length != 0
         {
             let mut predicted_text_length: u32 = text_len.wrapping_sub(entry.text_offset);
-            let mut k: u32 = j.wrapping_add(1 as u32);
+            let mut k: u32 = j.wrapping_add(1_u32);
             while let Ok(entry_k) = read_tsi_index_entry(&index_part.data, k) {
                 if entry_k.gid as ::core::ffi::c_int != 0xfffe as ::core::ffi::c_int
                     && entry_k.text_offset < text_len
@@ -119,7 +119,7 @@ pub unsafe fn otfcc_read_tsi(
                     k = k.wrapping_add(1);
                 }
             }
-            let text_length = if entry.text_length >= 0x8000 as u32 {
+            let text_length = if entry.text_length >= 0x8000_u32 {
                 predicted_text_length
             } else {
                 entry.text_length
@@ -191,10 +191,10 @@ pub unsafe fn otfcc_dump_tsi(
     let entries: &Vec<TsiEntry> = tsi;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _tsi: *mut BuiltValue = json_object_new(2 as usize);
+        let mut _tsi: *mut BuiltValue = json_object_new(2_usize);
         let mut _glyphs: *mut BuiltValue = json_object_new(entries.len());
-        let mut __caryll_index: usize = 0 as usize;
-        let mut keep: usize = 1 as usize;
+        let mut __caryll_index: usize = 0_usize;
+        let mut keep: usize = 1_usize;
         while keep != 0 && __caryll_index < entries.len() {
             let entry: *const TsiEntry = &entries[__caryll_index];
             while keep != 0 {
@@ -216,8 +216,8 @@ pub unsafe fn otfcc_dump_tsi(
             __caryll_index = __caryll_index.wrapping_add(1);
         }
         let mut _extra: *mut BuiltValue = json_object_new(entries.len());
-        let mut __caryll_index_0: usize = 0 as usize;
-        let mut keep_0: usize = 1 as usize;
+        let mut __caryll_index_0: usize = 0_usize;
+        let mut keep_0: usize = 1_usize;
         while keep_0 != 0 && __caryll_index_0 < entries.len() {
             let entry_0: *const TsiEntry = &entries[__caryll_index_0];
             while keep_0 != 0 {
@@ -293,13 +293,13 @@ pub unsafe fn otfcc_parse_tsi(
             JsonType::Object,
         );
         if !_glyphs.is_null() {
-            let mut j: u32 = 0 as u32;
+            let mut j: u32 = 0_u32;
             while j < json_obj_len(_glyphs) {
-                let mut _content: *const ParsedValue = json_obj_val_at(_glyphs, j as u32);
+                let mut _content: *const ParsedValue = json_obj_val_at(_glyphs, j);
                 if !(_content.is_null() || json_type_of(_content) != JsonType::String) {
                     tsi.push(TsiEntry {
                         type_0: TsiEntryType::Glyph,
-                        glyph: handle_from_name(Some(json_obj_key_bytes_at(_glyphs, j as u32)))
+                        glyph: handle_from_name(Some(json_obj_key_bytes_at(_glyphs, j)))
                             as GlyphHandle,
                         content: ::core::slice::from_raw_parts(
                             json_str_ptr(_content) as *const u8,
@@ -317,10 +317,10 @@ pub unsafe fn otfcc_parse_tsi(
             JsonType::Object,
         );
         if !_extra.is_null() {
-            let mut j_0: u32 = 0 as u32;
+            let mut j_0: u32 = 0_u32;
             while j_0 < json_obj_len(_extra) {
-                let mut _key: *mut ::core::ffi::c_char = json_obj_key_at(_extra, j_0 as u32);
-                let mut _content_0: *const ParsedValue = json_obj_val_at(_extra, j_0 as u32);
+                let mut _key: *mut ::core::ffi::c_char = json_obj_key_at(_extra, j_0);
+                let mut _content_0: *const ParsedValue = json_obj_val_at(_extra, j_0);
                 if !(_content_0.is_null() || json_type_of(_content_0) != JsonType::String) {
                     if strcmp(_key, b"cvt\0" as *const u8 as *const ::core::ffi::c_char)
                         == 0 as ::core::ffi::c_int
@@ -400,8 +400,8 @@ unsafe fn push_tsi_entries(
 ) {
     let entries: &Vec<TsiEntry> = &*tsi;
     let mut items_pushed: GlyphId = 0 as GlyphId;
-    let mut __caryll_index: usize = 0 as usize;
-    let mut keep: usize = 1 as usize;
+    let mut __caryll_index: usize = 0_usize;
+    let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < entries.len() {
         let entry: *mut TsiEntry = &entries[__caryll_index] as *const TsiEntry as *mut TsiEntry;
         while keep != 0 {
@@ -410,13 +410,13 @@ unsafe fn push_tsi_entries(
                 bufnwrite8((*target).text_part, &(*entry).content);
                 let length_after: usize = (*(*target).text_part).cursor;
                 bufwrite16b((*target).index_part, propergid(entry, type_0) as u16);
-                if length_after.wrapping_sub(length_sofar) < 0x8000 as usize {
+                if length_after.wrapping_sub(length_sofar) < 0x8000_usize {
                     bufwrite16b(
                         (*target).index_part,
                         length_after.wrapping_sub(length_sofar) as u16,
                     );
                 } else {
-                    bufwrite16b((*target).index_part, 0x8000 as u16);
+                    bufwrite16b((*target).index_part, 0x8000_u16);
                 }
                 bufwrite32b((*target).index_part, length_sofar as u32);
                 items_pushed =
@@ -432,7 +432,7 @@ unsafe fn push_tsi_entries(
             (*target).index_part,
             propergid(::core::ptr::null_mut::<TsiEntry>(), type_0) as u16,
         );
-        bufwrite16b((*target).index_part, 0 as u16);
+        bufwrite16b((*target).index_part, 0_u16);
         bufwrite32b((*target).index_part, (*(*target).text_part).cursor as u32);
         items_pushed = (items_pushed as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
     }
@@ -451,9 +451,9 @@ pub unsafe fn otfcc_build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
         target.text_part = bufnew();
         target.index_part = bufnew();
         push_tsi_entries(&raw mut target, tsi, TsiEntryType::Glyph, 0 as GlyphId);
-        bufwrite16b(target.index_part, 0xfffe as u16);
-        bufwrite16b(target.index_part, 0 as u16);
-        bufwrite32b(target.index_part, 0xabfc1f34 as u32);
+        bufwrite16b(target.index_part, 0xfffe_u16);
+        bufwrite16b(target.index_part, 0_u16);
+        bufwrite32b(target.index_part, 0xabfc1f34_u32);
         push_tsi_entries(&raw mut target, tsi, TsiEntryType::Prep, 1 as GlyphId);
         push_tsi_entries(&raw mut target, tsi, TsiEntryType::Cvt, 1 as GlyphId);
         push_tsi_entries(

@@ -53,7 +53,7 @@ pub unsafe fn otfcc_new_sfnt_builder(header: u32, options: &Options) -> *mut Sfn
         ::core::mem::size_of::<SfntBuilder>() as usize,
         40 as ::core::ffi::c_ulong,
     ) as *mut SfntBuilder;
-    (*builder).count = 0 as u32;
+    (*builder).count = 0_u32;
     (*builder).header = header;
     // `BTreeMap` (a `std` type, but the caution established for
     // `IndexMap` in `table/fvar.rs` applies just as much: no documented
@@ -109,10 +109,10 @@ pub unsafe fn otfcc_sfnt_builder_push_table(
         LoggerType::Progress,
         crate::bytesbuild!(
             b"OpenType table ",
-            Byte((tag >> 24 as ::core::ffi::c_int & 0xff as u32) as u8),
-            Byte((tag >> 16 as ::core::ffi::c_int & 0xff as u32) as u8),
-            Byte((tag >> 8 as ::core::ffi::c_int & 0xff as u32) as u8),
-            Byte((tag & 0xff as u32) as u8),
+            Byte((tag >> 24 as ::core::ffi::c_int & 0xff_u32) as u8),
+            Byte((tag >> 16 as ::core::ffi::c_int & 0xff_u32) as u8),
+            Byte((tag >> 8 as ::core::ffi::c_int & 0xff_u32) as u8),
+            Byte((tag & 0xff_u32) as u8),
             b" successfully built.\n",
         ),
     );
@@ -175,7 +175,7 @@ pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> *mut Bu
         offset = offset.wrapping_add(buflen(table.buffer));
     }
     let whole_checksum: u32 = buf_checksum(buffer);
-    bufseek(buffer, head_offset.wrapping_add(8 as usize));
-    bufwrite32b(buffer, (0xb1b0afba as u32).wrapping_sub(whole_checksum));
+    bufseek(buffer, head_offset.wrapping_add(8_usize));
+    bufwrite32b(buffer, 0xb1b0afba_u32.wrapping_sub(whole_checksum));
     return buffer;
 }

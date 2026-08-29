@@ -9,61 +9,61 @@ unsafe extern "C" {
     fn floor(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 pub unsafe fn cff_build_header() -> *mut Buffer {
-    return unsafe { bufninit(&[1 as u8, 0 as u8, 4 as u8, 4 as u8]) };
+    return unsafe { bufninit(&[1_u8, 0_u8, 4_u8, 4_u8]) };
 }
 pub unsafe fn cff_merge_cs2_operator(blob: *mut Buffer, val: CffCharstringOperator) {
     let val = val.0;
     unsafe {
-        if val >= 0x100 as i32 {
+        if val >= 0x100_i32 {
             bufnwrite8(
                 blob,
                 &[
                     (val >> 8 as ::core::ffi::c_int) as u8,
-                    (val & 0xff as i32) as u8,
+                    (val & 0xff_i32) as u8,
                 ],
             );
         } else {
-            bufnwrite8(blob, &[(val & 0xff as i32) as u8]);
+            bufnwrite8(blob, &[(val & 0xff_i32) as u8]);
         };
     }
 }
 pub unsafe fn cff_merge_cs2_int(blob: *mut Buffer, val: i32) {
     unsafe {
-        if val >= -(1131 as i32) && val <= -(108 as i32) {
+        if (-1131_i32..=-108_i32).contains(&val) {
             bufnwrite8(
                 blob,
                 &[
-                    (((-(108 as i32) - val) / 256 as i32 + 251 as i32) as u8 as ::core::ffi::c_int)
+                    (((-108_i32 - val) / 256_i32 + 251_i32) as u8 as ::core::ffi::c_int)
                         as u8,
-                    (((-(108 as i32) - val) % 256 as i32) as u8 as ::core::ffi::c_int) as u8,
+                    (((-108_i32 - val) % 256_i32) as u8 as ::core::ffi::c_int) as u8,
                 ],
             );
-        } else if val >= -(107 as i32) && val <= 107 as i32 {
+        } else if (-107_i32..=107_i32).contains(&val) {
             bufnwrite8(
                 blob,
-                &[((val + 139 as i32) as u8 as ::core::ffi::c_int) as u8],
+                &[((val + 139_i32) as u8 as ::core::ffi::c_int) as u8],
             );
-        } else if val >= 108 as i32 && val <= 1131 as i32 {
+        } else if (108_i32..=1131_i32).contains(&val) {
             bufnwrite8(
                 blob,
                 &[
-                    (((val - 108 as i32) / 256 as i32 + 247 as i32) as u8 as ::core::ffi::c_int)
+                    (((val - 108_i32) / 256_i32 + 247_i32) as u8 as ::core::ffi::c_int)
                         as u8,
-                    (((val - 108 as i32) % 256 as i32) as u8 as ::core::ffi::c_int) as u8,
+                    (((val - 108_i32) % 256_i32) as u8 as ::core::ffi::c_int) as u8,
                 ],
             );
-        } else if val >= -(32768 as i32) && val <= 32767 as i32 {
+        } else if (-32768_i32..=32767_i32).contains(&val) {
             bufnwrite8(
                 blob,
                 &[
-                    28 as u8,
+                    28_u8,
                     ((val >> 8 as ::core::ffi::c_int) as u8 as ::core::ffi::c_int) as u8,
                     ((val << 8 as ::core::ffi::c_int >> 8 as ::core::ffi::c_int) as u8
                         as ::core::ffi::c_int) as u8,
                 ],
             );
         } else {
-            cff_merge_cs2_int(blob, 0 as i32);
+            cff_merge_cs2_int(blob, 0_i32);
         };
     }
 }
@@ -75,7 +75,7 @@ unsafe fn merge_cs2_real(blob: *mut Buffer, val: ::core::ffi::c_double) {
         bufnwrite8(
             blob,
             &[
-                0xff as u8,
+                0xff_u8,
                 (integer_part as ::core::ffi::c_int >> 8 as ::core::ffi::c_int) as u8,
                 (integer_part as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8,
                 (fraction_part as ::core::ffi::c_int >> 8 as ::core::ffi::c_int) as u8,
@@ -100,11 +100,11 @@ pub unsafe fn cff_merge_cs2_special(blob: *mut Buffer, val: u8) {
 pub unsafe fn cff_build_offset(val: i32) -> *mut Buffer {
     return unsafe {
         bufninit(&[
-            29 as u8,
-            (val >> 24 as ::core::ffi::c_int & 0xff as i32) as u8,
-            (val >> 16 as ::core::ffi::c_int & 0xff as i32) as u8,
-            (val >> 8 as ::core::ffi::c_int & 0xff as i32) as u8,
-            (val & 0xff as i32) as u8,
+            29_u8,
+            (val >> 24 as ::core::ffi::c_int & 0xff_i32) as u8,
+            (val >> 16 as ::core::ffi::c_int & 0xff_i32) as u8,
+            (val >> 8 as ::core::ffi::c_int & 0xff_i32) as u8,
+            (val & 0xff_i32) as u8,
         ])
     };
 }

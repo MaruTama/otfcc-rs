@@ -364,10 +364,10 @@ unsafe fn figure_out_lookups_from_json(
     options: &Options,
 ) -> Vec<LookupEntry> {
     let mut lh: Vec<LookupEntry> = Vec::new();
-    let mut j: u32 = 0 as u32;
-    while j < json_obj_len(lookups) as u32 {
-        let lookup_name: *mut ::core::ffi::c_char = json_obj_key_at(lookups, j as u32);
-        let lookup_val = json_obj_val_at(lookups, j as u32);
+    let mut j: u32 = 0_u32;
+    while j < json_obj_len(lookups) {
+        let lookup_name: *mut ::core::ffi::c_char = json_obj_key_at(lookups, j);
+        let lookup_val = json_obj_val_at(lookups, j);
         if json_type_of(lookup_val) == JsonType::Object {
             let parsed: bool = _parse_lookup(lookup_val, lookup_name, options, &mut lh);
             if !parsed {
@@ -418,19 +418,19 @@ unsafe fn feature_merger_activate(
     objtype: *const ::core::ffi::c_char,
     options: &Options,
 ) {
-    let mut j: u32 = 0 as u32;
-    while j < json_obj_len(d) as u32 {
-        let jthis: *const ParsedValue = json_obj_val_at(d, j as u32);
-        let kthis: *mut ::core::ffi::c_char = json_obj_key_at(d, j as u32);
-        let nkthis: u32 = json_obj_key_len_at(d, j as u32) as u32;
+    let mut j: u32 = 0_u32;
+    while j < json_obj_len(d) {
+        let jthis: *const ParsedValue = json_obj_val_at(d, j);
+        let kthis: *mut ::core::ffi::c_char = json_obj_key_at(d, j);
+        let nkthis: u32 = json_obj_key_len_at(d, j);
         if !(json_type_of(jthis) != JsonType::Array && json_type_of(jthis) != JsonType::Object) {
-            let mut k: u32 = j.wrapping_add(1 as u32);
-            while k < json_obj_len(d) as u32 {
-                let jthat: *const ParsedValue = json_obj_val_at(d, k as u32);
-                let kthat: *mut ::core::ffi::c_char = json_obj_key_at(d, k as u32);
+            let mut k: u32 = j.wrapping_add(1_u32);
+            while k < json_obj_len(d) {
+                let jthat: *const ParsedValue = json_obj_val_at(d, k);
+                let kthat: *mut ::core::ffi::c_char = json_obj_key_at(d, k);
                 if *jthis == *jthat
                     && (if sametag as ::core::ffi::c_int != 0 {
-                        (strncmp(kthis, kthat, 4 as usize) == 0 as ::core::ffi::c_int)
+                        (strncmp(kthis, kthat, 4_usize) == 0 as ::core::ffi::c_int)
                             as ::core::ffi::c_int
                     } else {
                         TRUE_0
@@ -476,10 +476,10 @@ unsafe fn figure_out_features_from_json(
             options,
         );
     }
-    let mut j: u32 = 0 as u32;
-    while j < json_obj_len(features) as u32 {
-        let feature_name: *mut ::core::ffi::c_char = json_obj_key_at(features, j as u32);
-        let mut _feature: *const ParsedValue = json_obj_val_at(features, j as u32);
+    let mut j: u32 = 0_u32;
+    while j < json_obj_len(features) {
+        let feature_name: *mut ::core::ffi::c_char = json_obj_key_at(features, j);
+        let mut _feature: *const ParsedValue = json_obj_val_at(features, j);
         if json_type_of(_feature) == JsonType::Array {
             let mut al: LookupRefList = Vec::new();
             let mut k: TableId = 0 as TableId;
@@ -511,7 +511,7 @@ unsafe fn figure_out_features_from_json(
                 }
                 k = k.wrapping_add(1);
             }
-            if al.len() > 0 as usize {
+            if al.len() > 0_usize {
                 let feature_name_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(feature_name)
                     .to_bytes()
                     .to_vec();
@@ -582,7 +582,7 @@ unsafe fn figure_out_features_from_json(
     return fh;
 }
 pub unsafe fn is_valid_language_name(name: *const ::core::ffi::c_char, length: usize) -> bool {
-    return length == 9 as usize
+    return length == 9_usize
         && *name.offset(4 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
             == SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int;
 }
@@ -594,11 +594,11 @@ unsafe fn figure_out_languages_from_json(
 ) -> std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> {
     let mut sh: std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> =
         std::collections::BTreeMap::new();
-    let mut j: u32 = 0 as u32;
-    while j < json_obj_len(languages) as u32 {
-        let language_name: *mut ::core::ffi::c_char = json_obj_key_at(languages, j as u32);
-        let language_name_len: usize = json_obj_key_len_at(languages, j as u32) as usize;
-        let mut _language: *const ParsedValue = json_obj_val_at(languages, j as u32);
+    let mut j: u32 = 0_u32;
+    while j < json_obj_len(languages) {
+        let language_name: *mut ::core::ffi::c_char = json_obj_key_at(languages, j);
+        let language_name_len: usize = json_obj_key_len_at(languages, j) as usize;
+        let mut _language: *const ParsedValue = json_obj_val_at(languages, j);
         if is_valid_language_name(language_name, language_name_len) as ::core::ffi::c_int != 0
             && json_type_of(_language) == JsonType::Object
         {
@@ -637,7 +637,7 @@ unsafe fn figure_out_languages_from_json(
                     k = k.wrapping_add(1);
                 }
             }
-            if !required_feature.is_null() || af.len() > 0 as usize {
+            if !required_feature.is_null() || af.len() > 0_usize {
                 let language_name_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(language_name)
                     .to_bytes()
                     .to_vec();

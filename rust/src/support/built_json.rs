@@ -247,10 +247,10 @@ pub unsafe fn json_object_push_tag(
 /// declaration: both round half away from zero identically, so there is
 /// nothing left to import libm for.
 pub unsafe fn json_new_position(z: crate::support::primitives::Pos) -> *mut BuiltValue {
-    if (z as f64).round() == z as f64 {
+    if z.round() == z {
         unsafe { json_integer_new(z as i64) }
     } else {
-        unsafe { json_double_new(z as f64) }
+        unsafe { json_double_new(z) }
     }
 }
 

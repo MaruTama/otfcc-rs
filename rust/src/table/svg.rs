@@ -94,17 +94,17 @@ pub unsafe fn otfcc_read_svg(packet: &Packet) -> Option<SvgTable> {
     parse_svg(&table.data).ok()
 }
 fn can_use_plain_format(doc: &[u8]) -> bool {
-    return doc.len() > 4 as usize
-        && doc[0 as usize] as ::core::ffi::c_int == '<' as i32
-        && doc[1 as usize] as ::core::ffi::c_int == 's' as i32
-        && doc[2 as usize] as ::core::ffi::c_int == 'v' as i32
-        && doc[3 as usize] as ::core::ffi::c_int == 'g' as i32
-        || doc.len() > 5 as usize
-            && doc[0 as usize] as ::core::ffi::c_int == '<' as i32
-            && doc[1 as usize] as ::core::ffi::c_int == '?' as i32
-            && doc[2 as usize] as ::core::ffi::c_int == 'x' as i32
-            && doc[3 as usize] as ::core::ffi::c_int == 'm' as i32
-            && doc[4 as usize] as ::core::ffi::c_int == 'l' as i32;
+    return doc.len() > 4_usize
+        && doc[0_usize] as ::core::ffi::c_int == '<' as i32
+        && doc[1_usize] as ::core::ffi::c_int == 's' as i32
+        && doc[2_usize] as ::core::ffi::c_int == 'v' as i32
+        && doc[3_usize] as ::core::ffi::c_int == 'g' as i32
+        || doc.len() > 5_usize
+            && doc[0_usize] as ::core::ffi::c_int == '<' as i32
+            && doc[1_usize] as ::core::ffi::c_int == '?' as i32
+            && doc[2_usize] as ::core::ffi::c_int == 'x' as i32
+            && doc[3_usize] as ::core::ffi::c_int == 'm' as i32
+            && doc[4_usize] as ::core::ffi::c_int == 'l' as i32;
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: *mut BuiltValue, options: &Options) {
@@ -120,12 +120,12 @@ pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: *mut BuiltValue, opti
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _svg: *mut BuiltValue = json_array_new(entries.len());
-        let mut __caryll_index: usize = 0 as usize;
-        let mut keep: usize = 1 as usize;
+        let mut __caryll_index: usize = 0_usize;
+        let mut keep: usize = 1_usize;
         while keep != 0 && __caryll_index < entries.len() {
             let a: &SvgAssignment = &entries[__caryll_index];
             while keep != 0 {
-                let mut _a: *mut BuiltValue = json_object_new(4 as usize);
+                let mut _a: *mut BuiltValue = json_object_new(4_usize);
                 json_object_push(
                     _a,
                     b"start\0" as *const u8 as *const ::core::ffi::c_char,
@@ -151,7 +151,7 @@ pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: *mut BuiltValue, opti
                         ),
                     );
                 } else {
-                    let mut len: usize = 0 as usize;
+                    let mut len: usize = 0_usize;
                     let mut buf: *mut u8 =
                         base64_encode(a.document.as_ptr(), a.document.len(), &raw mut len);
                     json_object_push(
@@ -231,7 +231,7 @@ pub unsafe fn otfcc_parse_svg(root: *const ParsedValue, options: &Options) -> Op
                         {
                             asg.document = doc;
                         } else {
-                            let mut len: usize = 0 as usize;
+                            let mut len: usize = 0_usize;
                             let mut buf: *mut u8 =
                                 base64_encode(doc.as_ptr(), doc.len(), &raw mut len);
                             asg.document = ::core::slice::from_raw_parts(buf, len).to_vec();
@@ -260,8 +260,8 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
     let mut svg: SvgTable = _svg.iter().map(|a| svg_assignment_dup(a)).collect();
     svg.sort_by(|a, b| a.start.cmp(&b.start));
     let major: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (svg.len()) as u32)]);
-    let mut __caryll_index: usize = 0 as usize;
-    let mut keep: usize = 1 as usize;
+    let mut __caryll_index: usize = 0_usize;
+    let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < svg.len() {
         let a: &SvgAssignment = &svg[__caryll_index];
         while keep != 0 {
@@ -295,9 +295,9 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B16, 0 as u32),
+        bk_int(BkCellType::B16, 0_u32),
         bk_ptr(BkCellType::P32, major),
-        bk_int(BkCellType::B32, 0 as u32),
+        bk_int(BkCellType::B32, 0_u32),
     ]);
     // `svg` drops naturally at the end of this scope -- `document` is a
     // plain `Vec<u8>` now, self-dropping along with the rest of

@@ -95,9 +95,9 @@ pub unsafe fn otfcc_dump_gasp(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let t: *mut BuiltValue = json_array_new(records.len());
-        let mut j: u16 = 0 as u16;
+        let mut j: u16 = 0_u16;
         while (j as usize) < records.len() {
-            let rec: *mut BuiltValue = json_object_new(5 as usize);
+            let rec: *mut BuiltValue = json_object_new(5_usize);
             json_object_push(
                 rec,
                 b"rangeMaxPPEM\0" as *const u8 as *const ::core::ffi::c_char,
@@ -157,7 +157,7 @@ pub unsafe fn otfcc_parse_gasp(
                 version: 1,
                 records: Vec::new(),
             }));
-            let mut j: u16 = 0 as u16;
+            let mut j: u16 = 0_u16;
             while (j as ::core::ffi::c_uint) < json_arr_len(table) {
                 let r: *const ParsedValue = json_arr_at(table, j as u32);
                 if !(r.is_null() || json_type_of(r) != JsonType::Object) {
@@ -171,7 +171,7 @@ pub unsafe fn otfcc_parse_gasp(
                     record.range_max_ppem = json_obj_getint_fallback(
                         r,
                         b"rangeMaxPPEM\0" as *const u8 as *const ::core::ffi::c_char,
-                        0xffff as i32,
+                        0xffff_i32,
                     ) as GlyphSize;
                     record.dogray =
                         json_obj_getbool(r, b"dogray\0" as *const u8 as *const ::core::ffi::c_char);
@@ -205,9 +205,9 @@ pub unsafe fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> *mut Buffer {
     };
     let buf: *mut Buffer = bufnew();
     let records: &Vec<GaspRecord> = &(*gasp).records;
-    bufwrite16b(buf, 1 as u16);
+    bufwrite16b(buf, 1_u16);
     bufwrite16b(buf, records.len() as u16);
-    let mut j: u16 = 0 as u16;
+    let mut j: u16 = 0_u16;
     while (j as usize) < records.len() {
         let r: *const GaspRecord = &records[j as usize];
         bufwrite16b(buf, (*r).range_max_ppem as u16);
