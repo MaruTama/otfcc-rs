@@ -837,7 +837,7 @@ pub unsafe fn dump_ttinstr(
     options: &Options,
 ) -> *mut BuiltValue {
     if options.instr_as_bytes {
-        let mut len: usize = 0 as usize;
+        let mut len: usize = 0_usize;
         let buf: *mut u8 = base64_encode(instructions, length as usize, &raw mut len);
         // `json_string_new_length` copies `buf`'s bytes into a fresh `Vec`
         // rather than taking ownership of it (see its own definition) --
@@ -857,7 +857,7 @@ pub unsafe fn dump_ttinstr(
         id.instrs = instructions;
         instr_typify(&raw mut id);
         let ret: *mut BuiltValue = json_array_new(id.instr_cnt as usize);
-        let mut i: u32 = 0 as u32;
+        let mut i: u32 = 0_u32;
         while i < id.instr_cnt {
             if id.bts[i as usize] == ByteType::WordHi {
                 json_array_push(
@@ -865,7 +865,7 @@ pub unsafe fn dump_ttinstr(
                     json_integer_new(
                         ((*id.instrs.offset(i as isize) as ::core::ffi::c_int)
                             << 8 as ::core::ffi::c_int
-                            | *id.instrs.offset(i.wrapping_add(1 as u32) as isize)
+                            | *id.instrs.offset(i.wrapping_add(1_u32) as isize)
                                 as ::core::ffi::c_int) as i16 as i64,
                     ),
                 );
@@ -917,10 +917,10 @@ pub unsafe fn parse_ttinstr(
         }
         make.expect("non-null function pointer")(context, instructions_vec);
     } else if json_type_of(col) == JsonType::Array {
-        let mut istrlen: usize = 0 as usize;
-        let mut j: u32 = 0 as u32;
+        let mut istrlen: usize = 0_usize;
+        let mut j: u32 = 0_u32;
         while j < json_arr_len(col) {
-            let record: *const ParsedValue = json_arr_at(col, j as u32);
+            let record: *const ParsedValue = json_arr_at(col, j);
             if json_type_of(record) == JsonType::String {
                 istrlen = istrlen.wrapping_add(
                     json_str_len(record).wrapping_add(1 as ::core::ffi::c_uint) as usize,
@@ -940,12 +940,12 @@ pub unsafe fn parse_ttinstr(
         // this buffer with `strlen`) -- same size and same guarantee
         // `sdsnewlen(NULL, istrlen + 1)` gave, without needing `sds` at
         // all.
-        let mut instr_string: Vec<u8> = vec![0u8; istrlen.wrapping_add(1 as usize)];
+        let mut instr_string: Vec<u8> = vec![0u8; istrlen.wrapping_add(1_usize)];
         let mut head: *mut ::core::ffi::c_char =
             instr_string.as_mut_ptr() as *mut ::core::ffi::c_char;
-        let mut j_0: u32 = 0 as u32;
+        let mut j_0: u32 = 0_u32;
         while j_0 < json_arr_len(col) {
-            let record_0: *const ParsedValue = json_arr_at(col, j_0 as u32);
+            let record_0: *const ParsedValue = json_arr_at(col, j_0);
             if json_type_of(record_0) == JsonType::String {
                 memcpy(
                     head as *mut ::core::ffi::c_void,
@@ -957,7 +957,7 @@ pub unsafe fn parse_ttinstr(
             } else if json_type_of(record_0) == JsonType::Integer {
                 let n: ::core::ffi::c_int = snprintf(
                     head,
-                    20 as usize,
+                    20_usize,
                     b"%d\0" as *const u8 as *const ::core::ffi::c_char,
                     json_int_val(record_0) as ::core::ffi::c_int,
                 );

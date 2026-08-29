@@ -17,10 +17,10 @@ pub unsafe fn base64_encode(
     let mut in_0: *const u8;
     let mut olen: usize;
     olen = len
-        .wrapping_add(3 as usize)
-        .wrapping_sub(1 as usize)
-        .wrapping_div(3 as usize)
-        .wrapping_mul(4 as usize);
+        .wrapping_add(3_usize)
+        .wrapping_sub(1_usize)
+        .wrapping_div(3_usize)
+        .wrapping_mul(4_usize);
     olen = olen.wrapping_add(1);
     out = malloc((::core::mem::size_of::<u8>() as usize).wrapping_mul(olen)) as *mut u8;
     if out.is_null() {
@@ -116,16 +116,16 @@ pub unsafe fn base64_decode(
     memset(
         &raw mut dtable as *mut u8 as *mut ::core::ffi::c_void,
         0x80 as ::core::ffi::c_int,
-        256 as usize,
+        256_usize,
     );
-    i = 0 as usize;
+    i = 0_usize;
     while i < ::core::mem::size_of::<[u8; 64]>() {
         dtable[BASE64_TABLE[i] as usize] = i as u8;
         i = i.wrapping_add(1);
     }
-    dtable['=' as i32 as usize] = 0 as u8;
-    count = 0 as usize;
-    i = 0 as usize;
+    dtable['=' as i32 as usize] = 0_u8;
+    count = 0_usize;
+    i = 0_usize;
     while i < len {
         if dtable[*src.offset(i as isize) as usize] as ::core::ffi::c_int
             != 0x80 as ::core::ffi::c_int
@@ -134,7 +134,7 @@ pub unsafe fn base64_decode(
         }
         i = i.wrapping_add(1);
     }
-    if count.wrapping_rem(4 as usize) != 0 {
+    if count.wrapping_rem(4_usize) != 0 {
         return ::core::ptr::null_mut::<u8>();
     }
     out = malloc((::core::mem::size_of::<u8>() as usize).wrapping_mul(count)) as *mut u8;
@@ -142,15 +142,15 @@ pub unsafe fn base64_decode(
     if out.is_null() {
         return ::core::ptr::null_mut::<u8>();
     }
-    count = 0 as usize;
-    i = 0 as usize;
+    count = 0_usize;
+    i = 0_usize;
     while i < len {
         tmp = dtable[*src.offset(i as isize) as usize];
         if !(tmp as ::core::ffi::c_int == 0x80 as ::core::ffi::c_int) {
             in_0[count] = *src.offset(i as isize);
             block[count] = tmp;
             count = count.wrapping_add(1);
-            if count == 4 as usize {
+            if count == 4_usize {
                 let fresh10 = pos;
                 pos = pos.offset(1);
                 *fresh10 = ((block[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
@@ -169,7 +169,7 @@ pub unsafe fn base64_decode(
                     << 6 as ::core::ffi::c_int
                     | block[3 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
                     as u8;
-                count = 0 as usize;
+                count = 0_usize;
             }
         }
         i = i.wrapping_add(1);

@@ -91,7 +91,7 @@ pub unsafe fn otfcc_parse_cvt(
         while ___loggedstep_v {
             let table_length = json_arr_len(table);
             let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);
-            let mut j: u16 = 0 as u16;
+            let mut j: u16 = 0_u16;
             while (j as u32) < table_length {
                 let record: *const ParsedValue = json_arr_at(table, j as u32);
                 if json_type_of(record) == JsonType::Integer {
@@ -99,7 +99,7 @@ pub unsafe fn otfcc_parse_cvt(
                 } else if json_type_of(record) == JsonType::Double {
                     words.push(json_dbl_val(record) as u16);
                 } else {
-                    words.push(0 as u16);
+                    words.push(0_u16);
                 }
                 j = j.wrapping_add(1);
             }
@@ -124,7 +124,7 @@ pub unsafe fn otfcc_parse_cvt(
                 );
                 let table_length = (len >> 1 as ::core::ffi::c_int) as u32;
                 let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);
-                let mut j_0: u16 = 0 as u16;
+                let mut j_0: u16 = 0_u16;
                 while (j_0 as u32) < table_length {
                     words.push(read_16u(raw.offset(
                         (2 as ::core::ffi::c_int * j_0 as ::core::ffi::c_int) as isize,

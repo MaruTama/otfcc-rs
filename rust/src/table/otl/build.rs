@@ -42,24 +42,24 @@ pub type OtlSplitBuilder =
     Option<unsafe fn(*const Subtable, BuildHeuristics, *mut TableId) -> *mut *mut Buffer>;
 pub const LARGE_SUBTABLE_LIMIT: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
 fn feature_name_to_tag(name: &[u8]) -> u32 {
-    let mut tag: u32 = 0 as u32;
-    if name.len() > 0 as usize {
-        tag |= ((name[0 as usize] as u8 as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
+    let mut tag: u32 = 0_u32;
+    if name.len() > 0_usize {
+        tag |= ((name[0_usize] as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
     } else {
         tag |= ((' ' as i32 as u8 as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
     }
-    if name.len() > 1 as usize {
-        tag |= ((name[1 as usize] as u8 as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
+    if name.len() > 1_usize {
+        tag |= ((name[1_usize] as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
     } else {
         tag |= ((' ' as i32 as u8 as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
     }
-    if name.len() > 2 as usize {
-        tag |= ((name[2 as usize] as u8 as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
+    if name.len() > 2_usize {
+        tag |= ((name[2_usize] as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
     } else {
         tag |= ((' ' as i32 as u8 as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
     }
-    if name.len() > 3 as usize {
-        tag |= ((name[3 as usize] as u8 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as u32;
+    if name.len() > 3_usize {
+        tag |= ((name[3_usize] as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as u32;
     } else {
         tag |= ((' ' as i32 as u8 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as u32;
     }
@@ -77,8 +77,8 @@ unsafe fn _declare_lookup_writer(
     if (*lookup).type_0 == type_0 {
         subtables.clear();
         subtables.reserve((*lookup).subtables.len());
-        let mut total_buf_size_short: usize = 0 as usize;
-        let mut total_buf_size_ext: usize = 0 as usize;
+        let mut total_buf_size_short: usize = 0_usize;
+        let mut total_buf_size_ext: usize = 0_usize;
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
             let buf: *mut Buffer = fn_0.expect("non-null function pointer")(
@@ -87,7 +87,7 @@ unsafe fn _declare_lookup_writer(
             );
             subtables.push(buf);
             total_buf_size_short = total_buf_size_short.wrapping_add((*buf).data.len());
-            total_buf_size_ext = total_buf_size_ext.wrapping_add(8 as usize);
+            total_buf_size_ext = total_buf_size_ext.wrapping_add(8_usize);
             j = j.wrapping_add(1);
         }
         if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
@@ -112,7 +112,7 @@ unsafe fn _declare_lookup_writer_split(
 ) -> TableId {
     if (*lookup).type_0 == type_0 {
         subtables.clear();
-        let mut total_buf_size_short: usize = 0 as usize;
+        let mut total_buf_size_short: usize = 0_usize;
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
             let mut n_part: TableId = 0 as TableId;
@@ -355,7 +355,7 @@ unsafe fn write_otl_lookups(
     let mut subtables: Vec<Vec<*mut Buffer>> = vec![Vec::new(); (*table).lookups.len()];
     let mut subtable_quantity: Vec<TableId> = vec![0 as TableId; (*table).lookups.len()];
     let mut prefer_ext_for_this_lut: Vec<bool> = vec![false; (*table).lookups.len()];
-    let mut last_offset: usize = 0 as usize;
+    let mut last_offset: usize = 0_usize;
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).lookups.len() {
         let lookup: *const Lookup = &raw const *(&(*table).lookups)[j as usize];
@@ -384,7 +384,7 @@ unsafe fn write_otl_lookups(
         j = j.wrapping_add(1);
     }
     let mut header_size: usize =
-        (2 as usize).wrapping_add((2 as usize).wrapping_mul((*table).lookups.len()));
+        2_usize.wrapping_add(2_usize.wrapping_mul((*table).lookups.len()));
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < (*table).lookups.len() {
         if subtable_quantity[j_0 as usize] != 0 {
@@ -397,7 +397,7 @@ unsafe fn write_otl_lookups(
         }
         j_0 = j_0.wrapping_add(1);
     }
-    let use_extended: bool = last_offset >= (0xff00 as usize).wrapping_sub(header_size);
+    let use_extended: bool = last_offset >= 0xff00_usize.wrapping_sub(header_size);
     let root: *mut BkBlock =
         bk_new_block(&[bk_int(BkCellType::B16, ((*table).lookups.len()) as u32)]);
     let mut j_1: TableId = 0 as TableId;
@@ -469,7 +469,7 @@ unsafe fn write_otl_lookups(
                     .wrapping_sub(can_be_contextual as u32)
                     as u16;
                 let stub: *mut BkBlock = bk_new_block(&[
-                    bk_int(BkCellType::B16, 1 as u32),
+                    bk_int(BkCellType::B16, 1_u32),
                     bk_int(
                         BkCellType::B16,
                         (extension_lookup_type as ::core::ffi::c_int) as u32,
@@ -491,7 +491,7 @@ unsafe fn write_otl_lookups(
             }
             k = k.wrapping_add(1);
         }
-        bk_push(blk, &[bk_int(BkCellType::B16, 0 as u32)]);
+        bk_push(blk, &[bk_int(BkCellType::B16, 0_u32)]);
         bk_push(root, &[bk_ptr(BkCellType::P16, blk)]);
         j_1 = j_1.wrapping_add(1);
     }
@@ -562,8 +562,7 @@ unsafe fn write_language(
         bk_ptr(BkCellType::P16, ::core::ptr::null_mut()),
         bk_int(
             BkCellType::B16,
-            (feature_index((*lang).required_feature as *const Feature, table) as ::core::ffi::c_int)
-                as u32,
+            (feature_index((*lang).required_feature, table) as ::core::ffi::c_int) as u32,
         ),
         bk_int(BkCellType::B16, ((*lang).features.len()) as u32),
     ]);
@@ -573,8 +572,8 @@ unsafe fn write_language(
             root,
             &[bk_int(
                 BkCellType::B16,
-                (feature_index((&(*lang).features)[k as usize] as *const Feature, table)
-                    as ::core::ffi::c_int) as u32,
+                (feature_index((&(*lang).features)[k as usize], table) as ::core::ffi::c_int)
+                    as u32,
             )],
         );
         k = k.wrapping_add(1);
@@ -598,7 +597,7 @@ unsafe fn write_script(
                 .name
                 .as_ptr()
                 .offset(5 as ::core::ffi::c_int as isize),
-            4 as usize,
+            4_usize,
         );
         bk_push(
             root,
@@ -640,14 +639,14 @@ unsafe fn write_otl_script_and_languages(table: *const OtlTable) -> *mut BkBlock
     while (j as usize) < (*table).languages.len() {
         let language: *const LanguageSystem = &raw const *(&(*table).languages)[j as usize];
         let script_tag: Vec<u8> =
-            ::core::slice::from_raw_parts((*language).name.as_ptr(), 4 as usize).to_vec();
+            ::core::slice::from_raw_parts((*language).name.as_ptr(), 4_usize).to_vec();
         let is_default: bool = strncmp(
             (*language)
                 .name
                 .as_ptr()
                 .offset(5 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_char,
             b"DFLT\0" as *const u8 as *const ::core::ffi::c_char,
-            4 as usize,
+            4_usize,
         ) == 0 as ::core::ffi::c_int
             || strncmp(
                 (*language)
@@ -656,7 +655,7 @@ unsafe fn write_otl_script_and_languages(table: *const OtlTable) -> *mut BkBlock
                     .offset(5 as ::core::ffi::c_int as isize)
                     as *const ::core::ffi::c_char,
                 b"dflt\0" as *const u8 as *const ::core::ffi::c_char,
-                4 as usize,
+                4_usize,
             ) == 0 as ::core::ffi::c_int;
         let mut found: Option<usize> = None;
         for (idx, group) in scripts.iter().enumerate() {
@@ -696,7 +695,7 @@ unsafe fn write_otl_script_and_languages(table: *const OtlTable) -> *mut BkBlock
         bk_push(
             root,
             &[
-                bk_int(BkCellType::B32, (feature_name_to_tag(&group.tag)) as u32),
+                bk_int(BkCellType::B32, feature_name_to_tag(&group.tag)),
                 bk_ptr(
                     BkCellType::P16,
                     write_script(group.default_language, &group.languages, table),
@@ -723,7 +722,7 @@ pub unsafe fn otfcc_build_otl(
         let features: *mut BkBlock = write_otl_features(table);
         let languages: *mut BkBlock = write_otl_script_and_languages(table);
         let root: *mut BkBlock = bk_new_block(&[
-            bk_int(BkCellType::B32, 0x10000 as u32),
+            bk_int(BkCellType::B32, 0x10000_u32),
             bk_ptr(BkCellType::P16, languages),
             bk_ptr(BkCellType::P16, features),
             bk_ptr(BkCellType::P16, lookups),

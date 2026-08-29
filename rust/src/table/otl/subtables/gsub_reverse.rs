@@ -169,7 +169,7 @@ pub unsafe fn otl_gsub_dump_reverse(mut _subtable: *const Subtable) -> *mut Buil
         unreachable!()
     };
     let subtable: *const GsubReverseSubtable = mut_subtable;
-    let mut _st: *mut BuiltValue = json_object_new(3 as usize);
+    let mut _st: *mut BuiltValue = json_object_new(3_usize);
     let mut _match: *mut BuiltValue = json_array_new((*subtable).match_count as usize);
     let mut j: TableId = 0 as TableId;
     while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
@@ -251,7 +251,7 @@ pub unsafe fn otfcc_build_gsub_reverse(
         (*subtable).input_index,
     );
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B16, 1 as u32),
+        bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(build_coverage(

@@ -436,7 +436,7 @@ pub unsafe fn otfcc_dump_os_2(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let os_2: *mut BuiltValue = json_object_new(30 as usize);
+        let os_2: *mut BuiltValue = json_object_new(30_usize);
         json_object_push(
             os_2,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -517,8 +517,8 @@ pub unsafe fn otfcc_dump_os_2(
             b"sFamilyClass\0" as *const u8 as *const ::core::ffi::c_char,
             json_integer_new((*table).s_family_class as i64),
         );
-        let panose: *mut BuiltValue = json_array_new(10 as usize);
-        let mut j: u8 = 0 as u8;
+        let panose: *mut BuiltValue = json_array_new(10_usize);
+        let mut j: u8 = 0_u8;
         while (j as ::core::ffi::c_int) < 10 as ::core::ffi::c_int {
             json_array_push(panose, json_integer_new((*table).panose[j as usize] as i64));
             j = j.wrapping_add(1);
@@ -901,9 +901,9 @@ pub unsafe fn otfcc_parse_os_2(
                 JsonType::Array,
             );
             if !panose.is_null() {
-                let mut j: u32 = 0 as u32;
-                while j < json_arr_len(panose) && j < 10 as u32 {
-                    let term: *const ParsedValue = json_arr_at(panose, j as u32);
+                let mut j: u32 = 0_u32;
+                while j < json_arr_len(panose) && j < 10_u32 {
+                    let term: *const ParsedValue = json_arr_at(panose, j);
                     if json_type_of(term) == JsonType::Integer {
                         (*os_2).panose[j as usize] = json_int_val(term) as u8;
                     } else if json_type_of(term) == JsonType::Double {
@@ -927,7 +927,7 @@ pub unsafe fn otfcc_parse_os_2(
                     memcpy(
                         &raw mut (*os_2).ach_vend_id as *mut u8 as *mut ::core::ffi::c_void,
                         json_str_ptr(vendorid) as *const ::core::ffi::c_void,
-                        4 as usize,
+                        4_usize,
                     );
                 } else {
                     memcpy(
@@ -942,7 +942,7 @@ pub unsafe fn otfcc_parse_os_2(
         }
     }
     if ((*os_2).version as ::core::ffi::c_int) < 1 as ::core::ffi::c_int {
-        (*os_2).version = 1 as u16;
+        (*os_2).version = 1_u16;
     }
     return Some(os_2_box);
 }
@@ -969,12 +969,12 @@ pub unsafe fn otfcc_build_os_2(os_2: Option<&Os2Table>) -> *mut Buffer {
     bufwrite16b(buf, (*os_2).y_strikeout_size as u16);
     bufwrite16b(buf, (*os_2).y_strikeout_position as u16);
     bufwrite16b(buf, (*os_2).s_family_class as u16);
-    bufwrite_bytes(buf, 10 as usize, &raw const (*os_2).panose as *const u8);
+    bufwrite_bytes(buf, 10_usize, &raw const (*os_2).panose as *const u8);
     bufwrite32b(buf, (*os_2).ul_unicode_range1);
     bufwrite32b(buf, (*os_2).ul_unicode_range2);
     bufwrite32b(buf, (*os_2).ul_unicode_range3);
     bufwrite32b(buf, (*os_2).ul_unicode_range4);
-    bufwrite_bytes(buf, 4 as usize, &raw const (*os_2).ach_vend_id as *const u8);
+    bufwrite_bytes(buf, 4_usize, &raw const (*os_2).ach_vend_id as *const u8);
     bufwrite16b(buf, (*os_2).fs_selection);
     bufwrite16b(buf, (*os_2).us_first_char_index);
     bufwrite16b(buf, (*os_2).us_last_char_index);

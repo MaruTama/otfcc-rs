@@ -306,7 +306,7 @@ pub unsafe fn otfcc_new_glyf_glyph() -> Box<Glyph> {
         hint_masks: Vec::new(),
         contour_masks: Vec::new(),
         instructions: Vec::new(),
-        y_pel: 0 as u8,
+        y_pel: 0_u8,
         fd_select: otfcc_handle_empty() as FdHandle,
         cid: 0 as GlyphId,
         stat: GlyphStat {
@@ -314,11 +314,11 @@ pub unsafe fn otfcc_new_glyf_glyph() -> Box<Glyph> {
             x_max: 0 as ::core::ffi::c_int as Pos,
             y_min: 0 as ::core::ffi::c_int as Pos,
             y_max: 0 as ::core::ffi::c_int as Pos,
-            nest_depth: 0 as u16,
-            n_points: 0 as u16,
-            n_contours: 0 as u16,
-            n_composite_points: 0 as u16,
-            n_composite_contours: 0 as u16,
+            nest_depth: 0_u16,
+            n_points: 0_u16,
+            n_contours: 0_u16,
+            n_composite_points: 0_u16,
+            n_composite_contours: 0_u16,
         },
     })
 }
@@ -360,7 +360,7 @@ unsafe fn glyf_glyph_dump_contours(
         let contour: *mut BuiltValue = json_array_new(c.len());
         let mut m: ShapeId = 0 as ShapeId;
         while (m as usize) < c.len() {
-            let point: *mut BuiltValue = json_object_new(4 as usize);
+            let point: *mut BuiltValue = json_object_new(4_usize);
             json_object_push(
                 point,
                 b"x\0" as *const u8 as *const ::core::ffi::c_char,
@@ -400,7 +400,7 @@ unsafe fn glyf_glyph_dump_references(
     let mut k: ShapeId = 0 as ShapeId;
     while (k as usize) < (*g).references.len() {
         let r: *const ComponentReference = &raw const (&(*g).references)[k as usize];
-        let ref_0: *mut BuiltValue = json_object_new(9 as usize);
+        let ref_0: *mut BuiltValue = json_object_new(9_usize);
         json_object_push(
             ref_0,
             b"glyph\0" as *const u8 as *const ::core::ffi::c_char,
@@ -481,7 +481,7 @@ unsafe fn glyf_glyph_dump_stemdefs(stems: *const StemDefList) -> *mut BuiltValue
     let a: *mut BuiltValue = json_array_new(stems.len());
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < stems.len() {
-        let stem: *mut BuiltValue = json_object_new(3 as usize);
+        let stem: *mut BuiltValue = json_object_new(3_usize);
         json_object_push(
             stem,
             b"position\0" as *const u8 as *const ::core::ffi::c_char,
@@ -508,7 +508,7 @@ unsafe fn glyf_glyph_dump_maskdefs(
     let a: *mut BuiltValue = json_array_new(masks.len());
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < masks.len() {
-        let mask: *mut BuiltValue = json_object_new(3 as usize);
+        let mask: *mut BuiltValue = json_object_new(3_usize);
         json_object_push(
             mask,
             b"contoursBefore\0" as *const u8 as *const ::core::ffi::c_char,
@@ -557,7 +557,7 @@ unsafe fn glyf_dump_glyph(
     options: &Options,
     ctx: *const GlyfIOContext,
 ) -> *mut BuiltValue {
-    let glyph: *mut BuiltValue = json_object_new(12 as usize);
+    let glyph: *mut BuiltValue = json_object_new(12_usize);
     json_object_push(
         glyph,
         b"advanceWidth\0" as *const u8 as *const ::core::ffi::c_char,
@@ -726,10 +726,10 @@ unsafe fn glyf_parse_point(pointdump: *const ParsedValue) -> Point {
     if pointdump.is_null() || json_type_of(pointdump) != JsonType::Object {
         return point;
     }
-    let mut _k: u32 = 0 as u32;
-    while _k < json_obj_len(pointdump) as u32 {
-        let ck: *mut ::core::ffi::c_char = json_obj_key_at(pointdump, _k as u32);
-        let cv: *const ParsedValue = json_obj_val_at(pointdump, _k as u32);
+    let mut _k: u32 = 0_u32;
+    while _k < json_obj_len(pointdump) {
+        let ck: *mut ::core::ffi::c_char = json_obj_key_at(pointdump, _k);
+        let cv: *const ParsedValue = json_obj_val_at(pointdump, _k);
         if strcmp(ck, b"x\0" as *const u8 as *const ::core::ffi::c_char) == 0 as ::core::ffi::c_int
         {
             vq_replace(
@@ -912,7 +912,7 @@ unsafe fn parse_stems(sd: *const ParsedValue, stems: *mut StemDefList) {
                 width: 0.,
                 map: 0,
             };
-            sdef.map = 0 as u16;
+            sdef.map = 0_u16;
             sdef.position =
                 json_obj_getnum(s, b"position\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
             sdef.width =
@@ -976,8 +976,7 @@ unsafe fn parse_masks(md: *const ParsedValue, masks: *mut MaskList) {
                 b"contoursBefore\0" as *const u8 as *const ::core::ffi::c_char,
             ) as u16;
             parse_maskbits(
-                (&raw mut mask.mask_h as *mut bool).offset(0 as ::core::ffi::c_int as isize)
-                    as *mut bool,
+                (&raw mut mask.mask_h as *mut bool).offset(0 as ::core::ffi::c_int as isize),
                 json_obj_get_type(
                     m,
                     b"maskH\0" as *const u8 as *const ::core::ffi::c_char,
@@ -985,8 +984,7 @@ unsafe fn parse_masks(md: *const ParsedValue, masks: *mut MaskList) {
                 ),
             );
             parse_maskbits(
-                (&raw mut mask.mask_v as *mut bool).offset(0 as ::core::ffi::c_int as isize)
-                    as *mut bool,
+                (&raw mut mask.mask_v as *mut bool).offset(0 as ::core::ffi::c_int as isize),
                 json_obj_get_type(
                     m,
                     b"maskV\0" as *const u8 as *const ::core::ffi::c_char,

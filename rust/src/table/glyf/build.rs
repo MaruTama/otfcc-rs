@@ -29,21 +29,21 @@ pub unsafe fn shrink_flags(flags: *mut Buffer) -> *mut Buffer {
     let flags_data: &Vec<u8> = &(*flags).data;
     bufwrite8(shrunk, flags_data[0]);
     let mut repeating: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-    let mut j: usize = 1 as usize;
+    let mut j: usize = 1_usize;
     while j < buflen(flags) {
         if flags_data[j] as ::core::ffi::c_int
-            == flags_data[j.wrapping_sub(1 as usize)] as ::core::ffi::c_int
+            == flags_data[j.wrapping_sub(1_usize)] as ::core::ffi::c_int
         {
             if repeating != 0 && repeating < 0xfe as ::core::ffi::c_int {
                 let shrunk_data: &mut Vec<u8> = &mut (*shrunk).data;
-                let fresh0 = &mut shrunk_data[(*shrunk).cursor.wrapping_sub(1 as usize)];
+                let fresh0 = &mut shrunk_data[(*shrunk).cursor.wrapping_sub(1_usize)];
                 *fresh0 = (*fresh0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
                 repeating += 1 as ::core::ffi::c_int;
             } else if repeating == 0 as ::core::ffi::c_int {
                 let shrunk_data: &mut Vec<u8> = &mut (*shrunk).data;
-                let fresh1 = &mut shrunk_data[(*shrunk).cursor.wrapping_sub(1 as usize)];
+                let fresh1 = &mut shrunk_data[(*shrunk).cursor.wrapping_sub(1_usize)];
                 *fresh1 |= PointFlags::REPEAT.bits();
-                bufwrite8(shrunk, 1 as u8);
+                bufwrite8(shrunk, 1_u8);
                 repeating += 1 as ::core::ffi::c_int;
             } else {
                 repeating = 0 as ::core::ffi::c_int;
@@ -86,8 +86,8 @@ unsafe fn glyf_build_simple(g: *const Glyph, gbuf: *mut Buffer) {
     bufclear(flags);
     bufclear(xs);
     bufclear(ys);
-    let mut cx: i32 = 0 as i32;
-    let mut cy: i32 = 0 as i32;
+    let mut cx: i32 = 0_i32;
+    let mut cy: i32 = 0_i32;
     let mut cj: ShapeId = 0 as ShapeId;
     while (cj as usize) < (*g).contours.len() {
         let mut k: ShapeId = 0 as ShapeId;
@@ -157,7 +157,7 @@ unsafe fn glyf_build_composite(g: *const Glyph, gbuf: *mut Buffer) {
     while (rj as usize) < (*g).references.len() {
         let r: *const ComponentReference = &(&(*g).references)[rj as usize];
         let mut flags: ComponentFlags =
-            if (rj as usize) < (*g).references.len().wrapping_sub(1 as usize) {
+            if (rj as usize) < (*g).references.len().wrapping_sub(1_usize) {
                 ComponentFlags::MORE_COMPONENTS
             } else if !(*g).instructions.is_empty() {
                 ComponentFlags::WE_HAVE_INSTRUCTIONS
@@ -276,7 +276,7 @@ pub unsafe fn otfcc_build_glyf(
     let bufloca: *mut Buffer = bufnew();
     if !table.is_null() && !head.is_null() {
         let gbuf: *mut Buffer = bufnew();
-        let mut loca: Vec<u32> = vec![0; (*table).len().wrapping_add(1 as usize)];
+        let mut loca: Vec<u32> = vec![0; (*table).len().wrapping_add(1_usize)];
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*table).len() {
             loca[j as usize] = (*bufglyf).cursor as u32;
@@ -293,11 +293,11 @@ pub unsafe fn otfcc_build_glyf(
         }
         loca[(*table).len()] = (*bufglyf).cursor as u32;
         if (*bufglyf).cursor >= 0x20000 as ::core::ffi::c_int as usize {
-            (*head).index_to_loc_format = 1 as i16;
+            (*head).index_to_loc_format = 1_i16;
         } else {
-            (*head).index_to_loc_format = 0 as i16;
+            (*head).index_to_loc_format = 0_i16;
         }
-        let mut j_0: u32 = 0 as u32;
+        let mut j_0: u32 = 0_u32;
         while j_0 as usize <= (*table).len() {
             if (*head).index_to_loc_format != 0 {
                 bufwrite32b(bufloca, loca[j_0 as usize]);

@@ -405,11 +405,11 @@ pub unsafe fn op_cs2_name(op: CffCharstringOperator) -> *mut ::core::ffi::c_char
 }
 pub unsafe fn cff_get_standard_arity(op: CffCharstringOperator) -> u8 {
     match op.0 {
-        5 | 21 => return 2 as u8,
-        6 | 7 => return 1 as u8,
-        27 | 26 | 31 | 30 => return 4 as u8,
-        8 => return 6 as u8,
-        19 | 20 => return 0 as u8,
-        _ => return 2 as u8,
+        5 | 21 => return 2_u8,
+        6 | 7 => return 1_u8,
+        27 | 26 | 31 | 30 => return 4_u8,
+        8 => return 6_u8,
+        19 | 20 => return 0_u8,
+        _ => return 2_u8,
     };
 }

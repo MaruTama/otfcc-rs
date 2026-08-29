@@ -350,7 +350,7 @@ unsafe fn read_uvs_default(data: &[u8], offset: usize, selector: Unicode, cmap: 
                         unicode: u,
                         selector,
                     },
-                    (*g).index as u16,
+                    (*g).index,
                 );
             }
             u = u.wrapping_add(1);
@@ -614,9 +614,9 @@ pub unsafe fn otfcc_dump_cmap(
                     } else {
                         crate::bytesbuild!(
                             b"U+",
-                            Hex4Upper(key.unicode as u32),
+                            Hex4Upper(key.unicode),
                             b" U+",
-                            Hex4Upper(key.selector as u32),
+                            Hex4Upper(key.selector),
                         )
                     };
                     json_object_push_bytes_key(
@@ -644,7 +644,7 @@ pub unsafe fn otfcc_dump_cmap(
 // needed at either call site any more.
 #[inline]
 unsafe fn parse_unicode(unicode_str: *const ::core::ffi::c_char) -> Unicode {
-    if strlen(unicode_str) > 2 as usize
+    if strlen(unicode_str) > 2_usize
         && *unicode_str.offset(0 as ::core::ffi::c_int as isize) as ::core::ffi::c_int == 'U' as i32
         && *unicode_str.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int == '+' as i32
     {
@@ -665,10 +665,10 @@ unsafe fn parse_cmap_unicodes(
     if table.is_null() || json_type_of(table) != JsonType::Object {
         return;
     }
-    let mut j: u32 = 0 as u32;
-    while j < json_obj_len(table) as u32 {
-        let item: *const ParsedValue = json_obj_val_at(table, j as u32);
-        let unicode: Unicode = parse_unicode(json_obj_key_at(table, j as u32));
+    let mut j: u32 = 0_u32;
+    while j < json_obj_len(table) {
+        let item: *const ParsedValue = json_obj_val_at(table, j);
+        let unicode: Unicode = parse_unicode(json_obj_key_at(table, j));
         if json_type_of(item) == JsonType::String
             && unicode > 0 as Unicode
             && unicode <= 0x10ffff as Unicode
@@ -701,8 +701,8 @@ unsafe fn parse_cmap_unicodes(
 unsafe fn parse_uvs_key(uvs_str: *const ::core::ffi::c_char) -> CmapUvsKey {
     let len: usize = strlen(uvs_str);
     let mut k: CmapUvsKey = CmapUvsKey {
-        unicode: 0 as u32,
-        selector: 0 as u32,
+        unicode: 0_u32,
+        selector: 0_u32,
     };
     let mut scan: *const ::core::ffi::c_char = uvs_str;
     while scan < uvs_str.offset(len as isize) {
@@ -723,15 +723,15 @@ unsafe fn parse_cmap_uvs(
     if table.is_null() || json_type_of(table) != JsonType::Object {
         return;
     }
-    let mut j: u32 = 0 as u32;
-    while j < json_obj_len(table) as u32 {
-        let k: CmapUvsKey = parse_uvs_key(json_obj_key_at(table, j as u32));
-        let item: *const ParsedValue = json_obj_val_at(table, j as u32);
+    let mut j: u32 = 0_u32;
+    while j < json_obj_len(table) {
+        let k: CmapUvsKey = parse_uvs_key(json_obj_key_at(table, j));
+        let item: *const ParsedValue = json_obj_val_at(table, j);
         if json_type_of(item) == JsonType::String
-            && k.unicode > 0 as u32
-            && k.unicode <= 0x10ffff as u32
-            && k.selector > 0 as u32
-            && k.selector <= 0x10ffff as u32
+            && k.unicode > 0_u32
+            && k.unicode <= 0x10ffff_u32
+            && k.selector > 0_u32
+            && k.selector <= 0x10ffff_u32
         {
             let gname: Vec<u8> = json_str_bytes(item);
             if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname.clone()) {
@@ -743,9 +743,9 @@ unsafe fn parse_cmap_uvs(
                     LoggerType::Warning,
                     crate::bytesbuild!(
                         b"UVS U+",
-                        Hex4Upper((k.unicode) as u32),
+                        Hex4Upper(k.unicode),
                         b" U+",
-                        Hex4Upper((k.selector) as u32),
+                        Hex4Upper(k.selector),
                         b" is already mapped to ",
                         &(*current_map).name,
                         b". Assignment to ",
@@ -820,9 +820,9 @@ unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
     let mut last_unicode_end: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
     let mut last_gid_start: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
     let mut last_gid_end: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
-    let mut last_glyph_id_array_offset: usize = 0 as usize;
+    let mut last_glyph_id_array_offset: usize = 0_usize;
     let mut is_sequencial: bool = true;
-    let mut segments_count: u16 = 0 as u16;
+    let mut segments_count: u16 = 0_u16;
     for (&unicode, glyph) in (*cmap).unicodes.iter() {
         if unicode <= 0xffff as ::core::ffi::c_int {
             if !started {
@@ -860,12 +860,12 @@ unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
                 bufwrite16b(start_count, last_unicode_start as u16);
                 if is_sequencial {
                     bufwrite16b(id_delta, (last_gid_start - last_unicode_start) as u16);
-                    bufwrite16b(id_range_offset, 0 as u16);
+                    bufwrite16b(id_range_offset, 0_u16);
                 } else {
-                    bufwrite16b(id_delta, 0 as u16);
+                    bufwrite16b(id_delta, 0_u16);
                     bufwrite16b(
                         id_range_offset,
-                        last_glyph_id_array_offset.wrapping_add(1 as usize) as u16,
+                        last_glyph_id_array_offset.wrapping_add(1_usize) as u16,
                     );
                 }
                 segments_count =
@@ -882,20 +882,20 @@ unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
     bufwrite16b(start_count, last_unicode_start as u16);
     if is_sequencial {
         bufwrite16b(id_delta, (last_gid_start - last_unicode_start) as u16);
-        bufwrite16b(id_range_offset, 0 as u16);
+        bufwrite16b(id_range_offset, 0_u16);
     } else {
-        bufwrite16b(id_delta, 0 as u16);
+        bufwrite16b(id_delta, 0_u16);
         bufwrite16b(
             id_range_offset,
-            last_glyph_id_array_offset.wrapping_add(1 as usize) as u16,
+            last_glyph_id_array_offset.wrapping_add(1_usize) as u16,
         );
     }
     segments_count = (segments_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
     if last_gid_end < 0xffff as ::core::ffi::c_int {
-        bufwrite16b(end_count, 0xffff as u16);
-        bufwrite16b(start_count, 0xffff as u16);
-        bufwrite16b(id_delta, 1 as u16);
-        bufwrite16b(id_range_offset, 0 as u16);
+        bufwrite16b(end_count, 0xffff_u16);
+        bufwrite16b(start_count, 0xffff_u16);
+        bufwrite16b(id_delta, 1_u16);
+        bufwrite16b(id_range_offset, 0_u16);
         segments_count = (segments_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
     }
     let mut j_0: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
@@ -916,35 +916,35 @@ unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
         }
         j_0 += 1;
     }
-    bufwrite16b(buf, 4 as u16);
-    bufwrite16b(buf, 0 as u16);
-    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 4_u16);
+    bufwrite16b(buf, 0_u16);
+    bufwrite16b(buf, 0_u16);
     bufwrite16b(
         buf,
         ((segments_count as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as u16,
     );
     let mut i: u32;
     let mut j_1: u32;
-    j_1 = 0 as u32;
-    i = 1 as u32;
+    j_1 = 0_u32;
+    i = 1_u32;
     while i <= segments_count as u32 {
         i <<= 1 as ::core::ffi::c_int;
         j_1 = j_1.wrapping_add(1);
     }
     bufwrite16b(buf, i as u16);
-    bufwrite16b(buf, j_1.wrapping_sub(1 as u32) as u16);
+    bufwrite16b(buf, j_1.wrapping_sub(1_u32) as u16);
     bufwrite16b(
         buf,
         ((2 as ::core::ffi::c_int * segments_count as ::core::ffi::c_int) as u32).wrapping_sub(i)
             as u16,
     );
     bufwrite_buf(buf, end_count);
-    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 0_u16);
     bufwrite_buf(buf, start_count);
     bufwrite_buf(buf, id_delta);
     bufwrite_buf(buf, id_range_offset);
     bufwrite_buf(buf, glyph_id_array);
-    bufseek(buf, 2 as usize);
+    bufseek(buf, 2_usize);
     bufwrite16b(buf, buflen(buf) as u16);
     buffree(end_count);
     buffree(start_count);
@@ -964,12 +964,12 @@ unsafe fn otfcc_try_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
 }
 unsafe fn otfcc_build_cmap_format12(cmap: *const CmapTable) -> *mut Buffer {
     let buf: *mut Buffer = bufnew();
-    bufwrite16b(buf, 12 as u16);
-    bufwrite16b(buf, 0 as u16);
-    bufwrite32b(buf, 0 as u32);
-    bufwrite32b(buf, 0 as u32);
-    bufwrite32b(buf, 0 as u32);
-    let mut n_groups: u32 = 0 as u32;
+    bufwrite16b(buf, 12_u16);
+    bufwrite16b(buf, 0_u16);
+    bufwrite32b(buf, 0_u32);
+    bufwrite32b(buf, 0_u32);
+    bufwrite32b(buf, 0_u32);
+    let mut n_groups: u32 = 0_u32;
     let mut started: bool = false;
     let mut last_unicode_start: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
     let mut last_unicode_end: ::core::ffi::c_int = 0xffffff as ::core::ffi::c_int;
@@ -991,7 +991,7 @@ unsafe fn otfcc_build_cmap_format12(cmap: *const CmapTable) -> *mut Buffer {
             bufwrite32b(buf, last_unicode_start as u32);
             bufwrite32b(buf, last_unicode_end as u32);
             bufwrite32b(buf, last_gid_start as u32);
-            n_groups = n_groups.wrapping_add(1 as u32);
+            n_groups = n_groups.wrapping_add(1_u32);
             last_unicode_end = unicode;
             last_unicode_start = last_unicode_end;
             last_gid_end = glyph.index as ::core::ffi::c_int;
@@ -1001,10 +1001,10 @@ unsafe fn otfcc_build_cmap_format12(cmap: *const CmapTable) -> *mut Buffer {
     bufwrite32b(buf, last_unicode_start as u32);
     bufwrite32b(buf, last_unicode_end as u32);
     bufwrite32b(buf, last_gid_start as u32);
-    n_groups = n_groups.wrapping_add(1 as u32);
-    bufseek(buf, 4 as usize);
+    n_groups = n_groups.wrapping_add(1_u32);
+    bufseek(buf, 4_usize);
     bufwrite32b(buf, buflen(buf) as u32);
-    bufseek(buf, 12 as usize);
+    bufseek(buf, 12_usize);
     bufwrite32b(buf, n_groups);
     return buf;
 }
@@ -1019,14 +1019,14 @@ unsafe fn write_default_range(
     end: Unicode,
 ) {
     while end.wrapping_sub(start) > 0xff as Unicode {
-        bufwrite24b(dflt, start as u32);
-        bufwrite8(dflt, 0xff as u8);
+        bufwrite24b(dflt, start);
+        bufwrite8(dflt, 0xff_u8);
         start = start.wrapping_add(0x100 as Unicode);
-        *n_ranges = (*n_ranges).wrapping_add(1 as u32);
+        *n_ranges = (*n_ranges).wrapping_add(1_u32);
     }
-    bufwrite24b(dflt, start as u32);
+    bufwrite24b(dflt, start);
     bufwrite8(dflt, end.wrapping_sub(start) as u8);
-    *n_ranges = (*n_ranges).wrapping_add(1 as u32);
+    *n_ranges = (*n_ranges).wrapping_add(1_u32);
 }
 unsafe fn build_format14_for_selector(
     cmap: *const CmapTable,
@@ -1074,11 +1074,11 @@ unsafe fn build_format14_for_selector(
     let ref mut fresh9 = *non_defaults.offset((MAX_UNICODE - 1 as ::core::ffi::c_int) as isize);
     *fresh9 = 0xffff as GlyphId;
     *defaults.offset((MAX_UNICODE - 1 as ::core::ffi::c_int) as isize) = *fresh9;
-    let mut num_unicode_value_ranges: u32 = 0 as u32;
+    let mut num_unicode_value_ranges: u32 = 0_u32;
     let mut start_unicode_value: Unicode = 0 as Unicode;
-    let mut num_uvs_mappings: u32 = 0 as u32;
-    bufwrite32b(dflt, 0 as u32);
-    bufwrite32b(nondflt, 0 as u32);
+    let mut num_uvs_mappings: u32 = 0_u32;
+    bufwrite32b(dflt, 0_u32);
+    bufwrite32b(nondflt, 0_u32);
     let mut u_0: Unicode = 1 as Unicode;
     while u_0 < MAX_UNICODE as Unicode {
         if *defaults.offset(u_0 as isize) as ::core::ffi::c_int != 0xffff as ::core::ffi::c_int
@@ -1106,9 +1106,9 @@ unsafe fn build_format14_for_selector(
         }
         u_0 = u_0.wrapping_add(1);
     }
-    bufseek(dflt, 0 as usize);
+    bufseek(dflt, 0_usize);
     bufwrite32b(dflt, num_unicode_value_ranges);
-    bufseek(nondflt, 0 as usize);
+    bufseek(nondflt, 0_usize);
     bufwrite32b(nondflt, num_uvs_mappings);
     free(defaults as *mut ::core::ffi::c_void);
     free(non_defaults as *mut ::core::ffi::c_void);
@@ -1129,7 +1129,7 @@ unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> *mut Buffer {
             valid_selectors[key.selector as usize] = true;
         }
     }
-    let mut n_selectors: u32 = 0 as u32;
+    let mut n_selectors: u32 = 0_u32;
     let mut selector: Unicode = 0 as Unicode;
     while selector < MAX_UNICODE as Unicode {
         if valid_selectors[selector as usize] {
@@ -1138,9 +1138,9 @@ unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> *mut Buffer {
         selector = selector.wrapping_add(1);
     }
     let st: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B16, 14 as u32),
-        bk_int(BkCellType::B32, 0 as u32),
-        bk_int(BkCellType::B32, n_selectors as u32),
+        bk_int(BkCellType::B16, 14_u32),
+        bk_int(BkCellType::B32, 0_u32),
+        bk_int(BkCellType::B32, n_selectors),
     ]);
     let mut selector_0: Unicode = 0 as Unicode;
     while selector_0 < MAX_UNICODE as Unicode {
@@ -1179,7 +1179,7 @@ unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> *mut Buffer {
         selector_0 = selector_0.wrapping_add(1);
     }
     let buf: *mut Buffer = bk_build_block(st);
-    bufseek(buf, 2 as usize);
+    bufseek(buf, 2_usize);
     bufwrite32b(buf, buflen(buf) as u32);
     return buf;
 }
@@ -1213,33 +1213,33 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
     }
     if format4.is_null() {
         format4 = bufnew();
-        bufwrite16b(format4, 4 as u16);
-        bufwrite16b(format4, 32 as u16);
-        bufwrite16b(format4, 0 as u16);
-        bufwrite16b(format4, 4 as u16);
-        bufwrite16b(format4, 4 as u16);
-        bufwrite16b(format4, 1 as u16);
-        bufwrite16b(format4, 0 as u16);
-        bufwrite16b(format4, 0 as u16);
-        bufwrite16b(format4, 0xffff as u16);
-        bufwrite16b(format4, 0 as u16);
-        bufwrite16b(format4, 0 as u16);
-        bufwrite16b(format4, 0xffff as u16);
-        bufwrite16b(format4, 0 as u16);
-        bufwrite16b(format4, 1 as u16);
-        bufwrite16b(format4, 0 as u16);
-        bufwrite16b(format4, 0 as u16);
+        bufwrite16b(format4, 4_u16);
+        bufwrite16b(format4, 32_u16);
+        bufwrite16b(format4, 0_u16);
+        bufwrite16b(format4, 4_u16);
+        bufwrite16b(format4, 4_u16);
+        bufwrite16b(format4, 1_u16);
+        bufwrite16b(format4, 0_u16);
+        bufwrite16b(format4, 0_u16);
+        bufwrite16b(format4, 0xffff_u16);
+        bufwrite16b(format4, 0_u16);
+        bufwrite16b(format4, 0_u16);
+        bufwrite16b(format4, 0xffff_u16);
+        bufwrite16b(format4, 0_u16);
+        bufwrite16b(format4, 1_u16);
+        bufwrite16b(format4, 0_u16);
+        bufwrite16b(format4, 0_u16);
     }
     let format12: *mut Buffer = otfcc_build_cmap_format12(cmap);
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B16, 0 as u32),
+        bk_int(BkCellType::B16, 0_u32),
         bk_int(BkCellType::B16, (n_tables as ::core::ffi::c_int) as u32),
     ]);
     bk_push(
         root,
         &[
-            bk_int(BkCellType::B16, 0 as u32),
-            bk_int(BkCellType::B16, 3 as u32),
+            bk_int(BkCellType::B16, 0_u32),
+            bk_int(BkCellType::B16, 3_u32),
             bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format4)),
         ],
     );
@@ -1247,8 +1247,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         bk_push(
             root,
             &[
-                bk_int(BkCellType::B16, 0 as u32),
-                bk_int(BkCellType::B16, 4 as u32),
+                bk_int(BkCellType::B16, 0_u32),
+                bk_int(BkCellType::B16, 4_u32),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format12)),
             ],
         );
@@ -1258,8 +1258,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         bk_push(
             root,
             &[
-                bk_int(BkCellType::B16, 0 as u32),
-                bk_int(BkCellType::B16, 5 as u32),
+                bk_int(BkCellType::B16, 0_u32),
+                bk_int(BkCellType::B16, 5_u32),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer(format14)),
             ],
         );
@@ -1267,8 +1267,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
     bk_push(
         root,
         &[
-            bk_int(BkCellType::B16, 3 as u32),
-            bk_int(BkCellType::B16, 1 as u32),
+            bk_int(BkCellType::B16, 3_u32),
+            bk_int(BkCellType::B16, 1_u32),
             bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format4)),
         ],
     );
@@ -1276,8 +1276,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         bk_push(
             root,
             &[
-                bk_int(BkCellType::B16, 3 as u32),
-                bk_int(BkCellType::B16, 10 as u32),
+                bk_int(BkCellType::B16, 3_u32),
+                bk_int(BkCellType::B16, 10_u32),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format12)),
             ],
         );

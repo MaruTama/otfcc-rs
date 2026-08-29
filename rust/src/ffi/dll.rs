@@ -38,7 +38,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         otfcc_delete_options(options);
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let font: *mut Font = read_json(json_root as *mut ::core::ffi::c_void, 0 as u32, &*options);
+    let font: *mut Font = read_json(json_root as *mut ::core::ffi::c_void, 0_u32, &*options);
     json_value_free(json_root);
     if font.is_null() {
         otfcc_delete_options(options);

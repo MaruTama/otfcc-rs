@@ -60,8 +60,8 @@ fn colr_mapping_dup(m: &ColrMapping) -> ColrMapping {
         layers: m.layers.iter().map(colr_layer_dup).collect(),
     }
 }
-static BASE_GLYPH_REC_LENGTH: usize = 6 as usize;
-static LAYER_REC_LENGTH: usize = 4 as usize;
+static BASE_GLYPH_REC_LENGTH: usize = 6_usize;
+static LAYER_REC_LENGTH: usize = 4_usize;
 /// `offset_base_glyph_record`/`offset_layer_record` are each a raw `u32`
 /// read straight from the file (full attacker control); unlike
 /// `table/cpal.rs`'s equivalent fields, the original's own guards here
@@ -154,24 +154,24 @@ pub unsafe fn otfcc_dump_colr(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _colr: *mut BuiltValue = json_array_new(mappings.len());
-        let mut __caryll_index: usize = 0 as usize;
-        let mut keep: usize = 1 as usize;
+        let mut __caryll_index: usize = 0_usize;
+        let mut keep: usize = 1_usize;
         while keep != 0 && __caryll_index < mappings.len() {
             let mapping: &ColrMapping = &mappings[__caryll_index];
             while keep != 0 {
-                let mut _map: *mut BuiltValue = json_object_new(2 as usize);
+                let mut _map: *mut BuiltValue = json_object_new(2_usize);
                 json_object_push(
                     _map,
                     b"from\0" as *const u8 as *const ::core::ffi::c_char,
                     json_string_new_from_bytes(&mapping.glyph.name),
                 );
                 let mut _layers: *mut BuiltValue = json_array_new(mapping.layers.len());
-                let mut __caryll_index_0: usize = 0 as usize;
-                let mut keep_0: usize = 1 as usize;
+                let mut __caryll_index_0: usize = 0_usize;
+                let mut keep_0: usize = 1_usize;
                 while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
                     let layer: &ColrLayer = &mapping.layers[__caryll_index_0];
                     while keep_0 != 0 {
-                        let mut _layer: *mut BuiltValue = json_object_new(2 as usize);
+                        let mut _layer: *mut BuiltValue = json_object_new(2_usize);
                         json_object_push(
                             _layer,
                             b"layer\0" as *const u8 as *const ::core::ffi::c_char,
@@ -270,7 +270,7 @@ pub unsafe fn otfcc_parse_colr(
                                         _layer,
                                         b"paletteIndex\0" as *const u8
                                             as *const ::core::ffi::c_char,
-                                        0xffff as i32,
+                                        0xffff_i32,
                                     ) as ColorId,
                                 });
                             }
@@ -298,8 +298,8 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
     let mut current_layer_index: GlyphId = 0 as GlyphId;
     let layer_records: *mut BkBlock = bk_new_block(&[]);
     let base_records: *mut BkBlock = bk_new_block(&[]);
-    let mut __caryll_index: usize = 0 as usize;
-    let mut keep: usize = 1 as usize;
+    let mut __caryll_index: usize = 0_usize;
+    let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < colr.len() {
         let mapping: &ColrMapping = &colr[__caryll_index];
         while keep != 0 {
@@ -317,8 +317,8 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
                     bk_int(BkCellType::B16, (mapping.layers.len()) as u32),
                 ],
             );
-            let mut __caryll_index_0: usize = 0 as usize;
-            let mut keep_0: usize = 1 as usize;
+            let mut __caryll_index_0: usize = 0_usize;
+            let mut keep_0: usize = 1_usize;
             while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
                 let layer: &ColrLayer = &mapping.layers[__caryll_index_0];
                 while keep_0 != 0 {
@@ -349,7 +349,7 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
         __caryll_index = __caryll_index.wrapping_add(1);
     }
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B16, 0 as u32),
+        bk_int(BkCellType::B16, 0_u32),
         bk_int(BkCellType::B16, (colr.len()) as u32),
         bk_ptr(BkCellType::P32, base_records),
         bk_ptr(BkCellType::P32, layer_records),

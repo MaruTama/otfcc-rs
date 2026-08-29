@@ -98,7 +98,7 @@ pub unsafe fn otfcc_dump_vdmx(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _vdmx: *mut BuiltValue = json_object_new(2 as usize);
+        let mut _vdmx: *mut BuiltValue = json_object_new(2_usize);
         json_object_push(
             _vdmx,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -106,12 +106,12 @@ pub unsafe fn otfcc_dump_vdmx(
         );
         let ratios: &Vec<VdmxRatioRange> = &(*vdmx).ratios;
         let mut _ratios: *mut BuiltValue = json_array_new(ratios.len());
-        let mut __caryll_index: usize = 0 as usize;
-        let mut keep: usize = 1 as usize;
+        let mut __caryll_index: usize = 0_usize;
+        let mut keep: usize = 1_usize;
         while keep != 0 && __caryll_index < ratios.len() {
             let rr: &VdmxRatioRange = &ratios[__caryll_index];
             while keep != 0 {
-                let mut _rr: *mut BuiltValue = json_object_new(5 as usize);
+                let mut _rr: *mut BuiltValue = json_object_new(5_usize);
                 json_object_push(
                     _rr,
                     b"bCharset\0" as *const u8 as *const ::core::ffi::c_char,
@@ -133,12 +133,12 @@ pub unsafe fn otfcc_dump_vdmx(
                     json_integer_new((*rr).y_end_ratio as i64),
                 );
                 let mut _records: *mut BuiltValue = json_array_new(rr.records.len());
-                let mut __caryll_index_0: usize = 0 as usize;
-                let mut keep_0: usize = 1 as usize;
+                let mut __caryll_index_0: usize = 0_usize;
+                let mut keep_0: usize = 1_usize;
                 while keep_0 != 0 && __caryll_index_0 < rr.records.len() {
                     let r: &VdmxRecord = &rr.records[__caryll_index_0];
                     while keep_0 != 0 {
-                        let mut _r: *mut BuiltValue = json_object_new(3 as usize);
+                        let mut _r: *mut BuiltValue = json_object_new(3_usize);
                         json_object_push(
                             _r,
                             b"yPelHeight\0" as *const u8 as *const ::core::ffi::c_char,
@@ -217,7 +217,7 @@ pub unsafe fn otfcc_parse_vdmx(
             b"ratios\0" as *const u8 as *const ::core::ffi::c_char,
             JsonType::Array,
         );
-        let mut j: usize = 0 as usize;
+        let mut j: usize = 0_usize;
         while j < json_arr_len(_ratios) as usize {
             let mut _rr: *const ParsedValue = json_arr_at(_ratios, j as u32);
             if !(_rr.is_null() || json_type_of(_rr) != JsonType::Object) {
@@ -249,7 +249,7 @@ pub unsafe fn otfcc_parse_vdmx(
                     JsonType::Array,
                 );
                 if !_records.is_null() {
-                    let mut j_0: usize = 0 as usize;
+                    let mut j_0: usize = 0_usize;
                     while j_0 < json_arr_len(_records) as usize {
                         let mut _r: *const ParsedValue = json_arr_at(_records, j_0 as u32);
                         if !(_r.is_null() || json_type_of(_r) != JsonType::Object) {
@@ -298,8 +298,8 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
         bk_int(BkCellType::B16, (ratios.len()) as u32),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
     ]);
-    let mut __caryll_index: usize = 0 as usize;
-    let mut keep: usize = 1 as usize;
+    let mut __caryll_index: usize = 0_usize;
+    let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < ratios.len() {
         let rr: &VdmxRatioRange = &ratios[__caryll_index];
         while keep != 0 {
@@ -323,15 +323,15 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
         keep = (keep == 0) as ::core::ffi::c_int as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut __caryll_index_0: usize = 0 as usize;
-    let mut keep_0: usize = 1 as usize;
+    let mut __caryll_index_0: usize = 0_usize;
+    let mut keep_0: usize = 1_usize;
     while keep_0 != 0 && __caryll_index_0 < ratios.len() {
         let rr_0: &VdmxRatioRange = &ratios[__caryll_index_0];
         while keep_0 != 0 {
-            let mut startsz: u16 = 0xffff as u16;
-            let mut endsz: u16 = 0 as u16;
-            let mut __caryll_index_1: usize = 0 as usize;
-            let mut keep_1: usize = 1 as usize;
+            let mut startsz: u16 = 0xffff_u16;
+            let mut endsz: u16 = 0_u16;
+            let mut __caryll_index_1: usize = 0_usize;
+            let mut keep_1: usize = 1_usize;
             while keep_1 != 0 && __caryll_index_1 < rr_0.records.len() {
                 let r: &VdmxRecord = &rr_0.records[__caryll_index_1];
                 while keep_1 != 0 {
@@ -351,8 +351,8 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
                 bk_int(BkCellType::B8, (startsz as ::core::ffi::c_int) as u32),
                 bk_int(BkCellType::B8, (endsz as ::core::ffi::c_int) as u32),
             ]);
-            let mut __caryll_index_2: usize = 0 as usize;
-            let mut keep_2: usize = 1 as usize;
+            let mut __caryll_index_2: usize = 0_usize;
+            let mut keep_2: usize = 1_usize;
             while keep_2 != 0 && __caryll_index_2 < rr_0.records.len() {
                 let r_0: &VdmxRecord = &rr_0.records[__caryll_index_2];
                 while keep_2 != 0 {

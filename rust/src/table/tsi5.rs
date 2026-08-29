@@ -49,7 +49,7 @@ pub unsafe fn otfcc_read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
     let mut j: GlyphId = 0 as GlyphId;
     while let Ok(class) = r.u16() {
         push_class_def(
-            tsi5 as *mut ClassDef,
+            tsi5,
             handle_from_index(j) as GlyphHandle,
             class as GlyphClass,
         );
@@ -66,7 +66,7 @@ pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: *mut BuiltValue) 
     json_object_push(
         root,
         b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,
-        dump_class_def(table as *const ClassDef),
+        dump_class_def(table),
     );
 }
 pub unsafe fn otfcc_parse_tsi5(root: *const ParsedValue) -> Option<Box<Tsi5Table>> {
@@ -83,7 +83,7 @@ pub unsafe fn otfcc_parse_tsi5(root: *const ParsedValue) -> Option<Box<Tsi5Table
     if raw.is_null() {
         return None;
     }
-    return Some(unwrap_class_def(raw as *mut ClassDef));
+    return Some(unwrap_class_def(raw));
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> *mut Buffer {

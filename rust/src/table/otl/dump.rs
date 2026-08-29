@@ -181,7 +181,7 @@ pub unsafe fn otfcc_dump_otl(
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let otl: *mut BuiltValue = json_object_new(3 as usize);
+        let otl: *mut BuiltValue = json_object_new(3_usize);
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"Languages"),
@@ -191,7 +191,7 @@ pub unsafe fn otfcc_dump_otl(
             let languages: *mut BuiltValue = json_object_new((*table).languages.len());
             let mut j: TableId = 0 as TableId;
             while (j as usize) < (*table).languages.len() {
-                let mut _lang: *mut BuiltValue = json_object_new(5 as usize);
+                let mut _lang: *mut BuiltValue = json_object_new(5_usize);
                 let lang: *const LanguageSystem = &raw const *(&(*table).languages)[j as usize];
                 if !(*lang).required_feature.is_null() {
                     json_object_push(
@@ -271,7 +271,7 @@ pub unsafe fn otfcc_dump_otl(
             let lookup_order: *mut BuiltValue = json_array_new((*table).lookups.len());
             let mut j_1: TableId = 0 as TableId;
             while (j_1 as usize) < (*table).lookups.len() {
-                let mut _lookup: *mut BuiltValue = json_object_new(5 as usize);
+                let mut _lookup: *mut BuiltValue = json_object_new(5_usize);
                 let lookup: *const Lookup = &raw const *(&(*table).lookups)[j_1 as usize];
                 _dump_lookup(lookup, _lookup);
                 json_object_push_bytes_key(lookups, &(*lookup).name, _lookup);

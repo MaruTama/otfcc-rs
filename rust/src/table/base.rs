@@ -244,7 +244,7 @@ unsafe fn axis_to_json(axis: *const BaseAxis) -> *mut BuiltValue {
     while (j as usize) < (*axis).entries.len() {
         let entry = &(&(*axis).entries)[j as usize];
         if entry.tag != 0 {
-            let mut _entry: *mut BuiltValue = json_object_new(3 as usize);
+            let mut _entry: *mut BuiltValue = json_object_new(3_usize);
             if entry.default_baseline_tag != 0 {
                 let mut tag: [::core::ffi::c_char; 4] = [0; 4];
                 tag2str(
@@ -296,7 +296,7 @@ pub unsafe fn otfcc_dump_base(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _base: *mut BuiltValue = json_object_new(2 as usize);
+        let mut _base: *mut BuiltValue = json_object_new(2_usize);
         if let Some(horizontal) = (*base).horizontal.as_deref() {
             json_object_push(
                 _base,
@@ -486,13 +486,13 @@ pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
                 (taglist.items.len() as ::core::ffi::c_int) as u32,
             )],
         );
-        let mut m_0: usize = 0 as usize;
+        let mut m_0: usize = 0_usize;
         while m_0 < taglist.items.len() {
             let mut found_1: bool = false;
             let mut found_index: TableId = 0 as TableId;
             let mut k_0: TableId = 0 as TableId;
             while (k_0 as usize) < entry_0.base_values.len() {
-                if (&entry_0.base_values)[k_0 as usize].tag == taglist.items[m_0 as usize] {
+                if (&entry_0.base_values)[k_0 as usize].tag == taglist.items[m_0] {
                     found_1 = true;
                     found_index = k_0;
                     break;
@@ -506,7 +506,7 @@ pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
                     &[bk_ptr(
                         BkCellType::P16,
                         bk_new_block(&[
-                            bk_int(BkCellType::B16, 1 as u32),
+                            bk_int(BkCellType::B16, 1_u32),
                             bk_int(
                                 BkCellType::B16,
                                 ((&entry_0.base_values)[found_index as usize].coordinate as i16
@@ -521,8 +521,8 @@ pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
                     &[bk_ptr(
                         BkCellType::P16,
                         bk_new_block(&[
-                            bk_int(BkCellType::B16, 1 as u32),
-                            bk_int(BkCellType::B16, 0 as u32),
+                            bk_int(BkCellType::B16, 1_u32),
+                            bk_int(BkCellType::B16, 0_u32),
                         ]),
                     )],
                 );
@@ -532,7 +532,7 @@ pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
         let script_record: *mut BkBlock = bk_new_block(&[
             bk_ptr(BkCellType::P16, base_values),
             bk_ptr(BkCellType::P16, ::core::ptr::null_mut()),
-            bk_int(BkCellType::B16, 0 as u32),
+            bk_int(BkCellType::B16, 0_u32),
         ]);
         bk_push(
             base_script_list,
@@ -567,7 +567,7 @@ pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> *mut Buffer {
             axis_to_bk(a as *const BaseAxis)
         });
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B32, 0x10000 as u32),
+        bk_int(BkCellType::B32, 0x10000_u32),
         bk_ptr(BkCellType::P16, horizontal_bk),
         bk_ptr(BkCellType::P16, vertical_bk),
     ]);
@@ -576,20 +576,20 @@ pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> *mut Buffer {
 #[inline]
 unsafe fn tag2str(tag: u32, tags: *mut ::core::ffi::c_char) {
     *tags.offset(0 as ::core::ffi::c_int as isize) =
-        (tag >> 24 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
+        (tag >> 24 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
     *tags.offset(1 as ::core::ffi::c_int as isize) =
-        (tag >> 16 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
+        (tag >> 16 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
     *tags.offset(2 as ::core::ffi::c_int as isize) =
-        (tag >> 8 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
-    *tags.offset(3 as ::core::ffi::c_int as isize) = (tag & 0xff as u32) as ::core::ffi::c_char;
+        (tag >> 8 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
+    *tags.offset(3 as ::core::ffi::c_int as isize) = (tag & 0xff_u32) as ::core::ffi::c_char;
 }
 #[inline]
 unsafe fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
     if tags.is_null() {
-        return 0 as u32;
+        return 0_u32;
     }
-    let mut tag: u32 = 0 as u32;
-    let mut len: u8 = 0 as u8;
+    let mut tag: u32 = 0_u32;
+    let mut len: u8 = 0_u8;
     while *tags as ::core::ffi::c_int != 0 && (len as ::core::ffi::c_int) < 4 as ::core::ffi::c_int
     {
         tag = tag << 8 as ::core::ffi::c_int | *tags as u32;

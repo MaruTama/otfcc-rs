@@ -135,13 +135,13 @@ pub unsafe fn logger_log_sds(
     data: Vec<u8>,
 ) {
     let mut demand: Vec<u8> = Vec::new();
-    let mut level: u16 = 0 as u16;
+    let mut level: u16 = 0_u16;
     while (level as ::core::ffi::c_int) < self_0.level as ::core::ffi::c_int {
         if (level as ::core::ffi::c_int)
             < self_0.last_logged_level as ::core::ffi::c_int - 1 as ::core::ffi::c_int
         {
             let seg_len = (&self_0.indents)[level as usize].len();
-            let mut j: usize = 0 as usize;
+            let mut j: usize = 0_usize;
             while j < seg_len {
                 demand.extend_from_slice(b" ");
                 j = j.wrapping_add(1);

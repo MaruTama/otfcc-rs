@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
-use crate::support::handle::{GlyphHandle, Handle, otfcc_handle_dispose};
+use crate::support::handle::{GlyphHandle, otfcc_handle_dispose};
 use crate::table::otl::coverage::Coverage;
 
 use crate::font::caryll_font::Font;
@@ -35,7 +35,7 @@ pub unsafe fn fontop_consolidate_coverage(
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &(*h).name, b".\n",),
             );
-            otfcc_handle_dispose(h as *mut Handle);
+            otfcc_handle_dispose(h);
         }
         j = j.wrapping_add(1);
     }
@@ -64,7 +64,7 @@ pub unsafe fn fontop_consolidate_class_def(
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &(*h).name, b".\n",),
             );
-            otfcc_handle_dispose(h as *mut Handle);
+            otfcc_handle_dispose(h);
             (&mut (*cd).classes)[j as usize] = 0 as GlyphClass;
         }
         j = j.wrapping_add(1);

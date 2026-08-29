@@ -456,7 +456,7 @@ pub unsafe fn otfcc_dump_post(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let post: *mut BuiltValue = json_object_new(10 as usize);
+        let post: *mut BuiltValue = json_object_new(10_usize);
         json_object_push(
             post,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,

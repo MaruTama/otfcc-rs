@@ -110,7 +110,7 @@ pub unsafe fn otfcc_dump_vhea(
         Some(t) => t as *const VheaTable,
         None => return,
     };
-    let vhea: *mut BuiltValue = json_object_new(11 as usize);
+    let vhea: *mut BuiltValue = json_object_new(11_usize);
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"vhea"),
@@ -280,11 +280,11 @@ pub unsafe fn otfcc_build_vhea(vhea: Option<&VheaTable>) -> *mut Buffer {
     bufwrite16b(buf, (*vhea).caret_slope_rise as u16);
     bufwrite16b(buf, (*vhea).caret_slope_run as u16);
     bufwrite16b(buf, (*vhea).caret_offset as u16);
-    bufwrite16b(buf, 0 as u16);
-    bufwrite16b(buf, 0 as u16);
-    bufwrite16b(buf, 0 as u16);
-    bufwrite16b(buf, 0 as u16);
-    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 0_u16);
+    bufwrite16b(buf, 0_u16);
+    bufwrite16b(buf, 0_u16);
+    bufwrite16b(buf, 0_u16);
+    bufwrite16b(buf, 0_u16);
     bufwrite16b(buf, (*vhea).num_of_long_ver_metrics);
     return buf;
 }

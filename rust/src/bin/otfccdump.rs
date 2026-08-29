@@ -85,7 +85,7 @@ unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
     let mut show_ugly: bool = false;
     let mut add_bom: bool = false;
     let mut _no_bom: bool = false;
-    let mut ttcindex: u32 = 0 as u32;
+    let mut ttcindex: u32 = 0_u32;
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
     const OPT_PRETTY: i32 = 'p' as i32;
@@ -263,7 +263,7 @@ unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
             otfcc_rust::bytesbuild!(b"From file ", inPath.as_bytes()),
         );
         sfnt = otfcc_read_sfnt(inPath.as_ptr());
-        if sfnt.is_null() || (*sfnt).count == 0 as u32 {
+        if sfnt.is_null() || (*sfnt).count == 0_u32 {
             logger_log_sds(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
@@ -287,7 +287,7 @@ unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
                     b" out of range for \"",
                     inPath.as_bytes(),
                     b"\" (0 -- ",
-                    (*sfnt).count.wrapping_sub(1 as u32),
+                    (*sfnt).count.wrapping_sub(1_u32),
                     b"). Exit.\n",
                 ),
             );

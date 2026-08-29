@@ -76,11 +76,11 @@ pub unsafe fn otfcc_build_vorg(table: Option<&VorgTable>) -> *mut Buffer {
         None => return ::core::ptr::null_mut::<Buffer>(),
     };
     let buf: *mut Buffer = bufnew();
-    bufwrite16b(buf, 1 as u16);
-    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 1_u16);
+    bufwrite16b(buf, 0_u16);
     bufwrite16b(buf, pos_to_u16((*table).default_vertical_origin));
     bufwrite16b(buf, (*table).num_vert_origin_y_metrics as u16);
-    let mut j: u16 = 0 as u16;
+    let mut j: u16 = 0_u16;
     while (j as ::core::ffi::c_int) < (*table).num_vert_origin_y_metrics as ::core::ffi::c_int {
         bufwrite16b(buf, (*table).entries[j as usize].gid as u16);
         bufwrite16b(buf, (*table).entries[j as usize].vertical_origin as u16);

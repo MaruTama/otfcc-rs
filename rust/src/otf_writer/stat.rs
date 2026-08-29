@@ -67,11 +67,11 @@ pub unsafe fn stat_single_glyph(
         x_max: 0 as ::core::ffi::c_int as Pos,
         y_min: 0 as ::core::ffi::c_int as Pos,
         y_max: 0 as ::core::ffi::c_int as Pos,
-        nest_depth: 0 as u16,
-        n_points: 0 as u16,
-        n_contours: 0 as u16,
-        n_composite_points: 0 as u16,
-        n_composite_contours: 0 as u16,
+        nest_depth: 0_u16,
+        n_points: 0_u16,
+        n_contours: 0_u16,
+        n_composite_points: 0_u16,
+        n_composite_contours: 0_u16,
     };
     let j: GlyphId = (*gr).glyph.index;
     if depth as ::core::ffi::c_int >= 0xff as ::core::ffi::c_int {
@@ -99,8 +99,8 @@ pub unsafe fn stat_single_glyph(
     let mut xmax: Pos = -POS_MAX as Pos;
     let mut ymin: Pos = POS_MAX as Pos;
     let mut ymax: Pos = -POS_MAX as Pos;
-    let mut nest_depth: u16 = 0 as u16;
-    let mut n_points: u16 = 0 as u16;
+    let mut nest_depth: u16 = 0_u16;
+    let mut n_points: u16 = 0_u16;
     let mut n_composite_points: u16;
     let mut n_composite_contours: u16;
     for c in 0..(*g).contours.len() as ShapeId {
@@ -291,7 +291,7 @@ pub unsafe fn stat_glyf(font: *mut Font, options: &Options) {
         gr.c = 0 as ::core::ffi::c_int as Scale;
         gr.d = 1 as ::core::ffi::c_int as Scale;
         let ref mut fresh2 = (&mut (*glyf))[j as usize].as_mut().unwrap().stat;
-        *fresh2 = stat_single_glyph(glyf, &raw mut gr, stated.as_mut_ptr(), 0 as u8, j, options);
+        *fresh2 = stat_single_glyph(glyf, &raw mut gr, stated.as_mut_ptr(), 0_u8, j, options);
         let thatstat: GlyphStat = *fresh2;
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
@@ -315,26 +315,26 @@ pub unsafe fn stat_maxp(font: *mut Font) {
     // Only ever called (from `otfcc_stat_font`) under a `.maxp.is_some()`
     // guard.
     let maxp: *mut MaxpTable = (*font).maxp.as_deref_mut().unwrap() as *mut MaxpTable;
-    let mut nest_depth: u16 = 0 as u16;
-    let mut n_points: u16 = 0 as u16;
-    let mut n_contours: u16 = 0 as u16;
-    let mut n_components: u16 = 0 as u16;
-    let mut n_composite_points: u16 = 0 as u16;
-    let mut n_composite_contours: u16 = 0 as u16;
-    let mut inst_size: u16 = 0 as u16;
+    let mut nest_depth: u16 = 0_u16;
+    let mut n_points: u16 = 0_u16;
+    let mut n_contours: u16 = 0_u16;
+    let mut n_components: u16 = 0_u16;
+    let mut n_composite_points: u16 = 0_u16;
+    let mut n_composite_contours: u16 = 0_u16;
+    let mut inst_size: u16 = 0_u16;
     // Only ever called (from `otfcc_stat_font`) under a `.glyf.is_some()`
     // guard.
     let glyf: *const GlyfTable = (*font).glyf.as_ref().unwrap() as *const GlyfTable;
     for j in 0..(*glyf).len() as GlyphId {
         let g: *const Glyph = (&(*glyf))[j as usize].as_deref().unwrap() as *const Glyph;
-        if (*g).contours.len() > 0 as usize {
+        if (*g).contours.len() > 0_usize {
             if (*g).stat.n_points as ::core::ffi::c_int > n_points as ::core::ffi::c_int {
                 n_points = (*g).stat.n_points;
             }
             if (*g).stat.n_contours as ::core::ffi::c_int > n_contours as ::core::ffi::c_int {
                 n_contours = (*g).stat.n_contours;
             }
-        } else if (*g).references.len() > 0 as usize {
+        } else if (*g).references.len() > 0_usize {
             if (*g).stat.n_composite_points as ::core::ffi::c_int
                 > n_composite_points as ::core::ffi::c_int
             {
@@ -535,18 +535,18 @@ unsafe fn stat_vmtx(font: *mut Font, options: &Options) {
 }
 unsafe fn stat_os_2_unicode_ranges(font: *mut Font, options: &Options) {
     let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
-    let mut u1: u32 = 0 as u32;
-    let mut u2: u32 = 0 as u32;
-    let mut u3: u32 = 0 as u32;
-    let mut u4: u32 = 0 as u32;
-    let mut min_unicode: i32 = 0xffff as i32;
-    let mut max_unicode: i32 = 0 as i32;
+    let mut u1: u32 = 0_u32;
+    let mut u2: u32 = 0_u32;
+    let mut u3: u32 = 0_u32;
+    let mut u4: u32 = 0_u32;
+    let mut min_unicode: i32 = 0xffff_i32;
+    let mut max_unicode: i32 = 0_i32;
     for (&u, _) in (*font).cmap.as_ref().unwrap().unicodes.iter() {
-        if (u as i32) < min_unicode {
-            min_unicode = u as i32;
+        if u < min_unicode {
+            min_unicode = u;
         }
-        if u as i32 > max_unicode {
-            max_unicode = u as i32;
+        if u > max_unicode {
+            max_unicode = u;
         }
         if u >= 0 as ::core::ffi::c_int && u <= 0x7f as ::core::ffi::c_int {
             u1 |= ((1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as u32;
@@ -998,15 +998,15 @@ unsafe fn stat_os_2_unicode_ranges(font: *mut Font, options: &Options) {
         (*os_2).ul_unicode_range3 = u3;
         (*os_2).ul_unicode_range4 = u4;
     }
-    if min_unicode < 0x10000 as i32 {
+    if min_unicode < 0x10000_i32 {
         (*os_2).us_first_char_index = min_unicode as u16;
     } else {
-        (*os_2).us_first_char_index = 0xffff as u16;
+        (*os_2).us_first_char_index = 0xffff_u16;
     }
-    if max_unicode < 0x10000 as i32 {
+    if max_unicode < 0x10000_i32 {
         (*os_2).us_last_char_index = max_unicode as u16;
     } else {
-        (*os_2).us_last_char_index = 0xffff as u16;
+        (*os_2).us_last_char_index = 0xffff_u16;
     };
 }
 unsafe fn stat_os_2_average_width(font: *mut Font, options: &Options) {
@@ -1017,7 +1017,7 @@ unsafe fn stat_os_2_average_width(font: *mut Font, options: &Options) {
     // Only ever called (from `otfcc_stat_font`, via `stat_os_2`) under a
     // `.glyf.is_some()` guard.
     let glyf: *const GlyfTable = (*font).glyf.as_ref().unwrap() as *const GlyfTable;
-    let mut total_width: u32 = 0 as u32;
+    let mut total_width: u32 = 0_u32;
     for j in 0..(*glyf).len() as GlyphId {
         let adw: Pos = vq_get_still(
             (&(*glyf))[j as usize]
@@ -1038,7 +1038,7 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
     // simulate a single-iteration inner while purely so the macro body can
     // `continue`/`break`; every occurrence here reduces to a plain indexed
     // for loop over the vector, confirmed against the original C source.
-    let mut maxc: u16 = 1 as u16;
+    let mut maxc: u16 = 1_u16;
     for i in 0..(*table).lookups.len() {
         let lookup: *const Lookup = &raw const *(&(*table).lookups)[i];
         match (*lookup).type_0 {
@@ -1047,7 +1047,7 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
             | OTL_TYPE_GPOS_MARK_TO_LIGATURE
             | OTL_TYPE_GPOS_MARK_TO_MARK => {
                 if (maxc as ::core::ffi::c_int) < 2 as ::core::ffi::c_int {
-                    maxc = 2 as u16;
+                    maxc = 2_u16;
                 }
             }
             OTL_TYPE_GSUB_LIGATURE => {
@@ -1059,7 +1059,7 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                     let subtable: *mut GsubLigatureSubtable = mut_subtable;
                     for ei in 0..(*subtable).len() {
                         let entry: *mut GsubLigatureEntry =
-                            &mut (&mut (*subtable))[ei as usize] as *mut GsubLigatureEntry;
+                            &mut (&mut (*subtable))[ei] as *mut GsubLigatureEntry;
                         if (maxc as ::core::ffi::c_int)
                             < (*(*entry).from).len() as ::core::ffi::c_int
                         {
@@ -1077,7 +1077,7 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                     let subtable: *mut ChainingSubtable = mut_subtable;
                     let rule = chaining_rule_mut(subtable);
                     if (maxc as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-                        maxc = (*rule).match_count as u16;
+                        maxc = (*rule).match_count;
                     }
                 }
             }
@@ -1090,7 +1090,7 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                     let subtable: *mut GsubReverseSubtable = mut_subtable;
                     if (maxc as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int
                     {
-                        maxc = (*subtable).match_count as u16;
+                        maxc = (*subtable).match_count;
                     }
                 }
             }
@@ -1101,7 +1101,7 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
 }
 unsafe fn stat_max_context(font: *mut Font) {
     let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
-    let mut maxc: u16 = 1 as u16;
+    let mut maxc: u16 = 1_u16;
     if let Some(gsub) = (*font).gsub.as_deref() {
         let maxc_gsub: u16 = stat_max_context_otl(gsub as *const OtlTable);
         if maxc_gsub as ::core::ffi::c_int > maxc as ::core::ffi::c_int {
@@ -1140,19 +1140,19 @@ unsafe fn stat_cff_widths(font: *mut Font) {
                 .clone(),
         ) as u16;
         if (int_width as ::core::ffi::c_int) < MAX_STAT_METRIC {
-            frequency[int_width as usize] = frequency[int_width as usize].wrapping_add(1 as u32);
+            frequency[int_width as usize] = frequency[int_width as usize].wrapping_add(1_u32);
         }
     }
-    let mut maxfreq: u16 = 0 as u16;
-    let mut maxj: u16 = 0 as u16;
+    let mut maxfreq: u16 = 0_u16;
+    let mut maxj: u16 = 0_u16;
     for j_0 in 0..MAX_STAT_METRIC as u16 {
         if frequency[j_0 as usize] > maxfreq as u32 {
             maxfreq = frequency[j_0 as usize] as u16;
             maxj = j_0;
         }
     }
-    let mut nn: u16 = 0 as u16;
-    let mut nnsum: u32 = 0 as u32;
+    let mut nn: u16 = 0_u16;
+    let mut nnsum: u32 = 0_u32;
     for j_1 in 0..(*glyf).len() as GlyphId {
         let adw: Pos = vq_get_still(
             (&(*glyf))[j_1 as usize]
@@ -1166,7 +1166,7 @@ unsafe fn stat_cff_widths(font: *mut Font) {
             nnsum = (nnsum as Pos + adw) as u32;
         }
     }
-    let mut nominal_width_x: i16 = 0 as i16;
+    let mut nominal_width_x: i16 = 0_i16;
     if nn as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
         nominal_width_x = nnsum.wrapping_div(nn as u32) as i16;
     }
@@ -1204,10 +1204,10 @@ unsafe fn stat_vorg(font: *mut Font) {
         ) as Pos;
         if vori >= 0 as ::core::ffi::c_int as Pos && vori < MAX_STAT_METRIC as Pos {
             frequency[vori as u16 as usize] =
-                frequency[vori as u16 as usize].wrapping_add(1 as u32);
+                frequency[vori as u16 as usize].wrapping_add(1_u32);
         }
     }
-    let mut maxfreq: u32 = 0 as u32;
+    let mut maxfreq: u32 = 0_u32;
     let mut maxj: GlyphId = 0 as GlyphId;
     for j_0 in 0..MAX_STAT_METRIC as GlyphId {
         if frequency[j_0 as usize] > maxfreq {
@@ -1304,7 +1304,7 @@ pub unsafe fn otfcc_stat_font(font: *mut Font, options: &Options) {
     if !glyf.is_null() && !head.is_null() {
         stat_glyf(font, options);
         if !options.keep_modified_time {
-            (*head).modified = 2082844800 as i64 + time(::core::ptr::null_mut::<time_t>()) as i64;
+            (*head).modified = 2082844800_i64 + time(::core::ptr::null_mut::<time_t>()) as i64;
         }
     }
     if !head.is_null() && (*font).cff.is_some() {

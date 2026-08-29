@@ -203,7 +203,7 @@ pub unsafe fn otl_read_anchor(data: FontFilePointer, table_length: u32, offset: 
 }
 pub unsafe fn otl_dump_anchor(a: Anchor) -> *mut BuiltValue {
     if a.present {
-        let v: *mut BuiltValue = json_object_new(2 as usize);
+        let v: *mut BuiltValue = json_object_new(2_usize);
         json_object_push(
             v,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
@@ -246,15 +246,15 @@ pub unsafe fn bk_from_anchor(a: Anchor) -> *mut BkBlock {
         return ::core::ptr::null_mut::<BkBlock>();
     }
     return bk_new_block(&[
-        bk_int(BkCellType::B16, 1 as u32),
+        bk_int(BkCellType::B16, 1_u32),
         bk_int(BkCellType::B16, (a.x as i16 as ::core::ffi::c_int) as u32),
         bk_int(BkCellType::B16, (a.y as i16 as ::core::ffi::c_int) as u32),
     ]);
 }
-pub static FORMAT_DX: u8 = 1 as u8;
-pub static FORMAT_DY: u8 = 2 as u8;
-pub static FORMAT_DWIDTH: u8 = 4 as u8;
-pub static FORMAT_DHEIGHT: u8 = 8 as u8;
+pub static FORMAT_DX: u8 = 1_u8;
+pub static FORMAT_DY: u8 = 2_u8;
+pub static FORMAT_DWIDTH: u8 = 4_u8;
+pub static FORMAT_DHEIGHT: u8 = 8_u8;
 pub static BITS_IN: [u8; 256] = [
     (0 as ::core::ffi::c_int
         + 0 as ::core::ffi::c_int
@@ -1589,7 +1589,7 @@ pub unsafe fn read_gpos_value(
     v
 }
 pub unsafe fn gpos_dump_value(value: PositionValue) -> *mut BuiltValue {
-    let v: *mut BuiltValue = json_object_new(4 as usize);
+    let v: *mut BuiltValue = json_object_new(4_usize);
     if value.dx != 0. {
         json_object_push(
             v,

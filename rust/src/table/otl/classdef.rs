@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::handle::{
-    GlyphHandle, Handle, handle_from_index, handle_from_name, otfcc_handle_dispose,
+    GlyphHandle, handle_from_index, handle_from_name, otfcc_handle_dispose,
 };
 use crate::support::parsed_json::{
     ParsedValue, json_dbl_val, json_int_val, json_obj_key_bytes_at, json_obj_len, json_obj_val_at,
@@ -205,9 +205,9 @@ pub(crate) unsafe fn parse_class_def(mut _cd: *const ParsedValue) -> *mut ClassD
 }
 pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> *mut Buffer {
     let buf: *mut Buffer = bufnew();
-    bufwrite16b(buf, 2 as u16);
+    bufwrite16b(buf, 2_u16);
     if (*cd).glyphs.is_empty() {
-        bufwrite16b(buf, 0 as u16);
+        bufwrite16b(buf, 0_u16);
         return buf;
     }
     // A local `Vec` scratch buffer, not a `__caryll_allocate_clean`/`qsort`/
@@ -224,7 +224,7 @@ pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> *mut Buffer {
     }
     let jj: GlyphId = r.len() as GlyphId;
     if jj == 0 {
-        bufwrite16b(buf, 0 as u16);
+        bufwrite16b(buf, 0_u16);
         return buf;
     }
     r.sort_by_key(|rec| rec.gid);
@@ -277,7 +277,7 @@ pub(crate) unsafe fn shrink_class_def(cd: *mut ClassDef) {
             (&mut (*cd).classes)[k] = c;
             k += 1;
         } else {
-            otfcc_handle_dispose(&raw mut (&mut (*cd).glyphs)[j] as *mut Handle);
+            otfcc_handle_dispose(&raw mut (&mut (*cd).glyphs)[j]);
         }
     }
     (*cd).glyphs.truncate(k);

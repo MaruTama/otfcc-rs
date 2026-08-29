@@ -152,7 +152,7 @@ unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
         &mut *(*options).logger.borrow_mut(),
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    otfcc_options_optimize_to(options, 1 as u8);
+    otfcc_options_optimize_to(options, 1_u8);
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
     // `--keep-glyph-order` and `--dont-ignore-glyph-order` are documented as
@@ -411,7 +411,7 @@ unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
-        font = read_json(json_root as *mut ::core::ffi::c_void, 0 as u32, &*options);
+        font = read_json(json_root as *mut ::core::ffi::c_void, 0_u32, &*options);
         if font.is_null() {
             logger_log_sds(
                 &mut *(*options).logger.borrow_mut(),

@@ -18,7 +18,7 @@ pub unsafe fn utf16be_to_utf8(inb: *const u8, mut inlenb: ::core::ffi::c_int) ->
     }
     inlen = (inlenb / 2 as ::core::ffi::c_int) as u32;
     inend = in_0.offset(inlen as isize);
-    let mut bytes_needed: u32 = 0 as u32;
+    let mut bytes_needed: u32 = 0_u32;
     while in_0 < inend {
         tmp = in_0 as *mut u8;
         let fresh9 = tmp;
@@ -27,7 +27,7 @@ pub unsafe fn utf16be_to_utf8(inb: *const u8, mut inlenb: ::core::ffi::c_int) ->
         c = c << 8 as ::core::ffi::c_int;
         c = c | *tmp as u32;
         in_0 = in_0.offset(1);
-        if c & 0xfc00 as u32 == 0xd800 as u32 {
+        if c & 0xfc00_u32 == 0xd800_u32 {
             if in_0 >= inend {
                 break;
             }
@@ -38,21 +38,21 @@ pub unsafe fn utf16be_to_utf8(inb: *const u8, mut inlenb: ::core::ffi::c_int) ->
             d = d << 8 as ::core::ffi::c_int;
             d = d | *tmp as u32;
             in_0 = in_0.offset(1);
-            if d & 0xfc00 as u32 == 0xdc00 as u32 {
-                c &= 0x3ff as u32;
+            if d & 0xfc00_u32 == 0xdc00_u32 {
+                c &= 0x3ff_u32;
                 c <<= 10 as ::core::ffi::c_int;
-                c |= d & 0x3ff as u32;
-                c = c.wrapping_add(0x10000 as u32);
+                c |= d & 0x3ff_u32;
+                c = c.wrapping_add(0x10000_u32);
             }
         }
-        if c < 0x80 as u32 {
-            bytes_needed = bytes_needed.wrapping_add(1 as u32);
-        } else if c < 0x800 as u32 {
-            bytes_needed = bytes_needed.wrapping_add(2 as u32);
-        } else if c < 0x10000 as u32 {
-            bytes_needed = bytes_needed.wrapping_add(3 as u32);
+        if c < 0x80_u32 {
+            bytes_needed = bytes_needed.wrapping_add(1_u32);
+        } else if c < 0x800_u32 {
+            bytes_needed = bytes_needed.wrapping_add(2_u32);
+        } else if c < 0x10000_u32 {
+            bytes_needed = bytes_needed.wrapping_add(3_u32);
         } else {
-            bytes_needed = bytes_needed.wrapping_add(4 as u32);
+            bytes_needed = bytes_needed.wrapping_add(4_u32);
         }
     }
     in_0 = inb as *mut u16;
@@ -65,7 +65,7 @@ pub unsafe fn utf16be_to_utf8(inb: *const u8, mut inlenb: ::core::ffi::c_int) ->
         c = c << 8 as ::core::ffi::c_int;
         c = c | *tmp as u32;
         in_0 = in_0.offset(1);
-        if c & 0xfc00 as u32 == 0xd800 as u32 {
+        if c & 0xfc00_u32 == 0xd800_u32 {
             if in_0 >= inend {
                 break;
             }
@@ -76,28 +76,28 @@ pub unsafe fn utf16be_to_utf8(inb: *const u8, mut inlenb: ::core::ffi::c_int) ->
             d = d << 8 as ::core::ffi::c_int;
             d = d | *tmp as u32;
             in_0 = in_0.offset(1);
-            if d & 0xfc00 as u32 == 0xdc00 as u32 {
-                c &= 0x3ff as u32;
+            if d & 0xfc00_u32 == 0xdc00_u32 {
+                c &= 0x3ff_u32;
                 c <<= 10 as ::core::ffi::c_int;
-                c |= d & 0x3ff as u32;
-                c = c.wrapping_add(0x10000 as u32);
+                c |= d & 0x3ff_u32;
+                c = c.wrapping_add(0x10000_u32);
             }
         }
-        if c < 0x80 as u32 {
+        if c < 0x80_u32 {
             out.push(c as u8);
             bits = -(6 as ::core::ffi::c_int);
-        } else if c < 0x800 as u32 {
-            out.push((c >> 6 as ::core::ffi::c_int & 0x1f as u32 | 0xc0 as u32) as u8);
+        } else if c < 0x800_u32 {
+            out.push((c >> 6 as ::core::ffi::c_int & 0x1f_u32 | 0xc0_u32) as u8);
             bits = 0 as ::core::ffi::c_int;
-        } else if c < 0x10000 as u32 {
-            out.push((c >> 12 as ::core::ffi::c_int & 0xf as u32 | 0xe0 as u32) as u8);
+        } else if c < 0x10000_u32 {
+            out.push((c >> 12 as ::core::ffi::c_int & 0xf_u32 | 0xe0_u32) as u8);
             bits = 6 as ::core::ffi::c_int;
         } else {
-            out.push((c >> 18 as ::core::ffi::c_int & 0x7 as u32 | 0xf0 as u32) as u8);
+            out.push((c >> 18 as ::core::ffi::c_int & 0x7_u32 | 0xf0_u32) as u8);
             bits = 12 as ::core::ffi::c_int;
         }
         while bits >= 0 as ::core::ffi::c_int {
-            out.push((c >> bits & 0x3f as u32 | 0x80 as u32) as u8);
+            out.push((c >> bits & 0x3f_u32 | 0x80_u32) as u8);
             bits -= 6 as ::core::ffi::c_int;
         }
     }
@@ -122,7 +122,7 @@ pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
     let mut in_0: *const ::core::ffi::c_char = _in.as_ptr() as *const ::core::ffi::c_char;
     let inlen: usize = _in.len();
     let inend: *const ::core::ffi::c_char = in_0.offset(inlen as isize);
-    let mut words_needed: u32 = 0 as u32;
+    let mut words_needed: u32 = 0_u32;
     let mut trailing: u8;
     let mut c: u32;
     while in_0 < inend {
@@ -131,23 +131,23 @@ pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
         let mut d: u8 = *fresh18 as u8;
         if (d as ::core::ffi::c_int) < 0x80 as ::core::ffi::c_int {
             c = d as u32;
-            trailing = 0 as u8;
+            trailing = 0_u8;
         } else {
             if (d as ::core::ffi::c_int) < 0xc0 as ::core::ffi::c_int {
                 break;
             }
             if (d as ::core::ffi::c_int) < 0xe0 as ::core::ffi::c_int {
                 c = (d as ::core::ffi::c_int & 0x1f as ::core::ffi::c_int) as u32;
-                trailing = 1 as u8;
+                trailing = 1_u8;
             } else if (d as ::core::ffi::c_int) < 0xf0 as ::core::ffi::c_int {
                 c = (d as ::core::ffi::c_int & 0xf as ::core::ffi::c_int) as u32;
-                trailing = 2 as u8;
+                trailing = 2_u8;
             } else {
                 if !((d as ::core::ffi::c_int) < 0xf8 as ::core::ffi::c_int) {
                     break;
                 }
                 c = (d as ::core::ffi::c_int & 0x7 as ::core::ffi::c_int) as u32;
-                trailing = 3 as u8;
+                trailing = 3_u8;
             }
         }
         if (inend.offset_from(in_0) as ::core::ffi::c_long) < trailing as ::core::ffi::c_long {
@@ -166,13 +166,13 @@ pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
             c |= (d as ::core::ffi::c_int & 0x3f as ::core::ffi::c_int) as u32;
             trailing = trailing.wrapping_sub(1);
         }
-        if c < 0x10000 as u32 {
-            words_needed = words_needed.wrapping_add(1 as u32);
-        } else if c < 0x110000 as u32 {
-            words_needed = words_needed.wrapping_add(2 as u32);
+        if c < 0x10000_u32 {
+            words_needed = words_needed.wrapping_add(1_u32);
+        } else if c < 0x110000_u32 {
+            words_needed = words_needed.wrapping_add(2_u32);
         }
     }
-    let mut out: Vec<u8> = Vec::with_capacity((2 as u32).wrapping_mul(words_needed) as usize);
+    let mut out: Vec<u8> = Vec::with_capacity(2_u32.wrapping_mul(words_needed) as usize);
     in_0 = _in.as_ptr() as *const ::core::ffi::c_char;
     while in_0 < inend {
         let fresh20 = in_0;
@@ -180,23 +180,23 @@ pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
         let mut d_0: u8 = *fresh20 as u8;
         if (d_0 as ::core::ffi::c_int) < 0x80 as ::core::ffi::c_int {
             c = d_0 as u32;
-            trailing = 0 as u8;
+            trailing = 0_u8;
         } else {
             if (d_0 as ::core::ffi::c_int) < 0xc0 as ::core::ffi::c_int {
                 break;
             }
             if (d_0 as ::core::ffi::c_int) < 0xe0 as ::core::ffi::c_int {
                 c = (d_0 as ::core::ffi::c_int & 0x1f as ::core::ffi::c_int) as u32;
-                trailing = 1 as u8;
+                trailing = 1_u8;
             } else if (d_0 as ::core::ffi::c_int) < 0xf0 as ::core::ffi::c_int {
                 c = (d_0 as ::core::ffi::c_int & 0xf as ::core::ffi::c_int) as u32;
-                trailing = 2 as u8;
+                trailing = 2_u8;
             } else {
                 if !((d_0 as ::core::ffi::c_int) < 0xf8 as ::core::ffi::c_int) {
                     break;
                 }
                 c = (d_0 as ::core::ffi::c_int & 0x7 as ::core::ffi::c_int) as u32;
-                trailing = 3 as u8;
+                trailing = 3_u8;
             }
         }
         if (inend.offset_from(in_0) as ::core::ffi::c_long) < trailing as ::core::ffi::c_long {
@@ -215,17 +215,17 @@ pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
             c |= (d_0 as ::core::ffi::c_int & 0x3f as ::core::ffi::c_int) as u32;
             trailing = trailing.wrapping_sub(1);
         }
-        if c < 0x10000 as u32 {
-            out.push((c >> 8 as ::core::ffi::c_int & 0xff as u32) as u8);
-            out.push((c & 0xff as u32) as u8);
-        } else if c < 0x110000 as u32 {
-            let tmp1: u16 = (0xd800 as u32 | c >> 10 as ::core::ffi::c_int) as u16;
+        if c < 0x10000_u32 {
+            out.push((c >> 8 as ::core::ffi::c_int & 0xff_u32) as u8);
+            out.push((c & 0xff_u32) as u8);
+        } else if c < 0x110000_u32 {
+            let tmp1: u16 = (0xd800_u32 | c >> 10 as ::core::ffi::c_int) as u16;
             out.push(
                 (tmp1 as ::core::ffi::c_int >> 8 as ::core::ffi::c_int & 0xff as ::core::ffi::c_int)
                     as u8,
             );
             out.push((tmp1 as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as u8);
-            let tmp2: u16 = (0xdc00 as u32 | c & 0x3ff as u32) as u16;
+            let tmp2: u16 = (0xdc00_u32 | c & 0x3ff_u32) as u16;
             out.push(
                 (tmp2 as ::core::ffi::c_int >> 8 as ::core::ffi::c_int & 0xff as ::core::ffi::c_int)
                     as u8,

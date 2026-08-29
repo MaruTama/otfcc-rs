@@ -33,7 +33,7 @@ unsafe fn class_compatible(
     cov: *mut Coverage,
     past: *mut ::core::ffi::c_int,
 ) -> ::core::ffi::c_int {
-    if (*cov).len() == 0 as usize {
+    if (*cov).len() == 0_usize {
         return 1 as ::core::ffi::c_int;
     }
     let gid: GlyphId = (&(*cov))[0].index;
@@ -122,7 +122,7 @@ unsafe fn build_rule(
     let mut m: TableId = 0 as TableId;
     while (m as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
         let cov: *mut Coverage = otl_coverage_create();
-        if (&(*rule).match_0)[m as usize].len() > 0 as usize {
+        if (&(*rule).match_0)[m as usize].len() > 0_usize {
             let h: &std::collections::BTreeMap<GlyphId, ClassifierValue> =
                 if (m as ::core::ffi::c_int) < (*rule).input_begins as ::core::ffi::c_int {
                     hb

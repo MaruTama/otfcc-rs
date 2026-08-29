@@ -97,7 +97,7 @@ pub unsafe fn consolidate_gsub_multi(
             to,
         });
     }
-    return (*subtable).len() == 0 as usize;
+    return (*subtable).len() == 0_usize;
 }
 pub unsafe fn consolidate_gsub_alternative(
     font: *mut Font,

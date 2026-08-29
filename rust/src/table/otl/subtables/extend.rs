@@ -54,7 +54,7 @@ unsafe fn _caryll_read_otl_extend(
         };
         let type_0 = LookupType::from_file(basis, extension_lookup_type);
         let subtable = otfcc_read_otl_subtable(
-            data as *mut u8,
+            data,
             table_length,
             real_subtable_offset,
             type_0,

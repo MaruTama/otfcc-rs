@@ -87,5 +87,5 @@ pub unsafe fn consolidate_gpos_cursive(
             exit,
         });
     }
-    return (*subtable).len() == 0 as usize;
+    return (*subtable).len() == 0_usize;
 }

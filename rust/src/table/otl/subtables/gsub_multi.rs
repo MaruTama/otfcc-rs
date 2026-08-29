@@ -163,7 +163,7 @@ unsafe fn build_gsub_multi_subtable_range(
         );
     }
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(BkCellType::B16, 1 as u32),
+        bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(build_coverage(cov)),
@@ -213,7 +213,7 @@ pub unsafe fn otfcc_build_gsub_multi_subtable_split(
             let entry_size: usize = ((2 as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int
                 + 2 as ::core::ffi::c_int) as usize)
-                .wrapping_add(((&(*subtable))[end as usize].to.len()).wrapping_mul(2 as usize));
+                .wrapping_add(((&(*subtable))[end as usize].to.len()).wrapping_mul(2_usize));
             if end as ::core::ffi::c_int > start as ::core::ffi::c_int
                 && size.wrapping_add(entry_size) > GSUB_MULTI_SUBTABLE_SIZE_LIMIT as usize
             {
@@ -236,7 +236,7 @@ pub unsafe fn otfcc_build_gsub_multi_subtable_split(
     if n_parts == 0 {
         parts = __caryll_reallocate(
             parts as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<*mut Buffer>() as usize).wrapping_mul(1 as usize),
+            (::core::mem::size_of::<*mut Buffer>() as usize).wrapping_mul(1_usize),
             132 as ::core::ffi::c_ulong,
         ) as *mut *mut Buffer;
         let ref mut fresh3 = *parts.offset(0 as ::core::ffi::c_int as isize);

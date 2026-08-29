@@ -91,7 +91,7 @@ pub unsafe fn otfcc_dump_hhea(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let hhea: *mut BuiltValue = json_object_new(13 as usize);
+        let hhea: *mut BuiltValue = json_object_new(13_usize);
         json_object_push(
             hhea,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -272,7 +272,7 @@ pub unsafe fn otfcc_build_hhea(hhea: Option<&HheaTable>) -> *mut Buffer {
         buf,
         (*hhea).reserved[3 as ::core::ffi::c_int as usize] as u16,
     );
-    bufwrite16b(buf, 0 as u16);
+    bufwrite16b(buf, 0_u16);
     bufwrite16b(buf, (*hhea).number_of_metrics);
     return buf;
 }

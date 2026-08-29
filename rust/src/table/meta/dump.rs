@@ -29,7 +29,7 @@ pub unsafe fn otfcc_dump_meta(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _meta: *mut BuiltValue = json_object_new(3 as usize);
+        let mut _meta: *mut BuiltValue = json_object_new(3_usize);
         json_object_push(
             _meta,
             b"version\0" as *const u8 as *const ::core::ffi::c_char,
@@ -42,12 +42,12 @@ pub unsafe fn otfcc_dump_meta(
         );
         let entries: &Vec<MetaEntry> = &(*meta).entries;
         let mut _entries: *mut BuiltValue = json_array_new(entries.len());
-        let mut __caryll_index: usize = 0 as usize;
-        let mut keep: usize = 1 as usize;
+        let mut __caryll_index: usize = 0_usize;
+        let mut keep: usize = 1_usize;
         while keep != 0 && __caryll_index < entries.len() {
             let e: *const MetaEntry = &entries[__caryll_index];
             while keep != 0 {
-                let mut _e: *mut BuiltValue = json_object_new(2 as usize);
+                let mut _e: *mut BuiltValue = json_object_new(2_usize);
                 let mut _tag: [::core::ffi::c_char; 4] = [0; 4];
                 tag2str((*e).tag, &raw mut _tag as *mut ::core::ffi::c_char);
                 json_object_push(
@@ -68,7 +68,7 @@ pub unsafe fn otfcc_dump_meta(
                         ),
                     );
                 } else {
-                    let mut out_len: usize = 0 as usize;
+                    let mut out_len: usize = 0_usize;
                     let mut out: *mut u8 =
                         base64_encode((*e).data.as_ptr(), (*e).data.len(), &raw mut out_len);
                     json_object_push(
@@ -105,10 +105,10 @@ pub unsafe fn otfcc_dump_meta(
 #[inline]
 unsafe fn tag2str(tag: u32, tags: *mut ::core::ffi::c_char) {
     *tags.offset(0 as ::core::ffi::c_int as isize) =
-        (tag >> 24 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
+        (tag >> 24 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
     *tags.offset(1 as ::core::ffi::c_int as isize) =
-        (tag >> 16 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
+        (tag >> 16 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
     *tags.offset(2 as ::core::ffi::c_int as isize) =
-        (tag >> 8 as ::core::ffi::c_int & 0xff as u32) as ::core::ffi::c_char;
-    *tags.offset(3 as ::core::ffi::c_int as isize) = (tag & 0xff as u32) as ::core::ffi::c_char;
+        (tag >> 8 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
+    *tags.offset(3 as ::core::ffi::c_int as isize) = (tag & 0xff_u32) as ::core::ffi::c_char;
 }

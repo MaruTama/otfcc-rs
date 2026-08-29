@@ -293,13 +293,13 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
         if j_1 > 1 {
             name_0 = crate::bytesbuild!(&prefix, b"glyph", j_1 as ::core::ffi::c_int);
         } else if j_1 == 1 {
-            if (&(*glyf))[1 as usize].is_some()
-                && (&(*glyf))[1 as usize]
+            if (&(*glyf))[1_usize].is_some()
+                && (&(*glyf))[1_usize]
                     .as_deref()
                     .unwrap()
                     .contours
                     .is_empty()
-                && (&(*glyf))[1 as usize]
+                && (&(*glyf))[1_usize]
                     .as_deref()
                     .unwrap()
                     .references
@@ -460,7 +460,7 @@ unsafe fn merge_hmtx(font: *mut Font) {
         let adw: Pos = hmtx.metrics[(if (j as u32) < count_a {
             j as u32
         } else {
-            count_a.wrapping_sub(1 as u32)
+            count_a.wrapping_sub(1_u32)
         }) as usize]
             .advance_width as Pos;
         let lsb: Pos = if (j as u32) < count_a {
@@ -498,7 +498,7 @@ unsafe fn merge_vmtx(font: *mut Font) {
         let adh: Pos = vmtx.metrics[(if (j_1 as u32) < count_a {
             j_1 as u32
         } else {
-            count_a.wrapping_sub(1 as u32)
+            count_a.wrapping_sub(1_u32)
         }) as usize]
             .advance_height as Pos;
         let tsb: Pos = if (j_1 as u32) < count_a {
