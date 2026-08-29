@@ -18,7 +18,7 @@ use crate::support::parsed_json::{
 };
 use crate::support::primitives::GlyphId;
 use crate::vendor::json::JsonType;
-use libc::{free, strcmp};
+use libc::strcmp;
 
 pub struct SvgAssignment {
     pub start: GlyphId,
@@ -151,9 +151,7 @@ pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: *mut BuiltValue, opti
                         ),
                     );
                 } else {
-                    let mut len: usize = 0_usize;
-                    let mut buf: *mut u8 =
-                        base64_encode(a.document.as_ptr(), a.document.len(), &raw mut len);
+                    let encoded = base64_encode(&a.document);
                     json_object_push(
                         _a,
                         b"format\0" as *const u8 as *const ::core::ffi::c_char,
@@ -163,12 +161,10 @@ pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: *mut BuiltValue, opti
                         _a,
                         b"document\0" as *const u8 as *const ::core::ffi::c_char,
                         json_string_new_length(
-                            len as ::core::ffi::c_uint,
-                            buf as *mut ::core::ffi::c_char,
+                            encoded.len() as ::core::ffi::c_uint,
+                            encoded.as_ptr() as *mut ::core::ffi::c_char,
                         ),
                     );
-                    free(buf as *mut ::core::ffi::c_void);
-                    buf = ::core::ptr::null_mut::<u8>();
                 }
                 json_array_push(_svg, _a);
                 keep = (keep == 0) as i32 as usize;
@@ -231,12 +227,7 @@ pub unsafe fn otfcc_parse_svg(root: *const ParsedValue, options: &Options) -> Op
                         {
                             asg.document = doc;
                         } else {
-                            let mut len: usize = 0_usize;
-                            let mut buf: *mut u8 =
-                                base64_encode(doc.as_ptr(), doc.len(), &raw mut len);
-                            asg.document = ::core::slice::from_raw_parts(buf, len).to_vec();
-                            free(buf as *mut ::core::ffi::c_void);
-                            buf = ::core::ptr::null_mut::<u8>();
+                            asg.document = base64_encode(&doc);
                         }
                         svg.push(asg);
                     }

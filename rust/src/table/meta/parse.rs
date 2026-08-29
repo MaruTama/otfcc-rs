@@ -6,7 +6,6 @@ use crate::support::parsed_json::{
     json_type_of,
 };
 use crate::vendor::json::JsonType;
-use libc::free;
 
 use crate::support::base64::base64_decode;
 use crate::table::meta::types::{MetaEntry, MetaTable};
@@ -42,15 +41,15 @@ pub unsafe fn parse_meta_data(v: *const ParsedValue) -> Option<Vec<u8>> {
             JsonType::String,
         );
         if !_base64.is_null() {
-            let mut str_len: usize = 0_usize;
-            let str: *mut u8 = base64_decode(
-                json_str_ptr(_base64) as *mut u8,
+            // Unlike the `string` field above, a malformed `base64` field
+            // (a character count not a multiple of 4) now makes this whole
+            // entry `None` instead of silently keeping an empty decoded
+            // value -- the same "drop what doesn't parse" choice already
+            // made everywhere else malformed JSON-build input is handled.
+            return base64_decode(::core::slice::from_raw_parts(
+                json_str_ptr(_base64) as *const u8,
                 json_str_len(_base64) as usize,
-                &raw mut str_len,
-            );
-            let s: Vec<u8> = ::core::slice::from_raw_parts(str, str_len).to_vec();
-            free(str as *mut ::core::ffi::c_void);
-            return Some(s);
+            ));
         }
     }
     None

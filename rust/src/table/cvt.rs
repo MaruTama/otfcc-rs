@@ -1,6 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::free;
-
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::base64::base64_decode;
@@ -116,23 +114,20 @@ pub unsafe fn otfcc_parse_cvt(
             );
             let mut ___loggedstep_v_0: bool = true;
             while ___loggedstep_v_0 {
-                let mut len: usize = 0;
-                let mut raw: *mut u8 = base64_decode(
-                    json_str_ptr(table) as *mut u8,
+                let raw = base64_decode(::core::slice::from_raw_parts(
+                    json_str_ptr(table) as *const u8,
                     json_str_len(table) as usize,
-                    &raw mut len,
-                );
-                let table_length = (len >> 1_i32) as u32;
+                ))
+                .unwrap_or_default();
+                let table_length = (raw.len() >> 1_i32) as u32;
                 let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);
                 let mut j_0: u16 = 0_u16;
                 while (j_0 as u32) < table_length {
-                    words.push(read_16u(raw.offset(
+                    words.push(read_16u(raw.as_ptr().offset(
                         (2_i32 * j_0 as i32) as isize,
                     )));
                     j_0 = j_0.wrapping_add(1);
                 }
-                free(raw as *mut ::core::ffi::c_void);
-                raw = ::core::ptr::null_mut::<u8>();
                 t = Some(Box::new(CvtTable { words }));
                 ___loggedstep_v_0 = false;
                 logger_finish(&mut *options.logger.borrow_mut());
