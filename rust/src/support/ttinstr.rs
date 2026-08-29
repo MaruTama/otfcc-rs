@@ -326,17 +326,14 @@ unsafe fn strnmatch(
     let mut ch1: i32;
     let mut ch2: i32;
     loop {
-        let fresh19 = n;
-        n = n - 1;
-        if !(fresh19 > 0_i32) {
+        if !(n > 0_i32) {
             break;
         }
-        let fresh20 = str1;
+        n = n - 1;
+        ch1 = *str1 as i32;
         str1 = str1.offset(1);
-        ch1 = *fresh20 as i32;
-        let fresh21 = str2;
+        ch2 = *str2 as i32;
         str2 = str2.offset(1);
-        ch2 = *fresh21 as i32;
         ch1 = c_tolower(ch1);
         ch2 = c_tolower(ch2);
         if ch1 != ch2 || ch1 == '\0' as i32 {
@@ -394,9 +391,8 @@ unsafe fn parse_instrs(
                 return None;
             }
             pt = end;
-            let fresh0 = npos;
+            numberstack[npos as usize] = val as ::core::ffi::c_short;
             npos = npos + 1;
-            numberstack[fresh0 as usize] = val as ::core::ffi::c_short;
         }
         while *pt as i32 == ' ' as i32 || *pt as i32 == '\t' as i32 {
             pt = pt.offset(1);
@@ -456,12 +452,11 @@ unsafe fn parse_instrs(
                         (numberstack[nread as usize] as i32
                             >> 8_i32) as u8,
                     );
-                    let fresh3 = nread;
-                    nread = nread + 1;
                     instrs.push(
-                        (numberstack[fresh3 as usize] as i32
+                        (numberstack[nread as usize] as i32
                             & 0xff_i32) as u8,
                     );
+                    nread = nread + 1;
                 } else if numberstack[0_i32 as usize] as i32
                     > 255_i32
                     || (numberstack[0_i32 as usize] as i32)
@@ -476,9 +471,8 @@ unsafe fn parse_instrs(
                     );
                     return None;
                 } else {
-                    let fresh5 = nread;
+                    instrs.push(numberstack[nread as usize] as u8);
                     nread = nread + 1;
-                    instrs.push(numberstack[fresh5 as usize] as u8);
                 }
                 push_left -= 1;
             }
@@ -534,9 +528,8 @@ unsafe fn parse_instrs(
                             instrs.push((i - nread) as u8);
                         }
                         while nread < i {
-                            let fresh10 = nread;
+                            instrs.push(numberstack[nread as usize] as u8);
                             nread = nread + 1;
-                            instrs.push(numberstack[fresh10 as usize] as u8);
                         }
                     } else {
                         while i < npos
@@ -563,13 +556,12 @@ unsafe fn parse_instrs(
                                     >> 8_i32)
                                     as u8,
                             );
-                            let fresh16 = nread;
-                            nread = nread + 1;
                             instrs.push(
-                                (numberstack[fresh16 as usize] as i32
+                                (numberstack[nread as usize] as i32
                                     & 0xff_i32)
                                     as u8,
                             );
+                            nread = nread + 1;
                         }
                     }
                 }

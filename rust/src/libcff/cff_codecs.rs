@@ -139,36 +139,30 @@ pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
         i = 0_u32;
         while (i as usize) < strlen(&raw mut temp as *mut u8 as *mut ::core::ffi::c_char) {
             if temp[i as usize] as i32 == '.' as i32 {
-                let fresh0 = j;
+                array[j as usize] = 0xa_u8;
                 j = j.wrapping_add(1);
-                array[fresh0 as usize] = 0xa_u8;
                 i = i.wrapping_add(1);
             } else if temp[i as usize] as i32 >= '0' as i32
                 && temp[i as usize] as i32 <= '9' as i32
             {
-                let fresh1 = j;
+                array[j as usize] = (temp[i as usize] as i32 - '0' as i32) as u8;
                 j = j.wrapping_add(1);
-                array[fresh1 as usize] =
-                    (temp[i as usize] as i32 - '0' as i32) as u8;
                 i = i.wrapping_add(1);
             } else if temp[i as usize] as i32 == 'e' as i32
                 && temp[i.wrapping_add(1_u32) as usize] as i32 == '-' as i32
             {
-                let fresh2 = j;
+                array[j as usize] = 0xc_u8;
                 j = j.wrapping_add(1);
-                array[fresh2 as usize] = 0xc_u8;
                 i = i.wrapping_add(2_u32);
             } else if temp[i as usize] as i32 == 'e' as i32
                 && temp[i.wrapping_add(1_u32) as usize] as i32 == '+' as i32
             {
-                let fresh3 = j;
+                array[j as usize] = 0xb_u8;
                 j = j.wrapping_add(1);
-                array[fresh3 as usize] = 0xb_u8;
                 i = i.wrapping_add(2_u32);
             } else if temp[i as usize] as i32 == '-' as i32 {
-                let fresh4 = j;
+                array[j as usize] = 0xe_u8;
                 j = j.wrapping_add(1);
-                array[fresh4 as usize] = 0xe_u8;
                 i = i.wrapping_add(1);
             }
         }

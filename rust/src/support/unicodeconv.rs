@@ -21,10 +21,9 @@ pub unsafe fn utf16be_to_utf8(inb: *const u8, mut inlenb: i32) -> Vec<u8> {
     let mut bytes_needed: u32 = 0_u32;
     while in_0 < inend {
         tmp = in_0 as *mut u8;
-        let fresh9 = tmp;
-        tmp = tmp.offset(1);
-        c = *fresh9 as u32;
+        c = *tmp as u32;
         c = c << 8_i32;
+        tmp = tmp.offset(1);
         c = c | *tmp as u32;
         in_0 = in_0.offset(1);
         if c & 0xfc00_u32 == 0xd800_u32 {
@@ -32,10 +31,9 @@ pub unsafe fn utf16be_to_utf8(inb: *const u8, mut inlenb: i32) -> Vec<u8> {
                 break;
             }
             tmp = in_0 as *mut u8;
-            let fresh10 = tmp;
-            tmp = tmp.offset(1);
-            d = *fresh10 as u32;
+            d = *tmp as u32;
             d = d << 8_i32;
+            tmp = tmp.offset(1);
             d = d | *tmp as u32;
             in_0 = in_0.offset(1);
             if d & 0xfc00_u32 == 0xdc00_u32 {
@@ -59,10 +57,9 @@ pub unsafe fn utf16be_to_utf8(inb: *const u8, mut inlenb: i32) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::with_capacity(bytes_needed as usize);
     while in_0 < inend {
         tmp = in_0 as *mut u8;
-        let fresh11 = tmp;
-        tmp = tmp.offset(1);
-        c = *fresh11 as u32;
+        c = *tmp as u32;
         c = c << 8_i32;
+        tmp = tmp.offset(1);
         c = c | *tmp as u32;
         in_0 = in_0.offset(1);
         if c & 0xfc00_u32 == 0xd800_u32 {
@@ -70,10 +67,9 @@ pub unsafe fn utf16be_to_utf8(inb: *const u8, mut inlenb: i32) -> Vec<u8> {
                 break;
             }
             tmp = in_0 as *mut u8;
-            let fresh12 = tmp;
-            tmp = tmp.offset(1);
-            d = *fresh12 as u32;
+            d = *tmp as u32;
             d = d << 8_i32;
+            tmp = tmp.offset(1);
             d = d | *tmp as u32;
             in_0 = in_0.offset(1);
             if d & 0xfc00_u32 == 0xdc00_u32 {
@@ -126,9 +122,8 @@ pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
     let mut trailing: u8;
     let mut c: u32;
     while in_0 < inend {
-        let fresh18 = in_0;
+        let mut d: u8 = *in_0 as u8;
         in_0 = in_0.offset(1);
-        let mut d: u8 = *fresh18 as u8;
         if (d as i32) < 0x80_i32 {
             c = d as u32;
             trailing = 0_u8;
@@ -155,9 +150,8 @@ pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
         }
         while trailing != 0 {
             if in_0 >= inend || {
-                let fresh19 = in_0;
+                d = *in_0 as u8;
                 in_0 = in_0.offset(1);
-                d = *fresh19 as u8;
                 d as i32 & 0xc0_i32 != 0x80_i32
             } {
                 break;
@@ -175,9 +169,8 @@ pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
     let mut out: Vec<u8> = Vec::with_capacity(2_u32.wrapping_mul(words_needed) as usize);
     in_0 = _in.as_ptr() as *const ::core::ffi::c_char;
     while in_0 < inend {
-        let fresh20 = in_0;
+        let mut d_0: u8 = *in_0 as u8;
         in_0 = in_0.offset(1);
-        let mut d_0: u8 = *fresh20 as u8;
         if (d_0 as i32) < 0x80_i32 {
             c = d_0 as u32;
             trailing = 0_u8;
@@ -204,9 +197,8 @@ pub unsafe fn utf8toutf16be(_in: &[u8]) -> Vec<u8> {
         }
         while trailing != 0 {
             if in_0 >= inend || {
-                let fresh21 = in_0;
+                d_0 = *in_0 as u8;
                 in_0 = in_0.offset(1);
-                d_0 = *fresh21 as u8;
                 d_0 as i32 & 0xc0_i32 != 0x80_i32
             } {
                 break;

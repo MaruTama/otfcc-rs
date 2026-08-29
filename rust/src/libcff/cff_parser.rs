@@ -3022,10 +3022,9 @@ pub unsafe fn cff_parse_outline(
                 }
             }
             CffValue::Integer(_) | CffValue::Double(_) => {
-                let fresh0 = (*stack).index;
-                if (fresh0 as usize) < (*stack).stack.len() {
+                if ((*stack).index as usize) < (*stack).stack.len() {
+                    *(*stack).stack.as_mut_ptr().offset((*stack).index as isize) = val;
                     (*stack).index = (*stack).index.wrapping_add(1);
-                    *(*stack).stack.as_mut_ptr().offset(fresh0 as isize) = val;
                 } else {
                     logger_log_sds(
                         &mut *options.logger.borrow_mut(),
