@@ -84,7 +84,7 @@ unsafe fn cff_dict_dispose(x: *mut CffDict) {
 pub(crate) unsafe fn parse_to_callback(
     data: &[u8],
     context: *mut ::core::ffi::c_void,
-    callback: Option<unsafe fn(CffDictOperator, u8, *mut CffValue, *mut ::core::ffi::c_void) -> ()>,
+    callback: Option<unsafe fn(CffDictOperator, u8, &[CffValue], *mut ::core::ffi::c_void) -> ()>,
 ) {
     let mut index: u8 = 0_u8;
     let mut val: CffValue = CffValue::Unset;
@@ -102,7 +102,7 @@ pub(crate) unsafe fn parse_to_callback(
                 callback.expect("non-null function pointer")(
                     CffDictOperator(op as u32),
                     index,
-                    &raw mut stack as *mut CffValue,
+                    &stack[..index as usize],
                     context,
                 );
                 index = 0_u8;
@@ -119,13 +119,13 @@ pub(crate) unsafe fn parse_to_callback(
 unsafe fn callback_get_key(
     op: CffDictOperator,
     top: u8,
-    stack: *mut CffValue,
+    stack: &[CffValue],
     mut _context: *mut ::core::ffi::c_void,
 ) {
     let context: *mut CffGetKeyContext = _context as *mut CffGetKeyContext;
     if op == (*context).op && (*context).idx <= top as u32 {
         (*context).found = true;
-        (*context).res = *stack.offset((*context).idx as isize);
+        (*context).res = stack[((*context).idx as isize) as usize];
     }
 }
 pub(crate) unsafe fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) -> CffValue {
@@ -144,7 +144,7 @@ pub(crate) unsafe fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) 
         &raw mut context as *mut ::core::ffi::c_void,
         Some(
             callback_get_key
-                as unsafe fn(CffDictOperator, u8, *mut CffValue, *mut ::core::ffi::c_void) -> (),
+                as unsafe fn(CffDictOperator, u8, &[CffValue], *mut ::core::ffi::c_void) -> (),
         ),
     );
     return context.res;

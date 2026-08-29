@@ -286,7 +286,7 @@ pub(crate) unsafe fn unwrap_cff_table(raw: *mut CffTable) -> Option<Box<CffTable
 unsafe fn callback_extract_private(
     op: CffDictOperator,
     top: u8,
-    stack: *mut CffValue,
+    stack: &[CffValue],
     mut _context: *mut ::core::ffi::c_void,
 ) {
     let context: *mut CffExtractContext = _context as *mut CffExtractContext;
@@ -302,108 +302,108 @@ unsafe fn callback_extract_private(
     match op.0 {
         6 => {
             (*pd).blue_values = (0..top as Arity)
-                .map(|j| cffnum(*stack.offset(j as isize)))
+                .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         7 => {
             (*pd).other_blues = (0..top as Arity)
-                .map(|j| cffnum(*stack.offset(j as isize)))
+                .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         8 => {
             (*pd).family_blues = (0..top as Arity)
-                .map(|j| cffnum(*stack.offset(j as isize)))
+                .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         9 => {
             (*pd).family_other_blues = (0..top as Arity)
-                .map(|j| cffnum(*stack.offset(j as isize)))
+                .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         3084 => {
             (*pd).stem_snap_h = (0..top as Arity)
-                .map(|j| cffnum(*stack.offset(j as isize)))
+                .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         3085 => {
             (*pd).stem_snap_v = (0..top as Arity)
-                .map(|j| cffnum(*stack.offset(j as isize)))
+                .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         3081 => {
             if top != 0 {
                 (*pd).blue_scale = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3082 => {
             if top != 0 {
                 (*pd).blue_shift = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3083 => {
             if top != 0 {
                 (*pd).blue_fuzz = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         10 => {
             if top != 0 {
                 (*pd).std_hw = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         11 => {
             if top != 0 {
                 (*pd).std_vw = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3086 => {
             if top != 0 {
                 (*pd).force_bold = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 ) != 0.;
             }
         }
         3089 => {
             if top != 0 {
                 (*pd).language_group = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 ) as u32;
             }
         }
         3090 => {
             if top != 0 {
                 (*pd).expansion_factor = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3091 => {
             if top != 0 {
                 (*pd).initial_random_seed = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         20 => {
             if top != 0 {
                 (*pd).default_width_x = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         21 => {
             if top != 0 {
                 (*pd).nominal_width_x = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
@@ -413,7 +413,7 @@ unsafe fn callback_extract_private(
 unsafe fn callback_extract_fd(
     op: CffDictOperator,
     top: u8,
-    stack: *mut CffValue,
+    stack: &[CffValue],
     mut _context: *mut ::core::ffi::c_void,
 ) {
     let context: *mut CffExtractContext = _context as *mut CffExtractContext;
@@ -430,8 +430,7 @@ unsafe fn callback_extract_fd(
             if top != 0 {
                 (*meta).version = get_cff_sid(
                     cffnum(
-                        *stack
-                            .offset((top as i32 - 1_i32) as isize),
+                        stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
                     &(*file).string,
                 )
@@ -442,8 +441,7 @@ unsafe fn callback_extract_fd(
             if top != 0 {
                 (*meta).notice = get_cff_sid(
                     cffnum(
-                        *stack
-                            .offset((top as i32 - 1_i32) as isize),
+                        stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
                     &(*file).string,
                 )
@@ -454,8 +452,7 @@ unsafe fn callback_extract_fd(
             if top != 0 {
                 (*meta).copyright = get_cff_sid(
                     cffnum(
-                        *stack
-                            .offset((top as i32 - 1_i32) as isize),
+                        stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
                     &(*file).string,
                 )
@@ -466,8 +463,7 @@ unsafe fn callback_extract_fd(
             if top != 0 {
                 (*meta).font_name = get_cff_sid(
                     cffnum(
-                        *stack
-                            .offset((top as i32 - 1_i32) as isize),
+                        stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
                     &(*file).string,
                 )
@@ -478,8 +474,7 @@ unsafe fn callback_extract_fd(
             if top != 0 {
                 (*meta).full_name = get_cff_sid(
                     cffnum(
-                        *stack
-                            .offset((top as i32 - 1_i32) as isize),
+                        stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
                     &(*file).string,
                 )
@@ -490,8 +485,7 @@ unsafe fn callback_extract_fd(
             if top != 0 {
                 (*meta).family_name = get_cff_sid(
                     cffnum(
-                        *stack
-                            .offset((top as i32 - 1_i32) as isize),
+                        stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
                     &(*file).string,
                 )
@@ -502,8 +496,7 @@ unsafe fn callback_extract_fd(
             if top != 0 {
                 (*meta).weight = get_cff_sid(
                     cffnum(
-                        *stack
-                            .offset((top as i32 - 1_i32) as isize),
+                        stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
                     &(*file).string,
                 )
@@ -513,16 +506,16 @@ unsafe fn callback_extract_fd(
         5 => {
             if top as i32 >= 4_i32 {
                 (*meta).font_b_box_left = cffnum(
-                    *stack.offset((top as i32 - 4_i32) as isize),
+                    stack[((top as i32 - 4_i32) as isize) as usize],
                 );
                 (*meta).font_b_box_bottom = cffnum(
-                    *stack.offset((top as i32 - 3_i32) as isize),
+                    stack[((top as i32 - 3_i32) as isize) as usize],
                 );
                 (*meta).font_b_box_right = cffnum(
-                    *stack.offset((top as i32 - 2_i32) as isize),
+                    stack[((top as i32 - 2_i32) as isize) as usize],
                 );
                 (*meta).font_b_box_top = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
@@ -539,67 +532,67 @@ unsafe fn callback_extract_fd(
                 let fm: *mut CffFontMatrix =
                     (*meta).font_matrix.as_deref_mut().unwrap() as *mut CffFontMatrix;
                 (*fm).a = cffnum(
-                    *stack.offset((top as i32 - 6_i32) as isize),
+                    stack[((top as i32 - 6_i32) as isize) as usize],
                 ) as Scale;
                 (*fm).b = cffnum(
-                    *stack.offset((top as i32 - 5_i32) as isize),
+                    stack[((top as i32 - 5_i32) as isize) as usize],
                 ) as Scale;
                 (*fm).c = cffnum(
-                    *stack.offset((top as i32 - 4_i32) as isize),
+                    stack[((top as i32 - 4_i32) as isize) as usize],
                 ) as Scale;
                 (*fm).d = cffnum(
-                    *stack.offset((top as i32 - 3_i32) as isize),
+                    stack[((top as i32 - 3_i32) as isize) as usize],
                 ) as Scale;
                 (*fm).x = vq_create_still(cffnum(
-                    *stack.offset((top as i32 - 2_i32) as isize),
+                    stack[((top as i32 - 2_i32) as isize) as usize],
                 ) as Pos);
                 (*fm).y = vq_create_still(cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 ) as Pos);
             }
         }
         3073 => {
             if top != 0 {
                 (*meta).is_fixed_pitch = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 ) != 0.;
             }
         }
         3074 => {
             if top != 0 {
                 (*meta).italic_angle = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3075 => {
             if top != 0 {
                 (*meta).underline_position = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3076 => {
             if top != 0 {
                 (*meta).underline_thickness = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3080 => {
             if top != 0 {
                 (*meta).stroke_width = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         18 => {
             if top as i32 >= 2_i32 {
                 let private_length: u32 = cffnum(
-                    *stack.offset((top as i32 - 2_i32) as isize),
+                    stack[((top as i32 - 2_i32) as isize) as usize],
                 ) as u32;
                 let private_offset: u32 = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 ) as u32;
                 (*meta).private_dict = Some(otfcc_new_cff_private());
                 // `private_offset`/`private_length` are DICT operator-18's
@@ -626,7 +619,7 @@ unsafe fn callback_extract_fd(
                                 as unsafe fn(
                                     CffDictOperator,
                                     u8,
-                                    *mut CffValue,
+                                    &[CffValue],
                                     *mut ::core::ffi::c_void,
                                 ) -> (),
                         ),
@@ -639,22 +632,20 @@ unsafe fn callback_extract_fd(
                 (*meta).is_cid = true;
                 (*meta).cid_registry = get_cff_sid(
                     cffnum(
-                        *stack
-                            .offset((top as i32 - 3_i32) as isize),
+                        stack[((top as i32 - 3_i32) as isize) as usize],
                     ) as u16,
                     &(*file).string,
                 )
                 .unwrap_or_default();
                 (*meta).cid_ordering = get_cff_sid(
                     cffnum(
-                        *stack
-                            .offset((top as i32 - 2_i32) as isize),
+                        stack[((top as i32 - 2_i32) as isize) as usize],
                     ) as u16,
                     &(*file).string,
                 )
                 .unwrap_or_default();
                 (*meta).cid_supplement = cffnum(
-                    *stack.offset((top as i32 - 1_i32) as isize),
+                    stack[((top as i32 - 1_i32) as isize) as usize],
                 ) as u32;
             }
         }
@@ -1292,7 +1283,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                         as unsafe fn(
                             CffDictOperator,
                             u8,
-                            *mut CffValue,
+                            &[CffValue],
                             *mut ::core::ffi::c_void,
                         ) -> (),
                 ),
@@ -1341,7 +1332,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                                 as unsafe fn(
                                     CffDictOperator,
                                     u8,
-                                    *mut CffValue,
+                                    &[CffValue],
                                     *mut ::core::ffi::c_void,
                                 )
                                     -> (),
