@@ -357,8 +357,6 @@ unsafe fn parse_otl_common(
                 let lookup_0: *mut Lookup = &raw mut *(&mut (*table).lookups)[lookupid as usize];
                 if (*lookup_0).name.is_empty() {
                     if !options.glyph_name_prefix.is_null() {
-                        let fresh3 = lnk;
-                        lnk = lnk.wrapping_add(1);
                         (*lookup_0).name = crate::bytesbuild!(
                             b"lookup_",
                             options.glyph_name_prefix,
@@ -368,11 +366,10 @@ unsafe fn parse_otl_common(
                             Byte((tag >> 8 & 0xff) as u8),
                             Byte((tag & 0xff) as u8),
                             b"_",
-                            fresh3 as i32,
+                            lnk as i32,
                         );
-                    } else {
-                        let fresh4 = lnk;
                         lnk = lnk.wrapping_add(1);
+                    } else {
                         (*lookup_0).name = crate::bytesbuild!(
                             b"lookup_",
                             Byte((tag >> 24 & 0xff) as u8),
@@ -380,8 +377,9 @@ unsafe fn parse_otl_common(
                             Byte((tag >> 8 & 0xff) as u8),
                             Byte((tag & 0xff) as u8),
                             b"_",
-                            fresh4 as i32,
+                            lnk as i32,
                         );
+                        lnk = lnk.wrapping_add(1);
                     }
                 }
                 (*feature).lookups.push(lookup_0 as LookupRef);

@@ -693,8 +693,6 @@ unsafe fn __declare_otl_consolidation(
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*lookup).subtables.len() {
             if (&(*lookup).subtables)[j_0 as usize].is_some() {
-                let fresh4 = k;
-                k = k.wrapping_add(1);
                 // `.take()` moves the `Box` out of slot `j_0`, leaving `None`
                 // behind there -- required now that elements are owned
                 // `Box`es rather than freely-aliasable raw pointers: a plain
@@ -702,8 +700,9 @@ unsafe fn __declare_otl_consolidation(
                 // and `Vec::truncate` below (unlike the old raw-pointer
                 // `Vec`, which had nothing to drop) runs `Drop` on every
                 // truncated-away element, which would double-free it.
-                (&mut (*lookup).subtables)[fresh4 as usize] =
+                (&mut (*lookup).subtables)[k as usize] =
                     (&mut (*lookup).subtables)[j_0 as usize].take();
+                k = k.wrapping_add(1);
             }
             j_0 = j_0.wrapping_add(1);
         }

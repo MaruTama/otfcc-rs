@@ -87,9 +87,9 @@ unsafe fn next_point(
         *cp = 0 as ShapeId;
         *cc = (*cc as i32 + 1_i32) as ShapeId;
     }
-    let fresh8 = *cp;
+    let point = &raw mut (&mut (*contours))[*cc as usize][*cp as usize];
     *cp = (*cp).wrapping_add(1);
-    return &raw mut (&mut (*contours))[*cc as usize][fresh8 as usize];
+    return point;
 }
 // `otfcc_read_simple_glyph`/`otfcc_read_composite_glyph`/`otfcc_read_glyph`
 // used to take no length at all -- just a raw `start: FontFilePointer` --

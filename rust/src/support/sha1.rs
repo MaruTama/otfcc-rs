@@ -142,22 +142,18 @@ pub unsafe fn sha1_final(ctx: *mut Sha1Ctx, hash: *mut BYTE) {
     let mut i: WORD;
     i = (*ctx).datalen;
     if (*ctx).datalen < 56 as WORD {
-        let fresh0 = i;
+        (*ctx).data[i as usize] = 0x80 as BYTE;
         i = i.wrapping_add(1);
-        (*ctx).data[fresh0 as usize] = 0x80 as BYTE;
         while i < 56 as WORD {
-            let fresh1 = i;
+            (*ctx).data[i as usize] = 0 as BYTE;
             i = i.wrapping_add(1);
-            (*ctx).data[fresh1 as usize] = 0 as BYTE;
         }
     } else {
-        let fresh2 = i;
+        (*ctx).data[i as usize] = 0x80 as BYTE;
         i = i.wrapping_add(1);
-        (*ctx).data[fresh2 as usize] = 0x80 as BYTE;
         while i < 64 as WORD {
-            let fresh3 = i;
+            (*ctx).data[i as usize] = 0 as BYTE;
             i = i.wrapping_add(1);
-            (*ctx).data[fresh3 as usize] = 0 as BYTE;
         }
         sha1_transform(ctx, &raw mut (*ctx).data as *mut BYTE as *const BYTE);
         memset(

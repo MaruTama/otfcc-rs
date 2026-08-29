@@ -108,9 +108,8 @@ pub(crate) unsafe fn parse_to_callback(
                 index = 0_u8;
             }
             CffValue::Integer(_) | CffValue::Double(_) => {
-                let fresh0 = index;
+                stack[index as usize] = val;
                 index = index.wrapping_add(1);
-                stack[fresh0 as usize] = val;
             }
             CffValue::Unset => {}
         }

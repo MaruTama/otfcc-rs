@@ -516,11 +516,10 @@ unsafe fn digit_gen(
             }
         }
         if d != 0 || *len != 0 {
-            let fresh8 = *len;
-            *len = *len + 1;
-            *buffer.offset(fresh8 as isize) = ('0' as i32
+            *buffer.offset(*len as isize) = ('0' as i32
                 + d as ::core::ffi::c_char as i32)
                 as ::core::ffi::c_char;
+            *len = *len + 1;
         }
         kappa -= 1;
         let tmp: u64 = ((p1 as u64) << -one.e).wrapping_add(p2);
@@ -542,10 +541,9 @@ unsafe fn digit_gen(
         delta = delta.wrapping_mul(10_u64);
         let d_0: ::core::ffi::c_char = (p2 >> -one.e) as ::core::ffi::c_char;
         if d_0 as i32 != 0 || *len != 0 {
-            let fresh9 = *len;
-            *len = *len + 1;
-            *buffer.offset(fresh9 as isize) =
+            *buffer.offset(*len as isize) =
                 ('0' as i32 + d_0 as i32) as ::core::ffi::c_char;
+            *len = *len + 1;
         }
         p2 &= one.f.wrapping_sub(1_u64);
         kappa -= 1;
@@ -792,40 +790,33 @@ unsafe fn get_digits_lut() -> *const ::core::ffi::c_char {
 #[inline]
 unsafe fn write_exponent(mut k_out: i32, mut buffer: *mut ::core::ffi::c_char) {
     if k_out < 0_i32 {
-        let fresh1 = buffer;
+        *buffer = '-' as i32 as ::core::ffi::c_char;
         buffer = buffer.offset(1);
-        *fresh1 = '-' as i32 as ::core::ffi::c_char;
         k_out = -k_out;
     }
     if k_out >= 100_i32 {
-        let fresh2 = buffer;
-        buffer = buffer.offset(1);
-        *fresh2 = ('0' as i32
+        *buffer = ('0' as i32
             + (k_out / 100_i32) as ::core::ffi::c_char as i32)
             as ::core::ffi::c_char;
+        buffer = buffer.offset(1);
         k_out %= 100_i32;
         let d: *const ::core::ffi::c_char =
             get_digits_lut().offset((k_out * 2_i32) as isize);
-        let fresh3 = buffer;
+        *buffer = *d.offset(0_i32 as isize);
         buffer = buffer.offset(1);
-        *fresh3 = *d.offset(0_i32 as isize);
-        let fresh4 = buffer;
+        *buffer = *d.offset(1_i32 as isize);
         buffer = buffer.offset(1);
-        *fresh4 = *d.offset(1_i32 as isize);
     } else if k_out >= 10_i32 {
         let d_0: *const ::core::ffi::c_char =
             get_digits_lut().offset((k_out * 2_i32) as isize);
-        let fresh5 = buffer;
+        *buffer = *d_0.offset(0_i32 as isize);
         buffer = buffer.offset(1);
-        *fresh5 = *d_0.offset(0_i32 as isize);
-        let fresh6 = buffer;
+        *buffer = *d_0.offset(1_i32 as isize);
         buffer = buffer.offset(1);
-        *fresh6 = *d_0.offset(1_i32 as isize);
     } else {
-        let fresh7 = buffer;
-        buffer = buffer.offset(1);
-        *fresh7 = ('0' as i32 + k_out as ::core::ffi::c_char as i32)
+        *buffer = ('0' as i32 + k_out as ::core::ffi::c_char as i32)
             as ::core::ffi::c_char;
+        buffer = buffer.offset(1);
     }
     *buffer = '\0' as i32 as ::core::ffi::c_char;
 }
@@ -904,9 +895,8 @@ pub unsafe fn emyg_dtoa(mut value: ::core::ffi::c_double, mut buffer: *mut ::cor
         *buffer.offset(3_i32 as isize) = '\0' as i32 as ::core::ffi::c_char;
     } else {
         if value < 0_i32 as ::core::ffi::c_double {
-            let fresh0 = buffer;
+            *buffer = '-' as i32 as ::core::ffi::c_char;
             buffer = buffer.offset(1);
-            *fresh0 = '-' as i32 as ::core::ffi::c_char;
             value = -value;
         }
         let mut length: i32 = 0;
