@@ -79,7 +79,7 @@ pub(crate) unsafe fn classdef_from_raw(raw: *mut ClassDef) -> Option<Box<ClassDe
 pub(crate) unsafe fn push_class_def(cd: *mut ClassDef, h: GlyphHandle, cls: GlyphClass) {
     (*cd).glyphs.push(h);
     (*cd).classes.push(cls);
-    if cls as ::core::ffi::c_int > (*cd).maxclass as ::core::ffi::c_int {
+    if cls as i32 > (*cd).maxclass as i32 {
         (*cd).maxclass = cls;
     }
 }
@@ -235,19 +235,19 @@ pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> *mut Buffer {
     let mut last_gid: GlyphId = start_gid;
     let ranges: *mut Buffer = bufnew();
     let mut j_0: GlyphId = 1 as GlyphId;
-    while (j_0 as ::core::ffi::c_int) < jj as ::core::ffi::c_int {
+    while (j_0 as i32) < jj as i32 {
         let current: GlyphId = r[j_0 as usize].gid;
-        if !(current as ::core::ffi::c_int <= last_gid as ::core::ffi::c_int) {
-            if current as ::core::ffi::c_int
-                == end_gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int
-                && r[j_0 as usize].cid as ::core::ffi::c_int == last_class as ::core::ffi::c_int
+        if !(current as i32 <= last_gid as i32) {
+            if current as i32
+                == end_gid as i32 + 1_i32
+                && r[j_0 as usize].cid as i32 == last_class as i32
             {
                 end_gid = current;
             } else {
                 bufwrite16b(ranges, start_gid as u16);
                 bufwrite16b(ranges, end_gid as u16);
                 bufwrite16b(ranges, last_class as u16);
-                n_ranges = (n_ranges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+                n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
                 last_class = r[j_0 as usize].cid;
@@ -259,7 +259,7 @@ pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> *mut Buffer {
     bufwrite16b(ranges, start_gid as u16);
     bufwrite16b(ranges, end_gid as u16);
     bufwrite16b(ranges, last_class as u16);
-    n_ranges = (n_ranges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+    n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
     bufwrite16b(buf, n_ranges as u16);
     bufwrite_bufdel(buf, ranges);
     return buf;

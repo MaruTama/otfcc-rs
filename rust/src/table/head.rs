@@ -139,7 +139,7 @@ pub unsafe fn otfcc_dump_head(
         json_object_push(
             head,
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags((*table).flags as ::core::ffi::c_int, &HEAD_FLAGS_LABELS),
+            otfcc_dump_flags((*table).flags as i32, &HEAD_FLAGS_LABELS),
         );
         json_object_push(
             head,
@@ -179,7 +179,7 @@ pub unsafe fn otfcc_dump_head(
         json_object_push(
             head,
             b"macStyle\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags((*table).mac_style as ::core::ffi::c_int, &MAC_STYLE_LABELS),
+            otfcc_dump_flags((*table).mac_style as i32, &MAC_STYLE_LABELS),
         );
         json_object_push(
             head,
@@ -240,12 +240,12 @@ pub unsafe fn otfcc_parse_head(
             (*head).version = otfcc_to_fixed(json_obj_getnum_fallback(
                 table,
                 b"version\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ));
             (*head).font_revision = otfcc_to_fixed(json_obj_getnum_fallback(
                 table,
                 b"fontRevision\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             )) as u32;
             (*head).flags = otfcc_parse_flags(
                 json_obj_get(table, b"flags\0" as *const u8 as *const ::core::ffi::c_char),
@@ -254,37 +254,37 @@ pub unsafe fn otfcc_parse_head(
             (*head).units_per_em = json_obj_getnum_fallback(
                 table,
                 b"unitsPerEm\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as u16;
             (*head).created = json_obj_getnum_fallback(
                 table,
                 b"created\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i64;
             (*head).modified = json_obj_getnum_fallback(
                 table,
                 b"modified\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i64;
             (*head).x_min = json_obj_getnum_fallback(
                 table,
                 b"xMin\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*head).x_max = json_obj_getnum_fallback(
                 table,
                 b"xMax\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*head).y_min = json_obj_getnum_fallback(
                 table,
                 b"yMin\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*head).y_max = json_obj_getnum_fallback(
                 table,
                 b"yMax\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*head).mac_style = otfcc_parse_flags(
                 json_obj_get(
@@ -296,22 +296,22 @@ pub unsafe fn otfcc_parse_head(
             (*head).lowest_rec_ppem = json_obj_getnum_fallback(
                 table,
                 b"lowestRecPPEM\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as u16;
             (*head).font_directory_hint = json_obj_getnum_fallback(
                 table,
                 b"fontDirectoryHint\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*head).index_to_loc_format = json_obj_getnum_fallback(
                 table,
                 b"indexToLocFormat\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*head).glyph_data_format = json_obj_getnum_fallback(
                 table,
                 b"glyphDataFormat\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             ___loggedstep_v = false;
             logger_finish(&mut *options.logger.borrow_mut());

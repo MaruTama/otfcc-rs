@@ -36,10 +36,10 @@ pub struct GaspTable {
     pub version: u16,
     pub records: Vec<GaspRecord>,
 }
-pub const GASP_DOGRAY: ::core::ffi::c_int = 0x2 as ::core::ffi::c_int;
-pub const GASP_GRIDFIT: ::core::ffi::c_int = 0x1 as ::core::ffi::c_int;
-pub const GASP_SYMMETRIC_GRIDFIT: ::core::ffi::c_int = 0x4 as ::core::ffi::c_int;
-pub const GASP_SYMMETRIC_SMOOTHING: ::core::ffi::c_int = 0x8 as ::core::ffi::c_int;
+pub const GASP_DOGRAY: i32 = 0x2_i32;
+pub const GASP_GRIDFIT: i32 = 0x1_i32;
+pub const GASP_SYMMETRIC_GRIDFIT: i32 = 0x4_i32;
+pub const GASP_SYMMETRIC_SMOOTHING: i32 = 0x8_i32;
 fn parse_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
     let mut r = FontReader::new(data);
     let version = r.u16()?;
@@ -106,22 +106,22 @@ pub unsafe fn otfcc_dump_gasp(
             json_object_push(
                 rec,
                 b"dogray\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(records[j as usize].dogray as ::core::ffi::c_int),
+                json_boolean_new(records[j as usize].dogray as i32),
             );
             json_object_push(
                 rec,
                 b"gridfit\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(records[j as usize].gridfit as ::core::ffi::c_int),
+                json_boolean_new(records[j as usize].gridfit as i32),
             );
             json_object_push(
                 rec,
                 b"symmetric_smoothing\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(records[j as usize].symmetric_smoothing as ::core::ffi::c_int),
+                json_boolean_new(records[j as usize].symmetric_smoothing as i32),
             );
             json_object_push(
                 rec,
                 b"symmetric_gridfit\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(records[j as usize].symmetric_gridfit as ::core::ffi::c_int),
+                json_boolean_new(records[j as usize].symmetric_gridfit as i32),
             );
             json_array_push(t, rec);
             j = j.wrapping_add(1);
@@ -213,22 +213,22 @@ pub unsafe fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> *mut Buffer {
         bufwrite16b(buf, (*r).range_max_ppem as u16);
         bufwrite16b(
             buf,
-            ((if (*r).dogray as ::core::ffi::c_int != 0 {
+            ((if (*r).dogray as i32 != 0 {
                 GASP_DOGRAY
             } else {
-                0 as ::core::ffi::c_int
-            }) | (if (*r).gridfit as ::core::ffi::c_int != 0 {
+                0_i32
+            }) | (if (*r).gridfit as i32 != 0 {
                 GASP_GRIDFIT
             } else {
-                0 as ::core::ffi::c_int
-            }) | (if (*r).symmetric_gridfit as ::core::ffi::c_int != 0 {
+                0_i32
+            }) | (if (*r).symmetric_gridfit as i32 != 0 {
                 GASP_SYMMETRIC_GRIDFIT
             } else {
-                0 as ::core::ffi::c_int
-            }) | (if (*r).symmetric_smoothing as ::core::ffi::c_int != 0 {
+                0_i32
+            }) | (if (*r).symmetric_smoothing as i32 != 0 {
                 GASP_SYMMETRIC_SMOOTHING
             } else {
-                0 as ::core::ffi::c_int
+                0_i32
             })) as u16,
         );
         j = j.wrapping_add(1);

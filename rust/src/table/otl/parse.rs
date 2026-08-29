@@ -314,8 +314,8 @@ unsafe fn _declare_lookup_parser(
         b"markAttachmentType\0" as *const u8 as *const ::core::ffi::c_char,
     ) as u16;
     if mark_attachment_type != 0 {
-        (*lookup).flags = ((*lookup).flags as ::core::ffi::c_int
-            | (mark_attachment_type as ::core::ffi::c_int) << 8 as ::core::ffi::c_int)
+        (*lookup).flags = ((*lookup).flags as i32
+            | (mark_attachment_type as i32) << 8_i32)
             as u16;
     }
     let subtable_count: TableId = json_arr_len(_subtables) as TableId;
@@ -326,7 +326,7 @@ unsafe fn _declare_lookup_parser(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < subtable_count as ::core::ffi::c_int {
+        while (j as i32) < subtable_count as i32 {
             let mut _subtable: *const ParsedValue = json_arr_at(_subtables, j as u32);
             if !_subtable.is_null() && json_type_of(_subtable) == JsonType::Object {
                 let mut _st: *mut Subtable =
@@ -383,7 +383,7 @@ unsafe fn figure_out_lookups_from_json(
                 );
             }
         } else if json_type_of(lookup_val) as ::core::ffi::c_uint
-            == JsonType::String as ::core::ffi::c_int as ::core::ffi::c_uint
+            == JsonType::String as i32 as ::core::ffi::c_uint
         {
             let thatname: *mut ::core::ffi::c_char = json_str_ptr(lookup_val);
             // Alias's own name is never checked against existing entries
@@ -429,9 +429,9 @@ unsafe fn feature_merger_activate(
                 let jthat: *const ParsedValue = json_obj_val_at(d, k);
                 let kthat: *mut ::core::ffi::c_char = json_obj_key_at(d, k);
                 if *jthis == *jthat
-                    && (if sametag as ::core::ffi::c_int != 0 {
-                        (strncmp(kthis, kthat, 4_usize) == 0 as ::core::ffi::c_int)
-                            as ::core::ffi::c_int
+                    && (if sametag as i32 != 0 {
+                        (strncmp(kthis, kthat, 4_usize) == 0_i32)
+                            as i32
                     } else {
                         TRUE_0
                     }) != 0
@@ -583,8 +583,8 @@ unsafe fn figure_out_features_from_json(
 }
 pub unsafe fn is_valid_language_name(name: *const ::core::ffi::c_char, length: usize) -> bool {
     return length == 9_usize
-        && *name.offset(4 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-            == SCRIPT_LANGUAGE_SEPARATOR as ::core::ffi::c_int;
+        && *name.offset(4_i32 as isize) as i32
+            == SCRIPT_LANGUAGE_SEPARATOR as i32;
 }
 unsafe fn figure_out_languages_from_json(
     languages: *const ParsedValue,
@@ -599,7 +599,7 @@ unsafe fn figure_out_languages_from_json(
         let language_name: *mut ::core::ffi::c_char = json_obj_key_at(languages, j);
         let language_name_len: usize = json_obj_key_len_at(languages, j) as usize;
         let mut _language: *const ParsedValue = json_obj_val_at(languages, j);
-        if is_valid_language_name(language_name, language_name_len) as ::core::ffi::c_int != 0
+        if is_valid_language_name(language_name, language_name_len) as i32 != 0
             && json_type_of(_language) == JsonType::Object
         {
             let mut required_feature: *mut Feature = ::core::ptr::null_mut::<Feature>();

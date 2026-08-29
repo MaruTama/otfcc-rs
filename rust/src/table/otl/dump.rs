@@ -46,14 +46,14 @@ unsafe fn _declare_lookup_dumper(
         json_object_push(
             dump,
             b"flags\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags((*lookup).flags as ::core::ffi::c_int, &LOOKUP_FLAGS_LABELS),
+            otfcc_dump_flags((*lookup).flags as i32, &LOOKUP_FLAGS_LABELS),
         );
-        if (*lookup).flags as ::core::ffi::c_int >> 8 as ::core::ffi::c_int != 0 {
+        if (*lookup).flags as i32 >> 8_i32 != 0 {
             json_object_push(
                 dump,
                 b"markAttachmentType\0" as *const u8 as *const ::core::ffi::c_char,
                 json_integer_new(
-                    ((*lookup).flags as ::core::ffi::c_int >> 8 as ::core::ffi::c_int) as i64,
+                    ((*lookup).flags as i32 >> 8_i32) as i64,
                 ),
             );
         }

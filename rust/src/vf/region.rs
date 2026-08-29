@@ -45,7 +45,7 @@ pub unsafe fn vq_copy_region(region: *const VqRegion) -> *mut VqRegion {
 // byte-for-byte identity -- that stricter semantics is preserved instead
 // in `RegionKey` (`table/fvar.rs`), which still needs it for `IndexMap`
 // dedup.
-pub unsafe fn vq_compare_region(a: *const VqRegion, b: *const VqRegion) -> ::core::ffi::c_int {
+pub unsafe fn vq_compare_region(a: *const VqRegion, b: *const VqRegion) -> i32 {
     if (*a).dimensions < (*b).dimensions {
         return -1;
     }
@@ -64,10 +64,10 @@ pub unsafe fn vq_axis_span_is_one(s: *const VqAxisSpan) -> bool {
     let z: Pos = (*s).end;
     return a > p
         || p > z
-        || a < 0 as ::core::ffi::c_int as Pos
-            && z > 0 as ::core::ffi::c_int as Pos
-            && p != 0 as ::core::ffi::c_int as Pos
-        || p == 0 as ::core::ffi::c_int as Pos;
+        || a < 0_i32 as Pos
+            && z > 0_i32 as Pos
+            && p != 0_i32 as Pos
+        || p == 0_i32 as Pos;
 }
 #[inline]
 unsafe fn weight_axis_region(as_0: *const VqAxisSpan, x: Pos) -> Pos {
@@ -75,18 +75,18 @@ unsafe fn weight_axis_region(as_0: *const VqAxisSpan, x: Pos) -> Pos {
     let p: Pos = (*as_0).peak;
     let z: Pos = (*as_0).end;
     if a > p || p > z {
-        return 1 as ::core::ffi::c_int as Pos;
-    } else if a < 0 as ::core::ffi::c_int as Pos
-        && z > 0 as ::core::ffi::c_int as Pos
-        && p != 0 as ::core::ffi::c_int as Pos
+        return 1_i32 as Pos;
+    } else if a < 0_i32 as Pos
+        && z > 0_i32 as Pos
+        && p != 0_i32 as Pos
     {
-        return 1 as ::core::ffi::c_int as Pos;
-    } else if p == 0 as ::core::ffi::c_int as Pos {
-        return 1 as ::core::ffi::c_int as Pos;
+        return 1_i32 as Pos;
+    } else if p == 0_i32 as Pos {
+        return 1_i32 as Pos;
     } else if x < a || x > z {
-        return 0 as ::core::ffi::c_int as Pos;
+        return 0_i32 as Pos;
     } else if x == p {
-        return 1 as ::core::ffi::c_int as Pos;
+        return 1_i32 as Pos;
     } else if x < p {
         return (x - a) / (p - a);
     } else {
@@ -95,7 +95,7 @@ unsafe fn weight_axis_region(as_0: *const VqAxisSpan, x: Pos) -> Pos {
 }
 pub unsafe fn vq_region_get_weight(r: *const VqRegion, v: *const VV) -> Pos {
     let coords: &Vec<Pos> = &*v;
-    let mut w: Pos = 1 as ::core::ffi::c_int as Pos;
+    let mut w: Pos = 1_i32 as Pos;
     let mut j: usize = 0_usize;
     while j < (*r).dimensions as usize && !coords.is_empty() {
         w *= weight_axis_region(&(&(*r).spans)[j] as *const VqAxisSpan, coords[j]);

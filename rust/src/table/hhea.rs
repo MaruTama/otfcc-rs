@@ -161,7 +161,7 @@ pub unsafe fn otfcc_parse_hhea(
     options: &Options,
 ) -> Option<Box<HheaTable>> {
     let mut hhea_val: HheaTable = ::core::mem::zeroed();
-    hhea_val.version = 0x10000 as ::core::ffi::c_int as F16Dot16;
+    hhea_val.version = 0x10000_i32 as F16Dot16;
     let mut hhea_box: Box<HheaTable> = Box::new(hhea_val);
     let hhea: *mut HheaTable = hhea_box.as_mut() as *mut HheaTable;
     let table: *const ParsedValue;
@@ -180,57 +180,57 @@ pub unsafe fn otfcc_parse_hhea(
             (*hhea).version = otfcc_to_fixed(json_obj_getnum_fallback(
                 table,
                 b"version\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ));
             (*hhea).ascender = json_obj_getnum_fallback(
                 table,
                 b"ascender\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*hhea).descender = json_obj_getnum_fallback(
                 table,
                 b"descender\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*hhea).line_gap = json_obj_getnum_fallback(
                 table,
                 b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*hhea).advance_width_max = json_obj_getnum_fallback(
                 table,
                 b"advanceWidthMax\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as u16;
             (*hhea).min_left_side_bearing = json_obj_getnum_fallback(
                 table,
                 b"minLeftSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*hhea).min_right_side_bearing = json_obj_getnum_fallback(
                 table,
                 b"minRightSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*hhea).x_max_extent = json_obj_getnum_fallback(
                 table,
                 b"xMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*hhea).caret_slope_rise = json_obj_getnum_fallback(
                 table,
                 b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*hhea).caret_slope_run = json_obj_getnum_fallback(
                 table,
                 b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             (*hhea).caret_offset = json_obj_getnum_fallback(
                 table,
                 b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
-                0 as ::core::ffi::c_int as ::core::ffi::c_double,
+                0_i32 as ::core::ffi::c_double,
             ) as i16;
             ___loggedstep_v = false;
             logger_finish(&mut *options.logger.borrow_mut());
@@ -258,19 +258,19 @@ pub unsafe fn otfcc_build_hhea(hhea: Option<&HheaTable>) -> *mut Buffer {
     bufwrite16b(buf, (*hhea).caret_offset as u16);
     bufwrite16b(
         buf,
-        (*hhea).reserved[0 as ::core::ffi::c_int as usize] as u16,
+        (*hhea).reserved[0_i32 as usize] as u16,
     );
     bufwrite16b(
         buf,
-        (*hhea).reserved[1 as ::core::ffi::c_int as usize] as u16,
+        (*hhea).reserved[1_i32 as usize] as u16,
     );
     bufwrite16b(
         buf,
-        (*hhea).reserved[2 as ::core::ffi::c_int as usize] as u16,
+        (*hhea).reserved[2_i32 as usize] as u16,
     );
     bufwrite16b(
         buf,
-        (*hhea).reserved[3 as ::core::ffi::c_int as usize] as u16,
+        (*hhea).reserved[3_i32 as usize] as u16,
     );
     bufwrite16b(buf, 0_u16);
     bufwrite16b(buf, (*hhea).number_of_metrics);

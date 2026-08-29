@@ -32,63 +32,63 @@ pub unsafe fn base64_encode(
     while end.offset_from(in_0) as ::core::ffi::c_long >= 3 as ::core::ffi::c_long {
         let fresh0 = pos;
         pos = pos.offset(1);
-        *fresh0 = BASE64_TABLE[(*in_0.offset(0 as ::core::ffi::c_int as isize)
-            as ::core::ffi::c_int
-            >> 2 as ::core::ffi::c_int) as usize];
+        *fresh0 = BASE64_TABLE[(*in_0.offset(0_i32 as isize)
+            as i32
+            >> 2_i32) as usize];
         let fresh1 = pos;
         pos = pos.offset(1);
-        *fresh1 = BASE64_TABLE[((*in_0.offset(0 as ::core::ffi::c_int as isize)
-            as ::core::ffi::c_int
-            & 0x3 as ::core::ffi::c_int)
-            << 4 as ::core::ffi::c_int
-            | *in_0.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-                >> 4 as ::core::ffi::c_int) as usize];
+        *fresh1 = BASE64_TABLE[((*in_0.offset(0_i32 as isize)
+            as i32
+            & 0x3_i32)
+            << 4_i32
+            | *in_0.offset(1_i32 as isize) as i32
+                >> 4_i32) as usize];
         let fresh2 = pos;
         pos = pos.offset(1);
-        *fresh2 = BASE64_TABLE[((*in_0.offset(1 as ::core::ffi::c_int as isize)
-            as ::core::ffi::c_int
-            & 0xf as ::core::ffi::c_int)
-            << 2 as ::core::ffi::c_int
-            | *in_0.offset(2 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-                >> 6 as ::core::ffi::c_int) as usize];
+        *fresh2 = BASE64_TABLE[((*in_0.offset(1_i32 as isize)
+            as i32
+            & 0xf_i32)
+            << 2_i32
+            | *in_0.offset(2_i32 as isize) as i32
+                >> 6_i32) as usize];
         let fresh3 = pos;
         pos = pos.offset(1);
-        *fresh3 = BASE64_TABLE[(*in_0.offset(2 as ::core::ffi::c_int as isize)
-            as ::core::ffi::c_int
-            & 0x3f as ::core::ffi::c_int) as usize];
-        in_0 = in_0.offset(3 as ::core::ffi::c_int as isize);
+        *fresh3 = BASE64_TABLE[(*in_0.offset(2_i32 as isize)
+            as i32
+            & 0x3f_i32) as usize];
+        in_0 = in_0.offset(3_i32 as isize);
     }
     if end.offset_from(in_0) as ::core::ffi::c_long != 0 {
         let fresh4 = pos;
         pos = pos.offset(1);
-        *fresh4 = BASE64_TABLE[(*in_0.offset(0 as ::core::ffi::c_int as isize)
-            as ::core::ffi::c_int
-            >> 2 as ::core::ffi::c_int) as usize];
+        *fresh4 = BASE64_TABLE[(*in_0.offset(0_i32 as isize)
+            as i32
+            >> 2_i32) as usize];
         if end.offset_from(in_0) as ::core::ffi::c_long == 1 as ::core::ffi::c_long {
             let fresh5 = pos;
             pos = pos.offset(1);
-            *fresh5 = BASE64_TABLE[((*in_0.offset(0 as ::core::ffi::c_int as isize)
-                as ::core::ffi::c_int
-                & 0x3 as ::core::ffi::c_int)
-                << 4 as ::core::ffi::c_int) as usize];
+            *fresh5 = BASE64_TABLE[((*in_0.offset(0_i32 as isize)
+                as i32
+                & 0x3_i32)
+                << 4_i32) as usize];
             let fresh6 = pos;
             pos = pos.offset(1);
             *fresh6 = '=' as i32 as u8;
         } else {
             let fresh7 = pos;
             pos = pos.offset(1);
-            *fresh7 = BASE64_TABLE[((*in_0.offset(0 as ::core::ffi::c_int as isize)
-                as ::core::ffi::c_int
-                & 0x3 as ::core::ffi::c_int)
-                << 4 as ::core::ffi::c_int
-                | *in_0.offset(1 as ::core::ffi::c_int as isize) as ::core::ffi::c_int
-                    >> 4 as ::core::ffi::c_int) as usize];
+            *fresh7 = BASE64_TABLE[((*in_0.offset(0_i32 as isize)
+                as i32
+                & 0x3_i32)
+                << 4_i32
+                | *in_0.offset(1_i32 as isize) as i32
+                    >> 4_i32) as usize];
             let fresh8 = pos;
             pos = pos.offset(1);
-            *fresh8 = BASE64_TABLE[((*in_0.offset(1 as ::core::ffi::c_int as isize)
-                as ::core::ffi::c_int
-                & 0xf as ::core::ffi::c_int)
-                << 2 as ::core::ffi::c_int) as usize];
+            *fresh8 = BASE64_TABLE[((*in_0.offset(1_i32 as isize)
+                as i32
+                & 0xf_i32)
+                << 2_i32) as usize];
         }
         let fresh9 = pos;
         pos = pos.offset(1);
@@ -115,7 +115,7 @@ pub unsafe fn base64_decode(
     let mut count: usize;
     memset(
         &raw mut dtable as *mut u8 as *mut ::core::ffi::c_void,
-        0x80 as ::core::ffi::c_int,
+        0x80_i32,
         256_usize,
     );
     i = 0_usize;
@@ -127,8 +127,8 @@ pub unsafe fn base64_decode(
     count = 0_usize;
     i = 0_usize;
     while i < len {
-        if dtable[*src.offset(i as isize) as usize] as ::core::ffi::c_int
-            != 0x80 as ::core::ffi::c_int
+        if dtable[*src.offset(i as isize) as usize] as i32
+            != 0x80_i32
         {
             count = count.wrapping_add(1);
         }
@@ -146,28 +146,28 @@ pub unsafe fn base64_decode(
     i = 0_usize;
     while i < len {
         tmp = dtable[*src.offset(i as isize) as usize];
-        if !(tmp as ::core::ffi::c_int == 0x80 as ::core::ffi::c_int) {
+        if !(tmp as i32 == 0x80_i32) {
             in_0[count] = *src.offset(i as isize);
             block[count] = tmp;
             count = count.wrapping_add(1);
             if count == 4_usize {
                 let fresh10 = pos;
                 pos = pos.offset(1);
-                *fresh10 = ((block[0 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
-                    << 2 as ::core::ffi::c_int
-                    | block[1 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
-                        >> 4 as ::core::ffi::c_int) as u8;
+                *fresh10 = ((block[0_i32 as usize] as i32)
+                    << 2_i32
+                    | block[1_i32 as usize] as i32
+                        >> 4_i32) as u8;
                 let fresh11 = pos;
                 pos = pos.offset(1);
-                *fresh11 = ((block[1 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
-                    << 4 as ::core::ffi::c_int
-                    | block[2 as ::core::ffi::c_int as usize] as ::core::ffi::c_int
-                        >> 2 as ::core::ffi::c_int) as u8;
+                *fresh11 = ((block[1_i32 as usize] as i32)
+                    << 4_i32
+                    | block[2_i32 as usize] as i32
+                        >> 2_i32) as u8;
                 let fresh12 = pos;
                 pos = pos.offset(1);
-                *fresh12 = ((block[2 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
-                    << 6 as ::core::ffi::c_int
-                    | block[3 as ::core::ffi::c_int as usize] as ::core::ffi::c_int)
+                *fresh12 = ((block[2_i32 as usize] as i32)
+                    << 6_i32
+                    | block[3_i32 as usize] as i32)
                     as u8;
                 count = 0_usize;
             }
@@ -175,9 +175,9 @@ pub unsafe fn base64_decode(
         i = i.wrapping_add(1);
     }
     if pos > out {
-        if in_0[2 as ::core::ffi::c_int as usize] as ::core::ffi::c_int == '=' as i32 {
-            pos = pos.offset(-(2 as ::core::ffi::c_int as isize));
-        } else if in_0[3 as ::core::ffi::c_int as usize] as ::core::ffi::c_int == '=' as i32 {
+        if in_0[2_i32 as usize] as i32 == '=' as i32 {
+            pos = pos.offset(-(2_i32 as isize));
+        } else if in_0[3_i32 as usize] as i32 == '=' as i32 {
             pos = pos.offset(-1);
         }
     }

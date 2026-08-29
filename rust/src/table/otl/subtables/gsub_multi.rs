@@ -170,21 +170,21 @@ unsafe fn build_gsub_multi_subtable_range(
         ),
         bk_int(
             BkCellType::B16,
-            (end as ::core::ffi::c_int - start as ::core::ffi::c_int) as u32,
+            (end as i32 - start as i32) as u32,
         ),
     ]);
     for j_0 in start..end {
         let to: *const Coverage = &(&(*subtable))[j_0 as usize].to;
         let b: *mut BkBlock = bk_new_block(&[bk_int(
             BkCellType::B16,
-            ((*to).len() as ::core::ffi::c_int) as u32,
+            ((*to).len() as i32) as u32,
         )]);
         for k in 0..(*to).len() {
             bk_push(
                 b,
                 &[bk_int(
                     BkCellType::B16,
-                    ((&(*to))[k].index as ::core::ffi::c_int) as u32,
+                    ((&(*to))[k].index as i32) as u32,
                 )],
             );
         }
@@ -193,7 +193,7 @@ unsafe fn build_gsub_multi_subtable_range(
     otl_coverage_free(cov);
     return bk_build_block(root);
 }
-pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: ::core::ffi::c_int = 0xff00 as ::core::ffi::c_int;
+pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: i32 = 0xff00_i32;
 pub unsafe fn otfcc_build_gsub_multi_subtable_split(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
@@ -207,14 +207,14 @@ pub unsafe fn otfcc_build_gsub_multi_subtable_split(
     let mut n_parts: TableId = 0 as TableId;
     let mut start: GlyphId = 0 as GlyphId;
     while (start as usize) < (*subtable).len() {
-        let mut size: usize = (6 as ::core::ffi::c_int + 4 as ::core::ffi::c_int) as usize;
+        let mut size: usize = (6_i32 + 4_i32) as usize;
         let mut end: GlyphId = start;
         while (end as usize) < (*subtable).len() {
-            let entry_size: usize = ((2 as ::core::ffi::c_int
-                + 2 as ::core::ffi::c_int
-                + 2 as ::core::ffi::c_int) as usize)
+            let entry_size: usize = ((2_i32
+                + 2_i32
+                + 2_i32) as usize)
                 .wrapping_add(((&(*subtable))[end as usize].to.len()).wrapping_mul(2_usize));
-            if end as ::core::ffi::c_int > start as ::core::ffi::c_int
+            if end as i32 > start as i32
                 && size.wrapping_add(entry_size) > GSUB_MULTI_SUBTABLE_SIZE_LIMIT as usize
             {
                 break;
@@ -225,7 +225,7 @@ pub unsafe fn otfcc_build_gsub_multi_subtable_split(
         parts = __caryll_reallocate(
             parts as *mut ::core::ffi::c_void,
             (::core::mem::size_of::<*mut Buffer>() as usize)
-                .wrapping_mul((n_parts as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize),
+                .wrapping_mul((n_parts as i32 + 1_i32) as usize),
             125 as ::core::ffi::c_ulong,
         ) as *mut *mut Buffer;
         let ref mut fresh2 = *parts.offset(n_parts as isize);
@@ -239,7 +239,7 @@ pub unsafe fn otfcc_build_gsub_multi_subtable_split(
             (::core::mem::size_of::<*mut Buffer>() as usize).wrapping_mul(1_usize),
             132 as ::core::ffi::c_ulong,
         ) as *mut *mut Buffer;
-        let ref mut fresh3 = *parts.offset(0 as ::core::ffi::c_int as isize);
+        let ref mut fresh3 = *parts.offset(0_i32 as isize);
         *fresh3 = build_gsub_multi_subtable_range(subtable, 0 as GlyphId, 0 as GlyphId);
         n_parts = 1 as TableId;
     }

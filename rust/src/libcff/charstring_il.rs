@@ -158,48 +158,48 @@ unsafe fn _il_push_maskgroup(
 ) {
     let masks: &Vec<PostscriptHintMask> = &*masks;
     let n: ShapeId = masks.len() as ShapeId;
-    while (*jm as ::core::ffi::c_int) < n as ::core::ffi::c_int
-        && ((masks[*jm as usize].contours_before as ::core::ffi::c_int)
-            < contours as ::core::ffi::c_int
-            || masks[*jm as usize].contours_before as ::core::ffi::c_int
-                == contours as ::core::ffi::c_int
-                && masks[*jm as usize].points_before as ::core::ffi::c_int
-                    <= points as ::core::ffi::c_int)
+    while (*jm as i32) < n as i32
+        && ((masks[*jm as usize].contours_before as i32)
+            < contours as i32
+            || masks[*jm as usize].contours_before as i32
+                == contours as i32
+                && masks[*jm as usize].points_before as i32
+                    <= points as i32)
     {
         il_push_op(il, op);
         let mut mask_byte: u8 = 0_u8;
         let mut bits: u8 = 0_u8;
         let mut j: u16 = 0_u16;
-        while (j as ::core::ffi::c_int) < nh as ::core::ffi::c_int {
-            mask_byte = ((mask_byte as ::core::ffi::c_int) << 1 as ::core::ffi::c_int
-                | masks[*jm as usize].mask_h[j as usize] as ::core::ffi::c_int
-                    & 1 as ::core::ffi::c_int) as u8;
-            bits = (bits as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
-            if bits as ::core::ffi::c_int == 8 as ::core::ffi::c_int {
+        while (j as i32) < nh as i32 {
+            mask_byte = ((mask_byte as i32) << 1_i32
+                | masks[*jm as usize].mask_h[j as usize] as i32
+                    & 1_i32) as u8;
+            bits = (bits as i32 + 1_i32) as u8;
+            if bits as i32 == 8_i32 {
                 il_push_special(il, mask_byte as i32);
                 bits = 0_u8;
             }
             j = j.wrapping_add(1);
         }
         let mut j_0: u16 = 0_u16;
-        while (j_0 as ::core::ffi::c_int) < nv as ::core::ffi::c_int {
-            mask_byte = ((mask_byte as ::core::ffi::c_int) << 1 as ::core::ffi::c_int
-                | masks[*jm as usize].mask_v[j_0 as usize] as ::core::ffi::c_int
-                    & 1 as ::core::ffi::c_int) as u8;
-            bits = (bits as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8;
-            if bits as ::core::ffi::c_int == 8 as ::core::ffi::c_int {
+        while (j_0 as i32) < nv as i32 {
+            mask_byte = ((mask_byte as i32) << 1_i32
+                | masks[*jm as usize].mask_v[j_0 as usize] as i32
+                    & 1_i32) as u8;
+            bits = (bits as i32 + 1_i32) as u8;
+            if bits as i32 == 8_i32 {
                 il_push_special(il, mask_byte as i32);
                 bits = 0_u8;
             }
             j_0 = j_0.wrapping_add(1);
         }
         if bits != 0 {
-            mask_byte = ((mask_byte as ::core::ffi::c_int)
-                << 8 as ::core::ffi::c_int - bits as ::core::ffi::c_int)
+            mask_byte = ((mask_byte as i32)
+                << 8_i32 - bits as i32)
                 as u8;
             il_push_special(il, mask_byte as i32);
         }
-        *jm = (*jm as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
+        *jm = (*jm as i32 + 1_i32) as u16;
     }
 }
 unsafe fn il_push_masks(
@@ -248,11 +248,11 @@ unsafe fn _il_push_stemgroup(
         return;
     }
     let stems: &Vec<PostscriptStemDef> = &*stems;
-    let mut ref_0: Pos = 0 as ::core::ffi::c_int as Pos;
-    let mut nn: u16 = (if haswidth as ::core::ffi::c_int != 0 {
-        1 as ::core::ffi::c_int
+    let mut ref_0: Pos = 0_i32 as Pos;
+    let mut nn: u16 = (if haswidth as i32 != 0 {
+        1_i32
     } else {
-        0 as ::core::ffi::c_int
+        0_i32
     }) as u16;
     let mut j: u16 = 0_u16;
     while (j as usize) < stems.len() {
@@ -368,7 +368,7 @@ pub unsafe fn cff_compile_glyph_to_il(
     // when this function returns -- no explicit dispose call is needed.
     let hasmask: bool = !(*g).hint_masks.is_empty() || !(*g).contour_masks.is_empty();
     let glyph_adw_const: Pos = vq_get_still((*g).advance_width.clone()) as Pos;
-    let haswidth: bool = glyph_adw_const != default_width as ::core::ffi::c_int as Pos;
+    let haswidth: bool = glyph_adw_const != default_width as i32 as Pos;
     if haswidth {
         // `glyph_adw_const` is attacker-controlled JSON (`advanceWidth`),
         // cast from `f64` -- `as c_int` already saturates a huge magnitude
@@ -381,8 +381,8 @@ pub unsafe fn cff_compile_glyph_to_il(
         // extreme case clamp instead of either.
         il_push_operand(
             il,
-            (glyph_adw_const as ::core::ffi::c_int)
-                .saturating_sub(nominal_width as ::core::ffi::c_int)
+            (glyph_adw_const as i32)
+                .saturating_sub(nominal_width as i32)
                 as ::core::ffi::c_double,
         );
     }
@@ -405,7 +405,7 @@ pub unsafe fn cff_compile_glyph_to_il(
     while (c_0 as usize) < (*g).contours.len() {
         let contour_0: *const Contour = temp_contours.offset(c_0 as isize);
         let n: ShapeId = (*contour_0).len() as ShapeId;
-        if !(n as ::core::ffi::c_int == 0 as ::core::ffi::c_int) {
+        if !(n as i32 == 0_i32) {
             il_moveto(
                 il,
                 (&(*contour_0))[0_usize].x.clone(),
@@ -423,7 +423,7 @@ pub unsafe fn cff_compile_glyph_to_il(
                 );
             }
             let mut j_1: ShapeId = 1 as ShapeId;
-            while (j_1 as ::core::ffi::c_int) < n as ::core::ffi::c_int {
+            while (j_1 as i32) < n as i32 {
                 if (&(*contour_0))[j_1 as usize].on_curve != 0 {
                     il_lineto(
                         il,
@@ -431,16 +431,16 @@ pub unsafe fn cff_compile_glyph_to_il(
                         (&(*contour_0))[j_1 as usize].y.clone(),
                     );
                     points_sofar =
-                        (points_sofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
-                } else if (j_1 as ::core::ffi::c_int)
-                    < n as ::core::ffi::c_int - 2 as ::core::ffi::c_int
+                        (points_sofar as i32 + 1_i32) as ShapeId;
+                } else if (j_1 as i32)
+                    < n as i32 - 2_i32
                     && (&(*contour_0))
-                        [(j_1 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize]
+                        [(j_1 as i32 + 1_i32) as usize]
                         .on_curve
                         == 0
                     && (&(*contour_0))
-                        [(j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as usize]
-                        .on_curve as ::core::ffi::c_int
+                        [(j_1 as i32 + 2_i32) as usize]
+                        .on_curve as i32
                         != 0
                 {
                     il_curveto(
@@ -448,25 +448,25 @@ pub unsafe fn cff_compile_glyph_to_il(
                         (&(*contour_0))[j_1 as usize].x.clone(),
                         (&(*contour_0))[j_1 as usize].y.clone(),
                         (&(*contour_0))
-                            [(j_1 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize]
+                            [(j_1 as i32 + 1_i32) as usize]
                             .x
                             .clone(),
                         (&(*contour_0))
-                            [(j_1 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize]
+                            [(j_1 as i32 + 1_i32) as usize]
                             .y
                             .clone(),
                         (&(*contour_0))
-                            [(j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as usize]
+                            [(j_1 as i32 + 2_i32) as usize]
                             .x
                             .clone(),
                         (&(*contour_0))
-                            [(j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as usize]
+                            [(j_1 as i32 + 2_i32) as usize]
                             .y
                             .clone(),
                     );
                     points_sofar =
-                        (points_sofar as ::core::ffi::c_int + 3 as ::core::ffi::c_int) as ShapeId;
-                    j_1 = (j_1 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as ShapeId;
+                        (points_sofar as i32 + 3_i32) as ShapeId;
+                    j_1 = (j_1 as i32 + 2_i32) as ShapeId;
                 } else {
                     il_lineto(
                         il,
@@ -488,7 +488,7 @@ pub unsafe fn cff_compile_glyph_to_il(
                 j_1 = j_1.wrapping_add(1);
             }
             contours_sofar =
-                (contours_sofar as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as ShapeId;
+                (contours_sofar as i32 + 1_i32) as ShapeId;
             points_sofar = 0 as ShapeId;
         }
         c_0 = c_0.wrapping_add(1);
@@ -551,7 +551,7 @@ unsafe fn zroll(
     zeros: &[bool],
 ) -> u8 {
     let arity: u8 = cff_get_standard_arity(op);
-    if arity as ::core::ffi::c_int > 16 as ::core::ffi::c_int
+    if arity as i32 > 16_i32
         || j.wrapping_add(arity as u32) >= (*il).instr.len() as u32
     {
         return 0_u8;
@@ -563,13 +563,13 @@ unsafe fn zroll(
             j,
             CffInstructionType::PhantomOperator,
         ))
-        && il_matchop(il, j.wrapping_add(arity as u32), op) as ::core::ffi::c_int != 0
+        && il_matchop(il, j.wrapping_add(arity as u32), op) as i32 != 0
         && il_matchtype(
             il,
             j,
             j.wrapping_add(arity as u32),
             CffInstructionType::Operand,
-        ) as ::core::ffi::c_int
+        ) as i32
             != 0
     {
         let mut check: u8 = TRUE_0 as u8;
@@ -585,11 +585,11 @@ unsafe fn zroll(
             let checkzero: bool = zeros[m as usize];
             mask[m as usize] = checkzero;
             if checkzero {
-                result_arity = (result_arity as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as u8;
-                check = (check as ::core::ffi::c_int != 0
+                result_arity = (result_arity as i32 - 1_i32) as u8;
+                check = (check as i32 != 0
                     && (*(*il).instr.as_mut_ptr().offset(j.wrapping_add(m) as isize)).d()
-                        == 0 as ::core::ffi::c_int as ::core::ffi::c_double)
-                    as ::core::ffi::c_int as u8;
+                        == 0_i32 as ::core::ffi::c_double)
+                    as i32 as u8;
             }
             m = m.wrapping_add(1);
         }
@@ -639,16 +639,16 @@ unsafe fn opop_roll(
         .instr
         .as_mut_ptr()
         .offset(j.wrapping_add(1_u32).wrapping_add(arity as u32) as isize);
-    if il_matchop(il, j, op1) as ::core::ffi::c_int != 0
+    if il_matchop(il, j, op1) as i32 != 0
         && il_matchtype(
             il,
             j.wrapping_add(1_u32),
             j.wrapping_add(1_u32).wrapping_add(arity as u32),
             CffInstructionType::Operand,
-        ) as ::core::ffi::c_int
+        ) as i32
             != 0
         && il_matchop(il, j.wrapping_add(1_u32).wrapping_add(arity as u32), op2)
-            as ::core::ffi::c_int
+            as i32
             != 0
         && (*current).arity.wrapping_add((*nextop).arity) <= TYPE2_ARGUMENT_STACK
     {
@@ -673,32 +673,32 @@ unsafe fn hvlineto_roll(il: *mut CffCharstringIl, j: u32) -> u8 {
     // effect beyond a discarded garbage value; a real enum panics instead,
     // so the check now runs first, preserving the exact same behavior --
     // `checkdelta` was always discarded whenever that check failed).
-    if !(il_matchop(il, j, OP_HLINETO) as ::core::ffi::c_int != 0
-        || il_matchop(il, j, OP_VLINETO) as ::core::ffi::c_int != 0)
+    if !(il_matchop(il, j, OP_HLINETO) as i32 != 0
+        || il_matchop(il, j, OP_VLINETO) as i32 != 0)
     {
         return 0_u8;
     }
-    let checkdelta: u32 = (if ((*current).arity & 1 as Arity != 0) as ::core::ffi::c_int
-        ^ ((*current).i() == OP_VLINETO.0) as ::core::ffi::c_int
+    let checkdelta: u32 = (if ((*current).arity & 1 as Arity != 0) as i32
+        ^ ((*current).i() == OP_VLINETO.0) as i32
         != 0
     {
-        1 as ::core::ffi::c_int
+        1_i32
     } else {
-        2 as ::core::ffi::c_int
+        2_i32
     }) as u32;
-    if il_matchop(il, j.wrapping_add(3_u32), OP_RLINETO) as ::core::ffi::c_int != 0
+    if il_matchop(il, j.wrapping_add(3_u32), OP_RLINETO) as i32 != 0
         && il_matchtype(
             il,
             j.wrapping_add(1_u32),
             j.wrapping_add(3_u32),
             CffInstructionType::Operand,
-        ) as ::core::ffi::c_int
+        ) as i32
             != 0
         && (*(*il)
             .instr
             .as_mut_ptr()
             .offset(j.wrapping_add(checkdelta) as isize))
-        .d() == 0 as ::core::ffi::c_int as ::core::ffi::c_double
+        .d() == 0_i32 as ::core::ffi::c_double
         && (*current).arity.wrapping_add(1 as Arity) <= TYPE2_ARGUMENT_STACK
     {
         (*(*il)
@@ -732,39 +732,39 @@ unsafe fn hvvhcurve_roll(il: *mut CffCharstringIl, j: u32) -> u8 {
     if j.wrapping_add(7_u32) >= (*il).instr.len() as u32 || (*current).arity & 1 as Arity != 0 {
         return 0_u8;
     }
-    let hvcase: bool = ((*current).arity >> 2 as ::core::ffi::c_int & 1 as Arity != 0)
-        as ::core::ffi::c_int
-        ^ ((*current).i() == OP_HVCURVETO.0) as ::core::ffi::c_int
+    let hvcase: bool = ((*current).arity >> 2_i32 & 1 as Arity != 0)
+        as i32
+        ^ ((*current).i() == OP_HVCURVETO.0) as i32
         != 0;
-    let checkdelta1: u32 = (if hvcase as ::core::ffi::c_int != 0 {
-        2 as ::core::ffi::c_int
+    let checkdelta1: u32 = (if hvcase as i32 != 0 {
+        2_i32
     } else {
-        1 as ::core::ffi::c_int
+        1_i32
     }) as u32;
-    let checkdelta2: u32 = (if hvcase as ::core::ffi::c_int != 0 {
-        5 as ::core::ffi::c_int
+    let checkdelta2: u32 = (if hvcase as i32 != 0 {
+        5_i32
     } else {
-        6 as ::core::ffi::c_int
+        6_i32
     }) as u32;
-    if il_matchop(il, j.wrapping_add(7_u32), OP_RRCURVETO) as ::core::ffi::c_int != 0
+    if il_matchop(il, j.wrapping_add(7_u32), OP_RRCURVETO) as i32 != 0
         && il_matchtype(
             il,
             j.wrapping_add(1_u32),
             j.wrapping_add(7_u32),
             CffInstructionType::Operand,
-        ) as ::core::ffi::c_int
+        ) as i32
             != 0
         && (*(*il)
             .instr
             .as_mut_ptr()
             .offset(j.wrapping_add(checkdelta1) as isize))
-        .d() == 0 as ::core::ffi::c_int as ::core::ffi::c_double
+        .d() == 0_i32 as ::core::ffi::c_double
     {
         if (*(*il)
             .instr
             .as_mut_ptr()
             .offset(j.wrapping_add(checkdelta2) as isize))
-        .d() == 0 as ::core::ffi::c_int as ::core::ffi::c_double
+        .d() == 0_i32 as ::core::ffi::c_double
             && (*current).arity.wrapping_add(4 as Arity) <= TYPE2_ARGUMENT_STACK
         {
             (*(*il)
@@ -850,34 +850,34 @@ unsafe fn hhvvcurve_roll(il: *mut CffCharstringIl, j: u32) -> u8 {
         return 0_u8;
     }
     let hh: bool = (*current).i() == OP_HHCURVETO.0;
-    let checkdelta1: u32 = (if hh as ::core::ffi::c_int != 0 {
-        2 as ::core::ffi::c_int
+    let checkdelta1: u32 = (if hh as i32 != 0 {
+        2_i32
     } else {
-        1 as ::core::ffi::c_int
+        1_i32
     }) as u32;
-    let checkdelta2: u32 = (if hh as ::core::ffi::c_int != 0 {
-        6 as ::core::ffi::c_int
+    let checkdelta2: u32 = (if hh as i32 != 0 {
+        6_i32
     } else {
-        5 as ::core::ffi::c_int
+        5_i32
     }) as u32;
-    if il_matchop(il, j.wrapping_add(7_u32), OP_RRCURVETO) as ::core::ffi::c_int != 0
+    if il_matchop(il, j.wrapping_add(7_u32), OP_RRCURVETO) as i32 != 0
         && il_matchtype(
             il,
             j.wrapping_add(1_u32),
             j.wrapping_add(7_u32),
             CffInstructionType::Operand,
-        ) as ::core::ffi::c_int
+        ) as i32
             != 0
         && (*(*il)
             .instr
             .as_mut_ptr()
             .offset(j.wrapping_add(checkdelta1) as isize))
-        .d() == 0 as ::core::ffi::c_int as ::core::ffi::c_double
+        .d() == 0_i32 as ::core::ffi::c_double
         && (*(*il)
             .instr
             .as_mut_ptr()
             .offset(j.wrapping_add(checkdelta2) as isize))
-        .d() == 0 as ::core::ffi::c_int as ::core::ffi::c_double
+        .d() == 0_i32 as ::core::ffi::c_double
         && (*current).arity.wrapping_add(4 as Arity) <= TYPE2_ARGUMENT_STACK
     {
         (*(*il)

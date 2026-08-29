@@ -358,9 +358,9 @@ pub unsafe fn otfcc_dump_fvar(
                     json_integer_new((*axis).axis_name_id as i64),
                 );
                 json_object_push_tag(_axes, (*axis).tag, _axis);
-                keep = (keep == 0) as ::core::ffi::c_int as usize;
+                keep = (keep == 0) as i32 as usize;
             }
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
         json_object_push(
@@ -398,9 +398,9 @@ pub unsafe fn otfcc_dump_fvar(
                     json_new_v_vp(&raw const instance.coordinates, table),
                 );
                 json_array_push(_instances, _instance);
-                keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+                keep_0 = (keep_0 == 0) as i32 as usize;
             }
-            keep_0 = (keep_0 == 0) as ::core::ffi::c_int as usize;
+            keep_0 = (keep_0 == 0) as i32 as usize;
             __caryll_index_0 = __caryll_index_0.wrapping_add(1);
         }
         json_object_push(
@@ -447,7 +447,7 @@ pub unsafe fn json_new_vq_segment(
                 json_object_push(
                     d,
                     b"implicit\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_boolean_new(!delta.touched as ::core::ffi::c_int),
+                    json_boolean_new(!delta.touched as i32),
                 );
             }
             json_object_push(
@@ -490,11 +490,11 @@ pub unsafe fn json_new_v_vp(x: *const VV, fvar: *const FvarTable) -> *mut BuiltV
         while m < coords.len() {
             let axis: &VfAxis = &axes[m];
             let mut tag: [::core::ffi::c_char; 4] = [
-                (((*axis).tag & 0xff000000_u32) >> 24 as ::core::ffi::c_int)
+                (((*axis).tag & 0xff000000_u32) >> 24_i32)
                     as ::core::ffi::c_char,
-                (((*axis).tag & 0xff0000_u32) >> 16 as ::core::ffi::c_int)
+                (((*axis).tag & 0xff0000_u32) >> 16_i32)
                     as ::core::ffi::c_char,
-                (((*axis).tag & 0xff00_u32) >> 8 as ::core::ffi::c_int) as ::core::ffi::c_char,
+                (((*axis).tag & 0xff00_u32) >> 8_i32) as ::core::ffi::c_char,
                 ((*axis).tag & 0xff_u32) as ::core::ffi::c_char,
             ];
             json_object_push_length(

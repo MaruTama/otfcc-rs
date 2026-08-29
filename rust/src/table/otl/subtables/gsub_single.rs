@@ -163,7 +163,7 @@ pub unsafe fn otl_gsub_parse_single(
         let val = json_obj_val_at(_subtable, j as u32);
         if !val.is_null()
             && json_type_of(val) as ::core::ffi::c_uint
-                == JsonType::String as ::core::ffi::c_int as ::core::ffi::c_uint
+                == JsonType::String as i32 as ::core::ffi::c_uint
         {
             let from: GlyphHandle =
                 handle_from_name(Some(json_obj_key_bytes_at(_subtable, j as u32))) as GlyphHandle;
@@ -189,14 +189,14 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
     if is_constant_difference {
         let difference: i32 =
             (&(*subtable))[0].to.index as i32 - (&(*subtable))[0].from.index as i32;
-        is_constant_difference = is_constant_difference as ::core::ffi::c_int != 0
+        is_constant_difference = is_constant_difference as i32 != 0
             && difference < 0x8000_i32
             && difference > -0x8000_i32;
         let mut j: GlyphId = 1 as GlyphId;
         while (j as usize) < (*subtable).len() {
             let diff_j: i32 = (&(*subtable))[j as usize].to.index as i32
                 - (&(*subtable))[j as usize].from.index as i32;
-            is_constant_difference = is_constant_difference as ::core::ffi::c_int != 0
+            is_constant_difference = is_constant_difference as i32 != 0
                 && diff_j == difference
                 && diff_j < 0x8000_i32
                 && diff_j > -0x8000_i32;
@@ -214,7 +214,7 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
     }
     let coverage_buf: *mut Buffer =
         build_coverage_format(cov, heuristics.contains(BuildHeuristics::GSUB_VERT) as u16);
-    if is_constant_difference as ::core::ffi::c_int != 0
+    if is_constant_difference as i32 != 0
         && !heuristics.contains(BuildHeuristics::GSUB_VERT)
     {
         let b: *mut BkBlock = bk_new_block(&[
@@ -222,8 +222,8 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
             bk_int(
                 BkCellType::B16,
-                ((&(*subtable))[0].to.index as ::core::ffi::c_int
-                    - (&(*subtable))[0].from.index as ::core::ffi::c_int) as u32,
+                ((&(*subtable))[0].to.index as i32
+                    - (&(*subtable))[0].from.index as i32) as u32,
             ),
         ]);
         otl_coverage_free(cov);
@@ -240,7 +240,7 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
                 b_0,
                 &[bk_int(
                     BkCellType::B16,
-                    ((&(*subtable))[k as usize].to.index as ::core::ffi::c_int) as u32,
+                    ((&(*subtable))[k as usize].to.index as i32) as u32,
                 )],
             );
             k = k.wrapping_add(1);

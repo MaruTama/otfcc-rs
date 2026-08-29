@@ -13,20 +13,20 @@
 // `bin/otfccdump.rs` and its own `preserialize`.
 #[derive(Copy, Clone)]
 pub struct JsonSerializeOpts {
-    pub mode: ::core::ffi::c_int,
-    pub opts: ::core::ffi::c_int,
-    pub indent_size: ::core::ffi::c_int,
+    pub mode: i32,
+    pub opts: i32,
+    pub indent_size: i32,
 }
-pub const JSON_SERIALIZE_MODE_MULTILINE: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-pub const JSON_SERIALIZE_MODE_SINGLE_LINE: ::core::ffi::c_int = 1 as ::core::ffi::c_int;
-pub const JSON_SERIALIZE_MODE_PACKED: ::core::ffi::c_int = 2 as ::core::ffi::c_int;
-pub const JSON_SERIALIZE_OPT_CRLF: ::core::ffi::c_int =
-    (1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int;
-pub const JSON_SERIALIZE_OPT_PACK_BRACKETS: ::core::ffi::c_int =
-    (1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int;
-pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA: ::core::ffi::c_int =
-    (1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int;
-pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON: ::core::ffi::c_int =
-    (1 as ::core::ffi::c_int) << 4 as ::core::ffi::c_int;
-pub const JSON_SERIALIZE_OPT_USE_TABS: ::core::ffi::c_int =
-    (1 as ::core::ffi::c_int) << 5 as ::core::ffi::c_int;
+pub const JSON_SERIALIZE_MODE_MULTILINE: i32 = 0_i32;
+pub const JSON_SERIALIZE_MODE_SINGLE_LINE: i32 = 1_i32;
+pub const JSON_SERIALIZE_MODE_PACKED: i32 = 2_i32;
+pub const JSON_SERIALIZE_OPT_CRLF: i32 =
+    1_i32 << 1_i32;
+pub const JSON_SERIALIZE_OPT_PACK_BRACKETS: i32 =
+    1_i32 << 2_i32;
+pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COMMA: i32 =
+    1_i32 << 3_i32;
+pub const JSON_SERIALIZE_OPT_NO_SPACE_AFTER_COLON: i32 =
+    1_i32 << 4_i32;
+pub const JSON_SERIALIZE_OPT_USE_TABS: i32 =
+    1_i32 << 5_i32;

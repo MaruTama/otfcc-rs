@@ -374,22 +374,22 @@ pub unsafe fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltVa
         dump_class_def(second_cd),
     );
     let mat: *mut BuiltValue = json_array_new(
-        ((*first_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
+        ((*first_cd).maxclass as i32 + 1_i32) as usize,
     );
     let mut j: GlyphClass = 0 as GlyphClass;
-    while j as ::core::ffi::c_int <= (*first_cd).maxclass as ::core::ffi::c_int {
+    while j as i32 <= (*first_cd).maxclass as i32 {
         let row: *mut BuiltValue = json_array_new(
-            ((*second_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as usize,
+            ((*second_cd).maxclass as i32 + 1_i32) as usize,
         );
         let mut k: GlyphClass = 0 as GlyphClass;
-        while k as ::core::ffi::c_int <= (*second_cd).maxclass as ::core::ffi::c_int {
+        while k as i32 <= (*second_cd).maxclass as i32 {
             let f1: u8 =
                 required_position_format((&(*subtable).first_values)[j as usize][k as usize]);
             let f2: u8 =
                 required_position_format((&(*subtable).second_values)[j as usize][k as usize]);
-            if f1 as ::core::ffi::c_int | f2 as ::core::ffi::c_int != 0 {
-                if f1 as ::core::ffi::c_int == FORMAT_DWIDTH as ::core::ffi::c_int
-                    && f2 as ::core::ffi::c_int == 0 as ::core::ffi::c_int
+            if f1 as i32 | f2 as i32 != 0 {
+                if f1 as i32 == FORMAT_DWIDTH as i32
+                    && f2 as i32 == 0_i32
                 {
                     json_array_push(
                         row,
@@ -416,7 +416,7 @@ pub unsafe fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltVa
                     json_array_push(row, pair);
                 }
             } else {
-                json_array_push(row, json_new_position(0 as ::core::ffi::c_int as Pos));
+                json_array_push(row, json_new_position(0_i32 as Pos));
             }
             k = k.wrapping_add(1);
         }
@@ -459,21 +459,21 @@ pub unsafe fn otl_gpos_parse_pair(
         let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
         let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
         class1_count =
-            ((*first_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
+            ((*first_cd).maxclass as i32 + 1_i32) as GlyphClass;
         class2_count =
-            ((*second_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
+            ((*second_cd).maxclass as i32 + 1_i32) as GlyphClass;
         let mut first_values: Vec<Vec<PositionValue>> =
             vec![vec![position_zero(); class2_count as usize]; class1_count as usize];
         let mut second_values: Vec<Vec<PositionValue>> =
             vec![vec![position_zero(); class2_count as usize]; class1_count as usize];
         let mut j_0: GlyphClass = 0 as GlyphClass;
-        while (j_0 as ::core::ffi::c_int) < class1_count as ::core::ffi::c_int
+        while (j_0 as i32) < class1_count as i32
             && (j_0 as ::core::ffi::c_uint) < json_arr_len(_mat)
         {
             let mut _row: *const ParsedValue = json_arr_at(_mat, j_0 as u32);
             if !(_row.is_null() || json_type_of(_row) != JsonType::Array) {
                 let mut k_0: GlyphClass = 0 as GlyphClass;
-                while (k_0 as ::core::ffi::c_int) < class2_count as ::core::ffi::c_int
+                while (k_0 as i32) < class2_count as i32
                     && (k_0 as ::core::ffi::c_uint) < json_arr_len(_row)
                 {
                     let mut _item: *const ParsedValue = json_arr_at(_row, k_0 as u32);
@@ -525,19 +525,19 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
     let mut format1: u16 = 0_u16;
     let mut format2: u16 = 0_u16;
     let class1_count: GlyphClass =
-        ((*first_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
+        ((*first_cd).maxclass as i32 + 1_i32) as GlyphClass;
     let class2_count: GlyphClass =
-        ((*second_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
+        ((*second_cd).maxclass as i32 + 1_i32) as GlyphClass;
     let mut j: GlyphClass = 0 as GlyphClass;
-    while (j as ::core::ffi::c_int) < class1_count as ::core::ffi::c_int {
+    while (j as i32) < class1_count as i32 {
         let mut k: GlyphClass = 0 as GlyphClass;
-        while (k as ::core::ffi::c_int) < class2_count as ::core::ffi::c_int {
-            format1 = (format1 as ::core::ffi::c_int
+        while (k as i32) < class2_count as i32 {
+            format1 = (format1 as i32
                 | required_position_format((&(*subtable).first_values)[j as usize][k as usize])
-                    as ::core::ffi::c_int) as u16;
-            format2 = (format2 as ::core::ffi::c_int
+                    as i32) as u16;
+            format2 = (format2 as i32
                 | required_position_format((&(*subtable).second_values)[j as usize][k as usize])
-                    as ::core::ffi::c_int) as u16;
+                    as i32) as u16;
             k = k.wrapping_add(1);
         }
         j = j.wrapping_add(1);
@@ -554,13 +554,13 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
             let c1: GlyphClass = (&(*first_cd).classes)[j_0 as usize];
             let c2: GlyphClass = (&(*second_cd).classes)[k_0 as usize];
             if required_position_format((&(*subtable).first_values)[c1 as usize][c2 as usize])
-                as ::core::ffi::c_int
+                as i32
                 | required_position_format((&(*subtable).second_values)[c1 as usize][c2 as usize])
-                    as ::core::ffi::c_int
+                    as i32
                 != 0
             {
                 let ref mut fresh10 = pair_counts[j_0 as usize];
-                *fresh10 = (*fresh10 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+                *fresh10 = (*fresh10 as i32 + 1_i32) as GlyphId;
             }
             k_0 = k_0.wrapping_add(1);
         }
@@ -574,11 +574,11 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
             BkCellType::P16,
             bk_new_block_from_buffer(build_coverage(cov)),
         ),
-        bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32),
-        bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32),
+        bk_int(BkCellType::B16, (format1 as i32) as u32),
+        bk_int(BkCellType::B16, (format2 as i32) as u32),
         bk_int(
             BkCellType::B16,
-            ((*first_cd).glyphs.len() as ::core::ffi::c_int) as u32,
+            ((*first_cd).glyphs.len() as i32) as u32,
         ),
     ]);
     let mut j_1: GlyphId = 0 as GlyphId;
@@ -587,8 +587,8 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
         let mut c1_0: GlyphClass = 0 as GlyphClass;
         let mut k_1: GlyphId = 0 as GlyphId;
         while (k_1 as usize) < (*first_cd).glyphs.len() {
-            if (&(*first_cd).glyphs)[k_1 as usize].index as ::core::ffi::c_int
-                == (&(*cov))[j_1 as usize].index as ::core::ffi::c_int
+            if (&(*first_cd).glyphs)[k_1 as usize].index as i32
+                == (&(*cov))[j_1 as usize].index as i32
             {
                 c1_0 = (&(*first_cd).classes)[k_1 as usize];
                 current_pair_count = pair_counts[k_1 as usize] as TableId;
@@ -597,7 +597,7 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
         }
         let pair_set: *mut BkBlock = bk_new_block(&[bk_int(
             BkCellType::B16,
-            (current_pair_count as ::core::ffi::c_int) as u32,
+            (current_pair_count as i32) as u32,
         )]);
         // A local `Vec`, not a `__caryll_allocate_clean`/`qsort`/`free`
         // trio: built with exactly `current_pair_count` entries by
@@ -612,10 +612,10 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
         while (k_2 as usize) < (*second_cd).glyphs.len() {
             let c2_0: GlyphClass = (&(*second_cd).classes)[k_2 as usize];
             if required_position_format((&(*subtable).first_values)[c1_0 as usize][c2_0 as usize])
-                as ::core::ffi::c_int
+                as i32
                 | required_position_format(
                     (&(*subtable).second_values)[c1_0 as usize][c2_0 as usize],
-                ) as ::core::ffi::c_int
+                ) as i32
                 != 0
             {
                 pairs.push(IndividualGposPair {
@@ -631,7 +631,7 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
             bk_push(
                 pair_set,
                 &[
-                    bk_int(BkCellType::B16, (pair.gid as ::core::ffi::c_int) as u32),
+                    bk_int(BkCellType::B16, (pair.gid as i32) as u32),
                     bk_ptr(BkCellType::Embed, bk_gpos_value(pair.fv, format1)),
                     bk_ptr(BkCellType::Embed, bk_gpos_value(pair.sv, format2)),
                 ],
@@ -653,19 +653,19 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
     let mut format1: u16 = 0_u16;
     let mut format2: u16 = 0_u16;
     let class1_count: GlyphClass =
-        ((*first_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
+        ((*first_cd).maxclass as i32 + 1_i32) as GlyphClass;
     let class2_count: GlyphClass =
-        ((*second_cd).maxclass as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphClass;
+        ((*second_cd).maxclass as i32 + 1_i32) as GlyphClass;
     let mut j: GlyphClass = 0 as GlyphClass;
-    while (j as ::core::ffi::c_int) < class1_count as ::core::ffi::c_int {
+    while (j as i32) < class1_count as i32 {
         let mut k: GlyphClass = 0 as GlyphClass;
-        while (k as ::core::ffi::c_int) < class2_count as ::core::ffi::c_int {
-            format1 = (format1 as ::core::ffi::c_int
+        while (k as i32) < class2_count as i32 {
+            format1 = (format1 as i32
                 | required_position_format((&(*subtable).first_values)[j as usize][k as usize])
-                    as ::core::ffi::c_int) as u16;
-            format2 = (format2 as ::core::ffi::c_int
+                    as i32) as u16;
+            format2 = (format2 as i32
                 | required_position_format((&(*subtable).second_values)[j as usize][k as usize])
-                    as ::core::ffi::c_int) as u16;
+                    as i32) as u16;
             k = k.wrapping_add(1);
         }
         j = j.wrapping_add(1);
@@ -677,8 +677,8 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
             BkCellType::P16,
             bk_new_block_from_buffer(build_coverage(cov)),
         ),
-        bk_int(BkCellType::B16, (format1 as ::core::ffi::c_int) as u32),
-        bk_int(BkCellType::B16, (format2 as ::core::ffi::c_int) as u32),
+        bk_int(BkCellType::B16, (format1 as i32) as u32),
+        bk_int(BkCellType::B16, (format2 as i32) as u32),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(build_class_def(first_cd)),
@@ -687,13 +687,13 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
             BkCellType::P16,
             bk_new_block_from_buffer(build_class_def(second_cd)),
         ),
-        bk_int(BkCellType::B16, (class1_count as ::core::ffi::c_int) as u32),
-        bk_int(BkCellType::B16, (class2_count as ::core::ffi::c_int) as u32),
+        bk_int(BkCellType::B16, (class1_count as i32) as u32),
+        bk_int(BkCellType::B16, (class2_count as i32) as u32),
     ]);
     let mut j_0: GlyphClass = 0 as GlyphClass;
-    while (j_0 as ::core::ffi::c_int) < class1_count as ::core::ffi::c_int {
+    while (j_0 as i32) < class1_count as i32 {
         let mut k_0: GlyphClass = 0 as GlyphClass;
-        while (k_0 as ::core::ffi::c_int) < class2_count as ::core::ffi::c_int {
+        while (k_0 as i32) < class2_count as i32 {
             bk_push(
                 root,
                 &[

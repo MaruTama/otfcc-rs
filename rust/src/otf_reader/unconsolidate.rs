@@ -222,7 +222,7 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
                 if j_0 % 4 == 0 && j_0 / 4 != 0 {
                     gname.extend_from_slice(b"-");
                 }
-                Hex2Upper((h.hash[j_0 as usize] as ::core::ffi::c_int) as u32)
+                Hex2Upper((h.hash[j_0 as usize] as i32) as u32)
                     .append_to_vec(&mut gname);
             }
             if gord_lookup_name(glyph_order, gname.clone()) {
@@ -230,17 +230,17 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
                 let mut still_in: bool = false;
                 loop {
                     if still_in {
-                        n = (n as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+                        n = (n as i32 + 1_i32) as GlyphId;
                     }
                     let newname: Vec<u8> =
-                        crate::bytesbuild!(&gname, b"-", &prefix, n as ::core::ffi::c_int);
+                        crate::bytesbuild!(&gname, b"-", &prefix, n as i32);
                     still_in = gord_lookup_name(glyph_order, newname);
                     if !still_in {
                         break;
                     }
                 }
                 let newname_0: Vec<u8> =
-                    crate::bytesbuild!(&gname, b"-", &prefix, n as ::core::ffi::c_int);
+                    crate::bytesbuild!(&gname, b"-", &prefix, n as i32);
                 let shared_name: Vec<u8> = otfcc_set_glyph_order_by_gid(glyph_order, j, newname_0);
                 (*g).name = shared_name;
             } else {
@@ -272,9 +272,9 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
         let aglfn: *mut GlyphOrder = (otfcc_glyph_order_create)();
         aglfn_setup_names(aglfn);
         for (&unicode, glyph) in (*font).cmap.as_ref().unwrap().unicodes.iter() {
-            if glyph.index as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+            if glyph.index as i32 > 0_i32 {
                 let mut name_bytes: Vec<u8> = Vec::new();
-                if unicode > 0 as ::core::ffi::c_int && unicode < 0xffff as ::core::ffi::c_int {
+                if unicode > 0_i32 && unicode < 0xffff_i32 {
                     otfcc_gord_name_a_field_shared(aglfn, unicode as GlyphId, &raw mut name_bytes);
                 }
                 let name: Vec<u8>;
@@ -291,7 +291,7 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
     for j_1 in 0..num_glyphs {
         let name_0: Vec<u8>;
         if j_1 > 1 {
-            name_0 = crate::bytesbuild!(&prefix, b"glyph", j_1 as ::core::ffi::c_int);
+            name_0 = crate::bytesbuild!(&prefix, b"glyph", j_1 as i32);
         } else if j_1 == 1 {
             if (&(*glyf))[1_usize].is_some()
                 && (&(*glyf))[1_usize]
@@ -307,7 +307,7 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
             {
                 name_0 = crate::bytesbuild!(&prefix, b".null");
             } else {
-                name_0 = crate::bytesbuild!(&prefix, b"glyph", j_1 as ::core::ffi::c_int);
+                name_0 = crate::bytesbuild!(&prefix, b"glyph", j_1 as i32);
             }
         } else {
             name_0 = crate::bytesbuild!(&prefix, b".notdef");
@@ -539,4 +539,4 @@ pub unsafe fn otfcc_unconsolidate_font(font: *mut Font, options: &Options) {
         otfcc_glyph_order_free(gord);
     }
 }
-pub const SHA1_BLOCK_SIZE: ::core::ffi::c_int = 20 as ::core::ffi::c_int;
+pub const SHA1_BLOCK_SIZE: i32 = 20_i32;

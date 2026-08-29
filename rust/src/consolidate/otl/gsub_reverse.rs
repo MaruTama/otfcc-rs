@@ -24,7 +24,7 @@ pub unsafe fn consolidate_gsub_reverse(
     };
     let subtable: *mut GsubReverseSubtable = mut_subtable;
     let mut j: TableId = 0 as TableId;
-    while (j as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int {
+    while (j as i32) < (*subtable).match_count as i32 {
         fontop_consolidate_coverage(
             font,
             &mut (&mut (*subtable).match_0)[j as usize] as *mut Coverage,
@@ -33,11 +33,11 @@ pub unsafe fn consolidate_gsub_reverse(
         j = j.wrapping_add(1);
     }
     fontop_consolidate_coverage(font, &mut (*subtable).to as *mut Coverage, options);
-    if (*subtable).input_index as ::core::ffi::c_int
-        >= (*subtable).match_count as ::core::ffi::c_int
+    if (*subtable).input_index as i32
+        >= (*subtable).match_count as i32
     {
         (*subtable).input_index =
-            ((*subtable).match_count as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as TableId;
+            ((*subtable).match_count as i32 - 1_i32) as TableId;
     }
     let from: *mut Coverage =
         &mut (&mut (*subtable).match_0)[(*subtable).input_index as usize] as *mut Coverage;

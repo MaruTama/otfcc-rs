@@ -211,7 +211,7 @@ pub unsafe fn otl_gsub_parse_ligature(
         let st: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
         let n: GlyphId = json_arr_len(_subtable) as GlyphId;
         let mut k: GlyphId = 0 as GlyphId;
-        while (k as ::core::ffi::c_int) < n as ::core::ffi::c_int {
+        while (k as i32) < n as i32 {
             let entry: *const ParsedValue = json_arr_at(_subtable, k as u32);
             let mut _from: *const ParsedValue = json_obj_get_type(
                 entry,
@@ -236,7 +236,7 @@ pub unsafe fn otl_gsub_parse_ligature(
         let st_0: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
         let n_0: GlyphId = json_obj_len(_subtable) as GlyphId;
         let mut k_0: GlyphId = 0 as GlyphId;
-        while (k_0 as ::core::ffi::c_int) < n_0 as ::core::ffi::c_int {
+        while (k_0 as i32) < n_0 as i32 {
             let mut _from_0: *const ParsedValue = json_obj_val_at(_subtable, k_0 as u32);
             if !(_from_0.is_null() || json_type_of(_from_0) != JsonType::Array) {
                 (*st_0).push(GsubLigatureEntry {
@@ -269,12 +269,12 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
     };
     let subtable: *const GsubLigatureSubtable = mut_subtable;
     let n_ligatures: GlyphId = (*subtable).len() as GlyphId;
-    let mut start_gids: std::collections::BTreeSet<::core::ffi::c_int> =
+    let mut start_gids: std::collections::BTreeSet<i32> =
         std::collections::BTreeSet::new();
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-        let sgid: ::core::ffi::c_int =
-            (&(*subtable))[j as usize].from[0].index as ::core::ffi::c_int;
+    while (j as i32) < n_ligatures as i32 {
+        let sgid: i32 =
+            (&(*subtable))[j as usize].from[0].index as i32;
         start_gids.insert(sgid);
         j = j.wrapping_add(1);
     }
@@ -290,45 +290,45 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
         ),
         bk_int(
             BkCellType::B16,
-            ((*startcov).len() as ::core::ffi::c_int) as u32,
+            ((*startcov).len() as i32) as u32,
         ),
     ]);
     for &gid in start_gids.iter() {
         let mut n_ligs_here: GlyphId = 0 as GlyphId;
         let mut j_0: GlyphId = 0 as GlyphId;
-        while (j_0 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-            if (&(*subtable))[j_0 as usize].from[0].index as ::core::ffi::c_int == gid {
+        while (j_0 as i32) < n_ligatures as i32 {
+            if (&(*subtable))[j_0 as usize].from[0].index as i32 == gid {
                 n_ligs_here = n_ligs_here.wrapping_add(1);
             }
             j_0 = j_0.wrapping_add(1);
         }
         let ligset: *mut BkBlock = bk_new_block(&[bk_int(
             BkCellType::B16,
-            (n_ligs_here as ::core::ffi::c_int) as u32,
+            (n_ligs_here as i32) as u32,
         )]);
         let mut j_1: GlyphId = 0 as GlyphId;
-        while (j_1 as ::core::ffi::c_int) < n_ligatures as ::core::ffi::c_int {
-            if (&(*subtable))[j_1 as usize].from[0].index as ::core::ffi::c_int == gid {
+        while (j_1 as i32) < n_ligatures as i32 {
+            if (&(*subtable))[j_1 as usize].from[0].index as i32 == gid {
                 let ligdef: *mut BkBlock = bk_new_block(&[
                     bk_int(
                         BkCellType::B16,
-                        ((&(*subtable))[j_1 as usize].to.index as ::core::ffi::c_int) as u32,
+                        ((&(*subtable))[j_1 as usize].to.index as i32) as u32,
                     ),
                     bk_int(
                         BkCellType::B16,
-                        ((&(*subtable))[j_1 as usize].from.len() as ::core::ffi::c_int) as u32,
+                        ((&(*subtable))[j_1 as usize].from.len() as i32) as u32,
                     ),
                 ]);
                 let mut m: GlyphId = 1 as GlyphId;
-                while (m as ::core::ffi::c_int)
-                    < (&(*subtable))[j_1 as usize].from.len() as ::core::ffi::c_int
+                while (m as i32)
+                    < (&(*subtable))[j_1 as usize].from.len() as i32
                 {
                     bk_push(
                         ligdef,
                         &[bk_int(
                             BkCellType::B16,
                             ((&(*subtable))[j_1 as usize].from[m as usize].index
-                                as ::core::ffi::c_int) as u32,
+                                as i32) as u32,
                         )],
                     );
                     m = m.wrapping_add(1);

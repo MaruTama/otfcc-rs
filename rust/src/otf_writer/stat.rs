@@ -63,10 +63,10 @@ pub unsafe fn stat_single_glyph(
     options: &Options,
 ) -> GlyphStat {
     let mut stat: GlyphStat = GlyphStat {
-        x_min: 0 as ::core::ffi::c_int as Pos,
-        x_max: 0 as ::core::ffi::c_int as Pos,
-        y_min: 0 as ::core::ffi::c_int as Pos,
-        y_max: 0 as ::core::ffi::c_int as Pos,
+        x_min: 0_i32 as Pos,
+        x_max: 0_i32 as Pos,
+        y_min: 0_i32 as Pos,
+        y_max: 0_i32 as Pos,
         nest_depth: 0_u16,
         n_points: 0_u16,
         n_contours: 0_u16,
@@ -74,7 +74,7 @@ pub unsafe fn stat_single_glyph(
         n_composite_contours: 0_u16,
     };
     let j: GlyphId = (*gr).glyph.index;
-    if depth as ::core::ffi::c_int >= 0xff as ::core::ffi::c_int {
+    if depth as i32 >= 0xff_i32 {
         return stat;
     }
     if *stated.offset(j as isize) == StatStatus::Doing {
@@ -84,9 +84,9 @@ pub unsafe fn stat_single_glyph(
             LoggerType::Warning,
             crate::bytesbuild!(
                 b"[Stat] Circular glyph reference found in gid ",
-                topj as ::core::ffi::c_int,
+                topj as i32,
                 b" to gid ",
-                j as ::core::ffi::c_int,
+                j as i32,
                 b". The reference will be dropped.\n",
             ),
         );
@@ -133,7 +133,7 @@ pub unsafe fn stat_single_glyph(
             if y > ymax {
                 ymax = y;
             }
-            n_points = (n_points as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
+            n_points = (n_points as i32 + 1_i32) as u16;
         }
     }
     n_composite_points = n_points;
@@ -193,7 +193,7 @@ pub unsafe fn stat_single_glyph(
             table,
             &raw mut ref_0,
             stated,
-            (depth as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u8,
+            (depth as i32 + 1_i32) as u8,
             topj,
             options,
         );
@@ -209,25 +209,25 @@ pub unsafe fn stat_single_glyph(
         if thatstat.y_max > ymax {
             ymax = thatstat.y_max;
         }
-        if thatstat.nest_depth as ::core::ffi::c_int + 1 as ::core::ffi::c_int
-            > nest_depth as ::core::ffi::c_int
+        if thatstat.nest_depth as i32 + 1_i32
+            > nest_depth as i32
         {
             nest_depth =
-                (thatstat.nest_depth as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
+                (thatstat.nest_depth as i32 + 1_i32) as u16;
         }
-        n_composite_points = (n_composite_points as ::core::ffi::c_int
-            + thatstat.n_composite_points as ::core::ffi::c_int)
+        n_composite_points = (n_composite_points as i32
+            + thatstat.n_composite_points as i32)
             as u16;
-        n_composite_contours = (n_composite_contours as ::core::ffi::c_int
-            + thatstat.n_composite_contours as ::core::ffi::c_int)
+        n_composite_contours = (n_composite_contours as i32
+            + thatstat.n_composite_contours as i32)
             as u16;
     }
     if xmin > xmax {
-        xmax = 0 as ::core::ffi::c_int as Pos;
+        xmax = 0_i32 as Pos;
         xmin = xmax;
     }
     if ymin > ymax {
-        ymax = 0 as ::core::ffi::c_int as Pos;
+        ymax = 0_i32 as Pos;
         ymin = ymax;
     }
     stat.x_min = xmin;
@@ -284,12 +284,12 @@ pub unsafe fn stat_glyf(font: *mut Font, options: &Options) {
             outer: 0,
         };
         gr.glyph = handle_from_index(j) as GlyphHandle;
-        gr.x = vq_create_still(0 as ::core::ffi::c_int as Pos);
-        gr.y = vq_create_still(0 as ::core::ffi::c_int as Pos);
-        gr.a = 1 as ::core::ffi::c_int as Scale;
-        gr.b = 0 as ::core::ffi::c_int as Scale;
-        gr.c = 0 as ::core::ffi::c_int as Scale;
-        gr.d = 1 as ::core::ffi::c_int as Scale;
+        gr.x = vq_create_still(0_i32 as Pos);
+        gr.y = vq_create_still(0_i32 as Pos);
+        gr.a = 1_i32 as Scale;
+        gr.b = 0_i32 as Scale;
+        gr.c = 0_i32 as Scale;
+        gr.d = 1_i32 as Scale;
         let ref mut fresh2 = (&mut (*glyf))[j as usize].as_mut().unwrap().stat;
         *fresh2 = stat_single_glyph(glyf, &raw mut gr, stated.as_mut_ptr(), 0_u8, j, options);
         let thatstat: GlyphStat = *fresh2;
@@ -328,31 +328,31 @@ pub unsafe fn stat_maxp(font: *mut Font) {
     for j in 0..(*glyf).len() as GlyphId {
         let g: *const Glyph = (&(*glyf))[j as usize].as_deref().unwrap() as *const Glyph;
         if (*g).contours.len() > 0_usize {
-            if (*g).stat.n_points as ::core::ffi::c_int > n_points as ::core::ffi::c_int {
+            if (*g).stat.n_points as i32 > n_points as i32 {
                 n_points = (*g).stat.n_points;
             }
-            if (*g).stat.n_contours as ::core::ffi::c_int > n_contours as ::core::ffi::c_int {
+            if (*g).stat.n_contours as i32 > n_contours as i32 {
                 n_contours = (*g).stat.n_contours;
             }
         } else if (*g).references.len() > 0_usize {
-            if (*g).stat.n_composite_points as ::core::ffi::c_int
-                > n_composite_points as ::core::ffi::c_int
+            if (*g).stat.n_composite_points as i32
+                > n_composite_points as i32
             {
                 n_composite_points = (*g).stat.n_composite_points;
             }
-            if (*g).stat.n_composite_contours as ::core::ffi::c_int
-                > n_composite_contours as ::core::ffi::c_int
+            if (*g).stat.n_composite_contours as i32
+                > n_composite_contours as i32
             {
                 n_composite_contours = (*g).stat.n_composite_contours;
             }
-            if (*g).stat.nest_depth as ::core::ffi::c_int > nest_depth as ::core::ffi::c_int {
+            if (*g).stat.nest_depth as i32 > nest_depth as i32 {
                 nest_depth = (*g).stat.nest_depth;
             }
             if (*g).references.len() > n_components as usize {
                 n_components = (*g).references.len() as u16;
             }
         }
-        if (*g).instructions.len() as ::core::ffi::c_int > inst_size as ::core::ffi::c_int {
+        if (*g).instructions.len() as i32 > inst_size as i32 {
             inst_size = (*g).instructions.len() as u16;
         }
     }
@@ -381,15 +381,15 @@ unsafe fn stat_hmtx(font: *mut Font) {
     let mut count_k: GlyphId = 0 as GlyphId;
     let mut lsb_at_x_0: bool = true;
     if (*font).subtype != FontSubtype::Cff {
-        while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
+        while count_a as i32 > 2_i32
             && vq_get_still(
-                (&(*glyf))[(count_a as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize]
+                (&(*glyf))[(count_a as i32 - 1_i32) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_width
                     .clone(),
             ) == vq_get_still(
-                (&(*glyf))[(count_a as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as usize]
+                (&(*glyf))[(count_a as i32 - 2_i32) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_width
@@ -406,10 +406,10 @@ unsafe fn stat_hmtx(font: *mut Font) {
     // order as the old pre-sized, index-written arrays.
     let mut metrics: Vec<HorizontalMetric> = Vec::with_capacity(count_a as usize);
     let mut left_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
-    let mut min_lsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
-    let mut min_rsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
-    let mut max_extent: Pos = -(0x8000 as ::core::ffi::c_int) as Pos;
-    let mut max_width: Length = 0 as ::core::ffi::c_int as Length;
+    let mut min_lsb: Pos = 0x7fff_i32 as Pos;
+    let mut min_rsb: Pos = 0x7fff_i32 as Pos;
+    let mut max_extent: Pos = -0x8000_i32 as Pos;
+    let mut max_width: Length = 0_i32 as Length;
     for j in 0..(*glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
         if vq_is_zero((*g).horizontal_origin.clone(), 1.0f64 / 1000.0f64) {
@@ -421,7 +421,7 @@ unsafe fn stat_hmtx(font: *mut Font) {
         let advw: Pos = vq_get_still((*g).advance_width.clone()) as Pos;
         let lsb: Pos = (*g).stat.x_min - hori;
         let rsb: Pos = advw + hori - (*g).stat.x_max;
-        if (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
+        if (j as i32) < count_a as i32 {
             metrics.push(HorizontalMetric {
                 advance_width: advw as Length,
                 lsb,
@@ -451,11 +451,11 @@ unsafe fn stat_hmtx(font: *mut Font) {
         metrics,
         left_side_bearing,
     }));
-    (*head).flags = ((*head).flags as ::core::ffi::c_int & !(0x2 as ::core::ffi::c_int)
+    (*head).flags = ((*head).flags as i32 & !0x2_i32
         | (if lsb_at_x_0 {
-            0x2 as ::core::ffi::c_int
+            0x2_i32
         } else {
-            0 as ::core::ffi::c_int
+            0_i32
         })) as u16;
 }
 unsafe fn stat_vmtx(font: *mut Font, options: &Options) {
@@ -469,15 +469,15 @@ unsafe fn stat_vmtx(font: *mut Font, options: &Options) {
     let mut count_a: GlyphId = (*glyf).len() as GlyphId;
     let mut count_k: GlyphId = 0 as GlyphId;
     if !((*font).subtype == FontSubtype::Cff && !options.cff_short_vmtx) {
-        while count_a as ::core::ffi::c_int > 2 as ::core::ffi::c_int
+        while count_a as i32 > 2_i32
             && vq_get_still(
-                (&(*glyf))[(count_a as ::core::ffi::c_int - 1 as ::core::ffi::c_int) as usize]
+                (&(*glyf))[(count_a as i32 - 1_i32) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_height
                     .clone(),
             ) == vq_get_still(
-                (&(*glyf))[(count_a as ::core::ffi::c_int - 2 as ::core::ffi::c_int) as usize]
+                (&(*glyf))[(count_a as i32 - 2_i32) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_height
@@ -492,17 +492,17 @@ unsafe fn stat_vmtx(font: *mut Font, options: &Options) {
     // `stat_hmtx`'s `metrics`/`left_side_bearing`.
     let mut metrics: Vec<VerticalMetric> = Vec::with_capacity(count_a as usize);
     let mut top_side_bearing: Vec<Pos> = Vec::with_capacity(count_k as usize);
-    let mut min_tsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
-    let mut min_bsb: Pos = 0x7fff as ::core::ffi::c_int as Pos;
-    let mut max_extent: Pos = -(0x8000 as ::core::ffi::c_int) as Pos;
-    let mut max_height: Length = 0 as ::core::ffi::c_int as Length;
+    let mut min_tsb: Pos = 0x7fff_i32 as Pos;
+    let mut min_bsb: Pos = 0x7fff_i32 as Pos;
+    let mut max_extent: Pos = -0x8000_i32 as Pos;
+    let mut max_height: Length = 0_i32 as Length;
     for j in 0..(*glyf).len() as GlyphId {
         let g: *const Glyph = (&(*glyf))[j as usize].as_deref().unwrap() as *const Glyph;
         let vori: Pos = vq_get_still((*g).vertical_origin.clone()) as Pos;
         let advh: Pos = vq_get_still((*g).advance_height.clone()) as Pos;
         let tsb: Pos = vori - (*g).stat.y_max;
         let bsb: Pos = (*g).stat.y_min - vori + advh;
-        if (j as ::core::ffi::c_int) < count_a as ::core::ffi::c_int {
+        if (j as i32) < count_a as i32 {
             metrics.push(VerticalMetric {
                 advance_height: advh as Length,
                 tsb,
@@ -548,448 +548,448 @@ unsafe fn stat_os_2_unicode_ranges(font: *mut Font, options: &Options) {
         if u > max_unicode {
             max_unicode = u;
         }
-        if u >= 0 as ::core::ffi::c_int && u <= 0x7f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as u32;
+        if (0_i32..=0x7f_i32).contains(&u) {
+            u1 |= (1_i32 << 0_i32) as u32;
         }
-        if u >= 0x80 as ::core::ffi::c_int && u <= 0xff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as u32;
+        if (0x80_i32..=0xff_i32).contains(&u) {
+            u1 |= (1_i32 << 1_i32) as u32;
         }
-        if u >= 0x100 as ::core::ffi::c_int && u <= 0x17f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int) as u32;
+        if (0x100_i32..=0x17f_i32).contains(&u) {
+            u1 |= (1_i32 << 2_i32) as u32;
         }
-        if u >= 0x180 as ::core::ffi::c_int && u <= 0x24f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int) as u32;
+        if (0x180_i32..=0x24f_i32).contains(&u) {
+            u1 |= (1_i32 << 3_i32) as u32;
         }
-        if u >= 0x250 as ::core::ffi::c_int && u <= 0x2af as ::core::ffi::c_int
-            || u >= 0x1d00 as ::core::ffi::c_int && u <= 0x1d7f as ::core::ffi::c_int
-            || u >= 0x1d80 as ::core::ffi::c_int && u <= 0x1dbf as ::core::ffi::c_int
+        if (0x250_i32..=0x2af_i32).contains(&u)
+            || (0x1d00_i32..=0x1d7f_i32).contains(&u)
+            || (0x1d80_i32..=0x1dbf_i32).contains(&u)
         {
-            u1 |= ((1 as ::core::ffi::c_int) << 4 as ::core::ffi::c_int) as u32;
+            u1 |= (1_i32 << 4_i32) as u32;
         }
-        if u >= 0x2b0 as ::core::ffi::c_int && u <= 0x2ff as ::core::ffi::c_int
-            || u >= 0xa700 as ::core::ffi::c_int && u <= 0xa71f as ::core::ffi::c_int
+        if (0x2b0_i32..=0x2ff_i32).contains(&u)
+            || (0xa700_i32..=0xa71f_i32).contains(&u)
         {
-            u1 |= ((1 as ::core::ffi::c_int) << 5 as ::core::ffi::c_int) as u32;
+            u1 |= (1_i32 << 5_i32) as u32;
         }
-        if u >= 0x300 as ::core::ffi::c_int && u <= 0x36f as ::core::ffi::c_int
-            || u >= 0x1dc0 as ::core::ffi::c_int && u <= 0x1dff as ::core::ffi::c_int
+        if (0x300_i32..=0x36f_i32).contains(&u)
+            || (0x1dc0_i32..=0x1dff_i32).contains(&u)
         {
-            u1 |= ((1 as ::core::ffi::c_int) << 6 as ::core::ffi::c_int) as u32;
+            u1 |= (1_i32 << 6_i32) as u32;
         }
-        if u >= 0x370 as ::core::ffi::c_int && u <= 0x3ff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 7 as ::core::ffi::c_int) as u32;
+        if (0x370_i32..=0x3ff_i32).contains(&u) {
+            u1 |= (1_i32 << 7_i32) as u32;
         }
-        if u >= 0x2c80 as ::core::ffi::c_int && u <= 0x2cff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
+        if (0x2c80_i32..=0x2cff_i32).contains(&u) {
+            u1 |= (1_i32 << 8_i32) as u32;
         }
-        if u >= 0x400 as ::core::ffi::c_int && u <= 0x4ff as ::core::ffi::c_int
-            || u >= 0x500 as ::core::ffi::c_int && u <= 0x52f as ::core::ffi::c_int
-            || u >= 0x2de0 as ::core::ffi::c_int && u <= 0x2dff as ::core::ffi::c_int
-            || u >= 0xa640 as ::core::ffi::c_int && u <= 0xa69f as ::core::ffi::c_int
+        if (0x400_i32..=0x4ff_i32).contains(&u)
+            || (0x500_i32..=0x52f_i32).contains(&u)
+            || (0x2de0_i32..=0x2dff_i32).contains(&u)
+            || (0xa640_i32..=0xa69f_i32).contains(&u)
         {
-            u1 |= ((1 as ::core::ffi::c_int) << 9 as ::core::ffi::c_int) as u32;
+            u1 |= (1_i32 << 9_i32) as u32;
         }
-        if u >= 0x530 as ::core::ffi::c_int && u <= 0x58f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 10 as ::core::ffi::c_int) as u32;
+        if (0x530_i32..=0x58f_i32).contains(&u) {
+            u1 |= (1_i32 << 10_i32) as u32;
         }
-        if u >= 0x590 as ::core::ffi::c_int && u <= 0x5ff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 11 as ::core::ffi::c_int) as u32;
+        if (0x590_i32..=0x5ff_i32).contains(&u) {
+            u1 |= (1_i32 << 11_i32) as u32;
         }
-        if u >= 0xa500 as ::core::ffi::c_int && u <= 0xa63f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 12 as ::core::ffi::c_int) as u32;
+        if (0xa500_i32..=0xa63f_i32).contains(&u) {
+            u1 |= (1_i32 << 12_i32) as u32;
         }
-        if u >= 0x600 as ::core::ffi::c_int && u <= 0x6ff as ::core::ffi::c_int
-            || u >= 0x750 as ::core::ffi::c_int && u <= 0x77f as ::core::ffi::c_int
+        if (0x600_i32..=0x6ff_i32).contains(&u)
+            || (0x750_i32..=0x77f_i32).contains(&u)
         {
-            u1 |= ((1 as ::core::ffi::c_int) << 13 as ::core::ffi::c_int) as u32;
+            u1 |= (1_i32 << 13_i32) as u32;
         }
-        if u >= 0x7c0 as ::core::ffi::c_int && u <= 0x7ff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 14 as ::core::ffi::c_int) as u32;
+        if (0x7c0_i32..=0x7ff_i32).contains(&u) {
+            u1 |= (1_i32 << 14_i32) as u32;
         }
-        if u >= 0x900 as ::core::ffi::c_int && u <= 0x97f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 15 as ::core::ffi::c_int) as u32;
+        if (0x900_i32..=0x97f_i32).contains(&u) {
+            u1 |= (1_i32 << 15_i32) as u32;
         }
-        if u >= 0x980 as ::core::ffi::c_int && u <= 0x9ff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
+        if (0x980_i32..=0x9ff_i32).contains(&u) {
+            u1 |= (1_i32 << 16_i32) as u32;
         }
-        if u >= 0xa00 as ::core::ffi::c_int && u <= 0xa7f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 17 as ::core::ffi::c_int) as u32;
+        if (0xa00_i32..=0xa7f_i32).contains(&u) {
+            u1 |= (1_i32 << 17_i32) as u32;
         }
-        if u >= 0xa80 as ::core::ffi::c_int && u <= 0xaff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 18 as ::core::ffi::c_int) as u32;
+        if (0xa80_i32..=0xaff_i32).contains(&u) {
+            u1 |= (1_i32 << 18_i32) as u32;
         }
-        if u >= 0xb00 as ::core::ffi::c_int && u <= 0xb7f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 19 as ::core::ffi::c_int) as u32;
+        if (0xb00_i32..=0xb7f_i32).contains(&u) {
+            u1 |= (1_i32 << 19_i32) as u32;
         }
-        if u >= 0xb80 as ::core::ffi::c_int && u <= 0xbff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 20 as ::core::ffi::c_int) as u32;
+        if (0xb80_i32..=0xbff_i32).contains(&u) {
+            u1 |= (1_i32 << 20_i32) as u32;
         }
-        if u >= 0xc00 as ::core::ffi::c_int && u <= 0xc7f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 21 as ::core::ffi::c_int) as u32;
+        if (0xc00_i32..=0xc7f_i32).contains(&u) {
+            u1 |= (1_i32 << 21_i32) as u32;
         }
-        if u >= 0xc80 as ::core::ffi::c_int && u <= 0xcff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 22 as ::core::ffi::c_int) as u32;
+        if (0xc80_i32..=0xcff_i32).contains(&u) {
+            u1 |= (1_i32 << 22_i32) as u32;
         }
-        if u >= 0xd00 as ::core::ffi::c_int && u <= 0xd7f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 23 as ::core::ffi::c_int) as u32;
+        if (0xd00_i32..=0xd7f_i32).contains(&u) {
+            u1 |= (1_i32 << 23_i32) as u32;
         }
-        if u >= 0xe00 as ::core::ffi::c_int && u <= 0xe7f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
+        if (0xe00_i32..=0xe7f_i32).contains(&u) {
+            u1 |= (1_i32 << 24_i32) as u32;
         }
-        if u >= 0xe80 as ::core::ffi::c_int && u <= 0xeff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 25 as ::core::ffi::c_int) as u32;
+        if (0xe80_i32..=0xeff_i32).contains(&u) {
+            u1 |= (1_i32 << 25_i32) as u32;
         }
-        if u >= 0x10a0 as ::core::ffi::c_int && u <= 0x10ff as ::core::ffi::c_int
-            || u >= 0x2d00 as ::core::ffi::c_int && u <= 0x2d2f as ::core::ffi::c_int
+        if (0x10a0_i32..=0x10ff_i32).contains(&u)
+            || (0x2d00_i32..=0x2d2f_i32).contains(&u)
         {
-            u1 |= ((1 as ::core::ffi::c_int) << 26 as ::core::ffi::c_int) as u32;
+            u1 |= (1_i32 << 26_i32) as u32;
         }
-        if u >= 0x1b00 as ::core::ffi::c_int && u <= 0x1b7f as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 27 as ::core::ffi::c_int) as u32;
+        if (0x1b00_i32..=0x1b7f_i32).contains(&u) {
+            u1 |= (1_i32 << 27_i32) as u32;
         }
-        if u >= 0x1100 as ::core::ffi::c_int && u <= 0x11ff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 28 as ::core::ffi::c_int) as u32;
+        if (0x1100_i32..=0x11ff_i32).contains(&u) {
+            u1 |= (1_i32 << 28_i32) as u32;
         }
-        if u >= 0x1e00 as ::core::ffi::c_int && u <= 0x1eff as ::core::ffi::c_int
-            || u >= 0x2c60 as ::core::ffi::c_int && u <= 0x2c7f as ::core::ffi::c_int
-            || u >= 0xa720 as ::core::ffi::c_int && u <= 0xa7ff as ::core::ffi::c_int
+        if (0x1e00_i32..=0x1eff_i32).contains(&u)
+            || (0x2c60_i32..=0x2c7f_i32).contains(&u)
+            || (0xa720_i32..=0xa7ff_i32).contains(&u)
         {
-            u1 |= ((1 as ::core::ffi::c_int) << 29 as ::core::ffi::c_int) as u32;
+            u1 |= (1_i32 << 29_i32) as u32;
         }
-        if u >= 0x1f00 as ::core::ffi::c_int && u <= 0x1fff as ::core::ffi::c_int {
-            u1 |= ((1 as ::core::ffi::c_int) << 30 as ::core::ffi::c_int) as u32;
+        if (0x1f00_i32..=0x1fff_i32).contains(&u) {
+            u1 |= (1_i32 << 30_i32) as u32;
         }
-        if u >= 0x2000 as ::core::ffi::c_int && u <= 0x206f as ::core::ffi::c_int
-            || u >= 0x2e00 as ::core::ffi::c_int && u <= 0x2e7f as ::core::ffi::c_int
+        if (0x2000_i32..=0x206f_i32).contains(&u)
+            || (0x2e00_i32..=0x2e7f_i32).contains(&u)
         {
-            u1 |= ((1 as ::core::ffi::c_int) << 31 as ::core::ffi::c_int) as u32;
+            u1 |= (1_i32 << 31_i32) as u32;
         }
-        if u >= 0x2070 as ::core::ffi::c_int && u <= 0x209f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as u32;
+        if (0x2070_i32..=0x209f_i32).contains(&u) {
+            u2 |= (1_i32 << 0_i32) as u32;
         }
-        if u >= 0x20a0 as ::core::ffi::c_int && u <= 0x20cf as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as u32;
+        if (0x20a0_i32..=0x20cf_i32).contains(&u) {
+            u2 |= (1_i32 << 1_i32) as u32;
         }
-        if u >= 0x20d0 as ::core::ffi::c_int && u <= 0x20ff as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int) as u32;
+        if (0x20d0_i32..=0x20ff_i32).contains(&u) {
+            u2 |= (1_i32 << 2_i32) as u32;
         }
-        if u >= 0x2100 as ::core::ffi::c_int && u <= 0x214f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int) as u32;
+        if (0x2100_i32..=0x214f_i32).contains(&u) {
+            u2 |= (1_i32 << 3_i32) as u32;
         }
-        if u >= 0x2150 as ::core::ffi::c_int && u <= 0x218f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 4 as ::core::ffi::c_int) as u32;
+        if (0x2150_i32..=0x218f_i32).contains(&u) {
+            u2 |= (1_i32 << 4_i32) as u32;
         }
-        if u >= 0x2190 as ::core::ffi::c_int && u <= 0x21ff as ::core::ffi::c_int
-            || u >= 0x27f0 as ::core::ffi::c_int && u <= 0x27ff as ::core::ffi::c_int
-            || u >= 0x2900 as ::core::ffi::c_int && u <= 0x297f as ::core::ffi::c_int
-            || u >= 0x2b00 as ::core::ffi::c_int && u <= 0x2bff as ::core::ffi::c_int
+        if (0x2190_i32..=0x21ff_i32).contains(&u)
+            || (0x27f0_i32..=0x27ff_i32).contains(&u)
+            || (0x2900_i32..=0x297f_i32).contains(&u)
+            || (0x2b00_i32..=0x2bff_i32).contains(&u)
         {
-            u2 |= ((1 as ::core::ffi::c_int) << 5 as ::core::ffi::c_int) as u32;
+            u2 |= (1_i32 << 5_i32) as u32;
         }
-        if u >= 0x2200 as ::core::ffi::c_int && u <= 0x22ff as ::core::ffi::c_int
-            || u >= 0x2a00 as ::core::ffi::c_int && u <= 0x2aff as ::core::ffi::c_int
-            || u >= 0x27c0 as ::core::ffi::c_int && u <= 0x27ef as ::core::ffi::c_int
-            || u >= 0x2980 as ::core::ffi::c_int && u <= 0x29ff as ::core::ffi::c_int
+        if (0x2200_i32..=0x22ff_i32).contains(&u)
+            || (0x2a00_i32..=0x2aff_i32).contains(&u)
+            || (0x27c0_i32..=0x27ef_i32).contains(&u)
+            || (0x2980_i32..=0x29ff_i32).contains(&u)
         {
-            u2 |= ((1 as ::core::ffi::c_int) << 6 as ::core::ffi::c_int) as u32;
+            u2 |= (1_i32 << 6_i32) as u32;
         }
-        if u >= 0x2300 as ::core::ffi::c_int && u <= 0x23ff as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 7 as ::core::ffi::c_int) as u32;
+        if (0x2300_i32..=0x23ff_i32).contains(&u) {
+            u2 |= (1_i32 << 7_i32) as u32;
         }
-        if u >= 0x2400 as ::core::ffi::c_int && u <= 0x243f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
+        if (0x2400_i32..=0x243f_i32).contains(&u) {
+            u2 |= (1_i32 << 8_i32) as u32;
         }
-        if u >= 0x2440 as ::core::ffi::c_int && u <= 0x245f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 9 as ::core::ffi::c_int) as u32;
+        if (0x2440_i32..=0x245f_i32).contains(&u) {
+            u2 |= (1_i32 << 9_i32) as u32;
         }
-        if u >= 0x2460 as ::core::ffi::c_int && u <= 0x24ff as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 10 as ::core::ffi::c_int) as u32;
+        if (0x2460_i32..=0x24ff_i32).contains(&u) {
+            u2 |= (1_i32 << 10_i32) as u32;
         }
-        if u >= 0x2500 as ::core::ffi::c_int && u <= 0x257f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 11 as ::core::ffi::c_int) as u32;
+        if (0x2500_i32..=0x257f_i32).contains(&u) {
+            u2 |= (1_i32 << 11_i32) as u32;
         }
-        if u >= 0x2580 as ::core::ffi::c_int && u <= 0x259f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 12 as ::core::ffi::c_int) as u32;
+        if (0x2580_i32..=0x259f_i32).contains(&u) {
+            u2 |= (1_i32 << 12_i32) as u32;
         }
-        if u >= 0x25a0 as ::core::ffi::c_int && u <= 0x25ff as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 13 as ::core::ffi::c_int) as u32;
+        if (0x25a0_i32..=0x25ff_i32).contains(&u) {
+            u2 |= (1_i32 << 13_i32) as u32;
         }
-        if u >= 0x2600 as ::core::ffi::c_int && u <= 0x26ff as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 14 as ::core::ffi::c_int) as u32;
+        if (0x2600_i32..=0x26ff_i32).contains(&u) {
+            u2 |= (1_i32 << 14_i32) as u32;
         }
-        if u >= 0x2700 as ::core::ffi::c_int && u <= 0x27bf as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 15 as ::core::ffi::c_int) as u32;
+        if (0x2700_i32..=0x27bf_i32).contains(&u) {
+            u2 |= (1_i32 << 15_i32) as u32;
         }
-        if u >= 0x3000 as ::core::ffi::c_int && u <= 0x303f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
+        if (0x3000_i32..=0x303f_i32).contains(&u) {
+            u2 |= (1_i32 << 16_i32) as u32;
         }
-        if u >= 0x3040 as ::core::ffi::c_int && u <= 0x309f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 17 as ::core::ffi::c_int) as u32;
+        if (0x3040_i32..=0x309f_i32).contains(&u) {
+            u2 |= (1_i32 << 17_i32) as u32;
         }
-        if u >= 0x30a0 as ::core::ffi::c_int && u <= 0x30ff as ::core::ffi::c_int
-            || u >= 0x31f0 as ::core::ffi::c_int && u <= 0x31ff as ::core::ffi::c_int
+        if (0x30a0_i32..=0x30ff_i32).contains(&u)
+            || (0x31f0_i32..=0x31ff_i32).contains(&u)
         {
-            u2 |= ((1 as ::core::ffi::c_int) << 18 as ::core::ffi::c_int) as u32;
+            u2 |= (1_i32 << 18_i32) as u32;
         }
-        if u >= 0x3100 as ::core::ffi::c_int && u <= 0x312f as ::core::ffi::c_int
-            || u >= 0x31a0 as ::core::ffi::c_int && u <= 0x31bf as ::core::ffi::c_int
+        if (0x3100_i32..=0x312f_i32).contains(&u)
+            || (0x31a0_i32..=0x31bf_i32).contains(&u)
         {
-            u2 |= ((1 as ::core::ffi::c_int) << 19 as ::core::ffi::c_int) as u32;
+            u2 |= (1_i32 << 19_i32) as u32;
         }
-        if u >= 0x3130 as ::core::ffi::c_int && u <= 0x318f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 20 as ::core::ffi::c_int) as u32;
+        if (0x3130_i32..=0x318f_i32).contains(&u) {
+            u2 |= (1_i32 << 20_i32) as u32;
         }
-        if u >= 0xa840 as ::core::ffi::c_int && u <= 0xa87f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 21 as ::core::ffi::c_int) as u32;
+        if (0xa840_i32..=0xa87f_i32).contains(&u) {
+            u2 |= (1_i32 << 21_i32) as u32;
         }
-        if u >= 0x3200 as ::core::ffi::c_int && u <= 0x32ff as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 22 as ::core::ffi::c_int) as u32;
+        if (0x3200_i32..=0x32ff_i32).contains(&u) {
+            u2 |= (1_i32 << 22_i32) as u32;
         }
-        if u >= 0x3300 as ::core::ffi::c_int && u <= 0x33ff as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 23 as ::core::ffi::c_int) as u32;
+        if (0x3300_i32..=0x33ff_i32).contains(&u) {
+            u2 |= (1_i32 << 23_i32) as u32;
         }
-        if u >= 0xac00 as ::core::ffi::c_int && u <= 0xd7af as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
+        if (0xac00_i32..=0xd7af_i32).contains(&u) {
+            u2 |= (1_i32 << 24_i32) as u32;
         }
-        if u >= 0xd800 as ::core::ffi::c_int && u <= 0xdfff as ::core::ffi::c_int
-            || u > 0xffff as ::core::ffi::c_int
+        if (0xd800_i32..=0xdfff_i32).contains(&u)
+            || u > 0xffff_i32
         {
-            u2 |= ((1 as ::core::ffi::c_int) << 25 as ::core::ffi::c_int) as u32;
+            u2 |= (1_i32 << 25_i32) as u32;
         }
-        if u >= 0x10900 as ::core::ffi::c_int && u <= 0x1091f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 26 as ::core::ffi::c_int) as u32;
+        if (0x10900_i32..=0x1091f_i32).contains(&u) {
+            u2 |= (1_i32 << 26_i32) as u32;
         }
-        if u >= 0x4e00 as ::core::ffi::c_int && u <= 0x9fff as ::core::ffi::c_int
-            || u >= 0x2e80 as ::core::ffi::c_int && u <= 0x2eff as ::core::ffi::c_int
-            || u >= 0x2f00 as ::core::ffi::c_int && u <= 0x2fdf as ::core::ffi::c_int
-            || u >= 0x2ff0 as ::core::ffi::c_int && u <= 0x2fff as ::core::ffi::c_int
-            || u >= 0x3400 as ::core::ffi::c_int && u <= 0x4dbf as ::core::ffi::c_int
-            || u >= 0x20000 as ::core::ffi::c_int && u <= 0x2f7ff as ::core::ffi::c_int
-            || u >= 0x3190 as ::core::ffi::c_int && u <= 0x319f as ::core::ffi::c_int
+        if (0x4e00_i32..=0x9fff_i32).contains(&u)
+            || (0x2e80_i32..=0x2eff_i32).contains(&u)
+            || (0x2f00_i32..=0x2fdf_i32).contains(&u)
+            || (0x2ff0_i32..=0x2fff_i32).contains(&u)
+            || (0x3400_i32..=0x4dbf_i32).contains(&u)
+            || (0x20000_i32..=0x2f7ff_i32).contains(&u)
+            || (0x3190_i32..=0x319f_i32).contains(&u)
         {
-            u2 |= ((1 as ::core::ffi::c_int) << 27 as ::core::ffi::c_int) as u32;
+            u2 |= (1_i32 << 27_i32) as u32;
         }
-        if u >= 0xe000 as ::core::ffi::c_int && u <= 0xf8ff as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 28 as ::core::ffi::c_int) as u32;
+        if (0xe000_i32..=0xf8ff_i32).contains(&u) {
+            u2 |= (1_i32 << 28_i32) as u32;
         }
-        if u >= 0x31c0 as ::core::ffi::c_int && u <= 0x31ef as ::core::ffi::c_int
-            || u >= 0xf900 as ::core::ffi::c_int && u <= 0xfaff as ::core::ffi::c_int
-            || u >= 0x2f800 as ::core::ffi::c_int && u <= 0x2fa1f as ::core::ffi::c_int
+        if (0x31c0_i32..=0x31ef_i32).contains(&u)
+            || (0xf900_i32..=0xfaff_i32).contains(&u)
+            || (0x2f800_i32..=0x2fa1f_i32).contains(&u)
         {
-            u2 |= ((1 as ::core::ffi::c_int) << 29 as ::core::ffi::c_int) as u32;
+            u2 |= (1_i32 << 29_i32) as u32;
         }
-        if u >= 0xfb00 as ::core::ffi::c_int && u <= 0xfb4f as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 30 as ::core::ffi::c_int) as u32;
+        if (0xfb00_i32..=0xfb4f_i32).contains(&u) {
+            u2 |= (1_i32 << 30_i32) as u32;
         }
-        if u >= 0xfb50 as ::core::ffi::c_int && u <= 0xfdff as ::core::ffi::c_int {
-            u2 |= ((1 as ::core::ffi::c_int) << 31 as ::core::ffi::c_int) as u32;
+        if (0xfb50_i32..=0xfdff_i32).contains(&u) {
+            u2 |= (1_i32 << 31_i32) as u32;
         }
-        if u >= 0xfe20 as ::core::ffi::c_int && u <= 0xfe2f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as u32;
+        if (0xfe20_i32..=0xfe2f_i32).contains(&u) {
+            u3 |= (1_i32 << 0_i32) as u32;
         }
-        if u >= 0xfe10 as ::core::ffi::c_int && u <= 0xfe1f as ::core::ffi::c_int
-            || u >= 0xfe30 as ::core::ffi::c_int && u <= 0xfe4f as ::core::ffi::c_int
+        if (0xfe10_i32..=0xfe1f_i32).contains(&u)
+            || (0xfe30_i32..=0xfe4f_i32).contains(&u)
         {
-            u3 |= ((1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as u32;
+            u3 |= (1_i32 << 1_i32) as u32;
         }
-        if u >= 0xfe50 as ::core::ffi::c_int && u <= 0xfe6f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int) as u32;
+        if (0xfe50_i32..=0xfe6f_i32).contains(&u) {
+            u3 |= (1_i32 << 2_i32) as u32;
         }
-        if u >= 0xfe70 as ::core::ffi::c_int && u <= 0xfeff as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int) as u32;
+        if (0xfe70_i32..=0xfeff_i32).contains(&u) {
+            u3 |= (1_i32 << 3_i32) as u32;
         }
-        if u >= 0xff00 as ::core::ffi::c_int && u <= 0xffef as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 4 as ::core::ffi::c_int) as u32;
+        if (0xff00_i32..=0xffef_i32).contains(&u) {
+            u3 |= (1_i32 << 4_i32) as u32;
         }
-        if u >= 0xfff0 as ::core::ffi::c_int && u <= 0xffff as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 5 as ::core::ffi::c_int) as u32;
+        if (0xfff0_i32..=0xffff_i32).contains(&u) {
+            u3 |= (1_i32 << 5_i32) as u32;
         }
-        if u >= 0xf00 as ::core::ffi::c_int && u <= 0xfff as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 6 as ::core::ffi::c_int) as u32;
+        if (0xf00_i32..=0xfff_i32).contains(&u) {
+            u3 |= (1_i32 << 6_i32) as u32;
         }
-        if u >= 0x700 as ::core::ffi::c_int && u <= 0x74f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 7 as ::core::ffi::c_int) as u32;
+        if (0x700_i32..=0x74f_i32).contains(&u) {
+            u3 |= (1_i32 << 7_i32) as u32;
         }
-        if u >= 0x780 as ::core::ffi::c_int && u <= 0x7bf as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
+        if (0x780_i32..=0x7bf_i32).contains(&u) {
+            u3 |= (1_i32 << 8_i32) as u32;
         }
-        if u >= 0xd80 as ::core::ffi::c_int && u <= 0xdff as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 9 as ::core::ffi::c_int) as u32;
+        if (0xd80_i32..=0xdff_i32).contains(&u) {
+            u3 |= (1_i32 << 9_i32) as u32;
         }
-        if u >= 0x1000 as ::core::ffi::c_int && u <= 0x109f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 10 as ::core::ffi::c_int) as u32;
+        if (0x1000_i32..=0x109f_i32).contains(&u) {
+            u3 |= (1_i32 << 10_i32) as u32;
         }
-        if u >= 0x1200 as ::core::ffi::c_int && u <= 0x137f as ::core::ffi::c_int
-            || u >= 0x1380 as ::core::ffi::c_int && u <= 0x139f as ::core::ffi::c_int
-            || u >= 0x2d80 as ::core::ffi::c_int && u <= 0x2ddf as ::core::ffi::c_int
+        if (0x1200_i32..=0x137f_i32).contains(&u)
+            || (0x1380_i32..=0x139f_i32).contains(&u)
+            || (0x2d80_i32..=0x2ddf_i32).contains(&u)
         {
-            u3 |= ((1 as ::core::ffi::c_int) << 11 as ::core::ffi::c_int) as u32;
+            u3 |= (1_i32 << 11_i32) as u32;
         }
-        if u >= 0x13a0 as ::core::ffi::c_int && u <= 0x13ff as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 12 as ::core::ffi::c_int) as u32;
+        if (0x13a0_i32..=0x13ff_i32).contains(&u) {
+            u3 |= (1_i32 << 12_i32) as u32;
         }
-        if u >= 0x1400 as ::core::ffi::c_int && u <= 0x167f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 13 as ::core::ffi::c_int) as u32;
+        if (0x1400_i32..=0x167f_i32).contains(&u) {
+            u3 |= (1_i32 << 13_i32) as u32;
         }
-        if u >= 0x1680 as ::core::ffi::c_int && u <= 0x169f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 14 as ::core::ffi::c_int) as u32;
+        if (0x1680_i32..=0x169f_i32).contains(&u) {
+            u3 |= (1_i32 << 14_i32) as u32;
         }
-        if u >= 0x16a0 as ::core::ffi::c_int && u <= 0x16ff as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 15 as ::core::ffi::c_int) as u32;
+        if (0x16a0_i32..=0x16ff_i32).contains(&u) {
+            u3 |= (1_i32 << 15_i32) as u32;
         }
-        if u >= 0x1780 as ::core::ffi::c_int && u <= 0x17ff as ::core::ffi::c_int
-            || u >= 0x19e0 as ::core::ffi::c_int && u <= 0x19ff as ::core::ffi::c_int
+        if (0x1780_i32..=0x17ff_i32).contains(&u)
+            || (0x19e0_i32..=0x19ff_i32).contains(&u)
         {
-            u3 |= ((1 as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
+            u3 |= (1_i32 << 16_i32) as u32;
         }
-        if u >= 0x1800 as ::core::ffi::c_int && u <= 0x18af as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 17 as ::core::ffi::c_int) as u32;
+        if (0x1800_i32..=0x18af_i32).contains(&u) {
+            u3 |= (1_i32 << 17_i32) as u32;
         }
-        if u >= 0x2800 as ::core::ffi::c_int && u <= 0x28ff as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 18 as ::core::ffi::c_int) as u32;
+        if (0x2800_i32..=0x28ff_i32).contains(&u) {
+            u3 |= (1_i32 << 18_i32) as u32;
         }
-        if u >= 0xa000 as ::core::ffi::c_int && u <= 0xa48f as ::core::ffi::c_int
-            || u >= 0xa490 as ::core::ffi::c_int && u <= 0xa4cf as ::core::ffi::c_int
+        if (0xa000_i32..=0xa48f_i32).contains(&u)
+            || (0xa490_i32..=0xa4cf_i32).contains(&u)
         {
-            u3 |= ((1 as ::core::ffi::c_int) << 19 as ::core::ffi::c_int) as u32;
+            u3 |= (1_i32 << 19_i32) as u32;
         }
-        if u >= 0x1700 as ::core::ffi::c_int && u <= 0x171f as ::core::ffi::c_int
-            || u >= 0x1720 as ::core::ffi::c_int && u <= 0x173f as ::core::ffi::c_int
-            || u >= 0x1740 as ::core::ffi::c_int && u <= 0x175f as ::core::ffi::c_int
-            || u >= 0x1760 as ::core::ffi::c_int && u <= 0x177f as ::core::ffi::c_int
+        if (0x1700_i32..=0x171f_i32).contains(&u)
+            || (0x1720_i32..=0x173f_i32).contains(&u)
+            || (0x1740_i32..=0x175f_i32).contains(&u)
+            || (0x1760_i32..=0x177f_i32).contains(&u)
         {
-            u3 |= ((1 as ::core::ffi::c_int) << 20 as ::core::ffi::c_int) as u32;
+            u3 |= (1_i32 << 20_i32) as u32;
         }
-        if u >= 0x10300 as ::core::ffi::c_int && u <= 0x1032f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 21 as ::core::ffi::c_int) as u32;
+        if (0x10300_i32..=0x1032f_i32).contains(&u) {
+            u3 |= (1_i32 << 21_i32) as u32;
         }
-        if u >= 0x10330 as ::core::ffi::c_int && u <= 0x1034f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 22 as ::core::ffi::c_int) as u32;
+        if (0x10330_i32..=0x1034f_i32).contains(&u) {
+            u3 |= (1_i32 << 22_i32) as u32;
         }
-        if u >= 0x10400 as ::core::ffi::c_int && u <= 0x1044f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 23 as ::core::ffi::c_int) as u32;
+        if (0x10400_i32..=0x1044f_i32).contains(&u) {
+            u3 |= (1_i32 << 23_i32) as u32;
         }
-        if u >= 0x1d000 as ::core::ffi::c_int && u <= 0x1d0ff as ::core::ffi::c_int
-            || u >= 0x1d100 as ::core::ffi::c_int && u <= 0x1d1ff as ::core::ffi::c_int
-            || u >= 0x1d200 as ::core::ffi::c_int && u <= 0x1d24f as ::core::ffi::c_int
+        if (0x1d000_i32..=0x1d0ff_i32).contains(&u)
+            || (0x1d100_i32..=0x1d1ff_i32).contains(&u)
+            || (0x1d200_i32..=0x1d24f_i32).contains(&u)
         {
-            u3 |= ((1 as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
+            u3 |= (1_i32 << 24_i32) as u32;
         }
-        if u >= 0x1d400 as ::core::ffi::c_int && u <= 0x1d7ff as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 25 as ::core::ffi::c_int) as u32;
+        if (0x1d400_i32..=0x1d7ff_i32).contains(&u) {
+            u3 |= (1_i32 << 25_i32) as u32;
         }
-        if u >= 0xff000 as ::core::ffi::c_int && u <= 0xffffd as ::core::ffi::c_int
-            || u >= 0x100000 as ::core::ffi::c_int && u <= 0x10fffd as ::core::ffi::c_int
+        if (0xff000_i32..=0xffffd_i32).contains(&u)
+            || (0x100000_i32..=0x10fffd_i32).contains(&u)
         {
-            u3 |= ((1 as ::core::ffi::c_int) << 26 as ::core::ffi::c_int) as u32;
+            u3 |= (1_i32 << 26_i32) as u32;
         }
-        if u >= 0xfe00 as ::core::ffi::c_int && u <= 0xfe0f as ::core::ffi::c_int
-            || u >= 0xe0100 as ::core::ffi::c_int && u <= 0xe01ef as ::core::ffi::c_int
+        if (0xfe00_i32..=0xfe0f_i32).contains(&u)
+            || (0xe0100_i32..=0xe01ef_i32).contains(&u)
         {
-            u3 |= ((1 as ::core::ffi::c_int) << 27 as ::core::ffi::c_int) as u32;
+            u3 |= (1_i32 << 27_i32) as u32;
         }
-        if u >= 0xe0000 as ::core::ffi::c_int && u <= 0xe007f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 28 as ::core::ffi::c_int) as u32;
+        if (0xe0000_i32..=0xe007f_i32).contains(&u) {
+            u3 |= (1_i32 << 28_i32) as u32;
         }
-        if u >= 0x1900 as ::core::ffi::c_int && u <= 0x194f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 29 as ::core::ffi::c_int) as u32;
+        if (0x1900_i32..=0x194f_i32).contains(&u) {
+            u3 |= (1_i32 << 29_i32) as u32;
         }
-        if u >= 0x1950 as ::core::ffi::c_int && u <= 0x197f as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 30 as ::core::ffi::c_int) as u32;
+        if (0x1950_i32..=0x197f_i32).contains(&u) {
+            u3 |= (1_i32 << 30_i32) as u32;
         }
-        if u >= 0x1980 as ::core::ffi::c_int && u <= 0x19df as ::core::ffi::c_int {
-            u3 |= ((1 as ::core::ffi::c_int) << 31 as ::core::ffi::c_int) as u32;
+        if (0x1980_i32..=0x19df_i32).contains(&u) {
+            u3 |= (1_i32 << 31_i32) as u32;
         }
-        if u >= 0x1a00 as ::core::ffi::c_int && u <= 0x1a1f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as u32;
+        if (0x1a00_i32..=0x1a1f_i32).contains(&u) {
+            u4 |= (1_i32 << 0_i32) as u32;
         }
-        if u >= 0x2c00 as ::core::ffi::c_int && u <= 0x2c5f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 1 as ::core::ffi::c_int) as u32;
+        if (0x2c00_i32..=0x2c5f_i32).contains(&u) {
+            u4 |= (1_i32 << 1_i32) as u32;
         }
-        if u >= 0x2d30 as ::core::ffi::c_int && u <= 0x2d7f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 2 as ::core::ffi::c_int) as u32;
+        if (0x2d30_i32..=0x2d7f_i32).contains(&u) {
+            u4 |= (1_i32 << 2_i32) as u32;
         }
-        if u >= 0x4dc0 as ::core::ffi::c_int && u <= 0x4dff as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 3 as ::core::ffi::c_int) as u32;
+        if (0x4dc0_i32..=0x4dff_i32).contains(&u) {
+            u4 |= (1_i32 << 3_i32) as u32;
         }
-        if u >= 0xa800 as ::core::ffi::c_int && u <= 0xa82f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 4 as ::core::ffi::c_int) as u32;
+        if (0xa800_i32..=0xa82f_i32).contains(&u) {
+            u4 |= (1_i32 << 4_i32) as u32;
         }
-        if u >= 0x10000 as ::core::ffi::c_int && u <= 0x1007f as ::core::ffi::c_int
-            || u >= 0x10080 as ::core::ffi::c_int && u <= 0x100ff as ::core::ffi::c_int
-            || u >= 0x10100 as ::core::ffi::c_int && u <= 0x1013f as ::core::ffi::c_int
+        if (0x10000_i32..=0x1007f_i32).contains(&u)
+            || (0x10080_i32..=0x100ff_i32).contains(&u)
+            || (0x10100_i32..=0x1013f_i32).contains(&u)
         {
-            u4 |= ((1 as ::core::ffi::c_int) << 5 as ::core::ffi::c_int) as u32;
+            u4 |= (1_i32 << 5_i32) as u32;
         }
-        if u >= 0x10140 as ::core::ffi::c_int && u <= 0x1018f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 6 as ::core::ffi::c_int) as u32;
+        if (0x10140_i32..=0x1018f_i32).contains(&u) {
+            u4 |= (1_i32 << 6_i32) as u32;
         }
-        if u >= 0x10380 as ::core::ffi::c_int && u <= 0x1039f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 7 as ::core::ffi::c_int) as u32;
+        if (0x10380_i32..=0x1039f_i32).contains(&u) {
+            u4 |= (1_i32 << 7_i32) as u32;
         }
-        if u >= 0x103a0 as ::core::ffi::c_int && u <= 0x103df as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
+        if (0x103a0_i32..=0x103df_i32).contains(&u) {
+            u4 |= (1_i32 << 8_i32) as u32;
         }
-        if u >= 0x10450 as ::core::ffi::c_int && u <= 0x1047f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 9 as ::core::ffi::c_int) as u32;
+        if (0x10450_i32..=0x1047f_i32).contains(&u) {
+            u4 |= (1_i32 << 9_i32) as u32;
         }
-        if u >= 0x10480 as ::core::ffi::c_int && u <= 0x104af as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 10 as ::core::ffi::c_int) as u32;
+        if (0x10480_i32..=0x104af_i32).contains(&u) {
+            u4 |= (1_i32 << 10_i32) as u32;
         }
-        if u >= 0x10800 as ::core::ffi::c_int && u <= 0x1083f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 11 as ::core::ffi::c_int) as u32;
+        if (0x10800_i32..=0x1083f_i32).contains(&u) {
+            u4 |= (1_i32 << 11_i32) as u32;
         }
-        if u >= 0x10a00 as ::core::ffi::c_int && u <= 0x10a5f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 12 as ::core::ffi::c_int) as u32;
+        if (0x10a00_i32..=0x10a5f_i32).contains(&u) {
+            u4 |= (1_i32 << 12_i32) as u32;
         }
-        if u >= 0x1d300 as ::core::ffi::c_int && u <= 0x1d35f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 13 as ::core::ffi::c_int) as u32;
+        if (0x1d300_i32..=0x1d35f_i32).contains(&u) {
+            u4 |= (1_i32 << 13_i32) as u32;
         }
-        if u >= 0x12000 as ::core::ffi::c_int && u <= 0x123ff as ::core::ffi::c_int
-            || u >= 0x12400 as ::core::ffi::c_int && u <= 0x1247f as ::core::ffi::c_int
+        if (0x12000_i32..=0x123ff_i32).contains(&u)
+            || (0x12400_i32..=0x1247f_i32).contains(&u)
         {
-            u4 |= ((1 as ::core::ffi::c_int) << 14 as ::core::ffi::c_int) as u32;
+            u4 |= (1_i32 << 14_i32) as u32;
         }
-        if u >= 0x1d360 as ::core::ffi::c_int && u <= 0x1d37f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 15 as ::core::ffi::c_int) as u32;
+        if (0x1d360_i32..=0x1d37f_i32).contains(&u) {
+            u4 |= (1_i32 << 15_i32) as u32;
         }
-        if u >= 0x1b80 as ::core::ffi::c_int && u <= 0x1bbf as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
+        if (0x1b80_i32..=0x1bbf_i32).contains(&u) {
+            u4 |= (1_i32 << 16_i32) as u32;
         }
-        if u >= 0x1c00 as ::core::ffi::c_int && u <= 0x1c4f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 17 as ::core::ffi::c_int) as u32;
+        if (0x1c00_i32..=0x1c4f_i32).contains(&u) {
+            u4 |= (1_i32 << 17_i32) as u32;
         }
-        if u >= 0x1c50 as ::core::ffi::c_int && u <= 0x1c7f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 18 as ::core::ffi::c_int) as u32;
+        if (0x1c50_i32..=0x1c7f_i32).contains(&u) {
+            u4 |= (1_i32 << 18_i32) as u32;
         }
-        if u >= 0xa880 as ::core::ffi::c_int && u <= 0xa8df as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 19 as ::core::ffi::c_int) as u32;
+        if (0xa880_i32..=0xa8df_i32).contains(&u) {
+            u4 |= (1_i32 << 19_i32) as u32;
         }
-        if u >= 0xa900 as ::core::ffi::c_int && u <= 0xa92f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 20 as ::core::ffi::c_int) as u32;
+        if (0xa900_i32..=0xa92f_i32).contains(&u) {
+            u4 |= (1_i32 << 20_i32) as u32;
         }
-        if u >= 0xa930 as ::core::ffi::c_int && u <= 0xa95f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 21 as ::core::ffi::c_int) as u32;
+        if (0xa930_i32..=0xa95f_i32).contains(&u) {
+            u4 |= (1_i32 << 21_i32) as u32;
         }
-        if u >= 0xaa00 as ::core::ffi::c_int && u <= 0xaa5f as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 22 as ::core::ffi::c_int) as u32;
+        if (0xaa00_i32..=0xaa5f_i32).contains(&u) {
+            u4 |= (1_i32 << 22_i32) as u32;
         }
-        if u >= 0x10190 as ::core::ffi::c_int && u <= 0x101cf as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 23 as ::core::ffi::c_int) as u32;
+        if (0x10190_i32..=0x101cf_i32).contains(&u) {
+            u4 |= (1_i32 << 23_i32) as u32;
         }
-        if u >= 0x101d0 as ::core::ffi::c_int && u <= 0x101ff as ::core::ffi::c_int {
-            u4 |= ((1 as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
+        if (0x101d0_i32..=0x101ff_i32).contains(&u) {
+            u4 |= (1_i32 << 24_i32) as u32;
         }
-        if u >= 0x102a0 as ::core::ffi::c_int && u <= 0x102df as ::core::ffi::c_int
-            || u >= 0x10280 as ::core::ffi::c_int && u <= 0x1029f as ::core::ffi::c_int
-            || u >= 0x10920 as ::core::ffi::c_int && u <= 0x1093f as ::core::ffi::c_int
+        if (0x102a0_i32..=0x102df_i32).contains(&u)
+            || (0x10280_i32..=0x1029f_i32).contains(&u)
+            || (0x10920_i32..=0x1093f_i32).contains(&u)
         {
-            u4 |= ((1 as ::core::ffi::c_int) << 25 as ::core::ffi::c_int) as u32;
+            u4 |= (1_i32 << 25_i32) as u32;
         }
-        if u >= 0x1f030 as ::core::ffi::c_int && u <= 0x1f09f as ::core::ffi::c_int
-            || u >= 0x1f000 as ::core::ffi::c_int && u <= 0x1f02f as ::core::ffi::c_int
+        if (0x1f030_i32..=0x1f09f_i32).contains(&u)
+            || (0x1f000_i32..=0x1f02f_i32).contains(&u)
         {
-            u4 |= ((1 as ::core::ffi::c_int) << 26 as ::core::ffi::c_int) as u32;
+            u4 |= (1_i32 << 26_i32) as u32;
         }
     }
     if !options.keep_unicode_ranges {
@@ -1026,7 +1026,7 @@ unsafe fn stat_os_2_average_width(font: *mut Font, options: &Options) {
                 .advance_width
                 .clone(),
         ) as Pos;
-        if adw > 0 as ::core::ffi::c_int as Pos {
+        if adw > 0_i32 as Pos {
             total_width = (total_width as Pos + adw) as u32;
         }
     }
@@ -1046,7 +1046,7 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
             | OTL_TYPE_GPOS_MARK_TO_BASE
             | OTL_TYPE_GPOS_MARK_TO_LIGATURE
             | OTL_TYPE_GPOS_MARK_TO_MARK => {
-                if (maxc as ::core::ffi::c_int) < 2 as ::core::ffi::c_int {
+                if (maxc as i32) < 2_i32 {
                     maxc = 2_u16;
                 }
             }
@@ -1060,8 +1060,8 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                     for ei in 0..(*subtable).len() {
                         let entry: *mut GsubLigatureEntry =
                             &mut (&mut (*subtable))[ei] as *mut GsubLigatureEntry;
-                        if (maxc as ::core::ffi::c_int)
-                            < (*(*entry).from).len() as ::core::ffi::c_int
+                        if (maxc as i32)
+                            < (*(*entry).from).len() as i32
                         {
                             maxc = (*(*entry).from).len() as u16;
                         }
@@ -1076,7 +1076,7 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                     };
                     let subtable: *mut ChainingSubtable = mut_subtable;
                     let rule = chaining_rule_mut(subtable);
-                    if (maxc as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
+                    if (maxc as i32) < (*rule).match_count as i32 {
                         maxc = (*rule).match_count;
                     }
                 }
@@ -1088,7 +1088,7 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                         unreachable!()
                     };
                     let subtable: *mut GsubReverseSubtable = mut_subtable;
-                    if (maxc as ::core::ffi::c_int) < (*subtable).match_count as ::core::ffi::c_int
+                    if (maxc as i32) < (*subtable).match_count as i32
                     {
                         maxc = (*subtable).match_count;
                     }
@@ -1104,13 +1104,13 @@ unsafe fn stat_max_context(font: *mut Font) {
     let mut maxc: u16 = 1_u16;
     if let Some(gsub) = (*font).gsub.as_deref() {
         let maxc_gsub: u16 = stat_max_context_otl(gsub as *const OtlTable);
-        if maxc_gsub as ::core::ffi::c_int > maxc as ::core::ffi::c_int {
+        if maxc_gsub as i32 > maxc as i32 {
             maxc = maxc_gsub;
         }
     }
     if let Some(gpos) = (*font).gpos.as_deref() {
         let maxc_gpos: u16 = stat_max_context_otl(gpos as *const OtlTable);
-        if maxc_gpos as ::core::ffi::c_int > maxc as ::core::ffi::c_int {
+        if maxc_gpos as i32 > maxc as i32 {
             maxc = maxc_gpos;
         }
     }
@@ -1121,7 +1121,7 @@ unsafe fn stat_os_2(font: *mut Font, options: &Options) {
     stat_os_2_average_width(font, options);
     stat_max_context(font);
 }
-pub const MAX_STAT_METRIC: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
+pub const MAX_STAT_METRIC: i32 = 4096_i32;
 unsafe fn stat_cff_widths(font: *mut Font) {
     if (*font).glyf.is_none() || (*font).cff.is_none() {
         return;
@@ -1139,7 +1139,7 @@ unsafe fn stat_cff_widths(font: *mut Font) {
                 .advance_width
                 .clone(),
         ) as u16;
-        if (int_width as ::core::ffi::c_int) < MAX_STAT_METRIC {
+        if (int_width as i32) < MAX_STAT_METRIC {
             frequency[int_width as usize] = frequency[int_width as usize].wrapping_add(1_u32);
         }
     }
@@ -1161,18 +1161,18 @@ unsafe fn stat_cff_widths(font: *mut Font) {
                 .advance_width
                 .clone(),
         ) as Pos;
-        if adw != maxj as ::core::ffi::c_int as Pos {
-            nn = (nn as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as u16;
+        if adw != maxj as i32 as Pos {
+            nn = (nn as i32 + 1_i32) as u16;
             nnsum = (nnsum as Pos + adw) as u32;
         }
     }
     let mut nominal_width_x: i16 = 0_i16;
-    if nn as ::core::ffi::c_int > 0 as ::core::ffi::c_int {
+    if nn as i32 > 0_i32 {
         nominal_width_x = nnsum.wrapping_div(nn as u32) as i16;
     }
     if let Some(pd) = (*cff).private_dict.as_deref_mut() {
         pd.default_width_x = maxj as ::core::ffi::c_double;
-        if nn as ::core::ffi::c_int != 0 as ::core::ffi::c_int {
+        if nn as i32 != 0_i32 {
             pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
         }
     }
@@ -1202,7 +1202,7 @@ unsafe fn stat_vorg(font: *mut Font) {
                 .vertical_origin
                 .clone(),
         ) as Pos;
-        if vori >= 0 as ::core::ffi::c_int as Pos && vori < MAX_STAT_METRIC as Pos {
+        if vori >= 0_i32 as Pos && vori < MAX_STAT_METRIC as Pos {
             frequency[vori as u16 as usize] =
                 frequency[vori as u16 as usize].wrapping_add(1_u32);
         }
@@ -1225,9 +1225,9 @@ unsafe fn stat_vorg(font: *mut Font) {
                 .vertical_origin
                 .clone(),
         ) as Pos;
-        if vori_0 != maxj as ::core::ffi::c_int as Pos {
+        if vori_0 != maxj as i32 as Pos {
             n_vert_origs =
-                (n_vert_origs as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+                (n_vert_origs as i32 + 1_i32) as GlyphId;
         }
     }
     let mut entries: Vec<VorgEntry> = Vec::with_capacity(n_vert_origs as usize);
@@ -1239,7 +1239,7 @@ unsafe fn stat_vorg(font: *mut Font) {
                 .vertical_origin
                 .clone(),
         ) as Pos;
-        if vori_1 != maxj as ::core::ffi::c_int as Pos {
+        if vori_1 != maxj as i32 as Pos {
             entries.push(VorgEntry {
                 gid: j_2,
                 vertical_origin: vori_1 as i16,
@@ -1259,8 +1259,8 @@ unsafe fn stat_ltsh(font: *mut Font) {
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let mut need_ltsh: bool = false;
     for j in 0..(*glyf).len() as GlyphId {
-        if (&(*glyf))[j as usize].as_deref().unwrap().y_pel as ::core::ffi::c_int
-            > 1 as ::core::ffi::c_int
+        if (&(*glyf))[j as usize].as_deref().unwrap().y_pel as i32
+            > 1_i32
         {
             need_ltsh = true;
         }
@@ -1309,16 +1309,16 @@ pub unsafe fn otfcc_stat_font(font: *mut Font, options: &Options) {
     }
     if !head.is_null() && (*font).cff.is_some() {
         let cff: *mut CffTable = (*font).cff.as_deref_mut().unwrap() as *mut CffTable;
-        if (*cff).font_b_box_bottom > (*head).y_min as ::core::ffi::c_int as ::core::ffi::c_double {
+        if (*cff).font_b_box_bottom > (*head).y_min as i32 as ::core::ffi::c_double {
             (*cff).font_b_box_bottom = (*head).y_min as ::core::ffi::c_double;
         }
-        if (*cff).font_b_box_top < (*head).y_max as ::core::ffi::c_int as ::core::ffi::c_double {
+        if (*cff).font_b_box_top < (*head).y_max as i32 as ::core::ffi::c_double {
             (*cff).font_b_box_top = (*head).y_max as ::core::ffi::c_double;
         }
-        if (*cff).font_b_box_left < (*head).x_min as ::core::ffi::c_int as ::core::ffi::c_double {
+        if (*cff).font_b_box_left < (*head).x_min as i32 as ::core::ffi::c_double {
             (*cff).font_b_box_left = (*head).x_min as ::core::ffi::c_double;
         }
-        if (*cff).font_b_box_right < (*head).x_max as ::core::ffi::c_int as ::core::ffi::c_double {
+        if (*cff).font_b_box_right < (*head).x_max as i32 as ::core::ffi::c_double {
             (*cff).font_b_box_right = (*head).x_max as ::core::ffi::c_double;
         }
         if !glyf.is_null() && (*cff).is_cid {
@@ -1333,32 +1333,32 @@ pub unsafe fn otfcc_stat_font(font: *mut Font, options: &Options) {
             (*cff).font_matrix = None;
             for fd in (*cff).fd_array.iter_mut() {
                 fd.font_matrix = None;
-                if (*head).units_per_em as ::core::ffi::c_int == 1000 as ::core::ffi::c_int {
+                if (*head).units_per_em as i32 == 1000_i32 {
                     fd.font_matrix = None;
                 } else {
                     fd.font_matrix = Some(Box::new(CffFontMatrix {
                         a: (1.0f64
-                            / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
+                            / (*head).units_per_em as i32 as ::core::ffi::c_double)
                             as Scale,
                         b: 0.0f64 as Scale,
                         c: 0.0f64 as Scale,
                         d: (1.0f64
-                            / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
+                            / (*head).units_per_em as i32 as ::core::ffi::c_double)
                             as Scale,
                         x: (vq_neutral)(),
                         y: (vq_neutral)(),
                     }));
                 }
             }
-        } else if (*head).units_per_em as ::core::ffi::c_int == 1000 as ::core::ffi::c_int {
+        } else if (*head).units_per_em as i32 == 1000_i32 {
             (*cff).font_matrix = None;
         } else {
             (*cff).font_matrix = Some(Box::new(CffFontMatrix {
-                a: (1.0f64 / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
+                a: (1.0f64 / (*head).units_per_em as i32 as ::core::ffi::c_double)
                     as Scale,
                 b: 0.0f64 as Scale,
                 c: 0.0f64 as Scale,
-                d: (1.0f64 / (*head).units_per_em as ::core::ffi::c_int as ::core::ffi::c_double)
+                d: (1.0f64 / (*head).units_per_em as i32 as ::core::ffi::c_double)
                     as Scale,
                 x: (vq_neutral)(),
                 y: (vq_neutral)(),
@@ -1392,10 +1392,10 @@ pub unsafe fn otfcc_stat_font(font: *mut Font, options: &Options) {
     }
     if (*font).subtype == FontSubtype::Ttf {
         if !maxp.is_null() {
-            (*maxp).version = 0x10000 as ::core::ffi::c_int as F16Dot16;
+            (*maxp).version = 0x10000_i32 as F16Dot16;
         }
     } else if !maxp.is_null() {
-        (*maxp).version = 0x5000 as ::core::ffi::c_int as F16Dot16;
+        (*maxp).version = 0x5000_i32 as F16Dot16;
     }
     if !glyf.is_null() && (*font).hhea.is_some() {
         stat_hmtx(font);

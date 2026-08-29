@@ -154,7 +154,7 @@ pub unsafe fn otl_gpos_parse_cursive(
         let val = json_obj_val_at(_subtable, j as u32);
         if !val.is_null()
             && json_type_of(val) as ::core::ffi::c_uint
-                == JsonType::Object as ::core::ffi::c_int as ::core::ffi::c_uint
+                == JsonType::Object as i32 as ::core::ffi::c_uint
         {
             (*subtable).push(GposCursiveEntry {
                 target: handle_from_name(Some(json_obj_key_bytes_at(_subtable, j as u32)))

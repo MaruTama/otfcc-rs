@@ -23,13 +23,13 @@ pub unsafe fn sha1_transform(ctx: *mut Sha1Ctx, data: *const BYTE) {
     i = 0 as WORD;
     j = 0 as WORD;
     while i < 16 as WORD {
-        m[i as usize] = (((*data.offset(j as isize) as ::core::ffi::c_int)
-            << 24 as ::core::ffi::c_int)
-            + ((*data.offset(j.wrapping_add(1 as WORD) as isize) as ::core::ffi::c_int)
-                << 16 as ::core::ffi::c_int)
-            + ((*data.offset(j.wrapping_add(2 as WORD) as isize) as ::core::ffi::c_int)
-                << 8 as ::core::ffi::c_int)
-            + *data.offset(j.wrapping_add(3 as WORD) as isize) as ::core::ffi::c_int)
+        m[i as usize] = (((*data.offset(j as isize) as i32)
+            << 24_i32)
+            + ((*data.offset(j.wrapping_add(1 as WORD) as isize) as i32)
+                << 16_i32)
+            + ((*data.offset(j.wrapping_add(2 as WORD) as isize) as i32)
+                << 8_i32)
+            + *data.offset(j.wrapping_add(3 as WORD) as isize) as i32)
             as WORD;
         i = i.wrapping_add(1);
         j = j.wrapping_add(4 as WORD);
@@ -39,99 +39,90 @@ pub unsafe fn sha1_transform(ctx: *mut Sha1Ctx, data: *const BYTE) {
             ^ m[i.wrapping_sub(8 as WORD) as usize]
             ^ m[i.wrapping_sub(14 as WORD) as usize]
             ^ m[i.wrapping_sub(16 as WORD) as usize];
-        m[i as usize] =
-            m[i as usize] << 1 as ::core::ffi::c_int | m[i as usize] >> 31 as ::core::ffi::c_int;
+        m[i as usize] = m[i as usize].rotate_left(1_u32);
         i = i.wrapping_add(1);
     }
-    a = (*ctx).state[0 as ::core::ffi::c_int as usize];
-    b = (*ctx).state[1 as ::core::ffi::c_int as usize];
-    c = (*ctx).state[2 as ::core::ffi::c_int as usize];
-    d = (*ctx).state[3 as ::core::ffi::c_int as usize];
-    e = (*ctx).state[4 as ::core::ffi::c_int as usize];
+    a = (*ctx).state[0_i32 as usize];
+    b = (*ctx).state[1_i32 as usize];
+    c = (*ctx).state[2_i32 as usize];
+    d = (*ctx).state[3_i32 as usize];
+    e = (*ctx).state[4_i32 as usize];
     i = 0 as WORD;
     while i < 20 as WORD {
-        t = (a << 5 as ::core::ffi::c_int
-            | a >> 32 as ::core::ffi::c_int - 5 as ::core::ffi::c_int)
+        t = (a.rotate_left(5_u32))
             .wrapping_add(b & c ^ !b & d)
             .wrapping_add(e)
-            .wrapping_add((*ctx).k[0 as ::core::ffi::c_int as usize])
+            .wrapping_add((*ctx).k[0_i32 as usize])
             .wrapping_add(m[i as usize]);
         e = d;
         d = c;
-        c = b << 30 as ::core::ffi::c_int
-            | b >> 32 as ::core::ffi::c_int - 30 as ::core::ffi::c_int;
+        c = b.rotate_right(32_u32 - 30_u32);
         b = a;
         a = t;
         i = i.wrapping_add(1);
     }
     while i < 40 as WORD {
-        t = (a << 5 as ::core::ffi::c_int
-            | a >> 32 as ::core::ffi::c_int - 5 as ::core::ffi::c_int)
+        t = (a.rotate_left(5_u32))
             .wrapping_add(b ^ c ^ d)
             .wrapping_add(e)
-            .wrapping_add((*ctx).k[1 as ::core::ffi::c_int as usize])
+            .wrapping_add((*ctx).k[1_i32 as usize])
             .wrapping_add(m[i as usize]);
         e = d;
         d = c;
-        c = b << 30 as ::core::ffi::c_int
-            | b >> 32 as ::core::ffi::c_int - 30 as ::core::ffi::c_int;
+        c = b.rotate_right(32_u32 - 30_u32);
         b = a;
         a = t;
         i = i.wrapping_add(1);
     }
     while i < 60 as WORD {
-        t = (a << 5 as ::core::ffi::c_int
-            | a >> 32 as ::core::ffi::c_int - 5 as ::core::ffi::c_int)
+        t = (a.rotate_left(5_u32))
             .wrapping_add(b & c ^ b & d ^ c & d)
             .wrapping_add(e)
-            .wrapping_add((*ctx).k[2 as ::core::ffi::c_int as usize])
+            .wrapping_add((*ctx).k[2_i32 as usize])
             .wrapping_add(m[i as usize]);
         e = d;
         d = c;
-        c = b << 30 as ::core::ffi::c_int
-            | b >> 32 as ::core::ffi::c_int - 30 as ::core::ffi::c_int;
+        c = b.rotate_right(32_u32 - 30_u32);
         b = a;
         a = t;
         i = i.wrapping_add(1);
     }
     while i < 80 as WORD {
-        t = (a << 5 as ::core::ffi::c_int
-            | a >> 32 as ::core::ffi::c_int - 5 as ::core::ffi::c_int)
+        t = (a.rotate_left(5_u32))
             .wrapping_add(b ^ c ^ d)
             .wrapping_add(e)
-            .wrapping_add((*ctx).k[3 as ::core::ffi::c_int as usize])
+            .wrapping_add((*ctx).k[3_i32 as usize])
             .wrapping_add(m[i as usize]);
         e = d;
         d = c;
-        c = b << 30 as ::core::ffi::c_int
-            | b >> 32 as ::core::ffi::c_int - 30 as ::core::ffi::c_int;
+        c = b.rotate_right(32_u32 - 30_u32);
         b = a;
         a = t;
         i = i.wrapping_add(1);
     }
-    (*ctx).state[0 as ::core::ffi::c_int as usize] =
-        (*ctx).state[0 as ::core::ffi::c_int as usize].wrapping_add(a);
-    (*ctx).state[1 as ::core::ffi::c_int as usize] =
-        (*ctx).state[1 as ::core::ffi::c_int as usize].wrapping_add(b);
-    (*ctx).state[2 as ::core::ffi::c_int as usize] =
-        (*ctx).state[2 as ::core::ffi::c_int as usize].wrapping_add(c);
-    (*ctx).state[3 as ::core::ffi::c_int as usize] =
-        (*ctx).state[3 as ::core::ffi::c_int as usize].wrapping_add(d);
-    (*ctx).state[4 as ::core::ffi::c_int as usize] =
-        (*ctx).state[4 as ::core::ffi::c_int as usize].wrapping_add(e);
+    (*ctx).state[0_i32 as usize] =
+        (*ctx).state[0_i32 as usize].wrapping_add(a);
+    (*ctx).state[1_i32 as usize] =
+        (*ctx).state[1_i32 as usize].wrapping_add(b);
+    (*ctx).state[2_i32 as usize] =
+        (*ctx).state[2_i32 as usize].wrapping_add(c);
+    (*ctx).state[3_i32 as usize] =
+        (*ctx).state[3_i32 as usize].wrapping_add(d);
+    (*ctx).state[4_i32 as usize] =
+        (*ctx).state[4_i32 as usize].wrapping_add(e);
 }
 pub unsafe fn sha1_init(ctx: *mut Sha1Ctx) {
     (*ctx).datalen = 0 as WORD;
     (*ctx).bitlen = 0 as ::core::ffi::c_ulonglong;
-    (*ctx).state[0 as ::core::ffi::c_int as usize] = 0x67452301 as ::core::ffi::c_int as WORD;
-    (*ctx).state[1 as ::core::ffi::c_int as usize] = 0xefcdab89 as ::core::ffi::c_uint as WORD;
-    (*ctx).state[2 as ::core::ffi::c_int as usize] = 0x98badcfe as ::core::ffi::c_uint as WORD;
-    (*ctx).state[3 as ::core::ffi::c_int as usize] = 0x10325476 as ::core::ffi::c_int as WORD;
-    (*ctx).state[4 as ::core::ffi::c_int as usize] = 0xc3d2e1f0 as ::core::ffi::c_uint as WORD;
-    (*ctx).k[0 as ::core::ffi::c_int as usize] = 0x5a827999 as ::core::ffi::c_int as WORD;
-    (*ctx).k[1 as ::core::ffi::c_int as usize] = 0x6ed9eba1 as ::core::ffi::c_int as WORD;
-    (*ctx).k[2 as ::core::ffi::c_int as usize] = 0x8f1bbcdc as ::core::ffi::c_uint as WORD;
-    (*ctx).k[3 as ::core::ffi::c_int as usize] = 0xca62c1d6 as ::core::ffi::c_uint as WORD;
+    (*ctx).state[0_i32 as usize] = 0x67452301_i32 as WORD;
+    (*ctx).state[1_i32 as usize] = 0xefcdab89 as ::core::ffi::c_uint as WORD;
+    (*ctx).state[2_i32 as usize] = 0x98badcfe as ::core::ffi::c_uint as WORD;
+    (*ctx).state[3_i32 as usize] = 0x10325476_i32 as WORD;
+    (*ctx).state[4_i32 as usize] = 0xc3d2e1f0 as ::core::ffi::c_uint as WORD;
+    (*ctx).k[0_i32 as usize] = 0x5a827999_i32 as WORD;
+    (*ctx).k[1_i32 as usize] = 0x6ed9eba1_i32 as WORD;
+    (*ctx).k[2_i32 as usize] = 0x8f1bbcdc as ::core::ffi::c_uint as WORD;
+    (*ctx).k[3_i32 as usize] = 0xca62c1d6 as ::core::ffi::c_uint as WORD;
 }
 pub unsafe fn sha1_update(ctx: *mut Sha1Ctx, data: *const BYTE, len: usize) {
     let mut i: usize;
@@ -171,48 +162,48 @@ pub unsafe fn sha1_final(ctx: *mut Sha1Ctx, hash: *mut BYTE) {
         sha1_transform(ctx, &raw mut (*ctx).data as *mut BYTE as *const BYTE);
         memset(
             &raw mut (*ctx).data as *mut BYTE as *mut ::core::ffi::c_void,
-            0 as ::core::ffi::c_int,
+            0_i32,
             56_usize,
         );
     }
     (*ctx).bitlen = (*ctx)
         .bitlen
         .wrapping_add((*ctx).datalen.wrapping_mul(8 as WORD) as ::core::ffi::c_ulonglong);
-    (*ctx).data[63 as ::core::ffi::c_int as usize] = (*ctx).bitlen as BYTE;
-    (*ctx).data[62 as ::core::ffi::c_int as usize] =
-        ((*ctx).bitlen >> 8 as ::core::ffi::c_int) as BYTE;
-    (*ctx).data[61 as ::core::ffi::c_int as usize] =
-        ((*ctx).bitlen >> 16 as ::core::ffi::c_int) as BYTE;
-    (*ctx).data[60 as ::core::ffi::c_int as usize] =
-        ((*ctx).bitlen >> 24 as ::core::ffi::c_int) as BYTE;
-    (*ctx).data[59 as ::core::ffi::c_int as usize] =
-        ((*ctx).bitlen >> 32 as ::core::ffi::c_int) as BYTE;
-    (*ctx).data[58 as ::core::ffi::c_int as usize] =
-        ((*ctx).bitlen >> 40 as ::core::ffi::c_int) as BYTE;
-    (*ctx).data[57 as ::core::ffi::c_int as usize] =
-        ((*ctx).bitlen >> 48 as ::core::ffi::c_int) as BYTE;
-    (*ctx).data[56 as ::core::ffi::c_int as usize] =
-        ((*ctx).bitlen >> 56 as ::core::ffi::c_int) as BYTE;
+    (*ctx).data[63_i32 as usize] = (*ctx).bitlen as BYTE;
+    (*ctx).data[62_i32 as usize] =
+        ((*ctx).bitlen >> 8_i32) as BYTE;
+    (*ctx).data[61_i32 as usize] =
+        ((*ctx).bitlen >> 16_i32) as BYTE;
+    (*ctx).data[60_i32 as usize] =
+        ((*ctx).bitlen >> 24_i32) as BYTE;
+    (*ctx).data[59_i32 as usize] =
+        ((*ctx).bitlen >> 32_i32) as BYTE;
+    (*ctx).data[58_i32 as usize] =
+        ((*ctx).bitlen >> 40_i32) as BYTE;
+    (*ctx).data[57_i32 as usize] =
+        ((*ctx).bitlen >> 48_i32) as BYTE;
+    (*ctx).data[56_i32 as usize] =
+        ((*ctx).bitlen >> 56_i32) as BYTE;
     sha1_transform(ctx, &raw mut (*ctx).data as *mut BYTE as *const BYTE);
     i = 0 as WORD;
     while i < 4 as WORD {
-        *hash.offset(i as isize) = ((*ctx).state[0 as ::core::ffi::c_int as usize]
+        *hash.offset(i as isize) = ((*ctx).state[0_i32 as usize]
             >> (24 as WORD).wrapping_sub(i.wrapping_mul(8 as WORD))
             & 0xff as WORD) as BYTE;
         *hash.offset(i.wrapping_add(4 as WORD) as isize) = ((*ctx).state
-            [1 as ::core::ffi::c_int as usize]
+            [1_i32 as usize]
             >> (24 as WORD).wrapping_sub(i.wrapping_mul(8 as WORD))
             & 0xff as WORD) as BYTE;
         *hash.offset(i.wrapping_add(8 as WORD) as isize) = ((*ctx).state
-            [2 as ::core::ffi::c_int as usize]
+            [2_i32 as usize]
             >> (24 as WORD).wrapping_sub(i.wrapping_mul(8 as WORD))
             & 0xff as WORD) as BYTE;
         *hash.offset(i.wrapping_add(12 as WORD) as isize) = ((*ctx).state
-            [3 as ::core::ffi::c_int as usize]
+            [3_i32 as usize]
             >> (24 as WORD).wrapping_sub(i.wrapping_mul(8 as WORD))
             & 0xff as WORD) as BYTE;
         *hash.offset(i.wrapping_add(16 as WORD) as isize) = ((*ctx).state
-            [4 as ::core::ffi::c_int as usize]
+            [4_i32 as usize]
             >> (24 as WORD).wrapping_sub(i.wrapping_mul(8 as WORD))
             & 0xff as WORD) as BYTE;
         i = i.wrapping_add(1);

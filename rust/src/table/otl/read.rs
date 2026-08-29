@@ -335,7 +335,7 @@ unsafe fn parse_otl_common(
                 b"_",
                 options.glyph_name_prefix,
                 b"_",
-                Dec5(j as ::core::ffi::c_int),
+                Dec5(j as i32),
             );
         } else {
             (*feature).name = crate::bytesbuild!(
@@ -344,7 +344,7 @@ unsafe fn parse_otl_common(
                 Byte((tag >> 8 & 0xff) as u8),
                 Byte((tag & 0xff) as u8),
                 b"_",
-                Dec5(j as ::core::ffi::c_int),
+                Dec5(j as i32),
             );
         }
         let mut fer = FontReader::new(data).at(feature_offset as usize)?;
@@ -368,7 +368,7 @@ unsafe fn parse_otl_common(
                             Byte((tag >> 8 & 0xff) as u8),
                             Byte((tag & 0xff) as u8),
                             b"_",
-                            fresh3 as ::core::ffi::c_int,
+                            fresh3 as i32,
                         );
                     } else {
                         let fresh4 = lnk;
@@ -380,7 +380,7 @@ unsafe fn parse_otl_common(
                             Byte((tag >> 8 & 0xff) as u8),
                             Byte((tag & 0xff) as u8),
                             b"_",
-                            fresh4 as ::core::ffi::c_int,
+                            fresh4 as i32,
                         );
                     }
                 }
@@ -465,7 +465,7 @@ unsafe fn parse_otl_common(
             LoggerType::Warning,
             crate::bytesbuild!(
                 b"[otl] Total script/language count exceeded ",
-                MAX_TOTAL_LANGUAGES as ::core::ffi::c_int,
+                MAX_TOTAL_LANGUAGES as i32,
                 b"; the rest of this table's scripts are ignored.\n",
             ),
         );
@@ -480,14 +480,14 @@ unsafe fn parse_otl_common(
                     b"_",
                     Hex2((*(&(*table).lookups)[j_3]).type_0.raw()),
                     b"_",
-                    j_3 as ::core::ffi::c_int,
+                    j_3 as i32,
                 );
             } else {
                 (*(&mut (*table).lookups)[j_3]).name = crate::bytesbuild!(
                     b"lookup_",
                     Hex2((*(&(*table).lookups)[j_3]).type_0.raw()),
                     b"_",
-                    j_3 as ::core::ffi::c_int,
+                    j_3 as i32,
                 );
             }
         }

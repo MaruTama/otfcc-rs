@@ -122,16 +122,16 @@ pub unsafe fn otfcc_options_optimize_to(options: *mut Options, level: u8) {
         (*options).merge_features = false;
         (*options).force_cid = false;
         (*options).cff_do_subroutinize = false;
-        if level as ::core::ffi::c_int >= 1 as ::core::ffi::c_int {
+        if level as i32 >= 1_i32 {
             (*options).cff_roll_char_string = true;
             (*options).cff_short_vmtx = true;
         }
-        if level as ::core::ffi::c_int >= 2 as ::core::ffi::c_int {
+        if level as i32 >= 2_i32 {
             (*options).short_post = true;
             (*options).cff_do_subroutinize = true;
             (*options).merge_features = true;
         }
-        if level as ::core::ffi::c_int >= 3 as ::core::ffi::c_int {
+        if level as i32 >= 3_i32 {
             (*options).ignore_glyph_order = true;
             (*options).force_cid = true;
         }

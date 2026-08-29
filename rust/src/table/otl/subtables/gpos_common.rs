@@ -179,16 +179,16 @@ pub unsafe fn otl_parse_mark_array(
 pub unsafe fn otl_anchor_absent() -> Anchor {
     let anchor: Anchor = Anchor {
         present: false,
-        x: 0 as ::core::ffi::c_int as Pos,
-        y: 0 as ::core::ffi::c_int as Pos,
+        x: 0_i32 as Pos,
+        y: 0_i32 as Pos,
     };
     return anchor;
 }
 pub unsafe fn otl_read_anchor(data: FontFilePointer, table_length: u32, offset: u32) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
-        x: 0 as ::core::ffi::c_int as Pos,
-        y: 0 as ::core::ffi::c_int as Pos,
+        x: 0_i32 as Pos,
+        y: 0_i32 as Pos,
     };
     let slice = ::core::slice::from_raw_parts(data as *const u8, table_length as usize);
     let Ok(bytes) =
@@ -222,8 +222,8 @@ pub unsafe fn otl_dump_anchor(a: Anchor) -> *mut BuiltValue {
 pub unsafe fn otl_parse_anchor(v: *const ParsedValue) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
-        x: 0 as ::core::ffi::c_int as Pos,
-        y: 0 as ::core::ffi::c_int as Pos,
+        x: 0_i32 as Pos,
+        y: 0_i32 as Pos,
     };
     if v.is_null() || json_type_of(v) != JsonType::Object {
         return anchor;
@@ -232,12 +232,12 @@ pub unsafe fn otl_parse_anchor(v: *const ParsedValue) -> Anchor {
     anchor.x = json_obj_getnum_fallback(
         v,
         b"x\0" as *const u8 as *const ::core::ffi::c_char,
-        0 as ::core::ffi::c_int as ::core::ffi::c_double,
+        0_i32 as ::core::ffi::c_double,
     ) as Pos;
     anchor.y = json_obj_getnum_fallback(
         v,
         b"y\0" as *const u8 as *const ::core::ffi::c_char,
-        0 as ::core::ffi::c_int as ::core::ffi::c_double,
+        0_i32 as ::core::ffi::c_double,
     ) as Pos;
     return anchor;
 }
@@ -247,8 +247,8 @@ pub unsafe fn bk_from_anchor(a: Anchor) -> *mut BkBlock {
     }
     return bk_new_block(&[
         bk_int(BkCellType::B16, 1_u32),
-        bk_int(BkCellType::B16, (a.x as i16 as ::core::ffi::c_int) as u32),
-        bk_int(BkCellType::B16, (a.y as i16 as ::core::ffi::c_int) as u32),
+        bk_int(BkCellType::B16, (a.x as i16 as i32) as u32),
+        bk_int(BkCellType::B16, (a.y as i16 as i32) as u32),
     ]);
 }
 pub static FORMAT_DX: u8 = 1_u8;
@@ -256,1291 +256,780 @@ pub static FORMAT_DY: u8 = 2_u8;
 pub static FORMAT_DWIDTH: u8 = 4_u8;
 pub static FORMAT_DHEIGHT: u8 = 8_u8;
 pub static BITS_IN: [u8; 256] = [
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 0 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 1 as ::core::ffi::c_int) as u8,
-    (0 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int
-        + 2 as ::core::ffi::c_int) as u8,
+    0_i32 as u8,
+    1_i32 as u8,
+    1_i32 as u8,
+    2_i32 as u8,
+    1_i32 as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    1_i32 as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    2_i32 as u8,
+    (2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32) as u8,
+    1_i32 as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    1_i32 as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    2_i32 as u8,
+    (2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 2_i32) as u8,
+    1_i32 as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    ((1_i32
+        + 2_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 2_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 2_i32)
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32
+        + 2_i32) as u8,
+    1_i32 as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 1_i32)
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32) as u8,
+    ((1_i32
+        + 2_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 2_i32)
+        + 1_i32) as u8,
+    ((1_i32
+        + 2_i32)
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (1_i32
+        + 2_i32
+        + 2_i32
+        + 2_i32) as u8,
+    2_i32 as u8,
+    (2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32) as u8,
+    ((2_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((2_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((2_i32
+        + 1_i32)
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32) as u8,
+    ((2_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((2_i32
+        + 1_i32)
+        + 1_i32) as u8,
+    ((2_i32
+        + 1_i32)
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 1_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 2_i32) as u8,
+    ((2_i32
+        + 2_i32)
+        + 1_i32) as u8,
+    ((2_i32
+        + 2_i32)
+        + 1_i32) as u8,
+    ((2_i32
+        + 2_i32)
+        + 2_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 1_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 2_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 2_i32
+        + 1_i32) as u8,
+    (2_i32
+        + 2_i32
+        + 2_i32
+        + 2_i32) as u8,
 ];
 pub unsafe fn position_format_length(format: u16) -> u8 {
-    return ((BITS_IN[(format as ::core::ffi::c_int & 0xff as ::core::ffi::c_int) as usize]
-        as ::core::ffi::c_int)
-        << 1 as ::core::ffi::c_int) as u8;
+    return ((BITS_IN[(format as i32 & 0xff_i32) as usize]
+        as i32)
+        << 1_i32) as u8;
 }
 pub unsafe fn position_zero() -> PositionValue {
     let v: PositionValue = PositionValue {
@@ -1639,72 +1128,72 @@ pub unsafe fn gpos_parse_value(pos: *const ParsedValue) -> PositionValue {
 }
 pub unsafe fn required_position_format(v: PositionValue) -> u8 {
     return ((if v.dx != 0. {
-        FORMAT_DX as ::core::ffi::c_int
+        FORMAT_DX as i32
     } else {
-        0 as ::core::ffi::c_int
+        0_i32
     }) | (if v.dy != 0. {
-        FORMAT_DY as ::core::ffi::c_int
+        FORMAT_DY as i32
     } else {
-        0 as ::core::ffi::c_int
+        0_i32
     }) | (if v.d_width != 0. {
-        FORMAT_DWIDTH as ::core::ffi::c_int
+        FORMAT_DWIDTH as i32
     } else {
-        0 as ::core::ffi::c_int
+        0_i32
     }) | (if v.d_height != 0. {
-        FORMAT_DHEIGHT as ::core::ffi::c_int
+        FORMAT_DHEIGHT as i32
     } else {
-        0 as ::core::ffi::c_int
+        0_i32
     })) as u8;
 }
 pub unsafe fn write_gpos_value(buf: *mut Buffer, v: PositionValue, format: u16) {
-    if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
+    if format as i32 & FORMAT_DX as i32 != 0 {
         bufwrite16b(buf, pos_to_u16(v.dx));
     }
-    if format as ::core::ffi::c_int & FORMAT_DY as ::core::ffi::c_int != 0 {
+    if format as i32 & FORMAT_DY as i32 != 0 {
         bufwrite16b(buf, pos_to_u16(v.dy));
     }
-    if format as ::core::ffi::c_int & FORMAT_DWIDTH as ::core::ffi::c_int != 0 {
+    if format as i32 & FORMAT_DWIDTH as i32 != 0 {
         bufwrite16b(buf, pos_to_u16(v.d_width));
     }
-    if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
+    if format as i32 & FORMAT_DHEIGHT as i32 != 0 {
         bufwrite16b(buf, pos_to_u16(v.d_height));
     }
 }
 pub unsafe fn bk_gpos_value(v: PositionValue, format: u16) -> *mut BkBlock {
     let b: *mut BkBlock = bk_new_block(&[]);
-    if format as ::core::ffi::c_int & FORMAT_DX as ::core::ffi::c_int != 0 {
+    if format as i32 & FORMAT_DX as i32 != 0 {
         bk_push(
             b,
             &[bk_int(
                 BkCellType::B16,
-                (v.dx as i16 as ::core::ffi::c_int) as u32,
+                (v.dx as i16 as i32) as u32,
             )],
         );
     }
-    if format as ::core::ffi::c_int & FORMAT_DY as ::core::ffi::c_int != 0 {
+    if format as i32 & FORMAT_DY as i32 != 0 {
         bk_push(
             b,
             &[bk_int(
                 BkCellType::B16,
-                (v.dy as i16 as ::core::ffi::c_int) as u32,
+                (v.dy as i16 as i32) as u32,
             )],
         );
     }
-    if format as ::core::ffi::c_int & FORMAT_DWIDTH as ::core::ffi::c_int != 0 {
+    if format as i32 & FORMAT_DWIDTH as i32 != 0 {
         bk_push(
             b,
             &[bk_int(
                 BkCellType::B16,
-                (v.d_width as i16 as ::core::ffi::c_int) as u32,
+                (v.d_width as i16 as i32) as u32,
             )],
         );
     }
-    if format as ::core::ffi::c_int & FORMAT_DHEIGHT as ::core::ffi::c_int != 0 {
+    if format as i32 & FORMAT_DHEIGHT as i32 != 0 {
         bk_push(
             b,
             &[bk_int(
                 BkCellType::B16,
-                (v.d_height as i16 as ::core::ffi::c_int) as u32,
+                (v.d_height as i16 as i32) as u32,
             )],
         );
     }

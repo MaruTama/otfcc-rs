@@ -25,29 +25,29 @@ pub unsafe fn cff_encode_cff_integer(mut val: i32) -> *mut Buffer {
     if (-107_i32..=107_i32).contains(&val) {
         return bufninit(&[(val + 139_i32) as u8]);
     } else if (108_i32..=1131_i32).contains(&val) {
-        val = val as ::core::ffi::c_int - 108 as ::core::ffi::c_int;
+        val = val - 108_i32;
         return bufninit(&[
-            ((val >> 8 as ::core::ffi::c_int) + 247_i32) as u8,
+            ((val >> 8_i32) + 247_i32) as u8,
             (val & 0xff_i32) as u8,
         ]);
     } else if (-1131_i32..=-108_i32).contains(&val) {
         val = -108_i32 - val;
         return bufninit(&[
-            ((val >> 8 as ::core::ffi::c_int) + 251_i32) as u8,
+            ((val >> 8_i32) + 251_i32) as u8,
             (val & 0xff_i32) as u8,
         ]);
     } else if (-32768_i32..32768_i32).contains(&val) {
         return bufninit(&[
             28_u8,
-            (val >> 8 as ::core::ffi::c_int) as u8,
+            (val >> 8_i32) as u8,
             (val & 0xff_i32) as u8,
         ]);
     } else {
         return bufninit(&[
             29_u8,
-            (val >> 24 as ::core::ffi::c_int & 0xff_i32) as u8,
-            (val >> 16 as ::core::ffi::c_int & 0xff_i32) as u8,
-            (val >> 8 as ::core::ffi::c_int & 0xff_i32) as u8,
+            (val >> 24_i32 & 0xff_i32) as u8,
+            (val >> 16_i32 & 0xff_i32) as u8,
+            (val >> 8_i32 & 0xff_i32) as u8,
             (val & 0xff_i32) as u8,
         ]);
     };
@@ -57,7 +57,7 @@ pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
     let mut i: u32;
     let mut j: u32 = 0_u32;
     let mut temp: [u8; 32] = [
-        0 as ::core::ffi::c_int as u8,
+        0_i32 as u8,
         0,
         0,
         0,
@@ -103,25 +103,25 @@ pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
         );
         i = 0_u32;
         while (i as usize) < strlen(&raw mut temp as *mut u8 as *mut ::core::ffi::c_char) {
-            if temp[i as usize] as ::core::ffi::c_int == '.' as i32 {
+            if temp[i as usize] as i32 == '.' as i32 {
                 niblen = niblen.wrapping_add(1);
                 i = i.wrapping_add(1);
-            } else if temp[i as usize] as ::core::ffi::c_int >= '0' as i32
-                && temp[i as usize] as ::core::ffi::c_int <= '9' as i32
+            } else if temp[i as usize] as i32 >= '0' as i32
+                && temp[i as usize] as i32 <= '9' as i32
             {
                 niblen = niblen.wrapping_add(1);
                 i = i.wrapping_add(1);
-            } else if temp[i as usize] as ::core::ffi::c_int == 'e' as i32
-                && temp[i.wrapping_add(1_u32) as usize] as ::core::ffi::c_int == '-' as i32
+            } else if temp[i as usize] as i32 == 'e' as i32
+                && temp[i.wrapping_add(1_u32) as usize] as i32 == '-' as i32
             {
                 niblen = niblen.wrapping_add(1);
                 i = i.wrapping_add(2_u32);
-            } else if temp[i as usize] as ::core::ffi::c_int == 'e' as i32
-                && temp[i.wrapping_add(1_u32) as usize] as ::core::ffi::c_int == '+' as i32
+            } else if temp[i as usize] as i32 == 'e' as i32
+                && temp[i.wrapping_add(1_u32) as usize] as i32 == '+' as i32
             {
                 niblen = niblen.wrapping_add(1);
                 i = i.wrapping_add(2_u32);
-            } else if temp[i as usize] as ::core::ffi::c_int == '-' as i32 {
+            } else if temp[i as usize] as i32 == '-' as i32 {
                 niblen = niblen.wrapping_add(1);
                 i = i.wrapping_add(1);
             }
@@ -138,34 +138,34 @@ pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
         }
         i = 0_u32;
         while (i as usize) < strlen(&raw mut temp as *mut u8 as *mut ::core::ffi::c_char) {
-            if temp[i as usize] as ::core::ffi::c_int == '.' as i32 {
+            if temp[i as usize] as i32 == '.' as i32 {
                 let fresh0 = j;
                 j = j.wrapping_add(1);
                 array[fresh0 as usize] = 0xa_u8;
                 i = i.wrapping_add(1);
-            } else if temp[i as usize] as ::core::ffi::c_int >= '0' as i32
-                && temp[i as usize] as ::core::ffi::c_int <= '9' as i32
+            } else if temp[i as usize] as i32 >= '0' as i32
+                && temp[i as usize] as i32 <= '9' as i32
             {
                 let fresh1 = j;
                 j = j.wrapping_add(1);
                 array[fresh1 as usize] =
-                    (temp[i as usize] as ::core::ffi::c_int - '0' as i32) as u8;
+                    (temp[i as usize] as i32 - '0' as i32) as u8;
                 i = i.wrapping_add(1);
-            } else if temp[i as usize] as ::core::ffi::c_int == 'e' as i32
-                && temp[i.wrapping_add(1_u32) as usize] as ::core::ffi::c_int == '-' as i32
+            } else if temp[i as usize] as i32 == 'e' as i32
+                && temp[i.wrapping_add(1_u32) as usize] as i32 == '-' as i32
             {
                 let fresh2 = j;
                 j = j.wrapping_add(1);
                 array[fresh2 as usize] = 0xc_u8;
                 i = i.wrapping_add(2_u32);
-            } else if temp[i as usize] as ::core::ffi::c_int == 'e' as i32
-                && temp[i.wrapping_add(1_u32) as usize] as ::core::ffi::c_int == '+' as i32
+            } else if temp[i as usize] as i32 == 'e' as i32
+                && temp[i.wrapping_add(1_u32) as usize] as i32 == '+' as i32
             {
                 let fresh3 = j;
                 j = j.wrapping_add(1);
                 array[fresh3 as usize] = 0xb_u8;
                 i = i.wrapping_add(2_u32);
-            } else if temp[i as usize] as ::core::ffi::c_int == '-' as i32 {
+            } else if temp[i as usize] as i32 == '-' as i32 {
                 let fresh4 = j;
                 j = j.wrapping_add(1);
                 array[fresh4 as usize] = 0xe_u8;
@@ -177,13 +177,13 @@ pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
             bufwrite8(
                 blob,
                 (array[i.wrapping_sub(1_u32).wrapping_mul(2_u32) as usize]
-                    as ::core::ffi::c_int
-                    * 16 as ::core::ffi::c_int
+                    as i32
+                    * 16_i32
                     + array[i
                         .wrapping_sub(1_u32)
                         .wrapping_mul(2_u32)
                         .wrapping_add(1_u32) as usize]
-                        as ::core::ffi::c_int) as u8,
+                        as i32) as u8,
             );
             i = i.wrapping_add(1);
         }

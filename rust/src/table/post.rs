@@ -480,7 +480,7 @@ pub unsafe fn otfcc_dump_post(
         json_object_push(
             post,
             b"isFixedPitch\0" as *const u8 as *const ::core::ffi::c_char,
-            json_boolean_new((*table).is_fixed_pitch as ::core::ffi::c_int),
+            json_boolean_new((*table).is_fixed_pitch as i32),
         );
         json_object_push(
             post,
@@ -522,7 +522,7 @@ pub unsafe fn otfcc_parse_post(
     // the null-pointer niche optimization) is already the old `init_post`'s
     // default.
     let mut post_val: PostTable = ::core::mem::zeroed();
-    post_val.version = 0x30000 as ::core::ffi::c_int as F16Dot16;
+    post_val.version = 0x30000_i32 as F16Dot16;
     let mut post_box: Box<PostTable> = Box::new(post_val);
     let post: *mut PostTable = post_box.as_mut() as *mut PostTable;
     let table: *const ParsedValue;
@@ -539,7 +539,7 @@ pub unsafe fn otfcc_parse_post(
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             if options.short_post {
-                (*post).version = 0x30000 as ::core::ffi::c_int as F16Dot16;
+                (*post).version = 0x30000_i32 as F16Dot16;
             } else {
                 (*post).version = otfcc_to_fixed(json_obj_getnum(
                     table,
@@ -616,7 +616,7 @@ pub unsafe fn otfcc_build_post(
             let entry = &(&(*glyphorder).entries)[idx];
             bufwrite16b(
                 buf,
-                (258 as ::core::ffi::c_int + entry.gid as ::core::ffi::c_int) as u16,
+                (258_i32 + entry.gid as i32) as u16,
             );
         }
         for (_, &idx) in (*glyphorder).by_gid.iter() {

@@ -83,9 +83,9 @@ pub unsafe fn otfcc_dump_meta(
                     out = ::core::ptr::null_mut::<u8>();
                 }
                 json_array_push(_entries, _e);
-                keep = (keep == 0) as ::core::ffi::c_int as usize;
+                keep = (keep == 0) as i32 as usize;
             }
-            keep = (keep == 0) as ::core::ffi::c_int as usize;
+            keep = (keep == 0) as i32 as usize;
             __caryll_index = __caryll_index.wrapping_add(1);
         }
         json_object_push(
@@ -104,11 +104,11 @@ pub unsafe fn otfcc_dump_meta(
 }
 #[inline]
 unsafe fn tag2str(tag: u32, tags: *mut ::core::ffi::c_char) {
-    *tags.offset(0 as ::core::ffi::c_int as isize) =
-        (tag >> 24 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
-    *tags.offset(1 as ::core::ffi::c_int as isize) =
-        (tag >> 16 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
-    *tags.offset(2 as ::core::ffi::c_int as isize) =
-        (tag >> 8 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
-    *tags.offset(3 as ::core::ffi::c_int as isize) = (tag & 0xff_u32) as ::core::ffi::c_char;
+    *tags.offset(0_i32 as isize) =
+        (tag >> 24_i32 & 0xff_u32) as ::core::ffi::c_char;
+    *tags.offset(1_i32 as isize) =
+        (tag >> 16_i32 & 0xff_u32) as ::core::ffi::c_char;
+    *tags.offset(2_i32 as isize) =
+        (tag >> 8_i32 & 0xff_u32) as ::core::ffi::c_char;
+    *tags.offset(3_i32 as isize) = (tag & 0xff_u32) as ::core::ffi::c_char;
 }

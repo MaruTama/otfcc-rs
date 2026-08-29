@@ -388,7 +388,7 @@ pub unsafe fn bufprint(buf: *mut Buffer) {
         fprintf(
             stderr,
             b"%02X\0" as *const u8 as *const ::core::ffi::c_char,
-            byte as ::core::ffi::c_int,
+            byte as i32,
         );
         if j % 16 == 15 {
             fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);

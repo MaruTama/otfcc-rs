@@ -369,7 +369,7 @@ unsafe fn ident_node(g: &CffSubrGraph, m: NodeId, n: NodeId) -> bool {
                 (*mn.terminal).data.as_ptr() as *const ::core::ffi::c_char,
                 (*nn.terminal).data.as_ptr() as *const ::core::ffi::c_char,
                 (*mn.terminal).data.len(),
-            ) == 0 as ::core::ffi::c_int;
+            ) == 0_i32;
     };
 }
 unsafe fn join_nodes(g: &mut CffSubrGraph, m: NodeId, n: NodeId) {

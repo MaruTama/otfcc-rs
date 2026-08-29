@@ -73,7 +73,7 @@ pub unsafe fn otfcc_build_ltsh(ltsh: Option<&LtshTable>) -> *mut Buffer {
     bufwrite16b(buf, 0_u16);
     bufwrite16b(buf, ltsh.num_glyphs as u16);
     let mut j: u16 = 0_u16;
-    while (j as ::core::ffi::c_int) < ltsh.num_glyphs as ::core::ffi::c_int {
+    while (j as i32) < ltsh.num_glyphs as i32 {
         bufwrite8(buf, ltsh.y_pels[j as usize]);
         j = j.wrapping_add(1);
     }

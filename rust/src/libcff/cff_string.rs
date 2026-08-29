@@ -412,13 +412,13 @@ static STRING_STANDARD: [&::core::ffi::CStr; 391] = [
 /// end]`) replaces the original's raw `.offset()`/`from_raw_parts` walk --
 /// no unsafe pointer arithmetic left to get wrong here at all.
 pub unsafe fn get_cff_sid(idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
-    if idx as ::core::ffi::c_int <= 390 as ::core::ffi::c_int {
+    if idx as i32 <= 390_i32 {
         return Some(STRING_STANDARD[idx as usize].to_bytes().to_vec());
     }
     if str.count == 0 as Arity {
         return None;
     }
-    let sid_index = (idx as ::core::ffi::c_int - 391 as ::core::ffi::c_int) as Arity;
+    let sid_index = (idx as i32 - 391_i32) as Arity;
     if sid_index >= str.count {
         return None;
     }

@@ -40,28 +40,28 @@ use crate::table::otl::{
 pub type OtlBuilder = Option<unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer>;
 pub type OtlSplitBuilder =
     Option<unsafe fn(*const Subtable, BuildHeuristics, *mut TableId) -> *mut *mut Buffer>;
-pub const LARGE_SUBTABLE_LIMIT: ::core::ffi::c_int = 4096 as ::core::ffi::c_int;
+pub const LARGE_SUBTABLE_LIMIT: i32 = 4096_i32;
 fn feature_name_to_tag(name: &[u8]) -> u32 {
     let mut tag: u32 = 0_u32;
     if name.len() > 0_usize {
-        tag |= ((name[0_usize] as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
+        tag |= ((name[0_usize] as i32) << 24_i32) as u32;
     } else {
-        tag |= ((' ' as i32 as u8 as ::core::ffi::c_int) << 24 as ::core::ffi::c_int) as u32;
+        tag |= ((' ' as i32 as u8 as i32) << 24_i32) as u32;
     }
     if name.len() > 1_usize {
-        tag |= ((name[1_usize] as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
+        tag |= ((name[1_usize] as i32) << 16_i32) as u32;
     } else {
-        tag |= ((' ' as i32 as u8 as ::core::ffi::c_int) << 16 as ::core::ffi::c_int) as u32;
+        tag |= ((' ' as i32 as u8 as i32) << 16_i32) as u32;
     }
     if name.len() > 2_usize {
-        tag |= ((name[2_usize] as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
+        tag |= ((name[2_usize] as i32) << 8_i32) as u32;
     } else {
-        tag |= ((' ' as i32 as u8 as ::core::ffi::c_int) << 8 as ::core::ffi::c_int) as u32;
+        tag |= ((' ' as i32 as u8 as i32) << 8_i32) as u32;
     }
     if name.len() > 3_usize {
-        tag |= ((name[3_usize] as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as u32;
+        tag |= (name[3_usize] as i32) as u32;
     } else {
-        tag |= ((' ' as i32 as u8 as ::core::ffi::c_int) << 0 as ::core::ffi::c_int) as u32;
+        tag |= (' ' as i32 as u8 as i32) as u32;
     }
     return tag;
 }
@@ -122,7 +122,7 @@ unsafe fn _declare_lookup_writer_split(
                 &raw mut n_part,
             );
             let mut k: TableId = 0 as TableId;
-            while (k as ::core::ffi::c_int) < n_part as ::core::ffi::c_int {
+            while (k as i32) < n_part as i32 {
                 subtables.push(*part.offset(k as isize));
                 total_buf_size_short =
                     total_buf_size_short.wrapping_add((**part.offset(k as isize)).data.len());
@@ -141,7 +141,7 @@ unsafe fn _declare_lookup_writer_split(
         let total = subtables.len() as TableId;
         if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
             *last_offset = (*last_offset)
-                .wrapping_add((8 as ::core::ffi::c_int * total as ::core::ffi::c_int) as usize);
+                .wrapping_add((8_i32 * total as i32) as usize);
             *prefer_extension_for_this_lut = true;
         } else {
             *last_offset = (*last_offset).wrapping_add(total_buf_size_short);
@@ -368,7 +368,7 @@ unsafe fn write_otl_lookups(
                 b"Building lookup ",
                 &(*lookup).name,
                 b" (",
-                j as ::core::ffi::c_int,
+                j as i32,
                 b"/",
                 (*table).lookups.len() as u32,
                 b")\n",
@@ -389,9 +389,9 @@ unsafe fn write_otl_lookups(
     while (j_0 as usize) < (*table).lookups.len() {
         if subtable_quantity[j_0 as usize] != 0 {
             header_size = header_size.wrapping_add(
-                (6 as ::core::ffi::c_int
-                    + 2 as ::core::ffi::c_int
-                        * subtable_quantity[j_0 as usize] as ::core::ffi::c_int)
+                (6_i32
+                    + 2_i32
+                        * subtable_quantity[j_0 as usize] as i32)
                     as usize,
             );
         }
@@ -416,8 +416,8 @@ unsafe fn write_otl_lookups(
         }
         let lookup_0: *const Lookup = &raw const *(&(*table).lookups)[j_1 as usize];
         let can_be_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup_0);
-        let use_extended_for_it: bool = use_extended as ::core::ffi::c_int != 0
-            || prefer_ext_for_this_lut[j_1 as usize] as ::core::ffi::c_int != 0;
+        let use_extended_for_it: bool = use_extended as i32 != 0
+            || prefer_ext_for_this_lut[j_1 as usize] as i32 != 0;
         if use_extended_for_it {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
@@ -450,18 +450,18 @@ unsafe fn write_otl_lookups(
                 .wrapping_sub(can_be_contextual as u32)
         }) as u16;
         let blk: *mut BkBlock = bk_new_block(&[
-            bk_int(BkCellType::B16, (lookup_type as ::core::ffi::c_int) as u32),
+            bk_int(BkCellType::B16, (lookup_type as i32) as u32),
             bk_int(
                 BkCellType::B16,
-                ((*lookup_0).flags as ::core::ffi::c_int) as u32,
+                ((*lookup_0).flags as i32) as u32,
             ),
             bk_int(
                 BkCellType::B16,
-                (subtable_quantity[j_1 as usize] as ::core::ffi::c_int) as u32,
+                (subtable_quantity[j_1 as usize] as i32) as u32,
             ),
         ]);
         let mut k: TableId = 0 as TableId;
-        while (k as ::core::ffi::c_int) < subtable_quantity[j_1 as usize] as ::core::ffi::c_int {
+        while (k as i32) < subtable_quantity[j_1 as usize] as i32 {
             if use_extended_for_it {
                 let extension_lookup_type: u16 = (*lookup_0)
                     .type_0
@@ -472,7 +472,7 @@ unsafe fn write_otl_lookups(
                     bk_int(BkCellType::B16, 1_u32),
                     bk_int(
                         BkCellType::B16,
-                        (extension_lookup_type as ::core::ffi::c_int) as u32,
+                        (extension_lookup_type as i32) as u32,
                     ),
                     bk_ptr(
                         BkCellType::P32,
@@ -518,7 +518,7 @@ unsafe fn write_otl_features(table: *const OtlTable) -> *mut BkBlock {
                 {
                     bk_push(
                         fea,
-                        &[bk_int(BkCellType::B16, (l as ::core::ffi::c_int) as u32)],
+                        &[bk_int(BkCellType::B16, (l as i32) as u32)],
                     );
                     break;
                 } else {
@@ -562,7 +562,7 @@ unsafe fn write_language(
         bk_ptr(BkCellType::P16, ::core::ptr::null_mut()),
         bk_int(
             BkCellType::B16,
-            (feature_index((*lang).required_feature, table) as ::core::ffi::c_int) as u32,
+            (feature_index((*lang).required_feature, table) as i32) as u32,
         ),
         bk_int(BkCellType::B16, ((*lang).features.len()) as u32),
     ]);
@@ -572,7 +572,7 @@ unsafe fn write_language(
             root,
             &[bk_int(
                 BkCellType::B16,
-                (feature_index((&(*lang).features)[k as usize], table) as ::core::ffi::c_int)
+                (feature_index((&(*lang).features)[k as usize], table) as i32)
                     as u32,
             )],
         );
@@ -596,7 +596,7 @@ unsafe fn write_script(
             (*ll[j as usize])
                 .name
                 .as_ptr()
-                .offset(5 as ::core::ffi::c_int as isize),
+                .offset(5_i32 as isize),
             4_usize,
         );
         bk_push(
@@ -644,19 +644,19 @@ unsafe fn write_otl_script_and_languages(table: *const OtlTable) -> *mut BkBlock
             (*language)
                 .name
                 .as_ptr()
-                .offset(5 as ::core::ffi::c_int as isize) as *const ::core::ffi::c_char,
+                .offset(5_i32 as isize) as *const ::core::ffi::c_char,
             b"DFLT\0" as *const u8 as *const ::core::ffi::c_char,
             4_usize,
-        ) == 0 as ::core::ffi::c_int
+        ) == 0_i32
             || strncmp(
                 (*language)
                     .name
                     .as_ptr()
-                    .offset(5 as ::core::ffi::c_int as isize)
+                    .offset(5_i32 as isize)
                     as *const ::core::ffi::c_char,
                 b"dflt\0" as *const u8 as *const ::core::ffi::c_char,
                 4_usize,
-            ) == 0 as ::core::ffi::c_int;
+            ) == 0_i32;
         let mut found: Option<usize> = None;
         for (idx, group) in scripts.iter().enumerate() {
             if group.tag == script_tag {

@@ -239,13 +239,13 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
             .top_dict
             .offset
             .as_ptr()
-            .offset(1 as ::core::ffi::c_int as isize))
+            .offset(1_i32 as isize))
         .wrapping_sub(
             *(*cff)
                 .top_dict
                 .offset
                 .as_ptr()
-                .offset(0 as ::core::ffi::c_int as isize),
+                .offset(0_i32 as isize),
         ) as usize;
         let top_dict_data: &[u8] = &(*cff).top_dict.data;
         top_dict_data.get(..top_dict_len).unwrap_or(&[])
@@ -452,19 +452,19 @@ pub unsafe fn cff_parse_subr(
             fd = fds[idx as usize];
         }
         CffFdSelect::Format3 { range3, sentinel } => {
-            let mut i: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
-            while i < range3.len() as ::core::ffi::c_int - 1 as ::core::ffi::c_int {
-                if idx as ::core::ffi::c_int >= range3[i as usize].first as ::core::ffi::c_int
-                    && (idx as ::core::ffi::c_int)
-                        < range3[(i + 1 as ::core::ffi::c_int) as usize].first as ::core::ffi::c_int
+            let mut i: i32 = 0_i32;
+            while i < range3.len() as i32 - 1_i32 {
+                if idx as i32 >= range3[i as usize].first as i32
+                    && (idx as i32)
+                        < range3[(i + 1_i32) as usize].first as i32
                 {
                     fd = range3[i as usize].fd;
                 }
                 i += 1;
             }
-            if idx as ::core::ffi::c_int
-                >= range3[range3.len() - 1_usize].first as ::core::ffi::c_int
-                && (idx as ::core::ffi::c_int) < *sentinel as ::core::ffi::c_int
+            if idx as i32
+                >= range3[range3.len() - 1_usize].first as i32
+                && (idx as i32) < *sentinel as i32
             {
                 fd = range3[range3.len() - 1_usize].fd;
             }
@@ -558,9 +558,9 @@ unsafe fn locate_subr(subr_index: &CffIndex, bias: u16, subr: u32) -> Option<(*c
     Some((subr_index.data.as_ptr().add(data_offset), data_len))
 }
 unsafe fn compute_subr_bias(cnt: u16) -> u16 {
-    if (cnt as ::core::ffi::c_int) < 1240 as ::core::ffi::c_int {
+    if (cnt as i32) < 1240_i32 {
         return 107_u16;
-    } else if (cnt as ::core::ffi::c_int) < 33900 as ::core::ffi::c_int {
+    } else if (cnt as i32) < 33900_i32 {
         return 1131_u16;
     } else {
         return 32768_u16;
@@ -570,11 +570,11 @@ unsafe fn reverse_stack(stack: *mut CffStack, left: u8, right: u8) {
     let mut p1: *mut CffValue = (*stack)
         .stack
         .as_mut_ptr()
-        .offset(left as ::core::ffi::c_int as isize);
+        .offset(left as i32 as isize);
     let mut p2: *mut CffValue = (*stack)
         .stack
         .as_mut_ptr()
-        .offset(right as ::core::ffi::c_int as isize);
+        .offset(right as i32 as isize);
     while p1 < p2 {
         let temp: CffValue = *p1;
         *p1 = *p2;
@@ -609,7 +609,7 @@ pub unsafe fn cff_parse_outline(
             LoggerType::Warning,
             crate::bytesbuild!(
                 b"[libcff] Subroutine call nesting exceeded ",
-                MAX_SUBR_CALL_DEPTH as ::core::ffi::c_int,
+                MAX_SUBR_CALL_DEPTH as i32,
                 b"; the rest of this outline is ignored.\n",
             ),
         );
@@ -645,21 +645,21 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(0 as ::core::ffi::c_int as isize),
+                                        .offset(0_i32 as isize),
                                 ),
                             );
                         }
                         (*stack).stem = ((*stack).stem as Arity)
-                            .wrapping_add((*stack).index >> 1 as ::core::ffi::c_int)
+                            .wrapping_add((*stack).index >> 1_i32)
                             as u8;
-                        hint_base = 0 as ::core::ffi::c_int as ::core::ffi::c_double;
+                        hint_base = 0_i32 as ::core::ffi::c_double;
                         let mut j: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j as Arity) < (*stack).index {
                             let pos: ::core::ffi::c_double =
                                 cffnum(*(*stack).stack.as_mut_ptr().offset(j as isize));
                             let width: ::core::ffi::c_double =
                                 cffnum(*(*stack).stack.as_mut_ptr().offset(
-                                    (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
+                                    (j as i32 + 1_i32) as isize,
                                 ));
                             callback_draw_sethint(
                                 outline,
@@ -668,7 +668,7 @@ pub unsafe fn cff_parse_outline(
                                 width,
                             );
                             hint_base += pos + width;
-                            j = (j as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u16;
+                            j = (j as i32 + 2_i32) as u16;
                         }
                         (*stack).index = 0 as Arity;
                     }
@@ -680,24 +680,24 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(0 as ::core::ffi::c_int as isize),
+                                        .offset(0_i32 as isize),
                                 ),
                             );
                         }
                         let is_vertical: bool =
-                            (*stack).stem as ::core::ffi::c_int > 0 as ::core::ffi::c_int;
+                            (*stack).stem as i32 > 0_i32;
                         (*stack).stem = ((*stack).stem as Arity)
-                            .wrapping_add((*stack).index >> 1 as ::core::ffi::c_int)
+                            .wrapping_add((*stack).index >> 1_i32)
                             as u8;
                         let mut hint_base_0: ::core::ffi::c_double =
-                            0 as ::core::ffi::c_int as ::core::ffi::c_double;
+                            0_i32 as ::core::ffi::c_double;
                         let mut j_0: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j_0 as Arity) < (*stack).index {
                             let pos_0: ::core::ffi::c_double =
                                 cffnum(*(*stack).stack.as_mut_ptr().offset(j_0 as isize));
                             let width_0: ::core::ffi::c_double =
                                 cffnum(*(*stack).stack.as_mut_ptr().offset(
-                                    (j_0 as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as isize,
+                                    (j_0 as i32 + 1_i32) as isize,
                                 ));
                             callback_draw_sethint(
                                 outline,
@@ -706,11 +706,11 @@ pub unsafe fn cff_parse_outline(
                                 width_0,
                             );
                             hint_base_0 += pos_0 + width_0;
-                            j_0 = (j_0 as ::core::ffi::c_int + 2 as ::core::ffi::c_int) as u16;
+                            j_0 = (j_0 as i32 + 2_i32) as u16;
                         }
                         let mask_length: u32 =
-                            ((*stack).stem as ::core::ffi::c_int + 7 as ::core::ffi::c_int
-                                >> 3 as ::core::ffi::c_int) as u32;
+                            ((*stack).stem as i32 + 7_i32
+                                >> 3_i32) as u32;
                         // `hintmask`/`cntrmask`'s mask bytes are raw payload
                         // embedded directly in the charstring right after
                         // the opcode -- unlike every other operand, they
@@ -734,7 +734,7 @@ pub unsafe fn cff_parse_outline(
                         let mask: *mut bool;
                         mask = __caryll_allocate_clean(
                             (::core::mem::size_of::<bool>() as usize).wrapping_mul(
-                                ((*stack).stem as ::core::ffi::c_int + 7 as ::core::ffi::c_int)
+                                ((*stack).stem as i32 + 7_i32)
                                     as usize,
                             ),
                             405 as ::core::ffi::c_ulong,
@@ -744,52 +744,51 @@ pub unsafe fn cff_parse_outline(
                             let mask_byte: u8 =
                                 *start.offset(advance.wrapping_add(byte) as isize);
                             *mask
-                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(0_u32)
-                                    as isize) = mask_byte as ::core::ffi::c_int
-                                >> 7 as ::core::ffi::c_int
-                                & 1 as ::core::ffi::c_int
+                                .offset((byte << 3_i32).wrapping_add(0_u32)
+                                    as isize) = mask_byte as i32
+                                >> 7_i32
+                                & 1_i32
                                 != 0;
                             *mask
-                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(1_u32)
-                                    as isize) = mask_byte as ::core::ffi::c_int
-                                >> 6 as ::core::ffi::c_int
-                                & 1 as ::core::ffi::c_int
+                                .offset((byte << 3_i32).wrapping_add(1_u32)
+                                    as isize) = mask_byte as i32
+                                >> 6_i32
+                                & 1_i32
                                 != 0;
                             *mask
-                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(2_u32)
-                                    as isize) = mask_byte as ::core::ffi::c_int
-                                >> 5 as ::core::ffi::c_int
-                                & 1 as ::core::ffi::c_int
+                                .offset((byte << 3_i32).wrapping_add(2_u32)
+                                    as isize) = mask_byte as i32
+                                >> 5_i32
+                                & 1_i32
                                 != 0;
                             *mask
-                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(3_u32)
-                                    as isize) = mask_byte as ::core::ffi::c_int
-                                >> 4 as ::core::ffi::c_int
-                                & 1 as ::core::ffi::c_int
+                                .offset((byte << 3_i32).wrapping_add(3_u32)
+                                    as isize) = mask_byte as i32
+                                >> 4_i32
+                                & 1_i32
                                 != 0;
                             *mask
-                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(4_u32)
-                                    as isize) = mask_byte as ::core::ffi::c_int
-                                >> 3 as ::core::ffi::c_int
-                                & 1 as ::core::ffi::c_int
+                                .offset((byte << 3_i32).wrapping_add(4_u32)
+                                    as isize) = mask_byte as i32
+                                >> 3_i32
+                                & 1_i32
                                 != 0;
                             *mask
-                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(5_u32)
-                                    as isize) = mask_byte as ::core::ffi::c_int
-                                >> 2 as ::core::ffi::c_int
-                                & 1 as ::core::ffi::c_int
+                                .offset((byte << 3_i32).wrapping_add(5_u32)
+                                    as isize) = mask_byte as i32
+                                >> 2_i32
+                                & 1_i32
                                 != 0;
                             *mask
-                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(6_u32)
-                                    as isize) = mask_byte as ::core::ffi::c_int
-                                >> 1 as ::core::ffi::c_int
-                                & 1 as ::core::ffi::c_int
+                                .offset((byte << 3_i32).wrapping_add(6_u32)
+                                    as isize) = mask_byte as i32
+                                >> 1_i32
+                                & 1_i32
                                 != 0;
                             *mask
-                                .offset((byte << 3 as ::core::ffi::c_int).wrapping_add(7_u32)
-                                    as isize) = mask_byte as ::core::ffi::c_int
-                                >> 0 as ::core::ffi::c_int
-                                & 1 as ::core::ffi::c_int
+                                .offset((byte << 3_i32).wrapping_add(7_u32)
+                                    as isize) = (mask_byte as i32)
+                                & 1_i32
                                 != 0;
                             byte = byte.wrapping_add(1);
                         }
@@ -958,7 +957,7 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(0 as ::core::ffi::c_int as isize),
+                                        .offset(0_i32 as isize),
                                 ),
                             );
                             i = 1_u32;
@@ -1011,7 +1010,7 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(0 as ::core::ffi::c_int as isize),
+                                        .offset(0_i32 as isize),
                                 ),
                                 0.0f64,
                             );
@@ -1242,32 +1241,32 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(0 as ::core::ffi::c_int as isize),
+                                        .offset(0_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(1 as ::core::ffi::c_int as isize),
+                                        .offset(1_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(2 as ::core::ffi::c_int as isize),
+                                        .offset(2_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(3 as ::core::ffi::c_int as isize),
+                                        .offset(3_i32 as isize),
                                 ),
                                 0.0f64,
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(4 as ::core::ffi::c_int as isize),
+                                        .offset(4_i32 as isize),
                                 ),
                             );
                             i = 5_u32;
@@ -1338,31 +1337,31 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(1 as ::core::ffi::c_int as isize),
+                                        .offset(1_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(0 as ::core::ffi::c_int as isize),
+                                        .offset(0_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(2 as ::core::ffi::c_int as isize),
+                                        .offset(2_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(3 as ::core::ffi::c_int as isize),
+                                        .offset(3_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(4 as ::core::ffi::c_int as isize),
+                                        .offset(4_i32 as isize),
                                 ),
                                 0.0f64,
                             );
@@ -1742,26 +1741,26 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(0 as ::core::ffi::c_int as isize),
+                                        .offset(0_i32 as isize),
                                 ),
                                 0.0f64,
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(1 as ::core::ffi::c_int as isize),
+                                        .offset(1_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(2 as ::core::ffi::c_int as isize),
+                                        .offset(2_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(3 as ::core::ffi::c_int as isize),
+                                        .offset(3_i32 as isize),
                                 ),
                                 0.0f64,
                             );
@@ -1771,26 +1770,26 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(4 as ::core::ffi::c_int as isize),
+                                        .offset(4_i32 as isize),
                                 ),
                                 0.0f64,
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(5 as ::core::ffi::c_int as isize),
+                                        .offset(5_i32 as isize),
                                 ),
                                 -cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(2 as ::core::ffi::c_int as isize),
+                                        .offset(2_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(6 as ::core::ffi::c_int as isize),
+                                        .offset(6_i32 as isize),
                                 ),
                                 0.0f64,
                             );
@@ -1818,37 +1817,37 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(0 as ::core::ffi::c_int as isize),
+                                        .offset(0_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(1 as ::core::ffi::c_int as isize),
+                                        .offset(1_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(2 as ::core::ffi::c_int as isize),
+                                        .offset(2_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(3 as ::core::ffi::c_int as isize),
+                                        .offset(3_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(4 as ::core::ffi::c_int as isize),
+                                        .offset(4_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(5 as ::core::ffi::c_int as isize),
+                                        .offset(5_i32 as isize),
                                 ),
                             );
                             callback_draw_curveto(
@@ -1857,37 +1856,37 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(6 as ::core::ffi::c_int as isize),
+                                        .offset(6_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(7 as ::core::ffi::c_int as isize),
+                                        .offset(7_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(8 as ::core::ffi::c_int as isize),
+                                        .offset(8_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(9 as ::core::ffi::c_int as isize),
+                                        .offset(9_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(10 as ::core::ffi::c_int as isize),
+                                        .offset(10_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(11 as ::core::ffi::c_int as isize),
+                                        .offset(11_i32 as isize),
                                 ),
                             );
                             (*stack).index = 0 as Arity;
@@ -1914,31 +1913,31 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(0 as ::core::ffi::c_int as isize),
+                                        .offset(0_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(1 as ::core::ffi::c_int as isize),
+                                        .offset(1_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(2 as ::core::ffi::c_int as isize),
+                                        .offset(2_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(3 as ::core::ffi::c_int as isize),
+                                        .offset(3_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(4 as ::core::ffi::c_int as isize),
+                                        .offset(4_i32 as isize),
                                 ),
                                 0.0f64,
                             );
@@ -1948,42 +1947,42 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(5 as ::core::ffi::c_int as isize),
+                                        .offset(5_i32 as isize),
                                 ),
                                 0.0f64,
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(6 as ::core::ffi::c_int as isize),
+                                        .offset(6_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(7 as ::core::ffi::c_int as isize),
+                                        .offset(7_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(8 as ::core::ffi::c_int as isize),
+                                        .offset(8_i32 as isize),
                                 ),
                                 -(cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(1 as ::core::ffi::c_int as isize),
+                                        .offset(1_i32 as isize),
                                 ) + cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(3 as ::core::ffi::c_int as isize),
+                                        .offset(3_i32 as isize),
                                 ) + cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(7 as ::core::ffi::c_int as isize),
+                                        .offset(7_i32 as isize),
                                 )),
                             );
                             (*stack).index = 0 as Arity;
@@ -2008,60 +2007,60 @@ pub unsafe fn cff_parse_outline(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
-                                    .offset(0 as ::core::ffi::c_int as isize),
+                                    .offset(0_i32 as isize),
                             ) + cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
-                                    .offset(2 as ::core::ffi::c_int as isize),
+                                    .offset(2_i32 as isize),
                             ) + cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
-                                    .offset(4 as ::core::ffi::c_int as isize),
+                                    .offset(4_i32 as isize),
                             ) + cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
-                                    .offset(6 as ::core::ffi::c_int as isize),
+                                    .offset(6_i32 as isize),
                             ) + cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
-                                    .offset(8 as ::core::ffi::c_int as isize),
+                                    .offset(8_i32 as isize),
                             );
                             let mut dy: ::core::ffi::c_double = cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
-                                    .offset(1 as ::core::ffi::c_int as isize),
+                                    .offset(1_i32 as isize),
                             ) + cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
-                                    .offset(3 as ::core::ffi::c_int as isize),
+                                    .offset(3_i32 as isize),
                             ) + cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
-                                    .offset(5 as ::core::ffi::c_int as isize),
+                                    .offset(5_i32 as isize),
                             ) + cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
-                                    .offset(7 as ::core::ffi::c_int as isize),
+                                    .offset(7_i32 as isize),
                             ) + cffnum(
                                 *(*stack)
                                     .stack
                                     .as_mut_ptr()
-                                    .offset(9 as ::core::ffi::c_int as isize),
+                                    .offset(9_i32 as isize),
                             );
                             if fabs(dx) > fabs(dy) {
                                 dx = cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(10 as ::core::ffi::c_int as isize),
+                                        .offset(10_i32 as isize),
                                 );
                                 dy = -dy;
                             } else {
@@ -2070,7 +2069,7 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(10 as ::core::ffi::c_int as isize),
+                                        .offset(10_i32 as isize),
                                 );
                             }
                             callback_draw_curveto(
@@ -2079,37 +2078,37 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(0 as ::core::ffi::c_int as isize),
+                                        .offset(0_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(1 as ::core::ffi::c_int as isize),
+                                        .offset(1_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(2 as ::core::ffi::c_int as isize),
+                                        .offset(2_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(3 as ::core::ffi::c_int as isize),
+                                        .offset(3_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(4 as ::core::ffi::c_int as isize),
+                                        .offset(4_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(5 as ::core::ffi::c_int as isize),
+                                        .offset(5_i32 as isize),
                                 ),
                             );
                             callback_draw_curveto(
@@ -2118,25 +2117,25 @@ pub unsafe fn cff_parse_outline(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(6 as ::core::ffi::c_int as isize),
+                                        .offset(6_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(7 as ::core::ffi::c_int as isize),
+                                        .offset(7_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(8 as ::core::ffi::c_int as isize),
+                                        .offset(8_i32 as isize),
                                 ),
                                 cffnum(
                                     *(*stack)
                                         .stack
                                         .as_mut_ptr()
-                                        .offset(9 as ::core::ffi::c_int as isize),
+                                        .offset(9_i32 as isize),
                                 ),
                                 dx,
                                 dy,
@@ -2788,11 +2787,11 @@ pub unsafe fn cff_parse_outline(
                                     ),
                                 );
                             } else {
-                                let j_1: u8 = (n as ::core::ffi::c_int
-                                    - 1 as ::core::ffi::c_int
+                                let j_1: u8 = (n as i32
+                                    - 1_i32
                                     - cffnum(*(*stack).stack.as_mut_ptr().offset(n as isize)) as u8
-                                        as ::core::ffi::c_int
-                                        % n as ::core::ffi::c_int)
+                                        as i32
+                                        % n as i32)
                                     as u8;
                                 *(*stack).stack.as_mut_ptr().offset(n as isize) =
                                     *(*stack).stack.as_mut_ptr().offset(j_1 as isize);
@@ -2907,7 +2906,7 @@ pub unsafe fn cff_parse_outline(
                                             LoggerType::Warning,
                                             crate::bytesbuild!(
                                                 b"[libcff] Subroutine call budget (",
-                                                MAX_TOTAL_SUBR_CALLS as ::core::ffi::c_int,
+                                                MAX_TOTAL_SUBR_CALLS as i32,
                                                 b") exceeded; the rest of this outline is ignored.\n",
                                             ),
                                         );
@@ -2972,7 +2971,7 @@ pub unsafe fn cff_parse_outline(
                                             LoggerType::Warning,
                                             crate::bytesbuild!(
                                                 b"[libcff] Subroutine call budget (",
-                                                MAX_TOTAL_SUBR_CALLS as ::core::ffi::c_int,
+                                                MAX_TOTAL_SUBR_CALLS as i32,
                                                 b") exceeded; the rest of this outline is ignored.\n",
                                             ),
                                         );

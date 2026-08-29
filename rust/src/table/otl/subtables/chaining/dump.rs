@@ -20,7 +20,7 @@ pub unsafe fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut BuiltVal
         let mut _st: *mut BuiltValue = json_object_new(4_usize);
         let mut _match: *mut BuiltValue = json_array_new((*rule).match_count as usize);
         let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
+        while (j as i32) < (*rule).match_count as i32 {
             json_array_push(
                 _match,
                 dump_coverage(&(&(*rule).match_0)[j as usize] as *const Coverage),

@@ -43,12 +43,12 @@ use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 
 #[inline]
-unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_int {
+unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> i32 {
     return strtol(
         __nptr,
         NULL as *mut *mut ::core::ffi::c_char,
-        10 as ::core::ffi::c_int,
-    ) as ::core::ffi::c_int;
+        10_i32,
+    ) as i32;
 }
 pub unsafe fn printInfo() {
     fprintf(
@@ -136,7 +136,7 @@ pub unsafe fn readEntireStdin(
     *_buffer = buffer;
     *_length = bytes.len() as ::core::ffi::c_long;
 }
-unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
+unsafe fn main_0(args: Vec<String>) -> i32 {
     let mut begin: timespec = timespec {
         tv_sec: 0,
         tv_nsec: 0,
@@ -287,22 +287,22 @@ unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
     }
     logger_set_verbosity(
         &mut *(*options).logger.borrow_mut(),
-        (if (*options).quiet as ::core::ffi::c_int != 0 {
-            0 as ::core::ffi::c_int
-        } else if (*options).verbose as ::core::ffi::c_int != 0 {
-            0xff as ::core::ffi::c_int
+        (if (*options).quiet as i32 != 0 {
+            0_i32
+        } else if (*options).verbose as i32 != 0 {
+            0xff_i32
         } else {
-            1 as ::core::ffi::c_int
+            1_i32
         }) as u8,
     );
     if show_help {
         printInfo();
         printHelp();
-        return 0 as ::core::ffi::c_int;
+        return 0_i32;
     }
     if show_version {
         printInfo();
-        return 0 as ::core::ffi::c_int;
+        return 0_i32;
     }
     inPath = positionals.into_iter().next().map(|p| {
         ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte")
@@ -499,7 +499,7 @@ unsafe fn main_0(args: Vec<String>) -> ::core::ffi::c_int {
         logger_finish(&mut *(*options).logger.borrow_mut());
     }
     otfcc_delete_options(options);
-    return 0 as ::core::ffi::c_int;
+    return 0_i32;
 }
 pub fn main() -> ::std::process::ExitCode {
     let args: Vec<String> = ::std::env::args().skip(1).collect();

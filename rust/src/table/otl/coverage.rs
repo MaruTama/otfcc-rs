@@ -196,11 +196,11 @@ pub(crate) unsafe fn build_coverage_format(
     bufwrite16b(format1, 1_u16);
     bufwrite16b(format1, jj as u16);
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as ::core::ffi::c_int) < jj as ::core::ffi::c_int {
+    while (j_0 as i32) < jj as i32 {
         bufwrite16b(format1, r[j_0 as usize] as u16);
         j_0 = j_0.wrapping_add(1);
     }
-    if (jj as ::core::ffi::c_int) < 2 as ::core::ffi::c_int {
+    if (jj as i32) < 2_i32 {
         return format1;
     }
     let format2: *mut Buffer = bufnew();
@@ -211,11 +211,11 @@ pub(crate) unsafe fn build_coverage_format(
     let mut last_gid: GlyphId = start_gid;
     let mut n_ranges: GlyphId = 0 as GlyphId;
     let mut j_1: GlyphId = 1 as GlyphId;
-    while (j_1 as ::core::ffi::c_int) < jj as ::core::ffi::c_int {
+    while (j_1 as i32) < jj as i32 {
         let current: GlyphId = r[j_1 as usize];
-        if !(current as ::core::ffi::c_int <= last_gid as ::core::ffi::c_int) {
-            if current as ::core::ffi::c_int
-                == end_gid as ::core::ffi::c_int + 1 as ::core::ffi::c_int
+        if !(current as i32 <= last_gid as i32) {
+            if current as i32
+                == end_gid as i32 + 1_i32
             {
                 end_gid = current;
             } else {
@@ -223,11 +223,11 @@ pub(crate) unsafe fn build_coverage_format(
                 bufwrite16b(ranges, end_gid as u16);
                 bufwrite16b(
                     ranges,
-                    (j_1 as ::core::ffi::c_int + start_gid as ::core::ffi::c_int
-                        - end_gid as ::core::ffi::c_int
-                        - 1 as ::core::ffi::c_int) as u16,
+                    (j_1 as i32 + start_gid as i32
+                        - end_gid as i32
+                        - 1_i32) as u16,
                 );
-                n_ranges = (n_ranges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+                n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
             }
@@ -239,17 +239,17 @@ pub(crate) unsafe fn build_coverage_format(
     bufwrite16b(ranges, end_gid as u16);
     bufwrite16b(
         ranges,
-        (jj as ::core::ffi::c_int + start_gid as ::core::ffi::c_int
-            - end_gid as ::core::ffi::c_int
-            - 1 as ::core::ffi::c_int) as u16,
+        (jj as i32 + start_gid as i32
+            - end_gid as i32
+            - 1_i32) as u16,
     );
-    n_ranges = (n_ranges as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as GlyphId;
+    n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
     bufwrite16b(format2, n_ranges as u16);
     bufwrite_bufdel(format2, ranges);
-    if format as ::core::ffi::c_int == 1 as ::core::ffi::c_int {
+    if format as i32 == 1_i32 {
         buffree(format2);
         return format1;
-    } else if format as ::core::ffi::c_int == 2 as ::core::ffi::c_int {
+    } else if format as i32 == 2_i32 {
         buffree(format1);
         return format2;
     } else if buflen(format1) < buflen(format2) {

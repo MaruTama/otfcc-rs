@@ -200,7 +200,7 @@ pub unsafe fn otl_gpos_dump_mark_to_single(st: *const Subtable) -> *mut BuiltVal
         let mut _mark: *mut BuiltValue = json_object_new(3_usize);
         let mark_class_name: Vec<u8> = crate::bytesbuild!(
             b"anchor",
-            (&(*subtable).mark_array)[j as usize].mark_class as ::core::ffi::c_int,
+            (&(*subtable).mark_array)[j as usize].mark_class as i32,
         );
         json_object_push(
             _mark,
@@ -228,7 +228,7 @@ pub unsafe fn otl_gpos_dump_mark_to_single(st: *const Subtable) -> *mut BuiltVal
     while (j_0 as usize) < (*subtable).base_array.len() {
         let mut _base: *mut BuiltValue = json_object_new((*subtable).class_count as usize);
         let mut k: GlyphClass = 0 as GlyphClass;
-        while (k as ::core::ffi::c_int) < (*subtable).class_count as ::core::ffi::c_int {
+        while (k as i32) < (*subtable).class_count as i32 {
             if (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].present {
                 let mut _anchor: *mut BuiltValue = json_object_new(2_usize);
                 json_object_push(
@@ -246,7 +246,7 @@ pub unsafe fn otl_gpos_dump_mark_to_single(st: *const Subtable) -> *mut BuiltVal
                     ),
                 );
                 let mark_class_name_0: Vec<u8> =
-                    crate::bytesbuild!(b"anchor", k as ::core::ffi::c_int);
+                    crate::bytesbuild!(b"anchor", k as i32);
                 json_object_push_bytes_key(_base, &mark_class_name_0, _anchor);
             }
             k = k.wrapping_add(1);
@@ -393,7 +393,7 @@ pub unsafe fn otfcc_build_gpos_mark_to_single(
         ),
         bk_int(
             BkCellType::B16,
-            ((*subtable).class_count as ::core::ffi::c_int) as u32,
+            ((*subtable).class_count as i32) as u32,
         ),
     ]);
     let mark_array: *mut BkBlock = bk_new_block(&[bk_int(
@@ -407,7 +407,7 @@ pub unsafe fn otfcc_build_gpos_mark_to_single(
             &[
                 bk_int(
                     BkCellType::B16,
-                    ((&(*subtable).mark_array)[j_1 as usize].mark_class as ::core::ffi::c_int)
+                    ((&(*subtable).mark_array)[j_1 as usize].mark_class as i32)
                         as u32,
                 ),
                 bk_ptr(
@@ -425,7 +425,7 @@ pub unsafe fn otfcc_build_gpos_mark_to_single(
     let mut j_2: GlyphId = 0 as GlyphId;
     while (j_2 as usize) < (*subtable).base_array.len() {
         let mut k: GlyphClass = 0 as GlyphClass;
-        while (k as ::core::ffi::c_int) < (*subtable).class_count as ::core::ffi::c_int {
+        while (k as i32) < (*subtable).class_count as i32 {
             bk_push(
                 base_array,
                 &[bk_ptr(

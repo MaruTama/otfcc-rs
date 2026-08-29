@@ -140,7 +140,7 @@ fn read_base_script(
         let coordinate = if val_offset != 0 {
             read_base_value(data, base_values_offset + val_offset as usize) as Pos
         } else {
-            0 as ::core::ffi::c_int as Pos
+            0_i32 as Pos
         };
         base_values.push(BaseValue { tag, coordinate });
     }
@@ -444,7 +444,7 @@ pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
     taglist.items.sort();
     let base_tag_list: *mut BkBlock = bk_new_block(&[bk_int(
         BkCellType::B16,
-        (taglist.items.len() as ::core::ffi::c_int) as u32,
+        (taglist.items.len() as i32) as u32,
     )]);
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < taglist.items.len() {
@@ -456,7 +456,7 @@ pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
     }
     let base_script_list: *mut BkBlock = bk_new_block(&[bk_int(
         BkCellType::B16,
-        ((*axis).entries.len() as ::core::ffi::c_int) as u32,
+        ((*axis).entries.len() as i32) as u32,
     )]);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as usize) < (*axis).entries.len() {
@@ -476,14 +476,14 @@ pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
             base_values,
             &[bk_int(
                 BkCellType::B16,
-                (default_index as ::core::ffi::c_int) as u32,
+                (default_index as i32) as u32,
             )],
         );
         bk_push(
             base_values,
             &[bk_int(
                 BkCellType::B16,
-                (taglist.items.len() as ::core::ffi::c_int) as u32,
+                (taglist.items.len() as i32) as u32,
             )],
         );
         let mut m_0: usize = 0_usize;
@@ -510,7 +510,7 @@ pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
                             bk_int(
                                 BkCellType::B16,
                                 ((&entry_0.base_values)[found_index as usize].coordinate as i16
-                                    as ::core::ffi::c_int) as u32,
+                                    as i32) as u32,
                             ),
                         ]),
                     )],
@@ -575,13 +575,13 @@ pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> *mut Buffer {
 }
 #[inline]
 unsafe fn tag2str(tag: u32, tags: *mut ::core::ffi::c_char) {
-    *tags.offset(0 as ::core::ffi::c_int as isize) =
-        (tag >> 24 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
-    *tags.offset(1 as ::core::ffi::c_int as isize) =
-        (tag >> 16 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
-    *tags.offset(2 as ::core::ffi::c_int as isize) =
-        (tag >> 8 as ::core::ffi::c_int & 0xff_u32) as ::core::ffi::c_char;
-    *tags.offset(3 as ::core::ffi::c_int as isize) = (tag & 0xff_u32) as ::core::ffi::c_char;
+    *tags.offset(0_i32 as isize) =
+        (tag >> 24_i32 & 0xff_u32) as ::core::ffi::c_char;
+    *tags.offset(1_i32 as isize) =
+        (tag >> 16_i32 & 0xff_u32) as ::core::ffi::c_char;
+    *tags.offset(2_i32 as isize) =
+        (tag >> 8_i32 & 0xff_u32) as ::core::ffi::c_char;
+    *tags.offset(3_i32 as isize) = (tag & 0xff_u32) as ::core::ffi::c_char;
 }
 #[inline]
 unsafe fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
@@ -590,14 +590,14 @@ unsafe fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
     }
     let mut tag: u32 = 0_u32;
     let mut len: u8 = 0_u8;
-    while *tags as ::core::ffi::c_int != 0 && (len as ::core::ffi::c_int) < 4 as ::core::ffi::c_int
+    while *tags as i32 != 0 && (len as i32) < 4_i32
     {
-        tag = tag << 8 as ::core::ffi::c_int | *tags as u32;
+        tag = tag << 8_i32 | *tags as u32;
         tags = tags.offset(1);
         len = len.wrapping_add(1);
     }
-    while (len as ::core::ffi::c_int) < 4 as ::core::ffi::c_int {
-        tag = tag << 8 as ::core::ffi::c_int | ' ' as i32 as u32;
+    while (len as i32) < 4_i32 {
+        tag = tag << 8_i32 | ' ' as i32 as u32;
         len = len.wrapping_add(1);
     }
     return tag;

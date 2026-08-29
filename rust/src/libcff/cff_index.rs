@@ -241,7 +241,7 @@ pub(crate) unsafe fn new_index_by_callback(
         let blob_size: usize = (*blob).data.len();
         if blank < blob_size {
             used = used.wrapping_add(blob_size);
-            blank = used >> 1 as ::core::ffi::c_int & 0xffffff as ::core::ffi::c_int as usize;
+            blank = used >> 1_i32 & 0xffffff_i32 as usize;
             data.resize(used.wrapping_add(blank), 0_u8);
         } else {
             used = used.wrapping_add(blob_size);
@@ -287,7 +287,7 @@ pub(crate) unsafe fn build_index(index: *const CffIndex) -> *mut Buffer {
         let mut i: Arity = 0 as Arity;
         while i <= (*index).count {
             let offset_i: u32 = offset[i as usize];
-            match off_size as ::core::ffi::c_int {
+            match off_size as i32 {
                 1 => {
                     bufwrite8(blob, offset_i as u8);
                 }
