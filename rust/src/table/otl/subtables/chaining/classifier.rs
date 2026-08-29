@@ -196,7 +196,6 @@ pub unsafe fn try_classify_around(
     j: TableId,
     classified_st: *mut *mut ChainingSubtable,
 ) -> TableId {
-    let current_block: u64;
     let mut compatible_count: TableId = 0 as TableId;
     let mut hb: std::collections::BTreeMap<GlyphId, ClassifierValue> =
         std::collections::BTreeMap::new();
@@ -214,11 +213,13 @@ pub unsafe fn try_classify_around(
     let mut classno_f: ::core::ffi::c_int = 0 as ::core::ffi::c_int;
     let rule0: *mut ChainingRule = chaining_rule_mut(subtable0);
     let mut m: TableId = 0 as TableId;
-    loop {
-        if !((m as ::core::ffi::c_int) < (*rule0).match_count as ::core::ffi::c_int) {
-            current_block = 12349973810996921269;
-            break;
-        }
+    // Was a `current_block`-flagged `loop`: this `while` runs to
+    // completion (every one of `rule0`'s own matches is class-compatible)
+    // or breaks early on the first incompatible one -- `rule0_is_compatible`
+    // records which, replacing the two `current_block` magic-number values
+    // the `match` below used to dispatch on.
+    let mut rule0_is_compatible = true;
+    while (m as ::core::ffi::c_int) < (*rule0).match_count as ::core::ffi::c_int {
         let check: ::core::ffi::c_int;
         if (m as ::core::ffi::c_int) < (*rule0).input_begins as ::core::ffi::c_int {
             check = class_compatible(
@@ -240,110 +241,107 @@ pub unsafe fn try_classify_around(
             );
         }
         if check == 0 {
-            current_block = 1622411330066726685;
+            rule0_is_compatible = false;
             break;
         }
         m = m.wrapping_add(1);
     }
-    match current_block {
-        12349973810996921269 => {
-            let mut k: TableId = (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
-            's_74: while (k as usize) < (*lookup).subtables.len() {
-                let k_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k as usize);
-                let Subtable::Chaining(mut_subtable_k) = &mut *k_ptr else {
+    if rule0_is_compatible {
+        let mut k: TableId = (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
+        's_74: while (k as usize) < (*lookup).subtables.len() {
+            let k_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k as usize);
+            let Subtable::Chaining(mut_subtable_k) = &mut *k_ptr else {
+                unreachable!()
+            };
+            let subtable_k: *mut ChainingSubtable = mut_subtable_k;
+            let rule: *mut ChainingRule = chaining_rule_mut(subtable_k);
+            let allcheck: bool = true;
+            let mut m_0: TableId = 0 as TableId;
+            while (m_0 as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
+                let check_0: ::core::ffi::c_int;
+                if (m_0 as ::core::ffi::c_int) < (*rule).input_begins as ::core::ffi::c_int {
+                    check_0 = class_compatible(
+                        &mut hb,
+                        &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
+                        &raw mut classno_b,
+                    );
+                } else if (m_0 as ::core::ffi::c_int) < (*rule).input_ends as ::core::ffi::c_int
+                {
+                    check_0 = class_compatible(
+                        &mut hi,
+                        &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
+                        &raw mut classno_i,
+                    );
+                } else {
+                    check_0 = class_compatible(
+                        &mut hf,
+                        &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
+                        &raw mut classno_f,
+                    );
+                }
+                if check_0 == 0 {
+                    break 's_74;
+                } else {
+                    m_0 = m_0.wrapping_add(1);
+                }
+            }
+            if allcheck {
+                compatible_count = (compatible_count as ::core::ffi::c_int
+                    + 1 as ::core::ffi::c_int)
+                    as TableId;
+            }
+            k = k.wrapping_add(1);
+        }
+        if compatible_count as ::core::ffi::c_int > 1 as ::core::ffi::c_int {
+            subtable0 = __caryll_allocate_clean(
+                ::core::mem::size_of::<ChainingSubtable>() as usize,
+                170 as ::core::ffi::c_ulong,
+            ) as *mut ChainingSubtable;
+            // Place a valid `Classified` value directly -- the zeroed
+            // memory `__caryll_allocate_clean` hands back is not a
+            // valid `ChainingSubtable` bit pattern (it owns `Vec`/
+            // `Option<Box<_>>` fields), so there is nothing to drop
+            // first, same reasoning as `otl_init_chaining`. `bc`/`ic`/
+            // `fc` start `None` and are filled in below, after `to_class`
+            // (unavailable yet, still needs `hb`/`hi`/`hf` built first).
+            ::core::ptr::write(
+                subtable0,
+                ChainingSubtable::Classified(ChainingRuleSet {
+                    rules: Vec::with_capacity(
+                        (compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
+                            as usize,
+                    ),
+                    ..Default::default()
+                }),
+            );
+            let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable0);
+            (*ruleset)
+                .rules
+                .push(Some(build_rule(rule0, &hb, &hi, &hf)));
+            let mut kk: TableId = 1 as TableId;
+            let mut k_0: TableId =
+                (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
+            while (k_0 as usize) < (*lookup).subtables.len()
+                && (kk as ::core::ffi::c_int)
+                    < compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int
+            {
+                let k_0_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k_0 as usize);
+                let Subtable::Chaining(mut_subtable_k_0) = &mut *k_0_ptr else {
                     unreachable!()
                 };
-                let subtable_k: *mut ChainingSubtable = mut_subtable_k;
-                let rule: *mut ChainingRule = chaining_rule_mut(subtable_k);
-                let allcheck: bool = true;
-                let mut m_0: TableId = 0 as TableId;
-                while (m_0 as ::core::ffi::c_int) < (*rule).match_count as ::core::ffi::c_int {
-                    let check_0: ::core::ffi::c_int;
-                    if (m_0 as ::core::ffi::c_int) < (*rule).input_begins as ::core::ffi::c_int {
-                        check_0 = class_compatible(
-                            &mut hb,
-                            &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
-                            &raw mut classno_b,
-                        );
-                    } else if (m_0 as ::core::ffi::c_int) < (*rule).input_ends as ::core::ffi::c_int
-                    {
-                        check_0 = class_compatible(
-                            &mut hi,
-                            &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
-                            &raw mut classno_i,
-                        );
-                    } else {
-                        check_0 = class_compatible(
-                            &mut hf,
-                            &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
-                            &raw mut classno_f,
-                        );
-                    }
-                    if check_0 == 0 {
-                        break 's_74;
-                    } else {
-                        m_0 = m_0.wrapping_add(1);
-                    }
-                }
-                if allcheck {
-                    compatible_count = (compatible_count as ::core::ffi::c_int
-                        + 1 as ::core::ffi::c_int)
-                        as TableId;
-                }
-                k = k.wrapping_add(1);
-            }
-            if compatible_count as ::core::ffi::c_int > 1 as ::core::ffi::c_int {
-                subtable0 = __caryll_allocate_clean(
-                    ::core::mem::size_of::<ChainingSubtable>() as usize,
-                    170 as ::core::ffi::c_ulong,
-                ) as *mut ChainingSubtable;
-                // Place a valid `Classified` value directly -- the zeroed
-                // memory `__caryll_allocate_clean` hands back is not a
-                // valid `ChainingSubtable` bit pattern (it owns `Vec`/
-                // `Option<Box<_>>` fields), so there is nothing to drop
-                // first, same reasoning as `otl_init_chaining`. `bc`/`ic`/
-                // `fc` start `None` and are filled in below, after `to_class`
-                // (unavailable yet, still needs `hb`/`hi`/`hf` built first).
-                ::core::ptr::write(
-                    subtable0,
-                    ChainingSubtable::Classified(ChainingRuleSet {
-                        rules: Vec::with_capacity(
-                            (compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int)
-                                as usize,
-                        ),
-                        ..Default::default()
-                    }),
-                );
-                let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable0);
+                let subtable_k_0: *mut ChainingSubtable = mut_subtable_k_0;
+                let rule_0: *mut ChainingRule = chaining_rule_mut(subtable_k_0);
                 (*ruleset)
                     .rules
-                    .push(Some(build_rule(rule0, &hb, &hi, &hf)));
-                let mut kk: TableId = 1 as TableId;
-                let mut k_0: TableId =
-                    (j as ::core::ffi::c_int + 1 as ::core::ffi::c_int) as TableId;
-                while (k_0 as usize) < (*lookup).subtables.len()
-                    && (kk as ::core::ffi::c_int)
-                        < compatible_count as ::core::ffi::c_int + 1 as ::core::ffi::c_int
-                {
-                    let k_0_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k_0 as usize);
-                    let Subtable::Chaining(mut_subtable_k_0) = &mut *k_0_ptr else {
-                        unreachable!()
-                    };
-                    let subtable_k_0: *mut ChainingSubtable = mut_subtable_k_0;
-                    let rule_0: *mut ChainingRule = chaining_rule_mut(subtable_k_0);
-                    (*ruleset)
-                        .rules
-                        .push(Some(build_rule(rule_0, &hb, &hi, &hf)));
-                    kk = kk.wrapping_add(1);
-                    k_0 = k_0.wrapping_add(1);
-                }
-                (*ruleset).bc = classdef_from_raw(to_class(&hb));
-                (*ruleset).ic = classdef_from_raw(to_class(&hi));
-                (*ruleset).fc = classdef_from_raw(to_class(&hf));
-                *classified_st = subtable0;
+                    .push(Some(build_rule(rule_0, &hb, &hi, &hf)));
+                kk = kk.wrapping_add(1);
+                k_0 = k_0.wrapping_add(1);
             }
+            (*ruleset).bc = classdef_from_raw(to_class(&hb));
+            (*ruleset).ic = classdef_from_raw(to_class(&hi));
+            (*ruleset).fc = classdef_from_raw(to_class(&hf));
+            *classified_st = subtable0;
         }
-        _ => {}
     }
     // hb/hi/hf are owned BTreeMaps now (not uthash nodes reached via
     // a raw *mut), so they need no manual HASH_ITER+HASH_DEL+free walk
