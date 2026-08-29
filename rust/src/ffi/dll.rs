@@ -137,9 +137,16 @@ mod tests {
         // hit many times in one process, the way both otfccdump/otfccbuild
         // (many payloads per process in run-cycles.sh) and the fuzz
         // targets (thousands of iterations per process) actually call
-        // this function.
+        // this function. 100 reps under native `cargo test` (fast); under
+        // Miri (interpreted, ~0.9s/rep, this crate's second-slowest test
+        // at the full count) a state-not-reset-between-calls bug would
+        // reproduce on the 2nd or 3rd call, not specifically need 100 --
+        // each iteration is the same deterministic operation, not a fuzzed
+        // input, so more reps past the first few don't add real UB-
+        // detection confidence, just wall-clock cost.
+        let reps = if cfg!(miri) { 5 } else { 100 };
         unsafe {
-            for _ in 0..100 {
+            for _ in 0..reps {
                 assert!(build(b"not json").is_null());
                 let buf = build(b"{}");
                 assert!(!buf.is_null());

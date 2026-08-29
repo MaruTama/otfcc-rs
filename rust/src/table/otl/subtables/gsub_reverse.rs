@@ -376,6 +376,16 @@ mod otl_read_gsub_reverse_tests {
     }
 
     #[test]
+    // `n_backtrack` has to genuinely be `u16::MAX` for this test's sum
+    // to actually overflow a u16 -- there's no smaller data that still
+    // exercises this specific overflow, so this stays a ~131KB buffer
+    // regardless. 44s under Miri (this crate's third-slowest test);
+    // `cargo test` (native) is the real regression guard, this is just
+    // advisory extra confidence that isn't worth the wall-clock cost.
+    #[cfg_attr(
+        miri,
+        ignore = "far too slow to run meaningfully under Miri's interpreter; needs a genuinely u16::MAX-sized backtrack array to trigger the overflow being tested"
+    )]
     fn match_count_overflow_is_rejected_instead_of_panicking() {
         // `match_count` (`n_backtrack + n_forward + 1`, a u16 field) can
         // overflow even though each addend is individually u16-bounded.
