@@ -716,68 +716,39 @@ pub unsafe fn cff_parse_outline(
                         if (advance as usize).wrapping_add(mask_length as usize) > remaining {
                             break;
                         }
-                        let mask: *mut bool;
-                        mask = __caryll_allocate_clean(
-                            (::core::mem::size_of::<bool>() as usize).wrapping_mul(
-                                ((*stack).stem as i32 + 7_i32)
-                                    as usize,
-                            ),
-                            405 as ::core::ffi::c_ulong,
-                        ) as *mut bool;
+                        // Sized to exactly `(*stack).stem + 7` bools, same
+                        // as the original's `__caryll_allocate_clean` call
+                        // -- the largest index any byte in `0..mask_length`
+                        // writes is `((mask_length - 1) << 3) + 7`, and
+                        // `mask_length == ((*stack).stem + 7) >> 3` keeps
+                        // that within `(*stack).stem + 6` (one shy of this
+                        // Vec's length) regardless of whether `stem + 7` is
+                        // itself a multiple of 8.
+                        let mut mask: Vec<bool> =
+                            vec![false; ((*stack).stem as i32 + 7_i32) as usize];
                         let mut byte: u32 = 0_u32;
                         while byte < mask_length {
                             let mask_byte: u8 =
                                 data_slice[pos + advance.wrapping_add(byte) as usize];
-                            *mask
-                                .offset((byte << 3_i32).wrapping_add(0_u32)
-                                    as isize) = mask_byte as i32
-                                >> 7_i32
-                                & 1_i32
-                                != 0;
-                            *mask
-                                .offset((byte << 3_i32).wrapping_add(1_u32)
-                                    as isize) = mask_byte as i32
-                                >> 6_i32
-                                & 1_i32
-                                != 0;
-                            *mask
-                                .offset((byte << 3_i32).wrapping_add(2_u32)
-                                    as isize) = mask_byte as i32
-                                >> 5_i32
-                                & 1_i32
-                                != 0;
-                            *mask
-                                .offset((byte << 3_i32).wrapping_add(3_u32)
-                                    as isize) = mask_byte as i32
-                                >> 4_i32
-                                & 1_i32
-                                != 0;
-                            *mask
-                                .offset((byte << 3_i32).wrapping_add(4_u32)
-                                    as isize) = mask_byte as i32
-                                >> 3_i32
-                                & 1_i32
-                                != 0;
-                            *mask
-                                .offset((byte << 3_i32).wrapping_add(5_u32)
-                                    as isize) = mask_byte as i32
-                                >> 2_i32
-                                & 1_i32
-                                != 0;
-                            *mask
-                                .offset((byte << 3_i32).wrapping_add(6_u32)
-                                    as isize) = mask_byte as i32
-                                >> 1_i32
-                                & 1_i32
-                                != 0;
-                            *mask
-                                .offset((byte << 3_i32).wrapping_add(7_u32)
-                                    as isize) = (mask_byte as i32)
-                                & 1_i32
-                                != 0;
+                            mask[(byte << 3_i32).wrapping_add(0_u32) as usize] =
+                                mask_byte as i32 >> 7_i32 & 1_i32 != 0;
+                            mask[(byte << 3_i32).wrapping_add(1_u32) as usize] =
+                                mask_byte as i32 >> 6_i32 & 1_i32 != 0;
+                            mask[(byte << 3_i32).wrapping_add(2_u32) as usize] =
+                                mask_byte as i32 >> 5_i32 & 1_i32 != 0;
+                            mask[(byte << 3_i32).wrapping_add(3_u32) as usize] =
+                                mask_byte as i32 >> 4_i32 & 1_i32 != 0;
+                            mask[(byte << 3_i32).wrapping_add(4_u32) as usize] =
+                                mask_byte as i32 >> 3_i32 & 1_i32 != 0;
+                            mask[(byte << 3_i32).wrapping_add(5_u32) as usize] =
+                                mask_byte as i32 >> 2_i32 & 1_i32 != 0;
+                            mask[(byte << 3_i32).wrapping_add(6_u32) as usize] =
+                                mask_byte as i32 >> 1_i32 & 1_i32 != 0;
+                            mask[(byte << 3_i32).wrapping_add(7_u32) as usize] =
+                                (mask_byte as i32) & 1_i32 != 0;
                             byte = byte.wrapping_add(1);
                         }
-                        callback_draw_setmask(outline, op == OP_CNTRMASK.0, mask);
+                        callback_draw_setmask(outline, op == OP_CNTRMASK.0, &mask);
                         advance = advance.wrapping_add(mask_length);
                         (*stack).index = 0 as Arity;
                     }

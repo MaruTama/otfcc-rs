@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::free;
 unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
@@ -783,7 +782,7 @@ pub(crate) unsafe fn callback_draw_sethint(
 pub(crate) unsafe fn callback_draw_setmask(
     mut _context: *mut ::core::ffi::c_void,
     is_contour_mask: bool,
-    mask_array: *mut bool,
+    mask_array: &[bool],
 ) {
     let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     let mask_list: &mut MaskList = if is_contour_mask as i32 != 0 {
@@ -809,18 +808,17 @@ pub(crate) unsafe fn callback_draw_setmask(
     let mut j: ShapeId = 0 as ShapeId;
     while (j as i32) < 0x100_i32 {
         mask.mask_h[j as usize] = if (j as usize) < stem_h_len {
-            *mask_array.offset(j as isize) as i32
+            mask_array[j as usize] as i32
         } else {
             0_i32
         } != 0;
         mask.mask_v[j as usize] = if (j as usize) < stem_v_len {
-            *mask_array.offset((j as usize).wrapping_add(stem_h_len) as isize) as i32
+            mask_array[(j as usize).wrapping_add(stem_h_len)] as i32
         } else {
             0_i32
         } != 0;
         j = j.wrapping_add(1);
     }
-    free(mask_array as *mut ::core::ffi::c_void);
     if !mask_list.is_empty()
         && mask_list[mask_list.len() - 1].contours_before as i32
             == mask.contours_before as i32
