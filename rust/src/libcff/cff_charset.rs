@@ -1,6 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite8};
 use crate::support::font_reader::FontReader;
 
 /// The Top DICT's Charset offset is overloaded by spec: values 0/1/2 select
@@ -161,54 +160,36 @@ pub unsafe fn cff_extract_charset(
 // Takes `&CffCharset` instead of by value -- it only ever reads the data,
 // same reasoning as every other builder function in this migration that
 // doesn't need ownership.
-pub unsafe fn cff_build_charset(cset: &CffCharset) -> *mut Buffer {
+pub fn cff_build_charset(cset: &CffCharset) -> Buffer {
     match cset {
-        CffCharset::IsoAdobe | CffCharset::Expert | CffCharset::ExpertSubset => bufnew(),
+        CffCharset::IsoAdobe | CffCharset::Expert | CffCharset::ExpertSubset => Buffer::new(),
         CffCharset::Format0(glyph) => {
-            let blob: *mut Buffer = bufnew();
-            bufwrite8(blob, 0_u8);
+            let mut blob = Buffer::new();
+            blob.write_u8(0_u8);
             for &g in glyph.iter() {
-                bufwrite8(blob, (g as i32 / 256_i32) as u8);
-                bufwrite8(blob, (g as i32 % 256_i32) as u8);
+                blob.write_u8((g as i32 / 256_i32) as u8);
+                blob.write_u8((g as i32 % 256_i32) as u8);
             }
             blob
         }
         CffCharset::Format1(range1) => {
-            let blob_0: *mut Buffer = bufnew();
-            bufwrite8(blob_0, 1_u8);
+            let mut blob_0 = Buffer::new();
+            blob_0.write_u8(1_u8);
             for r in range1.iter() {
-                bufwrite8(
-                    blob_0,
-                    (r.first as i32 / 256_i32) as u8,
-                );
-                bufwrite8(
-                    blob_0,
-                    (r.first as i32 % 256_i32) as u8,
-                );
-                bufwrite8(blob_0, r.nleft);
+                blob_0.write_u8((r.first as i32 / 256_i32) as u8);
+                blob_0.write_u8((r.first as i32 % 256_i32) as u8);
+                blob_0.write_u8(r.nleft);
             }
             blob_0
         }
         CffCharset::Format2(range2) => {
-            let blob_1: *mut Buffer = bufnew();
-            bufwrite8(blob_1, 2_u8);
+            let mut blob_1 = Buffer::new();
+            blob_1.write_u8(2_u8);
             for r in range2.iter() {
-                bufwrite8(
-                    blob_1,
-                    (r.first as i32 / 256_i32) as u8,
-                );
-                bufwrite8(
-                    blob_1,
-                    (r.first as i32 % 256_i32) as u8,
-                );
-                bufwrite8(
-                    blob_1,
-                    (r.nleft as i32 / 256_i32) as u8,
-                );
-                bufwrite8(
-                    blob_1,
-                    (r.nleft as i32 % 256_i32) as u8,
-                );
+                blob_1.write_u8((r.first as i32 / 256_i32) as u8);
+                blob_1.write_u8((r.first as i32 % 256_i32) as u8);
+                blob_1.write_u8((r.nleft as i32 / 256_i32) as u8);
+                blob_1.write_u8((r.nleft as i32 % 256_i32) as u8);
             }
             blob_1
         }
