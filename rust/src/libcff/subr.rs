@@ -730,9 +730,9 @@ unsafe fn serialize_node_to_buffer(
     g: &mut CffSubrGraph,
     node: NodeId,
     buf: *mut Buffer,
-    gsubrs: *mut Buffer,
+    gsubrs: &mut [Buffer],
     max_g_subrs: u32,
-    lsubrs: *mut Buffer,
+    lsubrs: &mut [Buffer],
     max_l_subrs: u32,
 ) {
     let (rule, terminal) = {
@@ -752,7 +752,7 @@ unsafe fn serialize_node_to_buffer(
             if number < max_l_subrs {
                 let stacknum: i32 =
                     number.wrapping_sub(subroutine_bias(max_l_subrs as i32) as u32) as i32;
-                target = lsubrs.offset(number as isize);
+                target = &raw mut lsubrs[number as usize];
                 cff_merge_cs2_int(buf, stacknum);
                 cff_merge_cs2_operator(buf, OP_CALLSUBR);
             } else {
@@ -760,7 +760,7 @@ unsafe fn serialize_node_to_buffer(
                     .wrapping_sub(max_l_subrs)
                     .wrapping_sub(subroutine_bias(max_g_subrs as i32) as u32)
                     as i32;
-                target = gsubrs.offset(number.wrapping_sub(max_l_subrs) as isize);
+                target = &raw mut gsubrs[number.wrapping_sub(max_l_subrs) as usize];
                 cff_merge_cs2_int(buf, stacknum_0);
                 cff_merge_cs2_operator(buf, OP_CALLGSUBR);
             }
@@ -871,9 +871,9 @@ pub unsafe fn cff_il_graph_to_buffers(
             g,
             e,
             char_strings.as_mut_ptr().add(j as usize),
-            gsubrs.as_mut_ptr(),
+            &mut gsubrs[..],
             max_g_subrs,
-            lsubrs.as_mut_ptr(),
+            &mut lsubrs[..],
             max_l_subrs,
         );
         if e_rule.is_none() && !e_terminal.is_null() && e_hard {
