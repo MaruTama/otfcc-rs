@@ -961,9 +961,15 @@ unsafe fn build_outline(
         vq_create_still(bc.default_width_x as Pos) as VQ,
     );
     let char_strings_offset = &(*f).char_strings.offset;
-    let char_string_ptr: *mut u8 = ((*f).char_strings.data.as_ptr() as *mut u8)
-        .offset(char_strings_offset[i as usize] as isize)
-        .offset(-(1_i32 as isize));
+    // CFF INDEX offsets are 1-based and `extract_index` already validated
+    // this whole array (non-decreasing, every entry >= 1, and the final
+    // entry exactly matches `data.len() + 1`) -- so `offset[i] - 1` is
+    // always in `0..=data.len()` for any `i` within the INDEX's own
+    // count, the same invariant `locate_subr`/`get_cff_sid` already rely
+    // on elsewhere. Slicing (rather than raw pointer arithmetic) makes
+    // that bound a checked one instead of an assumed one.
+    let char_string_start = (char_strings_offset[i as usize] - 1_u32) as usize;
+    let char_string_ptr: *mut u8 = (&mut (*f).char_strings.data)[char_string_start..].as_mut_ptr();
     let char_string_length: u32 = (char_strings_offset
         [(i as i32 + 1_i32) as usize])
         .wrapping_sub(char_strings_offset[i as usize]);
@@ -2625,35 +2631,29 @@ unsafe fn writecff_cid_keyed(
             bufwrite_bufdel(p_0, cff_encode_cff_operator(OP_SUBRS));
             cff_dict_free(pd);
             fd_array_privates[j as usize] = p_0;
-            let private_length_ptr: *mut u8 = {
+            let private_length_off: usize = {
                 let fd_array_offset = &(*fd_array_index).offset;
-                let off = (fd_array_offset
-                    [(j as i32 + 1_i32) as usize])
-                    .wrapping_sub(11_u32) as isize;
-                (*fd_array_index).data.as_mut_ptr().offset(off)
+                (fd_array_offset[(j as i32 + 1_i32) as usize]).wrapping_sub(11_u32) as usize
             };
-            *private_length_ptr.offset(0_i32 as isize) =
+            (&mut (*fd_array_index).data)[private_length_off] =
                 ((*p_0).data.len() >> 24_i32 & 0xff_usize) as u8;
-            *private_length_ptr.offset(1_i32 as isize) =
+            (&mut (*fd_array_index).data)[private_length_off + 1] =
                 ((*p_0).data.len() >> 16_i32 & 0xff_usize) as u8;
-            *private_length_ptr.offset(2_i32 as isize) =
+            (&mut (*fd_array_index).data)[private_length_off + 2] =
                 ((*p_0).data.len() >> 8_i32 & 0xff_usize) as u8;
-            *private_length_ptr.offset(3_i32 as isize) =
+            (&mut (*fd_array_index).data)[private_length_off + 3] =
                 ((*p_0).data.len() & 0xff_usize) as u8;
-            let private_offset_ptr: *mut u8 = {
+            let private_offset_off: usize = {
                 let fd_array_offset = &(*fd_array_index).offset;
-                let off = (fd_array_offset
-                    [(j as i32 + 1_i32) as usize])
-                    .wrapping_sub(6_u32) as isize;
-                (*fd_array_index).data.as_mut_ptr().offset(off)
+                (fd_array_offset[(j as i32 + 1_i32) as usize]).wrapping_sub(6_u32) as usize
             };
-            *private_offset_ptr.offset(0_i32 as isize) =
+            (&mut (*fd_array_index).data)[private_offset_off] =
                 (fd_array_privates_start_offset >> 24_i32 & 0xff_u32) as u8;
-            *private_offset_ptr.offset(1_i32 as isize) =
+            (&mut (*fd_array_index).data)[private_offset_off + 1] =
                 (fd_array_privates_start_offset >> 16_i32 & 0xff_u32) as u8;
-            *private_offset_ptr.offset(2_i32 as isize) =
+            (&mut (*fd_array_index).data)[private_offset_off + 2] =
                 (fd_array_privates_start_offset >> 8_i32 & 0xff_u32) as u8;
-            *private_offset_ptr.offset(3_i32 as isize) =
+            (&mut (*fd_array_index).data)[private_offset_off + 3] =
                 (fd_array_privates_start_offset & 0xff_u32) as u8;
             fd_array_privates_start_offset = (fd_array_privates_start_offset as usize)
                 .wrapping_add((*p_0).data.len()) as u32
@@ -2682,17 +2682,11 @@ unsafe fn writecff_cid_keyed(
     {
         let ls_offset: usize =
             position_of_local_subroutines.wrapping_sub(starting_position_of_privates[j_1 as usize]);
-        let ptr: *mut u8 = (*blob).data.as_mut_ptr().offset(
-            (ending_position_of_privates[j_1 as usize]).wrapping_sub(5_usize) as isize,
-        );
-        *ptr.offset(0_i32 as isize) =
-            (ls_offset >> 24_i32 & 0xff_usize) as u8;
-        *ptr.offset(1_i32 as isize) =
-            (ls_offset >> 16_i32 & 0xff_usize) as u8;
-        *ptr.offset(2_i32 as isize) =
-            (ls_offset >> 8_i32 & 0xff_usize) as u8;
-        *ptr.offset(3_i32 as isize) =
-            (ls_offset & 0xff_usize) as u8;
+        let ptr_off: usize = (ending_position_of_privates[j_1 as usize]).wrapping_sub(5_usize);
+        (&mut (*blob).data)[ptr_off] = (ls_offset >> 24_i32 & 0xff_usize) as u8;
+        (&mut (*blob).data)[ptr_off + 1] = (ls_offset >> 16_i32 & 0xff_usize) as u8;
+        (&mut (*blob).data)[ptr_off + 2] = (ls_offset >> 8_i32 & 0xff_usize) as u8;
+        (&mut (*blob).data)[ptr_off + 3] = (ls_offset & 0xff_usize) as u8;
         j_1 = j_1.wrapping_add(1);
     }
     return blob;
