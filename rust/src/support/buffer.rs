@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::fprintf;
 
 // Stage 7-2-e "Buffer to Vec": `data` was `*mut u8`, manually grown via
@@ -25,91 +24,223 @@ pub struct Buffer {
 }
 use crate::support::stdio::stderr;
 
-// `Box`-allocated now, not `__caryll_allocate_clean`'d: a calloc'd, all-zero
+// Stage 9: `Buffer`'s data (`{cursor, data: Vec<u8>}`) has been fully safe
+// since 7-2-e -- the unsafety crate-wide was entirely in the free-function
+// shell below, kept raw-pointer-shaped on purpose so `table/*/build.rs`
+// call sites could stay textually identical to the old C
+// `bufnew()`/`bufwrite*(buf, ...)` idiom during the mechanical c2rust port.
+// This `impl` is the safe replacement API; the free functions below are now
+// thin wrappers over it, so every one of the ~775 existing call sites keeps
+// compiling unchanged while consumer files migrate to the methods directly,
+// one batch at a time (see the plan doc's Stage 9).
+impl Default for Buffer {
+    fn default() -> Self {
+        Self::new()
+    }
+}
+impl Buffer {
+    pub fn new() -> Buffer {
+        Buffer {
+            cursor: 0,
+            data: Vec::new(),
+        }
+    }
+
+    /// A fresh buffer holding `bytes`. Replaces the old `bufninit`'s body.
+    pub fn from_bytes(bytes: &[u8]) -> Buffer {
+        let mut b = Buffer::new();
+        b.write_bytes(bytes);
+        b
+    }
+
+    pub fn len(&self) -> usize {
+        self.data.len()
+    }
+    pub fn is_empty(&self) -> bool {
+        self.data.is_empty()
+    }
+    pub fn pos(&self) -> usize {
+        self.cursor
+    }
+    pub fn seek(&mut self, pos: usize) {
+        self.cursor = pos;
+    }
+    pub fn clear(&mut self) {
+        self.cursor = 0;
+        // `.clear()`, not `= Vec::new()`: drops every element but keeps the
+        // backing allocation, the same "reset length, keep the allocation"
+        // contract `size = 0` + `free = size + free` used to give by hand.
+        self.data.clear();
+    }
+
+    // Pushes `bytes` at the cursor, growing the buffer first if needed, and
+    // advances the cursor. Every fixed-width `write_*` method below is
+    // exactly this plus an endian-ordered byte array (to_le_bytes/
+    // to_be_bytes), which replaces c2rust's manual per-byte shift-mask-store
+    // expansion.
+    //
+    // A write can seek backward and overwrite already-written bytes in
+    // place (the hand-rolled offset-backpatching idiom real call sites use,
+    // e.g. `table/cmap.rs`'s format4 segment-count backpatch) -- so this is
+    // not a plain `Vec::extend`. If the write fits entirely within the
+    // already-written region (`cursor + bytes.len() <= data.len()`), it's a
+    // pure in-place overwrite; otherwise `resize` grows the `Vec` first
+    // (zero-filling any gap between the old length and `cursor`, matching
+    // what a fresh `realloc` over calloc'd memory used to leave there)
+    // before the same slice-copy runs either way.
+    fn push_bytes(&mut self, bytes: &[u8]) {
+        let cursor = self.cursor;
+        let end = cursor.wrapping_add(bytes.len());
+        if self.data.len() < end {
+            self.data.resize(end, 0);
+        }
+        self.data[cursor..end].copy_from_slice(bytes);
+        self.cursor = end;
+    }
+
+    pub fn write_u8(&mut self, byte: u8) {
+        self.push_bytes(&[byte]);
+    }
+    pub fn write_u16le(&mut self, x: u16) {
+        self.push_bytes(&x.to_le_bytes());
+    }
+    pub fn write_u16be(&mut self, x: u16) {
+        self.push_bytes(&x.to_be_bytes());
+    }
+    pub fn write_u24le(&mut self, x: u32) {
+        // Low 3 bytes only, matching the original's shift-mask expansion,
+        // which never touched bits 24-31 either.
+        self.push_bytes(&x.to_le_bytes()[..3]);
+    }
+    pub fn write_u24be(&mut self, x: u32) {
+        self.push_bytes(&x.to_be_bytes()[1..]);
+    }
+    pub fn write_u32le(&mut self, x: u32) {
+        self.push_bytes(&x.to_le_bytes());
+    }
+    pub fn write_u32be(&mut self, x: u32) {
+        self.push_bytes(&x.to_be_bytes());
+    }
+    pub fn write_u64le(&mut self, x: u64) {
+        self.push_bytes(&x.to_le_bytes());
+    }
+    pub fn write_u64be(&mut self, x: u64) {
+        self.push_bytes(&x.to_be_bytes());
+    }
+    /// Append `bytes`, growing the buffer first. Replaces `bufnwrite8`/
+    /// `bufwrite_bytes`'s bodies.
+    pub fn write_bytes(&mut self, bytes: &[u8]) {
+        self.push_bytes(bytes);
+    }
+
+    /// Appends `that`'s contents, without consuming it. Replaces
+    /// `bufwrite_buf`.
+    ///
+    /// Clones `that.data` rather than borrowing it: `self` and `that` could
+    /// in principle be the same buffer (this crate's ~55 real call sites
+    /// never actually do that, confirmed by a full audit during Stage 9,
+    /// but nothing here assumes it), and an owned copy sidesteps the
+    /// question entirely at the cost of one extra allocation for what was
+    /// already a copy either way. Stage 9's cleanup phase may revisit this
+    /// once no raw-pointer bridge into this method remains anywhere in the
+    /// crate.
+    pub fn write_buffer(&mut self, that: &Buffer) {
+        let bytes = that.data.clone();
+        self.push_bytes(&bytes);
+    }
+    /// [`write_buffer`], consuming `that`. Replaces `bufwrite_bufdel`.
+    pub fn write_buffer_owned(&mut self, that: Buffer) {
+        self.write_buffer(&that);
+    }
+
+    /// Pads the buffer's length up to a multiple of 4 bytes, restoring the
+    /// cursor afterward. Replaces `buflongalign`.
+    pub fn long_align(&mut self) {
+        let cp = self.cursor;
+        self.seek(self.len());
+        let padding = self.len().wrapping_rem(4);
+        if (1..4).contains(&padding) {
+            for _ in padding..4 {
+                self.write_u8(0);
+            }
+        }
+        self.seek(cp);
+    }
+
+    // The pair below is the only place a `Buffer` still crosses a raw
+    // pointer: the real ABI boundary in `ffi/dll.rs` (`otfccbuild_json_otf`
+    // returns `*mut Buffer`) and, during Stage 9's migration, the bridge
+    // back into not-yet-converted call sites still using the free-function
+    // API below. Not for use anywhere else.
+    pub fn into_raw(self) -> *mut Buffer {
+        Box::into_raw(Box::new(self))
+    }
+    /// # Safety
+    /// `ptr` must either be null or have come from [`Buffer::into_raw`]
+    /// (directly, or via one of this file's `bufnew`/`bufninit`-family
+    /// wrappers) and not have been freed already.
+    pub unsafe fn from_raw(ptr: *mut Buffer) -> Option<Buffer> {
+        if ptr.is_null() {
+            None
+        } else {
+            Some(*unsafe { Box::from_raw(ptr) })
+        }
+    }
+}
+
+// The free-function API below is now a thin compatibility shell over the
+// `impl Buffer` above, kept so every not-yet-migrated call site (see the
+// plan doc's Stage 9 phase list) keeps compiling unchanged. Each function
+// is deleted once its last caller migrates to the safe method directly.
+//
+// `Box`-allocated, not `__caryll_allocate_clean`'d: a calloc'd, all-zero
 // `Buffer` is not a valid value the instant it contains a `Vec` (see
 // [[otfcc-vec-field-assign-needs-calloc]] throughout this migration), so
 // construction has to go through a real Rust value from the start.
 pub unsafe fn bufnew() -> *mut Buffer {
-    Box::into_raw(Box::new(Buffer {
-        cursor: 0,
-        data: Vec::new(),
-    }))
+    Buffer::new().into_raw()
 }
 pub unsafe fn buffree(buf: *mut Buffer) {
-    if buf.is_null() {
-        return;
-    }
-    drop(Box::from_raw(buf));
+    drop(unsafe { Buffer::from_raw(buf) });
 }
 pub unsafe fn buflen(buf: *mut Buffer) -> usize {
-    (*buf).data.len()
+    unsafe { (*buf).len() }
 }
 pub unsafe fn bufpos(buf: *mut Buffer) -> usize {
-    (*buf).cursor
+    unsafe { (*buf).pos() }
 }
 pub unsafe fn bufseek(buf: *mut Buffer, pos: usize) {
-    (*buf).cursor = pos;
+    unsafe { (*buf).seek(pos) }
 }
 pub unsafe fn bufclear(buf: *mut Buffer) {
-    (*buf).cursor = 0;
-    // `.clear()`, not `= Vec::new()`: drops every element but keeps the
-    // backing allocation, the same "reset length, keep the allocation"
-    // contract `size = 0` + `free = size + free` used to give by hand.
-    (*buf).data.clear();
-}
-// Pushes `bytes` at the cursor, growing the buffer first if needed, and
-// advances the cursor. All the fixed-width bufwriteNN{l,b} functions below
-// are exactly this plus an endian-ordered byte array
-// (to_le_bytes/to_be_bytes), which replaces c2rust's manual per-byte
-// shift-mask-store expansion.
-//
-// A write can seek backward and overwrite already-written bytes in place
-// (the offset-backpatching idiom `bufping16b`/`bufpong` below build on) --
-// so this is not a plain `Vec::extend`. If the write fits entirely within
-// the already-written region (`cursor + bytes.len() <= data.len()`), it's
-// a pure in-place overwrite; otherwise `resize` grows the `Vec` first
-// (zero-filling any gap between the old length and `cursor`, matching what
-// a fresh `realloc` over calloc'd memory used to leave there) before the
-// same slice-copy runs either way.
-#[inline]
-unsafe fn buf_push_bytes(buf: *mut Buffer, bytes: &[u8]) {
-    let cursor = (*buf).cursor;
-    let end = cursor.wrapping_add(bytes.len());
-    let data: &mut Vec<u8> = &mut (*buf).data;
-    if data.len() < end {
-        data.resize(end, 0);
-    }
-    data[cursor..end].copy_from_slice(bytes);
-    (*buf).cursor = end;
+    unsafe { (*buf).clear() }
 }
 pub unsafe fn bufwrite8(buf: *mut Buffer, byte: u8) {
-    buf_push_bytes(buf, &[byte]);
+    unsafe { (*buf).write_u8(byte) }
 }
 pub unsafe fn bufwrite16l(buf: *mut Buffer, x: u16) {
-    buf_push_bytes(buf, &x.to_le_bytes());
+    unsafe { (*buf).write_u16le(x) }
 }
 pub unsafe fn bufwrite16b(buf: *mut Buffer, x: u16) {
-    buf_push_bytes(buf, &x.to_be_bytes());
+    unsafe { (*buf).write_u16be(x) }
 }
 pub unsafe fn bufwrite24l(buf: *mut Buffer, x: u32) {
-    // Low 3 bytes only, matching the original's shift-mask expansion, which
-    // never touched bits 24-31 either.
-    buf_push_bytes(buf, &x.to_le_bytes()[..3]);
+    unsafe { (*buf).write_u24le(x) }
 }
 pub unsafe fn bufwrite24b(buf: *mut Buffer, x: u32) {
-    buf_push_bytes(buf, &x.to_be_bytes()[1..]);
+    unsafe { (*buf).write_u24be(x) }
 }
 pub unsafe fn bufwrite32l(buf: *mut Buffer, x: u32) {
-    buf_push_bytes(buf, &x.to_le_bytes());
+    unsafe { (*buf).write_u32le(x) }
 }
 pub unsafe fn bufwrite32b(buf: *mut Buffer, x: u32) {
-    buf_push_bytes(buf, &x.to_be_bytes());
+    unsafe { (*buf).write_u32be(x) }
 }
 pub unsafe fn bufwrite64l(buf: *mut Buffer, x: u64) {
-    buf_push_bytes(buf, &x.to_le_bytes());
+    unsafe { (*buf).write_u64le(x) }
 }
 pub unsafe fn bufwrite64b(buf: *mut Buffer, x: u64) {
-    buf_push_bytes(buf, &x.to_be_bytes());
+    unsafe { (*buf).write_u64be(x) }
 }
 /// A fresh buffer holding `bytes`.
 ///
@@ -124,275 +255,191 @@ pub unsafe fn bufwrite64b(buf: *mut Buffer, x: u64) {
 /// public ABI is the four `otfccbuild_*`/`otfcc_get_buf_*` symbols -- so the two
 /// names simply leave `scripts/abi-exports.txt`.
 pub unsafe fn bufninit(bytes: &[u8]) -> *mut Buffer {
-    let buf: *mut Buffer = bufnew();
-    buf_push_bytes(buf, bytes);
-    return buf;
+    Buffer::from_bytes(bytes).into_raw()
 }
 
 /// Append `bytes`, growing the buffer first. See [`bufninit`] for why there is
 /// no separate count.
 pub unsafe fn bufnwrite8(buf: *mut Buffer, bytes: &[u8]) {
-    buf_push_bytes(buf, bytes);
-}
-pub unsafe fn bufwrite_str(buf: *mut Buffer, str: *const ::core::ffi::c_char) {
-    if str.is_null() {
-        return;
-    }
-    let cstr = ::core::ffi::CStr::from_ptr(str);
-    let bytes = cstr.to_bytes();
-    if bytes.is_empty() {
-        return;
-    }
-    buf_push_bytes(buf, bytes);
+    unsafe { (*buf).write_bytes(bytes) }
 }
 pub unsafe fn bufwrite_bytes(buf: *mut Buffer, len: usize, str: *const u8) {
     if str.is_null() || len == 0 {
         return;
     }
-    buf_push_bytes(buf, ::core::slice::from_raw_parts(str, len));
+    unsafe { (*buf).write_bytes(::core::slice::from_raw_parts(str, len)) }
 }
 pub unsafe fn bufwrite_buf(buf: *mut Buffer, that: *mut Buffer) {
     if that.is_null() {
         return;
     }
-    // `.to_vec()` (not a borrow held across `buf_push_bytes`): `buf` and
-    // `that` could in principle be the same allocation, and a borrow of
-    // `(*that).data` can't coexist with the `&mut` `buf_push_bytes` takes
-    // on `(*buf).data` if they alias -- an owned copy sidesteps the
-    // question entirely, at the cost of one extra allocation for what was
-    // already a copy either way.
-    let bytes = (*that).data.clone();
-    buf_push_bytes(buf, &bytes);
+    unsafe { (*buf).write_buffer(&*that) }
 }
 pub unsafe fn bufwrite_bufdel(buf: *mut Buffer, that: *mut Buffer) {
     if that.is_null() {
         return;
     }
-    bufwrite_buf(buf, that);
-    buffree(that);
+    unsafe { (*buf).write_buffer(&*that) };
+    unsafe { buffree(that) };
 }
 pub unsafe fn buflongalign(buf: *mut Buffer) {
-    let cp: usize = (*buf).cursor;
-    bufseek(buf, buflen(buf));
-    let padding = buflen(buf).wrapping_rem(4);
-    if (1..4).contains(&padding) {
-        for _ in padding..4 {
-            bufwrite8(buf, 0);
-        }
-    }
-    bufseek(buf, cp);
+    unsafe { (*buf).long_align() }
 }
-pub unsafe fn bufping16b(buf: *mut Buffer, offset: *mut usize, cp: *mut usize) {
-    bufwrite16b(buf, *offset as u16);
-    *cp = (*buf).cursor;
-    bufseek(buf, *offset);
-}
-pub unsafe fn bufping16bd(buf: *mut Buffer, offset: *mut usize, shift: *mut usize, cp: *mut usize) {
-    bufwrite16b(buf, (*offset).wrapping_sub(*shift) as u16);
-    *cp = (*buf).cursor;
-    bufseek(buf, *offset);
-}
-pub unsafe fn bufpong(buf: *mut Buffer, offset: *mut usize, cp: *mut usize) {
-    *offset = (*buf).cursor;
-    bufseek(buf, *cp);
-}
-pub unsafe fn bufpingpong16b(
-    buf: *mut Buffer,
-    that: *mut Buffer,
-    offset: *mut usize,
-    cp: *mut usize,
-) {
-    bufwrite16b(buf, *offset as u16);
-    *cp = (*buf).cursor;
-    bufseek(buf, *offset);
-    bufwrite_bufdel(buf, that);
-    *offset = (*buf).cursor;
-    bufseek(buf, *cp);
-}
-// Every byte of an OpenType file leaves the program through these functions,
+
+// Every byte of an OpenType file leaves the program through these methods,
 // so their endianness and cursor bookkeeping are the crate's most
-// consequential low-level contract. The byte-for-byte comparison against the C
-// build covers them only indirectly (and only for the byte sequences the test
-// payloads happen to produce); these tests state the contract directly.
+// consequential low-level contract. The byte-for-byte comparison against the
+// C build covers them only indirectly (and only for the byte sequences the
+// test payloads happen to produce); these tests state the contract directly.
 #[cfg(test)]
 mod tests {
     use super::*;
 
-    unsafe fn contents(buf: *mut Buffer) -> Vec<u8> {
-        (*buf).data.clone()
-    }
-
     #[test]
     fn fixed_width_writes_are_big_endian() {
-        unsafe {
-            let buf = bufnew();
-            bufwrite16b(buf, 0x1234);
-            bufwrite32b(buf, 0xdeadbeef);
-            bufwrite64b(buf, 0x0102030405060708);
-            assert_eq!(
-                contents(buf),
-                vec![
-                    0x12, 0x34, // 16b
-                    0xde, 0xad, 0xbe, 0xef, // 32b
-                    0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // 64b
-                ]
-            );
-            buffree(buf);
-        }
+        let mut buf = Buffer::new();
+        buf.write_u16be(0x1234);
+        buf.write_u32be(0xdeadbeef);
+        buf.write_u64be(0x0102030405060708);
+        assert_eq!(
+            buf.data,
+            vec![
+                0x12, 0x34, // 16b
+                0xde, 0xad, 0xbe, 0xef, // 32b
+                0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08, // 64b
+            ]
+        );
     }
 
     #[test]
     fn fixed_width_writes_are_little_endian() {
-        unsafe {
-            let buf = bufnew();
-            bufwrite16l(buf, 0x1234);
-            bufwrite32l(buf, 0xdeadbeef);
-            bufwrite64l(buf, 0x0102030405060708);
-            assert_eq!(
-                contents(buf),
-                vec![
-                    0x34, 0x12, // 16l
-                    0xef, 0xbe, 0xad, 0xde, // 32l
-                    0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, // 64l
-                ]
-            );
-            buffree(buf);
-        }
+        let mut buf = Buffer::new();
+        buf.write_u16le(0x1234);
+        buf.write_u32le(0xdeadbeef);
+        buf.write_u64le(0x0102030405060708);
+        assert_eq!(
+            buf.data,
+            vec![
+                0x34, 0x12, // 16l
+                0xef, 0xbe, 0xad, 0xde, // 32l
+                0x08, 0x07, 0x06, 0x05, 0x04, 0x03, 0x02, 0x01, // 64l
+            ]
+        );
     }
 
     #[test]
     fn write24_keeps_only_the_low_three_bytes() {
         // The high byte of the u32 argument is dropped, matching the original
         // shift-mask expansion which never touched bits 24-31.
-        unsafe {
-            let buf = bufnew();
-            bufwrite24b(buf, 0xaabbccdd);
-            bufwrite24l(buf, 0xaabbccdd);
-            assert_eq!(contents(buf), vec![0xbb, 0xcc, 0xdd, 0xdd, 0xcc, 0xbb]);
-            buffree(buf);
-        }
+        let mut buf = Buffer::new();
+        buf.write_u24be(0xaabbccdd);
+        buf.write_u24le(0xaabbccdd);
+        assert_eq!(buf.data, vec![0xbb, 0xcc, 0xdd, 0xdd, 0xcc, 0xbb]);
     }
 
     #[test]
     fn writes_advance_both_cursor_and_length() {
-        unsafe {
-            let buf = bufnew();
-            assert_eq!(buflen(buf), 0);
-            assert_eq!(bufpos(buf), 0);
-            bufwrite8(buf, 0xff);
-            bufwrite16b(buf, 0);
-            assert_eq!(bufpos(buf), 3);
-            assert_eq!(buflen(buf), 3);
-            buffree(buf);
-        }
+        let mut buf = Buffer::new();
+        assert_eq!(buf.len(), 0);
+        assert_eq!(buf.pos(), 0);
+        buf.write_u8(0xff);
+        buf.write_u16be(0);
+        assert_eq!(buf.pos(), 3);
+        assert_eq!(buf.len(), 3);
     }
 
     #[test]
     fn seeking_back_overwrites_in_place_without_shrinking() {
-        unsafe {
-            let buf = bufnew();
-            bufwrite32b(buf, 0);
-            bufseek(buf, 1);
-            bufwrite8(buf, 0xab);
-            assert_eq!(contents(buf), vec![0x00, 0xab, 0x00, 0x00]);
-            assert_eq!(buflen(buf), 4, "length must not shrink to the cursor");
-            buffree(buf);
-        }
+        let mut buf = Buffer::new();
+        buf.write_u32be(0);
+        buf.seek(1);
+        buf.write_u8(0xab);
+        assert_eq!(buf.data, vec![0x00, 0xab, 0x00, 0x00]);
+        assert_eq!(buf.len(), 4, "length must not shrink to the cursor");
     }
 
     #[test]
     fn longalign_pads_to_a_multiple_of_four_and_restores_the_cursor() {
-        unsafe {
-            let buf = bufnew();
-            for _ in 0..5 {
-                bufwrite8(buf, 0x11);
-            }
-            bufseek(buf, 2);
-            buflongalign(buf);
-            assert_eq!(buflen(buf), 8, "5 bytes padded up to 8");
-            assert_eq!(bufpos(buf), 2, "cursor restored");
-            assert_eq!(contents(buf)[5..], [0, 0, 0]);
-
-            // Already aligned: nothing added.
-            bufseek(buf, buflen(buf));
-            buflongalign(buf);
-            assert_eq!(buflen(buf), 8);
-            buffree(buf);
+        let mut buf = Buffer::new();
+        for _ in 0..5 {
+            buf.write_u8(0x11);
         }
+        buf.seek(2);
+        buf.long_align();
+        assert_eq!(buf.len(), 8, "5 bytes padded up to 8");
+        assert_eq!(buf.pos(), 2, "cursor restored");
+        assert_eq!(buf.data[5..], [0, 0, 0]);
+
+        // Already aligned: nothing added.
+        buf.seek(buf.len());
+        buf.long_align();
+        assert_eq!(buf.len(), 8);
     }
 
     #[test]
     fn clear_resets_length_but_keeps_the_capacity() {
-        unsafe {
-            let buf = bufnew();
-            bufwrite32b(buf, 0xdeadbeef);
-            let capacity_before = (*buf).data.capacity();
-            bufclear(buf);
-            assert_eq!(buflen(buf), 0);
-            assert_eq!(bufpos(buf), 0);
-            assert_eq!(
-                (*buf).data.capacity(),
-                capacity_before,
-                "Vec::clear keeps the backing allocation, same as the old size=0/free=size+free bookkeeping"
-            );
-            buffree(buf);
-        }
+        let mut buf = Buffer::new();
+        buf.write_u32be(0xdeadbeef);
+        let capacity_before = buf.data.capacity();
+        buf.clear();
+        assert_eq!(buf.len(), 0);
+        assert_eq!(buf.pos(), 0);
+        assert_eq!(
+            buf.data.capacity(),
+            capacity_before,
+            "Vec::clear keeps the backing allocation, same as the old size=0/free=size+free bookkeeping"
+        );
     }
 
     #[test]
-    fn write_buf_appends_the_source_contents() {
-        unsafe {
-            let dst = bufnew();
-            let src = bufnew();
-            bufwrite8(dst, 0x01);
-            bufwrite16b(src, 0x0203);
-            bufwrite_buf(dst, src);
-            assert_eq!(contents(dst), vec![0x01, 0x02, 0x03]);
-            assert_eq!(buflen(src), 2, "bufwrite_buf must not consume the source");
-            buffree(src);
-            buffree(dst);
-        }
+    fn write_buffer_appends_the_source_contents() {
+        let mut dst = Buffer::new();
+        let mut src = Buffer::new();
+        dst.write_u8(0x01);
+        src.write_u16be(0x0203);
+        dst.write_buffer(&src);
+        assert_eq!(dst.data, vec![0x01, 0x02, 0x03]);
+        assert_eq!(src.len(), 2, "write_buffer must not consume the source");
     }
 
     #[test]
-    fn ping_pong_backpatches_a_16bit_offset() {
-        // The offset-backpatching idiom used throughout the table writers:
-        // reserve a 16-bit offset slot, jump to where the pointed-at data
-        // goes, write it, then come back.
-        unsafe {
-            let buf = bufnew();
-            let mut offset: usize = 4; // data will start at byte 4
-            let mut cp: usize = 0;
-            bufwrite16b(buf, 0xffff); // placeholder we'll leave alone
-            bufping16b(buf, &mut offset, &mut cp);
-            assert_eq!(bufpos(buf), 4, "jumped to the data position");
-            assert_eq!(cp, 4, "saved the return position (just after the slot)");
-            bufwrite32b(buf, 0xcafebabe);
-            bufpong(buf, &mut offset, &mut cp);
-            assert_eq!(offset, 8, "offset advanced past the data just written");
-            assert_eq!(bufpos(buf), 4, "returned to the saved position");
-            assert_eq!(
-                contents(buf),
-                vec![0xff, 0xff, 0x00, 0x04, 0xca, 0xfe, 0xba, 0xbe]
-            );
-            buffree(buf);
-        }
+    fn seek_and_rewrite_backpatches_a_16bit_offset() {
+        // The hand-rolled offset-backpatching idiom real call sites use
+        // (e.g. `table/cmap.rs`'s format4 segment-count backpatch): reserve
+        // a slot, write the data whose position it names, then seek back
+        // and overwrite the placeholder with the now-known offset.
+        let mut buf = Buffer::new();
+        buf.write_u16be(0xffff); // placeholder we'll overwrite
+        let data_start = buf.pos();
+        buf.write_u32be(0xcafebabe);
+        let end = buf.pos();
+        buf.seek(0);
+        buf.write_u16be(data_start as u16);
+        buf.seek(end);
+        assert_eq!(buf.data, vec![0x00, 0x02, 0xca, 0xfe, 0xba, 0xbe]);
+        assert_eq!(buf.pos(), end, "cursor left at the end, not the patched slot");
     }
 }
 
+// Zero call sites anywhere in the crate (checked by grep during Stage 9) --
+// a manual hex-dump debugging aid someone may still reach for ad hoc
+// outside version control, so left as-is rather than deleted; flagged in
+// the PR body for a human call on whether to remove it.
 pub unsafe fn bufprint(buf: *mut Buffer) {
-    for (j, &byte) in (*buf).data.iter().enumerate() {
-        if j % 16 != 0 {
-            fprintf(stderr, b" \0" as *const u8 as *const ::core::ffi::c_char);
+    unsafe {
+        for (j, &byte) in (*buf).data.iter().enumerate() {
+            if j % 16 != 0 {
+                fprintf(stderr, b" \0" as *const u8 as *const ::core::ffi::c_char);
+            }
+            fprintf(
+                stderr,
+                b"%02X\0" as *const u8 as *const ::core::ffi::c_char,
+                byte as i32,
+            );
+            if j % 16 == 15 {
+                fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
+            }
         }
-        fprintf(
-            stderr,
-            b"%02X\0" as *const u8 as *const ::core::ffi::c_char,
-            byte as i32,
-        );
-        if j % 16 == 15 {
-            fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
-        }
+        fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
     }
-    fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
 }
