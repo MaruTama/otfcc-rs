@@ -5,7 +5,6 @@ use crate::support::font_reader::{FontReader, ReadError};
 
 use crate::font::caryll_sfnt::Packet;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite8, bufwrite16b};
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
@@ -63,21 +62,17 @@ pub fn otfcc_read_ltsh(packet: &Packet, options: &Options) -> Option<Box<LtshTab
 // crosses the real FFI boundary, see `rust/README.md`), and the crate's
 // only caller now hands `(*font).ltsh.as_deref()` from `Font.ltsh:
 // Option<Box<LtshTable>>`.
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_ltsh(ltsh: Option<&LtshTable>) -> *mut Buffer {
-    let ltsh = match ltsh {
-        Some(l) => l,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let buf: *mut Buffer = bufnew();
-    bufwrite16b(buf, 0_u16);
-    bufwrite16b(buf, ltsh.num_glyphs as u16);
+pub fn otfcc_build_ltsh(ltsh: Option<&LtshTable>) -> Option<Buffer> {
+    let ltsh = ltsh?;
+    let mut buf = Buffer::new();
+    buf.write_u16be(0_u16);
+    buf.write_u16be(ltsh.num_glyphs);
     let mut j: u16 = 0_u16;
     while (j as i32) < ltsh.num_glyphs as i32 {
-        bufwrite8(buf, ltsh.y_pels[j as usize]);
+        buf.write_u8(ltsh.y_pels[j as usize]);
         j = j.wrapping_add(1);
     }
-    return buf;
+    Some(buf)
 }
 
 #[cfg(test)]

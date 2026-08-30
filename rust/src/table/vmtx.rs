@@ -7,7 +7,6 @@ use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Length, Pos};
 
-use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::table::maxp::MaxpTable;
 use crate::table::vhea::VheaTable;
 #[derive(Copy, Clone)]
@@ -80,24 +79,24 @@ pub unsafe fn otfcc_build_vmtx(
     vmtx: Option<&VmtxTable>,
     count_a: GlyphId,
     count_k: GlyphId,
-) -> *mut Buffer {
-    let buf: *mut Buffer = bufnew();
+) -> Buffer {
+    let mut buf = Buffer::new();
     let vmtx = match vmtx {
         Some(v) => v,
         None => return buf,
     };
     let mut j: GlyphId = 0 as GlyphId;
     while (j as i32) < count_a as i32 {
-        bufwrite16b(buf, vmtx.metrics[j as usize].advance_height as u16);
-        bufwrite16b(buf, pos_to_u16(vmtx.metrics[j as usize].tsb));
+        buf.write_u16be(vmtx.metrics[j as usize].advance_height as u16);
+        buf.write_u16be(pos_to_u16(vmtx.metrics[j as usize].tsb));
         j = j.wrapping_add(1);
     }
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as i32) < count_k as i32 {
-        bufwrite16b(buf, pos_to_u16(vmtx.top_side_bearing[j_0 as usize]));
+        buf.write_u16be(pos_to_u16(vmtx.top_side_bearing[j_0 as usize]));
         j_0 = j_0.wrapping_add(1);
     }
-    return buf;
+    buf
 }
 
 #[cfg(test)]

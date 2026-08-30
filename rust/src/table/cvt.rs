@@ -4,7 +4,6 @@ use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::base64::base64_decode;
 use crate::support::binio::read_16u;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::support::built_json::{
     BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_push,
 };
@@ -136,15 +135,11 @@ pub unsafe fn otfcc_parse_cvt(
     }
     return t;
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_cvt(table: Option<&CvtTable>) -> *mut Buffer {
-    let table = match table {
-        Some(t) => t,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let buf: *mut Buffer = bufnew();
+pub fn otfcc_build_cvt(table: Option<&CvtTable>) -> Option<Buffer> {
+    let table = table?;
+    let mut buf = Buffer::new();
     for &w in &table.words {
-        bufwrite16b(buf, w);
+        buf.write_u16be(w);
     }
-    return buf;
+    Some(buf)
 }

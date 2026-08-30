@@ -151,28 +151,30 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_GASP,
-            otfcc_build_gasp((*font).gasp.as_deref()),
+            otfcc_build_gasp((*font).gasp.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         if (*font).subtype == FontSubtype::Ttf {
             otfcc_sfnt_builder_push_table(
                 builder,
                 crate::tag::TAG_FPGM,
-                otfcc_build_fpgm_prep((*font).fpgm.as_deref()),
+                otfcc_build_fpgm_prep((*font).fpgm.as_deref())
+                    .map_or(::core::ptr::null_mut(), Buffer::into_raw),
             );
             otfcc_sfnt_builder_push_table(
                 builder,
                 crate::tag::TAG_PREP,
-                otfcc_build_fpgm_prep((*font).prep.as_deref()),
+                otfcc_build_fpgm_prep((*font).prep.as_deref())
+                    .map_or(::core::ptr::null_mut(), Buffer::into_raw),
             );
             otfcc_sfnt_builder_push_table(
                 builder,
                 crate::tag::TAG_CVT,
-                otfcc_build_cvt((*font).cvt_.as_deref()),
+                otfcc_build_cvt((*font).cvt_.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
             );
             otfcc_sfnt_builder_push_table(
                 builder,
                 crate::tag::TAG_LTSH,
-                otfcc_build_ltsh((*font).ltsh.as_deref()),
+                otfcc_build_ltsh((*font).ltsh.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
             );
             otfcc_sfnt_builder_push_table(
                 builder,
@@ -193,7 +195,8 @@ impl FontSerializer for OtfSerializer {
                     (*font).hmtx.as_deref(),
                     hmtx_counta as GlyphId,
                     hmtx_countk as GlyphId,
-                ),
+                )
+                .into_raw(),
             );
         }
         otfcc_sfnt_builder_push_table(
@@ -214,13 +217,14 @@ impl FontSerializer for OtfSerializer {
                     (*font).vmtx.as_deref(),
                     vmtx_counta as GlyphId,
                     vmtx_countk as GlyphId,
-                ),
+                )
+                .into_raw(),
             );
         }
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_VORG,
-            otfcc_build_vorg((*font).vorg.as_deref()),
+            otfcc_build_vorg((*font).vorg.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
@@ -275,7 +279,8 @@ impl FontSerializer for OtfSerializer {
             otfcc_sfnt_builder_push_table(
                 builder,
                 crate::tag::TAG_TSI5,
-                otfcc_build_tsi5((*font).tsi5.as_deref(), glyf.len() as GlyphId),
+                otfcc_build_tsi5((*font).tsi5.as_deref(), glyf.len() as GlyphId)
+                    .map_or(::core::ptr::null_mut(), Buffer::into_raw),
             );
         }
         if options.dummy_dsig {

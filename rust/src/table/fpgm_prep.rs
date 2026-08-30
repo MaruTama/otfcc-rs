@@ -3,7 +3,6 @@
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite_bytes};
 use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::options::Options;
 use crate::support::parsed_json::{ParsedValue, json_obj_get};
@@ -118,13 +117,9 @@ pub unsafe fn otfcc_parse_fpgm_prep(
     }
     return t;
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_fpgm_prep(table: Option<&FpgmPrepTable>) -> *mut Buffer {
-    let table = match table {
-        Some(t) => t,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let buf: *mut Buffer = bufnew();
-    bufwrite_bytes(buf, (*table).bytes.len(), (*table).bytes.as_ptr());
-    return buf;
+pub fn otfcc_build_fpgm_prep(table: Option<&FpgmPrepTable>) -> Option<Buffer> {
+    let table = table?;
+    let mut buf = Buffer::new();
+    buf.write_bytes(&table.bytes);
+    Some(buf)
 }

@@ -4,7 +4,6 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::support::built_json::{
     BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new,
     json_object_new, json_object_push,
@@ -197,22 +196,17 @@ pub unsafe fn otfcc_parse_gasp(
     }
     return gasp;
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> *mut Buffer {
-    let gasp = match gasp {
-        Some(g) => g,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let buf: *mut Buffer = bufnew();
+pub unsafe fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> Option<Buffer> {
+    let gasp = gasp?;
+    let mut buf = Buffer::new();
     let records: &Vec<GaspRecord> = &(*gasp).records;
-    bufwrite16b(buf, 1_u16);
-    bufwrite16b(buf, records.len() as u16);
+    buf.write_u16be(1_u16);
+    buf.write_u16be(records.len() as u16);
     let mut j: u16 = 0_u16;
     while (j as usize) < records.len() {
         let r: *const GaspRecord = &records[j as usize];
-        bufwrite16b(buf, (*r).range_max_ppem as u16);
-        bufwrite16b(
-            buf,
+        buf.write_u16be((*r).range_max_ppem);
+        buf.write_u16be(
             ((if (*r).dogray as i32 != 0 {
                 GASP_DOGRAY
             } else {
@@ -233,7 +227,7 @@ pub unsafe fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> *mut Buffer {
         );
         j = j.wrapping_add(1);
     }
-    return buf;
+    Some(buf)
 }
 
 #[cfg(test)]
