@@ -7,7 +7,6 @@ use crate::support::parsed_json::{
 };
 
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{buffree, buflen, bufnew, bufwrite_bufdel, bufwrite16b};
 use crate::support::built_json::{
     BuiltValue, json_array_new, json_array_push, json_string_new_from_bytes, preserialize,
 };
@@ -174,14 +173,11 @@ pub(crate) unsafe fn parse_coverage(cov: *const ParsedValue) -> *mut Coverage {
     }
     return c;
 }
-pub(crate) unsafe fn build_coverage_format(
-    coverage: *const Coverage,
-    format: u16,
-) -> *mut Buffer {
+pub(crate) unsafe fn build_coverage_format(coverage: *const Coverage, format: u16) -> Buffer {
     if (*coverage).is_empty() {
-        let buf: *mut Buffer = bufnew();
-        bufwrite16b(buf, 2_u16);
-        bufwrite16b(buf, 0_u16);
+        let mut buf = Buffer::new();
+        buf.write_u16be(2_u16);
+        buf.write_u16be(0_u16);
         return buf;
     }
     // A local `Vec` scratch buffer, not a `__caryll_allocate_clean`/`qsort`/
@@ -192,20 +188,20 @@ pub(crate) unsafe fn build_coverage_format(
     let mut r: Vec<GlyphId> = (*coverage).iter().map(|h| h.index).collect();
     r.sort_by_key(|&gid| gid);
     let jj: GlyphId = r.len() as GlyphId;
-    let format1: *mut Buffer = bufnew();
-    bufwrite16b(format1, 1_u16);
-    bufwrite16b(format1, jj as u16);
+    let mut format1 = Buffer::new();
+    format1.write_u16be(1_u16);
+    format1.write_u16be(jj as u16);
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as i32) < jj as i32 {
-        bufwrite16b(format1, r[j_0 as usize] as u16);
+        format1.write_u16be(r[j_0 as usize] as u16);
         j_0 = j_0.wrapping_add(1);
     }
     if (jj as i32) < 2_i32 {
         return format1;
     }
-    let format2: *mut Buffer = bufnew();
-    bufwrite16b(format2, 2_u16);
-    let ranges: *mut Buffer = bufnew();
+    let mut format2 = Buffer::new();
+    format2.write_u16be(2_u16);
+    let mut ranges = Buffer::new();
     let mut start_gid: GlyphId = r[0];
     let mut end_gid: GlyphId = start_gid;
     let mut last_gid: GlyphId = start_gid;
@@ -219,10 +215,9 @@ pub(crate) unsafe fn build_coverage_format(
             {
                 end_gid = current;
             } else {
-                bufwrite16b(ranges, start_gid as u16);
-                bufwrite16b(ranges, end_gid as u16);
-                bufwrite16b(
-                    ranges,
+                ranges.write_u16be(start_gid as u16);
+                ranges.write_u16be(end_gid as u16);
+                ranges.write_u16be(
                     (j_1 as i32 + start_gid as i32
                         - end_gid as i32
                         - 1_i32) as u16,
@@ -235,33 +230,28 @@ pub(crate) unsafe fn build_coverage_format(
         }
         j_1 = j_1.wrapping_add(1);
     }
-    bufwrite16b(ranges, start_gid as u16);
-    bufwrite16b(ranges, end_gid as u16);
-    bufwrite16b(
-        ranges,
+    ranges.write_u16be(start_gid as u16);
+    ranges.write_u16be(end_gid as u16);
+    ranges.write_u16be(
         (jj as i32 + start_gid as i32
             - end_gid as i32
             - 1_i32) as u16,
     );
     n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
-    bufwrite16b(format2, n_ranges as u16);
-    bufwrite_bufdel(format2, ranges);
+    format2.write_u16be(n_ranges as u16);
+    format2.write_buffer_owned(ranges);
     if format as i32 == 1_i32 {
-        buffree(format2);
-        return format1;
+        format1
     } else if format as i32 == 2_i32 {
-        buffree(format1);
-        return format2;
-    } else if buflen(format1) < buflen(format2) {
-        buffree(format2);
-        return format1;
+        format2
+    } else if format1.len() < format2.len() {
+        format1
     } else {
-        buffree(format1);
-        return format2;
-    };
+        format2
+    }
 }
-pub(crate) unsafe fn build_coverage(coverage: *const Coverage) -> *mut Buffer {
-    return build_coverage_format(coverage, 0_u16);
+pub(crate) unsafe fn build_coverage(coverage: *const Coverage) -> Buffer {
+    build_coverage_format(coverage, 0_u16)
 }
 pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
     if coverage.is_null() {

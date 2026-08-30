@@ -194,7 +194,7 @@ pub unsafe fn otfcc_build_gpos_cursive(
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_coverage(cov)),
+            bk_new_block_from_buffer(build_coverage(cov).into_raw()),
         ),
         bk_int(BkCellType::B16, ((*subtable).len()) as u32),
     ]);
