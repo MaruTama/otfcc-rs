@@ -35,7 +35,7 @@ fn parse_ltsh(data: &[u8]) -> Result<(u16, GlyphId, &[u8]), ReadError> {
     Ok((version, num_glyphs, pels))
 }
 
-pub unsafe fn otfcc_read_ltsh(packet: &Packet, options: &Options) -> Option<Box<LtshTable>> {
+pub fn otfcc_read_ltsh(packet: &Packet, options: &Options) -> Option<Box<LtshTable>> {
     let table = packet
         .pieces
         .iter()

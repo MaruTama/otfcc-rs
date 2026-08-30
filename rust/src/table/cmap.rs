@@ -553,12 +553,12 @@ unsafe fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     }
     Ok(cmap_box)
 }
-pub unsafe fn otfcc_read_cmap(packet: &Packet, options: &Options) -> Option<Box<CmapTable>> {
+pub fn otfcc_read_cmap(packet: &Packet, options: &Options) -> Option<Box<CmapTable>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_CMAP)?;
-    match parse_cmap(&table.data) {
+    match unsafe { parse_cmap(&table.data) } {
         Ok(cmap) => Some(cmap),
         Err(_) => {
             logger_log_sds(

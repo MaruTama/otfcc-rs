@@ -89,7 +89,7 @@ fn parse_svg(data: &[u8]) -> Result<SvgTable, ReadError> {
     Ok(svg)
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_read_svg(packet: &Packet) -> Option<SvgTable> {
+pub fn otfcc_read_svg(packet: &Packet) -> Option<SvgTable> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_SVG)?;
     parse_svg(&table.data).ok()
 }

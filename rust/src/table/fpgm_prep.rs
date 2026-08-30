@@ -38,7 +38,7 @@ pub struct FpgmPrepTable {
 // so this just clones it rather than routing through
 // `__caryll_allocate_clean`/`copy_nonoverlapping` the way the raw-pointer
 // version did.
-pub unsafe fn otfcc_read_fpgm_prep(packet: &Packet, tag: u32) -> Option<Box<FpgmPrepTable>> {
+pub fn otfcc_read_fpgm_prep(packet: &Packet, tag: u32) -> Option<Box<FpgmPrepTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == tag)?;
     Some(Box::new(FpgmPrepTable {
         tag: Vec::new(),

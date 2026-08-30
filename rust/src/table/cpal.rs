@@ -188,7 +188,7 @@ fn parse_cpal(data: &[u8]) -> Result<(u16, Vec<CpalPalette>), ReadError> {
 
     Ok((version, palettes))
 }
-pub unsafe fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
+pub fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CPAL)?;
     let (version, palettes) = parse_cpal(&table.data).ok()?;
     Some(Box::new(CpalTable { version, palettes }))

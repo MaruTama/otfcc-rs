@@ -64,7 +64,7 @@ fn parse_vdmx(data: &[u8]) -> Result<VdmxTable, ReadError> {
     }
     Ok(VdmxTable { version, ratios })
 }
-pub unsafe fn otfcc_read_vdmx(packet: &Packet, options: &Options) -> Option<Box<VdmxTable>> {
+pub fn otfcc_read_vdmx(packet: &Packet, options: &Options) -> Option<Box<VdmxTable>> {
     let table = packet
         .pieces
         .iter()

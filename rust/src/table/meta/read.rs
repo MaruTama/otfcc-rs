@@ -48,7 +48,7 @@ fn parse_meta(data: &[u8]) -> Result<MetaTable, ReadError> {
         entries,
     })
 }
-pub unsafe fn otfcc_read_meta(packet: &Packet, options: &Options) -> Option<Box<MetaTable>> {
+pub fn otfcc_read_meta(packet: &Packet, options: &Options) -> Option<Box<MetaTable>> {
     let table = packet
         .pieces
         .iter()
@@ -56,14 +56,12 @@ pub unsafe fn otfcc_read_meta(packet: &Packet, options: &Options) -> Option<Box<
     match parse_meta(&table.data) {
         Ok(meta) => Some(Box::new(meta)),
         Err(_) => {
-            unsafe {
-                logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(b"Table 'meta' corrupted.\n"),
-                );
-            }
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"Table 'meta' corrupted.\n"),
+            );
             None
         }
     }

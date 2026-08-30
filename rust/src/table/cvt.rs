@@ -34,7 +34,7 @@ pub struct CvtTable {
 // always holds and no read can go past the end. Migrated anyway for
 // consistency with the rest of this batch (dropping `__fortable_*`/
 // `.offset()`), not because it fixes a bug.
-pub unsafe fn otfcc_read_cvt(packet: &Packet, tag: u32) -> Option<Box<CvtTable>> {
+pub fn otfcc_read_cvt(packet: &Packet, tag: u32) -> Option<Box<CvtTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == tag)?;
     let table_length = (table.data.len() / 2) as u32;
     let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);

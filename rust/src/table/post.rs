@@ -397,7 +397,7 @@ fn parse_post(data: &[u8]) -> Result<ParsedPost, ReadError> {
     })
 }
 
-pub unsafe fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<PostTable>> {
+pub fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<PostTable>> {
     let table = packet
         .pieces
         .iter()
@@ -434,7 +434,7 @@ pub unsafe fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<
         });
         let go: *mut GlyphOrder = go_box.as_mut() as *mut GlyphOrder;
         for (gid, name) in names {
-            otfcc_set_glyph_order_by_gid(go, gid, name);
+            unsafe { otfcc_set_glyph_order_by_gid(go, gid, name) };
         }
         post_val.post_name_map = Some(go_box);
     }

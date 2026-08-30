@@ -207,7 +207,7 @@ fn parse_os_2(data: &[u8]) -> Result<Os2Table, ReadError> {
     }
     Ok(os2)
 }
-pub unsafe fn otfcc_read_os_2(packet: &Packet, options: &Options) -> Option<Box<Os2Table>> {
+pub fn otfcc_read_os_2(packet: &Packet, options: &Options) -> Option<Box<Os2Table>> {
     let table = packet
         .pieces
         .iter()

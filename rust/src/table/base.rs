@@ -219,7 +219,7 @@ fn parse_base(data: &[u8]) -> Result<(Option<Box<BaseAxis>>, Option<Box<BaseAxis
         .flatten();
     Ok((horizontal, vertical))
 }
-pub unsafe fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<BaseTable>> {
+pub fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<BaseTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_BASE)?;
     let (horizontal, vertical) = match parse_base(&table.data) {
         Ok(parsed) => parsed,
