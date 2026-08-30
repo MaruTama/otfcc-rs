@@ -286,7 +286,7 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_coverage(startcov).into_raw()),
+            bk_new_block_from_buffer(Some(build_coverage(startcov))),
         ),
         bk_int(
             BkCellType::B16,

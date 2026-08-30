@@ -85,9 +85,9 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
             root,
             &[bk_ptr(
                 BkCellType::P16,
-                bk_new_block_from_buffer(build_coverage(
+                bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*rule).match_0)[j as usize] as *const Coverage,
-                ).into_raw()),
+                ))),
             )],
         );
         j = j.wrapping_add(1);
@@ -105,9 +105,9 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
             root,
             &[bk_ptr(
                 BkCellType::P16,
-                bk_new_block_from_buffer(build_coverage(
+                bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*rule).match_0)[j_0 as usize] as *const Coverage,
-                ).into_raw()),
+                ))),
             )],
         );
         j_0 = j_0.wrapping_add(1);
@@ -125,9 +125,9 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
             root,
             &[bk_ptr(
                 BkCellType::P16,
-                bk_new_block_from_buffer(build_coverage(
+                bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*rule).match_0)[j_1 as usize] as *const Coverage,
-                ).into_raw()),
+                ))),
             )],
         );
         j_1 = j_1.wrapping_add(1);
@@ -171,19 +171,19 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
         bk_int(BkCellType::B16, 2_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_coverage(coverage).into_raw()),
+            bk_new_block_from_buffer(Some(build_coverage(coverage))),
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_class_def((*ruleset).bc.as_deref().unwrap()).into_raw()),
+            bk_new_block_from_buffer(Some(build_class_def((*ruleset).bc.as_deref().unwrap()))),
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_class_def(ic).into_raw()),
+            bk_new_block_from_buffer(Some(build_class_def(ic))),
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_class_def((*ruleset).fc.as_deref().unwrap()).into_raw()),
+            bk_new_block_from_buffer(Some(build_class_def((*ruleset).fc.as_deref().unwrap()))),
         ),
         bk_int(
             BkCellType::B16,
@@ -368,9 +368,9 @@ pub unsafe fn otfcc_build_contextual_coverage(
             root,
             &[bk_ptr(
                 BkCellType::P16,
-                bk_new_block_from_buffer(build_coverage(
+                bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*rule).match_0)[j as usize] as *const Coverage,
-                ).into_raw()),
+                ))),
             )],
         );
         j = j.wrapping_add(1);
@@ -405,11 +405,11 @@ pub unsafe fn otfcc_build_contextual_classes(
         bk_int(BkCellType::B16, 2_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_coverage(coverage).into_raw()),
+            bk_new_block_from_buffer(Some(build_coverage(coverage))),
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_class_def(ic).into_raw()),
+            bk_new_block_from_buffer(Some(build_class_def(ic))),
         ),
         bk_int(
             BkCellType::B16,

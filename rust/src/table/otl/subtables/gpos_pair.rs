@@ -571,7 +571,7 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_coverage(cov).into_raw()),
+            bk_new_block_from_buffer(Some(build_coverage(cov))),
         ),
         bk_int(BkCellType::B16, (format1 as i32) as u32),
         bk_int(BkCellType::B16, (format2 as i32) as u32),
@@ -674,17 +674,17 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
         bk_int(BkCellType::B16, 2_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_coverage(cov).into_raw()),
+            bk_new_block_from_buffer(Some(build_coverage(cov))),
         ),
         bk_int(BkCellType::B16, (format1 as i32) as u32),
         bk_int(BkCellType::B16, (format2 as i32) as u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_class_def(first_cd).into_raw()),
+            bk_new_block_from_buffer(Some(build_class_def(first_cd))),
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_class_def(second_cd).into_raw()),
+            bk_new_block_from_buffer(Some(build_class_def(second_cd))),
         ),
         bk_int(BkCellType::B16, (class1_count as i32) as u32),
         bk_int(BkCellType::B16, (class2_count as i32) as u32),

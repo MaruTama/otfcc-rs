@@ -256,14 +256,13 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
     while keep != 0 && __caryll_index < svg.len() {
         let a: &SvgAssignment = &svg[__caryll_index];
         while keep != 0 {
-            // `bk_new_block_from_buffer_copy` still takes `*const Buffer`
-            // (it has other callers, e.g. `table/cmap.rs`, so its signature
-            // stays as-is); build a stack-local `Buffer` view over
-            // `a.document`'s bytes for this one call. Stage 7-2-e made
-            // `Buffer.data` an owned `Vec<u8>`, so unlike before this is a
-            // real clone, not a zero-copy borrow -- correctness-preserving
-            // and cheap enough (once per SVG assignment during build, not a
-            // hot per-byte path).
+            // `bk_new_block_from_buffer_copy` takes `Option<&Buffer>`;
+            // build a stack-local `Buffer` view over `a.document`'s bytes
+            // for this one call. Stage 7-2-e made `Buffer.data` an owned
+            // `Vec<u8>`, so unlike before this is a real clone, not a
+            // zero-copy borrow -- correctness-preserving and cheap enough
+            // (once per SVG assignment during build, not a hot per-byte
+            // path).
             let doc_buf = Buffer {
                 cursor: a.document.len(),
                 data: a.document.clone(),
@@ -275,7 +274,7 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
                     bk_int(BkCellType::B16, ((*a).end as i32) as u32),
                     bk_ptr(
                         BkCellType::P32,
-                        bk_new_block_from_buffer_copy(&doc_buf as *const Buffer),
+                        bk_new_block_from_buffer_copy(Some(&doc_buf)),
                     ),
                     bk_int(BkCellType::B32, (a.document.len()) as u32),
                 ],

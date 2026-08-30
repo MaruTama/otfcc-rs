@@ -102,7 +102,6 @@ pub enum BkCellVisitState {
     Black = 2,
 }
 use crate::support::buffer::Buffer;
-use crate::support::buffer::buffree;
 use crate::support::stdio::stderr;
 
 pub fn bk_cell_is_pointer(cell: &BkCell) -> bool {
@@ -214,23 +213,22 @@ pub unsafe fn bk_new_block_from_string_len(
     }
     return b;
 }
-pub unsafe fn bk_new_block_from_buffer(buf: *mut Buffer) -> *mut BkBlock {
-    if buf.is_null() {
+pub unsafe fn bk_new_block_from_buffer(buf: Option<Buffer>) -> *mut BkBlock {
+    let Some(buf) = buf else {
         return ::core::ptr::null_mut::<BkBlock>();
-    }
+    };
     let b: *mut BkBlock = bk_new_block(&[]);
-    for &byte in (*buf).data.iter() {
+    for &byte in buf.data.iter() {
         bkblock_pushint(b, BkCellType::B8, byte as u32);
     }
-    buffree(buf);
     return b;
 }
-pub unsafe fn bk_new_block_from_buffer_copy(buf: *const Buffer) -> *mut BkBlock {
-    if buf.is_null() {
+pub unsafe fn bk_new_block_from_buffer_copy(buf: Option<&Buffer>) -> *mut BkBlock {
+    let Some(buf) = buf else {
         return ::core::ptr::null_mut::<BkBlock>();
-    }
+    };
     let b: *mut BkBlock = bk_new_block(&[]);
-    for &byte in (*buf).data.iter() {
+    for &byte in buf.data.iter() {
         bkblock_pushint(b, BkCellType::B8, byte as u32);
     }
     return b;
