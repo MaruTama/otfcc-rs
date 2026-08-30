@@ -254,9 +254,9 @@ pub unsafe fn otfcc_build_gsub_reverse(
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_coverage(
+            bk_new_block_from_buffer(Some(build_coverage(
                 &(&(*subtable).match_0)[(*subtable).input_index as usize] as *const Coverage,
-            ).into_raw()),
+            ))),
         ),
     ]);
     bk_push(
@@ -272,9 +272,9 @@ pub unsafe fn otfcc_build_gsub_reverse(
             root,
             &[bk_ptr(
                 BkCellType::P16,
-                bk_new_block_from_buffer(build_coverage(
+                bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*subtable).match_0)[j as usize] as *const Coverage,
-                ).into_raw()),
+                ))),
             )],
         );
         j = j.wrapping_add(1);
@@ -295,9 +295,9 @@ pub unsafe fn otfcc_build_gsub_reverse(
             root,
             &[bk_ptr(
                 BkCellType::P16,
-                bk_new_block_from_buffer(build_coverage(
+                bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*subtable).match_0)[j_0 as usize] as *const Coverage,
-                ).into_raw()),
+                ))),
             )],
         );
         j_0 = j_0.wrapping_add(1);

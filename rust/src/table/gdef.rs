@@ -431,7 +431,7 @@ unsafe fn write_lig_carets(lc: *const LigCaretTable) -> *mut BkBlock {
     let lct: *mut BkBlock = bk_new_block(&[
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_coverage(cov).into_raw()),
+            bk_new_block_from_buffer(Some(build_coverage(cov))),
         ),
         bk_int(BkCellType::B16, (records.len()) as u32),
     ]);
@@ -462,13 +462,13 @@ pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> *mut Buffer {
     let mut b_lig_caret_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let mut b_mark_attach_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     if let Some(cd) = (*gdef).glyph_class_def.as_deref() {
-        b_glyph_class_def = bk_new_block_from_buffer(build_class_def(cd).into_raw());
+        b_glyph_class_def = bk_new_block_from_buffer(Some(build_class_def(cd)));
     }
     if !(*gdef).lig_carets.is_empty() {
         b_lig_caret_list = write_lig_carets(&raw const (*gdef).lig_carets);
     }
     if let Some(cd) = (*gdef).mark_attach_class_def.as_deref() {
-        b_mark_attach_class_def = bk_new_block_from_buffer(build_class_def(cd).into_raw());
+        b_mark_attach_class_def = bk_new_block_from_buffer(Some(build_class_def(cd)));
     }
     let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B32, 0x10000_u32),

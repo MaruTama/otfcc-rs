@@ -419,11 +419,11 @@ pub unsafe fn otfcc_build_gpos_mark_to_ligature(
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_coverage(marks).into_raw()),
+            bk_new_block_from_buffer(Some(build_coverage(marks))),
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(build_coverage(bases).into_raw()),
+            bk_new_block_from_buffer(Some(build_coverage(bases))),
         ),
         bk_int(
             BkCellType::B16,

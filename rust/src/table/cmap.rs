@@ -1204,8 +1204,8 @@ unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> *mut Buffer {
                         BkCellType::B8,
                         (selector_0 & 0xff as Unicode) as u32,
                     ),
-                    bk_ptr(BkCellType::P32, bk_new_block_from_buffer(dflt)),
-                    bk_ptr(BkCellType::P32, bk_new_block_from_buffer(nondflt)),
+                    bk_ptr(BkCellType::P32, bk_new_block_from_buffer(unsafe { Buffer::from_raw(dflt) })),
+                    bk_ptr(BkCellType::P32, bk_new_block_from_buffer(unsafe { Buffer::from_raw(nondflt) })),
                 ],
             );
         }
@@ -1273,7 +1273,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         &[
             bk_int(BkCellType::B16, 0_u32),
             bk_int(BkCellType::B16, 3_u32),
-            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format4)),
+            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(unsafe { format4.as_ref() })),
         ],
     );
     if requires_format12 {
@@ -1282,7 +1282,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
             &[
                 bk_int(BkCellType::B16, 0_u32),
                 bk_int(BkCellType::B16, 4_u32),
-                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format12)),
+                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(unsafe { format12.as_ref() })),
             ],
         );
     }
@@ -1293,7 +1293,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
             &[
                 bk_int(BkCellType::B16, 0_u32),
                 bk_int(BkCellType::B16, 5_u32),
-                bk_ptr(BkCellType::P32, bk_new_block_from_buffer(format14)),
+                bk_ptr(BkCellType::P32, bk_new_block_from_buffer(unsafe { Buffer::from_raw(format14) })),
             ],
         );
     }
@@ -1302,7 +1302,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         &[
             bk_int(BkCellType::B16, 3_u32),
             bk_int(BkCellType::B16, 1_u32),
-            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format4)),
+            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(unsafe { format4.as_ref() })),
         ],
     );
     if requires_format12 {
@@ -1311,7 +1311,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
             &[
                 bk_int(BkCellType::B16, 3_u32),
                 bk_int(BkCellType::B16, 10_u32),
-                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(format12)),
+                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(unsafe { format12.as_ref() })),
             ],
         );
     }

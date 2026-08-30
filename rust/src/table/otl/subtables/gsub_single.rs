@@ -212,14 +212,14 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let coverage_buf: *mut Buffer =
-        build_coverage_format(cov, heuristics.contains(BuildHeuristics::GSUB_VERT) as u16).into_raw();
+    let coverage_buf: Buffer =
+        build_coverage_format(cov, heuristics.contains(BuildHeuristics::GSUB_VERT) as u16);
     if is_constant_difference as i32 != 0
         && !heuristics.contains(BuildHeuristics::GSUB_VERT)
     {
         let b: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 1_u32),
-            bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
+            bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(
                 BkCellType::B16,
                 ((&(*subtable))[0].to.index as i32
@@ -231,7 +231,7 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
     } else {
         let b_0: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 2_u32),
-            bk_ptr(BkCellType::P16, bk_new_block_from_buffer(coverage_buf)),
+            bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(BkCellType::B16, ((*subtable).len()) as u32),
         ]);
         let mut k: GlyphId = 0 as GlyphId;

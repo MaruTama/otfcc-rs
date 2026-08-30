@@ -476,7 +476,7 @@ unsafe fn write_otl_lookups(
                     ),
                     bk_ptr(
                         BkCellType::P32,
-                        bk_new_block_from_buffer(subtables[j_1 as usize][k as usize]),
+                        bk_new_block_from_buffer(unsafe { Buffer::from_raw(subtables[j_1 as usize][k as usize]) }),
                     ),
                 ]);
                 bk_push(blk, &[bk_ptr(BkCellType::P16, stub)]);
@@ -485,7 +485,7 @@ unsafe fn write_otl_lookups(
                     blk,
                     &[bk_ptr(
                         BkCellType::P16,
-                        bk_new_block_from_buffer(subtables[j_1 as usize][k as usize]),
+                        bk_new_block_from_buffer(unsafe { Buffer::from_raw(subtables[j_1 as usize][k as usize]) }),
                     )],
                 );
             }
