@@ -22,7 +22,6 @@ use crate::libcff::cff_opmean::cff_get_standard_arity;
 use crate::libcff::cff_writer::{
     cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special,
 };
-use crate::support::buffer::bufnew;
 use crate::table::glyf::glyf_point_dup;
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_copy_replace, vq_get_still, vq_minus, vq_neutral, vq_replace};
@@ -1038,23 +1037,23 @@ pub unsafe fn cff_optimize_il(il: *mut CffCharstringIl, options: &Options) {
         j = j.wrapping_add(decide_advance(il, j, options.cff_roll_char_string as u8) as u32);
     }
 }
-pub unsafe fn cff_build_il(il: *mut CffCharstringIl) -> *mut Buffer {
-    let blob: *mut Buffer = bufnew();
+pub unsafe fn cff_build_il(il: *mut CffCharstringIl) -> Buffer {
+    let mut blob = Buffer::new();
     let mut j: u16 = 0_u16;
     while (j as u32) < (*il).instr.len() as u32 {
         match (*(*il).instr.as_mut_ptr().offset(j as isize)).type_0 as ::core::ffi::c_uint {
             0 => {
-                cff_merge_cs2_operand(blob, (*(*il).instr.as_mut_ptr().offset(j as isize)).d());
+                cff_merge_cs2_operand(&mut blob, (*(*il).instr.as_mut_ptr().offset(j as isize)).d());
             }
             1 => {
                 cff_merge_cs2_operator(
-                    blob,
+                    &mut blob,
                     CffCharstringOperator((*(*il).instr.as_mut_ptr().offset(j as isize)).i()),
                 );
             }
             2 => {
                 cff_merge_cs2_special(
-                    blob,
+                    &mut blob,
                     (*(*il).instr.as_mut_ptr().offset(j as isize)).i() as u8,
                 );
             }
@@ -1062,7 +1061,7 @@ pub unsafe fn cff_build_il(il: *mut CffCharstringIl) -> *mut Buffer {
         }
         j = j.wrapping_add(1);
     }
-    return blob;
+    blob
 }
 pub unsafe fn cff_shrink_il(il: *mut CffCharstringIl) -> *mut CffCharstringIl {
     let out: *mut CffCharstringIl =

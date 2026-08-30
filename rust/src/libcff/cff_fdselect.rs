@@ -1,7 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite8};
 use crate::support::font_reader::FontReader;
 
 #[derive(Copy, Clone)]
@@ -32,41 +31,29 @@ pub enum CffFdSelect {
 //
 // Takes `&CffFdSelect` instead of by value -- it only ever reads the data to
 // serialize it, same reasoning as `cff_build_charset`.
-pub unsafe fn cff_build_fd_select(fd: &CffFdSelect) -> *mut Buffer {
+pub fn cff_build_fd_select(fd: &CffFdSelect) -> Buffer {
     match fd {
-        CffFdSelect::Unspecified => bufnew(),
+        CffFdSelect::Unspecified => Buffer::new(),
         CffFdSelect::Format0(fds) => {
-            let blob: *mut Buffer = bufnew();
+            let mut blob = Buffer::new();
             for &b in fds.iter() {
-                bufwrite8(blob, b);
+                blob.write_u8(b);
             }
             blob
         }
         CffFdSelect::Format3 { range3, sentinel } => {
-            let blob_0: *mut Buffer = bufnew();
+            let mut blob_0 = Buffer::new();
             let nranges = range3.len() as i32;
-            bufwrite8(blob_0, 3_u8);
-            bufwrite8(blob_0, (nranges / 256_i32) as u8);
-            bufwrite8(blob_0, (nranges % 256_i32) as u8);
+            blob_0.write_u8(3_u8);
+            blob_0.write_u8((nranges / 256_i32) as u8);
+            blob_0.write_u8((nranges % 256_i32) as u8);
             for r in range3.iter() {
-                bufwrite8(
-                    blob_0,
-                    (r.first as i32 / 256_i32) as u8,
-                );
-                bufwrite8(
-                    blob_0,
-                    (r.first as i32 % 256_i32) as u8,
-                );
-                bufwrite8(blob_0, r.fd);
+                blob_0.write_u8((r.first as i32 / 256_i32) as u8);
+                blob_0.write_u8((r.first as i32 % 256_i32) as u8);
+                blob_0.write_u8(r.fd);
             }
-            bufwrite8(
-                blob_0,
-                (*sentinel as i32 / 256_i32) as u8,
-            );
-            bufwrite8(
-                blob_0,
-                (*sentinel as i32 % 256_i32) as u8,
-            );
+            blob_0.write_u8((*sentinel as i32 / 256_i32) as u8);
+            blob_0.write_u8((*sentinel as i32 % 256_i32) as u8);
             blob_0
         }
     }

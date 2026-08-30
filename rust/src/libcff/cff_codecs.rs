@@ -4,8 +4,7 @@ use libc::{sprintf, strlen, strtod};
 use crate::libcff::CffDictOperator;
 use crate::libcff::cff_value::CffValue;
 use crate::support::NULL;
-use crate::support::buffer::bufnew;
-use crate::support::buffer::{Buffer, bufninit, bufwrite8};
+use crate::support::buffer::Buffer;
 use crate::support::font_reader::FontReader;
 #[inline]
 unsafe fn atof(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_double {
@@ -13,47 +12,37 @@ unsafe fn atof(mut __nptr: *const ::core::ffi::c_char) -> ::core::ffi::c_double 
 }
 /// Every caller passes a DICT operator, so the parameter says so. The body
 /// still works in `i32` -- unchanged arithmetic, unchanged bytes.
-pub unsafe fn cff_encode_cff_operator(val: CffDictOperator) -> *mut Buffer {
+pub fn cff_encode_cff_operator(val: CffDictOperator) -> Buffer {
     let val = val.0 as i32;
     if val > 256_i32 {
-        return bufninit(&[(val / 256_i32) as u8, (val % 256_i32) as u8]);
+        Buffer::from_bytes(&[(val / 256_i32) as u8, (val % 256_i32) as u8])
     } else {
-        return bufninit(&[val as u8]);
-    };
+        Buffer::from_bytes(&[val as u8])
+    }
 }
-pub unsafe fn cff_encode_cff_integer(mut val: i32) -> *mut Buffer {
+pub fn cff_encode_cff_integer(mut val: i32) -> Buffer {
     if (-107_i32..=107_i32).contains(&val) {
-        return bufninit(&[(val + 139_i32) as u8]);
+        Buffer::from_bytes(&[(val + 139_i32) as u8])
     } else if (108_i32..=1131_i32).contains(&val) {
         val = val - 108_i32;
-        return bufninit(&[
-            ((val >> 8_i32) + 247_i32) as u8,
-            (val & 0xff_i32) as u8,
-        ]);
+        Buffer::from_bytes(&[((val >> 8_i32) + 247_i32) as u8, (val & 0xff_i32) as u8])
     } else if (-1131_i32..=-108_i32).contains(&val) {
         val = -108_i32 - val;
-        return bufninit(&[
-            ((val >> 8_i32) + 251_i32) as u8,
-            (val & 0xff_i32) as u8,
-        ]);
+        Buffer::from_bytes(&[((val >> 8_i32) + 251_i32) as u8, (val & 0xff_i32) as u8])
     } else if (-32768_i32..32768_i32).contains(&val) {
-        return bufninit(&[
-            28_u8,
-            (val >> 8_i32) as u8,
-            (val & 0xff_i32) as u8,
-        ]);
+        Buffer::from_bytes(&[28_u8, (val >> 8_i32) as u8, (val & 0xff_i32) as u8])
     } else {
-        return bufninit(&[
+        Buffer::from_bytes(&[
             29_u8,
             (val >> 24_i32 & 0xff_i32) as u8,
             (val >> 16_i32 & 0xff_i32) as u8,
             (val >> 8_i32 & 0xff_i32) as u8,
             (val & 0xff_i32) as u8,
-        ]);
-    };
+        ])
+    }
 }
-pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
-    let blob: *mut Buffer = bufnew();
+pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> Buffer {
+    let mut blob = Buffer::new();
     let mut i: u32;
     let mut j: u32 = 0_u32;
     let mut temp: [u8; 32] = [
@@ -91,8 +80,8 @@ pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
         0,
     ];
     if val == 0.0f64 {
-        bufwrite8(blob, 30_u8);
-        bufwrite8(blob, 0xf_u8);
+        blob.write_u8(30_u8);
+        blob.write_u8(0xf_u8);
     } else {
         let mut niblen: u32 = 0_u32;
         let mut array: Vec<u8>;
@@ -127,7 +116,7 @@ pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
             }
         }
         let blob_size: usize = 2_u32.wrapping_add(niblen.wrapping_div(2_u32)) as usize;
-        bufwrite8(blob, 30_u8);
+        blob.write_u8(30_u8);
         if niblen.wrapping_rem(2_u32) != 0_u32 {
             array = vec![0u8; niblen.wrapping_add(1_u32) as usize];
             array[niblen as usize] = 0xf_u8;
@@ -168,8 +157,7 @@ pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
         }
         i = 1_u32;
         while (i as usize) < blob_size {
-            bufwrite8(
-                blob,
+            blob.write_u8(
                 (array[i.wrapping_sub(1_u32).wrapping_mul(2_u32) as usize]
                     as i32
                     * 16_i32
@@ -182,7 +170,7 @@ pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> *mut Buffer {
             i = i.wrapping_add(1);
         }
     }
-    return blob;
+    blob
 }
 // Every one of the token decoders in this file (`cff_decode_cs2_token`,
 // `cff_dec_i`/`cff_dec_r`/`cff_dec_o`/`cff_dec_e`) used to read up to 5

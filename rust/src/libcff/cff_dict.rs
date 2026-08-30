@@ -5,7 +5,6 @@ use crate::libcff::cff_codecs::{
 };
 use crate::libcff::cff_value::CffValue;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite_bufdel};
 
 // `vals` was `__caryll_allocate_clean`'d/`free`'d, sized from `cnt` -- an
 // operand count read out of untrusted CFF DICT bytes in `parse_dict`, the
@@ -176,24 +175,24 @@ pub(crate) unsafe fn parse_dict_key_int(data: &[u8], op: CffDictOperator, idx: u
         CffValue::Unset | CffValue::Operator(_) => -1,
     }
 }
-pub(crate) unsafe fn build_dict(dict: *const CffDict) -> *mut Buffer {
-    let blob: *mut Buffer = bufnew();
+pub(crate) unsafe fn build_dict(dict: *const CffDict) -> Buffer {
+    let mut blob = Buffer::new();
     let ents = &(*dict).ents;
     let mut i: usize = 0;
     while i < ents.len() {
         let vals = &ents[i].vals;
         let mut j: usize = 0;
         while j < vals.len() {
-            let blob_val: *mut Buffer = match vals[j] {
+            let blob_val: Buffer = match vals[j] {
                 CffValue::Integer(i) => cff_encode_cff_integer(i),
-                CffValue::Double(d) => cff_encode_cff_float(d),
+                CffValue::Double(d) => unsafe { cff_encode_cff_float(d) },
                 CffValue::Unset | CffValue::Operator(_) => cff_encode_cff_integer(0_i32),
             };
-            bufwrite_bufdel(blob, blob_val);
+            blob.write_buffer_owned(blob_val);
             j = j.wrapping_add(1);
         }
-        bufwrite_bufdel(blob, cff_encode_cff_operator(ents[i].op));
+        blob.write_buffer_owned(cff_encode_cff_operator(ents[i].op));
         i = i.wrapping_add(1);
     }
-    return blob;
+    blob
 }

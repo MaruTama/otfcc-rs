@@ -599,11 +599,11 @@ pub unsafe fn cff_insert_il_to_graph(g: *mut CffSubrGraph, il: *mut CffCharstrin
                     blob = bufnew();
                     flush = false;
                 }
-                cff_merge_cs2_operand(blob, (&(*il).instr)[j as usize].d());
+                cff_merge_cs2_operand(unsafe { &mut *blob }, (&(*il).instr)[j as usize].d());
             }
             1 => {
                 cff_merge_cs2_operator(
-                    blob,
+                    unsafe { &mut *blob },
                     CffCharstringOperator((&(*il).instr)[j as usize].i()),
                 );
                 if (&(*il).instr)[j as usize].i() == OP_ENDCHAR.0 {
@@ -613,7 +613,7 @@ pub unsafe fn cff_insert_il_to_graph(g: *mut CffSubrGraph, il: *mut CffCharstrin
             }
             2 => {
                 cff_merge_cs2_special(
-                    blob,
+                    unsafe { &mut *blob },
                     (&(*il).instr)[j as usize].i() as u8,
                 );
                 flush = true;
@@ -753,16 +753,16 @@ unsafe fn serialize_node_to_buffer(
                 let stacknum: i32 =
                     number.wrapping_sub(subroutine_bias(max_l_subrs as i32) as u32) as i32;
                 target = &raw mut lsubrs[number as usize];
-                cff_merge_cs2_int(buf, stacknum);
-                cff_merge_cs2_operator(buf, OP_CALLSUBR);
+                cff_merge_cs2_int(unsafe { &mut *buf }, stacknum);
+                cff_merge_cs2_operator(unsafe { &mut *buf }, OP_CALLSUBR);
             } else {
                 let stacknum_0: i32 = number
                     .wrapping_sub(max_l_subrs)
                     .wrapping_sub(subroutine_bias(max_g_subrs as i32) as u32)
                     as i32;
                 target = &raw mut gsubrs[number.wrapping_sub(max_l_subrs) as usize];
-                cff_merge_cs2_int(buf, stacknum_0);
-                cff_merge_cs2_operator(buf, OP_CALLGSUBR);
+                cff_merge_cs2_int(unsafe { &mut *buf }, stacknum_0);
+                cff_merge_cs2_operator(unsafe { &mut *buf }, OP_CALLGSUBR);
             }
             if !g.rule(r).printed {
                 g.rule_mut(r).printed = true;
@@ -782,7 +782,7 @@ unsafe fn serialize_node_to_buffer(
                     e = next;
                 }
                 if !ends_with_end_char(g, r) {
-                    cff_merge_cs2_operator(target, OP_RETURN);
+                    cff_merge_cs2_operator(unsafe { &mut *target }, OP_RETURN);
                 }
             }
         } else {
