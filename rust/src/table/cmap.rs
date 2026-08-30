@@ -205,7 +205,25 @@ pub unsafe fn otfcc_cmap_lookup_uvs(
 // (`n_groups`, `num_unicode_value_ranges`, `num_uvs_mappings`, all full
 // 32-bit fields) -- is closed the same way it already was in `name.rs`/
 // `meta.rs`: `FontReader::require_room`'s `checked_mul`/`checked_add`.
-unsafe fn read_format12(data: &[u8], offset: usize, cmap: *mut CmapTable) {
+// Global across the whole cmap table, threaded through every codepoint-
+// mapping loop below (format4/format12's main mappings, format14's UVS
+// default ranges): each individual group/segment/range is already clamped
+// to its own bounded space (`read_format12`'s `clamped_end` caps a group to
+// the Unicode ceiling, `read_format4` caps a segment to 0xffff), but
+// nothing ties the SUM across many such groups/segments to any real limit.
+// A subtable well within any real byte-size limit can pack thousands of
+// groups, each individually clamped, that still multiply out to billions
+// of loop iterations -- the same "individually bounded, unbounded in
+// aggregate" amplification shape as `table/otl/read.rs`'s
+// `MAX_TOTAL_LANGUAGES` (found here by `cargo fuzz run otf_dump`: a single
+// crafted format12 subtable pushed a parse past several minutes and toward
+// the fuzzer's rss_limit_mb). No legitimate cmap needs anywhere near this
+// many total codepoint mappings even summed across every subtable --
+// several subtables each covering the full Unicode range would still only
+// total a few million -- so this budget is generous for real fonts and a
+// hard stop for crafted ones.
+const MAX_TOTAL_CMAP_MAPPINGS: u32 = 4_000_000;
+unsafe fn read_format12(data: &[u8], offset: usize, cmap: *mut CmapTable, budget: &mut u32) {
     let mut r = match FontReader::new(data).at(offset) {
         Ok(r) => r,
         Err(_) => return,
@@ -235,7 +253,8 @@ unsafe fn read_format12(data: &[u8], offset: usize, cmap: *mut CmapTable) {
         // into a bounded, still-correct partial read of the group.
         let clamped_end = end_code.min(0x10ffff);
         let mut c = start_code;
-        while c <= clamped_end {
+        while c <= clamped_end && *budget > 0 {
+            *budget -= 1;
             otfcc_encode_cmap_by_index(
                 cmap,
                 c as i32,
@@ -245,7 +264,7 @@ unsafe fn read_format12(data: &[u8], offset: usize, cmap: *mut CmapTable) {
         }
     }
 }
-unsafe fn read_format4(data: &[u8], offset: usize, cmap: *mut CmapTable) {
+unsafe fn read_format4(data: &[u8], offset: usize, cmap: *mut CmapTable, budget: &mut u32) {
     let available = data.len().saturating_sub(offset);
     if available < 14 {
         return;
@@ -304,14 +323,16 @@ unsafe fn read_format4(data: &[u8], offset: usize, cmap: *mut CmapTable) {
         };
         if id_range_offset == 0 {
             let mut c = start_code as u32;
-            while c < 0xffff && c <= end_code as u32 {
+            while c < 0xffff && c <= end_code as u32 && *budget > 0 {
+                *budget -= 1;
                 let gid = (c.wrapping_add(id_delta as u32) & 0xffff) as u16;
                 otfcc_encode_cmap_by_index(cmap, c as i32, gid);
                 c = c.wrapping_add(1);
             }
         } else {
             let mut c = start_code as u32;
-            while c < 0xffff && c <= end_code as u32 {
+            while c < 0xffff && c <= end_code as u32 && *budget > 0 {
+                *budget -= 1;
                 // idRangeOffset's value is a byte distance measured from the
                 // idRangeOffset array *entry itself* -- matches the
                 // original's `.wrapping_add(id_range_offset_offset)`.
@@ -327,7 +348,13 @@ unsafe fn read_format4(data: &[u8], offset: usize, cmap: *mut CmapTable) {
         }
     }
 }
-unsafe fn read_uvs_default(data: &[u8], offset: usize, selector: Unicode, cmap: *mut CmapTable) {
+unsafe fn read_uvs_default(
+    data: &[u8],
+    offset: usize,
+    selector: Unicode,
+    cmap: *mut CmapTable,
+    budget: &mut u32,
+) {
     let mut r = match FontReader::new(data).at(offset) {
         Ok(r) => r,
         Err(_) => return,
@@ -341,7 +368,8 @@ unsafe fn read_uvs_default(data: &[u8], offset: usize, selector: Unicode, cmap: 
         let additional_count = r.u8().unwrap();
         let mut u = start_unicode_value;
         let end = start_unicode_value.wrapping_add(additional_count as u32);
-        while u <= end {
+        while u <= end && *budget > 0 {
+            *budget -= 1;
             let g = otfcc_cmap_lookup(cmap, u as i32);
             if !g.is_null() {
                 otfcc_encode_cmap_uvs_by_index(
@@ -384,7 +412,7 @@ unsafe fn read_uvs_non_default(
         );
     }
 }
-unsafe fn read_format14(data: &[u8], offset: usize, cmap: *mut CmapTable) {
+unsafe fn read_format14(data: &[u8], offset: usize, cmap: *mut CmapTable, budget: &mut u32) {
     let mut r = match FontReader::new(data).at(offset) {
         Ok(r) => r,
         Err(_) => return,
@@ -428,7 +456,7 @@ unsafe fn read_format14(data: &[u8], offset: usize, cmap: *mut CmapTable) {
         };
         if default_uvs_offset != 0 {
             if let Some(sub_offset) = offset.checked_add(default_uvs_offset as usize) {
-                read_uvs_default(data, sub_offset, selector, cmap);
+                read_uvs_default(data, sub_offset, selector, cmap, budget);
             }
         }
         if non_default_uvs_offset != 0 {
@@ -443,6 +471,7 @@ unsafe fn read_cmap_mapping_table(
     offset: usize,
     cmap: *mut CmapTable,
     required_format: TableId,
+    budget: &mut u32,
 ) {
     let Some(format) = FontReader::new(data)
         .at(offset)
@@ -453,13 +482,18 @@ unsafe fn read_cmap_mapping_table(
     };
     if format == required_format {
         if format == 4 {
-            read_format4(data, offset, cmap);
+            read_format4(data, offset, cmap, budget);
         } else if format == 12 {
-            read_format12(data, offset, cmap);
+            read_format12(data, offset, cmap, budget);
         }
     }
 }
-unsafe fn read_cmap_mapping_table_uvs(data: &[u8], offset: usize, cmap: *mut CmapTable) {
+unsafe fn read_cmap_mapping_table_uvs(
+    data: &[u8],
+    offset: usize,
+    cmap: *mut CmapTable,
+    budget: &mut u32,
+) {
     let Some(format) = FontReader::new(data)
         .at(offset)
         .ok()
@@ -468,7 +502,7 @@ unsafe fn read_cmap_mapping_table_uvs(data: &[u8], offset: usize, cmap: *mut Cma
         return;
     };
     if format == 14 {
-        read_format14(data, offset, cmap);
+        read_format14(data, offset, cmap, budget);
     }
 }
 #[inline]
@@ -515,6 +549,7 @@ unsafe fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     // insert into `cmap.unicodes`/`cmap.uvs` produces the same mapping
     // each time), so skipping the repeat parses never changes the final
     // table -- only the wasted work is removed.
+    let mut budget: u32 = MAX_TOTAL_CMAP_MAPPINGS;
     let mut processed_offsets: std::collections::BTreeSet<usize> = std::collections::BTreeSet::new();
     for &required_format in FORMAT_PRIORITIES.iter().take_while(|&&f| f != 0) {
         for j in 0..num_tables {
@@ -532,7 +567,7 @@ unsafe fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
                     continue;
                 };
                 if format == required_format && processed_offsets.insert(table_offset) {
-                    read_cmap_mapping_table(data, table_offset, cmap, required_format);
+                    read_cmap_mapping_table(data, table_offset, cmap, required_format, &mut budget);
                 }
             }
         }
@@ -547,7 +582,7 @@ unsafe fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
         if is_valid_cmap_encoding(platform, encoding) {
             let table_offset = FontReader::new(data).at(entry_rel + 4)?.u32()? as usize;
             if processed_uvs_offsets.insert(table_offset) {
-                read_cmap_mapping_table_uvs(data, table_offset, cmap);
+                read_cmap_mapping_table_uvs(data, table_offset, cmap, &mut budget);
             }
         }
     }
@@ -1316,7 +1351,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 32);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format4(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        unsafe { read_format4(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
         assert_eq!(cmap.unicodes.get(&0x41).unwrap().index, 5);
         assert!(!cmap.unicodes.contains_key(&0xFFFF));
     }
@@ -1343,7 +1378,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 36);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format4(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        unsafe { read_format4(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
         assert_eq!(cmap.unicodes.get(&0x41).unwrap().index, 7);
         assert_eq!(cmap.unicodes.get(&0x42).unwrap().index, 8);
     }
@@ -1362,7 +1397,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 28);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
         assert_eq!(cmap.unicodes.get(&0x1F600).unwrap().index, 10);
         assert_eq!(cmap.unicodes.get(&0x1F601).unwrap().index, 11);
     }
@@ -1384,7 +1419,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 16);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
         assert!(cmap.unicodes.is_empty());
     }
 
@@ -1412,12 +1447,53 @@ mod cmap_read_tests {
 
         let mut cmap = empty_cmap();
         let start = std::time::Instant::now();
-        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
         assert!(start.elapsed() < std::time::Duration::from_secs(5));
 
         assert_eq!(cmap.unicodes.get(&0x10fffe).unwrap().index, 10);
         assert_eq!(cmap.unicodes.get(&0x10ffff).unwrap().index, 11);
         assert!(!cmap.unicodes.contains_key(&0x110000));
+    }
+
+    #[test]
+    fn format12_budget_caps_the_total_across_many_groups_not_just_one() {
+        // Each group's own range is already clamped to the Unicode ceiling
+        // by `clamped_end` (see the test above), but that clamp alone
+        // doesn't stop a subtable from packing many groups that each
+        // independently claim a huge range -- a few thousand such groups,
+        // well within any real subtable byte-size limit, still multiply
+        // out to billions of iterations (found by `cargo fuzz run
+        // otf_dump`: a single crafted format12 subtable pushed a parse
+        // past several minutes and toward the fuzzer's memory limit). This
+        // pins that the budget is shared *across* groups, not reset or
+        // re-granted per group: three groups here, each individually able
+        // to produce far more than the budget allows, must still total no
+        // more than the budget handed in.
+        let mut data = Vec::new();
+        data.extend_from_slice(&12u16.to_be_bytes()); // format
+        data.extend_from_slice(&0u16.to_be_bytes()); // reserved
+        data.extend_from_slice(&52u32.to_be_bytes()); // length (informational)
+        data.extend_from_slice(&0u32.to_be_bytes()); // language
+        data.extend_from_slice(&3u32.to_be_bytes()); // nGroups
+        for i in 0..3u32 {
+            data.extend_from_slice(&0u32.to_be_bytes()); // startCharCode
+            data.extend_from_slice(&0x10ffffu32.to_be_bytes()); // endCharCode: the whole Unicode range
+            data.extend_from_slice(&(i * 1000).to_be_bytes()); // startGlyphID
+        }
+        assert_eq!(data.len(), 52);
+
+        let mut cmap = empty_cmap();
+        let mut budget: u32 = 5;
+        let start = std::time::Instant::now();
+        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable, &mut budget) };
+        assert!(start.elapsed() < std::time::Duration::from_secs(5));
+
+        assert_eq!(budget, 0, "the shared budget must be fully consumed, not per-group");
+        assert_eq!(
+            cmap.unicodes.len(),
+            5,
+            "no more mappings than the budget allows, even though each group alone claims far more"
+        );
     }
 
     #[test]
@@ -1427,7 +1503,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 4);
 
         let mut cmap = empty_cmap();
-        unsafe { read_uvs_default(&data, 0, 0xFE00, cmap.as_mut() as *mut CmapTable) };
+        unsafe { read_uvs_default(&data, 0, 0xFE00, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
         assert!(cmap.uvs.is_empty());
     }
 
@@ -1471,7 +1547,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 10);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format14(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        unsafe { read_format14(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
         assert!(cmap.uvs.is_empty());
     }
 
@@ -1495,7 +1571,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 21);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format14(&data, 0, cmap.as_mut() as *mut CmapTable) };
+        unsafe { read_format14(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
         assert!(cmap.uvs.is_empty());
     }
 
