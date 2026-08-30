@@ -5,7 +5,6 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite_bytes, bufwrite8, bufwrite16b, bufwrite32b};
 use crate::support::built_json::{
     BuiltValue, json_boolean_new, json_double_new, json_integer_new, json_object_new,
     json_object_push,
@@ -588,22 +587,19 @@ pub unsafe fn otfcc_parse_post(
 pub unsafe fn otfcc_build_post(
     post: Option<&PostTable>,
     glyphorder: *mut GlyphOrder,
-) -> *mut Buffer {
-    let post = match post {
-        Some(p) => p as *const PostTable,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let buf: *mut Buffer = bufnew();
-    bufwrite32b(buf, (*post).version as u32);
-    bufwrite32b(buf, (*post).italic_angle as u32);
-    bufwrite16b(buf, (*post).underline_position as u16);
-    bufwrite16b(buf, (*post).underline_thickness as u16);
-    bufwrite32b(buf, (*post).is_fixed_pitch);
-    bufwrite32b(buf, (*post).min_mem_type42);
-    bufwrite32b(buf, (*post).max_mem_type42);
-    bufwrite32b(buf, (*post).min_mem_type1);
-    bufwrite32b(buf, (*post).max_mem_type1);
-    if (*post).version == 0x20000 as F16Dot16 {
+) -> Option<Buffer> {
+    let post = post?;
+    let mut buf = Buffer::new();
+    buf.write_u32be(post.version as u32);
+    buf.write_u32be(post.italic_angle as u32);
+    buf.write_u16be(post.underline_position as u16);
+    buf.write_u16be(post.underline_thickness as u16);
+    buf.write_u32be(post.is_fixed_pitch);
+    buf.write_u32be(post.min_mem_type42);
+    buf.write_u32be(post.max_mem_type42);
+    buf.write_u32be(post.min_mem_type1);
+    buf.write_u32be(post.max_mem_type1);
+    if post.version == 0x20000 as F16Dot16 {
         // Walks `by_gid` (ascending gid order), not `by_name`: by the time
         // this runs, `by_name`'s uthash chain had already been sorted by
         // `order_glyphs` (json_reader.rs) into exactly this order and
@@ -611,21 +607,18 @@ pub unsafe fn otfcc_build_post(
         // effective iteration order without depending on `HashMap`'s
         // (unspecified) iteration order the way a literal `by_name` walk
         // would have to.
-        bufwrite16b(buf, (*glyphorder).by_gid.len() as u16);
+        buf.write_u16be((*glyphorder).by_gid.len() as u16);
         for (_, &idx) in (*glyphorder).by_gid.iter() {
             let entry = &(&(*glyphorder).entries)[idx];
-            bufwrite16b(
-                buf,
-                (258_i32 + entry.gid as i32) as u16,
-            );
+            buf.write_u16be((258_i32 + entry.gid as i32) as u16);
         }
         for (_, &idx) in (*glyphorder).by_gid.iter() {
             let entry = &(&(*glyphorder).entries)[idx];
-            bufwrite8(buf, entry.name.len() as u8);
-            bufwrite_bytes(buf, entry.name.len(), entry.name.as_ptr());
+            buf.write_u8(entry.name.len() as u8);
+            buf.write_bytes(&entry.name);
         }
     }
-    return buf;
+    Some(buf)
 }
 
 #[cfg(test)]

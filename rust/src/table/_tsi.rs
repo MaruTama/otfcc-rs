@@ -2,7 +2,6 @@
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufnwrite8, bufwrite16b, bufwrite32b};
 use crate::support::built_json::{
     BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key,
     json_string_new_length,
@@ -51,10 +50,9 @@ pub(crate) unsafe fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
         content: e.content.clone(),
     }
 }
-#[derive(Copy, Clone)]
 pub struct TsiBuildTarget {
-    pub index_part: *mut Buffer,
-    pub text_part: *mut Buffer,
+    pub index_part: Option<Buffer>,
+    pub text_part: Option<Buffer>,
 }
 // Stage 6-4 "Box化": `Font.tsi_01`/`Font.tsi_23` become `Option<Vec<TsiEntry>>`
 // (not `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
@@ -383,88 +381,65 @@ pub unsafe fn otfcc_parse_tsi(
 // TsiEntryType::Glyph` when `min_n` is `0`, which keeps that loop from
 // running at all for `Glyph` (see `otfcc_build_tsi`'s call sites), so the
 // null never actually reaches this arm.
-unsafe fn propergid(entry: *mut TsiEntry, type_0: TsiEntryType) -> GlyphId {
+fn propergid(entry: Option<&TsiEntry>, type_0: TsiEntryType) -> GlyphId {
     match type_0 {
         TsiEntryType::Cvt => 0xfffb as GlyphId,
         TsiEntryType::Fpgm => 0xfffd as GlyphId,
         TsiEntryType::Prep => 0xfffa as GlyphId,
         TsiEntryType::ReservedFffc => 0xfffc as GlyphId,
-        TsiEntryType::Glyph => (*entry).glyph.index,
+        TsiEntryType::Glyph => entry.unwrap().glyph.index,
     }
 }
-unsafe fn push_tsi_entries(
-    target: *mut TsiBuildTarget,
-    tsi: *const TsiTable,
-    type_0: TsiEntryType,
-    min_n: GlyphId,
-) {
-    let entries: &Vec<TsiEntry> = &*tsi;
+fn push_tsi_entries(target: &mut TsiBuildTarget, tsi: &TsiTable, type_0: TsiEntryType, min_n: GlyphId) {
     let mut items_pushed: GlyphId = 0 as GlyphId;
-    let mut __caryll_index: usize = 0_usize;
-    let mut keep: usize = 1_usize;
-    while keep != 0 && __caryll_index < entries.len() {
-        let entry: *mut TsiEntry = &entries[__caryll_index] as *const TsiEntry as *mut TsiEntry;
-        while keep != 0 {
-            if !((*entry).type_0 as ::core::ffi::c_uint != type_0 as ::core::ffi::c_uint) {
-                let length_sofar: usize = (*(*target).text_part).cursor;
-                bufnwrite8((*target).text_part, &(*entry).content);
-                let length_after: usize = (*(*target).text_part).cursor;
-                bufwrite16b((*target).index_part, propergid(entry, type_0) as u16);
-                if length_after.wrapping_sub(length_sofar) < 0x8000_usize {
-                    bufwrite16b(
-                        (*target).index_part,
-                        length_after.wrapping_sub(length_sofar) as u16,
-                    );
-                } else {
-                    bufwrite16b((*target).index_part, 0x8000_u16);
-                }
-                bufwrite32b((*target).index_part, length_sofar as u32);
-                items_pushed =
-                    (items_pushed as i32 + 1_i32) as GlyphId;
-            }
-            keep = (keep == 0) as i32 as usize;
+    for entry in tsi.iter() {
+        if entry.type_0 != type_0 {
+            continue;
         }
-        keep = (keep == 0) as i32 as usize;
-        __caryll_index = __caryll_index.wrapping_add(1);
+        let length_sofar = target.text_part.as_ref().unwrap().pos();
+        target.text_part.as_mut().unwrap().write_bytes(&entry.content);
+        let length_after = target.text_part.as_ref().unwrap().pos();
+        let index_part = target.index_part.as_mut().unwrap();
+        index_part.write_u16be(propergid(Some(entry), type_0) as u16);
+        if length_after.wrapping_sub(length_sofar) < 0x8000_usize {
+            index_part.write_u16be(length_after.wrapping_sub(length_sofar) as u16);
+        } else {
+            index_part.write_u16be(0x8000_u16);
+        }
+        index_part.write_u32be(length_sofar as u32);
+        items_pushed = (items_pushed as i32 + 1_i32) as GlyphId;
     }
     while (items_pushed as i32) < min_n as i32 {
-        bufwrite16b(
-            (*target).index_part,
-            propergid(::core::ptr::null_mut::<TsiEntry>(), type_0) as u16,
-        );
-        bufwrite16b((*target).index_part, 0_u16);
-        bufwrite32b((*target).index_part, (*(*target).text_part).cursor as u32);
+        let text_pos = target.text_part.as_ref().unwrap().pos();
+        let index_part = target.index_part.as_mut().unwrap();
+        index_part.write_u16be(propergid(None, type_0) as u16);
+        index_part.write_u16be(0_u16);
+        index_part.write_u32be(text_pos as u32);
         items_pushed = (items_pushed as i32 + 1_i32) as GlyphId;
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
-    let tsi: *const TsiTable = tsi.map_or(::core::ptr::null(), |t| t as *const TsiTable);
-    let mut target: TsiBuildTarget = TsiBuildTarget {
-        index_part: ::core::ptr::null_mut::<Buffer>(),
-        text_part: ::core::ptr::null_mut::<Buffer>(),
+pub fn otfcc_build_tsi(tsi: Option<&TsiTable>) -> TsiBuildTarget {
+    let Some(tsi) = tsi else {
+        return TsiBuildTarget {
+            index_part: None,
+            text_part: None,
+        };
     };
-    if tsi.is_null() {
-        target.text_part = ::core::ptr::null_mut::<Buffer>();
-        target.index_part = ::core::ptr::null_mut::<Buffer>();
-    } else {
-        target.text_part = bufnew();
-        target.index_part = bufnew();
-        push_tsi_entries(&raw mut target, tsi, TsiEntryType::Glyph, 0 as GlyphId);
-        bufwrite16b(target.index_part, 0xfffe_u16);
-        bufwrite16b(target.index_part, 0_u16);
-        bufwrite32b(target.index_part, 0xabfc1f34_u32);
-        push_tsi_entries(&raw mut target, tsi, TsiEntryType::Prep, 1 as GlyphId);
-        push_tsi_entries(&raw mut target, tsi, TsiEntryType::Cvt, 1 as GlyphId);
-        push_tsi_entries(
-            &raw mut target,
-            tsi,
-            TsiEntryType::ReservedFffc,
-            1 as GlyphId,
-        );
-        push_tsi_entries(&raw mut target, tsi, TsiEntryType::Fpgm, 1 as GlyphId);
-    }
-    return target;
+    let mut target = TsiBuildTarget {
+        index_part: Some(Buffer::new()),
+        text_part: Some(Buffer::new()),
+    };
+    push_tsi_entries(&mut target, tsi, TsiEntryType::Glyph, 0 as GlyphId);
+    let index_part = target.index_part.as_mut().unwrap();
+    index_part.write_u16be(0xfffe_u16);
+    index_part.write_u16be(0_u16);
+    index_part.write_u32be(0xabfc1f34_u32);
+    push_tsi_entries(&mut target, tsi, TsiEntryType::Prep, 1 as GlyphId);
+    push_tsi_entries(&mut target, tsi, TsiEntryType::Cvt, 1 as GlyphId);
+    push_tsi_entries(&mut target, tsi, TsiEntryType::ReservedFffc, 1 as GlyphId);
+    push_tsi_entries(&mut target, tsi, TsiEntryType::Fpgm, 1 as GlyphId);
+    target
 }
 
 #[cfg(test)]
