@@ -320,7 +320,7 @@ pub unsafe fn otfcc_build_gsub_reverse(
         );
         j_1 = j_1.wrapping_add(1);
     }
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 
 #[cfg(test)]

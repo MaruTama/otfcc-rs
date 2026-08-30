@@ -1211,7 +1211,7 @@ unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> *mut Buffer {
         }
         selector_0 = selector_0.wrapping_add(1);
     }
-    let buf: *mut Buffer = bk_build_block(st);
+    let buf: *mut Buffer = bk_build_block(st).into_raw();
     bufseek(buf, 2_usize);
     bufwrite32b(buf, buflen(buf) as u32);
     return buf;
@@ -1317,7 +1317,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
     }
     buffree(format4);
     buffree(format12);
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 
 #[cfg(test)]

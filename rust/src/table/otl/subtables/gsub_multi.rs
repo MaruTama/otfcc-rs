@@ -191,7 +191,7 @@ unsafe fn build_gsub_multi_subtable_range(
         bk_push(root, &[bk_ptr(BkCellType::P16, b)]);
     }
     otl_coverage_free(cov);
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: i32 = 0xff00_i32;
 pub unsafe fn otfcc_build_gsub_multi_subtable_split(

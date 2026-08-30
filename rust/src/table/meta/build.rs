@@ -45,5 +45,5 @@ pub unsafe fn otfcc_build_meta(meta: Option<&MetaTable>) -> *mut Buffer {
         keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    return unsafe { bk_build_block(root) };
+    return unsafe { bk_build_block(root).into_raw() };
 }

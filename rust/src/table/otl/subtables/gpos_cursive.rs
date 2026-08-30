@@ -216,7 +216,7 @@ pub unsafe fn otfcc_build_gpos_cursive(
         j_0 = j_0.wrapping_add(1);
     }
     otl_coverage_free(cov);
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 
 #[cfg(test)]

@@ -477,7 +477,7 @@ pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> *mut Buffer {
         bk_ptr(BkCellType::P16, b_lig_caret_list),
         bk_ptr(BkCellType::P16, b_mark_attach_class_def),
     ]);
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 
 #[cfg(test)]

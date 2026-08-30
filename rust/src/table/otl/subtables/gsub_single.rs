@@ -227,7 +227,7 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
             ),
         ]);
         otl_coverage_free(cov);
-        return bk_build_block(b);
+        return bk_build_block(b).into_raw();
     } else {
         let b_0: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 2_u32),
@@ -246,7 +246,7 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
             k = k.wrapping_add(1);
         }
         otl_coverage_free(cov);
-        return bk_build_block(b_0);
+        return bk_build_block(b_0).into_raw();
     };
 }
 

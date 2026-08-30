@@ -361,7 +361,7 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
     // `colr` drops naturally at the end of this scope -- no explicit
     // dispose call needed (`ColrMapping`'s `Handle` fields already free
     // themselves via their own `Drop`).
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 
 #[cfg(test)]

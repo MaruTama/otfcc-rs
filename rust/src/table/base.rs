@@ -571,7 +571,7 @@ pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> *mut Buffer {
         bk_ptr(BkCellType::P16, horizontal_bk),
         bk_ptr(BkCellType::P16, vertical_bk),
     ]);
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 #[inline]
 unsafe fn tag2str(tag: u32, tags: *mut ::core::ffi::c_char) {

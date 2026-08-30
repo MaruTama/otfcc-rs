@@ -340,7 +340,7 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
         bk_push(root, &[bk_ptr(BkCellType::P16, ligset)]);
     }
     otl_coverage_free(startcov);
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 
 #[cfg(test)]

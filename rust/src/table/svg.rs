@@ -293,7 +293,7 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
     // `svg` drops naturally at the end of this scope -- `document` is a
     // plain `Vec<u8>` now, self-dropping along with the rest of
     // `SvgAssignment`, so no explicit disposal call is needed here.
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 
 #[cfg(test)]

@@ -732,13 +732,13 @@ pub unsafe fn otfcc_build_gpos_pair(
     if bk_estimate_size_of_graph(g1) > bk_estimate_size_of_graph(g2) {
         bk_delete_graph(g1);
         bk_untangle_graph(g2);
-        let buf: *mut Buffer = bk_build_graph(g2);
+        let buf: *mut Buffer = bk_build_graph(g2).into_raw();
         bk_delete_graph(g2);
         return buf;
     } else {
         bk_delete_graph(g2);
         bk_untangle_graph(g1);
-        let buf_0: *mut Buffer = bk_build_graph(g1);
+        let buf_0: *mut Buffer = bk_build_graph(g1).into_raw();
         bk_delete_graph(g1);
         return buf_0;
     };
