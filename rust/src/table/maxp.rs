@@ -90,7 +90,7 @@ fn parse_maxp(data: &[u8]) -> Result<MaxpTable, ReadError> {
     }
     Ok(maxp)
 }
-pub unsafe fn otfcc_read_maxp(packet: &Packet, options: &Options) -> Option<Box<MaxpTable>> {
+pub fn otfcc_read_maxp(packet: &Packet, options: &Options) -> Option<Box<MaxpTable>> {
     let table = packet
         .pieces
         .iter()

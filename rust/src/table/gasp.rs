@@ -59,7 +59,7 @@ fn parse_gasp(data: &[u8]) -> Result<GaspTable, ReadError> {
     }
     Ok(GaspTable { version, records })
 }
-pub unsafe fn otfcc_read_gasp(packet: &Packet, options: &Options) -> Option<Box<GaspTable>> {
+pub fn otfcc_read_gasp(packet: &Packet, options: &Options) -> Option<Box<GaspTable>> {
     let table = packet
         .pieces
         .iter()

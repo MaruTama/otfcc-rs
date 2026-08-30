@@ -25,10 +25,10 @@ use crate::table::gasp::otfcc_read_gasp;
 use crate::table::gdef::otfcc_read_gdef;
 use crate::table::glyf::read::otfcc_read_glyf;
 use crate::table::head::{HeadTable, otfcc_read_head};
-use crate::table::hhea::{HheaTable, otfcc_read_hhea};
+use crate::table::hhea::otfcc_read_hhea;
 use crate::table::hmtx::otfcc_read_hmtx;
 use crate::table::ltsh::otfcc_read_ltsh;
-use crate::table::maxp::{MaxpTable, otfcc_read_maxp};
+use crate::table::maxp::otfcc_read_maxp;
 use crate::table::meta::read::otfcc_read_meta;
 use crate::table::name::otfcc_read_name;
 use crate::table::os_2::otfcc_read_os_2;
@@ -37,7 +37,7 @@ use crate::table::post::otfcc_read_post;
 use crate::table::svg::otfcc_read_svg;
 use crate::table::tsi5::otfcc_read_tsi5;
 use crate::table::vdmx::funcs::otfcc_read_vdmx;
-use crate::table::vhea::{VheaTable, otfcc_read_vhea};
+use crate::table::vhea::otfcc_read_vhea;
 use crate::table::vmtx::otfcc_read_vmtx;
 use crate::table::vorg::otfcc_read_vorg;
 
@@ -99,28 +99,16 @@ impl FontBuilder for OtfReader {
                 (*font).hmtx = otfcc_read_hmtx(
                     packet,
                     options,
-                    (*font)
-                        .hhea
-                        .as_deref_mut()
-                        .map_or(::core::ptr::null_mut(), |h| h as *mut HheaTable),
-                    (*font)
-                        .maxp
-                        .as_deref_mut()
-                        .map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable),
+                    (*font).hhea.as_deref(),
+                    (*font).maxp.as_deref(),
                 );
                 (*font).vhea = otfcc_read_vhea(packet, options);
                 if (*font).vhea.is_some() {
                     (*font).vmtx = otfcc_read_vmtx(
                         packet,
                         options,
-                        (*font)
-                            .vhea
-                            .as_deref_mut()
-                            .map_or(::core::ptr::null_mut(), |v| v as *mut VheaTable),
-                        (*font)
-                            .maxp
-                            .as_deref_mut()
-                            .map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable),
+                        (*font).vhea.as_deref(),
+                        (*font).maxp.as_deref(),
                     );
                 }
                 (*font).fpgm = otfcc_read_fpgm_prep(packet, crate::tag::TAG_FPGM);
@@ -170,14 +158,8 @@ impl FontBuilder for OtfReader {
                     (*font).vmtx = otfcc_read_vmtx(
                         packet,
                         options,
-                        (*font)
-                            .vhea
-                            .as_deref_mut()
-                            .map_or(::core::ptr::null_mut(), |v| v as *mut VheaTable),
-                        (*font)
-                            .maxp
-                            .as_deref_mut()
-                            .map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable),
+                        (*font).vhea.as_deref(),
+                        (*font).maxp.as_deref(),
                     );
                     (*font).vorg = otfcc_read_vorg(packet, options);
                 }

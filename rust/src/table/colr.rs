@@ -121,9 +121,9 @@ unsafe fn parse_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
     Ok(colr)
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<ColrTable> {
+pub fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<ColrTable> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_COLR)?;
-    match parse_colr(&table.data) {
+    match unsafe { parse_colr(&table.data) } {
         Ok(colr) => Some(colr),
         Err(_) => {
             logger_log_sds(

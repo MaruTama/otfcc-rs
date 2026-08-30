@@ -292,9 +292,9 @@ unsafe fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
         masters: indexmap::IndexMap::new(),
     })
 }
-pub unsafe fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTable>> {
+pub fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_FVAR)?;
-    match parse_fvar(&table.data) {
+    match unsafe { parse_fvar(&table.data) } {
         Some(fvar) => Some(Box::new(fvar)),
         None => {
             logger_log_sds(

@@ -82,7 +82,7 @@ fn parse_vhea(data: &[u8]) -> Result<VheaTable, ReadError> {
         num_of_long_ver_metrics,
     })
 }
-pub unsafe fn otfcc_read_vhea(packet: &Packet, options: &Options) -> Option<Box<VheaTable>> {
+pub fn otfcc_read_vhea(packet: &Packet, options: &Options) -> Option<Box<VheaTable>> {
     let table = packet
         .pieces
         .iter()

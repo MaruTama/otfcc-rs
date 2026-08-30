@@ -44,26 +44,23 @@ fn parse_hmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<HmtxTable, 
         left_side_bearing,
     })
 }
-pub unsafe fn otfcc_read_hmtx(
+pub fn otfcc_read_hmtx(
     packet: &Packet,
     options: &Options,
-    hhea: *mut HheaTable,
-    maxp: *mut MaxpTable,
+    hhea: Option<&HheaTable>,
+    maxp: Option<&MaxpTable>,
 ) -> Option<Box<HmtxTable>> {
-    if hhea.is_null()
-        || maxp.is_null()
-        || (*hhea).number_of_metrics == 0
-        || ((*maxp).num_glyphs as i32)
-            < (*hhea).number_of_metrics as i32
-    {
+    let hhea = hhea?;
+    let maxp = maxp?;
+    if hhea.number_of_metrics == 0 || (maxp.num_glyphs as i32) < hhea.number_of_metrics as i32 {
         return None;
     }
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_HMTX)?;
-    let count_a = (*hhea).number_of_metrics as usize;
-    let count_k = (*maxp).num_glyphs as usize - count_a;
+    let count_a = hhea.number_of_metrics as usize;
+    let count_k = maxp.num_glyphs as usize - count_a;
     match parse_hmtx(&table.data, count_a, count_k) {
         Ok(hmtx) => Some(Box::new(hmtx)),
         Err(_) => {

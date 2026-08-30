@@ -120,12 +120,12 @@ unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
 }
 
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_read_name(packet: &Packet, options: &Options) -> Option<NameTable> {
+pub fn otfcc_read_name(packet: &Packet, options: &Options) -> Option<NameTable> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_NAME)?;
-    match parse_name(&table.data) {
+    match unsafe { parse_name(&table.data) } {
         Ok(name) => Some(name),
         Err(_) => {
             logger_log_sds(

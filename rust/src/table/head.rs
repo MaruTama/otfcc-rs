@@ -65,7 +65,7 @@ fn parse_head(data: &[u8]) -> Result<HeadTable, ReadError> {
         glyph_data_format: r.i16()?,
     })
 }
-pub unsafe fn otfcc_read_head(packet: &Packet, options: &Options) -> Option<Box<HeadTable>> {
+pub fn otfcc_read_head(packet: &Packet, options: &Options) -> Option<Box<HeadTable>> {
     let table = packet
         .pieces
         .iter()

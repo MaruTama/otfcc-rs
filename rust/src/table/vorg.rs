@@ -48,7 +48,7 @@ fn parse_vorg(data: &[u8]) -> Result<(GlyphId, Pos, Vec<VorgEntry>), ReadError> 
     Ok((num_vert_origin_y_metrics, default_vertical_origin, entries))
 }
 
-pub unsafe fn otfcc_read_vorg(packet: &Packet, options: &Options) -> Option<Box<VorgTable>> {
+pub fn otfcc_read_vorg(packet: &Packet, options: &Options) -> Option<Box<VorgTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_VORG)?;
     let (num_vert_origin_y_metrics, default_vertical_origin, entries) =
         match parse_vorg(&table.data) {

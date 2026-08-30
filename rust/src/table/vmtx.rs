@@ -43,17 +43,16 @@ fn parse_vmtx(data: &[u8], count_a: usize, count_k: usize) -> Result<VmtxTable, 
         top_side_bearing,
     })
 }
-pub unsafe fn otfcc_read_vmtx(
+pub fn otfcc_read_vmtx(
     packet: &Packet,
     options: &Options,
-    vhea: *mut VheaTable,
-    maxp: *mut MaxpTable,
+    vhea: Option<&VheaTable>,
+    maxp: Option<&MaxpTable>,
 ) -> Option<Box<VmtxTable>> {
-    if vhea.is_null()
-        || maxp.is_null()
-        || (*vhea).num_of_long_ver_metrics as i32 == 0_i32
-        || ((*maxp).num_glyphs as i32)
-            < (*vhea).num_of_long_ver_metrics as i32
+    let vhea = vhea?;
+    let maxp = maxp?;
+    if vhea.num_of_long_ver_metrics as i32 == 0_i32
+        || (maxp.num_glyphs as i32) < vhea.num_of_long_ver_metrics as i32
     {
         return None;
     }
@@ -61,8 +60,8 @@ pub unsafe fn otfcc_read_vmtx(
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_VMTX)?;
-    let count_a = (*vhea).num_of_long_ver_metrics as usize;
-    let count_k = (*maxp).num_glyphs as usize - count_a;
+    let count_a = vhea.num_of_long_ver_metrics as usize;
+    let count_k = maxp.num_glyphs as usize - count_a;
     match parse_vmtx(&table.data, count_a, count_k) {
         Ok(vmtx) => Some(Box::new(vmtx)),
         Err(_) => {

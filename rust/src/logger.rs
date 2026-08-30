@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use std::io::Write;
 
 // Was `ILoggerTarget`, a 2-field vtable (`dispose`/`push`) with exactly two
@@ -15,7 +14,7 @@ pub enum LoggerTarget {
     Empty,
 }
 impl LoggerTarget {
-    unsafe fn push(self, data: Vec<u8>) {
+    fn push(self, data: Vec<u8>) {
         match self {
             LoggerTarget::Stderr => {
                 let mut stderr = std::io::stderr();
@@ -96,11 +95,11 @@ pub static OTFCC_LOGGER_TYPE_NAMES: [&::core::ffi::CStr; 3] = [c"[ERROR]", c"[WA
 pub unsafe fn logger_indent(_self: &mut Logger, segment: *const ::core::ffi::c_char) {
     logger_indent_sds(_self, crate::bytesbuild!(segment));
 }
-pub unsafe fn logger_indent_sds(self_0: &mut Logger, segment: Vec<u8>) {
+pub fn logger_indent_sds(self_0: &mut Logger, segment: Vec<u8>) {
     self_0.indents.push(segment);
     self_0.level = self_0.indents.len() as u16;
 }
-pub unsafe fn logger_dedent(self_0: &mut Logger) {
+pub fn logger_dedent(self_0: &mut Logger) {
     if self_0.level == 0 {
         return;
     }
@@ -110,7 +109,7 @@ pub unsafe fn logger_dedent(self_0: &mut Logger) {
         self_0.last_logged_level = self_0.level;
     }
 }
-pub unsafe fn logger_finish(self_0: &mut Logger) {
+pub fn logger_finish(self_0: &mut Logger) {
     logger_log_sds(
         self_0,
         (LOG_VL_PROGRESS as i32 + self_0.level as i32) as u8,
@@ -119,7 +118,7 @@ pub unsafe fn logger_finish(self_0: &mut Logger) {
     );
     logger_dedent(self_0);
 }
-pub unsafe fn logger_start_sds(self_0: &mut Logger, segment: Vec<u8>) {
+pub fn logger_start_sds(self_0: &mut Logger, segment: Vec<u8>) {
     logger_indent_sds(self_0, segment);
     logger_log_sds(
         self_0,
@@ -128,7 +127,7 @@ pub unsafe fn logger_start_sds(self_0: &mut Logger, segment: Vec<u8>) {
         crate::bytesbuild!(b"Begin"),
     );
 }
-pub unsafe fn logger_log_sds(
+pub fn logger_log_sds(
     self_0: &mut Logger,
     verbosity: u8,
     type_0: LoggerType,
@@ -174,12 +173,12 @@ pub unsafe fn logger_log_sds(
     }
     // else `demand` just drops.
 }
-pub unsafe fn logger_set_verbosity(self_0: &mut Logger, verbosity: u8) {
+pub fn logger_set_verbosity(self_0: &mut Logger, verbosity: u8) {
     self_0.verbosity_limit = verbosity;
 }
-pub unsafe fn otfcc_new_std_err_target() -> LoggerTarget {
+pub fn otfcc_new_std_err_target() -> LoggerTarget {
     LoggerTarget::Stderr
 }
-pub unsafe fn otfcc_new_empty_target() -> LoggerTarget {
+pub fn otfcc_new_empty_target() -> LoggerTarget {
     LoggerTarget::Empty
 }

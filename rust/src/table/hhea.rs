@@ -57,7 +57,7 @@ fn parse_hhea(data: &[u8]) -> Result<HheaTable, ReadError> {
         number_of_metrics: r.u16()?,
     })
 }
-pub unsafe fn otfcc_read_hhea(packet: &Packet, options: &Options) -> Option<Box<HheaTable>> {
+pub fn otfcc_read_hhea(packet: &Packet, options: &Options) -> Option<Box<HheaTable>> {
     let table = packet
         .pieces
         .iter()
