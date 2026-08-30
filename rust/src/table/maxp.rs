@@ -4,7 +4,6 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
 use crate::support::built_json::{
     BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
 };
@@ -275,30 +274,27 @@ pub unsafe fn otfcc_parse_maxp(
     return Some(maxp_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_maxp(maxp: Option<&MaxpTable>) -> *mut Buffer {
-    let maxp = match maxp {
-        Some(m) => m as *const MaxpTable,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let buf: *mut Buffer = bufnew();
-    bufwrite32b(buf, (*maxp).version as u32);
-    bufwrite16b(buf, (*maxp).num_glyphs);
-    if (*maxp).version > 0x5000 as F16Dot16 {
-        bufwrite16b(buf, (*maxp).max_points);
-        bufwrite16b(buf, (*maxp).max_contours);
-        bufwrite16b(buf, (*maxp).max_composite_points);
-        bufwrite16b(buf, (*maxp).max_composite_contours);
-        bufwrite16b(buf, (*maxp).max_zones);
-        bufwrite16b(buf, (*maxp).max_twilight_points);
-        bufwrite16b(buf, (*maxp).max_storage);
-        bufwrite16b(buf, (*maxp).max_function_defs);
-        bufwrite16b(buf, (*maxp).max_instruction_defs);
-        bufwrite16b(buf, (*maxp).max_stack_elements);
-        bufwrite16b(buf, (*maxp).max_size_of_instructions);
-        bufwrite16b(buf, (*maxp).max_component_elements);
-        bufwrite16b(buf, (*maxp).max_component_depth);
+pub fn otfcc_build_maxp(maxp: Option<&MaxpTable>) -> Option<Buffer> {
+    let maxp = maxp?;
+    let mut buf = Buffer::new();
+    buf.write_u32be(maxp.version as u32);
+    buf.write_u16be(maxp.num_glyphs);
+    if maxp.version > 0x5000 as F16Dot16 {
+        buf.write_u16be(maxp.max_points);
+        buf.write_u16be(maxp.max_contours);
+        buf.write_u16be(maxp.max_composite_points);
+        buf.write_u16be(maxp.max_composite_contours);
+        buf.write_u16be(maxp.max_zones);
+        buf.write_u16be(maxp.max_twilight_points);
+        buf.write_u16be(maxp.max_storage);
+        buf.write_u16be(maxp.max_function_defs);
+        buf.write_u16be(maxp.max_instruction_defs);
+        buf.write_u16be(maxp.max_stack_elements);
+        buf.write_u16be(maxp.max_size_of_instructions);
+        buf.write_u16be(maxp.max_component_elements);
+        buf.write_u16be(maxp.max_component_depth);
     }
-    return buf;
+    Some(buf)
 }
 
 #[cfg(test)]

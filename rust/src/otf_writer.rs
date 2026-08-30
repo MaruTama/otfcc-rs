@@ -120,7 +120,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_MAXP,
-            otfcc_build_maxp((*font).maxp.as_deref()),
+            otfcc_build_maxp((*font).maxp.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
@@ -141,7 +141,8 @@ impl FontSerializer for OtfSerializer {
                     .glyph_order
                     .as_deref_mut()
                     .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
-            ),
+            )
+            .map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
@@ -270,11 +271,27 @@ impl FontSerializer for OtfSerializer {
             otfcc_build_svg((*font).svg.as_ref()),
         );
         let target: TsiBuildTarget = otfcc_build_tsi((*font).tsi_01.as_ref());
-        otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI0, target.index_part);
-        otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI1, target.text_part);
+        otfcc_sfnt_builder_push_table(
+            builder,
+            crate::tag::TAG_TSI0,
+            target.index_part.map_or(::core::ptr::null_mut(), Buffer::into_raw),
+        );
+        otfcc_sfnt_builder_push_table(
+            builder,
+            crate::tag::TAG_TSI1,
+            target.text_part.map_or(::core::ptr::null_mut(), Buffer::into_raw),
+        );
         let target_0: TsiBuildTarget = otfcc_build_tsi((*font).tsi_23.as_ref());
-        otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI2, target_0.index_part);
-        otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_TSI3, target_0.text_part);
+        otfcc_sfnt_builder_push_table(
+            builder,
+            crate::tag::TAG_TSI2,
+            target_0.index_part.map_or(::core::ptr::null_mut(), Buffer::into_raw),
+        );
+        otfcc_sfnt_builder_push_table(
+            builder,
+            crate::tag::TAG_TSI3,
+            target_0.text_part.map_or(::core::ptr::null_mut(), Buffer::into_raw),
+        );
         if let Some(glyf) = (*font).glyf.as_ref() {
             otfcc_sfnt_builder_push_table(
                 builder,
