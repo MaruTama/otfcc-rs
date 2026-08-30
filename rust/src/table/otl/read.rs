@@ -751,6 +751,17 @@ mod parse_otl_common_tests {
     }
 
     #[test]
+    // `N` has to genuinely exceed the real `MAX_TOTAL_LANGUAGES` (10,000)
+    // for this test to mean anything -- unlike the CffStack-sized Miri
+    // slowdowns elsewhere in this crate, there's no smaller-but-
+    // equivalent version of "prove the production cap value is actually
+    // enforced." Running ~10,100 parse_language calls through Miri's
+    // interpreter (125s, this crate's single slowest test) doesn't add
+    // meaningfully more UB-detection confidence than the much smaller
+    // parse_language tests elsewhere in this module already provide for
+    // the same code; the native `cargo test` run stays the actual
+    // regression guard for the cap value itself.
+    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; ~10,100 parse_language calls are needed to exceed the real MAX_TOTAL_LANGUAGES cap")]
     fn total_language_count_across_the_whole_table_is_capped() {
         // One script whose own `langSysCount` alone (`MAX_TOTAL_LANGUAGES`
         // + 100) exceeds the budget -- every `langSysRecord`'s offset

@@ -2892,14 +2892,29 @@ mod cff_parse_outline_total_calls_tests {
     }
 
     #[test]
+    // `requested` has to be within one of the real `MAX_TOTAL_SUBR_CALLS`
+    // (10,000) to prove the budget lets everything through -- unlike the
+    // sibling stack-operator tests in this file, shrinking the backing
+    // `CffStack.stack` allocation (still done below, real but minor) barely
+    // moved this test's Miri time, because the actual cost is ~10,000
+    // *recursive `cff_parse_outline` calls*, not the array size. That's
+    // inherent to what this test proves, the same way
+    // `total_language_count_across_the_whole_table_is_capped`
+    // (`table/otl/read.rs`) can't shrink its own N below the real cap
+    // either. `cargo test` (native) stays the real regression guard.
+    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs ~10,000 recursive cff_parse_outline calls to exercise the real MAX_TOTAL_SUBR_CALLS budget")]
     fn call_count_within_the_budget_all_execute() {
         let gsubr = one_trivial_gsubr();
         let lsubr = empty_cff_index();
         let requested = MAX_TOTAL_SUBR_CALLS - 1;
         let mut data = charstring_calling_gsubr_n_times(requested);
         let len = data.len() as u32;
+        // 11_000 (not the real 0x10000/65536): still shrunk from
+        // production's generous capacity down to just above `requested`'s
+        // ~10,000 pushes, even though (per the ignore above) this isn't
+        // what dominates this test's Miri time.
         let mut stack = CffStack {
-            stack: vec![CffValue::Unset; 0x10000],
+            stack: vec![CffValue::Unset; 11_000],
             transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
             index: 0,
             stem: 0,
@@ -2932,14 +2947,23 @@ mod cff_parse_outline_total_calls_tests {
     // `total_calls` (threaded through every recursive `cff_parse_outline`
     // call, shared across the whole glyph) is what actually bounds it.
     #[test]
+    // Same Miri cost shape as the sibling test above: recursing up to
+    // `MAX_TOTAL_SUBR_CALLS` (10,000) before stopping is the point of
+    // this test, not something a smaller N could substitute for.
+    #[cfg_attr(miri, ignore = "far too slow to run meaningfully under Miri's interpreter; needs ~10,000 recursive cff_parse_outline calls before the real MAX_TOTAL_SUBR_CALLS budget stops it")]
     fn call_count_past_the_budget_stops_recursing() {
         let gsubr = one_trivial_gsubr();
         let lsubr = empty_cff_index();
         let attempted = MAX_TOTAL_SUBR_CALLS + 500;
         let mut data = charstring_calling_gsubr_n_times(attempted);
         let len = data.len() as u32;
+        // Same reasoning as the sibling test above: recursion stops at
+        // `MAX_TOTAL_SUBR_CALLS` regardless of `attempted`, so 11_000
+        // still has headroom above every push this test can actually
+        // reach, while avoiding 0x10000's full-capacity initialization
+        // cost under Miri.
         let mut stack = CffStack {
-            stack: vec![CffValue::Unset; 0x10000],
+            stack: vec![CffValue::Unset; 11_000],
             transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
             index: 0,
             stem: 0,
@@ -3015,7 +3039,7 @@ mod cff_parse_outline_hintmask_tests {
         let gsubr = empty_cff_index();
         let lsubr = empty_cff_index();
         let mut stack = CffStack {
-            stack: vec![CffValue::Unset; 0x10000],
+            stack: vec![CffValue::Unset; 512],
             transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
             index: 0,
             stem: 0,
@@ -3084,9 +3108,21 @@ mod cff_parse_outline_stack_operator_tests {
         }
     }
 
+    // Real `CffStack.stack` is 0x10000 entries (matching the operand
+    // stack's generous production capacity), but every test in this
+    // module pushes at most 257 operands -- allocating and initializing
+    // the full 65536-entry Vec added ~10s per test under Miri's
+    // per-element provenance tracking (an otherwise-sub-10ms test suite
+    // module took over a minute combined) for headroom none of these
+    // tests use. 512 comfortably covers the largest case
+    // (`op_index_with_operand_count_multiple_of_256_does_not_panic`'s
+    // 257 pushes) while cutting the allocation two orders of magnitude;
+    // the bugs these tests guard against are all about index-computation
+    // correctness (negative wraparound, zero-divisor guards), not
+    // anything sensitive to the backing array's total capacity.
     fn fresh_stack() -> CffStack {
         CffStack {
-            stack: vec![CffValue::Unset; 0x10000],
+            stack: vec![CffValue::Unset; 512],
             transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
             index: 0,
             stem: 0,
