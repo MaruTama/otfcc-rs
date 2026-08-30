@@ -441,9 +441,7 @@ unsafe fn parse_point_numbers(
                 point_number =
                     (point_number as i32 + raw as i32) as i16;
             } else {
-                let fresh7: u8 = r.u8().ok()?;
-                point_number =
-                    (point_number as i32 + fresh7 as i32) as i16;
+                point_number = (point_number as i32 + r.u8().ok()? as i32) as i16;
             }
             point_indeces.push(point_number as ShapeId);
             j_point = point_number as ShapeId;
