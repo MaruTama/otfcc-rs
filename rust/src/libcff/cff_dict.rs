@@ -84,7 +84,7 @@ unsafe fn cff_dict_dispose(x: *mut CffDict) {
 pub(crate) unsafe fn parse_to_callback(
     data: &[u8],
     context: *mut ::core::ffi::c_void,
-    callback: Option<unsafe fn(CffDictOperator, u8, *mut CffValue, *mut ::core::ffi::c_void) -> ()>,
+    callback: Option<unsafe fn(CffDictOperator, u8, &[CffValue], *mut ::core::ffi::c_void) -> ()>,
 ) {
     let mut index: u8 = 0_u8;
     let mut val: CffValue = CffValue::Unset;
@@ -102,7 +102,7 @@ pub(crate) unsafe fn parse_to_callback(
                 callback.expect("non-null function pointer")(
                     CffDictOperator(op as u32),
                     index,
-                    &raw mut stack as *mut CffValue,
+                    &stack[..index as usize],
                     context,
                 );
                 index = 0_u8;
@@ -119,13 +119,25 @@ pub(crate) unsafe fn parse_to_callback(
 unsafe fn callback_get_key(
     op: CffDictOperator,
     top: u8,
-    stack: *mut CffValue,
+    stack: &[CffValue],
     mut _context: *mut ::core::ffi::c_void,
 ) {
     let context: *mut CffGetKeyContext = _context as *mut CffGetKeyContext;
-    if op == (*context).op && (*context).idx <= top as u32 {
+    // `idx` is a 0-based operand index, so a valid read needs `idx <
+    // top` (there are exactly `top` operands, at indices `0..top`) --
+    // this was `idx <= top`, an off-by-one that let `idx == top` (no
+    // operand at all, e.g. this operator with zero pushed operands and
+    // `idx == 0`) through. Against the original's raw pointer into a
+    // fixed 256-entry array that silently read a stale/adjacent slot
+    // rather than panicking; converting `stack` to a `top`-length slice
+    // (this PR) turned that same off-by-one into a reachable
+    // `index out of bounds` panic, caught by `cargo fuzz run otf_parse`.
+    // Tightening to `idx < top` is the actual fix -- not a change in
+    // what counts as "found", just removing an already-wrong read of
+    // one index past the operator's real operand list.
+    if op == (*context).op && (*context).idx < top as u32 {
         (*context).found = true;
-        (*context).res = *stack.offset((*context).idx as isize);
+        (*context).res = stack[((*context).idx as isize) as usize];
     }
 }
 pub(crate) unsafe fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) -> CffValue {
@@ -144,7 +156,7 @@ pub(crate) unsafe fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) 
         &raw mut context as *mut ::core::ffi::c_void,
         Some(
             callback_get_key
-                as unsafe fn(CffDictOperator, u8, *mut CffValue, *mut ::core::ffi::c_void) -> (),
+                as unsafe fn(CffDictOperator, u8, &[CffValue], *mut ::core::ffi::c_void) -> (),
         ),
     );
     return context.res;
