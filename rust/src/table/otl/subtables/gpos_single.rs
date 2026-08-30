@@ -197,7 +197,7 @@ pub unsafe fn otfcc_build_gpos_single(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let coverage_buf: *mut Buffer = build_coverage(cov);
+    let coverage_buf: *mut Buffer = build_coverage(cov).into_raw();
     if is_const {
         let b: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 1_u32),

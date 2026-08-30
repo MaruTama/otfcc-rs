@@ -213,7 +213,7 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
         j_0 = j_0.wrapping_add(1);
     }
     let coverage_buf: *mut Buffer =
-        build_coverage_format(cov, heuristics.contains(BuildHeuristics::GSUB_VERT) as u16);
+        build_coverage_format(cov, heuristics.contains(BuildHeuristics::GSUB_VERT) as u16).into_raw();
     if is_constant_difference as i32 != 0
         && !heuristics.contains(BuildHeuristics::GSUB_VERT)
     {

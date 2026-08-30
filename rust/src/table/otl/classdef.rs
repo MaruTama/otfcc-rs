@@ -9,7 +9,6 @@ use crate::support::parsed_json::{
 use crate::table::otl::coverage::Coverage;
 
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite_bufdel, bufwrite16b};
 use crate::support::built_json::{
     BuiltValue, json_integer_new, json_object_new, json_object_push_bytes_key, preserialize,
 };
@@ -203,11 +202,11 @@ pub(crate) unsafe fn parse_class_def(mut _cd: *const ParsedValue) -> *mut ClassD
     }
     return cd;
 }
-pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> *mut Buffer {
-    let buf: *mut Buffer = bufnew();
-    bufwrite16b(buf, 2_u16);
+pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> Buffer {
+    let mut buf = Buffer::new();
+    buf.write_u16be(2_u16);
     if (*cd).glyphs.is_empty() {
-        bufwrite16b(buf, 0_u16);
+        buf.write_u16be(0_u16);
         return buf;
     }
     // A local `Vec` scratch buffer, not a `__caryll_allocate_clean`/`qsort`/
@@ -224,7 +223,7 @@ pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> *mut Buffer {
     }
     let jj: GlyphId = r.len() as GlyphId;
     if jj == 0 {
-        bufwrite16b(buf, 0_u16);
+        buf.write_u16be(0_u16);
         return buf;
     }
     r.sort_by_key(|rec| rec.gid);
@@ -233,7 +232,7 @@ pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> *mut Buffer {
     let mut last_class: GlyphClass = r[0].cid;
     let mut n_ranges: GlyphId = 0 as GlyphId;
     let mut last_gid: GlyphId = start_gid;
-    let ranges: *mut Buffer = bufnew();
+    let mut ranges = Buffer::new();
     let mut j_0: GlyphId = 1 as GlyphId;
     while (j_0 as i32) < jj as i32 {
         let current: GlyphId = r[j_0 as usize].gid;
@@ -244,9 +243,9 @@ pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> *mut Buffer {
             {
                 end_gid = current;
             } else {
-                bufwrite16b(ranges, start_gid as u16);
-                bufwrite16b(ranges, end_gid as u16);
-                bufwrite16b(ranges, last_class as u16);
+                ranges.write_u16be(start_gid as u16);
+                ranges.write_u16be(end_gid as u16);
+                ranges.write_u16be(last_class as u16);
                 n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
@@ -256,13 +255,13 @@ pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> *mut Buffer {
         }
         j_0 = j_0.wrapping_add(1);
     }
-    bufwrite16b(ranges, start_gid as u16);
-    bufwrite16b(ranges, end_gid as u16);
-    bufwrite16b(ranges, last_class as u16);
+    ranges.write_u16be(start_gid as u16);
+    ranges.write_u16be(end_gid as u16);
+    ranges.write_u16be(last_class as u16);
     n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
-    bufwrite16b(buf, n_ranges as u16);
-    bufwrite_bufdel(buf, ranges);
-    return buf;
+    buf.write_u16be(n_ranges as u16);
+    buf.write_buffer_owned(ranges);
+    buf
 }
 pub(crate) unsafe fn shrink_class_def(cd: *mut ClassDef) {
     // Single `truncate` at the end lets `Vec`'s drop glue free any handle
