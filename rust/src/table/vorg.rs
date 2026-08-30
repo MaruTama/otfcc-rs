@@ -4,7 +4,6 @@ use crate::font::caryll_sfnt::Packet;
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::binio::pos_to_u16;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos};
@@ -69,24 +68,20 @@ pub fn otfcc_read_vorg(packet: &Packet, options: &Options) -> Option<Box<VorgTab
         entries,
     }))
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_vorg(table: Option<&VorgTable>) -> *mut Buffer {
-    let table = match table {
-        Some(t) => t,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let buf: *mut Buffer = bufnew();
-    bufwrite16b(buf, 1_u16);
-    bufwrite16b(buf, 0_u16);
-    bufwrite16b(buf, pos_to_u16((*table).default_vertical_origin));
-    bufwrite16b(buf, (*table).num_vert_origin_y_metrics as u16);
+pub fn otfcc_build_vorg(table: Option<&VorgTable>) -> Option<Buffer> {
+    let table = table?;
+    let mut buf = Buffer::new();
+    buf.write_u16be(1_u16);
+    buf.write_u16be(0_u16);
+    buf.write_u16be(pos_to_u16(table.default_vertical_origin));
+    buf.write_u16be(table.num_vert_origin_y_metrics);
     let mut j: u16 = 0_u16;
-    while (j as i32) < (*table).num_vert_origin_y_metrics as i32 {
-        bufwrite16b(buf, (*table).entries[j as usize].gid as u16);
-        bufwrite16b(buf, (*table).entries[j as usize].vertical_origin as u16);
+    while (j as i32) < table.num_vert_origin_y_metrics as i32 {
+        buf.write_u16be(table.entries[j as usize].gid);
+        buf.write_u16be(table.entries[j as usize].vertical_origin as u16);
         j = j.wrapping_add(1);
     }
-    return buf;
+    Some(buf)
 }
 
 #[cfg(test)]

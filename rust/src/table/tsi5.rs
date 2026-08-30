@@ -8,7 +8,6 @@ use crate::support::font_reader::FontReader;
 
 use crate::font::caryll_sfnt::Packet;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite16b};
 use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::table::otl::classdef::{dump_class_def, parse_class_def};
@@ -86,11 +85,8 @@ pub unsafe fn otfcc_parse_tsi5(root: *const ParsedValue) -> Option<Box<Tsi5Table
     return Some(unwrap_class_def(raw));
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> *mut Buffer {
-    let tsi5 = match tsi5 {
-        Some(t) => t as *const Tsi5Table,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
+pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffer> {
+    let tsi5 = tsi5? as *const Tsi5Table;
     let mut tsi5cls: Vec<u16> = vec![0; num_glyphs as usize];
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*tsi5).glyphs.len() {
@@ -102,13 +98,13 @@ pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) ->
         }
         j = j.wrapping_add(1);
     }
-    let buf: *mut Buffer = bufnew();
+    let mut buf = Buffer::new();
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as i32) < num_glyphs as i32 {
-        bufwrite16b(buf, tsi5cls[j_0 as usize]);
+        buf.write_u16be(tsi5cls[j_0 as usize]);
         j_0 = j_0.wrapping_add(1);
     }
-    return buf;
+    Some(buf)
 }
 
 #[cfg(test)]
