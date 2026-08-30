@@ -378,7 +378,7 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
         keep_0 = (keep_0 == 0) as i32 as usize;
         __caryll_index_0 = __caryll_index_0.wrapping_add(1);
     }
-    return bk_build_block_no_minimize(root);
+    return bk_build_block_no_minimize(root).into_raw();
 }
 
 #[cfg(test)]

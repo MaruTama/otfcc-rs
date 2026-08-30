@@ -25,7 +25,6 @@ use crate::bk::bkblock::{
     BkBlock, BkCell, BkCellType, BkCellValue, BkCellVisitState, bk_new_block, bk_ptr,
 };
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite8, bufwrite16b, bufwrite32b};
 use crate::support::stdio::stderr;
 
 unsafe fn dfs_insert_cells(b: *mut BkBlock, f: *mut BkGraph, order: *mut u32) -> u32 {
@@ -378,48 +377,48 @@ unsafe fn try_untangle(f: *mut BkGraph, passes: u16) -> bool {
     }
     return did_untangle;
 }
-unsafe fn otfcc_build_bkblock(buf: *mut Buffer, b: *mut BkBlock, offsets: &[usize]) {
+unsafe fn otfcc_build_bkblock(buf: &mut Buffer, b: *mut BkBlock, offsets: &[usize]) {
     for cell in (*b).cells.iter() {
         match cell.t {
             BkCellType::B8 => {
-                bufwrite8(buf, cell.as_int() as u8);
+                buf.write_u8(cell.as_int() as u8);
             }
             BkCellType::B16 => {
-                bufwrite16b(buf, cell.as_int() as u16);
+                buf.write_u16be(cell.as_int() as u16);
             }
             BkCellType::B32 => {
-                bufwrite32b(buf, cell.as_int());
+                buf.write_u32be(cell.as_int());
             }
             BkCellType::P16 | BkCellType::Sp16 => {
                 let p = cell.as_ptr();
                 if !p.is_null() {
-                    bufwrite16b(buf, getoffset(offsets, b, p, 16) as u16);
+                    buf.write_u16be(getoffset(offsets, b, p, 16) as u16);
                 } else {
-                    bufwrite16b(buf, 0);
+                    buf.write_u16be(0);
                 }
             }
             BkCellType::P32 | BkCellType::Sp32 => {
                 let p = cell.as_ptr();
                 if !p.is_null() {
-                    bufwrite32b(buf, getoffset(offsets, b, p, 32));
+                    buf.write_u32be(getoffset(offsets, b, p, 32));
                 } else {
-                    bufwrite32b(buf, 0);
+                    buf.write_u32be(0);
                 }
             }
             _ => {}
         }
     }
 }
-pub unsafe fn bk_build_graph(f: *mut BkGraph) -> *mut Buffer {
-    let buf: *mut Buffer = bufnew();
+pub unsafe fn bk_build_graph(f: *mut BkGraph) -> Buffer {
+    let mut buf = Buffer::new();
     let offsets: Vec<usize> = compute_block_offsets(f, 352);
     for j in 0..(*f).entries.len() {
         let block = (&(*f).entries)[j].block;
         if (*block)._visitstate == BkCellVisitState::Black {
-            otfcc_build_bkblock(buf, block, &offsets);
+            otfcc_build_bkblock(&mut buf, block, &offsets);
         }
     }
-    return buf;
+    buf
 }
 pub unsafe fn bk_estimate_size_of_graph(f: *mut BkGraph) -> usize {
     let offsets: Vec<usize> = compute_block_offsets(f, 373);
@@ -440,18 +439,18 @@ pub unsafe fn bk_untangle_graph(f: *mut BkGraph) {
         }
     }
 }
-pub unsafe fn bk_build_block(root: *mut BkBlock) -> *mut Buffer {
+pub unsafe fn bk_build_block(root: *mut BkBlock) -> Buffer {
     let f: *mut BkGraph = bk_new_graph_from_root_block(root);
     bk_minimize_graph(f);
     bk_untangle_graph(f);
-    let buf: *mut Buffer = bk_build_graph(f);
+    let buf = bk_build_graph(f);
     bk_delete_graph(f);
-    return buf;
+    buf
 }
-pub unsafe fn bk_build_block_no_minimize(root: *mut BkBlock) -> *mut Buffer {
+pub unsafe fn bk_build_block_no_minimize(root: *mut BkBlock) -> Buffer {
     let f: *mut BkGraph = bk_new_graph_from_root_block(root);
     bk_untangle_graph(f);
-    let buf: *mut Buffer = bk_build_graph(f);
+    let buf = bk_build_graph(f);
     bk_delete_graph(f);
-    return buf;
+    buf
 }

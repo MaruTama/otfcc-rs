@@ -157,7 +157,7 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
         );
         j_2 = j_2.wrapping_add(1);
     }
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtable) -> *mut Buffer {
     let subtable: *const ChainingSubtable = _subtable;
@@ -329,7 +329,7 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
         }
         j_1 = j_1.wrapping_add(1);
     }
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 pub unsafe fn otfcc_build_chaining(mut _subtable: *const ChainingSubtable) -> *mut Buffer {
     if chaining_is_classified(_subtable) {
@@ -392,7 +392,7 @@ pub unsafe fn otfcc_build_contextual_coverage(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 pub unsafe fn otfcc_build_contextual_classes(
     mut _subtable: *const ChainingSubtable,
@@ -512,7 +512,7 @@ pub unsafe fn otfcc_build_contextual_classes(
         }
         j_1 = j_1.wrapping_add(1);
     }
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 pub unsafe fn otfcc_build_contextual(mut _subtable: *const ChainingSubtable) -> *mut Buffer {
     if chaining_is_classified(_subtable) {

@@ -446,7 +446,7 @@ pub unsafe fn otfcc_build_gpos_mark_to_single(
     );
     otl_coverage_free(marks);
     otl_coverage_free(bases);
-    return bk_build_block(root);
+    return bk_build_block(root).into_raw();
 }
 
 #[cfg(test)]

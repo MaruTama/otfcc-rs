@@ -727,7 +727,7 @@ pub unsafe fn otfcc_build_otl(
             bk_ptr(BkCellType::P16, features),
             bk_ptr(BkCellType::P16, lookups),
         ]);
-        buf = bk_build_block(root);
+        buf = bk_build_block(root).into_raw();
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
