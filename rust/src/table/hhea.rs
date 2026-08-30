@@ -4,7 +4,6 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
 use crate::support::built_json::{
     BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
 };
@@ -239,42 +238,27 @@ pub unsafe fn otfcc_parse_hhea(
     return Some(hhea_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_hhea(hhea: Option<&HheaTable>) -> *mut Buffer {
-    let hhea = match hhea {
-        Some(h) => h as *const HheaTable,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let buf: *mut Buffer = bufnew();
-    bufwrite32b(buf, (*hhea).version as u32);
-    bufwrite16b(buf, (*hhea).ascender as u16);
-    bufwrite16b(buf, (*hhea).descender as u16);
-    bufwrite16b(buf, (*hhea).line_gap as u16);
-    bufwrite16b(buf, (*hhea).advance_width_max);
-    bufwrite16b(buf, (*hhea).min_left_side_bearing as u16);
-    bufwrite16b(buf, (*hhea).min_right_side_bearing as u16);
-    bufwrite16b(buf, (*hhea).x_max_extent as u16);
-    bufwrite16b(buf, (*hhea).caret_slope_rise as u16);
-    bufwrite16b(buf, (*hhea).caret_slope_run as u16);
-    bufwrite16b(buf, (*hhea).caret_offset as u16);
-    bufwrite16b(
-        buf,
-        (*hhea).reserved[0_i32 as usize] as u16,
-    );
-    bufwrite16b(
-        buf,
-        (*hhea).reserved[1_i32 as usize] as u16,
-    );
-    bufwrite16b(
-        buf,
-        (*hhea).reserved[2_i32 as usize] as u16,
-    );
-    bufwrite16b(
-        buf,
-        (*hhea).reserved[3_i32 as usize] as u16,
-    );
-    bufwrite16b(buf, 0_u16);
-    bufwrite16b(buf, (*hhea).number_of_metrics);
-    return buf;
+pub fn otfcc_build_hhea(hhea: Option<&HheaTable>) -> Option<Buffer> {
+    let hhea = hhea?;
+    let mut buf = Buffer::new();
+    buf.write_u32be(hhea.version as u32);
+    buf.write_u16be(hhea.ascender as u16);
+    buf.write_u16be(hhea.descender as u16);
+    buf.write_u16be(hhea.line_gap as u16);
+    buf.write_u16be(hhea.advance_width_max);
+    buf.write_u16be(hhea.min_left_side_bearing as u16);
+    buf.write_u16be(hhea.min_right_side_bearing as u16);
+    buf.write_u16be(hhea.x_max_extent as u16);
+    buf.write_u16be(hhea.caret_slope_rise as u16);
+    buf.write_u16be(hhea.caret_slope_run as u16);
+    buf.write_u16be(hhea.caret_offset as u16);
+    buf.write_u16be(hhea.reserved[0_i32 as usize] as u16);
+    buf.write_u16be(hhea.reserved[1_i32 as usize] as u16);
+    buf.write_u16be(hhea.reserved[2_i32 as usize] as u16);
+    buf.write_u16be(hhea.reserved[3_i32 as usize] as u16);
+    buf.write_u16be(0_u16);
+    buf.write_u16be(hhea.number_of_metrics);
+    Some(buf)
 }
 
 #[cfg(test)]

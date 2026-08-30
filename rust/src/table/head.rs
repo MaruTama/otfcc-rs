@@ -4,7 +4,6 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b, bufwrite64b};
 use crate::support::built_json::{
     BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
     otfcc_dump_flags,
@@ -320,30 +319,27 @@ pub unsafe fn otfcc_parse_head(
     return Some(head_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_head(head: Option<&HeadTable>) -> *mut Buffer {
-    let head = match head {
-        Some(h) => h as *const HeadTable,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let buf: *mut Buffer = bufnew();
-    bufwrite32b(buf, (*head).version as u32);
-    bufwrite32b(buf, (*head).font_revision);
-    bufwrite32b(buf, (*head).check_sum_adjustment);
-    bufwrite32b(buf, (*head).magic_number);
-    bufwrite16b(buf, (*head).flags);
-    bufwrite16b(buf, (*head).units_per_em);
-    bufwrite64b(buf, (*head).created as u64);
-    bufwrite64b(buf, (*head).modified as u64);
-    bufwrite16b(buf, (*head).x_min as u16);
-    bufwrite16b(buf, (*head).y_min as u16);
-    bufwrite16b(buf, (*head).x_max as u16);
-    bufwrite16b(buf, (*head).y_max as u16);
-    bufwrite16b(buf, (*head).mac_style);
-    bufwrite16b(buf, (*head).lowest_rec_ppem);
-    bufwrite16b(buf, (*head).font_directory_hint as u16);
-    bufwrite16b(buf, (*head).index_to_loc_format as u16);
-    bufwrite16b(buf, (*head).glyph_data_format as u16);
-    return buf;
+pub fn otfcc_build_head(head: Option<&HeadTable>) -> Option<Buffer> {
+    let head = head?;
+    let mut buf = Buffer::new();
+    buf.write_u32be(head.version as u32);
+    buf.write_u32be(head.font_revision);
+    buf.write_u32be(head.check_sum_adjustment);
+    buf.write_u32be(head.magic_number);
+    buf.write_u16be(head.flags);
+    buf.write_u16be(head.units_per_em);
+    buf.write_u64be(head.created as u64);
+    buf.write_u64be(head.modified as u64);
+    buf.write_u16be(head.x_min as u16);
+    buf.write_u16be(head.y_min as u16);
+    buf.write_u16be(head.x_max as u16);
+    buf.write_u16be(head.y_max as u16);
+    buf.write_u16be(head.mac_style);
+    buf.write_u16be(head.lowest_rec_ppem);
+    buf.write_u16be(head.font_directory_hint as u16);
+    buf.write_u16be(head.index_to_loc_format as u16);
+    buf.write_u16be(head.glyph_data_format as u16);
+    Some(buf)
 }
 
 #[cfg(test)]
