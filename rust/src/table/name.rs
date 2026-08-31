@@ -5,7 +5,6 @@ use crate::logger::{
 };
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{buffree, bufnew, bufseek, bufwrite_buf, bufwrite_bytes, bufwrite16b};
 use crate::support::built_json::{
     BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
     json_object_push, json_string_new_length,
@@ -361,41 +360,30 @@ pub unsafe fn otfcc_parse_name(
     return Some(name);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_name(name: Option<&NameTable>) -> *mut Buffer {
-    let name = match name {
-        Some(n) => n,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let records: &Vec<NameRecord> = name;
-    let buf: *mut Buffer = bufnew();
-    bufwrite16b(buf, 0_u16);
-    bufwrite16b(buf, records.len() as u16);
-    bufwrite16b(buf, 0_u16);
-    let strings: *mut Buffer = bufnew();
-    let mut j: u16 = 0_u16;
-    while (j as usize) < records.len() {
-        let record: *const NameRecord = &records[j as usize];
-        bufwrite16b(buf, (*record).platform_id);
-        bufwrite16b(buf, (*record).encoding_id);
-        bufwrite16b(buf, (*record).language_id);
-        bufwrite16b(buf, (*record).name_id);
-        let cbefore: usize = (*strings).cursor;
-        if should_decode_as_utf16(record) {
-            let u16: Vec<u8> = utf8toutf16be(&(*record).name_string);
-            bufwrite_bytes(strings, u16.len(), u16.as_ptr() as *mut u8);
-        } else if should_decode_as_bytes(record) {
-            bufwrite_bytes(
-                strings,
-                (*record).name_string.len(),
-                (*record).name_string.as_ptr() as *mut u8,
-            );
-        } else if let Some(decoded) = base64_decode(&(*record).name_string) {
-            bufwrite_bytes(strings, decoded.len(), decoded.as_ptr() as *mut u8);
+pub fn otfcc_build_name(name: Option<&NameTable>) -> Option<Buffer> {
+    let records: &Vec<NameRecord> = name?;
+    let mut buf = Buffer::new();
+    buf.write_u16be(0_u16);
+    buf.write_u16be(records.len() as u16);
+    buf.write_u16be(0_u16);
+    let mut strings = Buffer::new();
+    for record in records.iter() {
+        buf.write_u16be(record.platform_id);
+        buf.write_u16be(record.encoding_id);
+        buf.write_u16be(record.language_id);
+        buf.write_u16be(record.name_id);
+        let cbefore = strings.pos();
+        if unsafe { should_decode_as_utf16(record) } {
+            let u16: Vec<u8> = unsafe { utf8toutf16be(&record.name_string) };
+            strings.write_bytes(&u16);
+        } else if unsafe { should_decode_as_bytes(record) } {
+            strings.write_bytes(&record.name_string);
+        } else if let Some(decoded) = base64_decode(&record.name_string) {
+            strings.write_bytes(&decoded);
         }
-        let cafter: usize = (*strings).cursor;
-        bufwrite16b(buf, cafter.wrapping_sub(cbefore) as u16);
-        bufwrite16b(buf, cbefore as u16);
-        j = j.wrapping_add(1);
+        let cafter = strings.pos();
+        buf.write_u16be(cafter.wrapping_sub(cbefore) as u16);
+        buf.write_u16be(cbefore as u16);
     }
     let mut copyright: Vec<u8> = crate::bytesbuild!(
         b"-- By OTFCC ",
@@ -411,13 +399,12 @@ pub unsafe fn otfcc_build_name(name: Option<&NameTable>) -> *mut Buffer {
     // history of this comment in git blame if curious); `Vec::resize`
     // has no such hazard to begin with, so there is nothing to preserve.
     copyright.resize(COPYRIGHT_LEN as usize, 0);
-    bufwrite_bytes(strings, COPYRIGHT_LEN as usize, copyright.as_ptr());
-    let strings_offset: usize = (*buf).cursor;
-    bufwrite_buf(buf, strings);
-    bufseek(buf, 4_usize);
-    bufwrite16b(buf, strings_offset as u16);
-    buffree(strings);
-    return buf;
+    strings.write_bytes(&copyright);
+    let strings_offset = buf.pos();
+    buf.write_buffer_owned(strings);
+    buf.seek(4_usize);
+    buf.write_u16be(strings_offset as u16);
+    Some(buf)
 }
 
 #[cfg(test)]

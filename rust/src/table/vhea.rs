@@ -4,7 +4,6 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
 use crate::support::built_json::{
     BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
 };
@@ -263,30 +262,27 @@ pub unsafe fn otfcc_parse_vhea(
     return vhea_box;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_vhea(vhea: Option<&VheaTable>) -> *mut Buffer {
-    let vhea = match vhea {
-        Some(v) => v as *const VheaTable,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let buf: *mut Buffer = bufnew();
-    bufwrite32b(buf, (*vhea).version as u32);
-    bufwrite16b(buf, (*vhea).ascent as u16);
-    bufwrite16b(buf, (*vhea).descent as u16);
-    bufwrite16b(buf, (*vhea).line_gap as u16);
-    bufwrite16b(buf, (*vhea).advance_height_max as u16);
-    bufwrite16b(buf, (*vhea).min_top as u16);
-    bufwrite16b(buf, (*vhea).min_bottom as u16);
-    bufwrite16b(buf, (*vhea).y_max_extent as u16);
-    bufwrite16b(buf, (*vhea).caret_slope_rise as u16);
-    bufwrite16b(buf, (*vhea).caret_slope_run as u16);
-    bufwrite16b(buf, (*vhea).caret_offset as u16);
-    bufwrite16b(buf, 0_u16);
-    bufwrite16b(buf, 0_u16);
-    bufwrite16b(buf, 0_u16);
-    bufwrite16b(buf, 0_u16);
-    bufwrite16b(buf, 0_u16);
-    bufwrite16b(buf, (*vhea).num_of_long_ver_metrics);
-    return buf;
+pub fn otfcc_build_vhea(vhea: Option<&VheaTable>) -> Option<Buffer> {
+    let vhea = vhea?;
+    let mut buf = Buffer::new();
+    buf.write_u32be(vhea.version as u32);
+    buf.write_u16be(vhea.ascent as u16);
+    buf.write_u16be(vhea.descent as u16);
+    buf.write_u16be(vhea.line_gap as u16);
+    buf.write_u16be(vhea.advance_height_max as u16);
+    buf.write_u16be(vhea.min_top as u16);
+    buf.write_u16be(vhea.min_bottom as u16);
+    buf.write_u16be(vhea.y_max_extent as u16);
+    buf.write_u16be(vhea.caret_slope_rise as u16);
+    buf.write_u16be(vhea.caret_slope_run as u16);
+    buf.write_u16be(vhea.caret_offset as u16);
+    buf.write_u16be(0_u16);
+    buf.write_u16be(0_u16);
+    buf.write_u16be(0_u16);
+    buf.write_u16be(0_u16);
+    buf.write_u16be(0_u16);
+    buf.write_u16be(vhea.num_of_long_ver_metrics);
+    Some(buf)
 }
 
 #[cfg(test)]

@@ -105,12 +105,12 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_HEAD,
-            otfcc_build_head((*font).head.as_deref()),
+            otfcc_build_head((*font).head.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_HHEA,
-            otfcc_build_hhea((*font).hhea.as_deref()),
+            otfcc_build_hhea((*font).hhea.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
@@ -125,7 +125,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_NAME,
-            otfcc_build_name((*font).name.as_ref()),
+            otfcc_build_name((*font).name.as_ref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
@@ -203,7 +203,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_VHEA,
-            otfcc_build_vhea((*font).vhea.as_deref()),
+            otfcc_build_vhea((*font).vhea.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         if (*font).vhea.is_some() && (*font).maxp.is_some() && (*font).vmtx.is_some() {
             let vmtx_counta: u16 = (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics;
