@@ -331,7 +331,13 @@ pub struct CffStack {
     pub stack: Vec<CffValue>,
     pub transient: [CffValue; TYPE2_TRANSIENT_ARRAY],
     pub index: Arity,
-    pub stem: u8,
+    // Widened from `u8` (fuzz-found bug, see `cff_parser.rs`'s hstem/vstem
+    // arm): a charstring chaining enough hstem/vstem operators pushed the
+    // real cumulative count past 255, wrapping this counter back down while
+    // `context.g.stem_h`/`stem_v` (real, unbounded `Vec`s) kept growing --
+    // the `hintmask` bit array got sized by the wrapped (small) count but
+    // indexed by the real (large) one, an out-of-bounds panic.
+    pub stem: u32,
 }
 
 // `Copy`/`Clone` dropped: `encodings: CffEncoding` now owns `Vec`s on
