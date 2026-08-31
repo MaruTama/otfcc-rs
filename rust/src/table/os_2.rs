@@ -4,7 +4,6 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite_bytes, bufwrite16b, bufwrite32b};
 use crate::support::built_json::{
     BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
     json_object_push, json_string_new_from_bytes, otfcc_dump_flags,
@@ -947,58 +946,55 @@ pub unsafe fn otfcc_parse_os_2(
     return Some(os_2_box);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_os_2(os_2: Option<&Os2Table>) -> *mut Buffer {
-    let os_2 = match os_2 {
-        Some(o) => o as *const Os2Table,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
-    let buf: *mut Buffer = bufnew();
-    bufwrite16b(buf, (*os_2).version);
-    bufwrite16b(buf, (*os_2).x_avg_char_width as u16);
-    bufwrite16b(buf, (*os_2).us_weight_class);
-    bufwrite16b(buf, (*os_2).us_width_class);
-    bufwrite16b(buf, (*os_2).fs_type);
-    bufwrite16b(buf, (*os_2).y_subscript_x_size as u16);
-    bufwrite16b(buf, (*os_2).y_subscript_y_size as u16);
-    bufwrite16b(buf, (*os_2).y_subscript_x_offset as u16);
-    bufwrite16b(buf, (*os_2).y_subscript_y_offset as u16);
-    bufwrite16b(buf, (*os_2).y_supscript_x_size as u16);
-    bufwrite16b(buf, (*os_2).y_supscript_y_size as u16);
-    bufwrite16b(buf, (*os_2).y_supscript_x_offset as u16);
-    bufwrite16b(buf, (*os_2).y_supscript_y_offset as u16);
-    bufwrite16b(buf, (*os_2).y_strikeout_size as u16);
-    bufwrite16b(buf, (*os_2).y_strikeout_position as u16);
-    bufwrite16b(buf, (*os_2).s_family_class as u16);
-    bufwrite_bytes(buf, 10_usize, &raw const (*os_2).panose as *const u8);
-    bufwrite32b(buf, (*os_2).ul_unicode_range1);
-    bufwrite32b(buf, (*os_2).ul_unicode_range2);
-    bufwrite32b(buf, (*os_2).ul_unicode_range3);
-    bufwrite32b(buf, (*os_2).ul_unicode_range4);
-    bufwrite_bytes(buf, 4_usize, &raw const (*os_2).ach_vend_id as *const u8);
-    bufwrite16b(buf, (*os_2).fs_selection);
-    bufwrite16b(buf, (*os_2).us_first_char_index);
-    bufwrite16b(buf, (*os_2).us_last_char_index);
-    bufwrite16b(buf, (*os_2).s_typo_ascender as u16);
-    bufwrite16b(buf, (*os_2).s_typo_descender as u16);
-    bufwrite16b(buf, (*os_2).s_typo_line_gap as u16);
-    bufwrite16b(buf, (*os_2).us_win_ascent);
-    bufwrite16b(buf, (*os_2).us_win_descent);
-    bufwrite32b(buf, (*os_2).ul_code_page_range1);
-    bufwrite32b(buf, (*os_2).ul_code_page_range2);
-    if ((*os_2).version as i32) < 2_i32 {
-        return buf;
+pub fn otfcc_build_os_2(os_2: Option<&Os2Table>) -> Option<Buffer> {
+    let os_2 = os_2?;
+    let mut buf = Buffer::new();
+    buf.write_u16be(os_2.version);
+    buf.write_u16be(os_2.x_avg_char_width as u16);
+    buf.write_u16be(os_2.us_weight_class);
+    buf.write_u16be(os_2.us_width_class);
+    buf.write_u16be(os_2.fs_type);
+    buf.write_u16be(os_2.y_subscript_x_size as u16);
+    buf.write_u16be(os_2.y_subscript_y_size as u16);
+    buf.write_u16be(os_2.y_subscript_x_offset as u16);
+    buf.write_u16be(os_2.y_subscript_y_offset as u16);
+    buf.write_u16be(os_2.y_supscript_x_size as u16);
+    buf.write_u16be(os_2.y_supscript_y_size as u16);
+    buf.write_u16be(os_2.y_supscript_x_offset as u16);
+    buf.write_u16be(os_2.y_supscript_y_offset as u16);
+    buf.write_u16be(os_2.y_strikeout_size as u16);
+    buf.write_u16be(os_2.y_strikeout_position as u16);
+    buf.write_u16be(os_2.s_family_class as u16);
+    buf.write_bytes(&os_2.panose);
+    buf.write_u32be(os_2.ul_unicode_range1);
+    buf.write_u32be(os_2.ul_unicode_range2);
+    buf.write_u32be(os_2.ul_unicode_range3);
+    buf.write_u32be(os_2.ul_unicode_range4);
+    buf.write_bytes(&os_2.ach_vend_id);
+    buf.write_u16be(os_2.fs_selection);
+    buf.write_u16be(os_2.us_first_char_index);
+    buf.write_u16be(os_2.us_last_char_index);
+    buf.write_u16be(os_2.s_typo_ascender as u16);
+    buf.write_u16be(os_2.s_typo_descender as u16);
+    buf.write_u16be(os_2.s_typo_line_gap as u16);
+    buf.write_u16be(os_2.us_win_ascent);
+    buf.write_u16be(os_2.us_win_descent);
+    buf.write_u32be(os_2.ul_code_page_range1);
+    buf.write_u32be(os_2.ul_code_page_range2);
+    if (os_2.version as i32) < 2_i32 {
+        return Some(buf);
     }
-    bufwrite16b(buf, (*os_2).sx_height as u16);
-    bufwrite16b(buf, (*os_2).s_cap_height as u16);
-    bufwrite16b(buf, (*os_2).us_default_char);
-    bufwrite16b(buf, (*os_2).us_break_char);
-    bufwrite16b(buf, (*os_2).us_max_context);
-    if ((*os_2).version as i32) < 5_i32 {
-        return buf;
+    buf.write_u16be(os_2.sx_height as u16);
+    buf.write_u16be(os_2.s_cap_height as u16);
+    buf.write_u16be(os_2.us_default_char);
+    buf.write_u16be(os_2.us_break_char);
+    buf.write_u16be(os_2.us_max_context);
+    if (os_2.version as i32) < 5_i32 {
+        return Some(buf);
     }
-    bufwrite16b(buf, (*os_2).us_lower_optical_point_size);
-    bufwrite16b(buf, (*os_2).us_upper_optical_point_size);
-    return buf;
+    buf.write_u16be(os_2.us_lower_optical_point_size);
+    buf.write_u16be(os_2.us_upper_optical_point_size);
+    Some(buf)
 }
 
 #[cfg(test)]
