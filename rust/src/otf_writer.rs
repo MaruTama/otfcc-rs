@@ -83,8 +83,8 @@ impl FontSerializer for OtfSerializer {
                     .as_deref_mut()
                     .map_or(::core::ptr::null_mut(), |h| h as *mut HeadTable),
             );
-            otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_GLYF, pair.glyf);
-            otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_LOCA, pair.loca);
+            otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_GLYF, pair.glyf.into_raw());
+            otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_LOCA, pair.loca.into_raw());
         } else {
             let r: CffAndGlyf = CffAndGlyf {
                 meta: (*font)

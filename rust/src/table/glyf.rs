@@ -1177,10 +1177,9 @@ pub unsafe fn otfcc_parse_glyf(
     return None;
 }
 
-#[derive(Copy, Clone)]
 pub struct GlyfAndLocaBuffers {
-    pub glyf: *mut Buffer,
-    pub loca: *mut Buffer,
+    pub glyf: Buffer,
+    pub loca: Buffer,
 }
 
 bitflags::bitflags! {

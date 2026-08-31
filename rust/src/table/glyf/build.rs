@@ -15,76 +15,64 @@ use crate::table::glyf::{
 };
 use crate::table::head::HeadTable;
 
-use crate::support::buffer::{
-    bufclear, buffree, buflen, buflongalign, bufnew, bufwrite_buf, bufwrite_bytes, bufwrite8,
-    bufwrite16b, bufwrite32b,
-};
 use crate::support::primitives::otfcc_to_f2dot14;
 use crate::vf::vq::vq_get_still;
-pub unsafe fn shrink_flags(flags: *mut Buffer) -> *mut Buffer {
-    if buflen(flags) == 0 {
+pub fn shrink_flags(flags: Buffer) -> Buffer {
+    if flags.len() == 0 {
         return flags;
     }
-    let shrunk: *mut Buffer = bufnew();
-    let flags_data: &Vec<u8> = &(*flags).data;
-    bufwrite8(shrunk, flags_data[0]);
+    let mut shrunk = Buffer::new();
+    let flags_data: &Vec<u8> = &flags.data;
+    shrunk.write_u8(flags_data[0]);
     let mut repeating: i32 = 0_i32;
     let mut j: usize = 1_usize;
-    while j < buflen(flags) {
+    while j < flags.len() {
         if flags_data[j] as i32
             == flags_data[j.wrapping_sub(1_usize)] as i32
         {
             if repeating != 0 && repeating < 0xfe_i32 {
-                let shrunk_data: &mut Vec<u8> = &mut (*shrunk).data;
-                let idx = (*shrunk).cursor.wrapping_sub(1_usize);
-                shrunk_data[idx] = shrunk_data[idx].wrapping_add(1);
+                let idx = shrunk.cursor.wrapping_sub(1_usize);
+                shrunk.data[idx] = shrunk.data[idx].wrapping_add(1);
                 repeating += 1_i32;
             } else if repeating == 0_i32 {
-                let shrunk_data: &mut Vec<u8> = &mut (*shrunk).data;
-                shrunk_data[(*shrunk).cursor.wrapping_sub(1_usize)] |= PointFlags::REPEAT.bits();
-                bufwrite8(shrunk, 1_u8);
+                let idx = shrunk.cursor.wrapping_sub(1_usize);
+                shrunk.data[idx] |= PointFlags::REPEAT.bits();
+                shrunk.write_u8(1_u8);
                 repeating += 1_i32;
             } else {
                 repeating = 0_i32;
-                bufwrite8(shrunk, flags_data[j]);
+                shrunk.write_u8(flags_data[j]);
             }
         } else {
             repeating = 0_i32;
-            bufwrite8(shrunk, flags_data[j]);
+            shrunk.write_u8(flags_data[j]);
         }
         j = j.wrapping_add(1);
     }
-    buffree(flags);
-    return shrunk;
+    shrunk
 }
 pub const EPSILON: ::core::ffi::c_double = 1e-5f64;
-unsafe fn glyf_build_simple(g: *const Glyph, gbuf: *mut Buffer) {
-    let mut flags: *mut Buffer = bufnew();
-    let xs: *mut Buffer = bufnew();
-    let ys: *mut Buffer = bufnew();
-    bufwrite16b(gbuf, (*g).contours.len() as u16);
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.x_min));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.y_min));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.x_max));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.y_max));
+unsafe fn glyf_build_simple(g: *const Glyph, gbuf: &mut Buffer) {
+    let mut flags = Buffer::new();
+    let mut xs = Buffer::new();
+    let mut ys = Buffer::new();
+    gbuf.write_u16be((*g).contours.len() as u16);
+    gbuf.write_u16be(pos_to_u16((*g).stat.x_min));
+    gbuf.write_u16be(pos_to_u16((*g).stat.y_min));
+    gbuf.write_u16be(pos_to_u16((*g).stat.x_max));
+    gbuf.write_u16be(pos_to_u16((*g).stat.y_max));
     let mut ptid: ShapeId = 0 as ShapeId;
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < (*g).contours.len() {
         ptid =
             (ptid as usize).wrapping_add((&(*g).contours)[j as usize].len()) as ShapeId as ShapeId;
-        bufwrite16b(
-            gbuf,
-            (ptid as i32 - 1_i32) as u16,
-        );
+        gbuf.write_u16be((ptid as i32 - 1_i32) as u16);
         j = j.wrapping_add(1);
     }
-    bufwrite16b(gbuf, (*g).instructions.len() as u16);
+    gbuf.write_u16be((*g).instructions.len() as u16);
     if !(*g).instructions.is_empty() {
-        bufwrite_bytes(gbuf, (*g).instructions.len(), (*g).instructions.as_ptr());
+        gbuf.write_bytes(&(*g).instructions);
     }
-    bufclear(flags);
-    bufclear(xs);
-    bufclear(ys);
     let mut cx: i32 = 0_i32;
     let mut cy: i32 = 0_i32;
     let mut cj: ShapeId = 0 as ShapeId;
@@ -109,12 +97,12 @@ unsafe fn glyf_build_simple(g: *const Glyph, gbuf: *mut Buffer) {
                 flag.insert(PointFlags::X_SHORT);
                 if dx as i32 > 0_i32 {
                     flag.insert(PointFlags::POSITIVE_X);
-                    bufwrite8(xs, dx as u8);
+                    xs.write_u8(dx as u8);
                 } else {
-                    bufwrite8(xs, -(dx as i32) as u8);
+                    xs.write_u8(-(dx as i32) as u8);
                 }
             } else {
-                bufwrite16b(xs, dx as u16);
+                xs.write_u16be(dx as u16);
             }
             if dy as i32 == 0_i32 {
                 flag.insert(PointFlags::SAME_Y);
@@ -124,34 +112,31 @@ unsafe fn glyf_build_simple(g: *const Glyph, gbuf: *mut Buffer) {
                 flag.insert(PointFlags::Y_SHORT);
                 if dy as i32 > 0_i32 {
                     flag.insert(PointFlags::POSITIVE_Y);
-                    bufwrite8(ys, dy as u8);
+                    ys.write_u8(dy as u8);
                 } else {
-                    bufwrite8(ys, -(dy as i32) as u8);
+                    ys.write_u8(-(dy as i32) as u8);
                 }
             } else {
-                bufwrite16b(ys, dy as u16);
+                ys.write_u16be(dy as u16);
             }
-            bufwrite8(flags, flag.bits());
+            flags.write_u8(flag.bits());
             cx = px;
             cy = py;
             k = k.wrapping_add(1);
         }
         cj = cj.wrapping_add(1);
     }
-    flags = shrink_flags(flags);
-    bufwrite_buf(gbuf, flags);
-    bufwrite_buf(gbuf, xs);
-    bufwrite_buf(gbuf, ys);
-    buffree(flags);
-    buffree(xs);
-    buffree(ys);
+    let flags = shrink_flags(flags);
+    gbuf.write_buffer(&flags);
+    gbuf.write_buffer(&xs);
+    gbuf.write_buffer(&ys);
 }
-unsafe fn glyf_build_composite(g: *const Glyph, gbuf: *mut Buffer) {
-    bufwrite16b(gbuf, -1_i32 as u16);
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.x_min));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.y_min));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.x_max));
-    bufwrite16b(gbuf, pos_to_u16((*g).stat.y_max));
+unsafe fn glyf_build_composite(g: *const Glyph, gbuf: &mut Buffer) {
+    gbuf.write_u16be(-1_i32 as u16);
+    gbuf.write_u16be(pos_to_u16((*g).stat.x_min));
+    gbuf.write_u16be(pos_to_u16((*g).stat.y_min));
+    gbuf.write_u16be(pos_to_u16((*g).stat.x_max));
+    gbuf.write_u16be(pos_to_u16((*g).stat.y_max));
     let mut rj: ShapeId = 0 as ShapeId;
     while (rj as usize) < (*g).references.len() {
         let r: *const ComponentReference = &(&(*g).references)[rj as usize];
@@ -217,52 +202,31 @@ unsafe fn glyf_build_composite(g: *const Glyph, gbuf: *mut Buffer) {
             flags.insert(ComponentFlags::USE_MY_METRICS);
         }
         flags.insert(ComponentFlags::UNSCALED_COMPONENT_OFFSET);
-        bufwrite16b(gbuf, flags.bits());
-        bufwrite16b(gbuf, (*r).glyph.index as u16);
+        gbuf.write_u16be(flags.bits());
+        gbuf.write_u16be((*r).glyph.index as u16);
         if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
-            bufwrite16b(gbuf, arg1);
-            bufwrite16b(gbuf, arg2);
+            gbuf.write_u16be(arg1);
+            gbuf.write_u16be(arg2);
         } else {
-            bufwrite8(gbuf, arg1 as u8);
-            bufwrite8(gbuf, arg2 as u8);
+            gbuf.write_u8(arg1 as u8);
+            gbuf.write_u8(arg2 as u8);
         }
         if flags.contains(ComponentFlags::WE_HAVE_A_SCALE) {
-            bufwrite16b(
-                gbuf,
-                otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u16,
-            );
+            gbuf.write_u16be(otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u16);
         } else if flags.contains(ComponentFlags::WE_HAVE_AN_X_AND_Y_SCALE) {
-            bufwrite16b(
-                gbuf,
-                otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u16,
-            );
-            bufwrite16b(
-                gbuf,
-                otfcc_to_f2dot14((*r).d as ::core::ffi::c_double) as u16,
-            );
+            gbuf.write_u16be(otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u16);
+            gbuf.write_u16be(otfcc_to_f2dot14((*r).d as ::core::ffi::c_double) as u16);
         } else if flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO) {
-            bufwrite16b(
-                gbuf,
-                otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u16,
-            );
-            bufwrite16b(
-                gbuf,
-                otfcc_to_f2dot14((*r).b as ::core::ffi::c_double) as u16,
-            );
-            bufwrite16b(
-                gbuf,
-                otfcc_to_f2dot14((*r).c as ::core::ffi::c_double) as u16,
-            );
-            bufwrite16b(
-                gbuf,
-                otfcc_to_f2dot14((*r).d as ::core::ffi::c_double) as u16,
-            );
+            gbuf.write_u16be(otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u16);
+            gbuf.write_u16be(otfcc_to_f2dot14((*r).b as ::core::ffi::c_double) as u16);
+            gbuf.write_u16be(otfcc_to_f2dot14((*r).c as ::core::ffi::c_double) as u16);
+            gbuf.write_u16be(otfcc_to_f2dot14((*r).d as ::core::ffi::c_double) as u16);
         }
         rj = rj.wrapping_add(1);
     }
     if !(*g).instructions.is_empty() {
-        bufwrite16b(gbuf, (*g).instructions.len() as u16);
-        bufwrite_bytes(gbuf, (*g).instructions.len(), (*g).instructions.as_ptr());
+        gbuf.write_u16be((*g).instructions.len() as u16);
+        gbuf.write_bytes(&(*g).instructions);
     }
 }
 #[allow(improper_ctypes_definitions)]
@@ -271,27 +235,27 @@ pub unsafe fn otfcc_build_glyf(
     head: *mut HeadTable,
 ) -> GlyfAndLocaBuffers {
     let table: *const GlyfTable = table.map_or(::core::ptr::null(), |t| t as *const GlyfTable);
-    let bufglyf: *mut Buffer = bufnew();
-    let bufloca: *mut Buffer = bufnew();
+    let mut bufglyf = Buffer::new();
+    let mut bufloca = Buffer::new();
     if !table.is_null() && !head.is_null() {
-        let gbuf: *mut Buffer = bufnew();
+        let mut gbuf = Buffer::new();
         let mut loca: Vec<u32> = vec![0; (*table).len().wrapping_add(1_usize)];
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*table).len() {
-            loca[j as usize] = (*bufglyf).cursor as u32;
+            loca[j as usize] = bufglyf.pos() as u32;
             let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
-            bufclear(gbuf);
+            gbuf.clear();
             if !(*g).contours.is_empty() {
-                glyf_build_simple(g, gbuf);
+                glyf_build_simple(g, &mut gbuf);
             } else if !(*g).references.is_empty() {
-                glyf_build_composite(g, gbuf);
+                glyf_build_composite(g, &mut gbuf);
             }
-            buflongalign(gbuf);
-            bufwrite_buf(bufglyf, gbuf);
+            gbuf.long_align();
+            bufglyf.write_buffer(&gbuf);
             j = j.wrapping_add(1);
         }
-        loca[(*table).len()] = (*bufglyf).cursor as u32;
-        if (*bufglyf).cursor >= 0x20000_i32 as usize {
+        loca[(*table).len()] = bufglyf.pos() as u32;
+        if bufglyf.pos() >= 0x20000_i32 as usize {
             (*head).index_to_loc_format = 1_i16;
         } else {
             (*head).index_to_loc_format = 0_i16;
@@ -299,16 +263,12 @@ pub unsafe fn otfcc_build_glyf(
         let mut j_0: u32 = 0_u32;
         while j_0 as usize <= (*table).len() {
             if (*head).index_to_loc_format != 0 {
-                bufwrite32b(bufloca, loca[j_0 as usize]);
+                bufloca.write_u32be(loca[j_0 as usize]);
             } else {
-                bufwrite16b(
-                    bufloca,
-                    (loca[j_0 as usize] >> 1_i32) as u16,
-                );
+                bufloca.write_u16be((loca[j_0 as usize] >> 1_i32) as u16);
             }
             j_0 = j_0.wrapping_add(1);
         }
-        buffree(gbuf);
     }
     let pair: GlyfAndLocaBuffers = GlyfAndLocaBuffers {
         glyf: bufglyf,
