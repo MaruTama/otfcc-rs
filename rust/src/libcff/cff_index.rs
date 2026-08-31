@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{buffree, bufnew, bufwrite8, bufwrite_bytes};
+use crate::support::buffer::{bufnew, bufwrite8, bufwrite_bytes};
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::Arity;
 
@@ -216,17 +216,21 @@ pub(crate) unsafe fn extract_index(
         (*in_0).data = Vec::new();
     }
 }
-// No longer `extern "C"`: this callback varies at each call site
-// (`libcff/subr.rs`'s `from_array`, `table/cff.rs`'s
-// `callback_makestringindex`/`callback_makefd`), but none of them ever
-// cross the crate's real FFI boundary (`ffi/dll.rs`) -- purely internal
-// Rust-to-Rust indirect calls, so the default (non-`extern "C"`) function
-// pointer ABI works identically here, same reasoning as `cff_dict.rs`'s
-// `parse_to_callback`.
+// Was a `context: *mut c_void` + function-pointer pair (three call sites,
+// each with a genuinely different context shape: `subr.rs`'s `from_array`
+// walked an existing `Vec<Buffer>` via `.offset()`, `table/cff.rs`'s
+// `callback_makestringindex` indexed a `Vec<*mut Buffer>`, and
+// `callback_makefd` built a fresh `Buffer` per call from an
+// `FdArrayCompileContext`). All three call in strictly increasing `i`
+// order, once each -- an `impl Iterator<Item = Buffer>` replaces the
+// `void*` erasure entirely: each call site now builds an iterator that
+// matches its own real type directly, no shared context struct needed.
+// This also folds in what used to be the callback's own allocation +
+// this function's matching `buffree`: the iterator yields owned
+// `Buffer`s, each consumed (and dropped) exactly once per `.next()`.
 pub(crate) unsafe fn new_index_by_callback(
-    context: *mut ::core::ffi::c_void,
     length: u32,
-    fn_0: Option<unsafe fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer>,
+    mut items: impl Iterator<Item = Buffer>,
 ) -> *mut CffIndex {
     let idx: *mut CffIndex = (cff_index_create)();
     (*idx).count = length as Arity;
@@ -237,8 +241,8 @@ pub(crate) unsafe fn new_index_by_callback(
     let mut blank: usize = 0_usize;
     let mut i: Arity = 0 as Arity;
     while i < length {
-        let blob: *mut Buffer = fn_0.expect("non-null function pointer")(context, i as u32);
-        let blob_size: usize = (*blob).data.len();
+        let blob: Buffer = items.next().expect("iterator shorter than length");
+        let blob_size: usize = blob.data.len();
         if blank < blob_size {
             used = used.wrapping_add(blob_size);
             blank = used >> 1_i32 & 0xffffff_i32 as usize;
@@ -250,8 +254,7 @@ pub(crate) unsafe fn new_index_by_callback(
         let write_at: usize = (offset[i as usize] as usize).wrapping_sub(1_usize);
         offset[i.wrapping_add(1 as Arity) as usize] =
             blob_size.wrapping_add(offset[i as usize] as usize) as u32;
-        data[write_at..write_at.wrapping_add(blob_size)].copy_from_slice(&(*blob).data);
-        buffree(blob);
+        data[write_at..write_at.wrapping_add(blob_size)].copy_from_slice(&blob.data);
         i = i.wrapping_add(1);
     }
     data.truncate(used);
