@@ -62,7 +62,7 @@ use crate::libcff::charstring_il::{cff_compile_glyph_to_il, cff_optimize_il};
 use crate::libcff::subr::{
     cff_il_graph_to_buffers, cff_insert_il_to_graph, cff_subr_graph_dispose, cff_subr_graph_init,
 };
-use crate::support::buffer::{buffree, bufnew, bufnwrite8, bufwrite_bufdel};
+use crate::support::buffer::{buffree, bufnew, bufwrite_bufdel};
 use crate::support::built_json::{
     BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new,
     json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key,
@@ -202,11 +202,6 @@ pub struct CffCharstringBuilderContext {
     pub nominal_width_x: u16,
     pub options: *const Options,
     pub graph: CffSubrGraph,
-}
-#[derive(Copy, Clone)]
-pub struct FdArrayCompileContext {
-    pub fd_array: *const Vec<Box<CffTable>>,
-    pub string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 }
 pub static DEFAULT_BLUE_SCALE: ::core::ffi::c_double = 0.039625f64;
 pub static DEFAULT_BLUE_SHIFT: ::core::ffi::c_double =
@@ -2288,38 +2283,17 @@ unsafe fn cff_make_private_dict(pd: *mut CffPrivateDict) -> *mut CffDict {
     cffdict_input_doubles(dict, OP_NOMINAL_WIDTH_X, &[((*pd).nominal_width_x)]);
     return dict;
 }
-unsafe fn callback_makestringindex(
-    context: *mut ::core::ffi::c_void,
-    i: u32,
-) -> *mut Buffer {
-    let blobs: *mut *mut Buffer = context as *mut *mut Buffer;
-    return *blobs.offset(i as isize);
-}
 unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> *mut Buffer {
     let n: u32 = (*h).len() as u32;
-    // `blobs` was `__caryll_allocate_clean`'d/`free`'d, holding just the
-    // pointer array `callback_makestringindex` indexes into through its
-    // `*mut c_void` context -- freeing it (now: dropping the `Vec`) never
-    // touches the `Buffer`s it points to, which `from_callback`/`build`
-    // below consume on their own.
-    let mut blobs: Vec<*mut Buffer> = Vec::with_capacity(n as usize);
     // `IndexMap`'s iteration order is insertion order, which is SID
     // order by construction (`sidof` assigns each new string the next
     // sequential SID), so no separate sort step is needed here the way
     // the original's `HASH_SORT` (via `by_sid`) was.
-    for (_, value) in ::core::mem::take(&mut *h) {
-        let blob: *mut Buffer = bufnew();
-        bufnwrite8(blob, &value);
-        blobs.push(blob);
-    }
-    let strings: *mut CffIndex = new_index_by_callback(
-        blobs.as_mut_ptr() as *mut ::core::ffi::c_void,
-        n,
-        Some(
-            callback_makestringindex
-                as unsafe fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer,
-        ),
-    );
+    let blobs: Vec<Buffer> = ::core::mem::take(&mut *h)
+        .into_iter()
+        .map(|(_, value)| Buffer::from_bytes(&value))
+        .collect();
+    let strings: *mut CffIndex = new_index_by_callback(n, blobs.into_iter());
     let final_blob: *mut Buffer = build_index(strings);
     cff_index_free(strings);
     return final_blob;
@@ -2422,43 +2396,32 @@ unsafe fn cff_make_fdselect(cff: *mut CffTable, glyf: *mut GlyfTable) -> *mut Bu
     let e: *mut Buffer = cff_build_fd_select(&fds).into_raw();
     return e;
 }
-unsafe fn callback_makefd(
-    mut _context: *mut ::core::ffi::c_void,
+unsafe fn compile_fd_buffer(
+    fd_array: &[Box<CffTable>],
+    string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
     i: u32,
-) -> *mut Buffer {
-    let context: *mut FdArrayCompileContext = _context as *mut FdArrayCompileContext;
+) -> Buffer {
     let fd: *mut CffDict = cff_make_fd_dict(
-        (&(*(*context).fd_array))[i as usize].as_ref() as *const CffTable as *mut CffTable,
-        (*context).string_hash,
+        fd_array[i as usize].as_ref() as *const CffTable as *mut CffTable,
+        string_hash,
     );
-    let blob: *mut Buffer = build_dict(fd).into_raw();
-    bufwrite_bufdel(
-        blob,
-        cff_build_offset(0xeeeeeeee as ::core::ffi::c_uint as i32).into_raw(),
-    );
-    bufwrite_bufdel(
-        blob,
-        cff_build_offset(0xffffffff as ::core::ffi::c_uint as i32).into_raw(),
-    );
-    bufwrite_bufdel(blob, cff_encode_cff_operator(OP_PRIVATE).into_raw());
+    let mut blob: Buffer = build_dict(fd);
+    blob.write_buffer_owned(cff_build_offset(0xeeeeeeee_u32 as i32));
+    blob.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
+    blob.write_buffer_owned(cff_encode_cff_operator(OP_PRIVATE));
     cff_dict_free(fd);
-    return blob;
+    blob
 }
 unsafe fn cff_make_fdarray(
     fd_array: *const Vec<Box<CffTable>>,
     string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> *mut CffIndex {
-    let mut context: FdArrayCompileContext = FdArrayCompileContext {
-        fd_array: ::core::ptr::null::<Vec<Box<CffTable>>>(),
-        string_hash: ::core::ptr::null_mut::<indexmap::IndexMap<Vec<u8>, Vec<u8>>>(),
-    };
-    context.fd_array = fd_array;
-    context.string_hash = string_hash;
-    return new_index_by_callback(
-        &raw mut context as *mut ::core::ffi::c_void,
-        (*fd_array).len() as u32,
-        Some(callback_makefd as unsafe fn(*mut ::core::ffi::c_void, u32) -> *mut Buffer),
-    );
+    let fd_slice: &[Box<CffTable>] = &*fd_array;
+    let len = fd_slice.len() as u32;
+    new_index_by_callback(
+        len,
+        (0..len).map(|i| unsafe { compile_fd_buffer(fd_slice, string_hash, i) }),
+    )
 }
 unsafe fn writecff_cid_keyed(
     cff: *mut CffTable,
