@@ -931,9 +931,9 @@ pub unsafe fn cff_il_graph_to_buffers(
     for entry in lsubrs.iter_mut().take(max_l_subrs as usize) {
         entry.data = Vec::new();
     }
-    *s = build_index(is);
-    *gs = build_index(igs);
-    *ls = build_index(ils);
+    *s = build_index(is).into_raw();
+    *gs = build_index(igs).into_raw();
+    *ls = build_index(ils).into_raw();
     cff_index_free(is);
     cff_index_free(igs);
     cff_index_free(ils);
