@@ -726,10 +726,38 @@ unsafe fn ends_with_end_char(g: &CffSubrGraph, rule: RuleId) -> bool {
         return ends_with_end_char(g, n.rule.unwrap());
     };
 }
+// A selector for which buffer a `serialize_node_to_buffer` call should
+// write to, resolved to an actual `&mut Buffer` fresh at each use point
+// via `resolve_subr_ref` instead of being held as a borrow across the
+// recursive call below. Holding a real `&mut Buffer` into `lsubrs`/
+// `gsubrs` (the original's `target: *mut Buffer = &raw mut lsubrs[number]`)
+// across a call that *also* takes `lsubrs`/`gsubrs` themselves is exactly
+// the aliasing the borrow checker rejects; a `Copy` selector plus deferred
+// resolution sidesteps it -- each `resolve_subr_ref(...)` call's borrow
+// ends at the end of its own statement, so nothing overlaps the recursion.
+#[derive(Clone, Copy)]
+enum SubrRef {
+    Top,
+    LSubr(usize),
+    GSubr(usize),
+}
+fn resolve_subr_ref<'a>(
+    r: SubrRef,
+    top: &'a mut Buffer,
+    gsubrs: &'a mut [Buffer],
+    lsubrs: &'a mut [Buffer],
+) -> &'a mut Buffer {
+    match r {
+        SubrRef::Top => top,
+        SubrRef::LSubr(i) => &mut lsubrs[i],
+        SubrRef::GSubr(i) => &mut gsubrs[i],
+    }
+}
 unsafe fn serialize_node_to_buffer(
     g: &mut CffSubrGraph,
     node: NodeId,
-    buf: *mut Buffer,
+    buf: SubrRef,
+    top: &mut Buffer,
     gsubrs: &mut [Buffer],
     max_g_subrs: u32,
     lsubrs: &mut [Buffer],
@@ -748,21 +776,21 @@ unsafe fn serialize_node_to_buffer(
             && number < max_l_subrs.wrapping_add(max_g_subrs)
             && r_height < TYPE2_SUBR_NESTING
         {
-            let target: *mut Buffer;
+            let target: SubrRef;
             if number < max_l_subrs {
                 let stacknum: i32 =
                     number.wrapping_sub(subroutine_bias(max_l_subrs as i32) as u32) as i32;
-                target = &raw mut lsubrs[number as usize];
-                cff_merge_cs2_int(unsafe { &mut *buf }, stacknum);
-                cff_merge_cs2_operator(unsafe { &mut *buf }, OP_CALLSUBR);
+                target = SubrRef::LSubr(number as usize);
+                cff_merge_cs2_int(resolve_subr_ref(buf, top, gsubrs, lsubrs), stacknum);
+                cff_merge_cs2_operator(resolve_subr_ref(buf, top, gsubrs, lsubrs), OP_CALLSUBR);
             } else {
                 let stacknum_0: i32 = number
                     .wrapping_sub(max_l_subrs)
                     .wrapping_sub(subroutine_bias(max_g_subrs as i32) as u32)
                     as i32;
-                target = &raw mut gsubrs[number.wrapping_sub(max_l_subrs) as usize];
-                cff_merge_cs2_int(unsafe { &mut *buf }, stacknum_0);
-                cff_merge_cs2_operator(unsafe { &mut *buf }, OP_CALLGSUBR);
+                target = SubrRef::GSubr(number.wrapping_sub(max_l_subrs) as usize);
+                cff_merge_cs2_int(resolve_subr_ref(buf, top, gsubrs, lsubrs), stacknum_0);
+                cff_merge_cs2_operator(resolve_subr_ref(buf, top, gsubrs, lsubrs), OP_CALLGSUBR);
             }
             if !g.rule(r).printed {
                 g.rule_mut(r).printed = true;
@@ -774,6 +802,7 @@ unsafe fn serialize_node_to_buffer(
                         g,
                         e,
                         target,
+                        top,
                         gsubrs,
                         max_g_subrs,
                         lsubrs,
@@ -782,7 +811,10 @@ unsafe fn serialize_node_to_buffer(
                     e = next;
                 }
                 if !ends_with_end_char(g, r) {
-                    cff_merge_cs2_operator(unsafe { &mut *target }, OP_RETURN);
+                    cff_merge_cs2_operator(
+                        resolve_subr_ref(target, top, gsubrs, lsubrs),
+                        OP_RETURN,
+                    );
                 }
             }
         } else {
@@ -790,12 +822,14 @@ unsafe fn serialize_node_to_buffer(
             let mut e_0 = g.node(guard).next.unwrap();
             while e_0 != guard {
                 let next = g.node(e_0).next.unwrap();
-                serialize_node_to_buffer(g, e_0, buf, gsubrs, max_g_subrs, lsubrs, max_l_subrs);
+                serialize_node_to_buffer(
+                    g, e_0, buf, top, gsubrs, max_g_subrs, lsubrs, max_l_subrs,
+                );
                 e_0 = next;
             }
         }
     } else {
-        bufwrite_buf(buf, terminal);
+        resolve_subr_ref(buf, top, gsubrs, lsubrs).write_buffer(unsafe { &*terminal });
     };
 }
 pub unsafe fn cff_il_graph_to_buffers(
@@ -864,7 +898,8 @@ pub unsafe fn cff_il_graph_to_buffers(
         serialize_node_to_buffer(
             g,
             e,
-            char_strings.as_mut_ptr().add(j as usize),
+            SubrRef::Top,
+            &mut char_strings[j as usize],
             &mut gsubrs[..],
             max_g_subrs,
             &mut lsubrs[..],
