@@ -639,9 +639,12 @@ pub unsafe fn cff_parse_outline(
                                 ),
                             );
                         }
-                        (*stack).stem = ((*stack).stem as Arity)
-                            .wrapping_add((*stack).index >> 1_i32)
-                            as u8;
+                        // `saturating_add`, not `wrapping_add`: this counter
+                        // sizes the `hintmask`/`cntrmask` bit array below and
+                        // must never wrap back down to a small value while
+                        // `stem_h`/`stem_v` (unbounded, real counts) keep
+                        // growing -- see the `stem` field's doc comment.
+                        (*stack).stem = (*stack).stem.saturating_add((*stack).index >> 1_i32);
                         hint_base = 0_i32 as ::core::ffi::c_double;
                         let mut j: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
                         while (j as Arity) < (*stack).index {
@@ -672,9 +675,12 @@ pub unsafe fn cff_parse_outline(
                         }
                         let is_vertical: bool =
                             (*stack).stem as i32 > 0_i32;
-                        (*stack).stem = ((*stack).stem as Arity)
-                            .wrapping_add((*stack).index >> 1_i32)
-                            as u8;
+                        // `saturating_add`, not `wrapping_add`: this counter
+                        // sizes the `hintmask`/`cntrmask` bit array below and
+                        // must never wrap back down to a small value while
+                        // `stem_h`/`stem_v` (unbounded, real counts) keep
+                        // growing -- see the `stem` field's doc comment.
+                        (*stack).stem = (*stack).stem.saturating_add((*stack).index >> 1_i32);
                         let mut hint_base_0: ::core::ffi::c_double =
                             0_i32 as ::core::ffi::c_double;
                         let mut j_0: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
@@ -3048,6 +3054,71 @@ mod cff_parse_outline_hintmask_tests {
         // before doing anything observable) -- `stem` reflects the one
         // hint pair pushed before the truncated `hintmask`.
         assert_eq!(stack.stem, 1);
+    }
+
+    // A second, independent fuzz-found crash in this same op family: a
+    // charstring chaining enough `hstem` operators to push the *real*
+    // cumulative hint count (tracked by `context.g.stem_h`, an unbounded
+    // `Vec`) past 255, while `(*stack).stem` -- back when it was a `u8`
+    // used to size the `hintmask` bit array -- silently wrapped back down
+    // to a small value at the same point. `callback_draw_setmask` then
+    // indexed the undersized array using the real (large) `stem_h.len()`,
+    // an out-of-bounds panic (`table/cff.rs`, CI-found: "index out of
+    // bounds: the len is 74 but the index is 716").
+    //
+    // 256 single-hint `hstem` calls (push 0, push 0, `hstem`) push exactly
+    // 256 real entries into `stem_h` -- old `u8` arithmetic wrapped
+    // `255 + 1` back to `0`; `stem` is now `u32` and must read back the
+    // true 256.
+    #[test]
+    fn chained_hstem_operators_past_255_do_not_wrap_the_hint_count() {
+        let mut data: Vec<u8> = Vec::new();
+        for _ in 0..256 {
+            data.extend_from_slice(&[139, 139, 1]); // push 0, push 0, hstem
+        }
+        data.push(19); // hintmask
+        // mask_length = (256 + 7) >> 3 = 32 bytes.
+        data.extend_from_slice(&[0u8; 32]);
+        let len = data.len() as u32;
+        let gsubr = empty_cff_index();
+        let lsubr = empty_cff_index();
+        let mut stack = CffStack {
+            stack: vec![CffValue::Unset; 512],
+            transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
+            index: 0,
+            stem: 0,
+        };
+        let options = Options::default();
+        let mut total_calls: u32 = 0;
+        unsafe {
+            let g_ptr = Box::into_raw(otfcc_new_glyf_glyph());
+            let mut ctx = OutlineBuilderContext {
+                g: g_ptr,
+                j_contour: 0,
+                j_point: 0,
+                default_width_x: 0.0,
+                nominal_width_x: 0.0,
+                defined_h_stems: 0,
+                defined_v_stems: 0,
+                defined_hint_masks: 0,
+                defined_contour_masks: 0,
+                randx: 0,
+            };
+            cff_parse_outline(
+                data.as_mut_ptr(),
+                len,
+                &gsubr,
+                &lsubr,
+                &raw mut stack,
+                &raw mut ctx as *mut ::core::ffi::c_void,
+                &options,
+                0,
+                &raw mut total_calls,
+            );
+            assert_eq!((*ctx.g).stem_h.len(), 256);
+            drop(Box::from_raw(g_ptr));
+        }
+        assert_eq!(stack.stem, 256);
     }
 }
 
