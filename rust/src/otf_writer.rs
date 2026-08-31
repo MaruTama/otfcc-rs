@@ -115,7 +115,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_OS_2,
-            otfcc_build_os_2((*font).os_2.as_deref()),
+            otfcc_build_os_2((*font).os_2.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
