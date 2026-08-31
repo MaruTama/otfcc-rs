@@ -15,9 +15,6 @@ use crate::table::otl::{
 };
 
 use crate::support::aglfn::aglfn_setup_names;
-use crate::support::buffer::{
-    buffree, buflen, bufnew, bufwrite_bytes, bufwrite8, bufwrite16b, bufwrite32b,
-};
 use crate::support::glyph_order::{
     gord_lookup_name, otfcc_glyph_order_create, otfcc_glyph_order_free,
     otfcc_gord_name_a_field_shared, otfcc_set_glyph_order_by_gid,
@@ -32,158 +29,120 @@ use crate::vf::vq::{vq_create_still, vq_inplace_plus};
 pub struct GlyphHash {
     pub hash: [u8; 20],
 }
-unsafe fn hash_vqs(buf: *mut Buffer, s: VqSegment) {
-    bufwrite8(buf, s.discriminant_byte());
+unsafe fn hash_vqs(buf: &mut Buffer, s: VqSegment) {
+    buf.write_u8(s.discriminant_byte());
     match s {
         VqSegment::Still(still) => {
-            bufwrite32b(buf, otfcc_to_fixed(still as ::core::ffi::c_double) as u32);
+            buf.write_u32be(otfcc_to_fixed(still as ::core::ffi::c_double) as u32);
         }
         VqSegment::Delta(delta) => {
-            bufwrite32b(
-                buf,
-                otfcc_to_fixed(delta.quantity as ::core::ffi::c_double) as u32,
-            );
-            bufwrite32b(buf, (*delta.region).dimensions as u32);
+            buf.write_u32be(otfcc_to_fixed(delta.quantity as ::core::ffi::c_double) as u32);
+            buf.write_u32be((*delta.region).dimensions as u32);
             for j in 0..(*delta.region).dimensions as usize {
                 let span: *const VqAxisSpan = &(&(*delta.region).spans)[j];
-                bufwrite32b(
-                    buf,
-                    otfcc_to_f2dot14((*span).start as ::core::ffi::c_double) as u32,
-                );
-                bufwrite32b(
-                    buf,
-                    otfcc_to_f2dot14((*span).peak as ::core::ffi::c_double) as u32,
-                );
-                bufwrite32b(
-                    buf,
-                    otfcc_to_f2dot14((*span).end as ::core::ffi::c_double) as u32,
-                );
+                buf.write_u32be(otfcc_to_f2dot14((*span).start as ::core::ffi::c_double) as u32);
+                buf.write_u32be(otfcc_to_f2dot14((*span).peak as ::core::ffi::c_double) as u32);
+                buf.write_u32be(otfcc_to_f2dot14((*span).end as ::core::ffi::c_double) as u32);
             }
         }
     }
 }
-unsafe fn hash_vq(buf: *mut Buffer, x: VQ) {
-    bufwrite32b(
-        buf,
-        otfcc_to_fixed(x.kernel as ::core::ffi::c_double) as u32,
-    );
-    bufwrite32b(buf, x.shift.len() as u32);
+unsafe fn hash_vq(buf: &mut Buffer, x: VQ) {
+    buf.write_u32be(otfcc_to_fixed(x.kernel as ::core::ffi::c_double) as u32);
+    buf.write_u32be(x.shift.len() as u32);
     for j in 0..x.shift.len() {
         hash_vqs(buf, x.shift[j]);
     }
 }
 pub unsafe fn name_glyph_by_hash(g: *const Glyph, glyf: *const GlyfTable) -> GlyphHash {
-    let buf: *mut Buffer = bufnew();
-    bufwrite8(buf, 'H' as i32 as u8);
+    let mut buf = Buffer::new();
+    let buf = &mut buf;
+    buf.write_u8('H' as i32 as u8);
     hash_vq(buf, (*g).advance_width.clone());
-    bufwrite8(buf, 'h' as i32 as u8);
+    buf.write_u8('h' as i32 as u8);
     hash_vq(buf, (*g).horizontal_origin.clone());
-    bufwrite8(buf, 'V' as i32 as u8);
+    buf.write_u8('V' as i32 as u8);
     hash_vq(buf, (*g).advance_height.clone());
-    bufwrite8(buf, 'v' as i32 as u8);
+    buf.write_u8('v' as i32 as u8);
     hash_vq(buf, (*g).vertical_origin.clone());
-    bufwrite8(buf, 'C' as i32 as u8);
-    bufwrite8(buf, '(' as i32 as u8);
+    buf.write_u8('C' as i32 as u8);
+    buf.write_u8('(' as i32 as u8);
     for j in 0..(*g).contours.len() {
-        bufwrite8(buf, '(' as i32 as u8);
+        buf.write_u8('(' as i32 as u8);
         let c: *const Contour = &(&(*g).contours)[j];
         for k in 0..(*c).len() {
             let point = &(&(*c))[k];
             hash_vq(buf, point.x.clone());
             hash_vq(buf, point.y.clone());
-            bufwrite8(buf, (point.on_curve != 0) as u8);
+            buf.write_u8((point.on_curve != 0) as u8);
         }
-        bufwrite8(buf, ')' as i32 as u8);
+        buf.write_u8(')' as i32 as u8);
     }
-    bufwrite8(buf, ')' as i32 as u8);
-    bufwrite8(buf, 'R' as i32 as u8);
-    bufwrite8(buf, '(' as i32 as u8);
+    buf.write_u8(')' as i32 as u8);
+    buf.write_u8('R' as i32 as u8);
+    buf.write_u8('(' as i32 as u8);
     for j in 0..(*g).references.len() {
         let r: *const ComponentReference = &(&(*g).references)[j];
-        let mut h: GlyphHash = name_glyph_by_hash(
+        let h: GlyphHash = name_glyph_by_hash(
             (&(*glyf))[(*r).glyph.index as usize].as_deref().unwrap() as *const Glyph,
             glyf,
         );
-        bufwrite_bytes(buf, SHA1_BLOCK_SIZE as usize, &raw mut h.hash as *mut u8);
+        buf.write_bytes(&h.hash);
         hash_vq(buf, (*r).x.clone());
         hash_vq(buf, (*r).y.clone());
-        bufwrite32b(
-            buf,
-            otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u32,
-        );
-        bufwrite32b(
-            buf,
-            otfcc_to_f2dot14((*r).b as ::core::ffi::c_double) as u32,
-        );
-        bufwrite32b(
-            buf,
-            otfcc_to_f2dot14((*r).c as ::core::ffi::c_double) as u32,
-        );
-        bufwrite32b(
-            buf,
-            otfcc_to_f2dot14((*r).d as ::core::ffi::c_double) as u32,
-        );
+        buf.write_u32be(otfcc_to_f2dot14((*r).a as ::core::ffi::c_double) as u32);
+        buf.write_u32be(otfcc_to_f2dot14((*r).b as ::core::ffi::c_double) as u32);
+        buf.write_u32be(otfcc_to_f2dot14((*r).c as ::core::ffi::c_double) as u32);
+        buf.write_u32be(otfcc_to_f2dot14((*r).d as ::core::ffi::c_double) as u32);
     }
-    bufwrite8(buf, ')' as i32 as u8);
-    bufwrite8(buf, 's' as i32 as u8);
-    bufwrite8(buf, 'H' as i32 as u8);
-    bufwrite8(buf, '(' as i32 as u8);
+    buf.write_u8(')' as i32 as u8);
+    buf.write_u8('s' as i32 as u8);
+    buf.write_u8('H' as i32 as u8);
+    buf.write_u8('(' as i32 as u8);
     for stem in (*g).stem_h.iter() {
-        bufwrite32b(
-            buf,
-            otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32,
-        );
-        bufwrite32b(
-            buf,
-            otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32,
-        );
+        buf.write_u32be(otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32);
+        buf.write_u32be(otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32);
     }
-    bufwrite8(buf, ')' as i32 as u8);
-    bufwrite8(buf, 's' as i32 as u8);
-    bufwrite8(buf, 'V' as i32 as u8);
-    bufwrite8(buf, '(' as i32 as u8);
+    buf.write_u8(')' as i32 as u8);
+    buf.write_u8('s' as i32 as u8);
+    buf.write_u8('V' as i32 as u8);
+    buf.write_u8('(' as i32 as u8);
     for stem in (*g).stem_v.iter() {
-        bufwrite32b(
-            buf,
-            otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32,
-        );
-        bufwrite32b(
-            buf,
-            otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32,
-        );
+        buf.write_u32be(otfcc_to_fixed(stem.position as ::core::ffi::c_double) as u32);
+        buf.write_u32be(otfcc_to_fixed(stem.width as ::core::ffi::c_double) as u32);
     }
-    bufwrite8(buf, ')' as i32 as u8);
-    bufwrite8(buf, 'm' as i32 as u8);
-    bufwrite8(buf, 'H' as i32 as u8);
-    bufwrite8(buf, '(' as i32 as u8);
+    buf.write_u8(')' as i32 as u8);
+    buf.write_u8('m' as i32 as u8);
+    buf.write_u8('H' as i32 as u8);
+    buf.write_u8('(' as i32 as u8);
     for mask in (*g).hint_masks.iter() {
-        bufwrite16b(buf, mask.contours_before);
-        bufwrite16b(buf, mask.points_before);
+        buf.write_u16be(mask.contours_before);
+        buf.write_u16be(mask.points_before);
         for k in 0..(*g).stem_h.len() {
-            bufwrite8(buf, mask.mask_h[k] as u8);
+            buf.write_u8(mask.mask_h[k] as u8);
         }
         for k in 0..(*g).stem_v.len() {
-            bufwrite8(buf, mask.mask_v[k] as u8);
+            buf.write_u8(mask.mask_v[k] as u8);
         }
     }
-    bufwrite8(buf, ')' as i32 as u8);
-    bufwrite8(buf, 'm' as i32 as u8);
-    bufwrite8(buf, 'C' as i32 as u8);
-    bufwrite8(buf, '(' as i32 as u8);
+    buf.write_u8(')' as i32 as u8);
+    buf.write_u8('m' as i32 as u8);
+    buf.write_u8('C' as i32 as u8);
+    buf.write_u8('(' as i32 as u8);
     for mask in (*g).contour_masks.iter() {
-        bufwrite16b(buf, mask.contours_before);
-        bufwrite16b(buf, mask.points_before);
+        buf.write_u16be(mask.contours_before);
+        buf.write_u16be(mask.points_before);
         for k in 0..(*g).stem_h.len() {
-            bufwrite8(buf, mask.mask_h[k] as u8);
+            buf.write_u8(mask.mask_h[k] as u8);
         }
         for k in 0..(*g).stem_v.len() {
-            bufwrite8(buf, mask.mask_v[k] as u8);
+            buf.write_u8(mask.mask_v[k] as u8);
         }
     }
-    bufwrite8(buf, ')' as i32 as u8);
-    bufwrite8(buf, 'I' as i32 as u8);
-    bufwrite32b(buf, (*g).instructions.len() as u32);
-    bufwrite_bytes(buf, (*g).instructions.len(), (*g).instructions.as_ptr());
+    buf.write_u8(')' as i32 as u8);
+    buf.write_u8('I' as i32 as u8);
+    buf.write_u32be((*g).instructions.len() as u32);
+    buf.write_bytes(&(*g).instructions);
     let mut ctx: Sha1Ctx = Sha1Ctx {
         data: [0; 64],
         datalen: 0,
@@ -193,13 +152,12 @@ pub unsafe fn name_glyph_by_hash(g: *const Glyph, glyf: *const GlyfTable) -> Gly
     };
     let mut hash: [u8; 20] = [0; 20];
     sha1_init(&raw mut ctx);
-    sha1_update(&raw mut ctx, (*buf).data.as_ptr() as *const BYTE, buflen(buf));
+    sha1_update(&raw mut ctx, buf.data.as_ptr() as *const BYTE, buf.len());
     sha1_final(&raw mut ctx, &raw mut hash as *mut BYTE);
     let mut h_0: GlyphHash = GlyphHash { hash: [0; 20] };
     for j in 0..SHA1_BLOCK_SIZE as usize {
         h_0.hash[j] = hash[j];
     }
-    buffree(buf);
     return h_0;
 }
 unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOrder {
