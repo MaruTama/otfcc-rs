@@ -313,6 +313,23 @@ pub unsafe fn consolidate_glyph(g: *mut Glyph, font: *mut Font, options: &Option
         &(*g).name,
     );
 }
+// `get_point_coordinates` and `consolidate_anchor_ref` (below) are
+// mutually recursive over a composite glyph's `references` graph -- a
+// fuzz-found font whose composite glyphs formed a reference cycle (glyph A
+// includes B as a component, B includes A) sent this pair recursing
+// forever, an AddressSanitizer-confirmed stack overflow. The existing
+// `RefAnchorStatus::AnchorConsolidating*` state machine already catches
+// cycles specifically in *anchor*-type references (see the "Found
+// circular reference..." log below), but `get_point_coordinates`'s own
+// walk over a glyph's `references` (searching for point index `n`) had no
+// such guard. `depth` counts stack frames across both functions (each
+// recursive call, whichever function makes it, increments by exactly 1),
+// so this bound covers both recursion paths, not just the anchor one.
+// 10 matches TYPE2_SUBR_NESTING's precedent elsewhere in this crate --
+// real fonts' composite nesting never approaches double digits, and
+// running out of budget only means "point not found" (mirrors the
+// existing cycle-detection return), never a wrong-but-silent answer.
+pub const MAX_COMPONENT_REFERENCE_DEPTH: u32 = 10;
 pub unsafe fn get_point_coordinates(
     table: *mut GlyfTable,
     gr: *mut ComponentReference,
@@ -321,7 +338,11 @@ pub unsafe fn get_point_coordinates(
     x: *mut VQ,
     y: *mut VQ,
     options: &Options,
+    depth: u32,
 ) -> bool {
+    if depth >= MAX_COMPONENT_REFERENCE_DEPTH {
+        return false;
+    }
     let j: GlyphId = (*gr).glyph.index;
     let g: *mut Glyph = &raw mut **(&mut (*table))[j as usize].as_mut().unwrap();
     let mut c: ShapeId = 0 as ShapeId;
@@ -360,7 +381,7 @@ pub unsafe fn get_point_coordinates(
     let mut r: ShapeId = 0 as ShapeId;
     while (r as usize) < (*g).references.len() {
         let rr: *mut ComponentReference = &raw mut (&mut (*g).references)[r as usize];
-        consolidate_anchor_ref(table, gr, rr, options);
+        consolidate_anchor_ref(table, gr, rr, options, depth + 1);
         let mut ref_0: ComponentReference = (glyf_component_reference_empty)();
         ref_0.glyph = handle_from_index((&(*g).references)[r as usize].glyph.index) as GlyphHandle;
         ref_0.a = (*gr).a * (*rr).a + (*rr).b * (*gr).c;
@@ -388,7 +409,7 @@ pub unsafe fn get_point_coordinates(
             ) as VQ,
         );
         let success: bool =
-            get_point_coordinates(table, &raw mut ref_0, n, stated, x, y, options);
+            get_point_coordinates(table, &raw mut ref_0, n, stated, x, y, options, depth + 1);
         // `ref_0` is a plain owned local; every field auto-drops when it
         // goes out of scope here (or at the `return true` below), so no
         // explicit dispose call is needed.
@@ -404,7 +425,12 @@ pub unsafe fn consolidate_anchor_ref(
     gr: *mut ComponentReference,
     rr: *mut ComponentReference,
     options: &Options,
+    depth: u32,
 ) -> bool {
+    if depth >= MAX_COMPONENT_REFERENCE_DEPTH {
+        (*rr).is_anchored = RefAnchorStatus::Xy;
+        return false;
+    }
     if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidated
         || (*rr).is_anchored == RefAnchorStatus::Xy
     {
@@ -445,6 +471,7 @@ pub unsafe fn consolidate_anchor_ref(
         &raw mut outer_x,
         &raw mut outer_y,
         options,
+        depth + 1,
     );
     let s2: bool = get_point_coordinates(
         table,
@@ -454,6 +481,7 @@ pub unsafe fn consolidate_anchor_ref(
         &raw mut inner_x,
         &raw mut inner_y,
         options,
+        depth + 1,
     );
     if !s1 {
         logger_log_sds(
@@ -560,7 +588,7 @@ pub unsafe fn consolidate_glyf(font: *mut Font, options: &Options) {
             let mut r: ShapeId = 0 as ShapeId;
             while (r as usize) < (*g).references.len() {
                 let rr: *mut ComponentReference = &raw mut (&mut (*g).references)[r as usize];
-                consolidate_anchor_ref(glyf, &raw mut gr, rr, options);
+                consolidate_anchor_ref(glyf, &raw mut gr, rr, options, 0);
                 r = r.wrapping_add(1);
             }
             // `gr` is a plain owned local; every field auto-drops when it
@@ -1455,5 +1483,85 @@ mod consolidate_otl_table_tests {
         assert!(table.languages[0].required_feature.is_null());
         assert!(table.features.is_empty());
         assert!(table.lookups.is_empty());
+    }
+}
+
+#[cfg(test)]
+mod composite_reference_cycle_tests {
+    use super::*;
+
+    // A fuzz-found font whose composite glyphs formed a reference cycle
+    // (glyph 0 includes glyph 1 as a component, glyph 1 includes glyph 0)
+    // sent get_point_coordinates/consolidate_anchor_ref recursing forever
+    // -- an AddressSanitizer-confirmed stack overflow (found by CI's fuzz
+    // job on an unrelated PR). Two glyphs, each with one plain (non-
+    // anchor) reference to the other -- no anchor points needed to
+    // reproduce get_point_coordinates's own unbounded self-recursion.
+    unsafe fn cyclic_glyf_table() -> GlyfTable {
+        let mut g0 = otfcc_new_glyf_glyph();
+        g0.references.push(reference_to(1));
+        let mut g1 = otfcc_new_glyf_glyph();
+        g1.references.push(reference_to(0));
+        vec![Some(g0), Some(g1)]
+    }
+
+    unsafe fn reference_to(gid: GlyphId) -> ComponentReference {
+        let mut r = glyf_component_reference_empty();
+        r.glyph = handle_from_index(gid);
+        r.a = 1.;
+        r.d = 1.;
+        r
+    }
+
+    #[test]
+    fn get_point_coordinates_stops_at_a_reference_cycle_instead_of_overflowing_the_stack() {
+        unsafe {
+            let mut table = cyclic_glyf_table();
+            let options = Options::default();
+            let mut gr = reference_to(0);
+            let mut stated: ShapeId = 0;
+            let mut x = vq_neutral();
+            let mut y = vq_neutral();
+            // Point index 999 doesn't exist anywhere in this table, so a
+            // correctly-terminating search must walk every reachable
+            // reference (following the cycle up to the depth budget) and
+            // then report "not found" -- reaching this assertion at all,
+            // rather than the test process crashing, is the regression
+            // signal.
+            let found = get_point_coordinates(
+                &raw mut table,
+                &raw mut gr,
+                999,
+                &raw mut stated,
+                &raw mut x,
+                &raw mut y,
+                &options,
+                0,
+            );
+            assert!(!found);
+        }
+    }
+
+    #[test]
+    fn consolidate_anchor_ref_stops_at_a_reference_cycle_instead_of_overflowing_the_stack() {
+        unsafe {
+            let mut table = cyclic_glyf_table();
+            let options = Options::default();
+            let mut gr = reference_to(0);
+            let mut rr = reference_to(1);
+            rr.is_anchored = RefAnchorStatus::AnchorAnchor;
+            rr.outer = 999;
+            rr.inner = 999;
+            // `consolidate_anchor_ref` always returns `false` at its own
+            // end regardless of whether the anchor points it looked for
+            // were found -- reaching this assertion at all (rather than
+            // the test process crashing) is the regression signal. The
+            // point search inside it (via get_point_coordinates) still
+            // has to walk the cycle up to the depth budget before giving
+            // up, which is exactly the path that used to overflow.
+            let resolved = consolidate_anchor_ref(&raw mut table, &raw mut gr, &raw mut rr, &options, 0);
+            assert!(!resolved);
+            assert_eq!(rr.is_anchored, RefAnchorStatus::AnchorConsolidated);
+        }
     }
 }
