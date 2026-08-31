@@ -26,7 +26,7 @@ use crate::libcff::{
     OP_UNDERLINE_POSITION, OP_UNDERLINE_THICKNESS, OP_VERSION, OP_WEIGHT,
 };
 use crate::logger::{logger_finish, logger_start_sds};
-use crate::support::buffer::{Buffer, bufninit};
+use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 use crate::support::primitives::{
     Arity, CffSid, FontFilePointer, GlyphId, Pos, Scale, ShapeId, TableId,
@@ -62,7 +62,7 @@ use crate::libcff::charstring_il::{cff_compile_glyph_to_il, cff_optimize_il};
 use crate::libcff::subr::{
     cff_il_graph_to_buffers, cff_insert_il_to_graph, cff_subr_graph_dispose, cff_subr_graph_init,
 };
-use crate::support::buffer::{buffree, bufnew, bufwrite_bufdel};
+use crate::support::buffer::bufnew;
 use crate::support::built_json::{
     BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new,
     json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key,
@@ -2283,7 +2283,7 @@ unsafe fn cff_make_private_dict(pd: *mut CffPrivateDict) -> *mut CffDict {
     cffdict_input_doubles(dict, OP_NOMINAL_WIDTH_X, &[((*pd).nominal_width_x)]);
     return dict;
 }
-unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> *mut Buffer {
+unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> Buffer {
     let n: u32 = (*h).len() as u32;
     // `IndexMap`'s iteration order is insertion order, which is SID
     // order by construction (`sidof` assigns each new string the next
@@ -2294,11 +2294,11 @@ unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) 
         .map(|(_, value)| Buffer::from_bytes(&value))
         .collect();
     let strings: *mut CffIndex = new_index_by_callback(n, blobs.into_iter());
-    let final_blob: *mut Buffer = build_index(strings);
+    let final_blob = build_index(strings);
     cff_index_free(strings);
     return final_blob;
 }
-unsafe fn cff_compile_nameindex(cff: *mut CffTable) -> *mut Buffer {
+unsafe fn cff_compile_nameindex(cff: *mut CffTable) -> Buffer {
     let name_index: *mut CffIndex = (cff_index_create)();
     (*name_index).count = 1 as Arity;
     (*name_index).off_size = 4_u8;
@@ -2315,7 +2315,7 @@ unsafe fn cff_compile_nameindex(cff: *mut CffTable) -> *mut Buffer {
     let mut name_data: Vec<u8> = (*cff).font_name.clone();
     name_data.push(0_u8);
     (*name_index).data = name_data;
-    let buf: *mut Buffer = build_index(name_index);
+    let buf = build_index(name_index);
     cff_index_free(name_index);
     (*cff).font_name = Vec::new();
     return buf;
@@ -2324,7 +2324,7 @@ unsafe fn cff_make_charset(
     cff: *mut CffTable,
     glyf: *mut GlyfTable,
     string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
-) -> *mut Buffer {
+) -> Buffer {
     let charset: CffCharset = if (*glyf).len() > 1_usize {
         let (first, nleft) = if (*cff).is_cid {
             (1_u16, (*glyf).len().wrapping_sub(2_usize) as u16)
@@ -2349,17 +2349,16 @@ unsafe fn cff_make_charset(
     } else {
         CffCharset::IsoAdobe
     };
-    let c: *mut Buffer = cff_build_charset(&charset).into_raw();
-    return c;
+    return cff_build_charset(&charset);
 }
 // The `range3` array's final length isn't pre-counted anymore -- a `Vec`
 // absorbs the counting pass, same as `Coverage`/`ClassDef`/`gpos_pair.rs`'s
 // own scratch-buffer conversions. `.s`'s old dual role (a running write
 // cursor through the loop, overwritten with the final range count right
 // after) collapses into a single sequential `.push()` per transition.
-unsafe fn cff_make_fdselect(cff: *mut CffTable, glyf: *mut GlyfTable) -> *mut Buffer {
+unsafe fn cff_make_fdselect(cff: *mut CffTable, glyf: *mut GlyfTable) -> Buffer {
     if !(*cff).is_cid {
-        return bufnew();
+        return Buffer::new();
     }
     let fds: CffFdSelect = if !(*glyf).is_empty() {
         let mut fdi0: u8 = (&(*glyf))[0_usize].as_deref().unwrap().fd_select.index as u8;
@@ -2393,8 +2392,7 @@ unsafe fn cff_make_fdselect(cff: *mut CffTable, glyf: *mut GlyfTable) -> *mut Bu
     } else {
         CffFdSelect::Unspecified
     };
-    let e: *mut Buffer = cff_build_fd_select(&fds).into_raw();
-    return e;
+    return cff_build_fd_select(&fds);
 }
 unsafe fn compile_fd_buffer(
     fd_array: &[Box<CffTable>],
@@ -2427,7 +2425,7 @@ unsafe fn writecff_cid_keyed(
     cff: *mut CffTable,
     mut glyf: *mut GlyfTable,
     options: &Options,
-) -> *mut Buffer {
+) -> Buffer {
     // `glyf` is null when the font has a `CFF_` table but no `glyf` table
     // at all (e.g. `{"CFF_": {}}`) -- every function below this point
     // dereferences it unconditionally, assuming a present-but-possibly-
@@ -2438,12 +2436,12 @@ unsafe fn writecff_cid_keyed(
     if glyf.is_null() {
         glyf = &raw mut empty_glyf;
     }
-    let blob: *mut Buffer = bufnew();
+    let mut blob = Buffer::new();
     let mut string_hash: indexmap::IndexMap<Vec<u8>, Vec<u8>> = indexmap::IndexMap::new();
-    let h: *mut Buffer = cff_build_header().into_raw();
-    let n: *mut Buffer = cff_compile_nameindex(cff);
+    let h = cff_build_header();
+    let n = cff_compile_nameindex(cff);
     let top: *mut CffDict = cff_make_fd_dict(cff, &raw mut string_hash);
-    let t: *mut Buffer = build_dict(top).into_raw();
+    let t = build_dict(top);
     cff_dict_free(top);
     let top_pd: *mut CffDict = cff_make_private_dict(
         (*cff)
@@ -2451,27 +2449,24 @@ unsafe fn writecff_cid_keyed(
             .as_deref_mut()
             .map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict),
     );
-    let p: *mut Buffer = build_dict(top_pd).into_raw();
-    bufwrite_bufdel(
-        p,
-        cff_build_offset(0xffffffff as ::core::ffi::c_uint as i32).into_raw(),
-    );
-    bufwrite_bufdel(p, cff_encode_cff_operator(OP_SUBRS).into_raw());
+    let mut p = build_dict(top_pd);
+    p.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
+    p.write_buffer_owned(cff_encode_cff_operator(OP_SUBRS));
     cff_dict_free(top_pd);
-    let e: *mut Buffer = cff_make_fdselect(cff, glyf);
+    let e = cff_make_fdselect(cff, glyf);
     let mut fd_array_index: *mut CffIndex = ::core::ptr::null_mut::<CffIndex>();
-    let mut r: *mut Buffer;
+    let mut r: Buffer;
     if (*cff).is_cid {
         fd_array_index = cff_make_fdarray(&raw const (*cff).fd_array, &raw mut string_hash);
         r = build_index(fd_array_index);
     } else {
-        r = bufnew();
+        r = Buffer::new();
     }
-    let c: *mut Buffer = cff_make_charset(cff, glyf, &raw mut string_hash);
-    let i: *mut Buffer = cffstrings_to_indexblob(&raw mut string_hash);
-    let mut s: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-    let mut gs: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-    let mut ls: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
+    let c = cff_make_charset(cff, glyf, &raw mut string_hash);
+    let i = cffstrings_to_indexblob(&raw mut string_hash);
+    let mut s_ptr: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
+    let mut gs_ptr: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
+    let mut ls_ptr: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     let mut g2c_context: CffCharstringBuilderContext = CffCharstringBuilderContext {
         glyf: ::core::ptr::null_mut::<GlyfTable>(),
         default_width: 0,
@@ -2485,99 +2480,100 @@ unsafe fn writecff_cid_keyed(
     g2c_context.options = options as *const Options;
     cff_subr_graph_init(&raw mut g2c_context.graph);
     g2c_context.graph.do_subroutinize = options.cff_do_subroutinize;
-    cff_make_charstrings(&raw mut g2c_context, &raw mut s, &raw mut gs, &raw mut ls);
+    cff_make_charstrings(&raw mut g2c_context, &raw mut s_ptr, &raw mut gs_ptr, &raw mut ls_ptr);
     cff_subr_graph_dispose(&raw mut g2c_context.graph);
+    // `cff_make_charstrings` always fills these three (either via
+    // `cff_il_graph_to_buffers`, or its own 0-glyph shortcut) -- never
+    // left null, so `.unwrap()` here mirrors the unconditional
+    // dereferences the original made of them.
+    let s = Buffer::from_raw(s_ptr).unwrap();
+    let gs = Buffer::from_raw(gs_ptr).unwrap();
+    let ls = Buffer::from_raw(ls_ptr).unwrap();
     let mut additional_top_dict_ops_size: u32 = 0_u32;
-    let mut off: u32 = (*h)
-        .data
+    let mut off: u32 = h
         .len()
-        .wrapping_add((*n).data.len())
+        .wrapping_add(n.len())
         .wrapping_add(11_usize)
-        .wrapping_add((*t).data.len()) as u32;
-    if (*c).data.len() != 0_usize {
+        .wrapping_add(t.len()) as u32;
+    if c.len() != 0_usize {
         additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(6_u32);
     }
-    if (*e).data.len() != 0_usize {
+    if e.len() != 0_usize {
         additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(7_u32);
     }
-    if (*s).data.len() != 0_usize {
+    if s.len() != 0_usize {
         additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(6_u32);
     }
-    if (*p).data.len() != 0_usize {
+    if p.len() != 0_usize {
         additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(11_u32);
     }
-    if (*r).data.len() != 0_usize {
+    if r.len() != 0_usize {
         additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(7_u32);
     }
-    bufwrite_bufdel(blob, h);
-    bufwrite_bufdel(blob, n);
-    let delta_size: i32 = (*t)
-        .data
+    blob.write_buffer_owned(h);
+    blob.write_buffer_owned(n);
+    let delta_size: i32 = t
         .len()
         .wrapping_add(additional_top_dict_ops_size as usize)
         .wrapping_add(1_usize) as u32 as i32;
-    bufwrite_bufdel(
-        blob,
-        bufninit(&[
-            0_u8,
-            1_u8,
-            4_u8,
-            0_u8,
-            0_u8,
-            0_u8,
-            1_u8,
-            (delta_size >> 24_i32 & 0xff_i32) as u8,
-            (delta_size >> 16_i32 & 0xff_i32) as u8,
-            (delta_size >> 8_i32 & 0xff_i32) as u8,
-            (delta_size & 0xff_i32) as u8,
-        ]),
-    );
-    bufwrite_bufdel(blob, t);
+    blob.write_buffer_owned(Buffer::from_bytes(&[
+        0_u8,
+        1_u8,
+        4_u8,
+        0_u8,
+        0_u8,
+        0_u8,
+        1_u8,
+        (delta_size >> 24_i32 & 0xff_i32) as u8,
+        (delta_size >> 16_i32 & 0xff_i32) as u8,
+        (delta_size >> 8_i32 & 0xff_i32) as u8,
+        (delta_size & 0xff_i32) as u8,
+    ]));
+    blob.write_buffer_owned(t);
     off = (off as usize).wrapping_add(
         (additional_top_dict_ops_size as usize)
-            .wrapping_add((*i).data.len())
-            .wrapping_add((*gs).data.len()),
+            .wrapping_add(i.len())
+            .wrapping_add(gs.len()),
     ) as u32 as u32;
-    if (*c).data.len() != 0_usize {
-        bufwrite_bufdel(blob, cff_build_offset(off as i32).into_raw());
-        bufwrite_bufdel(blob, cff_encode_cff_operator(OP_CHARSET).into_raw());
-        off = (off as usize).wrapping_add((*c).data.len()) as u32;
+    if c.len() != 0_usize {
+        blob.write_buffer_owned(cff_build_offset(off as i32));
+        blob.write_buffer_owned(cff_encode_cff_operator(OP_CHARSET));
+        off = (off as usize).wrapping_add(c.len()) as u32;
     }
-    if (*e).data.len() != 0_usize {
-        bufwrite_bufdel(blob, cff_build_offset(off as i32).into_raw());
-        bufwrite_bufdel(blob, cff_encode_cff_operator(OP_FD_SELECT).into_raw());
-        off = (off as usize).wrapping_add((*e).data.len()) as u32;
+    if e.len() != 0_usize {
+        blob.write_buffer_owned(cff_build_offset(off as i32));
+        blob.write_buffer_owned(cff_encode_cff_operator(OP_FD_SELECT));
+        off = (off as usize).wrapping_add(e.len()) as u32;
     }
-    if (*s).data.len() != 0_usize {
-        bufwrite_bufdel(blob, cff_build_offset(off as i32).into_raw());
-        bufwrite_bufdel(blob, cff_encode_cff_operator(OP_CHAR_STRINGS).into_raw());
-        off = (off as usize).wrapping_add((*s).data.len()) as u32 as u32;
+    if s.len() != 0_usize {
+        blob.write_buffer_owned(cff_build_offset(off as i32));
+        blob.write_buffer_owned(cff_encode_cff_operator(OP_CHAR_STRINGS));
+        off = (off as usize).wrapping_add(s.len()) as u32 as u32;
     }
-    if (*p).data.len() != 0_usize {
-        bufwrite_bufdel(blob, cff_build_offset((*p).data.len() as u32 as i32).into_raw());
-        bufwrite_bufdel(blob, cff_build_offset(off as i32).into_raw());
-        bufwrite_bufdel(blob, cff_encode_cff_operator(OP_PRIVATE).into_raw());
-        off = (off as usize).wrapping_add((*p).data.len()) as u32 as u32;
+    if p.len() != 0_usize {
+        blob.write_buffer_owned(cff_build_offset(p.len() as u32 as i32));
+        blob.write_buffer_owned(cff_build_offset(off as i32));
+        blob.write_buffer_owned(cff_encode_cff_operator(OP_PRIVATE));
+        off = (off as usize).wrapping_add(p.len()) as u32 as u32;
     }
-    if (*r).data.len() != 0_usize {
-        bufwrite_bufdel(blob, cff_build_offset(off as i32).into_raw());
-        bufwrite_bufdel(blob, cff_encode_cff_operator(OP_FD_ARRAY).into_raw());
-        off = (off as usize).wrapping_add((*r).data.len()) as u32;
+    if r.len() != 0_usize {
+        blob.write_buffer_owned(cff_build_offset(off as i32));
+        blob.write_buffer_owned(cff_encode_cff_operator(OP_FD_ARRAY));
+        off = (off as usize).wrapping_add(r.len()) as u32;
     }
-    bufwrite_bufdel(blob, i);
-    bufwrite_bufdel(blob, gs);
-    bufwrite_bufdel(blob, c);
-    bufwrite_bufdel(blob, e);
-    bufwrite_bufdel(blob, s);
+    blob.write_buffer_owned(i);
+    blob.write_buffer_owned(gs);
+    blob.write_buffer_owned(c);
+    blob.write_buffer_owned(e);
+    blob.write_buffer_owned(s);
     let mut starting_position_of_privates: Vec<usize> = vec![0; 1 + (*cff).fd_array.len()];
-    starting_position_of_privates[0] = (*blob).cursor;
-    bufwrite_bufdel(blob, p);
+    starting_position_of_privates[0] = blob.pos();
+    blob.write_buffer_owned(p);
     let mut ending_position_of_privates: Vec<usize> = vec![0; 1 + (*cff).fd_array.len()];
-    ending_position_of_privates[0] = (*blob).cursor;
+    ending_position_of_privates[0] = blob.pos();
     if (*cff).is_cid {
         let mut fd_array_privates_start_offset: u32 = off;
-        let mut fd_array_privates: Vec<*mut Buffer> =
-            vec![::core::ptr::null_mut::<Buffer>(); (*cff).fd_array.len()];
+        let mut fd_array_privates: Vec<Buffer> = Vec::with_capacity((*cff).fd_array.len());
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*cff).fd_array.len() {
             let pd: *mut CffDict = cff_make_private_dict(
@@ -2586,26 +2582,22 @@ unsafe fn writecff_cid_keyed(
                     .as_deref_mut()
                     .map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict),
             );
-            let p_0: *mut Buffer = build_dict(pd).into_raw();
-            bufwrite_bufdel(
-                p_0,
-                cff_build_offset(0xffffffff as ::core::ffi::c_uint as i32).into_raw(),
-            );
-            bufwrite_bufdel(p_0, cff_encode_cff_operator(OP_SUBRS).into_raw());
+            let mut p_0 = build_dict(pd);
+            p_0.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
+            p_0.write_buffer_owned(cff_encode_cff_operator(OP_SUBRS));
             cff_dict_free(pd);
-            fd_array_privates[j as usize] = p_0;
             let private_length_off: usize = {
                 let fd_array_offset = &(*fd_array_index).offset;
                 (fd_array_offset[(j as i32 + 1_i32) as usize]).wrapping_sub(11_u32) as usize
             };
             (&mut (*fd_array_index).data)[private_length_off] =
-                ((*p_0).data.len() >> 24_i32 & 0xff_usize) as u8;
+                (p_0.len() >> 24_i32 & 0xff_usize) as u8;
             (&mut (*fd_array_index).data)[private_length_off + 1] =
-                ((*p_0).data.len() >> 16_i32 & 0xff_usize) as u8;
+                (p_0.len() >> 16_i32 & 0xff_usize) as u8;
             (&mut (*fd_array_index).data)[private_length_off + 2] =
-                ((*p_0).data.len() >> 8_i32 & 0xff_usize) as u8;
+                (p_0.len() >> 8_i32 & 0xff_usize) as u8;
             (&mut (*fd_array_index).data)[private_length_off + 3] =
-                ((*p_0).data.len() & 0xff_usize) as u8;
+                (p_0.len() & 0xff_usize) as u8;
             let private_offset_off: usize = {
                 let fd_array_offset = &(*fd_array_index).offset;
                 (fd_array_offset[(j as i32 + 1_i32) as usize]).wrapping_sub(6_u32) as usize
@@ -2619,26 +2611,24 @@ unsafe fn writecff_cid_keyed(
             (&mut (*fd_array_index).data)[private_offset_off + 3] =
                 (fd_array_privates_start_offset & 0xff_u32) as u8;
             fd_array_privates_start_offset = (fd_array_privates_start_offset as usize)
-                .wrapping_add((*p_0).data.len()) as u32
+                .wrapping_add(p_0.len()) as u32
                 as u32;
+            fd_array_privates.push(p_0);
             j = j.wrapping_add(1);
         }
-        buffree(r);
         r = build_index(fd_array_index);
         cff_index_free(fd_array_index);
-        bufwrite_bufdel(blob, r);
-        let mut j_0: TableId = 0 as TableId;
-        while (j_0 as usize) < (*cff).fd_array.len() {
-            starting_position_of_privates[(j_0 as usize) + 1] = (*blob).cursor;
-            bufwrite_bufdel(blob, fd_array_privates[j_0 as usize]);
-            ending_position_of_privates[(j_0 as usize) + 1] = (*blob).cursor;
-            j_0 = j_0.wrapping_add(1);
+        blob.write_buffer_owned(r);
+        for (j_0, p_0) in fd_array_privates.into_iter().enumerate() {
+            starting_position_of_privates[j_0 + 1] = blob.pos();
+            blob.write_buffer_owned(p_0);
+            ending_position_of_privates[j_0 + 1] = blob.pos();
         }
     } else {
-        bufwrite_bufdel(blob, r);
+        blob.write_buffer_owned(r);
     }
-    let position_of_local_subroutines: usize = (*blob).cursor;
-    bufwrite_bufdel(blob, ls);
+    let position_of_local_subroutines: usize = blob.pos();
+    blob.write_buffer_owned(ls);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as i32)
         < (*cff).fd_array.len() as i32 + 1_i32
@@ -2646,16 +2636,16 @@ unsafe fn writecff_cid_keyed(
         let ls_offset: usize =
             position_of_local_subroutines.wrapping_sub(starting_position_of_privates[j_1 as usize]);
         let ptr_off: usize = (ending_position_of_privates[j_1 as usize]).wrapping_sub(5_usize);
-        (&mut (*blob).data)[ptr_off] = (ls_offset >> 24_i32 & 0xff_usize) as u8;
-        (&mut (*blob).data)[ptr_off + 1] = (ls_offset >> 16_i32 & 0xff_usize) as u8;
-        (&mut (*blob).data)[ptr_off + 2] = (ls_offset >> 8_i32 & 0xff_usize) as u8;
-        (&mut (*blob).data)[ptr_off + 3] = (ls_offset & 0xff_usize) as u8;
+        blob.data[ptr_off] = (ls_offset >> 24_i32 & 0xff_usize) as u8;
+        blob.data[ptr_off + 1] = (ls_offset >> 16_i32 & 0xff_usize) as u8;
+        blob.data[ptr_off + 2] = (ls_offset >> 8_i32 & 0xff_usize) as u8;
+        blob.data[ptr_off + 3] = (ls_offset & 0xff_usize) as u8;
         j_1 = j_1.wrapping_add(1);
     }
     return blob;
 }
 pub unsafe fn otfcc_build_cff(cff_and_glyf: CffAndGlyf, options: &Options) -> *mut Buffer {
-    return writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options);
+    return writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options).into_raw();
 }
 #[inline]
 unsafe fn json_from_sds(str: &[u8]) -> *mut BuiltValue {

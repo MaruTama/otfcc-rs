@@ -1,6 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{bufnew, bufwrite8, bufwrite_bytes};
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::Arity;
 
@@ -263,12 +262,12 @@ pub(crate) unsafe fn new_index_by_callback(
     (*idx).off_size = 4_u8;
     return idx;
 }
-pub(crate) unsafe fn build_index(index: *const CffIndex) -> *mut Buffer {
-    let blob: *mut Buffer = bufnew();
+pub(crate) unsafe fn build_index(index: *const CffIndex) -> Buffer {
+    let mut blob = Buffer::new();
     if (*index).count == 0 {
-        bufwrite8(blob, 0_u8);
-        bufwrite8(blob, 0_u8);
-        bufwrite8(blob, 0_u8);
+        blob.write_u8(0_u8);
+        blob.write_u8(0_u8);
+        blob.write_u8(0_u8);
         return blob;
     }
     let offset = &(*index).offset;
@@ -283,49 +282,31 @@ pub(crate) unsafe fn build_index(index: *const CffIndex) -> *mut Buffer {
     } else {
         off_size = 4_u8;
     }
-    bufwrite8(blob, (*index).count.wrapping_div(256 as Arity) as u8);
-    bufwrite8(blob, (*index).count.wrapping_rem(256 as Arity) as u8);
-    bufwrite8(blob, off_size);
+    blob.write_u8((*index).count.wrapping_div(256 as Arity) as u8);
+    blob.write_u8((*index).count.wrapping_rem(256 as Arity) as u8);
+    blob.write_u8(off_size);
     if (*index).count > 0 as Arity {
         let mut i: Arity = 0 as Arity;
         while i <= (*index).count {
             let offset_i: u32 = offset[i as usize];
             match off_size as i32 {
                 1 => {
-                    bufwrite8(blob, offset_i as u8);
+                    blob.write_u8(offset_i as u8);
                 }
                 2 => {
-                    bufwrite8(blob, offset_i.wrapping_div(256_u32) as u8);
-                    bufwrite8(blob, offset_i.wrapping_rem(256_u32) as u8);
+                    blob.write_u8(offset_i.wrapping_div(256_u32) as u8);
+                    blob.write_u8(offset_i.wrapping_rem(256_u32) as u8);
                 }
                 3 => {
-                    bufwrite8(blob, offset_i.wrapping_div(65536_u32) as u8);
-                    bufwrite8(
-                        blob,
-                        offset_i.wrapping_rem(65536_u32).wrapping_div(256_u32) as u8,
-                    );
-                    bufwrite8(
-                        blob,
-                        offset_i.wrapping_rem(65536_u32).wrapping_rem(256_u32) as u8,
-                    );
+                    blob.write_u8(offset_i.wrapping_div(65536_u32) as u8);
+                    blob.write_u8(offset_i.wrapping_rem(65536_u32).wrapping_div(256_u32) as u8);
+                    blob.write_u8(offset_i.wrapping_rem(65536_u32).wrapping_rem(256_u32) as u8);
                 }
                 4 => {
-                    bufwrite8(
-                        blob,
-                        offset_i.wrapping_div(65536_u32).wrapping_div(256_u32) as u8,
-                    );
-                    bufwrite8(
-                        blob,
-                        offset_i.wrapping_div(65536_u32).wrapping_rem(256_u32) as u8,
-                    );
-                    bufwrite8(
-                        blob,
-                        offset_i.wrapping_rem(65536_u32).wrapping_div(256_u32) as u8,
-                    );
-                    bufwrite8(
-                        blob,
-                        offset_i.wrapping_rem(65536_u32).wrapping_rem(256_u32) as u8,
-                    );
+                    blob.write_u8(offset_i.wrapping_div(65536_u32).wrapping_div(256_u32) as u8);
+                    blob.write_u8(offset_i.wrapping_div(65536_u32).wrapping_rem(256_u32) as u8);
+                    blob.write_u8(offset_i.wrapping_rem(65536_u32).wrapping_div(256_u32) as u8);
+                    blob.write_u8(offset_i.wrapping_rem(65536_u32).wrapping_rem(256_u32) as u8);
                 }
                 _ => {}
             }
@@ -333,7 +314,7 @@ pub(crate) unsafe fn build_index(index: *const CffIndex) -> *mut Buffer {
         }
         if !(*index).data.is_empty() {
             let n = (offset[(*index).count as usize]).wrapping_sub(1_u32) as usize;
-            bufwrite_bytes(blob, n, (*index).data.as_ptr());
+            blob.write_bytes(&(&(*index).data)[..n]);
         }
     }
     return blob;
