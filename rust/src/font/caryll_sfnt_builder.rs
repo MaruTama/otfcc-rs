@@ -4,9 +4,6 @@ use libc::free;
 use crate::logger::{LOG_VL_PROGRESS, LoggerType, logger_log_sds};
 use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{
-    buffree, buflen, buflongalign, bufnew, bufseek, bufwrite_buf, bufwrite16b, bufwrite32b,
-};
 use crate::support::options::Options;
 use crate::support::fmt::Byte;
 pub struct SfntTableEntry {
@@ -33,14 +30,11 @@ fn buf_checksum_bytes(data: &[u8]) -> u32 {
     data.chunks_exact(4)
         .fold(0u32, |sum, word| sum.wrapping_add(u32::from_be_bytes(word.try_into().unwrap())))
 }
-unsafe fn buf_checksum(buffer: *mut Buffer) -> u32 {
-    buflongalign(buffer);
-    buf_checksum_bytes(&(*buffer).data)
-}
 unsafe fn create_segment(tag: u32, buffer: *mut Buffer) -> SfntTableEntry {
-    let length = buflen(buffer) as u32;
-    buflongalign(buffer);
-    let sum = buf_checksum_bytes(&(*buffer).data);
+    let buf_ref = unsafe { &mut *buffer };
+    let length = buf_ref.len() as u32;
+    buf_ref.long_align();
+    let sum = buf_checksum_bytes(&buf_ref.data);
     SfntTableEntry {
         tag: tag as i32,
         length,
@@ -72,7 +66,7 @@ pub unsafe fn otfcc_delete_sfnt_builder(builder: *mut SfntBuilder) {
         return;
     }
     for (_, entry) in ::core::mem::take(&mut (*builder).tables) {
-        buffree(entry.buffer);
+        drop(unsafe { Buffer::from_raw(entry.buffer) });
     }
     free(builder as *mut ::core::ffi::c_void);
 }
@@ -98,7 +92,7 @@ pub unsafe fn otfcc_sfnt_builder_push_table(
     }
     let options: *const Options = (*builder).options;
     if (*builder).tables.contains_key(&(tag as i32)) {
-        buffree(buffer);
+        drop(unsafe { Buffer::from_raw(buffer) });
         return;
     }
     let entry = create_segment(tag, buffer);
@@ -118,9 +112,9 @@ pub unsafe fn otfcc_sfnt_builder_push_table(
     );
 }
 pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> *mut Buffer {
-    let buffer: *mut Buffer = bufnew();
+    let mut buffer = Buffer::new();
     if builder.is_null() {
-        return buffer;
+        return buffer.into_raw();
     }
     let n_tables: u16 = (*builder).tables.len() as u16;
     let search_range: u16 = ((if (n_tables as i32) < 16_i32 {
@@ -136,11 +130,10 @@ pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> *mut Bu
             }
         }
     }) * 16_i32) as u16;
-    bufwrite32b(buffer, (*builder).header);
-    bufwrite16b(buffer, n_tables);
-    bufwrite16b(buffer, search_range);
-    bufwrite16b(
-        buffer,
+    buffer.write_u32be((*builder).header);
+    buffer.write_u16be(n_tables);
+    buffer.write_u16be(search_range);
+    buffer.write_u16be(
         (if (n_tables as i32) < 16_i32 {
             3_i32
         } else if (n_tables as i32) < 32_i32 {
@@ -151,8 +144,7 @@ pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> *mut Bu
             6_i32
         }) as u16,
     );
-    bufwrite16b(
-        buffer,
+    buffer.write_u16be(
         (n_tables as i32 * 16_i32
             - search_range as i32) as u16,
     );
@@ -161,21 +153,22 @@ pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> *mut Bu
         as usize;
     let mut head_offset: usize = offset;
     for (tag, table) in (*builder).tables.iter() {
-        bufwrite32b(buffer, *tag as u32);
-        bufwrite32b(buffer, table.checksum);
-        bufwrite32b(buffer, offset as u32);
-        bufwrite32b(buffer, table.length);
-        let cp: usize = (*buffer).cursor;
-        bufseek(buffer, offset);
-        bufwrite_buf(buffer, table.buffer);
-        bufseek(buffer, cp);
+        buffer.write_u32be(*tag as u32);
+        buffer.write_u32be(table.checksum);
+        buffer.write_u32be(offset as u32);
+        buffer.write_u32be(table.length);
+        let cp: usize = buffer.pos();
+        buffer.seek(offset);
+        buffer.write_buffer(unsafe { &*table.buffer });
+        buffer.seek(cp);
         if *tag == crate::tag::TAG_HEAD as i32 {
             head_offset = offset;
         }
-        offset = offset.wrapping_add(buflen(table.buffer));
+        offset = offset.wrapping_add(unsafe { (*table.buffer).len() });
     }
-    let whole_checksum: u32 = buf_checksum(buffer);
-    bufseek(buffer, head_offset.wrapping_add(8_usize));
-    bufwrite32b(buffer, 0xb1b0afba_u32.wrapping_sub(whole_checksum));
-    return buffer;
+    buffer.long_align();
+    let whole_checksum: u32 = buf_checksum_bytes(&buffer.data);
+    buffer.seek(head_offset.wrapping_add(8_usize));
+    buffer.write_u32be(0xb1b0afba_u32.wrapping_sub(whole_checksum));
+    buffer.into_raw()
 }
