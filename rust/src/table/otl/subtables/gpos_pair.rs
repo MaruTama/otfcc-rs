@@ -722,7 +722,7 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
 pub unsafe fn otfcc_build_gpos_pair(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
-) -> *mut Buffer {
+) -> Buffer {
     let format1: *mut BkBlock = otfcc_build_gpos_pair_individual(_subtable);
     let format2: *mut BkBlock = otfcc_build_gpos_pair_classes(_subtable);
     let g1: *mut BkGraph = bk_new_graph_from_root_block(format1);
@@ -732,13 +732,13 @@ pub unsafe fn otfcc_build_gpos_pair(
     if bk_estimate_size_of_graph(g1) > bk_estimate_size_of_graph(g2) {
         bk_delete_graph(g1);
         bk_untangle_graph(g2);
-        let buf: *mut Buffer = bk_build_graph(g2).into_raw();
+        let buf: Buffer = bk_build_graph(g2);
         bk_delete_graph(g2);
         return buf;
     } else {
         bk_delete_graph(g2);
         bk_untangle_graph(g1);
-        let buf_0: *mut Buffer = bk_build_graph(g1).into_raw();
+        let buf_0: Buffer = bk_build_graph(g1);
         bk_delete_graph(g1);
         return buf_0;
     };

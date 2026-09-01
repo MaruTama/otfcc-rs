@@ -356,7 +356,7 @@ pub unsafe fn otl_gpos_parse_mark_to_single(
 pub unsafe fn otfcc_build_gpos_mark_to_single(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
-) -> *mut Buffer {
+) -> Buffer {
     let Subtable::GposMarkToSingle(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -446,7 +446,7 @@ pub unsafe fn otfcc_build_gpos_mark_to_single(
     );
     otl_coverage_free(marks);
     otl_coverage_free(bases);
-    return bk_build_block(root).into_raw();
+    return bk_build_block(root);
 }
 
 #[cfg(test)]

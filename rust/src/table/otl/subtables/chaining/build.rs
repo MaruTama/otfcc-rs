@@ -61,7 +61,7 @@ pub unsafe fn otfcc_chaining_lookup_is_contextual_lookup(lookup: *const Lookup) 
     }
     return is_contextual;
 }
-pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtable) -> *mut Buffer {
+pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtable) -> Buffer {
     let subtable: *const ChainingSubtable = _subtable;
     let rule: *mut ChainingRule = chaining_rule_mut_from_const(subtable);
     let n_backtrack: TableId = (*rule).input_begins;
@@ -157,9 +157,9 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
         );
         j_2 = j_2.wrapping_add(1);
     }
-    return bk_build_block(root).into_raw();
+    return bk_build_block(root);
 }
-pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtable) -> *mut Buffer {
+pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtable) -> Buffer {
     let subtable: *const ChainingSubtable = _subtable;
     let ruleset: *const ChainingRuleSet = chaining_ruleset_const(subtable);
     // `.ic` is reached through a `*const ChainingRuleSet` but still needs a
@@ -329,9 +329,9 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
         }
         j_1 = j_1.wrapping_add(1);
     }
-    return bk_build_block(root).into_raw();
+    return bk_build_block(root);
 }
-pub unsafe fn otfcc_build_chaining(mut _subtable: *const ChainingSubtable) -> *mut Buffer {
+pub unsafe fn otfcc_build_chaining(mut _subtable: *const ChainingSubtable) -> Buffer {
     if chaining_is_classified(_subtable) {
         return otfcc_build_chaining_classes(_subtable);
     } else {
@@ -340,7 +340,7 @@ pub unsafe fn otfcc_build_chaining(mut _subtable: *const ChainingSubtable) -> *m
 }
 pub unsafe fn otfcc_build_contextual_coverage(
     mut _subtable: *const ChainingSubtable,
-) -> *mut Buffer {
+) -> Buffer {
     let subtable: *const ChainingSubtable = _subtable;
     let rule: *mut ChainingRule = chaining_rule_mut_from_const(subtable);
     let n_input: TableId = ((*rule).input_ends as i32
@@ -392,11 +392,11 @@ pub unsafe fn otfcc_build_contextual_coverage(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    return bk_build_block(root).into_raw();
+    return bk_build_block(root);
 }
 pub unsafe fn otfcc_build_contextual_classes(
     mut _subtable: *const ChainingSubtable,
-) -> *mut Buffer {
+) -> Buffer {
     let subtable: *const ChainingSubtable = _subtable;
     let ruleset: *const ChainingRuleSet = chaining_ruleset_const(subtable);
     let ic: *mut ClassDef = (*ruleset).ic.as_deref().unwrap() as *const ClassDef as *mut ClassDef;
@@ -512,9 +512,9 @@ pub unsafe fn otfcc_build_contextual_classes(
         }
         j_1 = j_1.wrapping_add(1);
     }
-    return bk_build_block(root).into_raw();
+    return bk_build_block(root);
 }
-pub unsafe fn otfcc_build_contextual(mut _subtable: *const ChainingSubtable) -> *mut Buffer {
+pub unsafe fn otfcc_build_contextual(mut _subtable: *const ChainingSubtable) -> Buffer {
     if chaining_is_classified(_subtable) {
         return otfcc_build_contextual_classes(_subtable);
     } else {

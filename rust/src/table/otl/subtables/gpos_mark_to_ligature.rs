@@ -390,7 +390,7 @@ pub unsafe fn otl_gpos_parse_mark_to_ligature(
 pub unsafe fn otfcc_build_gpos_mark_to_ligature(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
-) -> *mut Buffer {
+) -> Buffer {
     let Subtable::GposMarkToLigature(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -493,7 +493,7 @@ pub unsafe fn otfcc_build_gpos_mark_to_ligature(
     );
     otl_coverage_free(marks);
     otl_coverage_free(bases);
-    return bk_build_block(root).into_raw();
+    return bk_build_block(root);
 }
 
 #[cfg(test)]

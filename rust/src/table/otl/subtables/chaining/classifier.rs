@@ -355,7 +355,7 @@ pub unsafe fn try_classify_around(
 }
 pub unsafe fn otfcc_classified_build_chaining(
     lookup: *const Lookup,
-    subtable_buffers: &mut Vec<*mut Buffer>,
+    subtable_buffers: &mut Vec<Buffer>,
     last_offset: *mut usize,
 ) -> TableId {
     let is_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup);
@@ -374,7 +374,7 @@ pub unsafe fn otfcc_classified_build_chaining(
             j = (j as i32
                 + try_classify_around(lookup, j, &raw mut st) as i32)
                 as TableId;
-            let buf: *mut Buffer = if is_contextual as i32 != 0 {
+            let buf: Buffer = if is_contextual as i32 != 0 {
                 otfcc_build_contextual(st)
             } else {
                 otfcc_build_chaining(st)
@@ -382,8 +382,8 @@ pub unsafe fn otfcc_classified_build_chaining(
             if st != st0 {
                 subtable_chaining_free(st);
             }
+            *last_offset = (*last_offset).wrapping_add(buf.data.len());
             subtable_buffers.push(buf);
-            *last_offset = (*last_offset).wrapping_add((*buf).data.len());
             subtables_written =
                 (subtables_written as i32 + 1_i32) as TableId;
         }
