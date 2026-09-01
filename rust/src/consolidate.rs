@@ -665,23 +665,45 @@ unsafe fn __declare_otl_consolidation(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(&(*lookup).name),
     );
+    // Every `logger_log_sds` call below at `LOG_VL_IMPORTANT` is a no-op
+    // whenever `verbosity_limit < LOG_VL_IMPORTANT` (`logger_log_sds`
+    // itself only ever mutates state -- `target.push`/`last_logged_level`
+    // -- inside that same comparison, so skipping the call entirely below
+    // that threshold is observably identical, not a behavior change).
+    // `verbosity_limit` defaults to 0, below `LOG_VL_IMPORTANT` (1), so by
+    // default none of these ever display -- yet each call's `bytesbuild!`
+    // argument was built unconditionally regardless. A lookup can hold up
+    // to `MAX_TOTAL_SUBTABLES_PER_LOOKUP` (1,000) subtables and a table up
+    // to `MAX_TOTAL_LOOKUPS_PER_TABLE` (300) lookups, so a font whose
+    // subtables mostly fail to parse (e.g. many aliased offsets tripping
+    // `coverage::reset_coverage_range_expansion_budget`'s own guard) can
+    // drive the "Ignored empty subtable" branch below up to 300,000 times
+    // -- CI fuzz found exactly this shape, and the wasted construction
+    // alone (not any of this function's real per-subtable work) still
+    // added tens of seconds under sanitizer instrumentation. Same
+    // "per-call construction cost, not per-call semantics, is what adds
+    // up" reasoning as `chaining/read.rs`'s `CLASS_COVERAGE_CALL_BUDGET`.
+    let show_important =
+        options.logger.borrow().verbosity_limit as i32 >= LOG_VL_IMPORTANT as i32;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
             if (&(*lookup).subtables)[j as usize].is_none() {
-                logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] Ignored empty subtable ",
-                        j as i32,
-                        b" of lookup ",
-                        &(*lookup).name,
-                        b".\n",
-                    ),
-                );
+                if show_important {
+                    logger_log_sds(
+                        &mut *options.logger.borrow_mut(),
+                        LOG_VL_IMPORTANT,
+                        LoggerType::Warning,
+                        crate::bytesbuild!(
+                            b"[Consolidate] Ignored empty subtable ",
+                            j as i32,
+                            b" of lookup ",
+                            &(*lookup).name,
+                            b".\n",
+                        ),
+                    );
+                }
             } else {
                 let subtable_removed: bool;
                 let sub_ptr: SubtablePtr = (&mut (*lookup).subtables)[j as usize]
@@ -701,18 +723,20 @@ unsafe fn __declare_otl_consolidation(
                     // place) is all that is needed -- no per-type function
                     // pointer, no separate explicit `Box::from_raw`.
                     (&mut (*lookup).subtables)[j as usize] = None;
-                    logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[Consolidate] Ignored empty subtable ",
-                            j as i32,
-                            b" of lookup ",
-                            &(*lookup).name,
-                            b".\n",
-                        ),
-                    );
+                    if show_important {
+                        logger_log_sds(
+                            &mut *options.logger.borrow_mut(),
+                            LOG_VL_IMPORTANT,
+                            LoggerType::Warning,
+                            crate::bytesbuild!(
+                                b"[Consolidate] Ignored empty subtable ",
+                                j as i32,
+                                b" of lookup ",
+                                &(*lookup).name,
+                                b".\n",
+                            ),
+                        );
+                    }
                 }
             }
             j = j.wrapping_add(1);
