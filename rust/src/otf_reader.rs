@@ -196,6 +196,7 @@ pub unsafe fn read_otf(
 
 #[cfg(test)]
 mod regression_tests {
+    use crate::consolidate::otfcc_consolidate_font;
     use crate::font::caryll_font::otfcc_font_free;
     use crate::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
     use crate::logger::{Logger, otfcc_new_empty_target};
@@ -580,6 +581,76 @@ mod regression_tests {
 
             otfcc_font_free(font);
             otfcc_delete_options(options);
+        }
+    }
+
+    /// `tests/fuzz-corpus/known-issues/otf-dump-otl-coverage-consolidate-
+    /// amplification-hang.bin`: a `cargo fuzz run otf_dump` CI job found
+    /// this (`otf_dump` runs `read_otf` *and* `otfcc_consolidate_font`,
+    /// unlike `otf_parse` above -- see `otf_dump.rs`'s own doc comment for
+    /// why that gap matters). Chased through two distinct amplifications
+    /// stacked on the same font, each independently bounded but not
+    /// jointly, before this test terminated promptly:
+    ///
+    /// 1. `table/otl/coverage.rs::read_coverage`'s Coverage-format-2
+    ///    handler: `range_count` and each range's own `start..=end` span
+    ///    are each individually bounded, but their *product* was not --
+    ///    this font's coverage table expanded into billions of
+    ///    `IndexMap::entry` calls. Fixed by
+    ///    `reset_coverage_range_expansion_budget`'s table-wide budget.
+    /// 2. `consolidate.rs::__declare_otl_consolidation`: once (1)'s fix
+    ///    made most of this font's ~300,000 possible subtable slots
+    ///    (`MAX_TOTAL_LOOKUPS_PER_TABLE` * `MAX_TOTAL_SUBTABLES_PER_
+    ///    LOOKUP`) fail to parse, this loop's "Ignored empty subtable"
+    ///    warning was unconditionally built for every one of them --
+    ///    despite `verbosity_limit` defaulting to 0, below the
+    ///    `LOG_VL_IMPORTANT` these warnings log at, meaning none of them
+    ///    were ever actually displayed. Fixed by checking `verbosity_
+    ///    limit` before building the message, not after.
+    ///
+    /// Neither fix's own test (in `coverage.rs`/`consolidate.rs`) alone
+    /// reproduces this specific font's full cost the way running the
+    /// actual fuzz-found bytes through both stages together does, which
+    /// is why this test exists in addition to those. This build's
+    /// ASan-instrumented `cargo fuzz` counterpart took 34s (down from a
+    /// CI timeout at 1753s, past the 1200s per-unit alarm); this plain
+    /// `cargo test --release` build has no such instrumentation, so 15
+    /// seconds is generous slack while staying far below the original
+    /// hang.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "reads a fixture from disk, needs -Zmiri-disable-isolation; also far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn otl_coverage_and_consolidate_log_amplification_font_dumps_promptly() {
+        let bytes = std::fs::read(
+            "../tests/fuzz-corpus/known-issues/otf-dump-otl-coverage-consolidate-amplification-hang.bin",
+        )
+        .unwrap();
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let start = Instant::now();
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+            if !font.is_null() {
+                otfcc_consolidate_font(font, &*options);
+            }
+            let elapsed = start.elapsed();
+
+            otfcc_delete_sfnt(sfnt);
+            if !font.is_null() {
+                otfcc_font_free(font);
+            }
+            otfcc_delete_options(options);
+
+            assert!(
+                elapsed < Duration::from_secs(15),
+                "read_otf + otfcc_consolidate_font took {elapsed:?}, expected well under 15s"
+            );
         }
     }
 }

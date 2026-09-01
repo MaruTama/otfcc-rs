@@ -176,6 +176,11 @@ pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     if data.len() < 12 {
         return None;
     }
+    // See `coverage::reset_coverage_range_expansion_budget`'s own doc
+    // comment: must run once per table, before any of this table's
+    // `read_coverage` calls (reached below via `LigCaretList`'s own
+    // coverage table).
+    crate::table::otl::coverage::reset_coverage_range_expansion_budget();
     let classdef_offset = FontReader::new(data).at(4).ok()?.u16().ok()?;
     let glyph_class_def = if classdef_offset != 0 {
         classdef_from_raw(read_class_def(

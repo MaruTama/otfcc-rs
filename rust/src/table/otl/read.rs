@@ -636,6 +636,7 @@ pub unsafe fn otfcc_read_otl(
     // table's lookups are read, so the budget bounds this whole table's
     // total `class_coverage` cost rather than resetting fresh per subtable.
     crate::table::otl::subtables::chaining::read::reset_class_coverage_budgets();
+    crate::table::otl::coverage::reset_coverage_range_expansion_budget();
     for j in 0..(*otl_ptr).lookups.len() {
         otfcc_read_otl_lookup(
             &table.data,

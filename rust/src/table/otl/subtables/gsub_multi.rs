@@ -53,6 +53,25 @@ unsafe fn subtable_gsub_multi_create() -> *mut GsubMultiSubtable {
 // table's actual length before reading `n` glyph IDs from it -- a real,
 // previously-undocumented unchecked read, same class as `otl/read.rs`'s
 // `langSysRecords` bug. `FontReader::at`/`require_room` close both.
+//
+// `seq_count` (bounded by `from`'s coverage length, itself cheap to make
+// large via a coverage-format-2 range record) and each sequence's own `n`
+// (bounded individually by `require_room` against the bytes actually at
+// its own offset) are each individually bounded -- but nothing stopped
+// many of the `seq_count` entries from pointing `seq_offset` at the same
+// large Sequence table. Fuzzing (CI on an unrelated PR) found a coverage
+// table describing 65,535 input glyphs, every one of them aliasing the
+// same ~65,535-glyph Sequence table, multiplying into ~4.3 billion
+// `push_to_coverage` calls -- a libFuzzer timeout after 1753s. Same
+// "individually bounded, unbounded in aggregate" shape as `cmap.rs`'s
+// `MAX_TOTAL_CMAP_MAPPINGS` and `otl/read.rs`'s
+// `MAX_TOTAL_FEATURE_REFS_PER_TABLE`. Real MultipleSubst tables map each
+// input glyph to a small handful of output glyphs at most, so this caps
+// the *total* output-glyph count across the whole subtable, not either
+// loop bound individually -- far above any legitimate usage (a font
+// mapping every one of 65,535 glyphs to 4 outputs each is only 262,140)
+// while keeping worst-case adversarial cost to a fraction of a second.
+const MAX_TOTAL_GSUB_MULTI_OUTPUTS: u32 = 1_000_000;
 pub unsafe fn otl_read_gsub_multi(
     data: FontFilePointer,
     table_length: u32,
@@ -86,6 +105,7 @@ pub unsafe fn otl_read_gsub_multi(
             break 'parse;
         }
 
+        let mut total_outputs: u32 = 0;
         for j in 0..seq_count {
             let seq_offset = offset.wrapping_add(header.u16().unwrap() as u32);
             let Ok(mut sr) = FontReader::new(slice).at(seq_offset as usize) else {
@@ -93,6 +113,10 @@ pub unsafe fn otl_read_gsub_multi(
             };
             let Ok(n) = sr.u16() else { break 'parse };
             if sr.require_room(n as usize, 2).is_err() {
+                break 'parse;
+            }
+            total_outputs = total_outputs.saturating_add(n as u32);
+            if total_outputs > MAX_TOTAL_GSUB_MULTI_OUTPUTS {
                 break 'parse;
             }
             let cov: *mut Coverage = otl_coverage_create();
@@ -314,6 +338,71 @@ mod otl_read_gsub_multi_tests {
     fn sequence_offset_past_the_table_end_is_rejected_instead_of_reading_oob() {
         let mut data = well_formed_data();
         data[6..8].copy_from_slice(&9000u16.to_be_bytes()); // sequenceOffsets[0]: far past the table
+        unsafe {
+            let raw =
+                otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
+            assert!(raw.is_null());
+        }
+    }
+
+    #[test]
+    // ~983,025 `push_to_coverage` calls happen before the guard trips (15
+    // full 65,535-entry sequences run to completion; only the 16th is cut
+    // short) -- fine natively (well under a second) but far too slow to
+    // run meaningfully under Miri's interpreter, same reasoning as
+    // `otl/read.rs`'s `total_language_count_across_the_whole_table_is_
+    // capped`. `MAX_TOTAL_GSUB_MULTI_OUTPUTS` itself is exercised on every
+    // native `cargo test` run regardless.
+    #[cfg_attr(
+        miri,
+        ignore = "far too slow to run meaningfully under Miri's interpreter; ~983,025 push_to_coverage calls happen before MAX_TOTAL_GSUB_MULTI_OUTPUTS trips"
+    )]
+    fn total_output_glyph_count_across_all_sequences_is_capped() {
+        // `n` (a Sequence's own glyphCount) and `seq_count` are each
+        // individually bounded, but nothing stopped many entries from
+        // sharing the same `seq_offset` -- see `MAX_TOTAL_GSUB_MULTI_
+        // OUTPUTS`'s own doc comment (this is the shape CI fuzz found: a
+        // 1753s timeout from ~4.3 billion `push_to_coverage` calls). Here:
+        // 16 entries all pointing at one shared, max-sized (65,535-glyph)
+        // Sequence table totals 16*65,535 = 1,048,560 pushes, which
+        // exceeds the 1,000,000 budget on the 16th entry -- without the
+        // cap this test would still terminate (16 is nowhere near the
+        // billions the real bug reached) but the point is confirming the
+        // guard actually fires, not timing it.
+        const N: u16 = u16::MAX;
+        const SEQ_COUNT: u16 = 16;
+
+        let mut data = Vec::new();
+        data.extend_from_slice(&0u16.to_be_bytes()); // format
+        let from_rel_pos = data.len();
+        data.extend_from_slice(&0u16.to_be_bytes()); // coverageOffset, patched below
+        data.extend_from_slice(&SEQ_COUNT.to_be_bytes()); // sequenceCount
+        let offsets_start = data.len();
+        for _ in 0..SEQ_COUNT {
+            data.extend_from_slice(&0u16.to_be_bytes()); // sequenceOffsets[j], patched below
+        }
+
+        // Coverage table (format 2, one range covering all SEQ_COUNT glyphs).
+        let coverage_offset = data.len() as u16;
+        data.extend_from_slice(&2u16.to_be_bytes()); // format
+        data.extend_from_slice(&1u16.to_be_bytes()); // rangeCount
+        data.extend_from_slice(&0u16.to_be_bytes()); // startGlyphID
+        data.extend_from_slice(&(SEQ_COUNT - 1).to_be_bytes()); // endGlyphID
+        data.extend_from_slice(&0u16.to_be_bytes()); // startCoverageIndex
+
+        // The one shared Sequence table every entry aliases.
+        let seq_table_offset = data.len() as u16;
+        data.extend_from_slice(&N.to_be_bytes()); // glyphCount
+        for i in 0..N {
+            data.extend_from_slice(&(100u16.wrapping_add(i)).to_be_bytes());
+        }
+
+        data[from_rel_pos..from_rel_pos + 2].copy_from_slice(&coverage_offset.to_be_bytes());
+        for j in 0..SEQ_COUNT as usize {
+            let pos = offsets_start + j * 2;
+            data[pos..pos + 2].copy_from_slice(&seq_table_offset.to_be_bytes());
+        }
+
         unsafe {
             let raw =
                 otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
