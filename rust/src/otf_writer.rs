@@ -19,7 +19,6 @@ use crate::font::caryll_sfnt_builder::{
     otfcc_sfnt_builder_serialize,
 };
 use crate::otf_writer::stat::{otfcc_stat_font, otfcc_unstat_font};
-use crate::support::buffer::{bufnew, bufwrite16b, bufwrite32b};
 use crate::table::_tsi::otfcc_build_tsi;
 use crate::table::base::otfcc_build_base;
 use crate::table::cff::otfcc_build_cff;
@@ -99,7 +98,7 @@ impl FontSerializer for OtfSerializer {
             otfcc_sfnt_builder_push_table(
                 builder,
                 crate::tag::TAG_CFF,
-                otfcc_build_cff(r, options),
+                otfcc_build_cff(r, options).into_raw(),
             );
         }
         otfcc_sfnt_builder_push_table(
@@ -130,7 +129,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_META,
-            otfcc_build_meta((*font).meta.as_deref()),
+            otfcc_build_meta((*font).meta.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
@@ -181,7 +180,7 @@ impl FontSerializer for OtfSerializer {
             otfcc_sfnt_builder_push_table(
                 builder,
                 crate::tag::TAG_VDMX,
-                otfcc_build_vdmx((*font).vdmx.as_deref()),
+                otfcc_build_vdmx((*font).vdmx.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
             );
         }
         if (*font).hhea.is_some() && (*font).maxp.is_some() && (*font).hmtx.is_some() {
@@ -249,27 +248,27 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_GDEF,
-            otfcc_build_gdef((*font).gdef.as_deref()),
+            otfcc_build_gdef((*font).gdef.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_BASE,
-            otfcc_build_base((*font).base.as_deref()),
+            otfcc_build_base((*font).base.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_CPAL,
-            otfcc_build_cpal((*font).cpal.as_deref()),
+            otfcc_build_cpal((*font).cpal.as_deref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_COLR,
-            otfcc_build_colr((*font).colr.as_ref()),
+            otfcc_build_colr((*font).colr.as_ref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         otfcc_sfnt_builder_push_table(
             builder,
             crate::tag::TAG_SVG,
-            otfcc_build_svg((*font).svg.as_ref()),
+            otfcc_build_svg((*font).svg.as_ref()).map_or(::core::ptr::null_mut(), Buffer::into_raw),
         );
         let target: TsiBuildTarget = otfcc_build_tsi((*font).tsi_01.as_ref());
         otfcc_sfnt_builder_push_table(
@@ -302,11 +301,11 @@ impl FontSerializer for OtfSerializer {
             );
         }
         if options.dummy_dsig {
-            let dsig: *mut Buffer = bufnew();
-            bufwrite32b(dsig, 0x1_u32);
-            bufwrite16b(dsig, 0_u16);
-            bufwrite16b(dsig, 0_u16);
-            otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_DSIG, dsig);
+            let mut dsig = Buffer::new();
+            dsig.write_u32be(0x1_u32);
+            dsig.write_u16be(0_u16);
+            dsig.write_u16be(0_u16);
+            otfcc_sfnt_builder_push_table(builder, crate::tag::TAG_DSIG, dsig.into_raw());
         }
         let otf: *mut Buffer = otfcc_sfnt_builder_serialize(builder);
         otfcc_delete_sfnt_builder(builder);
