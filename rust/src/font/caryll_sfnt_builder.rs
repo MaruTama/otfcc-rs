@@ -10,7 +10,7 @@ pub struct SfntTableEntry {
     pub tag: i32,
     pub length: u32,
     pub checksum: u32,
-    pub buffer: *mut Buffer,
+    pub buffer: Buffer,
 }
 pub struct SfntBuilder {
     pub count: u32,
@@ -30,11 +30,10 @@ fn buf_checksum_bytes(data: &[u8]) -> u32 {
     data.chunks_exact(4)
         .fold(0u32, |sum, word| sum.wrapping_add(u32::from_be_bytes(word.try_into().unwrap())))
 }
-unsafe fn create_segment(tag: u32, buffer: *mut Buffer) -> SfntTableEntry {
-    let buf_ref = unsafe { &mut *buffer };
-    let length = buf_ref.len() as u32;
-    buf_ref.long_align();
-    let sum = buf_checksum_bytes(&buf_ref.data);
+fn create_segment(tag: u32, mut buffer: Buffer) -> SfntTableEntry {
+    let length = buffer.len() as u32;
+    buffer.long_align();
+    let sum = buf_checksum_bytes(&buffer.data);
     SfntTableEntry {
         tag: tag as i32,
         length,
@@ -65,9 +64,13 @@ pub unsafe fn otfcc_delete_sfnt_builder(builder: *mut SfntBuilder) {
     if builder.is_null() {
         return;
     }
-    for (_, entry) in ::core::mem::take(&mut (*builder).tables) {
-        drop(unsafe { Buffer::from_raw(entry.buffer) });
-    }
+    // `tables` (a `BTreeMap`, each entry now owning its `Buffer` directly)
+    // needs its `Drop` glue run explicitly before the raw `free()` below --
+    // `free()` only reclaims the allocation itself, it does not run Rust
+    // destructors. `drop_in_place` does that in place, without needing to
+    // move the map out first the way the old per-entry `Buffer::from_raw`
+    // loop did.
+    ::core::ptr::drop_in_place(&raw mut (*builder).tables);
     free(builder as *mut ::core::ffi::c_void);
 }
 // Deduplicates by `tag`, first registration wins -- a later
@@ -85,14 +88,18 @@ pub unsafe fn otfcc_delete_sfnt_builder(builder: *mut SfntBuilder) {
 pub unsafe fn otfcc_sfnt_builder_push_table(
     builder: *mut SfntBuilder,
     tag: u32,
-    buffer: *mut Buffer,
+    buffer: Option<Buffer>,
 ) {
-    if builder.is_null() || buffer.is_null() {
+    if builder.is_null() {
         return;
     }
+    let Some(buffer) = buffer else {
+        return;
+    };
     let options: *const Options = (*builder).options;
     if (*builder).tables.contains_key(&(tag as i32)) {
-        drop(unsafe { Buffer::from_raw(buffer) });
+        // `buffer` just drops here -- same as the old
+        // `Buffer::from_raw(buffer)` + implicit drop.
         return;
     }
     let entry = create_segment(tag, buffer);
@@ -111,10 +118,10 @@ pub unsafe fn otfcc_sfnt_builder_push_table(
         ),
     );
 }
-pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> *mut Buffer {
+pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> Buffer {
     let mut buffer = Buffer::new();
     if builder.is_null() {
-        return buffer.into_raw();
+        return buffer;
     }
     let n_tables: u16 = (*builder).tables.len() as u16;
     let search_range: u16 = ((if (n_tables as i32) < 16_i32 {
@@ -159,16 +166,16 @@ pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> *mut Bu
         buffer.write_u32be(table.length);
         let cp: usize = buffer.pos();
         buffer.seek(offset);
-        buffer.write_buffer(unsafe { &*table.buffer });
+        buffer.write_buffer(&table.buffer);
         buffer.seek(cp);
         if *tag == crate::tag::TAG_HEAD as i32 {
             head_offset = offset;
         }
-        offset = offset.wrapping_add(unsafe { (*table.buffer).len() });
+        offset = offset.wrapping_add(table.buffer.len());
     }
     buffer.long_align();
     let whole_checksum: u32 = buf_checksum_bytes(&buffer.data);
     buffer.seek(head_offset.wrapping_add(8_usize));
     buffer.write_u32be(0xb1b0afba_u32.wrapping_sub(whole_checksum));
-    buffer.into_raw()
+    buffer
 }
