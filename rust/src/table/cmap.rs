@@ -997,13 +997,13 @@ unsafe fn otfcc_try_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
         return buf;
     };
 }
-unsafe fn otfcc_build_cmap_format12(cmap: *const CmapTable) -> *mut Buffer {
-    let buf: *mut Buffer = bufnew();
-    bufwrite16b(buf, 12_u16);
-    bufwrite16b(buf, 0_u16);
-    bufwrite32b(buf, 0_u32);
-    bufwrite32b(buf, 0_u32);
-    bufwrite32b(buf, 0_u32);
+unsafe fn otfcc_build_cmap_format12(cmap: *const CmapTable) -> Buffer {
+    let mut buf = Buffer::new();
+    buf.write_u16be(12_u16);
+    buf.write_u16be(0_u16);
+    buf.write_u32be(0_u32);
+    buf.write_u32be(0_u32);
+    buf.write_u32be(0_u32);
     let mut n_groups: u32 = 0_u32;
     let mut started: bool = false;
     let mut last_unicode_start: i32 = 0xffffff_i32;
@@ -1023,9 +1023,9 @@ unsafe fn otfcc_build_cmap_format12(cmap: *const CmapTable) -> *mut Buffer {
             last_unicode_end = unicode;
             last_gid_end = glyph.index as i32;
         } else {
-            bufwrite32b(buf, last_unicode_start as u32);
-            bufwrite32b(buf, last_unicode_end as u32);
-            bufwrite32b(buf, last_gid_start as u32);
+            buf.write_u32be(last_unicode_start as u32);
+            buf.write_u32be(last_unicode_end as u32);
+            buf.write_u32be(last_gid_start as u32);
             n_groups = n_groups.wrapping_add(1_u32);
             last_unicode_end = unicode;
             last_unicode_start = last_unicode_end;
@@ -1033,14 +1033,14 @@ unsafe fn otfcc_build_cmap_format12(cmap: *const CmapTable) -> *mut Buffer {
             last_gid_start = last_gid_end;
         }
     }
-    bufwrite32b(buf, last_unicode_start as u32);
-    bufwrite32b(buf, last_unicode_end as u32);
-    bufwrite32b(buf, last_gid_start as u32);
+    buf.write_u32be(last_unicode_start as u32);
+    buf.write_u32be(last_unicode_end as u32);
+    buf.write_u32be(last_gid_start as u32);
     n_groups = n_groups.wrapping_add(1_u32);
-    bufseek(buf, 4_usize);
-    bufwrite32b(buf, buflen(buf) as u32);
-    bufseek(buf, 12_usize);
-    bufwrite32b(buf, n_groups);
+    buf.seek(4_usize);
+    buf.write_u32be(buf.len() as u32);
+    buf.seek(12_usize);
+    buf.write_u32be(n_groups);
     return buf;
 }
 pub const MAX_UNICODE: i32 = 0x110001_i32;
@@ -1263,7 +1263,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         bufwrite16b(format4, 0_u16);
         bufwrite16b(format4, 0_u16);
     }
-    let format12: *mut Buffer = otfcc_build_cmap_format12(cmap);
+    let format12: *mut Buffer = otfcc_build_cmap_format12(cmap).into_raw();
     let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 0_u32),
         bk_int(BkCellType::B16, (n_tables as i32) as u32),
