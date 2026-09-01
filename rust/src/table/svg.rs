@@ -241,10 +241,10 @@ pub unsafe fn otfcc_parse_svg(root: *const ParsedValue, options: &Options) -> Op
     return Some(svg);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
+pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
     let _svg = match _svg {
         Some(s) if !s.is_empty() => s,
-        _ => return ::core::ptr::null_mut::<Buffer>(),
+        _ => return None,
     };
     // `TABLE_I_SVG.copy` の代わりに各要素を `svg_assignment_dup` で明示的に
     // ディープコピー（`ColrTable`/`TsiTable` の前例どおり `.clone()` は不可）。
@@ -263,10 +263,7 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
             // zero-copy borrow -- correctness-preserving and cheap enough
             // (once per SVG assignment during build, not a hot per-byte
             // path).
-            let doc_buf = Buffer {
-                cursor: a.document.len(),
-                data: a.document.clone(),
-            };
+            let doc_buf = Buffer::from_bytes(&a.document);
             bk_push(
                 major,
                 &[
@@ -292,7 +289,7 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> *mut Buffer {
     // `svg` drops naturally at the end of this scope -- `document` is a
     // plain `Vec<u8>` now, self-dropping along with the rest of
     // `SvgAssignment`, so no explicit disposal call is needed here.
-    return bk_build_block(root).into_raw();
+    Some(bk_build_block(root))
 }
 
 #[cfg(test)]

@@ -176,7 +176,7 @@ pub unsafe fn otl_gpos_parse_cursive(
 pub unsafe fn otfcc_build_gpos_cursive(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
-) -> *mut Buffer {
+) -> Buffer {
     let Subtable::GposCursive(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -216,7 +216,7 @@ pub unsafe fn otfcc_build_gpos_cursive(
         j_0 = j_0.wrapping_add(1);
     }
     otl_coverage_free(cov);
-    return bk_build_block(root).into_raw();
+    return bk_build_block(root);
 }
 
 #[cfg(test)]

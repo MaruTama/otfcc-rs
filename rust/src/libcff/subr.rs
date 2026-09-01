@@ -834,11 +834,8 @@ unsafe fn serialize_node_to_buffer(
 }
 pub unsafe fn cff_il_graph_to_buffers(
     g: *mut CffSubrGraph,
-    s: *mut *mut Buffer,
-    gs: *mut *mut Buffer,
-    ls: *mut *mut Buffer,
     options: &Options,
-) {
+) -> (Buffer, Buffer, Buffer) {
     let g = &mut *g;
     let root = g.root;
     cff_stat_height(g, root, 0_u32);
@@ -931,12 +928,13 @@ pub unsafe fn cff_il_graph_to_buffers(
     for entry in lsubrs.iter_mut().take(max_l_subrs as usize) {
         entry.data = Vec::new();
     }
-    *s = build_index(is).into_raw();
-    *gs = build_index(igs).into_raw();
-    *ls = build_index(ils).into_raw();
+    let s = build_index(is);
+    let gs = build_index(igs);
+    let ls = build_index(ils);
     cff_index_free(is);
     cff_index_free(igs);
     cff_index_free(ils);
+    (s, gs, ls)
 }
 
 // Safety-net coverage for the intrusive doubly-linked-list subroutinizer
@@ -966,18 +964,15 @@ mod subr_graph_tests {
         il
     }
 
-    unsafe fn index_count(buf: *mut Buffer) -> u32 {
+    unsafe fn index_count(buf: &Buffer) -> u32 {
         let idx = cff_index_create();
-        extract_index((*buf).data.as_mut_ptr(), (*buf).data.len() as u32, 0, idx);
+        extract_index(buf.data.as_ptr() as *mut u8, buf.data.len() as u32, 0, idx);
         let count = (*idx).count;
         cff_index_free(idx);
         count
     }
 
-    unsafe fn build(
-        glyphs: &[CffCharstringIl],
-        do_subroutinize: bool,
-    ) -> (*mut Buffer, *mut Buffer, *mut Buffer) {
+    unsafe fn build(glyphs: &[CffCharstringIl], do_subroutinize: bool) -> (Buffer, Buffer, Buffer) {
         // `nodes`/`rules` start empty; `cff_subr_graph_init` allocates the
         // root rule (and its guard node) into them immediately below --
         // matches `table/cff.rs`'s own construction of this same struct.
@@ -995,24 +990,18 @@ mod subr_graph_tests {
         // `Logger` rather than a null pointer; no separate construction or
         // disposal needed the way the old raw-pointer field required.
         let options = Options::default();
-        let mut s: *mut Buffer = ::core::ptr::null_mut();
-        let mut gs: *mut Buffer = ::core::ptr::null_mut();
-        let mut ls: *mut Buffer = ::core::ptr::null_mut();
-        cff_il_graph_to_buffers(&raw mut g, &raw mut s, &raw mut gs, &raw mut ls, &options);
+        let result = cff_il_graph_to_buffers(&raw mut g, &options);
         cff_subr_graph_dispose(&raw mut g);
-        (s, gs, ls)
+        result
     }
 
     #[test]
     fn empty_graph_produces_an_empty_char_strings_index() {
         unsafe {
             let (s, gs, ls) = build(&[], false);
-            assert_eq!(index_count(s), 0);
-            assert_eq!(index_count(gs), 0);
-            assert_eq!(index_count(ls), 0);
-            buffree(s);
-            buffree(gs);
-            buffree(ls);
+            assert_eq!(index_count(&s), 0);
+            assert_eq!(index_count(&gs), 0);
+            assert_eq!(index_count(&ls), 0);
         }
     }
 
@@ -1025,12 +1014,9 @@ mod subr_graph_tests {
         unsafe {
             let il = simple_glyph_il(10.0, 20.0);
             let (s, gs, ls) = build(&[il], false);
-            assert_eq!(index_count(s), 1);
-            assert_eq!(index_count(gs), 0);
-            assert_eq!(index_count(ls), 0);
-            buffree(s);
-            buffree(gs);
-            buffree(ls);
+            assert_eq!(index_count(&s), 1);
+            assert_eq!(index_count(&gs), 0);
+            assert_eq!(index_count(&ls), 0);
         }
     }
 
@@ -1044,16 +1030,13 @@ mod subr_graph_tests {
             let il1 = simple_glyph_il(10.0, 20.0);
             let il2 = simple_glyph_il(10.0, 20.0);
             let (s, gs, ls) = build(&[il1, il2], true);
-            assert_eq!(index_count(s), 2);
+            assert_eq!(index_count(&s), 2);
             // The identical [rmoveto, hlineto] pair repeated across both
             // glyphs is exactly the doublet `append_node_to_graph` checks
             // for on every append -- it should be extracted into one
             // shared subroutine (local or global depending on the
             // max_l_subrs/max_g_subrs split, so check both).
-            assert!(index_count(gs) + index_count(ls) >= 1);
-            buffree(s);
-            buffree(gs);
-            buffree(ls);
+            assert!(index_count(&gs) + index_count(&ls) >= 1);
         }
     }
 
@@ -1073,17 +1056,11 @@ mod subr_graph_tests {
         unsafe {
             let il1 = simple_glyph_il(10.0, 20.0);
             let il2 = simple_glyph_il(10.0, 20.0);
-            let (s_on, gs_on, ls_on) = build(&[il1.clone(), il2.clone()], true);
-            let char_strings_on = (*s_on).data.len();
-            buffree(s_on);
-            buffree(gs_on);
-            buffree(ls_on);
+            let (s_on, _gs_on, _ls_on) = build(&[il1.clone(), il2.clone()], true);
+            let char_strings_on = s_on.data.len();
 
-            let (s_off, gs_off, ls_off) = build(&[il1, il2], false);
-            let char_strings_off = (*s_off).data.len();
-            buffree(s_off);
-            buffree(gs_off);
-            buffree(ls_off);
+            let (s_off, _gs_off, _ls_off) = build(&[il1, il2], false);
+            let char_strings_off = s_off.data.len();
 
             assert!(char_strings_on < char_strings_off);
         }
@@ -1099,12 +1076,9 @@ mod subr_graph_tests {
             let il1 = simple_glyph_il(10.0, 20.0);
             let il2 = simple_glyph_il(30.0, 40.0);
             let (s, gs, ls) = build(&[il1, il2], true);
-            assert_eq!(index_count(s), 2);
-            assert_eq!(index_count(gs), 0);
-            assert_eq!(index_count(ls), 0);
-            buffree(s);
-            buffree(gs);
-            buffree(ls);
+            assert_eq!(index_count(&s), 2);
+            assert_eq!(index_count(&gs), 0);
+            assert_eq!(index_count(&ls), 0);
         }
     }
 }

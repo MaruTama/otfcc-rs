@@ -288,10 +288,10 @@ pub unsafe fn otfcc_parse_colr(
     return Some(colr);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
+pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
     let src = match _colr {
         Some(c) if !c.is_empty() => c,
-        _ => return ::core::ptr::null_mut::<Buffer>(),
+        _ => return None,
     };
     let mut colr: ColrTable = src.iter().map(colr_mapping_dup).collect();
     colr.sort_by(|a, b| a.glyph.index.cmp(&b.glyph.index));
@@ -361,7 +361,7 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> *mut Buffer {
     // `colr` drops naturally at the end of this scope -- no explicit
     // dispose call needed (`ColrMapping`'s `Handle` fields already free
     // themselves via their own `Drop`).
-    return bk_build_block(root).into_raw();
+    Some(bk_build_block(root))
 }
 
 #[cfg(test)]

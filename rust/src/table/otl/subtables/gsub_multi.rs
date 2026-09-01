@@ -11,13 +11,12 @@ use crate::table::otl::coverage::{
     read_coverage,
 };
 
-use crate::support::alloc::__caryll_reallocate;
 use crate::support::font_reader::FontReader;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
+use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
@@ -178,7 +177,7 @@ unsafe fn build_gsub_multi_subtable_range(
     subtable: *const GsubMultiSubtable,
     start: GlyphId,
     end: GlyphId,
-) -> *mut Buffer {
+) -> Buffer {
     let cov: *mut Coverage = otl_coverage_create();
     for j in start..end {
         push_to_coverage(
@@ -215,20 +214,18 @@ unsafe fn build_gsub_multi_subtable_range(
         bk_push(root, &[bk_ptr(BkCellType::P16, b)]);
     }
     otl_coverage_free(cov);
-    return bk_build_block(root).into_raw();
+    return bk_build_block(root);
 }
 pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: i32 = 0xff00_i32;
 pub unsafe fn otfcc_build_gsub_multi_subtable_split(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
-    count: *mut TableId,
-) -> *mut *mut Buffer {
+) -> Vec<Buffer> {
     let Subtable::GsubMulti(mut_subtable) = &*_subtable else {
         unreachable!()
     };
     let subtable: *const GsubMultiSubtable = mut_subtable;
-    let mut parts: *mut *mut Buffer = ::core::ptr::null_mut::<*mut Buffer>();
-    let mut n_parts: TableId = 0 as TableId;
+    let mut parts: Vec<Buffer> = Vec::new();
     let mut start: GlyphId = 0 as GlyphId;
     while (start as usize) < (*subtable).len() {
         let mut size: usize = (6_i32 + 4_i32) as usize;
@@ -246,33 +243,18 @@ pub unsafe fn otfcc_build_gsub_multi_subtable_split(
             size = size.wrapping_add(entry_size);
             end = end.wrapping_add(1);
         }
-        parts = __caryll_reallocate(
-            parts as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<*mut Buffer>() as usize)
-                .wrapping_mul((n_parts as i32 + 1_i32) as usize),
-            125 as ::core::ffi::c_ulong,
-        ) as *mut *mut Buffer;
-        *parts.offset(n_parts as isize) = build_gsub_multi_subtable_range(subtable, start, end);
-        n_parts = n_parts.wrapping_add(1);
+        parts.push(build_gsub_multi_subtable_range(subtable, start, end));
         start = end;
     }
-    if n_parts == 0 {
-        parts = __caryll_reallocate(
-            parts as *mut ::core::ffi::c_void,
-            (::core::mem::size_of::<*mut Buffer>() as usize).wrapping_mul(1_usize),
-            132 as ::core::ffi::c_ulong,
-        ) as *mut *mut Buffer;
-        *parts.offset(0_i32 as isize) =
-            build_gsub_multi_subtable_range(subtable, 0 as GlyphId, 0 as GlyphId);
-        n_parts = 1 as TableId;
+    if parts.is_empty() {
+        parts.push(build_gsub_multi_subtable_range(subtable, 0 as GlyphId, 0 as GlyphId));
     }
-    *count = n_parts;
-    return parts;
+    parts
 }
 pub unsafe fn otfcc_build_gsub_multi_subtable(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
-) -> *mut Buffer {
+) -> Buffer {
     let Subtable::GsubMulti(mut_subtable) = &*_subtable else {
         unreachable!()
     };

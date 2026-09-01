@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, strncmp};
+use libc::strncmp;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
@@ -37,9 +37,8 @@ use crate::table::otl::{
 // `written == 0`), not real runtime dispatch through a varying value
 // (confirmed by grep: none of the 9 builder functions are referenced
 // anywhere outside this file).
-pub type OtlBuilder = Option<unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer>;
-pub type OtlSplitBuilder =
-    Option<unsafe fn(*const Subtable, BuildHeuristics, *mut TableId) -> *mut *mut Buffer>;
+pub type OtlBuilder = Option<unsafe fn(*const Subtable, BuildHeuristics) -> Buffer>;
+pub type OtlSplitBuilder = Option<unsafe fn(*const Subtable, BuildHeuristics) -> Vec<Buffer>>;
 pub const LARGE_SUBTABLE_LIMIT: i32 = 4096_i32;
 fn feature_name_to_tag(name: &[u8]) -> u32 {
     let mut tag: u32 = 0_u32;
@@ -69,7 +68,7 @@ unsafe fn _declare_lookup_writer(
     type_0: LookupType,
     fn_0: OtlBuilder,
     lookup: *const Lookup,
-    subtables: &mut Vec<*mut Buffer>,
+    subtables: &mut Vec<Buffer>,
     last_offset: *mut usize,
     prefer_extension_for_this_lut: *mut bool,
     heuristics: BuildHeuristics,
@@ -81,12 +80,12 @@ unsafe fn _declare_lookup_writer(
         let mut total_buf_size_ext: usize = 0_usize;
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
-            let buf: *mut Buffer = fn_0.expect("non-null function pointer")(
+            let buf: Buffer = fn_0.expect("non-null function pointer")(
                 subtable_at(&(*lookup).subtables, j as usize) as *const Subtable,
                 heuristics,
             );
+            total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
             subtables.push(buf);
-            total_buf_size_short = total_buf_size_short.wrapping_add((*buf).data.len());
             total_buf_size_ext = total_buf_size_ext.wrapping_add(8_usize);
             j = j.wrapping_add(1);
         }
@@ -105,7 +104,7 @@ unsafe fn _declare_lookup_writer_split(
     type_0: LookupType,
     fn_0: OtlSplitBuilder,
     lookup: *const Lookup,
-    subtables: &mut Vec<*mut Buffer>,
+    subtables: &mut Vec<Buffer>,
     last_offset: *mut usize,
     prefer_extension_for_this_lut: *mut bool,
     heuristics: BuildHeuristics,
@@ -115,27 +114,14 @@ unsafe fn _declare_lookup_writer_split(
         let mut total_buf_size_short: usize = 0_usize;
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*lookup).subtables.len() {
-            let mut n_part: TableId = 0 as TableId;
-            let mut part: *mut *mut Buffer = fn_0.expect("non-null function pointer")(
+            let part: Vec<Buffer> = fn_0.expect("non-null function pointer")(
                 subtable_at(&(*lookup).subtables, j as usize) as *const Subtable,
                 heuristics,
-                &raw mut n_part,
             );
-            let mut k: TableId = 0 as TableId;
-            while (k as i32) < n_part as i32 {
-                subtables.push(*part.offset(k as isize));
-                total_buf_size_short =
-                    total_buf_size_short.wrapping_add((**part.offset(k as isize)).data.len());
-                k = k.wrapping_add(1);
+            for buf in part {
+                total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
+                subtables.push(buf);
             }
-            // `part` itself -- the raw `*mut *mut Buffer` shell `fn_0`
-            // (a split-builder in another file, e.g. `gsub_multi.rs`)
-            // returned -- is still freed here exactly as before; each
-            // `*mut Buffer` it pointed to was copied into `subtables`
-            // above, not owned by `part`, so this only releases the
-            // now-empty index array.
-            free(part as *mut ::core::ffi::c_void);
-            part = ::core::ptr::null_mut::<*mut Buffer>();
             j = j.wrapping_add(1);
         }
         let total = subtables.len() as TableId;
@@ -153,7 +139,7 @@ unsafe fn _declare_lookup_writer_split(
 }
 unsafe fn _build_lookup(
     lookup: *const Lookup,
-    subtables: &mut Vec<*mut Buffer>,
+    subtables: &mut Vec<Buffer>,
     last_offset: *mut usize,
     prefer_extension_for_this_lut: *mut bool,
     heuristics: BuildHeuristics,
@@ -167,7 +153,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GSUB_SINGLE,
             Some(
                 otfcc_build_gsub_single_subtable
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -181,7 +167,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GSUB_MULTIPLE,
             Some(
                 otfcc_build_gsub_multi_subtable_split
-                    as unsafe fn(*const Subtable, BuildHeuristics, *mut TableId) -> *mut *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> Vec<Buffer>,
             ),
             lookup,
             subtables,
@@ -195,7 +181,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GSUB_ALTERNATE,
             Some(
                 otfcc_build_gsub_multi_subtable_split
-                    as unsafe fn(*const Subtable, BuildHeuristics, *mut TableId) -> *mut *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> Vec<Buffer>,
             ),
             lookup,
             subtables,
@@ -209,7 +195,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GSUB_LIGATURE,
             Some(
                 otfcc_build_gsub_ligature_subtable
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -223,7 +209,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GSUB_REVERSE,
             Some(
                 otfcc_build_gsub_reverse
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -237,7 +223,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_SINGLE,
             Some(
                 otfcc_build_gpos_single
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -251,7 +237,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_PAIR,
             Some(
                 otfcc_build_gpos_pair
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -265,7 +251,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_CURSIVE,
             Some(
                 otfcc_build_gpos_cursive
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -279,7 +265,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_MARK_TO_BASE,
             Some(
                 otfcc_build_gpos_mark_to_single
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -293,7 +279,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_MARK_TO_MARK,
             Some(
                 otfcc_build_gpos_mark_to_single
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -307,7 +293,7 @@ unsafe fn _build_lookup(
             OTL_TYPE_GPOS_MARK_TO_LIGATURE,
             Some(
                 otfcc_build_gpos_mark_to_ligature
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> *mut Buffer,
+                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -352,7 +338,7 @@ unsafe fn write_otl_lookups(
     // same way (`vec![default; lookups.len()]`) reproduce the exact same
     // shape without a matching `free()` trio to remember at every exit
     // point below.
-    let mut subtables: Vec<Vec<*mut Buffer>> = vec![Vec::new(); (*table).lookups.len()];
+    let mut subtables: Vec<Vec<Buffer>> = vec![Vec::new(); (*table).lookups.len()];
     let mut subtable_quantity: Vec<TableId> = vec![0 as TableId; (*table).lookups.len()];
     let mut prefer_ext_for_this_lut: Vec<bool> = vec![false; (*table).lookups.len()];
     let mut last_offset: usize = 0_usize;
@@ -476,7 +462,9 @@ unsafe fn write_otl_lookups(
                     ),
                     bk_ptr(
                         BkCellType::P32,
-                        bk_new_block_from_buffer(unsafe { Buffer::from_raw(subtables[j_1 as usize][k as usize]) }),
+                        bk_new_block_from_buffer(Some(::core::mem::take(
+                            &mut subtables[j_1 as usize][k as usize],
+                        ))),
                     ),
                 ]);
                 bk_push(blk, &[bk_ptr(BkCellType::P16, stub)]);
@@ -485,7 +473,9 @@ unsafe fn write_otl_lookups(
                     blk,
                     &[bk_ptr(
                         BkCellType::P16,
-                        bk_new_block_from_buffer(unsafe { Buffer::from_raw(subtables[j_1 as usize][k as usize]) }),
+                        bk_new_block_from_buffer(Some(::core::mem::take(
+                            &mut subtables[j_1 as usize][k as usize],
+                        ))),
                     )],
                 );
             }
@@ -709,12 +699,12 @@ pub unsafe fn otfcc_build_otl(
     table: Option<&OtlTable>,
     options: &Options,
     tag: *const ::core::ffi::c_char,
-) -> *mut Buffer {
+) -> Option<Buffer> {
     let table: *const OtlTable = table.map_or(::core::ptr::null(), |t| t as *const OtlTable);
     if table.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
+        return None;
     }
-    let mut buf: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
+    let mut buf: Option<Buffer> = None;
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -727,7 +717,7 @@ pub unsafe fn otfcc_build_otl(
             bk_ptr(BkCellType::P16, features),
             bk_ptr(BkCellType::P16, lookups),
         ]);
-        buf = bk_build_block(root).into_raw();
+        buf = Some(bk_build_block(root));
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

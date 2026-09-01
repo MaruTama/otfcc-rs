@@ -263,7 +263,7 @@ pub unsafe fn otl_gsub_parse_ligature(
 pub unsafe fn otfcc_build_gsub_ligature_subtable(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
-) -> *mut Buffer {
+) -> Buffer {
     let Subtable::GsubLigature(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -340,7 +340,7 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
         bk_push(root, &[bk_ptr(BkCellType::P16, ligset)]);
     }
     otl_coverage_free(startcov);
-    return bk_build_block(root).into_raw();
+    return bk_build_block(root);
 }
 
 #[cfg(test)]

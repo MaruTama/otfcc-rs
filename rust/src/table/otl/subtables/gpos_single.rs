@@ -167,7 +167,7 @@ pub unsafe fn otl_gpos_parse_single(
 pub unsafe fn otfcc_build_gpos_single(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
-) -> *mut Buffer {
+) -> Buffer {
     let Subtable::GposSingle(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -209,7 +209,7 @@ pub unsafe fn otfcc_build_gpos_single(
             ),
         ]);
         otl_coverage_free(cov);
-        return bk_build_block(b).into_raw();
+        return bk_build_block(b);
     } else {
         let b_0: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 2_u32),
@@ -229,7 +229,7 @@ pub unsafe fn otfcc_build_gpos_single(
             k = k.wrapping_add(1);
         }
         otl_coverage_free(cov);
-        return bk_build_block(b_0).into_raw();
+        return bk_build_block(b_0);
     };
 }
 

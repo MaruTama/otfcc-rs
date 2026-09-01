@@ -457,11 +457,8 @@ unsafe fn write_lig_carets(lc: *const LigCaretTable) -> *mut BkBlock {
     return lct;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> *mut Buffer {
-    let gdef = match gdef {
-        Some(g) => g as *const GdefTable,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
+pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
+    let gdef = gdef? as *const GdefTable;
     let mut b_glyph_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let b_attach_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let mut b_lig_caret_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
@@ -482,7 +479,7 @@ pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> *mut Buffer {
         bk_ptr(BkCellType::P16, b_lig_caret_list),
         bk_ptr(BkCellType::P16, b_mark_attach_class_def),
     ]);
-    return bk_build_block(root).into_raw();
+    Some(bk_build_block(root))
 }
 
 #[cfg(test)]

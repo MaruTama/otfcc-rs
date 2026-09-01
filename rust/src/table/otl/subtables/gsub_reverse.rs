@@ -236,7 +236,7 @@ pub unsafe fn otl_gsub_parse_reverse(
 pub unsafe fn otfcc_build_gsub_reverse(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
-) -> *mut Buffer {
+) -> Buffer {
     let Subtable::GsubReverse(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -320,7 +320,7 @@ pub unsafe fn otfcc_build_gsub_reverse(
         );
         j_1 = j_1.wrapping_add(1);
     }
-    return bk_build_block(root).into_raw();
+    return bk_build_block(root);
 }
 
 #[cfg(test)]

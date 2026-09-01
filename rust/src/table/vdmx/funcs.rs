@@ -281,14 +281,11 @@ pub unsafe fn otfcc_parse_vdmx(
     return Some(vdmx);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
-    let vdmx = match vdmx {
-        Some(v) => v,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
+pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
+    let vdmx = vdmx?;
     let ratios: &Vec<VdmxRatioRange> = &(*vdmx).ratios;
     if ratios.is_empty() {
-        return ::core::ptr::null_mut::<Buffer>();
+        return None;
     }
     let root: *mut BkBlock = bk_new_block(&[
         bk_int(
@@ -378,7 +375,7 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> *mut Buffer {
         keep_0 = (keep_0 == 0) as i32 as usize;
         __caryll_index_0 = __caryll_index_0.wrapping_add(1);
     }
-    return bk_build_block_no_minimize(root).into_raw();
+    Some(bk_build_block_no_minimize(root))
 }
 
 #[cfg(test)]

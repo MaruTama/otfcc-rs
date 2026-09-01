@@ -501,14 +501,11 @@ unsafe fn build_palette_entry_label(cpal: *const CpalTable) -> *mut BkBlock {
     return block;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> *mut Buffer {
-    let cpal = match cpal {
-        Some(c) => c as *const CpalTable,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
+pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
+    let cpal = cpal? as *const CpalTable;
     let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
     if palettes.is_empty() {
-        return ::core::ptr::null_mut::<Buffer>();
+        return None;
     }
     let num_palettes: u16 = palettes.len() as u16;
     let num_palettes_entries: u16 = palettes[0_usize].colorset.len() as u16;
@@ -583,7 +580,7 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> *mut Buffer {
             ],
         );
     }
-    return bk_build_block(root).into_raw();
+    Some(bk_build_block(root))
 }
 
 #[cfg(test)]

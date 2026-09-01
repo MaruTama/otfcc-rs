@@ -549,11 +549,8 @@ pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
     ]);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> *mut Buffer {
-    let base = match base {
-        Some(b) => b as *const BaseTable,
-        None => return ::core::ptr::null_mut::<Buffer>(),
-    };
+pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> Option<Buffer> {
+    let base = base? as *const BaseTable;
     let horizontal_bk = (*base)
         .horizontal
         .as_deref()
@@ -571,7 +568,7 @@ pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> *mut Buffer {
         bk_ptr(BkCellType::P16, horizontal_bk),
         bk_ptr(BkCellType::P16, vertical_bk),
     ]);
-    return bk_build_block(root).into_raw();
+    Some(bk_build_block(root))
 }
 #[inline]
 unsafe fn tag2str(tag: u32, tags: *mut ::core::ffi::c_char) {
