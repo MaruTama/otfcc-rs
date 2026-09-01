@@ -17,7 +17,6 @@ use crate::logger::{
 use crate::support::NULL;
 use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{buffree, bufnew, bufwrite16b};
 use crate::support::built_json::{
     BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key,
     json_string_new_from_bytes,
@@ -1190,10 +1189,10 @@ unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> Buffer {
     buf
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *mut Buffer {
+pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer> {
     let cmap = match cmap {
         Some(c) if !c.unicodes.is_empty() => c as *const CmapTable,
-        _ => return ::core::ptr::null_mut::<Buffer>(),
+        _ => return None,
     };
     let mut requires_format12: bool = false;
     let has_uvs: bool = !(*cmap).uvs.is_empty();
@@ -1202,10 +1201,10 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
             requires_format12 = true;
         }
     }
-    let mut format4: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
+    let mut format4: Option<Buffer> = None;
     if !requires_format12 || !options.stub_cmap4 {
-        format4 = otfcc_try_build_cmap_format4(cmap).map_or(::core::ptr::null_mut(), Buffer::into_raw);
-        if format4.is_null() {
+        format4 = otfcc_try_build_cmap_format4(cmap);
+        if format4.is_none() {
             requires_format12 = true;
         }
     }
@@ -1217,26 +1216,27 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
     if has_uvs {
         n_tables = (n_tables as i32 + 1_i32) as u8;
     }
-    if format4.is_null() {
-        format4 = bufnew();
-        bufwrite16b(format4, 4_u16);
-        bufwrite16b(format4, 32_u16);
-        bufwrite16b(format4, 0_u16);
-        bufwrite16b(format4, 4_u16);
-        bufwrite16b(format4, 4_u16);
-        bufwrite16b(format4, 1_u16);
-        bufwrite16b(format4, 0_u16);
-        bufwrite16b(format4, 0_u16);
-        bufwrite16b(format4, 0xffff_u16);
-        bufwrite16b(format4, 0_u16);
-        bufwrite16b(format4, 0_u16);
-        bufwrite16b(format4, 0xffff_u16);
-        bufwrite16b(format4, 0_u16);
-        bufwrite16b(format4, 1_u16);
-        bufwrite16b(format4, 0_u16);
-        bufwrite16b(format4, 0_u16);
-    }
-    let format12: *mut Buffer = otfcc_build_cmap_format12(cmap).into_raw();
+    let format4: Buffer = format4.unwrap_or_else(|| {
+        let mut stub = Buffer::new();
+        stub.write_u16be(4_u16);
+        stub.write_u16be(32_u16);
+        stub.write_u16be(0_u16);
+        stub.write_u16be(4_u16);
+        stub.write_u16be(4_u16);
+        stub.write_u16be(1_u16);
+        stub.write_u16be(0_u16);
+        stub.write_u16be(0_u16);
+        stub.write_u16be(0xffff_u16);
+        stub.write_u16be(0_u16);
+        stub.write_u16be(0_u16);
+        stub.write_u16be(0xffff_u16);
+        stub.write_u16be(0_u16);
+        stub.write_u16be(1_u16);
+        stub.write_u16be(0_u16);
+        stub.write_u16be(0_u16);
+        stub
+    });
+    let format12 = otfcc_build_cmap_format12(cmap);
     let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 0_u32),
         bk_int(BkCellType::B16, (n_tables as i32) as u32),
@@ -1246,7 +1246,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         &[
             bk_int(BkCellType::B16, 0_u32),
             bk_int(BkCellType::B16, 3_u32),
-            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(unsafe { format4.as_ref() })),
+            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format4))),
         ],
     );
     if requires_format12 {
@@ -1255,7 +1255,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
             &[
                 bk_int(BkCellType::B16, 0_u32),
                 bk_int(BkCellType::B16, 4_u32),
-                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(unsafe { format12.as_ref() })),
+                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format12))),
             ],
         );
     }
@@ -1275,7 +1275,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         &[
             bk_int(BkCellType::B16, 3_u32),
             bk_int(BkCellType::B16, 1_u32),
-            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(unsafe { format4.as_ref() })),
+            bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format4))),
         ],
     );
     if requires_format12 {
@@ -1284,13 +1284,11 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
             &[
                 bk_int(BkCellType::B16, 3_u32),
                 bk_int(BkCellType::B16, 10_u32),
-                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(unsafe { format12.as_ref() })),
+                bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format12))),
             ],
         );
     }
-    buffree(format4);
-    buffree(format12);
-    return bk_build_block(root).into_raw();
+    Some(bk_build_block(root))
 }
 
 #[cfg(test)]
