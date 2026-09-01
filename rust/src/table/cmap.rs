@@ -17,7 +17,7 @@ use crate::logger::{
 use crate::support::NULL;
 use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{buffree, buflen, bufnew, bufseek, bufwrite8, bufwrite16b, bufwrite24b, bufwrite32b};
+use crate::support::buffer::{buffree, bufnew, bufwrite16b};
 use crate::support::built_json::{
     BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key,
     json_string_new_from_bytes,
@@ -1023,27 +1023,22 @@ pub const MAX_UNICODE: i32 = 0x110001_i32;
 pub const HAS_DEFAULT: i32 = 1_i32;
 pub const HAS_NON_DEFAULT: i32 = 2_i32;
 #[inline]
-unsafe fn write_default_range(
-    dflt: *mut Buffer,
-    n_ranges: *mut u32,
-    mut start: Unicode,
-    end: Unicode,
-) {
+unsafe fn write_default_range(dflt: &mut Buffer, n_ranges: *mut u32, mut start: Unicode, end: Unicode) {
     while end.wrapping_sub(start) > 0xff as Unicode {
-        bufwrite24b(dflt, start);
-        bufwrite8(dflt, 0xff_u8);
+        dflt.write_u24be(start);
+        dflt.write_u8(0xff_u8);
         start = start.wrapping_add(0x100 as Unicode);
         *n_ranges = (*n_ranges).wrapping_add(1_u32);
     }
-    bufwrite24b(dflt, start);
-    bufwrite8(dflt, end.wrapping_sub(start) as u8);
+    dflt.write_u24be(start);
+    dflt.write_u8(end.wrapping_sub(start) as u8);
     *n_ranges = (*n_ranges).wrapping_add(1_u32);
 }
 unsafe fn build_format14_for_selector(
     cmap: *const CmapTable,
     selector: Unicode,
-    dflt: *mut Buffer,
-    nondflt: *mut Buffer,
+    dflt: &mut Buffer,
+    nondflt: &mut Buffer,
 ) -> u8 {
     let defaults: *mut GlyphId;
     let non_defaults: *mut GlyphId;
@@ -1086,8 +1081,8 @@ unsafe fn build_format14_for_selector(
     let mut num_unicode_value_ranges: u32 = 0_u32;
     let mut start_unicode_value: Unicode = 0 as Unicode;
     let mut num_uvs_mappings: u32 = 0_u32;
-    bufwrite32b(dflt, 0_u32);
-    bufwrite32b(nondflt, 0_u32);
+    dflt.write_u32be(0_u32);
+    nondflt.write_u32be(0_u32);
     let mut u_0: Unicode = 1 as Unicode;
     while u_0 < MAX_UNICODE as Unicode {
         if *defaults.offset(u_0 as isize) as i32 != 0xffff_i32
@@ -1109,16 +1104,16 @@ unsafe fn build_format14_for_selector(
         }
         if *non_defaults.offset(u_0 as isize) as i32 != 0xffff_i32
         {
-            bufwrite24b(nondflt, u_0 as u32);
-            bufwrite16b(nondflt, *non_defaults.offset(u_0 as isize) as u16);
+            nondflt.write_u24be(u_0);
+            nondflt.write_u16be(*non_defaults.offset(u_0 as isize) as u16);
             num_uvs_mappings = num_uvs_mappings.wrapping_add(1);
         }
         u_0 = u_0.wrapping_add(1);
     }
-    bufseek(dflt, 0_usize);
-    bufwrite32b(dflt, num_unicode_value_ranges);
-    bufseek(nondflt, 0_usize);
-    bufwrite32b(nondflt, num_uvs_mappings);
+    dflt.seek(0_usize);
+    dflt.write_u32be(num_unicode_value_ranges);
+    nondflt.seek(0_usize);
+    nondflt.write_u32be(num_uvs_mappings);
     free(defaults as *mut ::core::ffi::c_void);
     free(non_defaults as *mut ::core::ffi::c_void);
     return ((if num_unicode_value_ranges != 0 {
@@ -1131,7 +1126,7 @@ unsafe fn build_format14_for_selector(
         0_i32
     })) as u8;
 }
-unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> *mut Buffer {
+unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> Buffer {
     let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];
     for (key, _) in (*cmap).uvs.iter() {
         if key.selector < MAX_UNICODE as u32 {
@@ -1154,17 +1149,19 @@ unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> *mut Buffer {
     let mut selector_0: Unicode = 0 as Unicode;
     while selector_0 < MAX_UNICODE as Unicode {
         if valid_selectors[selector_0 as usize] {
-            let mut dflt: *mut Buffer = bufnew();
-            let mut nondflt: *mut Buffer = bufnew();
-            let results: u8 = build_format14_for_selector(cmap, selector_0, dflt, nondflt);
-            if results as i32 & HAS_DEFAULT == 0 {
-                buffree(dflt);
-                dflt = ::core::ptr::null_mut::<Buffer>();
-            }
-            if results as i32 & HAS_NON_DEFAULT == 0 {
-                buffree(nondflt);
-                nondflt = ::core::ptr::null_mut::<Buffer>();
-            }
+            let mut dflt = Buffer::new();
+            let mut nondflt = Buffer::new();
+            let results: u8 = build_format14_for_selector(cmap, selector_0, &mut dflt, &mut nondflt);
+            let dflt = if results as i32 & HAS_DEFAULT == 0 {
+                None
+            } else {
+                Some(dflt)
+            };
+            let nondflt = if results as i32 & HAS_NON_DEFAULT == 0 {
+                None
+            } else {
+                Some(nondflt)
+            };
             bk_push(
                 st,
                 &[
@@ -1180,17 +1177,17 @@ unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> *mut Buffer {
                         BkCellType::B8,
                         (selector_0 & 0xff as Unicode) as u32,
                     ),
-                    bk_ptr(BkCellType::P32, bk_new_block_from_buffer(unsafe { Buffer::from_raw(dflt) })),
-                    bk_ptr(BkCellType::P32, bk_new_block_from_buffer(unsafe { Buffer::from_raw(nondflt) })),
+                    bk_ptr(BkCellType::P32, bk_new_block_from_buffer(dflt)),
+                    bk_ptr(BkCellType::P32, bk_new_block_from_buffer(nondflt)),
                 ],
             );
         }
         selector_0 = selector_0.wrapping_add(1);
     }
-    let buf: *mut Buffer = bk_build_block(st).into_raw();
-    bufseek(buf, 2_usize);
-    bufwrite32b(buf, buflen(buf) as u32);
-    return buf;
+    let mut buf = bk_build_block(st);
+    buf.seek(2_usize);
+    buf.write_u32be(buf.len() as u32);
+    buf
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *mut Buffer {
@@ -1263,13 +1260,13 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
         );
     }
     if has_uvs {
-        let format14: *mut Buffer = otfcc_build_cmap_format14(cmap);
+        let format14 = otfcc_build_cmap_format14(cmap);
         bk_push(
             root,
             &[
                 bk_int(BkCellType::B16, 0_u32),
                 bk_int(BkCellType::B16, 5_u32),
-                bk_ptr(BkCellType::P32, bk_new_block_from_buffer(unsafe { Buffer::from_raw(format14) })),
+                bk_ptr(BkCellType::P32, bk_new_block_from_buffer(Some(format14))),
             ],
         );
     }
