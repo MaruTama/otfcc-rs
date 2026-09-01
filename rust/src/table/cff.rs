@@ -62,7 +62,6 @@ use crate::libcff::charstring_il::{cff_compile_glyph_to_il, cff_optimize_il};
 use crate::libcff::subr::{
     cff_il_graph_to_buffers, cff_insert_il_to_graph, cff_subr_graph_dispose, cff_subr_graph_init,
 };
-use crate::support::buffer::bufnew;
 use crate::support::built_json::{
     BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new,
     json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key,
@@ -2010,22 +2009,12 @@ pub unsafe fn otfcc_parse_cff(
         return unwrap_cff_table(cff);
     };
 }
-unsafe fn cff_make_charstrings(
-    context: *mut CffCharstringBuilderContext,
-    s: *mut *mut Buffer,
-    gs: *mut *mut Buffer,
-    ls: *mut *mut Buffer,
-) {
+unsafe fn cff_make_charstrings(context: *mut CffCharstringBuilderContext) -> (Buffer, Buffer, Buffer) {
     if (*(*context).glyf).is_empty() {
-        // The caller (`writecff_cid_keyed`) initializes `*s`/`*gs`/`*ls` to
-        // null and dereferences them unconditionally right after this call
-        // returns -- with 0 glyphs, `cff_il_graph_to_buffers` below never
-        // runs to fill them in, so they need an explicit (empty, but not
-        // null) `Buffer` here instead of being left null.
-        *s = bufnew();
-        *gs = bufnew();
-        *ls = bufnew();
-        return;
+        // With 0 glyphs, `cff_il_graph_to_buffers` below never runs, so
+        // the caller (`writecff_cid_keyed`) still needs three empty (but
+        // real) `Buffer`s here.
+        return (Buffer::new(), Buffer::new(), Buffer::new());
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*(*context).glyf).len() {
@@ -2040,7 +2029,7 @@ unsafe fn cff_make_charstrings(
         il = ::core::ptr::null_mut::<CffCharstringIl>();
         j = j.wrapping_add(1);
     }
-    cff_il_graph_to_buffers(&raw mut (*context).graph, s, gs, ls, &*(*context).options);
+    cff_il_graph_to_buffers(&raw mut (*context).graph, &*(*context).options)
 }
 // Deduplicates by string content, first registration wins -- returns the
 // existing SID if the string was already registered, otherwise assigns
@@ -2464,9 +2453,6 @@ unsafe fn writecff_cid_keyed(
     }
     let c = cff_make_charset(cff, glyf, &raw mut string_hash);
     let i = cffstrings_to_indexblob(&raw mut string_hash);
-    let mut s_ptr: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-    let mut gs_ptr: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
-    let mut ls_ptr: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     let mut g2c_context: CffCharstringBuilderContext = CffCharstringBuilderContext {
         glyf: ::core::ptr::null_mut::<GlyfTable>(),
         default_width: 0,
@@ -2480,15 +2466,8 @@ unsafe fn writecff_cid_keyed(
     g2c_context.options = options as *const Options;
     cff_subr_graph_init(&raw mut g2c_context.graph);
     g2c_context.graph.do_subroutinize = options.cff_do_subroutinize;
-    cff_make_charstrings(&raw mut g2c_context, &raw mut s_ptr, &raw mut gs_ptr, &raw mut ls_ptr);
+    let (s, gs, ls) = cff_make_charstrings(&raw mut g2c_context);
     cff_subr_graph_dispose(&raw mut g2c_context.graph);
-    // `cff_make_charstrings` always fills these three (either via
-    // `cff_il_graph_to_buffers`, or its own 0-glyph shortcut) -- never
-    // left null, so `.unwrap()` here mirrors the unconditional
-    // dereferences the original made of them.
-    let s = Buffer::from_raw(s_ptr).unwrap();
-    let gs = Buffer::from_raw(gs_ptr).unwrap();
-    let ls = Buffer::from_raw(ls_ptr).unwrap();
     let mut additional_top_dict_ops_size: u32 = 0_u32;
     let mut off: u32 = h
         .len()
@@ -2534,7 +2513,7 @@ unsafe fn writecff_cid_keyed(
         (additional_top_dict_ops_size as usize)
             .wrapping_add(i.len())
             .wrapping_add(gs.len()),
-    ) as u32 as u32;
+    ) as u32;
     if c.len() != 0_usize {
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_CHARSET));
@@ -2548,7 +2527,7 @@ unsafe fn writecff_cid_keyed(
     if s.len() != 0_usize {
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_CHAR_STRINGS));
-        off = (off as usize).wrapping_add(s.len()) as u32 as u32;
+        off = (off as usize).wrapping_add(s.len()) as u32;
     }
     if p.len() != 0_usize {
         blob.write_buffer_owned(cff_build_offset(p.len() as u32 as i32));
@@ -2644,8 +2623,8 @@ unsafe fn writecff_cid_keyed(
     }
     return blob;
 }
-pub unsafe fn otfcc_build_cff(cff_and_glyf: CffAndGlyf, options: &Options) -> *mut Buffer {
-    return writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options).into_raw();
+pub unsafe fn otfcc_build_cff(cff_and_glyf: CffAndGlyf, options: &Options) -> Buffer {
+    writecff_cid_keyed(cff_and_glyf.meta, cff_and_glyf.glyphs, options)
 }
 #[inline]
 unsafe fn json_from_sds(str: &[u8]) -> *mut BuiltValue {
