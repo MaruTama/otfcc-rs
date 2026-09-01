@@ -16,12 +16,8 @@ use crate::logger::{
 };
 use crate::support::NULL;
 use crate::support::alloc::__caryll_allocate_clean;
-use crate::support::binio::read_16u;
 use crate::support::buffer::Buffer;
-use crate::support::buffer::{
-    buffree, buflen, bufnew, bufseek, bufwrite_buf, bufwrite8, bufwrite16b, bufwrite24b,
-    bufwrite32b,
-};
+use crate::support::buffer::{buffree, buflen, bufnew, bufseek, bufwrite8, bufwrite16b, bufwrite24b, bufwrite32b};
 use crate::support::built_json::{
     BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key,
     json_string_new_from_bytes,
@@ -843,13 +839,13 @@ pub unsafe fn otfcc_parse_cmap(
     }
     return Some(cmap_box);
 }
-unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
-    let buf: *mut Buffer = bufnew();
-    let end_count: *mut Buffer = bufnew();
-    let start_count: *mut Buffer = bufnew();
-    let id_delta: *mut Buffer = bufnew();
-    let id_range_offset: *mut Buffer = bufnew();
-    let glyph_id_array: *mut Buffer = bufnew();
+unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> Buffer {
+    let mut buf = Buffer::new();
+    let mut end_count = Buffer::new();
+    let mut start_count = Buffer::new();
+    let mut id_delta = Buffer::new();
+    let mut id_range_offset = Buffer::new();
+    let mut glyph_id_array = Buffer::new();
     let mut started: bool = false;
     let mut last_unicode_start: i32 = 0xffffff_i32;
     let mut last_unicode_end: i32 = 0xffffff_i32;
@@ -876,10 +872,10 @@ unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
                     && !(glyph.index as i32
                         == last_gid_end + 1_i32)
                 {
-                    last_glyph_id_array_offset = (*glyph_id_array).cursor;
+                    last_glyph_id_array_offset = glyph_id_array.cursor;
                     let mut j: i32 = last_gid_start;
                     while j <= last_gid_end {
-                        bufwrite16b(glyph_id_array, j as u16);
+                        glyph_id_array.write_u16be(j as u16);
                         j += 1;
                     }
                 }
@@ -888,18 +884,17 @@ unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
                     && glyph.index as i32 == last_gid_end + 1_i32;
                 last_gid_end = glyph.index as i32;
                 if !is_sequencial {
-                    bufwrite16b(glyph_id_array, last_gid_end as u16);
+                    glyph_id_array.write_u16be(last_gid_end as u16);
                 }
             } else {
-                bufwrite16b(end_count, last_unicode_end as u16);
-                bufwrite16b(start_count, last_unicode_start as u16);
+                end_count.write_u16be(last_unicode_end as u16);
+                start_count.write_u16be(last_unicode_start as u16);
                 if is_sequencial {
-                    bufwrite16b(id_delta, (last_gid_start - last_unicode_start) as u16);
-                    bufwrite16b(id_range_offset, 0_u16);
+                    id_delta.write_u16be((last_gid_start - last_unicode_start) as u16);
+                    id_range_offset.write_u16be(0_u16);
                 } else {
-                    bufwrite16b(id_delta, 0_u16);
-                    bufwrite16b(
-                        id_range_offset,
+                    id_delta.write_u16be(0_u16);
+                    id_range_offset.write_u16be(
                         last_glyph_id_array_offset.wrapping_add(1_usize) as u16,
                     );
                 }
@@ -913,51 +908,42 @@ unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
             }
         }
     }
-    bufwrite16b(end_count, last_unicode_end as u16);
-    bufwrite16b(start_count, last_unicode_start as u16);
+    end_count.write_u16be(last_unicode_end as u16);
+    start_count.write_u16be(last_unicode_start as u16);
     if is_sequencial {
-        bufwrite16b(id_delta, (last_gid_start - last_unicode_start) as u16);
-        bufwrite16b(id_range_offset, 0_u16);
+        id_delta.write_u16be((last_gid_start - last_unicode_start) as u16);
+        id_range_offset.write_u16be(0_u16);
     } else {
-        bufwrite16b(id_delta, 0_u16);
-        bufwrite16b(
-            id_range_offset,
-            last_glyph_id_array_offset.wrapping_add(1_usize) as u16,
-        );
+        id_delta.write_u16be(0_u16);
+        id_range_offset.write_u16be(last_glyph_id_array_offset.wrapping_add(1_usize) as u16);
     }
     segments_count = (segments_count as i32 + 1_i32) as u16;
     if last_gid_end < 0xffff_i32 {
-        bufwrite16b(end_count, 0xffff_u16);
-        bufwrite16b(start_count, 0xffff_u16);
-        bufwrite16b(id_delta, 1_u16);
-        bufwrite16b(id_range_offset, 0_u16);
+        end_count.write_u16be(0xffff_u16);
+        start_count.write_u16be(0xffff_u16);
+        id_delta.write_u16be(1_u16);
+        id_range_offset.write_u16be(0_u16);
         segments_count = (segments_count as i32 + 1_i32) as u16;
     }
     let mut j_0: i32 = 0_i32;
     while j_0 < segments_count as i32 {
-        let mut ro: u16 = read_16u(
-            (*id_range_offset)
-                .data
-                .as_ptr()
-                .offset((j_0 * 2_i32) as isize),
-        );
+        let idx = (j_0 * 2_i32) as usize;
+        let mut ro: u16 =
+            u16::from_be_bytes([id_range_offset.data[idx], id_range_offset.data[idx + 1]]);
         if ro != 0 {
             ro = (ro as i32 - 1_i32) as u16;
             ro = (ro as i32
                 + 2_i32 * (segments_count as i32 - j_0))
                 as u16;
-            bufseek(id_range_offset, (2_i32 * j_0) as usize);
-            bufwrite16b(id_range_offset, ro);
+            id_range_offset.seek((2_i32 * j_0) as usize);
+            id_range_offset.write_u16be(ro);
         }
         j_0 += 1;
     }
-    bufwrite16b(buf, 4_u16);
-    bufwrite16b(buf, 0_u16);
-    bufwrite16b(buf, 0_u16);
-    bufwrite16b(
-        buf,
-        ((segments_count as i32) << 1_i32) as u16,
-    );
+    buf.write_u16be(4_u16);
+    buf.write_u16be(0_u16);
+    buf.write_u16be(0_u16);
+    buf.write_u16be(((segments_count as i32) << 1_i32) as u16);
     let mut i: u32;
     let mut j_1: u32;
     j_1 = 0_u32;
@@ -966,36 +952,26 @@ unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
         i <<= 1_i32;
         j_1 = j_1.wrapping_add(1);
     }
-    bufwrite16b(buf, i as u16);
-    bufwrite16b(buf, j_1.wrapping_sub(1_u32) as u16);
-    bufwrite16b(
-        buf,
-        ((2_i32 * segments_count as i32) as u32).wrapping_sub(i)
-            as u16,
-    );
-    bufwrite_buf(buf, end_count);
-    bufwrite16b(buf, 0_u16);
-    bufwrite_buf(buf, start_count);
-    bufwrite_buf(buf, id_delta);
-    bufwrite_buf(buf, id_range_offset);
-    bufwrite_buf(buf, glyph_id_array);
-    bufseek(buf, 2_usize);
-    bufwrite16b(buf, buflen(buf) as u16);
-    buffree(end_count);
-    buffree(start_count);
-    buffree(id_delta);
-    buffree(id_range_offset);
-    buffree(glyph_id_array);
-    return buf;
+    buf.write_u16be(i as u16);
+    buf.write_u16be(j_1.wrapping_sub(1_u32) as u16);
+    buf.write_u16be(((2_i32 * segments_count as i32) as u32).wrapping_sub(i) as u16);
+    buf.write_buffer(&end_count);
+    buf.write_u16be(0_u16);
+    buf.write_buffer(&start_count);
+    buf.write_buffer(&id_delta);
+    buf.write_buffer(&id_range_offset);
+    buf.write_buffer(&glyph_id_array);
+    buf.seek(2_usize);
+    buf.write_u16be(buf.len() as u16);
+    buf
 }
-unsafe fn otfcc_try_build_cmap_format4(cmap: *const CmapTable) -> *mut Buffer {
-    let buf: *mut Buffer = otfcc_build_cmap_format4(cmap);
-    if buflen(buf) > UINT16_MAX as usize {
-        buffree(buf);
-        return ::core::ptr::null_mut::<Buffer>();
+unsafe fn otfcc_try_build_cmap_format4(cmap: *const CmapTable) -> Option<Buffer> {
+    let buf = otfcc_build_cmap_format4(cmap);
+    if buf.len() > UINT16_MAX as usize {
+        None
     } else {
-        return buf;
-    };
+        Some(buf)
+    }
 }
 unsafe fn otfcc_build_cmap_format12(cmap: *const CmapTable) -> Buffer {
     let mut buf = Buffer::new();
@@ -1231,7 +1207,7 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> *
     }
     let mut format4: *mut Buffer = ::core::ptr::null_mut::<Buffer>();
     if !requires_format12 || !options.stub_cmap4 {
-        format4 = otfcc_try_build_cmap_format4(cmap);
+        format4 = otfcc_try_build_cmap_format4(cmap).map_or(::core::ptr::null_mut(), Buffer::into_raw);
         if format4.is_null() {
             requires_format12 = true;
         }
