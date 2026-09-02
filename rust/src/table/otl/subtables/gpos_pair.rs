@@ -22,10 +22,7 @@ use crate::bk::bkgraph::{
     bk_new_graph_from_root_block, bk_untangle_graph,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_new_position, json_object_new,
-    json_object_push, preserialize,
-};
+use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos, TableId};
 use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
@@ -355,32 +352,20 @@ pub unsafe fn otl_read_gpos_pair(
     subtable_gpos_pair_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> BuiltValue {
     let Subtable::GposPair(mut_subtable) = &*_subtable else {
         unreachable!()
     };
     let subtable: *const GposPairSubtable = mut_subtable;
     let first_cd: *const ClassDef = (*subtable).first.as_deref().unwrap();
     let second_cd: *const ClassDef = (*subtable).second.as_deref().unwrap();
-    let st: *mut BuiltValue = json_object_new(3_usize);
-    json_object_push(
-        st,
-        b"first\0" as *const u8 as *const ::core::ffi::c_char,
-        dump_class_def(first_cd).into_raw(),
-    );
-    json_object_push(
-        st,
-        b"second\0" as *const u8 as *const ::core::ffi::c_char,
-        dump_class_def(second_cd).into_raw(),
-    );
-    let mat: *mut BuiltValue = json_array_new(
-        ((*first_cd).maxclass as i32 + 1_i32) as usize,
-    );
+    let mut st = BuiltValue::new_object(3);
+    st.push_field(b"first", dump_class_def(first_cd));
+    st.push_field(b"second", dump_class_def(second_cd));
+    let mut mat = BuiltValue::new_array(((*first_cd).maxclass as i32 + 1_i32) as usize);
     let mut j: GlyphClass = 0 as GlyphClass;
     while j as i32 <= (*first_cd).maxclass as i32 {
-        let row: *mut BuiltValue = json_array_new(
-            ((*second_cd).maxclass as i32 + 1_i32) as usize,
-        );
+        let mut row = BuiltValue::new_array(((*second_cd).maxclass as i32 + 1_i32) as usize);
         let mut k: GlyphClass = 0 as GlyphClass;
         while k as i32 <= (*second_cd).maxclass as i32 {
             let f1: u8 =
@@ -388,49 +373,36 @@ pub unsafe fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltVa
             let f2: u8 =
                 required_position_format((&(*subtable).second_values)[j as usize][k as usize]);
             if f1 as i32 | f2 as i32 != 0 {
-                if f1 as i32 == FORMAT_DWIDTH as i32
-                    && f2 as i32 == 0_i32
-                {
-                    json_array_push(
-                        row,
-                        json_new_position(
-                            (&(*subtable).first_values)[j as usize][k as usize].d_width,
-                        ),
-                    );
+                if f1 as i32 == FORMAT_DWIDTH as i32 && f2 as i32 == 0_i32 {
+                    row.push_item(BuiltValue::position(
+                        (&(*subtable).first_values)[j as usize][k as usize].d_width,
+                    ));
                 } else {
-                    let pair: *mut BuiltValue = json_object_new(2_usize);
+                    let mut pair = BuiltValue::new_object(2);
                     if f1 != 0 {
-                        json_object_push(
-                            pair,
-                            b"first\0" as *const u8 as *const ::core::ffi::c_char,
-                            gpos_dump_value((&(*subtable).first_values)[j as usize][k as usize])
-                                .into_raw(),
+                        pair.push_field(
+                            b"first",
+                            gpos_dump_value((&(*subtable).first_values)[j as usize][k as usize]),
                         );
                     }
                     if f2 != 0 {
-                        json_object_push(
-                            pair,
-                            b"second\0" as *const u8 as *const ::core::ffi::c_char,
-                            gpos_dump_value((&(*subtable).second_values)[j as usize][k as usize])
-                                .into_raw(),
+                        pair.push_field(
+                            b"second",
+                            gpos_dump_value((&(*subtable).second_values)[j as usize][k as usize]),
                         );
                     }
-                    json_array_push(row, pair);
+                    row.push_item(pair);
                 }
             } else {
-                json_array_push(row, json_new_position(0_i32 as Pos));
+                row.push_item(BuiltValue::position(0_i32 as Pos));
             }
             k = k.wrapping_add(1);
         }
-        json_array_push(mat, preserialize(row));
+        mat.push_item(row.preserialize());
         j = j.wrapping_add(1);
     }
-    json_object_push(
-        st,
-        b"matrix\0" as *const u8 as *const ::core::ffi::c_char,
-        mat,
-    );
-    return st;
+    st.push_field(b"matrix", mat);
+    st
 }
 pub unsafe fn otl_gpos_parse_pair(
     mut _subtable: *const ParsedValue,

@@ -17,7 +17,7 @@ use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_bytes_key};
+use crate::support::built_json::BuiltValue;
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
@@ -125,22 +125,21 @@ pub unsafe fn otl_read_gpos_single(
     subtable_gpos_single_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gpos_dump_single(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gpos_dump_single(mut _subtable: *const Subtable) -> BuiltValue {
     let Subtable::GposSingle(mut_subtable) = &*_subtable else {
         unreachable!()
     };
     let subtable: *const GposSingleSubtable = mut_subtable;
-    let st: *mut BuiltValue = json_object_new((*subtable).len());
+    let mut st = BuiltValue::new_object((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
-        json_object_push_bytes_key(
-            st,
+        st.push_field_bytes_key(
             &(&(*subtable))[j as usize].target.name,
-            gpos_dump_value((&(*subtable))[j as usize].value).into_raw(),
+            gpos_dump_value((&(*subtable))[j as usize].value),
         );
         j = j.wrapping_add(1);
     }
-    return st;
+    st
 }
 pub unsafe fn otl_gpos_parse_single(
     mut _subtable: *const ParsedValue,

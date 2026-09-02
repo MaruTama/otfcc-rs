@@ -16,10 +16,7 @@ use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::bk_build_block;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_object_new, json_object_push,
-    json_string_new_from_bytes, preserialize,
-};
+use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
@@ -162,35 +159,29 @@ pub unsafe fn otl_read_gsub_ligature(
     }
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) -> BuiltValue {
     let Subtable::GsubLigature(mut_subtable) = &*_subtable else {
         unreachable!()
     };
     let subtable: *const GsubLigatureSubtable = mut_subtable;
-    let st: *mut BuiltValue = json_array_new((*subtable).len());
+    let mut st = BuiltValue::new_array((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
-        let entry: *mut BuiltValue = json_object_new(2_usize);
-        json_object_push(
-            entry,
-            b"from\0" as *const u8 as *const ::core::ffi::c_char,
-            dump_coverage(&(&(*subtable))[j as usize].from as *const Coverage).into_raw(),
+        let mut entry = BuiltValue::new_object(2);
+        entry.push_field(
+            b"from",
+            dump_coverage(&(&(*subtable))[j as usize].from as *const Coverage),
         );
-        json_object_push(
-            entry,
-            b"to\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new_from_bytes(&(&(*subtable))[j as usize].to.name),
+        entry.push_field(
+            b"to",
+            BuiltValue::str_truncated_at_nul(&(&(*subtable))[j as usize].to.name),
         );
-        json_array_push(st, preserialize(entry));
+        st.push_item(entry.preserialize());
         j = j.wrapping_add(1);
     }
-    let ret: *mut BuiltValue = json_object_new(1_usize);
-    json_object_push(
-        ret,
-        b"substitutions\0" as *const u8 as *const ::core::ffi::c_char,
-        st,
-    );
-    return ret;
+    let mut ret = BuiltValue::new_object(1);
+    ret.push_field(b"substitutions", st);
+    ret
 }
 pub unsafe fn otl_gsub_parse_ligature(
     mut _subtable: *const ParsedValue,

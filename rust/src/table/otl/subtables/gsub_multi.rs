@@ -21,7 +21,7 @@ use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{BuiltValue, json_object_new, json_object_push_bytes_key};
+use crate::support::built_json::BuiltValue;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubMultiEntry, GsubMultiSubtable, Subtable, subtable_from_raw};
@@ -140,21 +140,20 @@ pub unsafe fn otl_read_gsub_multi(
     subtable_gsub_multi_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gsub_dump_multi(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gsub_dump_multi(mut _subtable: *const Subtable) -> BuiltValue {
     let Subtable::GsubMulti(mut_subtable) = &*_subtable else {
         unreachable!()
     };
     let subtable: *const GsubMultiSubtable = mut_subtable;
-    let st: *mut BuiltValue = json_object_new((*subtable).len());
+    let mut st = BuiltValue::new_object((*subtable).len());
     for j in 0..(*subtable).len() as GlyphId {
         let entry = &(&(*subtable))[j as usize];
-        json_object_push_bytes_key(
-            st,
+        st.push_field_bytes_key(
             &(*entry).from.name,
-            dump_coverage(&(*entry).to as *const Coverage).into_raw(),
+            dump_coverage(&(*entry).to as *const Coverage),
         );
     }
-    return st;
+    st
 }
 pub unsafe fn otl_gsub_parse_multi(
     mut _subtable: *const ParsedValue,

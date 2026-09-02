@@ -16,10 +16,7 @@ use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
-    json_object_push,
-};
+use crate::support::built_json::BuiltValue;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubReverseSubtable, Subtable, subtable_from_raw};
@@ -164,37 +161,24 @@ pub unsafe fn otl_read_gsub_reverse(
     subtable_gsub_reverse_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gsub_dump_reverse(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gsub_dump_reverse(mut _subtable: *const Subtable) -> BuiltValue {
     let Subtable::GsubReverse(mut_subtable) = &*_subtable else {
         unreachable!()
     };
     let subtable: *const GsubReverseSubtable = mut_subtable;
-    let mut _st: *mut BuiltValue = json_object_new(3_usize);
-    let mut _match: *mut BuiltValue = json_array_new((*subtable).match_count as usize);
+    let mut _st = BuiltValue::new_object(3);
+    let mut _match = BuiltValue::new_array((*subtable).match_count as usize);
     let mut j: TableId = 0 as TableId;
     while (j as i32) < (*subtable).match_count as i32 {
-        json_array_push(
-            _match,
-            dump_coverage(&(&(*subtable).match_0)[j as usize] as *const Coverage).into_raw(),
-        );
+        _match.push_item(dump_coverage(
+            &(&(*subtable).match_0)[j as usize] as *const Coverage,
+        ));
         j = j.wrapping_add(1);
     }
-    json_object_push(
-        _st,
-        b"match\0" as *const u8 as *const ::core::ffi::c_char,
-        _match,
-    );
-    json_object_push(
-        _st,
-        b"to\0" as *const u8 as *const ::core::ffi::c_char,
-        dump_coverage(&(*subtable).to as *const Coverage).into_raw(),
-    );
-    json_object_push(
-        _st,
-        b"inputIndex\0" as *const u8 as *const ::core::ffi::c_char,
-        json_integer_new((*subtable).input_index as i64),
-    );
-    return _st;
+    _st.push_field(b"match", _match);
+    _st.push_field(b"to", dump_coverage(&(*subtable).to as *const Coverage));
+    _st.push_field(b"inputIndex", BuiltValue::Int((*subtable).input_index as i64));
+    _st
 }
 pub unsafe fn otl_gsub_parse_reverse(
     mut _subtable: *const ParsedValue,
