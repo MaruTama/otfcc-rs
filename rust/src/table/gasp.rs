@@ -4,10 +4,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new,
-    json_object_new, json_object_push,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -93,42 +90,31 @@ pub unsafe fn otfcc_dump_gasp(
     let records: &Vec<GaspRecord> = &(*table).records;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let t: *mut BuiltValue = json_array_new(records.len());
+        let mut t = BuiltValue::new_array(records.len());
         let mut j: u16 = 0_u16;
         while (j as usize) < records.len() {
-            let rec: *mut BuiltValue = json_object_new(5_usize);
-            json_object_push(
-                rec,
-                b"rangeMaxPPEM\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new(records[j as usize].range_max_ppem as i64),
+            let mut rec = BuiltValue::new_object(5);
+            rec.push_field(
+                b"rangeMaxPPEM",
+                BuiltValue::Int(records[j as usize].range_max_ppem as i64),
             );
-            json_object_push(
-                rec,
-                b"dogray\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(records[j as usize].dogray as i32),
+            rec.push_field(b"dogray", BuiltValue::Bool(records[j as usize].dogray));
+            rec.push_field(b"gridfit", BuiltValue::Bool(records[j as usize].gridfit));
+            rec.push_field(
+                b"symmetric_smoothing",
+                BuiltValue::Bool(records[j as usize].symmetric_smoothing),
             );
-            json_object_push(
-                rec,
-                b"gridfit\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(records[j as usize].gridfit as i32),
+            rec.push_field(
+                b"symmetric_gridfit",
+                BuiltValue::Bool(records[j as usize].symmetric_gridfit),
             );
-            json_object_push(
-                rec,
-                b"symmetric_smoothing\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(records[j as usize].symmetric_smoothing as i32),
-            );
-            json_object_push(
-                rec,
-                b"symmetric_gridfit\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(records[j as usize].symmetric_gridfit as i32),
-            );
-            json_array_push(t, rec);
+            t.push_item(rec);
             j = j.wrapping_add(1);
         }
         json_object_push(
             root,
             b"gasp\0" as *const u8 as *const ::core::ffi::c_char,
-            t,
+            t.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

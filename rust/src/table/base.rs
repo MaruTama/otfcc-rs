@@ -6,10 +6,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_new_position, json_object_new, json_object_push, json_object_push_tag,
-    json_string_new_length,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -238,47 +235,37 @@ pub fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<BaseTab
         vertical,
     }))
 }
-unsafe fn axis_to_json(axis: *const BaseAxis) -> *mut BuiltValue {
-    let mut _axis: *mut BuiltValue = json_object_new((*axis).entries.len());
+unsafe fn axis_to_json(axis: *const BaseAxis) -> BuiltValue {
+    let mut _axis = BuiltValue::new_object((*axis).entries.len());
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*axis).entries.len() {
         let entry = &(&(*axis).entries)[j as usize];
         if entry.tag != 0 {
-            let mut _entry: *mut BuiltValue = json_object_new(3_usize);
+            let mut _entry = BuiltValue::new_object(3);
             if entry.default_baseline_tag != 0 {
-                let mut tag: [::core::ffi::c_char; 4] = [0; 4];
-                tag2str(
-                    entry.default_baseline_tag,
-                    &raw mut tag as *mut ::core::ffi::c_char,
-                );
-                json_object_push(
-                    _entry,
-                    b"defaultBaseline\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_string_new_length(
-                        4 as ::core::ffi::c_uint,
-                        &raw mut tag as *mut ::core::ffi::c_char,
-                    ),
-                );
+                let tag_bytes: [u8; 4] = [
+                    ((entry.default_baseline_tag & 0xff000000u32) >> 24) as u8,
+                    ((entry.default_baseline_tag & 0xff0000u32) >> 16) as u8,
+                    ((entry.default_baseline_tag & 0xff00u32) >> 8) as u8,
+                    (entry.default_baseline_tag & 0xffu32) as u8,
+                ];
+                _entry.push_field(b"defaultBaseline", BuiltValue::Str(tag_bytes.to_vec()));
             }
-            let mut _values: *mut BuiltValue = json_object_new(entry.base_values.len());
+            let mut _values = BuiltValue::new_object(entry.base_values.len());
             let mut k: TableId = 0 as TableId;
             while (k as usize) < entry.base_values.len() {
                 let bv = &(&entry.base_values)[k as usize];
                 if bv.tag != 0 {
-                    json_object_push_tag(_values, bv.tag, json_new_position(bv.coordinate));
+                    _values.push_tag(bv.tag, BuiltValue::position(bv.coordinate));
                 }
                 k = k.wrapping_add(1);
             }
-            json_object_push(
-                _entry,
-                b"baselines\0" as *const u8 as *const ::core::ffi::c_char,
-                _values,
-            );
-            json_object_push_tag(_axis, entry.tag, _entry);
+            _entry.push_field(b"baselines", _values);
+            _axis.push_tag(entry.tag, _entry);
         }
         j = j.wrapping_add(1);
     }
-    return _axis;
+    _axis
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_base(
@@ -296,25 +283,17 @@ pub unsafe fn otfcc_dump_base(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _base: *mut BuiltValue = json_object_new(2_usize);
+        let mut _base = BuiltValue::new_object(2);
         if let Some(horizontal) = (*base).horizontal.as_deref() {
-            json_object_push(
-                _base,
-                b"horizontal\0" as *const u8 as *const ::core::ffi::c_char,
-                axis_to_json(horizontal),
-            );
+            _base.push_field(b"horizontal", axis_to_json(horizontal));
         }
         if let Some(vertical) = (*base).vertical.as_deref() {
-            json_object_push(
-                _base,
-                b"vertical\0" as *const u8 as *const ::core::ffi::c_char,
-                axis_to_json(vertical),
-            );
+            _base.push_field(b"vertical", axis_to_json(vertical));
         }
         json_object_push(
             root,
             b"BASE\0" as *const u8 as *const ::core::ffi::c_char,
-            _base,
+            _base.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
@@ -569,16 +548,6 @@ pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> Option<Buffer> {
         bk_ptr(BkCellType::P16, vertical_bk),
     ]);
     Some(bk_build_block(root))
-}
-#[inline]
-unsafe fn tag2str(tag: u32, tags: *mut ::core::ffi::c_char) {
-    *tags.offset(0_i32 as isize) =
-        (tag >> 24_i32 & 0xff_u32) as ::core::ffi::c_char;
-    *tags.offset(1_i32 as isize) =
-        (tag >> 16_i32 & 0xff_u32) as ::core::ffi::c_char;
-    *tags.offset(2_i32 as isize) =
-        (tag >> 8_i32 & 0xff_u32) as ::core::ffi::c_char;
-    *tags.offset(3_i32 as isize) = (tag & 0xff_u32) as ::core::ffi::c_char;
 }
 #[inline]
 unsafe fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {

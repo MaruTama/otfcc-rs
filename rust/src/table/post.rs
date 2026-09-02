@@ -5,10 +5,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_boolean_new, json_double_new, json_integer_new, json_object_new,
-    json_object_push,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::glyph_order::otfcc_set_glyph_order_by_gid;
@@ -455,56 +452,44 @@ pub unsafe fn otfcc_dump_post(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let post: *mut BuiltValue = json_object_new(10_usize);
-        json_object_push(
-            post,
-            b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new(otfcc_from_fixed((*table).version)),
+        let mut post = BuiltValue::new_object(10);
+        post.push_field(
+            b"version",
+            BuiltValue::Double(otfcc_from_fixed((*table).version)),
         );
-        json_object_push(
-            post,
-            b"italicAngle\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new(otfcc_from_fixed((*table).italic_angle) as i64),
+        post.push_field(
+            b"italicAngle",
+            BuiltValue::Int(otfcc_from_fixed((*table).italic_angle) as i64),
         );
-        json_object_push(
-            post,
-            b"underlinePosition\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).underline_position as i64),
+        post.push_field(
+            b"underlinePosition",
+            BuiltValue::Int((*table).underline_position as i64),
         );
-        json_object_push(
-            post,
-            b"underlineThickness\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).underline_thickness as i64),
+        post.push_field(
+            b"underlineThickness",
+            BuiltValue::Int((*table).underline_thickness as i64),
         );
-        json_object_push(
-            post,
-            b"isFixedPitch\0" as *const u8 as *const ::core::ffi::c_char,
-            json_boolean_new((*table).is_fixed_pitch as i32),
+        post.push_field(b"isFixedPitch", BuiltValue::Bool((*table).is_fixed_pitch != 0));
+        post.push_field(
+            b"minMemType42",
+            BuiltValue::Int((*table).min_mem_type42 as i64),
         );
-        json_object_push(
-            post,
-            b"minMemType42\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).min_mem_type42 as i64),
+        post.push_field(
+            b"maxMemType42",
+            BuiltValue::Int((*table).max_mem_type42 as i64),
         );
-        json_object_push(
-            post,
-            b"maxMemType42\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_mem_type42 as i64),
+        post.push_field(
+            b"minMemType1",
+            BuiltValue::Int((*table).min_mem_type1 as i64),
         );
-        json_object_push(
-            post,
-            b"minMemType1\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).min_mem_type1 as i64),
-        );
-        json_object_push(
-            post,
-            b"maxMemType1\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_mem_type1 as i64),
+        post.push_field(
+            b"maxMemType1",
+            BuiltValue::Int((*table).max_mem_type1 as i64),
         );
         json_object_push(
             root,
             b"post\0" as *const u8 as *const ::core::ffi::c_char,
-            post,
+            post.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

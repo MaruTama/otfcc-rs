@@ -4,10 +4,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
-    otfcc_dump_flags,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -124,86 +121,50 @@ pub unsafe fn otfcc_dump_head(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let head: *mut BuiltValue = json_object_new(15_usize);
-        json_object_push(
-            head,
-            b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new(otfcc_from_fixed((*table).version)),
+        let mut head = BuiltValue::new_object(15);
+        head.push_field(
+            b"version",
+            BuiltValue::Double(otfcc_from_fixed((*table).version)),
         );
-        json_object_push(
-            head,
-            b"fontRevision\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new(otfcc_from_fixed((*table).font_revision as F16Dot16)),
+        head.push_field(
+            b"fontRevision",
+            BuiltValue::Double(otfcc_from_fixed((*table).font_revision as F16Dot16)),
         );
-        json_object_push(
-            head,
-            b"flags\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags((*table).flags as i32, &HEAD_FLAGS_LABELS),
+        head.push_field(
+            b"flags",
+            BuiltValue::dump_flags((*table).flags as i32, &HEAD_FLAGS_LABELS),
         );
-        json_object_push(
-            head,
-            b"unitsPerEm\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).units_per_em as i64),
+        head.push_field(b"unitsPerEm", BuiltValue::Int((*table).units_per_em as i64));
+        head.push_field(b"created", BuiltValue::Int((*table).created));
+        head.push_field(b"modified", BuiltValue::Int((*table).modified));
+        head.push_field(b"xMin", BuiltValue::Int((*table).x_min as i64));
+        head.push_field(b"xMax", BuiltValue::Int((*table).x_max as i64));
+        head.push_field(b"yMin", BuiltValue::Int((*table).y_min as i64));
+        head.push_field(b"yMax", BuiltValue::Int((*table).y_max as i64));
+        head.push_field(
+            b"macStyle",
+            BuiltValue::dump_flags((*table).mac_style as i32, &MAC_STYLE_LABELS),
         );
-        json_object_push(
-            head,
-            b"created\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).created),
+        head.push_field(
+            b"lowestRecPPEM",
+            BuiltValue::Int((*table).lowest_rec_ppem as i64),
         );
-        json_object_push(
-            head,
-            b"modified\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).modified),
+        head.push_field(
+            b"fontDirectoryHint",
+            BuiltValue::Int((*table).font_directory_hint as i64),
         );
-        json_object_push(
-            head,
-            b"xMin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).x_min as i64),
+        head.push_field(
+            b"indexToLocFormat",
+            BuiltValue::Int((*table).index_to_loc_format as i64),
         );
-        json_object_push(
-            head,
-            b"xMax\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).x_max as i64),
-        );
-        json_object_push(
-            head,
-            b"yMin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_min as i64),
-        );
-        json_object_push(
-            head,
-            b"yMax\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_max as i64),
-        );
-        json_object_push(
-            head,
-            b"macStyle\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags((*table).mac_style as i32, &MAC_STYLE_LABELS),
-        );
-        json_object_push(
-            head,
-            b"lowestRecPPEM\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).lowest_rec_ppem as i64),
-        );
-        json_object_push(
-            head,
-            b"fontDirectoryHint\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).font_directory_hint as i64),
-        );
-        json_object_push(
-            head,
-            b"indexToLocFormat\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).index_to_loc_format as i64),
-        );
-        json_object_push(
-            head,
-            b"glyphDataFormat\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).glyph_data_format as i64),
+        head.push_field(
+            b"glyphDataFormat",
+            BuiltValue::Int((*table).glyph_data_format as i64),
         );
         json_object_push(
             root,
             b"head\0" as *const u8 as *const ::core::ffi::c_char,
-            head,
+            head.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

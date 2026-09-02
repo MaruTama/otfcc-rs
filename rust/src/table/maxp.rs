@@ -4,9 +4,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum};
@@ -123,86 +121,56 @@ pub unsafe fn otfcc_dump_maxp(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let maxp: *mut BuiltValue = json_object_new(15_usize);
-        json_object_push(
-            maxp,
-            b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new(otfcc_from_fixed((*table).version)),
+        let mut maxp = BuiltValue::new_object(15);
+        maxp.push_field(
+            b"version",
+            BuiltValue::Double(otfcc_from_fixed((*table).version)),
         );
-        json_object_push(
-            maxp,
-            b"numGlyphs\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).num_glyphs as i64),
+        maxp.push_field(b"numGlyphs", BuiltValue::Int((*table).num_glyphs as i64));
+        maxp.push_field(b"maxPoints", BuiltValue::Int((*table).max_points as i64));
+        maxp.push_field(b"maxContours", BuiltValue::Int((*table).max_contours as i64));
+        maxp.push_field(
+            b"maxCompositePoints",
+            BuiltValue::Int((*table).max_composite_points as i64),
         );
-        json_object_push(
-            maxp,
-            b"maxPoints\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_points as i64),
+        maxp.push_field(
+            b"maxCompositeContours",
+            BuiltValue::Int((*table).max_composite_contours as i64),
         );
-        json_object_push(
-            maxp,
-            b"maxContours\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_contours as i64),
+        maxp.push_field(b"maxZones", BuiltValue::Int((*table).max_zones as i64));
+        maxp.push_field(
+            b"maxTwilightPoints",
+            BuiltValue::Int((*table).max_twilight_points as i64),
         );
-        json_object_push(
-            maxp,
-            b"maxCompositePoints\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_composite_points as i64),
+        maxp.push_field(b"maxStorage", BuiltValue::Int((*table).max_storage as i64));
+        maxp.push_field(
+            b"maxFunctionDefs",
+            BuiltValue::Int((*table).max_function_defs as i64),
         );
-        json_object_push(
-            maxp,
-            b"maxCompositeContours\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_composite_contours as i64),
+        maxp.push_field(
+            b"maxInstructionDefs",
+            BuiltValue::Int((*table).max_instruction_defs as i64),
         );
-        json_object_push(
-            maxp,
-            b"maxZones\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_zones as i64),
+        maxp.push_field(
+            b"maxStackElements",
+            BuiltValue::Int((*table).max_stack_elements as i64),
         );
-        json_object_push(
-            maxp,
-            b"maxTwilightPoints\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_twilight_points as i64),
+        maxp.push_field(
+            b"maxSizeOfInstructions",
+            BuiltValue::Int((*table).max_size_of_instructions as i64),
         );
-        json_object_push(
-            maxp,
-            b"maxStorage\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_storage as i64),
+        maxp.push_field(
+            b"maxComponentElements",
+            BuiltValue::Int((*table).max_component_elements as i64),
         );
-        json_object_push(
-            maxp,
-            b"maxFunctionDefs\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_function_defs as i64),
-        );
-        json_object_push(
-            maxp,
-            b"maxInstructionDefs\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_instruction_defs as i64),
-        );
-        json_object_push(
-            maxp,
-            b"maxStackElements\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_stack_elements as i64),
-        );
-        json_object_push(
-            maxp,
-            b"maxSizeOfInstructions\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_size_of_instructions as i64),
-        );
-        json_object_push(
-            maxp,
-            b"maxComponentElements\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_component_elements as i64),
-        );
-        json_object_push(
-            maxp,
-            b"maxComponentDepth\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).max_component_depth as i64),
+        maxp.push_field(
+            b"maxComponentDepth",
+            BuiltValue::Int((*table).max_component_depth as i64),
         );
         json_object_push(
             root,
             b"maxp\0" as *const u8 as *const ::core::ffi::c_char,
-            maxp,
+            maxp.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

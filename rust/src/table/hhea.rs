@@ -4,9 +4,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum_fallback};
@@ -90,66 +88,40 @@ pub unsafe fn otfcc_dump_hhea(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let hhea: *mut BuiltValue = json_object_new(13_usize);
-        json_object_push(
-            hhea,
-            b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new(otfcc_from_fixed((*table).version)),
+        let mut hhea = BuiltValue::new_object(13);
+        hhea.push_field(
+            b"version",
+            BuiltValue::Double(otfcc_from_fixed((*table).version)),
         );
-        json_object_push(
-            hhea,
-            b"ascender\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ascender as i64),
+        hhea.push_field(b"ascender", BuiltValue::Int((*table).ascender as i64));
+        hhea.push_field(b"descender", BuiltValue::Int((*table).descender as i64));
+        hhea.push_field(b"lineGap", BuiltValue::Int((*table).line_gap as i64));
+        hhea.push_field(
+            b"advanceWidthMax",
+            BuiltValue::Int((*table).advance_width_max as i64),
         );
-        json_object_push(
-            hhea,
-            b"descender\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).descender as i64),
+        hhea.push_field(
+            b"minLeftSideBearing",
+            BuiltValue::Int((*table).min_left_side_bearing as i64),
         );
-        json_object_push(
-            hhea,
-            b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).line_gap as i64),
+        hhea.push_field(
+            b"minRightSideBearing",
+            BuiltValue::Int((*table).min_right_side_bearing as i64),
         );
-        json_object_push(
-            hhea,
-            b"advanceWidthMax\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).advance_width_max as i64),
+        hhea.push_field(b"xMaxExtent", BuiltValue::Int((*table).x_max_extent as i64));
+        hhea.push_field(
+            b"caretSlopeRise",
+            BuiltValue::Int((*table).caret_slope_rise as i64),
         );
-        json_object_push(
-            hhea,
-            b"minLeftSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).min_left_side_bearing as i64),
+        hhea.push_field(
+            b"caretSlopeRun",
+            BuiltValue::Int((*table).caret_slope_run as i64),
         );
-        json_object_push(
-            hhea,
-            b"minRightSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).min_right_side_bearing as i64),
-        );
-        json_object_push(
-            hhea,
-            b"xMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).x_max_extent as i64),
-        );
-        json_object_push(
-            hhea,
-            b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caret_slope_rise as i64),
-        );
-        json_object_push(
-            hhea,
-            b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caret_slope_run as i64),
-        );
-        json_object_push(
-            hhea,
-            b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caret_offset as i64),
-        );
+        hhea.push_field(b"caretOffset", BuiltValue::Int((*table).caret_offset as i64));
         json_object_push(
             root,
             b"hhea\0" as *const u8 as *const ::core::ffi::c_char,
-            hhea,
+            hhea.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

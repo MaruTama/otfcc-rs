@@ -2,10 +2,7 @@
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key,
-    json_string_new_length,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, otfcc_handle_dup,
@@ -189,83 +186,28 @@ pub unsafe fn otfcc_dump_tsi(
     let entries: &Vec<TsiEntry> = tsi;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _tsi: *mut BuiltValue = json_object_new(2_usize);
-        let mut _glyphs: *mut BuiltValue = json_object_new(entries.len());
-        let mut __caryll_index: usize = 0_usize;
-        let mut keep: usize = 1_usize;
-        while keep != 0 && __caryll_index < entries.len() {
-            let entry: *const TsiEntry = &entries[__caryll_index];
-            while keep != 0 {
-                if !((*entry).type_0 as ::core::ffi::c_uint
-                    != TsiEntryType::Glyph as i32 as ::core::ffi::c_uint)
-                {
-                    json_object_push_bytes_key(
-                        _glyphs,
-                        &(*entry).glyph.name,
-                        json_string_new_length(
-                            (*entry).content.len() as ::core::ffi::c_uint,
-                            (*entry).content.as_ptr() as *const ::core::ffi::c_char,
-                        ),
-                    );
-                }
-                keep = (keep == 0) as i32 as usize;
+        let mut _tsi = BuiltValue::new_object(2);
+        let mut _glyphs = BuiltValue::new_object(entries.len());
+        for entry in entries.iter() {
+            if entry.type_0 == TsiEntryType::Glyph {
+                _glyphs.push_field_bytes_key(&entry.glyph.name, BuiltValue::Str(entry.content.clone()));
             }
-            keep = (keep == 0) as i32 as usize;
-            __caryll_index = __caryll_index.wrapping_add(1);
         }
-        let mut _extra: *mut BuiltValue = json_object_new(entries.len());
-        let mut __caryll_index_0: usize = 0_usize;
-        let mut keep_0: usize = 1_usize;
-        while keep_0 != 0 && __caryll_index_0 < entries.len() {
-            let entry_0: *const TsiEntry = &entries[__caryll_index_0];
-            while keep_0 != 0 {
-                if !((*entry_0).type_0 as ::core::ffi::c_uint
-                    == TsiEntryType::Glyph as i32 as ::core::ffi::c_uint)
-                {
-                    let extra_key: *mut ::core::ffi::c_char;
-                    match (*entry_0).type_0 as ::core::ffi::c_uint {
-                        3 => {
-                            extra_key = b"cvt\0" as *const u8 as *const ::core::ffi::c_char
-                                as *mut ::core::ffi::c_char;
-                        }
-                        1 => {
-                            extra_key = b"fpgm\0" as *const u8 as *const ::core::ffi::c_char
-                                as *mut ::core::ffi::c_char;
-                        }
-                        2 => {
-                            extra_key = b"prep\0" as *const u8 as *const ::core::ffi::c_char
-                                as *mut ::core::ffi::c_char;
-                        }
-                        _ => {
-                            extra_key = b"reserved\0" as *const u8 as *const ::core::ffi::c_char
-                                as *mut ::core::ffi::c_char;
-                        }
-                    }
-                    json_object_push(
-                        _extra,
-                        extra_key,
-                        json_string_new_length(
-                            (*entry_0).content.len() as ::core::ffi::c_uint,
-                            (*entry_0).content.as_ptr() as *const ::core::ffi::c_char,
-                        ),
-                    );
-                }
-                keep_0 = (keep_0 == 0) as i32 as usize;
+        let mut _extra = BuiltValue::new_object(entries.len());
+        for entry in entries.iter() {
+            if entry.type_0 != TsiEntryType::Glyph {
+                let extra_key: &[u8] = match entry.type_0 as ::core::ffi::c_uint {
+                    3 => b"cvt",
+                    1 => b"fpgm",
+                    2 => b"prep",
+                    _ => b"reserved",
+                };
+                _extra.push_field(extra_key, BuiltValue::Str(entry.content.clone()));
             }
-            keep_0 = (keep_0 == 0) as i32 as usize;
-            __caryll_index_0 = __caryll_index_0.wrapping_add(1);
         }
-        json_object_push(
-            _tsi,
-            b"glyphs\0" as *const u8 as *const ::core::ffi::c_char,
-            _glyphs,
-        );
-        json_object_push(
-            _tsi,
-            b"extra\0" as *const u8 as *const ::core::ffi::c_char,
-            _extra,
-        );
-        json_object_push(root, tag, _tsi);
+        _tsi.push_field(b"glyphs", _glyphs);
+        _tsi.push_field(b"extra", _extra);
+        json_object_push(root, tag, _tsi.into_raw());
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

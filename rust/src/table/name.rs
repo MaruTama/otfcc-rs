@@ -5,10 +5,7 @@ use crate::logger::{
 };
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
-    json_object_push, json_string_new_length,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -154,46 +151,23 @@ pub unsafe fn otfcc_dump_name(
     let records: &Vec<NameRecord> = name;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _name: *mut BuiltValue = json_array_new(records.len());
+        let mut _name = BuiltValue::new_array(records.len());
         let mut j: u16 = 0_u16;
         while (j as usize) < records.len() {
             let r: *const NameRecord = &records[j as usize];
-            let record: *mut BuiltValue = json_object_new(5_usize);
-            json_object_push(
-                record,
-                b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).platform_id as i64),
-            );
-            json_object_push(
-                record,
-                b"encodingID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).encoding_id as i64),
-            );
-            json_object_push(
-                record,
-                b"languageID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).language_id as i64),
-            );
-            json_object_push(
-                record,
-                b"nameID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).name_id as i64),
-            );
-            json_object_push(
-                record,
-                b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
-                json_string_new_length(
-                    (*r).name_string.len() as ::core::ffi::c_uint,
-                    (*r).name_string.as_ptr() as *const ::core::ffi::c_char,
-                ),
-            );
-            json_array_push(_name, record);
+            let mut record = BuiltValue::new_object(5);
+            record.push_field(b"platformID", BuiltValue::Int((*r).platform_id as i64));
+            record.push_field(b"encodingID", BuiltValue::Int((*r).encoding_id as i64));
+            record.push_field(b"languageID", BuiltValue::Int((*r).language_id as i64));
+            record.push_field(b"nameID", BuiltValue::Int((*r).name_id as i64));
+            record.push_field(b"nameString", BuiltValue::Str((*r).name_string.clone()));
+            _name.push_item(record);
             j = j.wrapping_add(1);
         }
         json_object_push(
             root,
             b"name\0" as *const u8 as *const ::core::ffi::c_char,
-            _name,
+            _name.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

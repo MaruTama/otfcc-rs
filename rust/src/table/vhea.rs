@@ -4,9 +4,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -109,72 +107,40 @@ pub unsafe fn otfcc_dump_vhea(
         Some(t) => t as *const VheaTable,
         None => return,
     };
-    let vhea: *mut BuiltValue = json_object_new(11_usize);
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"vhea"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        json_object_push(
-            vhea,
-            b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new(otfcc_from_fixed((*table).version)),
+        let mut vhea = BuiltValue::new_object(11);
+        vhea.push_field(
+            b"version",
+            BuiltValue::Double(otfcc_from_fixed((*table).version)),
         );
-        json_object_push(
-            vhea,
-            b"ascent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ascent as i64),
+        vhea.push_field(b"ascent", BuiltValue::Int((*table).ascent as i64));
+        vhea.push_field(b"descent", BuiltValue::Int((*table).descent as i64));
+        vhea.push_field(b"lineGap", BuiltValue::Int((*table).line_gap as i64));
+        vhea.push_field(
+            b"advanceHeightMax",
+            BuiltValue::Int((*table).advance_height_max as i64),
         );
-        json_object_push(
-            vhea,
-            b"descent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).descent as i64),
+        vhea.push_field(b"minTop", BuiltValue::Int((*table).min_top as i64));
+        vhea.push_field(b"minBottom", BuiltValue::Int((*table).min_bottom as i64));
+        vhea.push_field(b"yMaxExtent", BuiltValue::Int((*table).y_max_extent as i64));
+        vhea.push_field(
+            b"caretSlopeRise",
+            BuiltValue::Int((*table).caret_slope_rise as i64),
         );
-        json_object_push(
-            vhea,
-            b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).line_gap as i64),
+        vhea.push_field(
+            b"caretSlopeRun",
+            BuiltValue::Int((*table).caret_slope_run as i64),
         );
-        json_object_push(
-            vhea,
-            b"advanceHeightMax\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).advance_height_max as i64),
-        );
-        json_object_push(
-            vhea,
-            b"minTop\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).min_top as i64),
-        );
-        json_object_push(
-            vhea,
-            b"minBottom\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).min_bottom as i64),
-        );
-        json_object_push(
-            vhea,
-            b"yMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_max_extent as i64),
-        );
-        json_object_push(
-            vhea,
-            b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caret_slope_rise as i64),
-        );
-        json_object_push(
-            vhea,
-            b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caret_slope_run as i64),
-        );
-        json_object_push(
-            vhea,
-            b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caret_offset as i64),
-        );
+        vhea.push_field(b"caretOffset", BuiltValue::Int((*table).caret_offset as i64));
         json_object_push(
             root,
             b"vhea\0" as *const u8 as *const ::core::ffi::c_char,
-            vhea,
+            vhea.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
