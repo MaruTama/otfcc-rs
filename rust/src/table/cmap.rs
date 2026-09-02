@@ -17,10 +17,7 @@ use crate::logger::{
 use crate::support::NULL;
 use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key,
-    json_string_new_from_bytes,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId, Unicode};
@@ -618,7 +615,7 @@ pub unsafe fn otfcc_dump_cmap(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         if !(*table).unicodes.is_empty() {
-            let cmap: *mut BuiltValue = json_object_new((*table).unicodes.len());
+            let mut cmap = BuiltValue::new_object((*table).unicodes.len());
             for (&unicode, glyph) in (*table).unicodes.iter() {
                 if !glyph.name.is_empty() {
                     let key: Vec<u8> = if options.decimal_cmap {
@@ -626,17 +623,17 @@ pub unsafe fn otfcc_dump_cmap(
                     } else {
                         crate::bytesbuild!(b"U+", Hex4Upper(unicode as u32))
                     };
-                    json_object_push_bytes_key(cmap, &key, json_string_new_from_bytes(&glyph.name));
+                    cmap.push_field_bytes_key(&key, BuiltValue::str_truncated_at_nul(&glyph.name));
                 }
             }
             json_object_push(
                 root,
                 b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-                cmap,
+                cmap.into_raw(),
             );
         }
         if !(*table).uvs.is_empty() {
-            let uvs: *mut BuiltValue = json_object_new((*table).uvs.len());
+            let mut uvs = BuiltValue::new_object((*table).uvs.len());
             for (key, glyph) in (*table).uvs.iter() {
                 if !glyph.name.is_empty() {
                     let key_0: Vec<u8> = if options.decimal_cmap {
@@ -649,17 +646,13 @@ pub unsafe fn otfcc_dump_cmap(
                             Hex4Upper(key.selector),
                         )
                     };
-                    json_object_push_bytes_key(
-                        uvs,
-                        &key_0,
-                        json_string_new_from_bytes(&glyph.name),
-                    );
+                    uvs.push_field_bytes_key(&key_0, BuiltValue::str_truncated_at_nul(&glyph.name));
                 }
             }
             json_object_push(
                 root,
                 b"cmap_uvs\0" as *const u8 as *const ::core::ffi::c_char,
-                uvs,
+                uvs.into_raw(),
             );
         }
         ___loggedstep_v = false;
