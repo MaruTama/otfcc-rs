@@ -28,7 +28,6 @@ use otfcc_rust::json_reader::read_json;
 use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
 use otfcc_rust::otf_writer::serialize_to_otf;
-use otfcc_rust::support::buffer::buffree;
 use otfcc_rust::support::getopt::{GetoptItem, LongOpt, getopt_long};
 use otfcc_rust::support::options::{
     otfcc_delete_options, otfcc_new_options, otfcc_options_optimize_to,
@@ -490,7 +489,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
-        buffree(otf);
+        drop(unsafe { Buffer::from_raw(otf) });
         otfcc_font_free(font);
         // `inPath`/`outputPath` are `Option<CString>` now -- both drop on
         // their own at the end of this function's scope, no explicit

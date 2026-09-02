@@ -9,7 +9,6 @@ use crate::font::caryll_font::otfcc_font_free;
 use crate::json_reader::read_json;
 use crate::logger::{Logger, logger_indent, otfcc_new_empty_target};
 use crate::otf_writer::serialize_to_otf;
-use crate::support::buffer::buffree;
 use crate::support::options::{otfcc_delete_options, otfcc_new_options, otfcc_options_optimize_to};
 use crate::support::parsed_json::ParsedValue;
 use crate::support::parsed_json::{json_parse, json_value_free};
@@ -60,7 +59,7 @@ pub unsafe extern "C" fn otfcc_get_buf_data(buf: *mut Buffer) -> *mut u8 {
 }
 #[unsafe(no_mangle)]
 pub unsafe extern "C" fn otfccbuild_free_otfbuf(buf: *mut Buffer) {
-    buffree(buf);
+    drop(Buffer::from_raw(buf));
 }
 
 #[cfg(test)]
