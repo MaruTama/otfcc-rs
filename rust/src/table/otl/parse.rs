@@ -1,18 +1,11 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{strcmp, strncmp};
 
 use crate::logger::{
     LOG_VL_IMPORTANT, LOG_VL_NOTICE, LoggerType, logger_dedent, logger_finish, logger_log_sds,
     logger_start_sds,
 };
-use crate::support::TRUE_0;
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint,
-    json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_set_val_at, json_obj_val_at,
-    json_str_ptr, json_type_of, otfcc_parse_flags,
-};
-use crate::support::primitives::TableId;
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
 use crate::table::otl::constants::SCRIPT_LANGUAGE_SEPARATOR;
 use crate::table::otl::subtables::chaining::parse::otl_parse_chaining;
@@ -88,7 +81,7 @@ pub enum LookupOrderType {
 }
 unsafe fn _parse_lookup(
     lookup: *const ParsedValue,
-    lookup_name: *mut ::core::ffi::c_char,
+    lookup_name: &[u8],
     options: &Options,
     lh: &mut Vec<LookupEntry>,
 ) -> bool {
@@ -243,18 +236,18 @@ unsafe fn _parse_lookup(
 unsafe fn _declare_lookup_parser(
     llt: LookupType,
     parser: Option<unsafe fn(*const ParsedValue, &Options) -> *mut Subtable>,
-    mut _lookup: *const ParsedValue,
-    lookup_name: *mut ::core::ffi::c_char,
+    _lookup: *const ParsedValue,
+    lookup_name: &[u8],
     options: &Options,
     lh: &mut Vec<LookupEntry>,
 ) -> bool {
-    let type_0: *const ParsedValue = json_obj_get_type(
-        _lookup,
-        b"type\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::String,
-    );
-    if type_0.is_null() || strcmp(json_str_ptr(type_0), llt.name().as_ptr()) != 0 {
-        if type_0.is_null() {
+    let lv = unsafe { _lookup.as_ref() };
+    let type_0 = lv.and_then(|v| v.get_typed(b"type", JsonType::String));
+    let matches_type = type_0
+        .and_then(ParsedValue::as_str_bytes)
+        .is_some_and(|b| b == llt.name().to_bytes());
+    if !matches_type {
+        if type_0.is_none() {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
@@ -268,7 +261,7 @@ unsafe fn _declare_lookup_parser(
         }
         return false;
     }
-    let name_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(lookup_name).to_bytes().to_vec();
+    let name_bytes: Vec<u8> = lookup_name.to_vec();
     if lh.iter().any(|e| e.name == name_bytes) {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
@@ -278,12 +271,7 @@ unsafe fn _declare_lookup_parser(
         );
         return false;
     }
-    let mut _subtables: *const ParsedValue = json_obj_get_type(
-        _lookup,
-        b"subtables\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Array,
-    );
-    if _subtables.is_null() {
+    let Some(subtables) = lv.and_then(|v| v.get_typed(b"subtables", JsonType::Array)) else {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
@@ -295,45 +283,37 @@ unsafe fn _declare_lookup_parser(
             ),
         );
         return false;
-    }
+    };
     // Transient owner, same shape as `FeatureHash.feature`: raw here because
     // `LookupHash.lookup` is raw, `Box::into_raw` at construction,
     // `Box::from_raw` either at the rejection path below
     // (`otfcc_delete_lookup`) or at the one non-alias push site far below.
     let lookup: *mut Lookup = Box::into_raw(new_lookup());
     (*lookup).type_0 = llt;
-    (*lookup).flags = otfcc_parse_flags(
-        json_obj_get(
-            _lookup,
-            b"flags\0" as *const u8 as *const ::core::ffi::c_char,
-        ),
-        &LOOKUP_FLAGS_LABELS,
-    ) as u16;
-    let mark_attachment_type: u16 = json_obj_getint(
-        _lookup,
-        b"markAttachmentType\0" as *const u8 as *const ::core::ffi::c_char,
-    ) as u16;
+    (*lookup).flags = lv
+        .and_then(|v| v.get(b"flags"))
+        .map_or(0, |v| v.flags(&LOOKUP_FLAGS_LABELS)) as u16;
+    let mark_attachment_type: u16 = lv.map_or(0, |v| v.get_int(b"markAttachmentType")) as u16;
     if mark_attachment_type != 0 {
         (*lookup).flags = ((*lookup).flags as i32
             | (mark_attachment_type as i32) << 8_i32)
             as u16;
     }
-    let subtable_count: TableId = json_arr_len(_subtables) as TableId;
+    let subtable_items = subtables.as_array().unwrap();
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(lookup_name),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut j: TableId = 0 as TableId;
-        while (j as i32) < subtable_count as i32 {
-            let mut _subtable: *const ParsedValue = json_arr_at(_subtables, j as u32);
-            if !_subtable.is_null() && json_type_of(_subtable) == JsonType::Object {
-                let mut _st: *mut Subtable =
-                    parser.expect("non-null function pointer")(_subtable, options);
+        for _subtable in subtable_items {
+            if _subtable.as_object().is_some() {
+                let _st: *mut Subtable = parser.expect("non-null function pointer")(
+                    _subtable as *const ParsedValue,
+                    options,
+                );
                 (*lookup).subtables.push(subtable_list_slot(_st));
             }
-            j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
@@ -349,7 +329,7 @@ unsafe fn _declare_lookup_parser(
         return false;
     }
     let order_val: u16 = lh.len() as u16;
-    (*lookup).name = ::core::ffi::CStr::from_ptr(lookup_name).to_bytes().to_vec();
+    (*lookup).name = name_bytes.clone();
     lh.push(LookupEntry {
         name: name_bytes,
         alias: false,
@@ -364,12 +344,14 @@ unsafe fn figure_out_lookups_from_json(
     options: &Options,
 ) -> Vec<LookupEntry> {
     let mut lh: Vec<LookupEntry> = Vec::new();
-    let mut j: u32 = 0_u32;
-    while j < json_obj_len(lookups) {
-        let lookup_name: *mut ::core::ffi::c_char = json_obj_key_at(lookups, j);
-        let lookup_val = json_obj_val_at(lookups, j);
-        if json_type_of(lookup_val) == JsonType::Object {
-            let parsed: bool = _parse_lookup(lookup_val, lookup_name, options, &mut lh);
+    let Some(fields) = unsafe { lookups.as_ref() }.and_then(ParsedValue::as_object) else {
+        return lh;
+    };
+    for (key, lookup_val) in fields {
+        let lookup_name = &key[..key.len() - 1];
+        if lookup_val.as_object().is_some() {
+            let parsed: bool =
+                _parse_lookup(lookup_val as *const ParsedValue, lookup_name, options, &mut lh);
             if !parsed {
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
@@ -382,25 +364,22 @@ unsafe fn figure_out_lookups_from_json(
                     ),
                 );
             }
-        } else if json_type_of(lookup_val) as ::core::ffi::c_uint
-            == JsonType::String as i32 as ::core::ffi::c_uint
-        {
-            let thatname: *mut ::core::ffi::c_char = json_str_ptr(lookup_val);
+        } else if let Some(thatname_bytes) = lookup_val.as_str_bytes() {
             // Alias's own name is never checked against existing entries
-            // here (only the alias *target*'s name, `thatname`, is looked
-            // up) -- see `LookupEntry`'s doc comment on why this stays a
-            // `Vec` with a reverse (most-recent-wins) search rather than
-            // a dedup map.
-            let thatname_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(thatname).to_bytes().to_vec();
+            // here (only the alias *target*'s name, `thatname_bytes`, is
+            // looked up) -- see `LookupEntry`'s doc comment on why this
+            // stays a `Vec` with a reverse (most-recent-wins) search
+            // rather than a dedup map.
+            let thatname_owned = thatname_bytes.to_vec();
             if let Some(target_lookup) = lh
                 .iter()
                 .rev()
-                .find(|e| e.name == thatname_bytes)
+                .find(|e| e.name == thatname_owned)
                 .map(|e| e.lookup)
             {
                 let order_val: u16 = lh.len() as u16;
                 lh.push(LookupEntry {
-                    name: ::core::ffi::CStr::from_ptr(lookup_name).to_bytes().to_vec(),
+                    name: lookup_name.to_vec(),
                     alias: true,
                     lookup: target_lookup,
                     order_type: LookupOrderType::File,
@@ -408,57 +387,96 @@ unsafe fn figure_out_lookups_from_json(
                 });
             }
         }
-        j = j.wrapping_add(1);
     }
     return lh;
 }
+/// Replicates `strncmp(a, b, 4) == 0` for two of `ParsedValue`'s own
+/// NUL-terminated key buffers (each carrying exactly one trailing NUL,
+/// never an embedded one -- see `ParsedValue`'s own doc comment): compares
+/// at most 4 bytes, stopping as soon as either side's NUL is reached,
+/// matching `strncmp`'s own early termination on a shorter string.
+fn tag4_matches(a: &[u8], b: &[u8]) -> bool {
+    for i in 0..4 {
+        let ac = a.get(i).copied().unwrap_or(0);
+        let bc = b.get(i).copied().unwrap_or(0);
+        if ac != bc {
+            return false;
+        }
+        if ac == 0 {
+            break;
+        }
+    }
+    true
+}
+/// The one place in this module that mutates a parsed JSON object in
+/// place mid-walk (see the plan doc's Stage 11 investigation): every
+/// duplicate `d[k]` whose value equals an earlier `d[j]` (and, when
+/// `sametag`, whose key shares `d[j]`'s first 4 bytes) is rewritten in
+/// place to alias `d[j]`'s own key, so a later pass over `d` only ever
+/// sees one real definition per distinct value.
+///
+/// `j` and `k` are always different indices (`k` ranges over `j+1..`),
+/// so despite mutating `d[k]` while still comparing against `d[j]`, this
+/// is a plain sequential read-then-index-write, never two overlapping
+/// borrows of the same slot -- confirmed by the investigation before
+/// converting this off the old free-function shell, and pinned by
+/// `feature_merger_tests` below. Each iteration re-reads `d.as_object()`
+/// fresh rather than holding a borrow across the `set_field` call, the
+/// same "resolve at the point of use" pattern `libcff/subr.rs`'s
+/// `resolve_subr_ref` established for a comparable aliasing shape in
+/// Stage 9.
 unsafe fn feature_merger_activate(
     d: *mut ParsedValue,
     sametag: bool,
     objtype: *const ::core::ffi::c_char,
     options: &Options,
 ) {
-    let mut j: u32 = 0_u32;
-    while j < json_obj_len(d) {
-        let jthis: *const ParsedValue = json_obj_val_at(d, j);
-        let kthis: *mut ::core::ffi::c_char = json_obj_key_at(d, j);
-        let nkthis: u32 = json_obj_key_len_at(d, j);
-        if !(json_type_of(jthis) != JsonType::Array && json_type_of(jthis) != JsonType::Object) {
-            let mut k: u32 = j.wrapping_add(1_u32);
-            while k < json_obj_len(d) {
-                let jthat: *const ParsedValue = json_obj_val_at(d, k);
-                let kthat: *mut ::core::ffi::c_char = json_obj_key_at(d, k);
-                if *jthis == *jthat
-                    && (if sametag as i32 != 0 {
-                        (strncmp(kthis, kthat, 4_usize) == 0_i32)
-                            as i32
-                    } else {
-                        TRUE_0
-                    }) != 0
-                {
-                    let kthis_bytes = ::core::ffi::CStr::from_ptr(kthis).to_bytes();
-                    let mut alias_str: Vec<u8> = kthis_bytes[..nkthis as usize].to_vec();
-                    alias_str.push(0);
-                    json_obj_set_val_at(d, k, ParsedValue::Str(alias_str));
-                    logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
-                        LOG_VL_NOTICE,
-                        LoggerType::Info,
-                        crate::bytesbuild!(
-                            b"[OTFCC-fea] Merged duplicate ",
-                            objtype,
-                            b" '",
-                            kthat,
-                            b"' into '",
-                            kthis,
-                            b"'.\n",
-                        ),
-                    );
-                }
-                k = k.wrapping_add(1);
-            }
+    let Some(d) = (unsafe { d.as_mut() }) else {
+        return;
+    };
+    let n = match d.as_object() {
+        Some(fields) => fields.len(),
+        None => return,
+    };
+    for j in 0..n {
+        let jthis_is_container = matches!(
+            d.as_object().unwrap()[j].1,
+            ParsedValue::Array(_) | ParsedValue::Object(_)
+        );
+        if !jthis_is_container {
+            continue;
         }
-        j = j.wrapping_add(1);
+        for k in (j + 1)..n {
+            let matched = {
+                let fields = d.as_object().unwrap();
+                fields[j].1 == fields[k].1
+                    && (!sametag || tag4_matches(&fields[j].0, &fields[k].0))
+            };
+            if !matched {
+                continue;
+            }
+            let kthis_bytes = d.as_object().unwrap()[j].0.clone();
+            let mut alias_str: Vec<u8> = kthis_bytes[..kthis_bytes.len() - 1].to_vec();
+            alias_str.push(0);
+            d.set_field(k, ParsedValue::Str(alias_str));
+            let fields = d.as_object().unwrap();
+            let kthis = &fields[j].0;
+            let kthat = &fields[k].0;
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_NOTICE,
+                LoggerType::Info,
+                crate::bytesbuild!(
+                    b"[OTFCC-fea] Merged duplicate ",
+                    objtype,
+                    b" '",
+                    kthat,
+                    b"' into '",
+                    kthis,
+                    b"'.\n",
+                ),
+            );
+        }
     }
 }
 unsafe fn figure_out_features_from_json(
@@ -476,20 +494,21 @@ unsafe fn figure_out_features_from_json(
             options,
         );
     }
-    let mut j: u32 = 0_u32;
-    while j < json_obj_len(features) {
-        let feature_name: *mut ::core::ffi::c_char = json_obj_key_at(features, j);
-        let mut _feature: *const ParsedValue = json_obj_val_at(features, j);
-        if json_type_of(_feature) == JsonType::Array {
+    // `feature_merger_activate` (above) is the only thing that ever
+    // mutates `features`'s tree, and it has already returned by the time
+    // this shared reborrow is taken -- no interleaving between the write
+    // above and the reads below.
+    let Some(fields) = unsafe { features.as_ref() }.and_then(ParsedValue::as_object) else {
+        return fh;
+    };
+    for (feature_name_key, feature_val) in fields {
+        let feature_name = &feature_name_key[..feature_name_key.len() - 1];
+        if let Some(items) = feature_val.as_array() {
             let mut al: LookupRefList = Vec::new();
-            let mut k: TableId = 0 as TableId;
-            while (k as ::core::ffi::c_uint) < json_arr_len(_feature) {
-                let term: *const ParsedValue = json_arr_at(_feature, k as u32);
-                if !(json_type_of(term) != JsonType::String) {
-                    let term_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(json_str_ptr(term))
-                        .to_bytes()
-                        .to_vec();
-                    let item = lh.iter().rev().find(|e| e.name == term_bytes);
+            for term in items {
+                if let Some(term_bytes) = term.as_str_bytes() {
+                    let term_owned = term_bytes.to_vec();
+                    let item = lh.iter().rev().find(|e| e.name == term_owned);
                     if let Some(item) = item {
                         al.push(item.lookup as LookupRef);
                     } else {
@@ -499,7 +518,7 @@ unsafe fn figure_out_features_from_json(
                             LoggerType::Warning,
                             crate::bytesbuild!(
                                 b"Lookup assignment ",
-                                json_str_ptr(term),
+                                term_bytes,
                                 b" for feature [",
                                 tag,
                                 b"/",
@@ -509,12 +528,9 @@ unsafe fn figure_out_features_from_json(
                         );
                     }
                 }
-                k = k.wrapping_add(1);
             }
-            if al.len() > 0_usize {
-                let feature_name_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(feature_name)
-                    .to_bytes()
-                    .to_vec();
+            if !al.is_empty() {
+                let feature_name_bytes: Vec<u8> = feature_name.to_vec();
                 if !fh.iter().any(|e| e.name == feature_name_bytes) {
                     // Transient owner, same shape as `LookupEntry.lookup`:
                     // `Box::into_raw` here, `Box::from_raw` at the one
@@ -559,32 +575,26 @@ unsafe fn figure_out_features_from_json(
                 );
                 otl_lookup_ref_list_dispose(&raw mut al);
             }
-        } else if json_type_of(_feature) == JsonType::String {
-            let target: *mut ::core::ffi::c_char = json_str_ptr(_feature);
-            let target_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(target).to_bytes().to_vec();
+        } else if let Some(target_bytes) = feature_val.as_str_bytes() {
+            let target_owned = target_bytes.to_vec();
             if let Some(target_feature) = fh
                 .iter()
                 .rev()
-                .find(|e| e.name == target_bytes)
+                .find(|e| e.name == target_owned)
                 .map(|e| e.feature)
             {
                 fh.push(FeatureEntry {
-                    name: ::core::ffi::CStr::from_ptr(feature_name)
-                        .to_bytes()
-                        .to_vec(),
+                    name: feature_name.to_vec(),
                     alias: true,
                     feature: target_feature,
                 });
             }
         }
-        j = j.wrapping_add(1);
     }
     return fh;
 }
-pub unsafe fn is_valid_language_name(name: *const ::core::ffi::c_char, length: usize) -> bool {
-    return length == 9_usize
-        && *name.offset(4_i32 as isize) as i32
-            == SCRIPT_LANGUAGE_SEPARATOR as i32;
+pub fn is_valid_language_name(name: &[u8]) -> bool {
+    return name.len() == 9_usize && name[4] == SCRIPT_LANGUAGE_SEPARATOR as u8;
 }
 unsafe fn figure_out_languages_from_json(
     languages: *const ParsedValue,
@@ -594,53 +604,38 @@ unsafe fn figure_out_languages_from_json(
 ) -> std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> {
     let mut sh: std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> =
         std::collections::BTreeMap::new();
-    let mut j: u32 = 0_u32;
-    while j < json_obj_len(languages) {
-        let language_name: *mut ::core::ffi::c_char = json_obj_key_at(languages, j);
-        let language_name_len: usize = json_obj_key_len_at(languages, j) as usize;
-        let mut _language: *const ParsedValue = json_obj_val_at(languages, j);
-        if is_valid_language_name(language_name, language_name_len) as i32 != 0
-            && json_type_of(_language) == JsonType::Object
-        {
+    let Some(fields) = unsafe { languages.as_ref() }.and_then(ParsedValue::as_object) else {
+        return sh;
+    };
+    for (key, language_val) in fields {
+        let language_name = &key[..key.len() - 1];
+        if is_valid_language_name(language_name) && language_val.as_object().is_some() {
             let mut required_feature: *mut Feature = ::core::ptr::null_mut::<Feature>();
-            let mut _rf: *const ParsedValue = json_obj_get_type(
-                _language,
-                b"requiredFeature\0" as *const u8 as *const ::core::ffi::c_char,
-                JsonType::String,
-            );
-            if !_rf.is_null() {
-                let rf_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(json_str_ptr(_rf))
-                    .to_bytes()
-                    .to_vec();
-                if let Some(rf) = fh.iter().rev().find(|e| e.name == rf_bytes) {
+            if let Some(rf_bytes) = language_val
+                .get_typed(b"requiredFeature", JsonType::String)
+                .and_then(ParsedValue::as_str_bytes)
+            {
+                let rf_owned = rf_bytes.to_vec();
+                if let Some(rf) = fh.iter().rev().find(|e| e.name == rf_owned) {
                     required_feature = rf.feature;
                 }
             }
             let mut af: FeatureRefList = Vec::new();
-            let mut _features: *const ParsedValue = json_obj_get_type(
-                _language,
-                b"features\0" as *const u8 as *const ::core::ffi::c_char,
-                JsonType::Array,
-            );
-            if !_features.is_null() {
-                let mut k: TableId = 0 as TableId;
-                while (k as ::core::ffi::c_uint) < json_arr_len(_features) {
-                    let term: *const ParsedValue = json_arr_at(_features, k as u32);
-                    if json_type_of(term) == JsonType::String {
-                        let term_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(json_str_ptr(term))
-                            .to_bytes()
-                            .to_vec();
-                        if let Some(item) = fh.iter().rev().find(|e| e.name == term_bytes) {
+            if let Some(items) = language_val
+                .get_typed(b"features", JsonType::Array)
+                .and_then(ParsedValue::as_array)
+            {
+                for term in items {
+                    if let Some(term_bytes) = term.as_str_bytes() {
+                        let term_owned = term_bytes.to_vec();
+                        if let Some(item) = fh.iter().rev().find(|e| e.name == term_owned) {
                             af.push(item.feature as FeatureRef);
                         }
                     }
-                    k = k.wrapping_add(1);
                 }
             }
-            if !required_feature.is_null() || af.len() > 0_usize {
-                let language_name_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(language_name)
-                    .to_bytes()
-                    .to_vec();
+            if !required_feature.is_null() || !af.is_empty() {
+                let language_name_bytes: Vec<u8> = language_name.to_vec();
                 if !sh.contains_key(&language_name_bytes) {
                     // Transient owner, same shape as `LookupEntry.lookup`/
                     // `FeatureEntry.feature`: `Box::into_raw` here,
@@ -686,7 +681,6 @@ unsafe fn figure_out_languages_from_json(
                 otl_feature_ref_list_dispose(&raw mut af);
             }
         }
-        j = j.wrapping_add(1);
     }
     return sh;
 }
@@ -695,12 +689,24 @@ pub unsafe fn otfcc_parse_otl(
     options: &Options,
     tag: *const ::core::ffi::c_char,
 ) -> Option<Box<OtlTable>> {
-    let languages: *const ParsedValue;
-    let features: *mut ParsedValue;
-    let lookups: *const ParsedValue;
     let otl: *mut OtlTable;
     let mut otl_box: Option<Box<OtlTable>> = None;
-    let table: *const ParsedValue = json_obj_get_type(root, tag, JsonType::Object);
+    // `table`/`languages`/`features`/`lookups`/`lookup_order` all stay raw
+    // pointers here, each resolved via its own fresh, single-expression
+    // `.as_ref()` reborrow rather than one `&ParsedValue` binding held
+    // across the whole function -- `features` gets mutated in place
+    // inside `figure_out_features_from_json` (via `feature_merger_
+    // activate`), and a persisted shared reference to any ancestor of
+    // that subtree (`table`, ultimately `root`) would still be "live" at
+    // that point under Rust's aliasing rules even if never read again.
+    // Resolving fresh each time, the same principle `feature_merger_
+    // activate` itself uses internally, sidesteps that entirely: every
+    // reborrow here is a temporary that retires at the end of its own
+    // statement, long before the mutation happens.
+    let tag_key = unsafe { ::core::ffi::CStr::from_ptr(tag) }.to_bytes();
+    let table: *const ParsedValue = unsafe { root.as_ref() }
+        .and_then(|r| r.get_typed(tag_key, JsonType::Object))
+        .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
     if !table.is_null() {
         otl_box = Some(Box::new(OtlTable {
             lookups: Vec::new(),
@@ -708,21 +714,17 @@ pub unsafe fn otfcc_parse_otl(
             languages: Vec::new(),
         }));
         otl = otl_box.as_mut().unwrap().as_mut() as *mut OtlTable;
-        languages = json_obj_get_type(
-            table,
-            b"languages\0" as *const u8 as *const ::core::ffi::c_char,
-            JsonType::Object,
-        );
-        features = json_obj_get_type(
-            table,
-            b"features\0" as *const u8 as *const ::core::ffi::c_char,
-            JsonType::Object,
-        );
-        lookups = json_obj_get_type(
-            table,
-            b"lookups\0" as *const u8 as *const ::core::ffi::c_char,
-            JsonType::Object,
-        );
+        let languages: *const ParsedValue = unsafe { table.as_ref() }
+            .and_then(|t| t.get_typed(b"languages", JsonType::Object))
+            .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
+        let features: *mut ParsedValue = unsafe { table.as_ref() }
+            .and_then(|t| t.get_typed(b"features", JsonType::Object))
+            .map_or(::core::ptr::null_mut(), |v| {
+                v as *const ParsedValue as *mut ParsedValue
+            });
+        let lookups: *const ParsedValue = unsafe { table.as_ref() }
+            .and_then(|t| t.get_typed(b"lookups", JsonType::Object))
+            .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
         if !(languages.is_null() || features.is_null() || lookups.is_null()) {
             logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
             // No longer a `___loggedstep_v`/`current_block`-flagged `loop`
@@ -734,25 +736,19 @@ pub unsafe fn otfcc_parse_otl(
             // and fall through to the shared "log a warning, return None"
             // tail below instead.
             let mut lh: Vec<LookupEntry> = figure_out_lookups_from_json(lookups, options);
-            let lookup_order: *const ParsedValue = json_obj_get_type(
-                table,
-                b"lookupOrder\0" as *const u8 as *const ::core::ffi::c_char,
-                JsonType::Array,
-            );
-            if !lookup_order.is_null() {
-                let mut j: TableId = 0 as TableId;
-                while (j as ::core::ffi::c_uint) < json_arr_len(lookup_order) {
-                    let mut _ln: *const ParsedValue = json_arr_at(lookup_order, j as u32);
-                    if !_ln.is_null() && json_type_of(_ln) == JsonType::String {
-                        let ln_bytes: Vec<u8> = ::core::ffi::CStr::from_ptr(json_str_ptr(_ln))
-                            .to_bytes()
-                            .to_vec();
-                        if let Some(item) = lh.iter_mut().rev().find(|e| e.name == ln_bytes) {
+            let lookup_order: *const ParsedValue = unsafe { table.as_ref() }
+                .and_then(|t| t.get_typed(b"lookupOrder", JsonType::Array))
+                .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
+            if let Some(items) = unsafe { lookup_order.as_ref() }.and_then(ParsedValue::as_array)
+            {
+                for (j, ln) in items.iter().enumerate() {
+                    if let Some(ln_bytes) = ln.as_str_bytes() {
+                        let ln_owned = ln_bytes.to_vec();
+                        if let Some(item) = lh.iter_mut().rev().find(|e| e.name == ln_owned) {
                             item.order_type = LookupOrderType::Force;
                             item.order_val = j as u16;
                         }
                     }
-                    j = j.wrapping_add(1);
                 }
             }
             let mut fh: Vec<FeatureEntry> =
@@ -831,4 +827,78 @@ pub unsafe fn otfcc_parse_otl(
         );
     }
     return None;
+}
+
+#[cfg(test)]
+mod feature_merger_tests {
+    use super::*;
+
+    /// Direct coverage for `feature_merger_activate`'s in-place mutation
+    /// -- the Stage 11 investigation's "hard case" -- run under Miri to
+    /// confirm the re-resolve-fresh design has no aliasing UB, not just
+    /// that it produces the right answer natively.
+    #[test]
+    fn merges_a_later_duplicate_into_the_first_occurrence_when_tags_match() {
+        let arr = ParsedValue::Array(vec![ParsedValue::Str(b"a\0".to_vec())]);
+        let mut d = ParsedValue::Object(vec![
+            (b"test1\0".to_vec(), arr.clone()),
+            (b"test2\0".to_vec(), arr),
+        ]);
+        let options = Options::default();
+        unsafe {
+            feature_merger_activate(&mut d as *mut ParsedValue, true, c"feature".as_ptr(), &options);
+        }
+        let fields = d.as_object().unwrap();
+        assert_eq!(fields[0].0, b"test1\0");
+        assert_eq!(
+            fields[0].1,
+            ParsedValue::Array(vec![ParsedValue::Str(b"a\0".to_vec())])
+        );
+        // The duplicate's own key is untouched -- only its value becomes
+        // an alias string naming the entry it duplicated.
+        assert_eq!(fields[1].0, b"test2\0");
+        assert_eq!(fields[1].1, ParsedValue::Str(b"test1\0".to_vec()));
+    }
+
+    #[test]
+    fn does_not_merge_when_sametag_requires_a_matching_4_byte_prefix() {
+        let arr = ParsedValue::Array(vec![ParsedValue::Str(b"a\0".to_vec())]);
+        let mut d = ParsedValue::Object(vec![
+            (b"aaaa1\0".to_vec(), arr.clone()),
+            (b"bbbb1\0".to_vec(), arr),
+        ]);
+        let options = Options::default();
+        unsafe {
+            feature_merger_activate(&mut d as *mut ParsedValue, true, c"feature".as_ptr(), &options);
+        }
+        let fields = d.as_object().unwrap();
+        // Neither entry is an alias: the first 4 bytes ("aaaa" vs "bbbb")
+        // never match, so `tag4_matches` rejects every candidate pair.
+        assert_eq!(
+            fields[1].1,
+            ParsedValue::Array(vec![ParsedValue::Str(b"a\0".to_vec())])
+        );
+    }
+
+    #[test]
+    fn merges_regardless_of_key_when_sametag_is_false() {
+        let arr = ParsedValue::Array(vec![ParsedValue::Str(b"a\0".to_vec())]);
+        let mut d = ParsedValue::Object(vec![
+            (b"aaaa1\0".to_vec(), arr.clone()),
+            (b"bbbb1\0".to_vec(), arr),
+        ]);
+        let options = Options::default();
+        unsafe {
+            feature_merger_activate(&mut d as *mut ParsedValue, false, c"lookup".as_ptr(), &options);
+        }
+        let fields = d.as_object().unwrap();
+        assert_eq!(fields[1].1, ParsedValue::Str(b"aaaa1\0".to_vec()));
+    }
+
+    #[test]
+    fn tag4_matches_stops_at_the_shorter_side_nul() {
+        assert!(tag4_matches(b"ab\0", b"ab\0cd"));
+        assert!(!tag4_matches(b"abcd\0", b"abce\0"));
+        assert!(tag4_matches(b"abcd\0", b"abcd\0"));
+    }
 }
