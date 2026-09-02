@@ -39,11 +39,7 @@ use crate::table::glyf::{
 use crate::table::head::HeadTable;
 use crate::vendor::json::JsonType;
 
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_numof, json_obj_get, json_obj_get_type,
-    json_obj_getbool, json_obj_getint, json_obj_getnum, json_obj_getnum_fallback, json_obj_getsds,
-    json_obj_key_at, json_obj_key_len_at, json_obj_len, json_obj_val_at, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::vf::vq::VQ;
 
 use crate::libcff::cff_charset::cff_build_charset;
@@ -1568,219 +1564,80 @@ pub unsafe fn otfcc_dump_cff(
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-unsafe fn pd_delta_from_json(dump: *const ParsedValue) -> Vec<::core::ffi::c_double> {
-    if dump.is_null() || json_type_of(dump) != JsonType::Array {
+fn pd_delta_from_json(dump: Option<&ParsedValue>) -> Vec<::core::ffi::c_double> {
+    let Some(items) = dump.and_then(ParsedValue::as_array) else {
         return Vec::new();
-    }
-    (0..json_arr_len(dump))
-        .map(|j| json_numof(json_arr_at(dump, j)))
-        .collect()
+    };
+    items.iter().map(|v| v.as_num().unwrap_or(0.0)).collect()
 }
-unsafe fn pd_from_json(dump: *const ParsedValue) -> Option<Box<CffPrivateDict>> {
-    if dump.is_null() || json_type_of(dump) != JsonType::Object {
-        return None;
-    }
+fn pd_from_json(dump: Option<&ParsedValue>) -> Option<Box<CffPrivateDict>> {
+    let dump = dump.filter(|v| v.as_object().is_some())?;
     let mut pd_box: Box<CffPrivateDict> = otfcc_new_cff_private();
-    let pd: *mut CffPrivateDict = pd_box.as_mut() as *mut CffPrivateDict;
-    (*pd).blue_values = pd_delta_from_json(json_obj_get(
-        dump,
-        b"blueValues\0" as *const u8 as *const ::core::ffi::c_char,
-    ));
-    (*pd).other_blues = pd_delta_from_json(json_obj_get(
-        dump,
-        b"otherBlues\0" as *const u8 as *const ::core::ffi::c_char,
-    ));
-    (*pd).family_blues = pd_delta_from_json(json_obj_get(
-        dump,
-        b"familyBlues\0" as *const u8 as *const ::core::ffi::c_char,
-    ));
-    (*pd).family_other_blues = pd_delta_from_json(json_obj_get(
-        dump,
-        b"familyOtherBlues\0" as *const u8 as *const ::core::ffi::c_char,
-    ));
-    (*pd).stem_snap_h = pd_delta_from_json(json_obj_get(
-        dump,
-        b"stemSnapH\0" as *const u8 as *const ::core::ffi::c_char,
-    ));
-    (*pd).stem_snap_v = pd_delta_from_json(json_obj_get(
-        dump,
-        b"stemSnapV\0" as *const u8 as *const ::core::ffi::c_char,
-    ));
-    (*pd).blue_scale = json_obj_getnum_fallback(
-        dump,
-        b"blueScale\0" as *const u8 as *const ::core::ffi::c_char,
-        DEFAULT_BLUE_SCALE,
-    );
-    (*pd).blue_shift = json_obj_getnum_fallback(
-        dump,
-        b"blueShift\0" as *const u8 as *const ::core::ffi::c_char,
-        DEFAULT_BLUE_SHIFT,
-    );
-    (*pd).blue_fuzz = json_obj_getnum_fallback(
-        dump,
-        b"blueFuzz\0" as *const u8 as *const ::core::ffi::c_char,
-        DEFAULT_BLUE_FUZZ,
-    );
-    (*pd).std_hw = json_obj_getnum(dump, b"stdHW\0" as *const u8 as *const ::core::ffi::c_char);
-    (*pd).std_vw = json_obj_getnum(dump, b"stdVW\0" as *const u8 as *const ::core::ffi::c_char);
-    (*pd).force_bold = json_obj_getbool(
-        dump,
-        b"forceBold\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*pd).language_group = json_obj_getnum(
-        dump,
-        b"languageGroup\0" as *const u8 as *const ::core::ffi::c_char,
-    ) as u32;
-    (*pd).expansion_factor = json_obj_getnum_fallback(
-        dump,
-        b"expansionFactor\0" as *const u8 as *const ::core::ffi::c_char,
-        DEFAULT_EXPANSION_FACTOR,
-    );
-    (*pd).initial_random_seed = json_obj_getnum(
-        dump,
-        b"initialRandomSeed\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    return Some(pd_box);
+    pd_box.blue_values = pd_delta_from_json(dump.get(b"blueValues"));
+    pd_box.other_blues = pd_delta_from_json(dump.get(b"otherBlues"));
+    pd_box.family_blues = pd_delta_from_json(dump.get(b"familyBlues"));
+    pd_box.family_other_blues = pd_delta_from_json(dump.get(b"familyOtherBlues"));
+    pd_box.stem_snap_h = pd_delta_from_json(dump.get(b"stemSnapH"));
+    pd_box.stem_snap_v = pd_delta_from_json(dump.get(b"stemSnapV"));
+    pd_box.blue_scale = dump.get_num_or(b"blueScale", DEFAULT_BLUE_SCALE);
+    pd_box.blue_shift = dump.get_num_or(b"blueShift", DEFAULT_BLUE_SHIFT);
+    pd_box.blue_fuzz = dump.get_num_or(b"blueFuzz", DEFAULT_BLUE_FUZZ);
+    pd_box.std_hw = dump.get_num(b"stdHW");
+    pd_box.std_vw = dump.get_num(b"stdVW");
+    pd_box.force_bold = dump.get_bool(b"forceBold");
+    pd_box.language_group = dump.get_num(b"languageGroup") as u32;
+    pd_box.expansion_factor = dump.get_num_or(b"expansionFactor", DEFAULT_EXPANSION_FACTOR);
+    pd_box.initial_random_seed = dump.get_num(b"initialRandomSeed");
+    Some(pd_box)
 }
 unsafe fn fd_from_json(
-    dump: *const ParsedValue,
+    dump: Option<&ParsedValue>,
     options: &Options,
     top_level: bool,
 ) -> *mut CffTable {
     let table: *mut CffTable = (table_cff_create)();
-    if dump.is_null() || json_type_of(dump) != JsonType::Object {
+    let Some(dump) = dump.filter(|v| v.as_object().is_some()) else {
         return table;
-    }
-    (*table).version = json_obj_getsds(
-        dump,
-        b"version\0" as *const u8 as *const ::core::ffi::c_char,
-    )
-    .unwrap_or_default();
-    (*table).notice = json_obj_getsds(dump, b"notice\0" as *const u8 as *const ::core::ffi::c_char)
-        .unwrap_or_default();
-    (*table).copyright = json_obj_getsds(
-        dump,
-        b"copyright\0" as *const u8 as *const ::core::ffi::c_char,
-    )
-    .unwrap_or_default();
-    (*table).font_name = json_obj_getsds(
-        dump,
-        b"fontName\0" as *const u8 as *const ::core::ffi::c_char,
-    )
-    .unwrap_or_default();
-    (*table).full_name = json_obj_getsds(
-        dump,
-        b"fullName\0" as *const u8 as *const ::core::ffi::c_char,
-    )
-    .unwrap_or_default();
-    (*table).family_name = json_obj_getsds(
-        dump,
-        b"familyName\0" as *const u8 as *const ::core::ffi::c_char,
-    )
-    .unwrap_or_default();
-    (*table).weight = json_obj_getsds(dump, b"weight\0" as *const u8 as *const ::core::ffi::c_char)
-        .unwrap_or_default();
-    (*table).is_fixed_pitch = json_obj_getbool(
-        dump,
-        b"isFixedPitch\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).italic_angle = json_obj_getnum(
-        dump,
-        b"italicAngle\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).underline_position = json_obj_getnum_fallback(
-        dump,
-        b"underlinePosition\0" as *const u8 as *const ::core::ffi::c_char,
-        -100.0f64,
-    );
-    (*table).underline_thickness = json_obj_getnum_fallback(
-        dump,
-        b"underlineThickness\0" as *const u8 as *const ::core::ffi::c_char,
-        50.0f64,
-    );
-    (*table).stroke_width = json_obj_getnum(
-        dump,
-        b"strokeWidth\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).font_b_box_left = json_obj_getnum(
-        dump,
-        b"fontBBoxLeft\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).font_b_box_bottom = json_obj_getnum(
-        dump,
-        b"fontBBoxBottom\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).font_b_box_right = json_obj_getnum(
-        dump,
-        b"fontBBoxRight\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).font_b_box_top = json_obj_getnum(
-        dump,
-        b"fontBBoxTop\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).private_dict = pd_from_json(json_obj_get_type(
-        dump,
-        b"privates\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    ));
-    (*table).cid_registry = json_obj_getsds(
-        dump,
-        b"cidRegistry\0" as *const u8 as *const ::core::ffi::c_char,
-    )
-    .unwrap_or_default();
-    (*table).cid_ordering = json_obj_getsds(
-        dump,
-        b"cidOrdering\0" as *const u8 as *const ::core::ffi::c_char,
-    )
-    .unwrap_or_default();
-    (*table).cid_supplement = json_obj_getint(
-        dump,
-        b"cidSupplement\0" as *const u8 as *const ::core::ffi::c_char,
-    ) as u32;
-    (*table).uid_base = json_obj_getint(
-        dump,
-        b"UIDBase\0" as *const u8 as *const ::core::ffi::c_char,
-    ) as u32;
-    (*table).cid_count = json_obj_getint(
-        dump,
-        b"cidCount\0" as *const u8 as *const ::core::ffi::c_char,
-    ) as u32;
-    (*table).cid_font_version = json_obj_getnum(
-        dump,
-        b"cidFontVersion\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    (*table).cid_font_revision = json_obj_getnum(
-        dump,
-        b"cidFontRevision\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    let fdarraydump: *const ParsedValue = json_obj_get_type(
-        dump,
-        b"fdArray\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if !fdarraydump.is_null() {
+    };
+    (*table).version = dump.get_bytes_owned(b"version").unwrap_or_default();
+    (*table).notice = dump.get_bytes_owned(b"notice").unwrap_or_default();
+    (*table).copyright = dump.get_bytes_owned(b"copyright").unwrap_or_default();
+    (*table).font_name = dump.get_bytes_owned(b"fontName").unwrap_or_default();
+    (*table).full_name = dump.get_bytes_owned(b"fullName").unwrap_or_default();
+    (*table).family_name = dump.get_bytes_owned(b"familyName").unwrap_or_default();
+    (*table).weight = dump.get_bytes_owned(b"weight").unwrap_or_default();
+    (*table).is_fixed_pitch = dump.get_bool(b"isFixedPitch");
+    (*table).italic_angle = dump.get_num(b"italicAngle");
+    (*table).underline_position = dump.get_num_or(b"underlinePosition", -100.0f64);
+    (*table).underline_thickness = dump.get_num_or(b"underlineThickness", 50.0f64);
+    (*table).stroke_width = dump.get_num(b"strokeWidth");
+    (*table).font_b_box_left = dump.get_num(b"fontBBoxLeft");
+    (*table).font_b_box_bottom = dump.get_num(b"fontBBoxBottom");
+    (*table).font_b_box_right = dump.get_num(b"fontBBoxRight");
+    (*table).font_b_box_top = dump.get_num(b"fontBBoxTop");
+    (*table).private_dict = pd_from_json(dump.get_typed(b"privates", JsonType::Object));
+    (*table).cid_registry = dump.get_bytes_owned(b"cidRegistry").unwrap_or_default();
+    (*table).cid_ordering = dump.get_bytes_owned(b"cidOrdering").unwrap_or_default();
+    (*table).cid_supplement = dump.get_int(b"cidSupplement") as u32;
+    (*table).uid_base = dump.get_int(b"UIDBase") as u32;
+    (*table).cid_count = dump.get_int(b"cidCount") as u32;
+    (*table).cid_font_version = dump.get_num(b"cidFontVersion");
+    (*table).cid_font_revision = dump.get_num(b"cidFontRevision");
+    if let Some(fields) = dump
+        .get_typed(b"fdArray", JsonType::Object)
+        .and_then(ParsedValue::as_object)
+    {
         (*table).is_cid = true;
-        let fd_count = json_obj_len(fdarraydump) as usize;
-        (*table).fd_array = Vec::with_capacity(fd_count);
-        let mut j: TableId = 0 as TableId;
-        while (j as usize) < fd_count {
+        (*table).fd_array = Vec::with_capacity(fields.len());
+        for (key, val) in fields {
             // `fd_from_json` builds each child fully before returning
             // (unlike the binary-read path, which populates a `fd_array`
             // slot incrementally via a recursive callback) -- so there's
             // no need to push an empty placeholder first here.
-            let mut fd_box: Box<CffTable> = unwrap_cff_table(fd_from_json(
-                json_obj_val_at(fdarraydump, j as u32),
-                options,
-                false,
-            ))
-            .unwrap();
-            fd_box.font_name = ::core::slice::from_raw_parts(
-                json_obj_key_at(fdarraydump, j as u32) as *const u8,
-                json_obj_key_len_at(fdarraydump, j as u32) as usize,
-            )
-            .to_vec();
+            let mut fd_box: Box<CffTable> =
+                unwrap_cff_table(fd_from_json(Some(val), options, false)).unwrap();
+            fd_box.font_name = key[..key.len() - 1].to_vec();
             (*table).fd_array.push(fd_box);
-            j = j.wrapping_add(1);
         }
     }
     if (*table).font_name.is_empty() {
@@ -1789,10 +1646,7 @@ unsafe fn fd_from_json(
     if (*table).private_dict.is_none() {
         (*table).private_dict = Some(otfcc_new_cff_private());
     }
-    if top_level as i32 != 0
-        && options.force_cid as i32 != 0
-        && (*table).fd_array.is_empty()
-    {
+    if top_level && options.force_cid && (*table).fd_array.is_empty() {
         let mut fd0_box: Box<CffTable> = unwrap_cff_table((table_cff_create)()).unwrap();
         fd0_box.private_dict = (*table).private_dict.take();
         (*table).private_dict = Some(otfcc_new_cff_private());
@@ -1802,10 +1656,10 @@ unsafe fn fd_from_json(
         (*table).fd_array.push(fd0_box);
         (*table).is_cid = true;
     }
-    if (*table).is_cid as i32 != 0 && (*table).cid_registry.is_empty() {
+    if (*table).is_cid && (*table).cid_registry.is_empty() {
         (*table).cid_registry = b"CARYLL".to_vec();
     }
-    if (*table).is_cid as i32 != 0 && (*table).cid_ordering.is_empty() {
+    if (*table).is_cid && (*table).cid_ordering.is_empty() {
         (*table).cid_ordering = b"OTFCCAUTOCID".to_vec();
     }
     return table;
@@ -1814,27 +1668,14 @@ pub unsafe fn otfcc_parse_cff(
     root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<CffTable>> {
-    let dump: *const ParsedValue = json_obj_get_type(
-        root,
-        b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
+    let dump = root.as_ref().and_then(|r| r.get_typed(b"CFF_", JsonType::Object))?;
+    logger_start_sds(
+        &mut *options.logger.borrow_mut(),
+        crate::bytesbuild!(b"CFF"),
     );
-    if dump.is_null() {
-        return None;
-    } else {
-        let mut cff: *mut CffTable = ::core::ptr::null_mut::<CffTable>();
-        logger_start_sds(
-            &mut *options.logger.borrow_mut(),
-            crate::bytesbuild!(b"CFF"),
-        );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            cff = fd_from_json(dump, options, true);
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
-        }
-        return unwrap_cff_table(cff);
-    };
+    let cff = fd_from_json(Some(dump), options, true);
+    logger_finish(&mut *options.logger.borrow_mut());
+    unwrap_cff_table(cff)
 }
 unsafe fn cff_make_charstrings(context: *mut CffCharstringBuilderContext) -> (Buffer, Buffer, Buffer) {
     if (*(*context).glyf).is_empty() {
