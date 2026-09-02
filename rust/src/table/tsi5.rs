@@ -64,8 +64,8 @@ pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: &mut BuiltValue) 
     };
     root.push_field(b"TSI5", dump_class_def(table));
 }
-pub unsafe fn otfcc_parse_tsi5(root: *const ParsedValue) -> Option<Box<Tsi5Table>> {
-    let tsi = unsafe { root.as_ref() }?.get_typed(b"TSI5", JsonType::Object)?;
+pub unsafe fn otfcc_parse_tsi5(root: &ParsedValue) -> Option<Box<Tsi5Table>> {
+    let tsi = root.get_typed(b"TSI5", JsonType::Object)?;
     let raw = parse_class_def(tsi as *const ParsedValue);
     if raw.is_null() {
         return None;

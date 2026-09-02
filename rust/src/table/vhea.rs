@@ -141,12 +141,12 @@ pub unsafe fn otfcc_dump_vhea(
     }
 }
 pub unsafe fn otfcc_parse_vhea(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<VheaTable>> {
     let mut vhea_box: Option<Box<VheaTable>> = None;
     let vhea: *mut VheaTable;
-    let table = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"vhea", JsonType::Object));
+    let table = root.get_typed(b"vhea", JsonType::Object);
     if let Some(table) = table {
         vhea_box = Some(Box::new(::core::mem::zeroed()));
         vhea = vhea_box.as_deref_mut().unwrap() as *mut VheaTable;

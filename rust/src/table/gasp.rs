@@ -114,11 +114,11 @@ pub unsafe fn otfcc_dump_gasp(
     }
 }
 pub unsafe fn otfcc_parse_gasp(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<GaspTable>> {
     let mut gasp: Option<Box<GaspTable>> = None;
-    let table = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"gasp", JsonType::Array));
+    let table = root.get_typed(b"gasp", JsonType::Array);
     if let Some(table) = table {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),

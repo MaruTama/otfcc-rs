@@ -298,10 +298,10 @@ unsafe fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: *mut LigCaretTab
     }
 }
 pub unsafe fn otfcc_parse_gdef(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<GdefTable>> {
-    let table = root.as_ref().and_then(|r| r.get_typed(b"GDEF", JsonType::Object))?;
+    let table = root.get_typed(b"GDEF", JsonType::Object)?;
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"GDEF"),

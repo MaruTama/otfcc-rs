@@ -121,10 +121,10 @@ pub unsafe fn otfcc_dump_vdmx(
     }
 }
 pub unsafe fn otfcc_parse_vdmx(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<VdmxTable>> {
-    let vdmx_dump = root.as_ref().and_then(|r| r.get_typed(b"VDMX", JsonType::Object))?;
+    let vdmx_dump = root.get_typed(b"VDMX", JsonType::Object)?;
     let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable {
         version: 0,
         ratios: Vec::new(),

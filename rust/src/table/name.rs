@@ -168,13 +168,12 @@ pub unsafe fn otfcc_dump_name(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_name(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<NameTable> {
     let mut name: NameTable = Vec::new();
     let Some(items) = root
-        .as_ref()
-        .and_then(|r| r.get_typed(b"name", JsonType::Array))
+        .get_typed(b"name", JsonType::Array)
         .and_then(ParsedValue::as_array)
     else {
         return Some(name);

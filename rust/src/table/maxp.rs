@@ -173,7 +173,7 @@ pub unsafe fn otfcc_dump_maxp(
     }
 }
 pub unsafe fn otfcc_parse_maxp(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<MaxpTable>> {
     // `.version` carries `init_maxp`'s `0x10000` default through if the
@@ -186,7 +186,7 @@ pub unsafe fn otfcc_parse_maxp(
     maxp_val.version = 0x10000_i32 as F16Dot16;
     let mut maxp_box: Box<MaxpTable> = Box::new(maxp_val);
     let maxp: *mut MaxpTable = maxp_box.as_mut() as *mut MaxpTable;
-    let table = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"maxp", JsonType::Object));
+    let table = root.get_typed(b"maxp", JsonType::Object);
     if let Some(table) = table {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),

@@ -341,11 +341,11 @@ unsafe fn axis_from_json(axis: *const ParsedValue) -> Option<Box<BaseAxis>> {
     Some(Box::new(BaseAxis { entries }))
 }
 pub unsafe fn otfcc_parse_base(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<BaseTable>> {
     let mut base: Option<Box<BaseTable>> = None;
-    let table = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"BASE", JsonType::Object));
+    let table = root.get_typed(b"BASE", JsonType::Object);
     if let Some(table) = table {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),

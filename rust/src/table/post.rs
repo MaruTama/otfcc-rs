@@ -490,7 +490,7 @@ pub unsafe fn otfcc_dump_post(
     }
 }
 pub unsafe fn otfcc_parse_post(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<PostTable>> {
     // `.version`'s `0x30000` default carries through if the "post" JSON key
@@ -503,7 +503,7 @@ pub unsafe fn otfcc_parse_post(
     post_val.version = 0x30000_i32 as F16Dot16;
     let mut post_box: Box<PostTable> = Box::new(post_val);
     let post: *mut PostTable = post_box.as_mut() as *mut PostTable;
-    let table = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"post", JsonType::Object));
+    let table = root.get_typed(b"post", JsonType::Object);
     if let Some(table) = table {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),

@@ -1,20 +1,16 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-// Shared big-endian byte readers, factored out of the ~40 per-file private
-// copies c2rust emitted (one per translation unit that #included
-// c/lib/support/bin-io.h's `static inline` helpers). Never externally linked
-// (no #[no_mangle]) even in their per-file form, so consolidating them
-// changes no ABI. Bodies rewritten to u*::from_be_bytes (matching the
-// idiom already used on the write side in support/buffer.rs), but
-// every signature is byte-for-byte identical to the original so callers
-// need no changes beyond `use`.
+// `read_16u`/friends -- factored out of the ~40 per-file private copies
+// c2rust emitted (one per translation unit that #included
+// c/lib/support/bin-io.h's `static inline` helpers) -- lost their last
+// caller in Stage 11 Phase 11 (`table/cvt.rs`'s `otfcc_parse_cvt`, the only
+// remaining parse-side consumer, converted to `u16::from_be_bytes` directly
+// on its own already-safe `&[u8]`) and were deleted; every binary-format
+// reader in the crate now goes through `support/font_reader.rs`'s
+// bounds-checked `FontReader` instead.
 //
-// Also holds `pos_to_u16`, the one *write*-side conversion that cannot be
-// spelled inline without inviting someone to "simplify" it — see its comment.
-
-#[inline]
-pub(crate) unsafe fn read_16u(src: *const u8) -> u16 {
-    u16::from_be_bytes([*src, *src.offset(1)])
-}
+// What's left here is `pos_to_u16`, the one *write*-side conversion that
+// cannot be spelled inline without inviting someone to "simplify" it — see
+// its comment.
 
 /// C's *implicit* `Pos` (f64) -> `uint16_t` narrowing, as it happens at
 /// `bufwrite16b()` call sites whose C source has no explicit intermediate

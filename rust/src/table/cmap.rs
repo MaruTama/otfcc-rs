@@ -768,11 +768,10 @@ unsafe fn parse_cmap_uvs(
     }
 }
 pub unsafe fn otfcc_parse_cmap(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<CmapTable>> {
-    let root_ref = root.as_ref()?;
-    root_ref.as_object()?;
+    root.as_object()?;
     let mut cmap_box: Box<CmapTable> = Box::new(CmapTable {
         unicodes: std::collections::BTreeMap::new(),
         uvs: std::collections::BTreeMap::new(),
@@ -782,7 +781,7 @@ pub unsafe fn otfcc_parse_cmap(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"cmap"),
     );
-    parse_cmap_unicodes(cmap, root_ref.get_typed(b"cmap", JsonType::Object), options);
+    parse_cmap_unicodes(cmap, root.get_typed(b"cmap", JsonType::Object), options);
     logger_finish(&mut *options.logger.borrow_mut());
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
@@ -790,7 +789,7 @@ pub unsafe fn otfcc_parse_cmap(
     );
     parse_cmap_uvs(
         cmap,
-        root_ref.get_typed(b"cmap_uvs", JsonType::Object),
+        root.get_typed(b"cmap_uvs", JsonType::Object),
         options,
     );
     logger_finish(&mut *options.logger.borrow_mut());

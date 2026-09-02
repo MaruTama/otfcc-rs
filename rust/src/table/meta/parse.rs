@@ -32,10 +32,10 @@ pub fn parse_meta_data(v: Option<&ParsedValue>) -> Option<Vec<u8>> {
     None
 }
 pub unsafe fn otfcc_parse_meta(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<MetaTable>> {
-    let _meta = root.as_ref().and_then(|r| r.get_typed(b"meta", JsonType::Object))?;
+    let _meta = root.get_typed(b"meta", JsonType::Object)?;
     let entries = _meta
         .get_typed(b"entries", JsonType::Array)
         .and_then(ParsedValue::as_array)?;

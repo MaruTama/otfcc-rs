@@ -165,7 +165,7 @@ pub unsafe fn otfcc_dump_head(
     }
 }
 pub unsafe fn otfcc_parse_head(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<HeadTable>> {
     // Reproduces `init_head`'s two non-zero defaults exactly:
@@ -177,7 +177,7 @@ pub unsafe fn otfcc_parse_head(
     head_val.magic_number = 0x5f0f3cf5_u32;
     head_val.units_per_em = 1000_u16;
     let mut head_box: Box<HeadTable> = Box::new(head_val);
-    let Some(table) = root.as_ref().and_then(|r| r.get_typed(b"head", JsonType::Object)) else {
+    let Some(table) = root.get_typed(b"head", JsonType::Object) else {
         return Some(head_box);
     };
     let head: *mut HeadTable = head_box.as_mut() as *mut HeadTable;

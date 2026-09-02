@@ -81,13 +81,13 @@ pub unsafe fn wrong_fpgm_prep_instr(
 ) {
 }
 pub unsafe fn otfcc_parse_fpgm_prep(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
     tag: *const ::core::ffi::c_char,
 ) -> Option<Box<FpgmPrepTable>> {
     let mut t: Option<Box<FpgmPrepTable>> = None;
     let key = unsafe { ::core::ffi::CStr::from_ptr(tag) }.to_bytes();
-    let table = unsafe { root.as_ref() }.and_then(|r| r.get(key));
+    let table = root.get(key);
     if let Some(table) = table {
         let table = table as *const ParsedValue;
         logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));

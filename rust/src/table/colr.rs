@@ -168,10 +168,10 @@ pub unsafe fn otfcc_dump_colr(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_colr(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<ColrTable> {
-    let colr_val = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"COLR", JsonType::Array))?;
+    let colr_val = root.get_typed(b"COLR", JsonType::Array)?;
     let mut colr: ColrTable = Vec::new();
     logger_start_sds(
         &mut *options.logger.borrow_mut(),

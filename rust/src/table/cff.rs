@@ -1665,10 +1665,10 @@ unsafe fn fd_from_json(
     return table;
 }
 pub unsafe fn otfcc_parse_cff(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<CffTable>> {
-    let dump = root.as_ref().and_then(|r| r.get_typed(b"CFF_", JsonType::Object))?;
+    let dump = root.get_typed(b"CFF_", JsonType::Object)?;
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"CFF"),

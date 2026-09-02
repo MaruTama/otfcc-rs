@@ -587,7 +587,7 @@ pub unsafe fn otfcc_dump_os_2(
     }
 }
 pub unsafe fn otfcc_parse_os_2(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<Os2Table>> {
     // `Box::new` cannot return null (it aborts on allocation failure), so
@@ -598,7 +598,7 @@ pub unsafe fn otfcc_parse_os_2(
     os2_val.version = 4;
     let mut os_2_box: Box<Os2Table> = Box::new(os2_val);
     let os_2: *mut Os2Table = os_2_box.as_mut() as *mut Os2Table;
-    let table = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"OS_2", JsonType::Object));
+    let table = root.get_typed(b"OS_2", JsonType::Object);
     if let Some(table) = table {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),

@@ -685,7 +685,7 @@ unsafe fn figure_out_languages_from_json(
     return sh;
 }
 pub unsafe fn otfcc_parse_otl(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
     tag: *const ::core::ffi::c_char,
 ) -> Option<Box<OtlTable>> {
@@ -704,8 +704,8 @@ pub unsafe fn otfcc_parse_otl(
     // reborrow here is a temporary that retires at the end of its own
     // statement, long before the mutation happens.
     let tag_key = unsafe { ::core::ffi::CStr::from_ptr(tag) }.to_bytes();
-    let table: *const ParsedValue = unsafe { root.as_ref() }
-        .and_then(|r| r.get_typed(tag_key, JsonType::Object))
+    let table: *const ParsedValue = root
+        .get_typed(tag_key, JsonType::Object)
         .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
     if !table.is_null() {
         otl_box = Some(Box::new(OtlTable {

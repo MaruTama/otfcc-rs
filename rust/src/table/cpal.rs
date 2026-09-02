@@ -265,10 +265,10 @@ fn parse_color(color: Option<&ParsedValue>) -> CpalColor {
     c
 }
 pub unsafe fn otfcc_parse_cpal(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<CpalTable>> {
-    let table = root.as_ref().and_then(|r| r.get_typed(b"CPAL", JsonType::Object))?;
+    let table = root.get_typed(b"CPAL", JsonType::Object)?;
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"CPAL"),

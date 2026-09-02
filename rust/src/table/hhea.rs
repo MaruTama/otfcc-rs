@@ -124,14 +124,14 @@ pub unsafe fn otfcc_dump_hhea(
     }
 }
 pub unsafe fn otfcc_parse_hhea(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<HheaTable>> {
     let mut hhea_val: HheaTable = ::core::mem::zeroed();
     hhea_val.version = 0x10000_i32 as F16Dot16;
     let mut hhea_box: Box<HheaTable> = Box::new(hhea_val);
     let hhea: *mut HheaTable = hhea_box.as_mut() as *mut HheaTable;
-    let table = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"hhea", JsonType::Object));
+    let table = root.get_typed(b"hhea", JsonType::Object);
     if let Some(table) = table {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),

@@ -2,15 +2,11 @@
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::base64::base64_decode;
-use crate::support::binio::read_16u;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get_type,
-    json_str_len, json_str_ptr, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::vendor::json::JsonType;
 
 // Stage 7-2-c "inner Vec化": `words` was the only allocation this struct
@@ -70,68 +66,48 @@ pub unsafe fn otfcc_dump_cvt(
     }
 }
 pub unsafe fn otfcc_parse_cvt(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
     tag: *const ::core::ffi::c_char,
 ) -> Option<Box<CvtTable>> {
-    let mut t: Option<Box<CvtTable>> = None;
-    let mut table: *const ParsedValue;
-    table = json_obj_get_type(root, tag, JsonType::Array);
-    if !table.is_null() {
+    let key = ::core::ffi::CStr::from_ptr(tag).to_bytes();
+    if let Some(items) = root
+        .get_typed(key, JsonType::Array)
+        .and_then(ParsedValue::as_array)
+    {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"cvt"),
         );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            let table_length = json_arr_len(table);
-            let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);
-            let mut j: u16 = 0_u16;
-            while (j as u32) < table_length {
-                let record: *const ParsedValue = json_arr_at(table, j as u32);
-                if json_type_of(record) == JsonType::Integer {
-                    words.push(json_int_val(record) as u16);
-                } else if json_type_of(record) == JsonType::Double {
-                    words.push(json_dbl_val(record) as u16);
-                } else {
-                    words.push(0_u16);
-                }
-                j = j.wrapping_add(1);
-            }
-            t = Some(Box::new(CvtTable { words }));
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
+        let mut words: Vec<u16> = Vec::with_capacity(items.len());
+        for record in items {
+            words.push(match record {
+                ParsedValue::Int(i) => *i as u16,
+                ParsedValue::Double(d) => *d as u16,
+                _ => 0_u16,
+            });
         }
-    } else {
-        table = json_obj_get_type(root, tag, JsonType::String);
-        if !table.is_null() {
-            logger_start_sds(
-                &mut *options.logger.borrow_mut(),
-                crate::bytesbuild!(b"cvt"),
-            );
-            let mut ___loggedstep_v_0: bool = true;
-            while ___loggedstep_v_0 {
-                let raw = base64_decode(::core::slice::from_raw_parts(
-                    json_str_ptr(table) as *const u8,
-                    json_str_len(table) as usize,
-                ))
-                .unwrap_or_default();
-                let table_length = (raw.len() >> 1_i32) as u32;
-                let mut words: Vec<u16> = Vec::with_capacity(table_length as usize);
-                let mut j_0: u16 = 0_u16;
-                while (j_0 as u32) < table_length {
-                    words.push(read_16u(raw.as_ptr().offset(
-                        (2_i32 * j_0 as i32) as isize,
-                    )));
-                    j_0 = j_0.wrapping_add(1);
-                }
-                t = Some(Box::new(CvtTable { words }));
-                ___loggedstep_v_0 = false;
-                logger_finish(&mut *options.logger.borrow_mut());
-            }
-        }
+        logger_finish(&mut *options.logger.borrow_mut());
+        return Some(Box::new(CvtTable { words }));
     }
-    return t;
+    if let Some(bytes) = root
+        .get_typed(key, JsonType::String)
+        .and_then(ParsedValue::as_str_bytes)
+    {
+        logger_start_sds(
+            &mut *options.logger.borrow_mut(),
+            crate::bytesbuild!(b"cvt"),
+        );
+        let raw = base64_decode(bytes).unwrap_or_default();
+        let table_length = raw.len() / 2;
+        let mut words: Vec<u16> = Vec::with_capacity(table_length);
+        for j in 0..table_length {
+            words.push(u16::from_be_bytes([raw[2 * j], raw[2 * j + 1]]));
+        }
+        logger_finish(&mut *options.logger.borrow_mut());
+        return Some(Box::new(CvtTable { words }));
+    }
+    None
 }
 pub fn otfcc_build_cvt(table: Option<&CvtTable>) -> Option<Buffer> {
     let table = table?;

@@ -133,8 +133,8 @@ pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, opti
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_parse_svg(root: *const ParsedValue, options: &Options) -> Option<SvgTable> {
-    let svg_val = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"SVG_", JsonType::Array))?;
+pub unsafe fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable> {
+    let svg_val = root.get_typed(b"SVG_", JsonType::Array)?;
     let mut svg: SvgTable = Vec::new();
     logger_start_sds(
         &mut *options.logger.borrow_mut(),

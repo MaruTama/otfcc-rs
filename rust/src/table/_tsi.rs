@@ -210,12 +210,12 @@ pub unsafe fn otfcc_dump_tsi(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_tsi(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
     tag: *const ::core::ffi::c_char,
 ) -> Option<TsiTable> {
     let tag_key = ::core::ffi::CStr::from_ptr(tag).to_bytes();
-    let _tsi = root.as_ref().and_then(|r| r.get_typed(tag_key, JsonType::Object))?;
+    let _tsi = root.get_typed(tag_key, JsonType::Object)?;
     let mut tsi: TsiTable = Vec::new();
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     if let Some(fields) = _tsi

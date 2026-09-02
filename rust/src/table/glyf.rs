@@ -21,7 +21,7 @@ use crate::table::fvar::FvarTable;
 use crate::vendor::json::JsonType;
 
 use crate::support::built_json::BuiltValue;
-use crate::support::parsed_json::{ParsedValue, json_type_of};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::vf::vq::VQ;
@@ -827,16 +827,15 @@ unsafe fn otfcc_glyf_parse_glyph(
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_glyf(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     glyph_order: *mut GlyphOrder,
     options: &Options,
 ) -> Option<GlyfTable> {
-    if json_type_of(root) != JsonType::Object || glyph_order.is_null() {
+    if root.as_object().is_none() || glyph_order.is_null() {
         return None;
     }
     let table: *mut ParsedValue = root
-        .as_ref()
-        .and_then(|r| r.get_typed(b"glyf", JsonType::Object))
+        .get_typed(b"glyf", JsonType::Object)
         .map_or(::core::ptr::null_mut(), |v| {
             v as *const ParsedValue as *mut ParsedValue
         });
