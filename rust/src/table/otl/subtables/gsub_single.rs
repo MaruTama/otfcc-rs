@@ -3,9 +3,7 @@
 use crate::support::handle::{
     GlyphHandle, Handle, handle_from_index, handle_from_name, otfcc_handle_dup,
 };
-use crate::support::parsed_json::{
-    ParsedValue, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
     Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
 };
@@ -16,7 +14,6 @@ use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_p
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
@@ -155,22 +152,15 @@ pub unsafe fn otl_gsub_parse_single(
     mut _options: &Options,
 ) -> *mut Subtable {
     let subtable: *mut GsubSingleSubtable = subtable_gsub_single_create();
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < json_obj_len(_subtable) {
-        let val = json_obj_val_at(_subtable, j as u32);
-        if !val.is_null()
-            && json_type_of(val) as ::core::ffi::c_uint
-                == JsonType::String as i32 as ::core::ffi::c_uint
-        {
-            let from: GlyphHandle =
-                handle_from_name(Some(json_obj_key_bytes_at(_subtable, j as u32))) as GlyphHandle;
-            let to: GlyphHandle = handle_from_name(Some(json_str_bytes(val))) as GlyphHandle;
-            (*subtable).push(GsubSingleEntry {
-                from: from as GlyphHandle,
-                to: to as GlyphHandle,
-            });
+    if let Some(fields) = unsafe { _subtable.as_ref() }.and_then(ParsedValue::as_object) {
+        for (key, val) in fields {
+            if let Some(to_bytes) = val.as_str_bytes() {
+                let from: GlyphHandle =
+                    handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle;
+                let to: GlyphHandle = handle_from_name(Some(to_bytes.to_vec())) as GlyphHandle;
+                (*subtable).push(GsubSingleEntry { from, to });
+            }
         }
-        j = j.wrapping_add(1);
     }
     return subtable_from_raw(subtable, Subtable::GsubSingle);
 }

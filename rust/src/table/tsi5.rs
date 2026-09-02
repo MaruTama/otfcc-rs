@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
 
 use crate::support::handle::{GlyphHandle, handle_from_index};
@@ -65,20 +65,12 @@ pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: &mut BuiltValue) 
     root.push_field(b"TSI5", dump_class_def(table));
 }
 pub unsafe fn otfcc_parse_tsi5(root: *const ParsedValue) -> Option<Box<Tsi5Table>> {
-    let mut _tsi: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
-    _tsi = json_obj_get_type(
-        root,
-        b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if _tsi.is_null() {
-        return None;
-    }
-    let raw = parse_class_def(_tsi);
+    let tsi = unsafe { root.as_ref() }?.get_typed(b"TSI5", JsonType::Object)?;
+    let raw = parse_class_def(tsi as *const ParsedValue);
     if raw.is_null() {
         return None;
     }
-    return Some(unwrap_class_def(raw));
+    Some(unwrap_class_def(raw))
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffer> {

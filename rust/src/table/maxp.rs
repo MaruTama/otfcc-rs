@@ -7,7 +7,7 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json::JsonType;
@@ -186,51 +186,22 @@ pub unsafe fn otfcc_parse_maxp(
     maxp_val.version = 0x10000_i32 as F16Dot16;
     let mut maxp_box: Box<MaxpTable> = Box::new(maxp_val);
     let maxp: *mut MaxpTable = maxp_box.as_mut() as *mut MaxpTable;
-    let table: *const ParsedValue;
-    table = json_obj_get_type(
-        root,
-        b"maxp\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if !table.is_null() {
+    let table = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"maxp", JsonType::Object));
+    if let Some(table) = table {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"maxp"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            (*maxp).version = otfcc_to_fixed(json_obj_getnum(
-                table,
-                b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            ));
-            (*maxp).num_glyphs = json_obj_getnum(
-                table,
-                b"numGlyphs\0" as *const u8 as *const ::core::ffi::c_char,
-            ) as u16;
-            (*maxp).max_zones = json_obj_getnum(
-                table,
-                b"maxZones\0" as *const u8 as *const ::core::ffi::c_char,
-            ) as u16;
-            (*maxp).max_twilight_points = json_obj_getnum(
-                table,
-                b"maxTwilightPoints\0" as *const u8 as *const ::core::ffi::c_char,
-            ) as u16;
-            (*maxp).max_storage = json_obj_getnum(
-                table,
-                b"maxStorage\0" as *const u8 as *const ::core::ffi::c_char,
-            ) as u16;
-            (*maxp).max_function_defs = json_obj_getnum(
-                table,
-                b"maxFunctionDefs\0" as *const u8 as *const ::core::ffi::c_char,
-            ) as u16;
-            (*maxp).max_instruction_defs = json_obj_getnum(
-                table,
-                b"maxInstructionDefs\0" as *const u8 as *const ::core::ffi::c_char,
-            ) as u16;
-            (*maxp).max_stack_elements = json_obj_getnum(
-                table,
-                b"maxStackElements\0" as *const u8 as *const ::core::ffi::c_char,
-            ) as u16;
+            (*maxp).version = otfcc_to_fixed(table.get_num(b"version"));
+            (*maxp).num_glyphs = table.get_num(b"numGlyphs") as u16;
+            (*maxp).max_zones = table.get_num(b"maxZones") as u16;
+            (*maxp).max_twilight_points = table.get_num(b"maxTwilightPoints") as u16;
+            (*maxp).max_storage = table.get_num(b"maxStorage") as u16;
+            (*maxp).max_function_defs = table.get_num(b"maxFunctionDefs") as u16;
+            (*maxp).max_instruction_defs = table.get_num(b"maxInstructionDefs") as u16;
+            (*maxp).max_stack_elements = table.get_num(b"maxStackElements") as u16;
             ___loggedstep_v = false;
             logger_finish(&mut *options.logger.borrow_mut());
         }

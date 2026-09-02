@@ -1,9 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::handle::{GlyphHandle, handle_from_index};
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum_fallback,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{Coverage, coverage_from_raw, push_to_coverage, read_coverage};
 
 use crate::support::font_reader::FontReader;
@@ -184,38 +182,27 @@ pub unsafe fn otl_gsub_parse_reverse(
     mut _subtable: *const ParsedValue,
     mut _options: &Options,
 ) -> *mut Subtable {
-    let mut _match: *const ParsedValue = json_obj_get_type(
-        _subtable,
-        b"match\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Array,
-    );
-    let mut _to: *const ParsedValue = json_obj_get_type(
-        _subtable,
-        b"to\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Array,
-    );
-    if _match.is_null() || _to.is_null() {
+    let Some(sv) = (unsafe { _subtable.as_ref() }) else {
         return ::core::ptr::null_mut::<Subtable>();
-    }
+    };
+    let Some(_match) = sv.get_typed(b"match", JsonType::Array) else {
+        return ::core::ptr::null_mut::<Subtable>();
+    };
+    let Some(_to) = sv.get_typed(b"to", JsonType::Array) else {
+        return ::core::ptr::null_mut::<Subtable>();
+    };
     let subtable: *mut GsubReverseSubtable = (subtable_gsub_reverse_create)();
-    (*subtable).match_count = json_arr_len(_match) as TableId;
+    let match_items = _match.as_array().unwrap();
+    (*subtable).match_count = match_items.len() as TableId;
     (*subtable).match_0 = Vec::with_capacity((*subtable).match_count as usize);
-    (*subtable).input_index = json_obj_getnum_fallback(
-        _subtable,
-        b"inputIndex\0" as *const u8 as *const ::core::ffi::c_char,
-        0_i32 as ::core::ffi::c_double,
-    ) as TableId;
-    let mut j: TableId = 0 as TableId;
-    while (j as i32) < (*subtable).match_count as i32 {
+    (*subtable).input_index = sv.get_num_or(b"inputIndex", 0.0) as TableId;
+    for item in match_items {
         (*subtable)
             .match_0
-            .push(coverage_from_raw(parse_coverage(json_arr_at(
-                _match, j as u32,
-            ))));
-        j = j.wrapping_add(1);
+            .push(coverage_from_raw(parse_coverage(item as *const ParsedValue)));
     }
-    (*subtable).to = coverage_from_raw(parse_coverage(_to));
-    return subtable_from_raw(subtable, Subtable::GsubReverse);
+    (*subtable).to = coverage_from_raw(parse_coverage(_to as *const ParsedValue));
+    subtable_from_raw(subtable, Subtable::GsubReverse)
 }
 pub unsafe fn otfcc_build_gsub_reverse(
     mut _subtable: *const Subtable,

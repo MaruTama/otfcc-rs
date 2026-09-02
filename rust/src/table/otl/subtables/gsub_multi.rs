@@ -3,9 +3,7 @@
 use crate::support::handle::{
     GlyphHandle, Handle, handle_from_index, handle_from_name, otfcc_handle_dup,
 };
-use crate::support::parsed_json::{
-    ParsedValue, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
     Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage,
     read_coverage,
@@ -17,7 +15,6 @@ use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_p
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
@@ -160,17 +157,17 @@ pub unsafe fn otl_gsub_parse_multi(
     mut _options: &Options,
 ) -> *mut Subtable {
     let st: *mut GsubMultiSubtable = subtable_gsub_multi_create();
-    for k in 0..json_obj_len(_subtable) as GlyphId {
-        let _to: *const ParsedValue = json_obj_val_at(_subtable, k as u32);
-        if !_to.is_null() && json_type_of(_to) == JsonType::Array {
-            (*st).push(GsubMultiEntry {
-                from: handle_from_name(Some(json_obj_key_bytes_at(_subtable, k as u32)))
-                    as GlyphHandle,
-                to: coverage_from_raw(parse_coverage(_to)),
-            });
+    if let Some(fields) = unsafe { _subtable.as_ref() }.and_then(ParsedValue::as_object) {
+        for (key, to) in fields {
+            if to.as_array().is_some() {
+                (*st).push(GsubMultiEntry {
+                    from: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
+                    to: coverage_from_raw(parse_coverage(to as *const ParsedValue)),
+                });
+            }
         }
     }
-    return subtable_from_raw(st, Subtable::GsubMulti);
+    subtable_from_raw(st, Subtable::GsubMulti)
 }
 unsafe fn build_gsub_multi_subtable_range(
     subtable: *const GsubMultiSubtable,

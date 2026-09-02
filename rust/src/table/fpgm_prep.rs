@@ -5,7 +5,7 @@ use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
-use crate::support::parsed_json::{ParsedValue, json_obj_get};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 
 // `tag` is written on every construction path (read: unconditionally
@@ -86,9 +86,10 @@ pub unsafe fn otfcc_parse_fpgm_prep(
     tag: *const ::core::ffi::c_char,
 ) -> Option<Box<FpgmPrepTable>> {
     let mut t: Option<Box<FpgmPrepTable>> = None;
-    let table: *const ParsedValue;
-    table = json_obj_get(root, tag);
-    if !table.is_null() {
+    let key = unsafe { ::core::ffi::CStr::from_ptr(tag) }.to_bytes();
+    let table = unsafe { root.as_ref() }.and_then(|r| r.get(key));
+    if let Some(table) = table {
+        let table = table as *const ParsedValue;
         logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {

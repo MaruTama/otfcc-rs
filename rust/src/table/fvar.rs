@@ -5,7 +5,7 @@ use crate::logger::{
 };
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
-use crate::support::parsed_json::{ParsedValue, json_numof};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::Pos;
 
 use crate::font::caryll_sfnt::Packet;
@@ -421,7 +421,10 @@ pub unsafe fn json_new_v_vp(x: *const VV, fvar: *const FvarTable) -> BuiltValue 
     }
 }
 pub unsafe fn json_vq_of(cv: *const ParsedValue, mut _fvar: *const FvarTable) -> VQ {
-    return vq_create_still(json_numof(cv) as Pos);
+    let n = unsafe { cv.as_ref() }
+        .and_then(ParsedValue::as_num)
+        .unwrap_or(0.0);
+    vq_create_still(n as Pos)
 }
 pub unsafe fn json_new_vq_axis_span(s: *const VqAxisSpan) -> BuiltValue {
     if vq_axis_span_is_one(s) {
