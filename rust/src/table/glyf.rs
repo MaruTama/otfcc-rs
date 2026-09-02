@@ -20,11 +20,7 @@ use crate::support::stdio::stderr;
 use crate::table::fvar::FvarTable;
 use crate::vendor::json::JsonType;
 
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_boolean_new, json_integer_new,
-    json_new_position, json_object_new, json_object_push, json_object_push_bytes_key,
-    json_string_new_from_bytes, preserialize,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::parsed_json::{
     ParsedValue, json_arr_at, json_arr_len, json_bool_val, json_boolof, json_dbl_val, json_int_val,
     json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum,
@@ -345,334 +341,220 @@ pub(crate) unsafe fn table_glyf_create_n(n: usize) -> *mut GlyfTable {
     v.resize_with(n, || None);
     Box::into_raw(Box::new(v))
 }
-unsafe fn glyf_glyph_dump_contours(
-    g: *const Glyph,
-    target: *mut BuiltValue,
-    ctx: *const GlyfIOContext,
-) {
+unsafe fn glyf_glyph_dump_contours(g: *const Glyph, target: &mut BuiltValue, ctx: *const GlyfIOContext) {
     if (*g).contours.is_empty() {
         return;
     }
-    let contours: *mut BuiltValue = json_array_new((*g).contours.len());
+    let mut contours = BuiltValue::new_array((*g).contours.len());
     let mut k: ShapeId = 0 as ShapeId;
     while (k as usize) < (*g).contours.len() {
         let c: &Contour = &(&(*g).contours)[k as usize];
-        let contour: *mut BuiltValue = json_array_new(c.len());
+        let mut contour = BuiltValue::new_array(c.len());
         let mut m: ShapeId = 0 as ShapeId;
         while (m as usize) < c.len() {
-            let point: *mut BuiltValue = json_object_new(4_usize);
-            json_object_push(
-                point,
-                b"x\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_vq(c[m as usize].x.clone(), (*ctx).fvar).into_raw(),
+            let mut point = BuiltValue::new_object(4);
+            point.push_field(b"x", json_new_vq(c[m as usize].x.clone(), (*ctx).fvar));
+            point.push_field(b"y", json_new_vq(c[m as usize].y.clone(), (*ctx).fvar));
+            point.push_field(
+                b"on",
+                BuiltValue::Bool(c[m as usize].on_curve & MASK_ON_CURVE != 0),
             );
-            json_object_push(
-                point,
-                b"y\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_vq(c[m as usize].y.clone(), (*ctx).fvar).into_raw(),
-            );
-            json_object_push(
-                point,
-                b"on\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new((c[m as usize].on_curve & MASK_ON_CURVE) as i32),
-            );
-            json_array_push(contour, point);
+            contour.push_item(point);
             m = m.wrapping_add(1);
         }
-        json_array_push(contours, preserialize(contour));
+        contours.push_item(contour.preserialize());
         k = k.wrapping_add(1);
     }
-    json_object_push(
-        target,
-        b"contours\0" as *const u8 as *const ::core::ffi::c_char,
-        contours,
-    );
+    target.push_field(b"contours", contours);
 }
 unsafe fn glyf_glyph_dump_references(
     g: *const Glyph,
-    target: *mut BuiltValue,
+    target: &mut BuiltValue,
     ctx: *const GlyfIOContext,
 ) {
     if (*g).references.is_empty() {
         return;
     }
-    let references: *mut BuiltValue = json_array_new((*g).references.len());
+    let mut references = BuiltValue::new_array((*g).references.len());
     let mut k: ShapeId = 0 as ShapeId;
     while (k as usize) < (*g).references.len() {
         let r: *const ComponentReference = &raw const (&(*g).references)[k as usize];
-        let ref_0: *mut BuiltValue = json_object_new(9_usize);
-        json_object_push(
-            ref_0,
-            b"glyph\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new_from_bytes(&(*r).glyph.name),
-        );
-        json_object_push(
-            ref_0,
-            b"x\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*r).x.clone(), (*ctx).fvar).into_raw(),
-        );
-        json_object_push(
-            ref_0,
-            b"y\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*r).y.clone(), (*ctx).fvar).into_raw(),
-        );
-        json_object_push(
-            ref_0,
-            b"a\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position((*r).a as Pos),
-        );
-        json_object_push(
-            ref_0,
-            b"b\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position((*r).b as Pos),
-        );
-        json_object_push(
-            ref_0,
-            b"c\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position((*r).c as Pos),
-        );
-        json_object_push(
-            ref_0,
-            b"d\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position((*r).d as Pos),
-        );
+        let mut ref_0 = BuiltValue::new_object(9);
+        ref_0.push_field(b"glyph", BuiltValue::str_truncated_at_nul(&(*r).glyph.name));
+        ref_0.push_field(b"x", json_new_vq((*r).x.clone(), (*ctx).fvar));
+        ref_0.push_field(b"y", json_new_vq((*r).y.clone(), (*ctx).fvar));
+        ref_0.push_field(b"a", BuiltValue::position((*r).a as Pos));
+        ref_0.push_field(b"b", BuiltValue::position((*r).b as Pos));
+        ref_0.push_field(b"c", BuiltValue::position((*r).c as Pos));
+        ref_0.push_field(b"d", BuiltValue::position((*r).d as Pos));
         if (*r).is_anchored != RefAnchorStatus::Xy {
-            json_object_push(
-                ref_0,
-                b"isAnchored\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(TRUE_0),
-            );
-            json_object_push(
-                ref_0,
-                b"inner\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).inner as i64),
-            );
-            json_object_push(
-                ref_0,
-                b"outer\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).outer as i64),
-            );
+            ref_0.push_field(b"isAnchored", BuiltValue::Bool(true));
+            ref_0.push_field(b"inner", BuiltValue::Int((*r).inner as i64));
+            ref_0.push_field(b"outer", BuiltValue::Int((*r).outer as i64));
         }
         if (*r).round_to_grid {
-            json_object_push(
-                ref_0,
-                b"roundToGrid\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(TRUE_0),
-            );
+            ref_0.push_field(b"roundToGrid", BuiltValue::Bool(true));
         }
         if (*r).use_my_metrics {
-            json_object_push(
-                ref_0,
-                b"useMyMetrics\0" as *const u8 as *const ::core::ffi::c_char,
-                json_boolean_new(TRUE_0),
-            );
+            ref_0.push_field(b"useMyMetrics", BuiltValue::Bool(true));
         }
-        json_array_push(references, preserialize(ref_0));
+        references.push_item(ref_0.preserialize());
         k = k.wrapping_add(1);
     }
-    json_object_push(
-        target,
-        b"references\0" as *const u8 as *const ::core::ffi::c_char,
-        references,
-    );
+    target.push_field(b"references", references);
 }
-unsafe fn glyf_glyph_dump_stemdefs(stems: *const StemDefList) -> *mut BuiltValue {
+unsafe fn glyf_glyph_dump_stemdefs(stems: *const StemDefList) -> BuiltValue {
     let stems: &Vec<PostscriptStemDef> = &*stems;
-    let a: *mut BuiltValue = json_array_new(stems.len());
+    let mut a = BuiltValue::new_array(stems.len());
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < stems.len() {
-        let stem: *mut BuiltValue = json_object_new(3_usize);
-        json_object_push(
-            stem,
-            b"position\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position(stems[j as usize].position),
-        );
-        json_object_push(
-            stem,
-            b"width\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position(stems[j as usize].width),
-        );
-        json_array_push(a, stem);
+        let mut stem = BuiltValue::new_object(3);
+        stem.push_field(b"position", BuiltValue::position(stems[j as usize].position));
+        stem.push_field(b"width", BuiltValue::position(stems[j as usize].width));
+        a.push_item(stem);
         j = j.wrapping_add(1);
     }
-    return a;
+    a
 }
 unsafe fn glyf_glyph_dump_maskdefs(
     masks: *const MaskList,
     hh: *const StemDefList,
     vv: *const StemDefList,
-) -> *mut BuiltValue {
+) -> BuiltValue {
     let masks: &Vec<PostscriptHintMask> = &*masks;
     let hh: &Vec<PostscriptStemDef> = &*hh;
     let vv: &Vec<PostscriptStemDef> = &*vv;
-    let a: *mut BuiltValue = json_array_new(masks.len());
+    let mut a = BuiltValue::new_array(masks.len());
     let mut j: ShapeId = 0 as ShapeId;
     while (j as usize) < masks.len() {
-        let mask: *mut BuiltValue = json_object_new(3_usize);
-        json_object_push(
-            mask,
-            b"contoursBefore\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new(masks[j as usize].contours_before as i64),
+        let mut mask = BuiltValue::new_object(3);
+        mask.push_field(
+            b"contoursBefore",
+            BuiltValue::Int(masks[j as usize].contours_before as i64),
         );
-        json_object_push(
-            mask,
-            b"pointsBefore\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new(masks[j as usize].points_before as i64),
+        mask.push_field(
+            b"pointsBefore",
+            BuiltValue::Int(masks[j as usize].points_before as i64),
         );
-        let h: *mut BuiltValue = json_array_new(hh.len());
+        let mut h = BuiltValue::new_array(hh.len());
         let mut k: ShapeId = 0 as ShapeId;
         while (k as usize) < hh.len() {
-            json_array_push(
-                h,
-                json_boolean_new(masks[j as usize].mask_h[k as usize] as i32),
-            );
+            h.push_item(BuiltValue::Bool(masks[j as usize].mask_h[k as usize]));
             k = k.wrapping_add(1);
         }
-        json_object_push(
-            mask,
-            b"maskH\0" as *const u8 as *const ::core::ffi::c_char,
-            h,
-        );
-        let v: *mut BuiltValue = json_array_new(vv.len());
+        mask.push_field(b"maskH", h);
+        let mut v = BuiltValue::new_array(vv.len());
         let mut k_0: ShapeId = 0 as ShapeId;
         while (k_0 as usize) < vv.len() {
-            json_array_push(
-                v,
-                json_boolean_new(masks[j as usize].mask_v[k_0 as usize] as i32),
-            );
+            v.push_item(BuiltValue::Bool(masks[j as usize].mask_v[k_0 as usize]));
             k_0 = k_0.wrapping_add(1);
         }
-        json_object_push(
-            mask,
-            b"maskV\0" as *const u8 as *const ::core::ffi::c_char,
-            v,
-        );
-        json_array_push(a, mask);
+        mask.push_field(b"maskV", v);
+        a.push_item(mask);
         j = j.wrapping_add(1);
     }
-    return a;
+    a
 }
-unsafe fn glyf_dump_glyph(
-    g: *const Glyph,
-    options: &Options,
-    ctx: *const GlyfIOContext,
-) -> *mut BuiltValue {
-    let glyph: *mut BuiltValue = json_object_new(12_usize);
-    json_object_push(
-        glyph,
-        b"advanceWidth\0" as *const u8 as *const ::core::ffi::c_char,
-        json_new_vq((*g).advance_width.clone(), (*ctx).fvar).into_raw(),
+unsafe fn glyf_dump_glyph(g: *const Glyph, options: &Options, ctx: *const GlyfIOContext) -> BuiltValue {
+    let mut glyph = BuiltValue::new_object(12);
+    glyph.push_field(
+        b"advanceWidth",
+        json_new_vq((*g).advance_width.clone(), (*ctx).fvar),
     );
     if vq_is_still((*g).horizontal_origin.clone()) as i32 != 0
         && fabs(vq_get_still((*g).horizontal_origin.clone()) as ::core::ffi::c_double)
             > 1.0f64 / 1000.0f64
     {
-        json_object_push(
-            glyph,
-            b"horizontalOrigin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).horizontal_origin.clone(), (*ctx).fvar).into_raw(),
+        glyph.push_field(
+            b"horizontalOrigin",
+            json_new_vq((*g).horizontal_origin.clone(), (*ctx).fvar),
         );
     }
     if (*ctx).has_vertical_metrics {
-        json_object_push(
-            glyph,
-            b"advanceHeight\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).advance_height.clone(), (*ctx).fvar).into_raw(),
+        glyph.push_field(
+            b"advanceHeight",
+            json_new_vq((*g).advance_height.clone(), (*ctx).fvar),
         );
-        json_object_push(
-            glyph,
-            b"verticalOrigin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).vertical_origin.clone(), (*ctx).fvar).into_raw(),
+        glyph.push_field(
+            b"verticalOrigin",
+            json_new_vq((*g).vertical_origin.clone(), (*ctx).fvar),
         );
     }
-    glyf_glyph_dump_contours(g, glyph, ctx);
-    glyf_glyph_dump_references(g, glyph, ctx);
+    glyf_glyph_dump_contours(g, &mut glyph, ctx);
+    glyf_glyph_dump_references(g, &mut glyph, ctx);
     if (*ctx).export_fd_select {
-        json_object_push(
-            glyph,
-            b"CFF_fdSelect\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new_from_bytes(&(*g).fd_select.name),
+        glyph.push_field(
+            b"CFF_fdSelect",
+            BuiltValue::str_truncated_at_nul(&(*g).fd_select.name),
         );
-        json_object_push(
-            glyph,
-            b"CFF_CID\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*g).cid as i64),
-        );
+        glyph.push_field(b"CFF_CID", BuiltValue::Int((*g).cid as i64));
     }
     if !options.ignore_hints {
         if !(*g).instructions.is_empty() {
-            json_object_push(
-                glyph,
-                b"instructions\0" as *const u8 as *const ::core::ffi::c_char,
+            glyph.push_field(
+                b"instructions",
                 dump_ttinstr(
                     (*g).instructions.as_ptr() as *mut u8,
                     (*g).instructions.len() as u32,
                     options,
-                )
-                .into_raw(),
+                ),
             );
         }
         if !(*g).stem_h.is_empty() {
-            json_object_push(
-                glyph,
-                b"stemH\0" as *const u8 as *const ::core::ffi::c_char,
-                preserialize(glyf_glyph_dump_stemdefs(&raw const (*g).stem_h)),
+            glyph.push_field(
+                b"stemH",
+                glyf_glyph_dump_stemdefs(&raw const (*g).stem_h).preserialize(),
             );
         }
         if !(*g).stem_v.is_empty() {
-            json_object_push(
-                glyph,
-                b"stemV\0" as *const u8 as *const ::core::ffi::c_char,
-                preserialize(glyf_glyph_dump_stemdefs(&raw const (*g).stem_v)),
+            glyph.push_field(
+                b"stemV",
+                glyf_glyph_dump_stemdefs(&raw const (*g).stem_v).preserialize(),
             );
         }
         if !(*g).hint_masks.is_empty() {
-            json_object_push(
-                glyph,
-                b"hintMasks\0" as *const u8 as *const ::core::ffi::c_char,
-                preserialize(glyf_glyph_dump_maskdefs(
+            glyph.push_field(
+                b"hintMasks",
+                glyf_glyph_dump_maskdefs(
                     &raw const (*g).hint_masks,
                     &raw const (*g).stem_h,
                     &raw const (*g).stem_v,
-                )),
+                )
+                .preserialize(),
             );
         }
         if !(*g).contour_masks.is_empty() {
-            json_object_push(
-                glyph,
-                b"contourMasks\0" as *const u8 as *const ::core::ffi::c_char,
-                preserialize(glyf_glyph_dump_maskdefs(
+            glyph.push_field(
+                b"contourMasks",
+                glyf_glyph_dump_maskdefs(
                     &raw const (*g).contour_masks,
                     &raw const (*g).stem_h,
                     &raw const (*g).stem_v,
-                )),
+                )
+                .preserialize(),
             );
         }
         if (*g).y_pel != 0 {
-            json_object_push(
-                glyph,
-                b"LTSH_yPel\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*g).y_pel as i64),
-            );
+            glyph.push_field(b"LTSH_yPel", BuiltValue::Int((*g).y_pel as i64));
         }
     }
-    return glyph;
+    glyph
 }
 pub unsafe fn otfcc_dump_glyphorder(table: *const GlyfTable, root: *mut BuiltValue) {
     if table.is_null() {
         return;
     }
-    let order: *mut BuiltValue = json_array_new((*table).len());
+    let mut order = BuiltValue::new_array((*table).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*table).len() {
         let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
-        json_array_push(order, json_string_new_from_bytes(&(*g).name));
+        order.push_item(BuiltValue::str_truncated_at_nul(&(*g).name));
         j = j.wrapping_add(1);
     }
     json_object_push(
         root,
         b"glyph_order\0" as *const u8 as *const ::core::ffi::c_char,
-        preserialize(order),
+        order.preserialize().into_raw(),
     );
 }
 #[allow(improper_ctypes_definitions)]
@@ -692,17 +574,17 @@ pub unsafe fn otfcc_dump_glyf(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let glyf: *mut BuiltValue = json_object_new((*table).len());
+        let mut glyf = BuiltValue::new_object((*table).len());
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < (*table).len() {
             let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
-            json_object_push_bytes_key(glyf, &(*g).name, glyf_dump_glyph(g, options, ctx));
+            glyf.push_field_bytes_key(&(*g).name, glyf_dump_glyph(g, options, ctx));
             j = j.wrapping_add(1);
         }
         json_object_push(
             root,
             b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-            glyf,
+            glyf.into_raw(),
         );
         if !options.ignore_glyph_order {
             otfcc_dump_glyphorder(table, root);

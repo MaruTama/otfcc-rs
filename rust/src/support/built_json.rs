@@ -276,23 +276,6 @@ pub unsafe fn json_object_push_length(
     object
 }
 
-/// [`json_object_push`], for a `Handle.name`-shaped `Vec<u8>` key (no
-/// longer a NUL-terminated C string) -- truncates at the first embedded
-/// NUL the same way `strlen` would, matching
-/// `parsed_json`'s and the old `json_builder`'s own
-/// `json_object_push_bytes_key`.
-pub(crate) unsafe fn json_object_push_bytes_key(
-    object: *mut BuiltValue,
-    name: &[u8],
-    value: *mut BuiltValue,
-) -> *mut BuiltValue {
-    let v = *unsafe { Box::from_raw(value) };
-    if let Some(o) = unsafe { object.as_mut() } {
-        o.push_field_bytes_key(name, v);
-    }
-    object
-}
-
 /// A NUL-terminated C string, copied verbatim (embedded NULs impossible
 /// here since `strlen` finds the length).
 pub unsafe fn json_string_new(buf: *const c_char) -> *mut BuiltValue {
@@ -306,14 +289,6 @@ pub unsafe fn json_string_new(buf: *const c_char) -> *mut BuiltValue {
 pub unsafe fn json_string_new_length(length: c_uint, buf: *const c_char) -> *mut BuiltValue {
     let bytes = unsafe { ::core::slice::from_raw_parts(buf as *const u8, length as usize) };
     Box::into_raw(Box::new(BuiltValue::Str(bytes.to_vec())))
-}
-
-/// [`json_string_new`], for a `Handle.name`-shaped `Vec<u8>` value --
-/// truncates at the first embedded NUL the same way `strlen` would,
-/// matching `parsed_json`'s and the old `json_builder`'s own
-/// `json_string_new_from_bytes`.
-pub(crate) unsafe fn json_string_new_from_bytes(buf: &[u8]) -> *mut BuiltValue {
-    Box::into_raw(Box::new(BuiltValue::str_truncated_at_nul(buf)))
 }
 
 pub unsafe fn json_integer_new(integer: i64) -> *mut BuiltValue {
@@ -683,27 +658,6 @@ mod tests {
                 json_serialize_ex(&parent_with_pre, opts),
                 json_serialize_ex(&parent_direct, opts),
             );
-        }
-    }
-
-    #[test]
-    fn object_key_and_string_nul_truncation_matches_strlen_convention() {
-        unsafe {
-            let name: &[u8] = b"abc\0def";
-            let value_bytes: &[u8] = b"xy\0z";
-            let obj = json_object_new(1);
-            let pushed =
-                json_object_push_bytes_key(obj, name, json_string_new_from_bytes(value_bytes));
-            assert_eq!(obj, pushed);
-            let tree = *Box::from_raw(obj);
-            match tree {
-                BuiltValue::Object(fields) => {
-                    assert_eq!(fields.len(), 1);
-                    assert_eq!(fields[0].0, b"abc".to_vec());
-                    assert_eq!(fields[0].1, BuiltValue::Str(b"xy".to_vec()));
-                }
-                _ => panic!("expected an object"),
-            }
         }
     }
 
