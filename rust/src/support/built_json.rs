@@ -201,6 +201,23 @@ impl BuiltValue {
         let bytes = json_serialize_ex(&self, opts);
         BuiltValue::PreSerialized(bytes)
     }
+
+    // The pair below is the bridge into not-yet-migrated call sites still
+    // using the free-function API below, mirroring `Buffer::into_raw`/
+    // `Buffer::from_raw`'s role during Stage 9. Not for use anywhere else.
+    pub fn into_raw(self) -> *mut BuiltValue {
+        Box::into_raw(Box::new(self))
+    }
+    /// # Safety
+    /// `ptr` must either be null or have come from [`BuiltValue::into_raw`]
+    /// and not have been freed already.
+    pub unsafe fn from_raw(ptr: *mut BuiltValue) -> Option<BuiltValue> {
+        if ptr.is_null() {
+            None
+        } else {
+            Some(*unsafe { Box::from_raw(ptr) })
+        }
+    }
 }
 
 // The free-function API below is now a thin compatibility shell over the

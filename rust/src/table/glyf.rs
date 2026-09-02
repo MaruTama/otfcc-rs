@@ -364,12 +364,12 @@ unsafe fn glyf_glyph_dump_contours(
             json_object_push(
                 point,
                 b"x\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_vq(c[m as usize].x.clone(), (*ctx).fvar),
+                json_new_vq(c[m as usize].x.clone(), (*ctx).fvar).into_raw(),
             );
             json_object_push(
                 point,
                 b"y\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_vq(c[m as usize].y.clone(), (*ctx).fvar),
+                json_new_vq(c[m as usize].y.clone(), (*ctx).fvar).into_raw(),
             );
             json_object_push(
                 point,
@@ -409,12 +409,12 @@ unsafe fn glyf_glyph_dump_references(
         json_object_push(
             ref_0,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*r).x.clone(), (*ctx).fvar),
+            json_new_vq((*r).x.clone(), (*ctx).fvar).into_raw(),
         );
         json_object_push(
             ref_0,
             b"y\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*r).y.clone(), (*ctx).fvar),
+            json_new_vq((*r).y.clone(), (*ctx).fvar).into_raw(),
         );
         json_object_push(
             ref_0,
@@ -561,7 +561,7 @@ unsafe fn glyf_dump_glyph(
     json_object_push(
         glyph,
         b"advanceWidth\0" as *const u8 as *const ::core::ffi::c_char,
-        json_new_vq((*g).advance_width.clone(), (*ctx).fvar),
+        json_new_vq((*g).advance_width.clone(), (*ctx).fvar).into_raw(),
     );
     if vq_is_still((*g).horizontal_origin.clone()) as i32 != 0
         && fabs(vq_get_still((*g).horizontal_origin.clone()) as ::core::ffi::c_double)
@@ -570,19 +570,19 @@ unsafe fn glyf_dump_glyph(
         json_object_push(
             glyph,
             b"horizontalOrigin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).horizontal_origin.clone(), (*ctx).fvar),
+            json_new_vq((*g).horizontal_origin.clone(), (*ctx).fvar).into_raw(),
         );
     }
     if (*ctx).has_vertical_metrics {
         json_object_push(
             glyph,
             b"advanceHeight\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).advance_height.clone(), (*ctx).fvar),
+            json_new_vq((*g).advance_height.clone(), (*ctx).fvar).into_raw(),
         );
         json_object_push(
             glyph,
             b"verticalOrigin\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq((*g).vertical_origin.clone(), (*ctx).fvar),
+            json_new_vq((*g).vertical_origin.clone(), (*ctx).fvar).into_raw(),
         );
     }
     glyf_glyph_dump_contours(g, glyph, ctx);

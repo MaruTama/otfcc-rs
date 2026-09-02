@@ -403,14 +403,16 @@ pub unsafe fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltVa
                         json_object_push(
                             pair,
                             b"first\0" as *const u8 as *const ::core::ffi::c_char,
-                            gpos_dump_value((&(*subtable).first_values)[j as usize][k as usize]),
+                            gpos_dump_value((&(*subtable).first_values)[j as usize][k as usize])
+                                .into_raw(),
                         );
                     }
                     if f2 != 0 {
                         json_object_push(
                             pair,
                             b"second\0" as *const u8 as *const ::core::ffi::c_char,
-                            gpos_dump_value((&(*subtable).second_values)[j as usize][k as usize]),
+                            gpos_dump_value((&(*subtable).second_values)[j as usize][k as usize])
+                                .into_raw(),
                         );
                     }
                     json_array_push(row, pair);

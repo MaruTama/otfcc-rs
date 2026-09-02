@@ -128,12 +128,12 @@ pub unsafe fn otl_gpos_dump_cursive(mut _subtable: *const Subtable) -> *mut Buil
         json_object_push(
             rec,
             b"enter\0" as *const u8 as *const ::core::ffi::c_char,
-            otl_dump_anchor((&(*subtable))[j as usize].enter),
+            otl_dump_anchor((&(*subtable))[j as usize].enter).into_raw(),
         );
         json_object_push(
             rec,
             b"exit\0" as *const u8 as *const ::core::ffi::c_char,
-            otl_dump_anchor((&(*subtable))[j as usize].exit),
+            otl_dump_anchor((&(*subtable))[j as usize].exit).into_raw(),
         );
         json_object_push_bytes_key(
             st,

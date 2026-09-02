@@ -3,7 +3,7 @@
 use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
-use crate::support::built_json::{json_new_position, json_object_push_tag, preserialize};
+use crate::support::built_json::json_object_push_tag;
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
 use crate::support::parsed_json::{ParsedValue, json_numof};
@@ -11,9 +11,8 @@ use crate::support::primitives::Pos;
 
 use crate::font::caryll_sfnt::Packet;
 use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_boolean_new, json_double_new,
-    json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key,
-    json_object_push_length, json_string_new, json_string_new_from_bytes,
+    BuiltValue, json_array_new, json_array_push, json_double_new, json_integer_new,
+    json_object_new, json_object_push, json_object_push_bytes_key,
 };
 use crate::support::primitives::otfcc_from_fixed;
 use crate::vf::axis::{VfAxes, VfAxis};
@@ -395,7 +394,7 @@ pub unsafe fn otfcc_dump_fvar(
                 json_object_push(
                     _instance,
                     b"coordinates\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_new_v_vp(&raw const instance.coordinates, table),
+                    json_new_v_vp(&raw const instance.coordinates, table).into_raw(),
                 );
                 json_array_push(_instances, _instance);
                 keep_0 = (keep_0 == 0) as i32 as usize;
@@ -413,7 +412,9 @@ pub unsafe fn otfcc_dump_fvar(
             json_object_push_bytes_key(
                 _masters,
                 &master.name,
-                preserialize(json_new_vq_region_explicit(master.region, table)),
+                json_new_vq_region_explicit(master.region, table)
+                    .preserialize()
+                    .into_raw(),
             );
         }
         json_object_push(
@@ -430,158 +431,107 @@ pub unsafe fn otfcc_dump_fvar(
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-pub unsafe fn json_new_vq_segment(
-    s: *const VqSegment,
-    fvar: *const FvarTable,
-) -> *mut BuiltValue {
+pub unsafe fn json_new_vq_segment(s: *const VqSegment, fvar: *const FvarTable) -> BuiltValue {
     match *s {
-        VqSegment::Still(still) => return json_new_position(still),
+        VqSegment::Still(still) => BuiltValue::position(still),
         VqSegment::Delta(delta) => {
-            let d: *mut BuiltValue = json_object_new(3_usize);
-            json_object_push(
-                d,
-                b"delta\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_position(delta.quantity),
-            );
+            let mut d = BuiltValue::new_object(3);
+            d.push_field(b"delta", BuiltValue::position(delta.quantity));
             if !delta.touched {
-                json_object_push(
-                    d,
-                    b"implicit\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_boolean_new(!delta.touched as i32),
-                );
+                d.push_field(b"implicit", BuiltValue::Bool(!delta.touched));
             }
-            json_object_push(
-                d,
-                b"on\0" as *const u8 as *const ::core::ffi::c_char,
-                json_new_vq_region(delta.region, fvar),
-            );
-            return d;
+            d.push_field(b"on", unsafe { json_new_vq_region(delta.region, fvar) });
+            d
         }
-    };
+    }
 }
-pub unsafe fn json_new_vq(mut z: VQ, fvar: *const FvarTable) -> *mut BuiltValue {
+pub unsafe fn json_new_vq(mut z: VQ, fvar: *const FvarTable) -> BuiltValue {
     if z.shift.is_empty() {
-        return preserialize(json_new_position(vq_get_still(z)));
+        BuiltValue::position(vq_get_still(z)).preserialize()
     } else {
-        let a: *mut BuiltValue = json_array_new(z.shift.len().wrapping_add(1_usize));
-        json_array_push(a, json_new_position(z.kernel));
+        let mut a = BuiltValue::new_array(z.shift.len() + 1);
+        a.push_item(BuiltValue::position(z.kernel));
         let mut j: usize = 0_usize;
         while j < z.shift.len() {
-            json_array_push(
-                a,
-                json_new_vq_segment(&raw mut z.shift[j], fvar),
-            );
+            a.push_item(unsafe { json_new_vq_segment(&raw mut z.shift[j], fvar) });
             j = j.wrapping_add(1);
         }
-        return preserialize(a);
-    };
+        a.preserialize()
+    }
 }
 // `json_new_vv` (the by-value sibling of `json_new_v_vp` below) is never
 // called anywhere in the crate -- confirmed dead the same way as every
 // prior target's dead vtable-adjacent duplicate -- and deleted outright
 // rather than ported (it would need `x: VV` to become `x: Vec<Pos>`, moving
 // or cloning the caller's coordinates for no live caller).
-pub unsafe fn json_new_v_vp(x: *const VV, fvar: *const FvarTable) -> *mut BuiltValue {
+pub unsafe fn json_new_v_vp(x: *const VV, fvar: *const FvarTable) -> BuiltValue {
     let axes: &Vec<VfAxis> = &(*fvar).axes;
     let coords: &Vec<Pos> = &*x;
     if axes.len() == coords.len() {
-        let mut _coord: *mut BuiltValue = json_object_new(axes.len());
+        let mut coord = BuiltValue::new_object(axes.len());
         let mut m: usize = 0_usize;
         while m < coords.len() {
             let axis: &VfAxis = &axes[m];
-            let mut tag: [::core::ffi::c_char; 4] = [
-                (((*axis).tag & 0xff000000_u32) >> 24_i32)
-                    as ::core::ffi::c_char,
-                (((*axis).tag & 0xff0000_u32) >> 16_i32)
-                    as ::core::ffi::c_char,
-                (((*axis).tag & 0xff00_u32) >> 8_i32) as ::core::ffi::c_char,
-                ((*axis).tag & 0xff_u32) as ::core::ffi::c_char,
-            ];
-            json_object_push_length(
-                _coord,
-                4 as ::core::ffi::c_uint,
-                &raw mut tag as *mut ::core::ffi::c_char,
-                json_new_position(coords[m]),
-            );
+            coord.push_tag(axis.tag, BuiltValue::position(coords[m]));
             m = m.wrapping_add(1);
         }
-        return preserialize(_coord);
+        coord.preserialize()
     } else {
-        let mut _coord_0: *mut BuiltValue = json_array_new(coords.len());
+        let mut coord = BuiltValue::new_array(coords.len());
         let mut m_0: usize = 0_usize;
         while m_0 < coords.len() {
-            json_array_push(_coord_0, json_new_position(coords[m_0]));
+            coord.push_item(BuiltValue::position(coords[m_0]));
             m_0 = m_0.wrapping_add(1);
         }
-        return preserialize(_coord_0);
-    };
+        coord.preserialize()
+    }
 }
 pub unsafe fn json_vq_of(cv: *const ParsedValue, mut _fvar: *const FvarTable) -> VQ {
     return vq_create_still(json_numof(cv) as Pos);
 }
-pub unsafe fn json_new_vq_axis_span(s: *const VqAxisSpan) -> *mut BuiltValue {
+pub unsafe fn json_new_vq_axis_span(s: *const VqAxisSpan) -> BuiltValue {
     if vq_axis_span_is_one(s) {
-        return json_string_new(b"*\0" as *const u8 as *const ::core::ffi::c_char);
+        BuiltValue::Str(b"*".to_vec())
     } else {
-        let a: *mut BuiltValue = json_object_new(3_usize);
-        json_object_push(
-            a,
-            b"start\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position((*s).start),
-        );
-        json_object_push(
-            a,
-            b"peak\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position((*s).peak),
-        );
-        json_object_push(
-            a,
-            b"end\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position((*s).end),
-        );
-        return a;
-    };
+        let mut a = BuiltValue::new_object(3);
+        a.push_field(b"start", BuiltValue::position((*s).start));
+        a.push_field(b"peak", BuiltValue::position((*s).peak));
+        a.push_field(b"end", BuiltValue::position((*s).end));
+        a
+    }
 }
-pub unsafe fn json_new_vq_region_explicit(
-    rs: *const VqRegion,
-    fvar: *const FvarTable,
-) -> *mut BuiltValue {
+pub unsafe fn json_new_vq_region_explicit(rs: *const VqRegion, fvar: *const FvarTable) -> BuiltValue {
     let axes: &Vec<VfAxis> = &(*fvar).axes;
     if axes.len() == (*rs).dimensions as usize {
-        let r: *mut BuiltValue = json_object_new((*rs).dimensions as usize);
+        let mut r = BuiltValue::new_object((*rs).dimensions as usize);
         let mut j: usize = 0_usize;
         while j < (*rs).dimensions as usize {
-            json_object_push_tag(
-                r,
+            r.push_tag(
                 axes[j].tag,
-                json_new_vq_axis_span(&(&(*rs).spans)[j] as *const VqAxisSpan),
+                unsafe { json_new_vq_axis_span(&(&(*rs).spans)[j] as *const VqAxisSpan) },
             );
             j = j.wrapping_add(1);
         }
-        return r;
+        r
     } else {
-        let r_0: *mut BuiltValue = json_array_new((*rs).dimensions as usize);
+        let mut r_0 = BuiltValue::new_array((*rs).dimensions as usize);
         let mut j_0: usize = 0_usize;
         while j_0 < (*rs).dimensions as usize {
-            json_array_push(
-                r_0,
-                json_new_vq_axis_span(&(&(*rs).spans)[j_0] as *const VqAxisSpan),
-            );
+            r_0.push_item(unsafe {
+                json_new_vq_axis_span(&(&(*rs).spans)[j_0] as *const VqAxisSpan)
+            });
             j_0 = j_0.wrapping_add(1);
         }
-        return r_0;
-    };
+        r_0
+    }
 }
-pub unsafe fn json_new_vq_region(
-    rs: *const VqRegion,
-    fvar: *const FvarTable,
-) -> *mut BuiltValue {
+pub unsafe fn json_new_vq_region(rs: *const VqRegion, fvar: *const FvarTable) -> BuiltValue {
     let m: *const FvarMaster = fvar_find_master_by_region(fvar, rs);
     if !m.is_null() && !(*m).name.is_empty() {
-        return json_string_new_from_bytes(&(*m).name);
+        BuiltValue::str_truncated_at_nul(&(*m).name)
     } else {
-        return json_new_vq_region_explicit(rs, fvar);
-    };
+        unsafe { json_new_vq_region_explicit(rs, fvar) }
+    }
 }
 
 #[cfg(test)]
