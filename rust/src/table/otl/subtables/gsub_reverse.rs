@@ -175,7 +175,7 @@ pub unsafe fn otl_gsub_dump_reverse(mut _subtable: *const Subtable) -> *mut Buil
     while (j as i32) < (*subtable).match_count as i32 {
         json_array_push(
             _match,
-            dump_coverage(&(&(*subtable).match_0)[j as usize] as *const Coverage),
+            dump_coverage(&(&(*subtable).match_0)[j as usize] as *const Coverage).into_raw(),
         );
         j = j.wrapping_add(1);
     }
@@ -187,7 +187,7 @@ pub unsafe fn otl_gsub_dump_reverse(mut _subtable: *const Subtable) -> *mut Buil
     json_object_push(
         _st,
         b"to\0" as *const u8 as *const ::core::ffi::c_char,
-        dump_coverage(&(*subtable).to as *const Coverage),
+        dump_coverage(&(*subtable).to as *const Coverage).into_raw(),
     );
     json_object_push(
         _st,

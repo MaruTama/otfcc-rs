@@ -7,9 +7,7 @@ use crate::support::parsed_json::{
 };
 
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_string_new_from_bytes, preserialize,
-};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::GlyphId;
 use crate::vendor::json::JsonType;
@@ -210,12 +208,12 @@ pub(crate) unsafe fn read_coverage(
 // `gsub_reverse.rs`, `chaining/dump.rs`) calls this directly by name, never
 // through a function-pointer value -- confirmed by grep across the crate.
 // Same for `parse_coverage`/`build_coverage_format`/`build_coverage` below.
-pub(crate) unsafe fn dump_coverage(coverage: *const Coverage) -> *mut BuiltValue {
-    let a: *mut BuiltValue = json_array_new((*coverage).len());
+pub(crate) unsafe fn dump_coverage(coverage: *const Coverage) -> BuiltValue {
+    let mut a = BuiltValue::new_array((*coverage).len());
     for j in 0..(*coverage).len() {
-        json_array_push(a, json_string_new_from_bytes(&(&(*coverage))[j].name));
+        a.push_item(BuiltValue::str_truncated_at_nul(&(&(*coverage))[j].name));
     }
-    return preserialize(a);
+    a.preserialize()
 }
 pub(crate) unsafe fn parse_coverage(cov: *const ParsedValue) -> *mut Coverage {
     let c: *mut Coverage = otl_coverage_create();

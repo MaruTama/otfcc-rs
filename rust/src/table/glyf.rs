@@ -608,7 +608,8 @@ unsafe fn glyf_dump_glyph(
                     (*g).instructions.as_ptr() as *mut u8,
                     (*g).instructions.len() as u32,
                     options,
-                ),
+                )
+                .into_raw(),
             );
         }
         if !(*g).stem_h.is_empty() {
