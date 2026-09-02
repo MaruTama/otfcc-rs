@@ -1,9 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::handle::{GlyphHandle, Handle, handle_from_index, otfcc_handle_dup};
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get,
-    json_obj_get_type, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::classdef::{
     ClassDef, classdef_from_raw, expand_class_def, otl_class_def_create, read_class_def,
 };
@@ -411,71 +408,65 @@ pub unsafe fn otl_gpos_parse_pair(
     let class1_count: GlyphClass;
     let class2_count: GlyphClass;
     let subtable: *mut GposPairSubtable = (subtable_gpos_pair_create)();
-    let mut _mat: *const ParsedValue = json_obj_get_type(
-        _subtable,
-        b"matrix\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Array,
-    );
-    (*subtable).first = classdef_from_raw(parse_class_def(json_obj_get_type(
-        _subtable,
-        b"first\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    )));
-    (*subtable).second = classdef_from_raw(parse_class_def(json_obj_get_type(
-        _subtable,
-        b"second\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    )));
-    if _mat.is_null() || (*subtable).first.is_none() || (*subtable).second.is_none() {
+    let sv = unsafe { _subtable.as_ref() };
+    let mat = sv.and_then(|v| v.get_typed(b"matrix", JsonType::Array));
+    (*subtable).first = classdef_from_raw(parse_class_def(
+        sv.and_then(|v| v.get_typed(b"first", JsonType::Object))
+            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+    ));
+    (*subtable).second = classdef_from_raw(parse_class_def(
+        sv.and_then(|v| v.get_typed(b"second", JsonType::Object))
+            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+    ));
+    let Some(mat) = mat else {
         subtable_gpos_pair_free(subtable);
         return ::core::ptr::null_mut::<Subtable>();
-    } else {
-        let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
-        let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
-        class1_count =
-            ((*first_cd).maxclass as i32 + 1_i32) as GlyphClass;
-        class2_count =
-            ((*second_cd).maxclass as i32 + 1_i32) as GlyphClass;
-        let mut first_values: Vec<Vec<PositionValue>> =
-            vec![vec![position_zero(); class2_count as usize]; class1_count as usize];
-        let mut second_values: Vec<Vec<PositionValue>> =
-            vec![vec![position_zero(); class2_count as usize]; class1_count as usize];
-        let mut j_0: GlyphClass = 0 as GlyphClass;
-        while (j_0 as i32) < class1_count as i32
-            && (j_0 as ::core::ffi::c_uint) < json_arr_len(_mat)
-        {
-            let mut _row: *const ParsedValue = json_arr_at(_mat, j_0 as u32);
-            if !(_row.is_null() || json_type_of(_row) != JsonType::Array) {
-                let mut k_0: GlyphClass = 0 as GlyphClass;
-                while (k_0 as i32) < class2_count as i32
-                    && (k_0 as ::core::ffi::c_uint) < json_arr_len(_row)
-                {
-                    let mut _item: *const ParsedValue = json_arr_at(_row, k_0 as u32);
-                    if json_type_of(_item) == JsonType::Integer {
-                        first_values[j_0 as usize][k_0 as usize].d_width =
-                            json_int_val(_item) as Pos;
-                    } else if json_type_of(_item) == JsonType::Double {
-                        first_values[j_0 as usize][k_0 as usize].d_width =
-                            json_dbl_val(_item) as Pos;
-                    } else if json_type_of(_item) == JsonType::Object {
-                        first_values[j_0 as usize][k_0 as usize] = gpos_parse_value(json_obj_get(
-                            _item,
-                            b"first\0" as *const u8 as *const ::core::ffi::c_char,
-                        ));
-                        second_values[j_0 as usize][k_0 as usize] = gpos_parse_value(json_obj_get(
-                            _item,
-                            b"second\0" as *const u8 as *const ::core::ffi::c_char,
-                        ));
+    };
+    let first_cd: *mut ClassDef = match (*subtable).first.as_deref_mut() {
+        Some(cd) => cd as *mut ClassDef,
+        None => {
+            subtable_gpos_pair_free(subtable);
+            return ::core::ptr::null_mut::<Subtable>();
+        }
+    };
+    let second_cd: *mut ClassDef = match (*subtable).second.as_deref_mut() {
+        Some(cd) => cd as *mut ClassDef,
+        None => {
+            subtable_gpos_pair_free(subtable);
+            return ::core::ptr::null_mut::<Subtable>();
+        }
+    };
+    class1_count = ((*first_cd).maxclass as i32 + 1_i32) as GlyphClass;
+    class2_count = ((*second_cd).maxclass as i32 + 1_i32) as GlyphClass;
+    let mut first_values: Vec<Vec<PositionValue>> =
+        vec![vec![position_zero(); class2_count as usize]; class1_count as usize];
+    let mut second_values: Vec<Vec<PositionValue>> =
+        vec![vec![position_zero(); class2_count as usize]; class1_count as usize];
+    if let Some(rows) = mat.as_array() {
+        for (j_0, row) in rows.iter().enumerate().take(class1_count as usize) {
+            if let Some(items) = row.as_array() {
+                for (k_0, item) in items.iter().enumerate().take(class2_count as usize) {
+                    if let Some(i) = item.as_int() {
+                        first_values[j_0][k_0].d_width = i as Pos;
+                    } else if let Some(d) = item.as_double() {
+                        first_values[j_0][k_0].d_width = d as Pos;
+                    } else if item.as_object().is_some() {
+                        first_values[j_0][k_0] = gpos_parse_value(
+                            item.get(b"first")
+                                .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+                        );
+                        second_values[j_0][k_0] = gpos_parse_value(
+                            item.get(b"second")
+                                .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+                        );
                     }
-                    k_0 = k_0.wrapping_add(1);
                 }
             }
-            j_0 = j_0.wrapping_add(1);
         }
-        (*subtable).first_values = first_values;
-        (*subtable).second_values = second_values;
-        return subtable_from_raw(subtable, Subtable::GposPair);
-    };
+    }
+    (*subtable).first_values = first_values;
+    (*subtable).second_values = second_values;
+    return subtable_from_raw(subtable, Subtable::GposPair);
 }
 unsafe fn cov_from_cd(cd: *const ClassDef) -> *mut Coverage {
     let cov: *mut Coverage = otl_coverage_create();

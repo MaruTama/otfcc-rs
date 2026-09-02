@@ -3,10 +3,7 @@
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
 };
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at,
-    json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
     Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
 };
@@ -258,15 +255,17 @@ pub unsafe fn otl_gpos_dump_mark_to_ligature(st: *const Subtable) -> BuiltValue 
     _subtable
 }
 unsafe fn parse_bases(
-    mut _bases: *const ParsedValue,
+    bases: *const ParsedValue,
     subtable: *mut GposMarkToLigatureSubtable,
     h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
     options: &Options,
 ) {
     let class_count: GlyphClass = (*h).len() as GlyphClass;
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < json_obj_len(_bases) {
-        let gname: *mut ::core::ffi::c_char = json_obj_key_at(_bases, j as u32);
+    let Some(fields) = unsafe { bases.as_ref() }.and_then(ParsedValue::as_object) else {
+        return;
+    };
+    for (key, base_record) in fields {
+        let gname = &key[..key.len() - 1];
         let mut lig: LigatureBaseRecord = LigatureBaseRecord {
             glyph: Handle {
                 state: HandleState::Empty,
@@ -278,86 +277,73 @@ unsafe fn parse_bases(
         };
         lig.component_count = 0 as GlyphId;
         lig.anchors = Vec::new();
-        lig.glyph = handle_from_name(Some(json_obj_key_bytes_at(_bases, j as u32))) as GlyphHandle;
-        let base_record: *const ParsedValue = json_obj_val_at(_bases, j as u32);
-        if base_record.is_null() || json_type_of(base_record) != JsonType::Array {
-            (*subtable).lig_array.push(lig);
-        } else {
-            lig.component_count = json_arr_len(base_record) as GlyphId;
-            lig.anchors = Vec::with_capacity(lig.component_count as usize);
-            let mut k: GlyphId = 0 as GlyphId;
-            while (k as i32) < lig.component_count as i32 {
-                let mut _component_record: *const ParsedValue = json_arr_at(base_record, k as u32);
-                // Indexed by `class_id` below, out of JSON key order --
-                // pre-sized and filled with "absent" rather than built with
-                // `.push()`.
-                lig.anchors
-                    .push(vec![otl_anchor_absent(); class_count as usize]);
-                if !(_component_record.is_null()
-                    || json_type_of(_component_record) != JsonType::Object)
-                {
-                    let mut m_0: GlyphClass = 0 as GlyphClass;
-                    while (m_0 as ::core::ffi::c_uint) < json_obj_len(_component_record) {
-                        let name_ptr: *mut ::core::ffi::c_char =
-                            json_obj_key_at(_component_record, m_0 as u32);
-                        // `strlen`-bounded, matching
-                        // `otl_parse_mark_array`'s registration key
-                        // exactly.
-                        let class_name: Vec<u8> =
-                            ::core::ffi::CStr::from_ptr(name_ptr).to_bytes().to_vec();
-                        match (*h).get(&class_name) {
-                            None => {
-                                logger_log_sds(
-                                    &mut *options.logger.borrow_mut(),
-                                    LOG_VL_IMPORTANT,
-                                    LoggerType::Warning,
-                                    crate::bytesbuild!(
-                                        b"[OTFCC-fea] Invalid anchor class name <",
-                                        name_ptr,
-                                        b"> for /",
-                                        gname,
-                                        b". This base anchor is ignored.\n",
-                                    ),
-                                );
-                            }
-                            Some(&class_id) => {
-                                lig.anchors[k as usize][class_id as usize] = otl_parse_anchor(
-                                    json_obj_val_at(_component_record, m_0 as u32),
-                                );
+        lig.glyph = handle_from_name(Some(gname.to_vec())) as GlyphHandle;
+        match base_record.as_array() {
+            None => {
+                (*subtable).lig_array.push(lig);
+            }
+            Some(components) => {
+                lig.component_count = components.len() as GlyphId;
+                lig.anchors = Vec::with_capacity(lig.component_count as usize);
+                for (k, component_record) in components.iter().enumerate() {
+                    // Indexed by `class_id` below, out of JSON key order --
+                    // pre-sized and filled with "absent" rather than built with
+                    // `.push()`.
+                    lig.anchors
+                        .push(vec![otl_anchor_absent(); class_count as usize]);
+                    if let Some(inner_fields) = component_record.as_object() {
+                        for (name_key, val) in inner_fields {
+                            let class_name = &name_key[..name_key.len() - 1];
+                            // `strlen`-bounded, matching
+                            // `otl_parse_mark_array`'s registration key
+                            // exactly.
+                            match (*h).get(class_name) {
+                                None => {
+                                    logger_log_sds(
+                                        &mut *options.logger.borrow_mut(),
+                                        LOG_VL_IMPORTANT,
+                                        LoggerType::Warning,
+                                        crate::bytesbuild!(
+                                            b"[OTFCC-fea] Invalid anchor class name <",
+                                            class_name,
+                                            b"> for /",
+                                            gname,
+                                            b". This base anchor is ignored.\n",
+                                        ),
+                                    );
+                                }
+                                Some(&class_id) => {
+                                    lig.anchors[k][class_id as usize] =
+                                        otl_parse_anchor(val as *const ParsedValue);
+                                }
                             }
                         }
-                        m_0 = m_0.wrapping_add(1);
                     }
                 }
-                k = k.wrapping_add(1);
+                (*subtable).lig_array.push(lig);
             }
-            (*subtable).lig_array.push(lig);
         }
-        j = j.wrapping_add(1);
     }
 }
 pub unsafe fn otl_gpos_parse_mark_to_ligature(
     mut _subtable: *const ParsedValue,
     options: &Options,
 ) -> *mut Subtable {
-    let mut _marks: *const ParsedValue = json_obj_get_type(
-        _subtable,
-        b"marks\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    let mut _bases: *const ParsedValue = json_obj_get_type(
-        _subtable,
-        b"bases\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if _marks.is_null() || _bases.is_null() {
+    let subtable_val = unsafe { _subtable.as_ref() };
+    let marks = subtable_val.and_then(|v| v.get_typed(b"marks", JsonType::Object));
+    let bases = subtable_val.and_then(|v| v.get_typed(b"bases", JsonType::Object));
+    let (Some(marks), Some(bases)) = (marks, bases) else {
         return ::core::ptr::null_mut::<Subtable>();
-    }
+    };
     let st: *mut GposMarkToLigatureSubtable = subtable_gpos_mark_to_ligature_create();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
-    otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h);
+    otl_parse_mark_array(
+        marks as *const ParsedValue,
+        &raw mut (*st).mark_array,
+        &raw mut h,
+    );
     (*st).class_count = h.len() as GlyphClass;
-    parse_bases(_bases, st, &raw mut h, options);
+    parse_bases(bases as *const ParsedValue, st, &raw mut h, options);
     return subtable_from_raw(st, Subtable::GposMarkToLigature);
 }
 pub unsafe fn otfcc_build_gpos_mark_to_ligature(
