@@ -4,9 +4,7 @@ use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::base64::base64_decode;
 use crate::support::binio::read_16u;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_push,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -62,11 +60,11 @@ pub unsafe fn otfcc_dump_cvt(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let arr: *mut BuiltValue = json_array_new(table.words.len());
+        let mut arr = BuiltValue::new_array(table.words.len());
         for &w in &table.words {
-            json_array_push(arr, json_integer_new(w as i64));
+            arr.push_item(BuiltValue::Int(w as i64));
         }
-        json_object_push(root, tag, arr);
+        json_object_push(root, tag, arr.into_raw());
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

@@ -136,7 +136,7 @@ pub unsafe fn otl_gpos_dump_single(mut _subtable: *const Subtable) -> *mut Built
         json_object_push_bytes_key(
             st,
             &(&(*subtable))[j as usize].target.name,
-            gpos_dump_value((&(*subtable))[j as usize].value),
+            gpos_dump_value((&(*subtable))[j as usize].value).into_raw(),
         );
         j = j.wrapping_add(1);
     }

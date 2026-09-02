@@ -9,10 +9,7 @@ use crate::support::options::Options;
 use crate::vendor::json::JsonType;
 
 use crate::support::base64::{base64_decode, base64_encode};
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_string_new,
-    json_string_new_length, preserialize,
-};
+use crate::support::built_json::BuiltValue;
 use crate::support::ctype_compat::{c_isdigit, c_tolower};
 /// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
 /// their operands are part of the instruction stream rather than separate
@@ -823,24 +820,13 @@ unsafe fn instr_typify(id: *mut InstrData) -> i32 {
     *bts.offset(i as isize) = ByteType::ImpliedReturn;
     return lh;
 }
-pub unsafe fn dump_ttinstr(
-    instructions: *mut u8,
-    length: u32,
-    options: &Options,
-) -> *mut BuiltValue {
+pub unsafe fn dump_ttinstr(instructions: *mut u8, length: u32, options: &Options) -> BuiltValue {
     if options.instr_as_bytes {
         let encoded = base64_encode(::core::slice::from_raw_parts(
             instructions,
             length as usize,
         ));
-        // `json_string_new_length` copies `encoded`'s bytes into a fresh
-        // `Vec` rather than taking ownership of it (see its own
-        // definition), so `encoded` just drops normally at the end of this
-        // scope.
-        return json_string_new_length(
-            encoded.len() as ::core::ffi::c_uint,
-            encoded.as_ptr() as *mut ::core::ffi::c_char,
-        );
+        BuiltValue::Str(encoded)
     } else {
         let mut id: InstrData = InstrData {
             instrs: ::core::ptr::null_mut::<u8>(),
@@ -850,34 +836,29 @@ pub unsafe fn dump_ttinstr(
         id.instr_cnt = length;
         id.instrs = instructions;
         instr_typify(&raw mut id);
-        let ret: *mut BuiltValue = json_array_new(id.instr_cnt as usize);
+        let mut ret = BuiltValue::new_array(id.instr_cnt as usize);
         let mut i: u32 = 0_u32;
         while i < id.instr_cnt {
             if id.bts[i as usize] == ByteType::WordHi {
-                json_array_push(
-                    ret,
-                    json_integer_new(
-                        ((*id.instrs.offset(i as isize) as i32)
-                            << 8_i32
-                            | *id.instrs.offset(i.wrapping_add(1_u32) as isize)
-                                as i32) as i16 as i64,
-                    ),
-                );
+                ret.push_item(BuiltValue::Int(
+                    ((*id.instrs.offset(i as isize) as i32) << 8_i32
+                        | *id.instrs.offset(i.wrapping_add(1_u32) as isize) as i32)
+                        as i16 as i64,
+                ));
                 i = i.wrapping_add(1);
             } else if id.bts[i as usize] == ByteType::Cnt || id.bts[i as usize] == ByteType::Byte {
-                json_array_push(ret, json_integer_new(*id.instrs.offset(i as isize) as i64));
+                ret.push_item(BuiltValue::Int(*id.instrs.offset(i as isize) as i64));
             } else {
-                json_array_push(
-                    ret,
-                    json_string_new(
-                        FF_TTF_INSTRNAMES[*id.instrs.offset(i as isize) as usize].as_ptr(),
-                    ),
-                );
+                ret.push_item(BuiltValue::Str(
+                    FF_TTF_INSTRNAMES[*id.instrs.offset(i as isize) as usize]
+                        .to_bytes()
+                        .to_vec(),
+                ));
             }
             i = i.wrapping_add(1);
         }
-        return preserialize(ret);
-    };
+        ret.preserialize()
+    }
 }
 pub unsafe fn parse_ttinstr(
     col: *const ParsedValue,

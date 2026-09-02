@@ -13587,3 +13587,24 @@ on the other platform before a commit is trusted.
     ABI export guard, `compare-with-c.sh` byte-identical on every payload
     (including the `otfccdll` cdylib comparison), all 10 payloads' round
     trips, and the issue #1 golden test.
+- **Stage 9 complete: `Buffer`'s raw-pointer API shell (`bufnew`/
+  `bufwrite*`/`buffree`/etc., 22 free functions) removed; every one of the
+  ~775 original call sites across the crate now goes through `impl
+  Buffer`'s safe methods (`Buffer::new`/`write_u8`/`write_u16be`/.../
+  `write_buffer`/`seek`/`pos`/`len`/`clear`/`long_align`/`into_raw`/
+  `from_raw`) directly.** This entry intentionally does not backfill the
+  detailed PR-by-PR history between here and Stage 9 (this journal's
+  incremental updates lapsed somewhere around Stage 7-4) — the
+  Buffer-safety migration's full phase-by-phase record (design rationale,
+  each PR's scope, the borrow-competition case in `libcff/subr.rs` that
+  needed a deferred-resolution `SubrRef` selector instead of a held
+  `&mut Buffer`, the type-erased-callback-to-iterator resolution in
+  `libcff/cff_index.rs`, every golden/fuzz/miri verification run) lives in
+  the migration plan doc's Stage 9 section instead. The net effect
+  visible from this file alone: `support/buffer.rs` no longer has an
+  `unsafe`-marked free function anywhere in it, `Buffer` itself has been a
+  plain `{cursor: usize, data: Vec<u8>}` struct with no unsafe API surface
+  since 7-2-e, and the two remaining raw-pointer touch points crate-wide
+  are the real ABI boundaries this migration was never going to remove
+  (`ffi/dll.rs`'s public C exports, and `otf_writer.rs`/`json_writer.rs`'s
+  shared `FontSerializer` type-erasure boundary).

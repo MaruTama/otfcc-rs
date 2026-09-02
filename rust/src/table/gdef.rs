@@ -265,14 +265,14 @@ pub unsafe fn otfcc_dump_gdef(
             json_object_push(
                 _gdef,
                 b"glyphClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                dump_class_def(cd),
+                dump_class_def(cd).into_raw(),
             );
         }
         if let Some(cd) = (*gdef).mark_attach_class_def.as_deref() {
             json_object_push(
                 _gdef,
                 b"markAttachClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                dump_class_def(cd),
+                dump_class_def(cd).into_raw(),
             );
         }
         if !(*gdef).lig_carets.is_empty() {

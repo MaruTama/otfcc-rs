@@ -151,7 +151,7 @@ pub unsafe fn otl_gsub_dump_multi(mut _subtable: *const Subtable) -> *mut BuiltV
         json_object_push_bytes_key(
             st,
             &(*entry).from.name,
-            dump_coverage(&(*entry).to as *const Coverage),
+            dump_coverage(&(*entry).to as *const Coverage).into_raw(),
         );
     }
     return st;

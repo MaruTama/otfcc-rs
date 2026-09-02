@@ -65,7 +65,8 @@ pub unsafe fn table_dump_table_fpgm_prep(
                 (*table).bytes.as_ptr() as *mut u8,
                 (*table).bytes.len() as u32,
                 options,
-            ),
+            )
+            .into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

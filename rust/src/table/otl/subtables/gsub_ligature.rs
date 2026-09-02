@@ -174,7 +174,7 @@ pub unsafe fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) -> *mut Bui
         json_object_push(
             entry,
             b"from\0" as *const u8 as *const ::core::ffi::c_char,
-            dump_coverage(&(&(*subtable))[j as usize].from as *const Coverage),
+            dump_coverage(&(&(*subtable))[j as usize].from as *const Coverage).into_raw(),
         );
         json_object_push(
             entry,

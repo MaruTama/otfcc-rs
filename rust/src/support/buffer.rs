@@ -1,5 +1,3 @@
-use libc::fprintf;
-
 // Stage 7-2-e "Buffer to Vec": `data` was `*mut u8`, manually grown via
 // `__caryll_reallocate`/freed via `libc::free`, with `size`/`free` as
 // separate hand-tracked bookkeeping fields (`size` = written length,
@@ -22,17 +20,14 @@ pub struct Buffer {
     pub cursor: usize,
     pub data: Vec<u8>,
 }
-use crate::support::stdio::stderr;
 
 // Stage 9: `Buffer`'s data (`{cursor, data: Vec<u8>}`) has been fully safe
-// since 7-2-e -- the unsafety crate-wide was entirely in the free-function
-// shell below, kept raw-pointer-shaped on purpose so `table/*/build.rs`
-// call sites could stay textually identical to the old C
-// `bufnew()`/`bufwrite*(buf, ...)` idiom during the mechanical c2rust port.
-// This `impl` is the safe replacement API; the free functions below are now
-// thin wrappers over it, so every one of the ~775 existing call sites keeps
-// compiling unchanged while consumer files migrate to the methods directly,
-// one batch at a time (see the plan doc's Stage 9).
+// since 7-2-e -- the unsafety crate-wide was entirely in a free-function
+// shell (`bufnew`/`bufwrite*(buf, ...)`/etc.), kept raw-pointer-shaped on
+// purpose so `table/*/build.rs` call sites could stay textually identical
+// to the old C idiom during the mechanical c2rust port. Every one of the
+// ~775 original call sites has since migrated to this safe `impl` directly
+// and the free-function shell itself has been deleted (Stage 9, Phase 16).
 impl Default for Buffer {
     fn default() -> Self {
         Self::new()
@@ -133,28 +128,25 @@ impl Buffer {
         self.push_bytes(bytes);
     }
 
-    /// Appends `that`'s contents, without consuming it. Replaces
-    /// `bufwrite_buf`.
+    /// Appends `that`'s contents, without consuming it.
     ///
-    /// Clones `that.data` rather than borrowing it: `self` and `that` could
-    /// in principle be the same buffer (this crate's ~55 real call sites
-    /// never actually do that, confirmed by a full audit during Stage 9,
-    /// but nothing here assumes it), and an owned copy sidesteps the
-    /// question entirely at the cost of one extra allocation for what was
-    /// already a copy either way. Stage 9's cleanup phase may revisit this
-    /// once no raw-pointer bridge into this method remains anywhere in the
-    /// crate.
+    /// Takes `&that.data` directly rather than cloning it: `self` and
+    /// `that` can no longer alias now that every call site goes through
+    /// this safe `&mut self`/`&Buffer` signature -- the borrow checker
+    /// itself guarantees they're distinct objects, the same guarantee the
+    /// old raw-pointer free-function shell (`bufwrite_buf`, deleted once
+    /// this method's last raw-pointer bridge went away in Stage 9) could
+    /// only get from a by-hand audit of its ~55 call sites.
     pub fn write_buffer(&mut self, that: &Buffer) {
-        let bytes = that.data.clone();
-        self.push_bytes(&bytes);
+        self.push_bytes(&that.data);
     }
-    /// [`write_buffer`], consuming `that`. Replaces `bufwrite_bufdel`.
+    /// [`write_buffer`], consuming `that`.
     pub fn write_buffer_owned(&mut self, that: Buffer) {
         self.write_buffer(&that);
     }
 
     /// Pads the buffer's length up to a multiple of 4 bytes, restoring the
-    /// cursor afterward. Replaces `buflongalign`.
+    /// cursor afterward.
     pub fn long_align(&mut self) {
         let cp = self.cursor;
         self.seek(self.len());
@@ -177,8 +169,7 @@ impl Buffer {
     }
     /// # Safety
     /// `ptr` must either be null or have come from [`Buffer::into_raw`]
-    /// (directly, or via one of this file's `bufnew`/`bufninit`-family
-    /// wrappers) and not have been freed already.
+    /// and not have been freed already.
     pub unsafe fn from_raw(ptr: *mut Buffer) -> Option<Buffer> {
         if ptr.is_null() {
             None
@@ -186,104 +177,6 @@ impl Buffer {
             Some(*unsafe { Box::from_raw(ptr) })
         }
     }
-}
-
-// The free-function API below is now a thin compatibility shell over the
-// `impl Buffer` above, kept so every not-yet-migrated call site (see the
-// plan doc's Stage 9 phase list) keeps compiling unchanged. Each function
-// is deleted once its last caller migrates to the safe method directly.
-//
-// `Box`-allocated, not `__caryll_allocate_clean`'d: a calloc'd, all-zero
-// `Buffer` is not a valid value the instant it contains a `Vec` (see
-// [[otfcc-vec-field-assign-needs-calloc]] throughout this migration), so
-// construction has to go through a real Rust value from the start.
-pub unsafe fn bufnew() -> *mut Buffer {
-    Buffer::new().into_raw()
-}
-pub unsafe fn buffree(buf: *mut Buffer) {
-    drop(unsafe { Buffer::from_raw(buf) });
-}
-pub unsafe fn buflen(buf: *mut Buffer) -> usize {
-    unsafe { (*buf).len() }
-}
-pub unsafe fn bufpos(buf: *mut Buffer) -> usize {
-    unsafe { (*buf).pos() }
-}
-pub unsafe fn bufseek(buf: *mut Buffer, pos: usize) {
-    unsafe { (*buf).seek(pos) }
-}
-pub unsafe fn bufclear(buf: *mut Buffer) {
-    unsafe { (*buf).clear() }
-}
-pub unsafe fn bufwrite8(buf: *mut Buffer, byte: u8) {
-    unsafe { (*buf).write_u8(byte) }
-}
-pub unsafe fn bufwrite16l(buf: *mut Buffer, x: u16) {
-    unsafe { (*buf).write_u16le(x) }
-}
-pub unsafe fn bufwrite16b(buf: *mut Buffer, x: u16) {
-    unsafe { (*buf).write_u16be(x) }
-}
-pub unsafe fn bufwrite24l(buf: *mut Buffer, x: u32) {
-    unsafe { (*buf).write_u24le(x) }
-}
-pub unsafe fn bufwrite24b(buf: *mut Buffer, x: u32) {
-    unsafe { (*buf).write_u24be(x) }
-}
-pub unsafe fn bufwrite32l(buf: *mut Buffer, x: u32) {
-    unsafe { (*buf).write_u32le(x) }
-}
-pub unsafe fn bufwrite32b(buf: *mut Buffer, x: u32) {
-    unsafe { (*buf).write_u32be(x) }
-}
-pub unsafe fn bufwrite64l(buf: *mut Buffer, x: u64) {
-    unsafe { (*buf).write_u64le(x) }
-}
-pub unsafe fn bufwrite64b(buf: *mut Buffer, x: u64) {
-    unsafe { (*buf).write_u64be(x) }
-}
-/// A fresh buffer holding `bytes`.
-///
-/// The C signature took a count followed by that many varargs, and trusted the
-/// caller to keep the two in agreement. A slice carries its own length, so the
-/// count is gone -- and with it the last use of the `c_variadic` nightly
-/// feature in this module.
-///
-/// No longer `extern "C"`/`#[no_mangle]`: a Rust slice is a fat pointer and has
-/// no C spelling, so claiming the C ABI would have been a lie (rustc says so via
-/// `improper_ctypes_definitions`). Nothing outside the crate called it -- the
-/// public ABI is the four `otfccbuild_*`/`otfcc_get_buf_*` symbols -- so the two
-/// names simply leave `scripts/abi-exports.txt`.
-pub unsafe fn bufninit(bytes: &[u8]) -> *mut Buffer {
-    Buffer::from_bytes(bytes).into_raw()
-}
-
-/// Append `bytes`, growing the buffer first. See [`bufninit`] for why there is
-/// no separate count.
-pub unsafe fn bufnwrite8(buf: *mut Buffer, bytes: &[u8]) {
-    unsafe { (*buf).write_bytes(bytes) }
-}
-pub unsafe fn bufwrite_bytes(buf: *mut Buffer, len: usize, str: *const u8) {
-    if str.is_null() || len == 0 {
-        return;
-    }
-    unsafe { (*buf).write_bytes(::core::slice::from_raw_parts(str, len)) }
-}
-pub unsafe fn bufwrite_buf(buf: *mut Buffer, that: *mut Buffer) {
-    if that.is_null() {
-        return;
-    }
-    unsafe { (*buf).write_buffer(&*that) }
-}
-pub unsafe fn bufwrite_bufdel(buf: *mut Buffer, that: *mut Buffer) {
-    if that.is_null() {
-        return;
-    }
-    unsafe { (*buf).write_buffer(&*that) };
-    unsafe { buffree(that) };
-}
-pub unsafe fn buflongalign(buf: *mut Buffer) {
-    unsafe { (*buf).long_align() }
 }
 
 // Every byte of an OpenType file leaves the program through these methods,
@@ -418,28 +311,5 @@ mod tests {
         buf.seek(end);
         assert_eq!(buf.data, vec![0x00, 0x02, 0xca, 0xfe, 0xba, 0xbe]);
         assert_eq!(buf.pos(), end, "cursor left at the end, not the patched slot");
-    }
-}
-
-// Zero call sites anywhere in the crate (checked by grep during Stage 9) --
-// a manual hex-dump debugging aid someone may still reach for ad hoc
-// outside version control, so left as-is rather than deleted; flagged in
-// the PR body for a human call on whether to remove it.
-pub unsafe fn bufprint(buf: *mut Buffer) {
-    unsafe {
-        for (j, &byte) in (*buf).data.iter().enumerate() {
-            if j % 16 != 0 {
-                fprintf(stderr, b" \0" as *const u8 as *const ::core::ffi::c_char);
-            }
-            fprintf(
-                stderr,
-                b"%02X\0" as *const u8 as *const ::core::ffi::c_char,
-                byte as i32,
-            );
-            if j % 16 == 15 {
-                fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
-            }
-        }
-        fprintf(stderr, b"\n\0" as *const u8 as *const ::core::ffi::c_char);
     }
 }

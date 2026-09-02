@@ -4,10 +4,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
-    json_object_push, json_string_new_from_bytes, otfcc_dump_flags,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -435,233 +432,164 @@ pub unsafe fn otfcc_dump_os_2(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let os_2: *mut BuiltValue = json_object_new(30_usize);
-        json_object_push(
-            os_2,
-            b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).version as i64),
+        let mut os_2 = BuiltValue::new_object(30);
+        os_2.push_field(b"version", BuiltValue::Int((*table).version as i64));
+        os_2.push_field(
+            b"xAvgCharWidth",
+            BuiltValue::Int((*table).x_avg_char_width as i64),
         );
-        json_object_push(
-            os_2,
-            b"xAvgCharWidth\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).x_avg_char_width as i64),
+        os_2.push_field(
+            b"usWeightClass",
+            BuiltValue::Int((*table).us_weight_class as i64),
         );
-        json_object_push(
-            os_2,
-            b"usWeightClass\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).us_weight_class as i64),
+        os_2.push_field(
+            b"usWidthClass",
+            BuiltValue::Int((*table).us_width_class as i64),
         );
-        json_object_push(
-            os_2,
-            b"usWidthClass\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).us_width_class as i64),
+        os_2.push_field(
+            b"fsType",
+            BuiltValue::dump_flags((*table).fs_type as i32, &FS_TYPE_LABELS),
         );
-        json_object_push(
-            os_2,
-            b"fsType\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags((*table).fs_type as i32, &FS_TYPE_LABELS),
+        os_2.push_field(
+            b"ySubscriptXSize",
+            BuiltValue::Int((*table).y_subscript_x_size as i64),
         );
-        json_object_push(
-            os_2,
-            b"ySubscriptXSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_subscript_x_size as i64),
+        os_2.push_field(
+            b"ySubscriptYSize",
+            BuiltValue::Int((*table).y_subscript_y_size as i64),
         );
-        json_object_push(
-            os_2,
-            b"ySubscriptYSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_subscript_y_size as i64),
+        os_2.push_field(
+            b"ySubscriptXOffset",
+            BuiltValue::Int((*table).y_subscript_x_offset as i64),
         );
-        json_object_push(
-            os_2,
-            b"ySubscriptXOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_subscript_x_offset as i64),
+        os_2.push_field(
+            b"ySubscriptYOffset",
+            BuiltValue::Int((*table).y_subscript_y_offset as i64),
         );
-        json_object_push(
-            os_2,
-            b"ySubscriptYOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_subscript_y_offset as i64),
+        os_2.push_field(
+            b"ySupscriptXSize",
+            BuiltValue::Int((*table).y_supscript_x_size as i64),
         );
-        json_object_push(
-            os_2,
-            b"ySupscriptXSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_supscript_x_size as i64),
+        os_2.push_field(
+            b"ySupscriptYSize",
+            BuiltValue::Int((*table).y_supscript_y_size as i64),
         );
-        json_object_push(
-            os_2,
-            b"ySupscriptYSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_supscript_y_size as i64),
+        os_2.push_field(
+            b"ySupscriptXOffset",
+            BuiltValue::Int((*table).y_supscript_x_offset as i64),
         );
-        json_object_push(
-            os_2,
-            b"ySupscriptXOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_supscript_x_offset as i64),
+        os_2.push_field(
+            b"ySupscriptYOffset",
+            BuiltValue::Int((*table).y_supscript_y_offset as i64),
         );
-        json_object_push(
-            os_2,
-            b"ySupscriptYOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_supscript_y_offset as i64),
+        os_2.push_field(
+            b"yStrikeoutSize",
+            BuiltValue::Int((*table).y_strikeout_size as i64),
         );
-        json_object_push(
-            os_2,
-            b"yStrikeoutSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_strikeout_size as i64),
+        os_2.push_field(
+            b"yStrikeoutPosition",
+            BuiltValue::Int((*table).y_strikeout_position as i64),
         );
-        json_object_push(
-            os_2,
-            b"yStrikeoutPosition\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).y_strikeout_position as i64),
+        os_2.push_field(
+            b"sFamilyClass",
+            BuiltValue::Int((*table).s_family_class as i64),
         );
-        json_object_push(
-            os_2,
-            b"sFamilyClass\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).s_family_class as i64),
-        );
-        let panose: *mut BuiltValue = json_array_new(10_usize);
+        let mut panose = BuiltValue::new_array(10);
         let mut j: u8 = 0_u8;
         while (j as i32) < 10_i32 {
-            json_array_push(panose, json_integer_new((*table).panose[j as usize] as i64));
+            panose.push_item(BuiltValue::Int((*table).panose[j as usize] as i64));
             j = j.wrapping_add(1);
         }
-        json_object_push(
-            os_2,
-            b"panose\0" as *const u8 as *const ::core::ffi::c_char,
-            panose,
+        os_2.push_field(b"panose", panose);
+        os_2.push_field(
+            b"ulUnicodeRange1",
+            BuiltValue::dump_flags((*table).ul_unicode_range1 as i32, &UNICODE_RANGE_LABELS1),
         );
-        json_object_push(
-            os_2,
-            b"ulUnicodeRange1\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags(
-                (*table).ul_unicode_range1 as i32,
-                &UNICODE_RANGE_LABELS1,
-            ),
+        os_2.push_field(
+            b"ulUnicodeRange2",
+            BuiltValue::dump_flags((*table).ul_unicode_range2 as i32, &UNICODE_RANGE_LABELS2),
         );
-        json_object_push(
-            os_2,
-            b"ulUnicodeRange2\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags(
-                (*table).ul_unicode_range2 as i32,
-                &UNICODE_RANGE_LABELS2,
-            ),
+        os_2.push_field(
+            b"ulUnicodeRange3",
+            BuiltValue::dump_flags((*table).ul_unicode_range3 as i32, &UNICODE_RANGE_LABELS3),
         );
-        json_object_push(
-            os_2,
-            b"ulUnicodeRange3\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags(
-                (*table).ul_unicode_range3 as i32,
-                &UNICODE_RANGE_LABELS3,
-            ),
+        os_2.push_field(
+            b"ulUnicodeRange4",
+            BuiltValue::dump_flags((*table).ul_unicode_range4 as i32, &UNICODE_RANGE_LABELS4),
         );
-        json_object_push(
-            os_2,
-            b"ulUnicodeRange4\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags(
-                (*table).ul_unicode_range4 as i32,
-                &UNICODE_RANGE_LABELS4,
-            ),
+        os_2.push_field(
+            b"achVendID",
+            BuiltValue::str_truncated_at_nul(&(*table).ach_vend_id),
         );
-        json_object_push(
-            os_2,
-            b"achVendID\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new_from_bytes(&(*table).ach_vend_id),
+        os_2.push_field(
+            b"fsSelection",
+            BuiltValue::dump_flags((*table).fs_selection as i32, &FS_SELECTION_LABELS),
         );
-        json_object_push(
-            os_2,
-            b"fsSelection\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags(
-                (*table).fs_selection as i32,
-                &FS_SELECTION_LABELS,
-            ),
+        os_2.push_field(
+            b"usFirstCharIndex",
+            BuiltValue::Int((*table).us_first_char_index as i64),
         );
-        json_object_push(
-            os_2,
-            b"usFirstCharIndex\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).us_first_char_index as i64),
+        os_2.push_field(
+            b"usLastCharIndex",
+            BuiltValue::Int((*table).us_last_char_index as i64),
         );
-        json_object_push(
-            os_2,
-            b"usLastCharIndex\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).us_last_char_index as i64),
+        os_2.push_field(
+            b"sTypoAscender",
+            BuiltValue::Int((*table).s_typo_ascender as i64),
         );
-        json_object_push(
-            os_2,
-            b"sTypoAscender\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).s_typo_ascender as i64),
+        os_2.push_field(
+            b"sTypoDescender",
+            BuiltValue::Int((*table).s_typo_descender as i64),
         );
-        json_object_push(
-            os_2,
-            b"sTypoDescender\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).s_typo_descender as i64),
+        os_2.push_field(
+            b"sTypoLineGap",
+            BuiltValue::Int((*table).s_typo_line_gap as i64),
         );
-        json_object_push(
-            os_2,
-            b"sTypoLineGap\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).s_typo_line_gap as i64),
+        os_2.push_field(
+            b"usWinAscent",
+            BuiltValue::Int((*table).us_win_ascent as i64),
         );
-        json_object_push(
-            os_2,
-            b"usWinAscent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).us_win_ascent as i64),
+        os_2.push_field(
+            b"usWinDescent",
+            BuiltValue::Int((*table).us_win_descent as i64),
         );
-        json_object_push(
-            os_2,
-            b"usWinDescent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).us_win_descent as i64),
+        os_2.push_field(
+            b"ulCodePageRange1",
+            BuiltValue::dump_flags((*table).ul_code_page_range1 as i32, &CODE_PAGE_LABELS1),
         );
-        json_object_push(
-            os_2,
-            b"ulCodePageRange1\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags(
-                (*table).ul_code_page_range1 as i32,
-                &CODE_PAGE_LABELS1,
-            ),
+        os_2.push_field(
+            b"ulCodePageRange2",
+            BuiltValue::dump_flags((*table).ul_code_page_range2 as i32, &CODE_PAGE_LABELS2),
         );
-        json_object_push(
-            os_2,
-            b"ulCodePageRange2\0" as *const u8 as *const ::core::ffi::c_char,
-            otfcc_dump_flags(
-                (*table).ul_code_page_range2 as i32,
-                &CODE_PAGE_LABELS2,
-            ),
+        os_2.push_field(b"sxHeight", BuiltValue::Int((*table).sx_height as i64));
+        os_2.push_field(
+            b"sCapHeight",
+            BuiltValue::Int((*table).s_cap_height as i64),
         );
-        json_object_push(
-            os_2,
-            b"sxHeight\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).sx_height as i64),
+        os_2.push_field(
+            b"usDefaultChar",
+            BuiltValue::Int((*table).us_default_char as i64),
         );
-        json_object_push(
-            os_2,
-            b"sCapHeight\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).s_cap_height as i64),
+        os_2.push_field(
+            b"usBreakChar",
+            BuiltValue::Int((*table).us_break_char as i64),
         );
-        json_object_push(
-            os_2,
-            b"usDefaultChar\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).us_default_char as i64),
+        os_2.push_field(
+            b"usMaxContext",
+            BuiltValue::Int((*table).us_max_context as i64),
         );
-        json_object_push(
-            os_2,
-            b"usBreakChar\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).us_break_char as i64),
+        os_2.push_field(
+            b"usLowerOpticalPointSize",
+            BuiltValue::Int((*table).us_lower_optical_point_size as i64),
         );
-        json_object_push(
-            os_2,
-            b"usMaxContext\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).us_max_context as i64),
-        );
-        json_object_push(
-            os_2,
-            b"usLowerOpticalPointSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).us_lower_optical_point_size as i64),
-        );
-        json_object_push(
-            os_2,
-            b"usUpperOpticalPointSize\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).us_upper_optical_point_size as i64),
+        os_2.push_field(
+            b"usUpperOpticalPointSize",
+            BuiltValue::Int((*table).us_upper_optical_point_size as i64),
         );
         json_object_push(
             root,
             b"OS_2\0" as *const u8 as *const ::core::ffi::c_char,
-            os_2,
+            os_2.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

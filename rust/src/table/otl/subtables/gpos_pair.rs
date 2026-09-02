@@ -366,12 +366,12 @@ pub unsafe fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltVa
     json_object_push(
         st,
         b"first\0" as *const u8 as *const ::core::ffi::c_char,
-        dump_class_def(first_cd),
+        dump_class_def(first_cd).into_raw(),
     );
     json_object_push(
         st,
         b"second\0" as *const u8 as *const ::core::ffi::c_char,
-        dump_class_def(second_cd),
+        dump_class_def(second_cd).into_raw(),
     );
     let mat: *mut BuiltValue = json_array_new(
         ((*first_cd).maxclass as i32 + 1_i32) as usize,
@@ -403,14 +403,16 @@ pub unsafe fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> *mut BuiltVa
                         json_object_push(
                             pair,
                             b"first\0" as *const u8 as *const ::core::ffi::c_char,
-                            gpos_dump_value((&(*subtable).first_values)[j as usize][k as usize]),
+                            gpos_dump_value((&(*subtable).first_values)[j as usize][k as usize])
+                                .into_raw(),
                         );
                     }
                     if f2 != 0 {
                         json_object_push(
                             pair,
                             b"second\0" as *const u8 as *const ::core::ffi::c_char,
-                            gpos_dump_value((&(*subtable).second_values)[j as usize][k as usize]),
+                            gpos_dump_value((&(*subtable).second_values)[j as usize][k as usize])
+                                .into_raw(),
                         );
                     }
                     json_array_push(row, pair);

@@ -65,7 +65,7 @@ pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: *mut BuiltValue) 
     json_object_push(
         root,
         b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,
-        dump_class_def(table),
+        dump_class_def(table).into_raw(),
     );
 }
 pub unsafe fn otfcc_parse_tsi5(root: *const ParsedValue) -> Option<Box<Tsi5Table>> {

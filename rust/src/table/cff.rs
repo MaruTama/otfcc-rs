@@ -1652,12 +1652,12 @@ unsafe fn fd_to_json(table: *const CffTable) -> *mut BuiltValue {
         json_object_push(
             _font_matrix,
             b"x\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq(fm.x.clone(), ::core::ptr::null::<FvarTable>()),
+            json_new_vq(fm.x.clone(), ::core::ptr::null::<FvarTable>()).into_raw(),
         );
         json_object_push(
             _font_matrix,
             b"y\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_vq(fm.y.clone(), ::core::ptr::null::<FvarTable>()),
+            json_new_vq(fm.y.clone(), ::core::ptr::null::<FvarTable>()).into_raw(),
         );
         json_object_push(
             _cff,

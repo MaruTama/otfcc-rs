@@ -23,7 +23,7 @@ pub unsafe fn otl_dump_chaining(mut _subtable: *const Subtable) -> *mut BuiltVal
         while (j as i32) < (*rule).match_count as i32 {
             json_array_push(
                 _match,
-                dump_coverage(&(&(*rule).match_0)[j as usize] as *const Coverage),
+                dump_coverage(&(&(*rule).match_0)[j as usize] as *const Coverage).into_raw(),
             );
             j = j.wrapping_add(1);
         }

@@ -9,9 +9,7 @@ use crate::support::parsed_json::{
 use crate::table::otl::coverage::Coverage;
 
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_integer_new, json_object_new, json_object_push_bytes_key, preserialize,
-};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::vendor::json::JsonType;
@@ -170,16 +168,15 @@ pub(crate) unsafe fn expand_class_def(
     otl_class_def_free(ocd);
     return cd;
 }
-pub(crate) unsafe fn dump_class_def(cd: *const ClassDef) -> *mut BuiltValue {
-    let a: *mut BuiltValue = json_object_new((*cd).glyphs.len());
+pub(crate) unsafe fn dump_class_def(cd: *const ClassDef) -> BuiltValue {
+    let mut a = BuiltValue::new_object((*cd).glyphs.len());
     for j in 0..(*cd).glyphs.len() {
-        json_object_push_bytes_key(
-            a,
+        a.push_field_bytes_key(
             &(&(*cd).glyphs)[j].name,
-            json_integer_new((&(*cd).classes)[j] as i64),
+            BuiltValue::Int((&(*cd).classes)[j] as i64),
         );
     }
-    return preserialize(a);
+    a.preserialize()
 }
 pub(crate) unsafe fn parse_class_def(mut _cd: *const ParsedValue) -> *mut ClassDef {
     if _cd.is_null() || json_type_of(_cd) != JsonType::Object {

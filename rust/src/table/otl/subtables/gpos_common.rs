@@ -13,9 +13,7 @@ use crate::support::font_reader::FontReader;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_new_position, json_null_new, json_object_new, json_object_push, preserialize,
-};
+use crate::support::built_json::BuiltValue;
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos};
 use crate::table::otl::{Anchor, MarkArray, MarkRecord, PositionValue};
 use crate::vendor::json::JsonType;
@@ -200,23 +198,15 @@ pub unsafe fn otl_read_anchor(data: FontFilePointer, table_length: u32, offset: 
     anchor.y = i16::from_be_bytes([bytes[4], bytes[5]]) as Pos;
     anchor
 }
-pub unsafe fn otl_dump_anchor(a: Anchor) -> *mut BuiltValue {
+pub fn otl_dump_anchor(a: Anchor) -> BuiltValue {
     if a.present {
-        let v: *mut BuiltValue = json_object_new(2_usize);
-        json_object_push(
-            v,
-            b"x\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position(a.x),
-        );
-        json_object_push(
-            v,
-            b"y\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position(a.y),
-        );
-        return v;
+        let mut v = BuiltValue::new_object(2);
+        v.push_field(b"x", BuiltValue::position(a.x));
+        v.push_field(b"y", BuiltValue::position(a.y));
+        v
     } else {
-        return json_null_new();
-    };
+        BuiltValue::Null
+    }
 }
 pub unsafe fn otl_parse_anchor(v: *const ParsedValue) -> Anchor {
     let mut anchor: Anchor = Anchor {
@@ -1076,37 +1066,21 @@ pub unsafe fn read_gpos_value(
     }
     v
 }
-pub unsafe fn gpos_dump_value(value: PositionValue) -> *mut BuiltValue {
-    let v: *mut BuiltValue = json_object_new(4_usize);
+pub fn gpos_dump_value(value: PositionValue) -> BuiltValue {
+    let mut v = BuiltValue::new_object(4);
     if value.dx != 0. {
-        json_object_push(
-            v,
-            b"dx\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position(value.dx),
-        );
+        v.push_field(b"dx", BuiltValue::position(value.dx));
     }
     if value.dy != 0. {
-        json_object_push(
-            v,
-            b"dy\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position(value.dy),
-        );
+        v.push_field(b"dy", BuiltValue::position(value.dy));
     }
     if value.d_width != 0. {
-        json_object_push(
-            v,
-            b"dWidth\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position(value.d_width),
-        );
+        v.push_field(b"dWidth", BuiltValue::position(value.d_width));
     }
     if value.d_height != 0. {
-        json_object_push(
-            v,
-            b"dHeight\0" as *const u8 as *const ::core::ffi::c_char,
-            json_new_position(value.d_height),
-        );
+        v.push_field(b"dHeight", BuiltValue::position(value.d_height));
     }
-    return preserialize(v);
+    v.preserialize()
 }
 pub unsafe fn gpos_parse_value(pos: *const ParsedValue) -> PositionValue {
     let mut v: PositionValue = PositionValue {
