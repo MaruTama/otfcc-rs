@@ -2,10 +2,7 @@
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
 };
-use crate::support::parsed_json::{
-    ParsedValue, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
-    json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_ptr, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::Coverage;
 
 use crate::support::binio::pos_to_u16;
@@ -14,7 +11,7 @@ use crate::support::font_reader::FontReader;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
-use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos};
+use crate::support::primitives::{FontFilePointer, GlyphClass, Pos};
 use crate::table::otl::{Anchor, MarkArray, MarkRecord, PositionValue};
 use crate::vendor::json::JsonType;
 // `MarkRecord` holds only a `GlyphHandle` plus a plain `Anchor`, so dropping
@@ -68,12 +65,14 @@ pub unsafe fn otl_read_mark_array(
     }
 }
 pub unsafe fn otl_parse_mark_array(
-    mut _marks: *const ParsedValue,
+    marks: *const ParsedValue,
     array: *mut MarkArray,
     h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
 ) {
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < json_obj_len(_marks) {
+    let Some(fields) = unsafe { marks.as_ref() }.and_then(ParsedValue::as_object) else {
+        return;
+    };
+    for (key, anchor_record) in fields {
         let mut mark: MarkRecord = MarkRecord {
             glyph: Handle {
                 state: HandleState::Empty,
@@ -87,51 +86,32 @@ pub unsafe fn otl_parse_mark_array(
                 y: 0.,
             },
         };
-        let anchor_record: *const ParsedValue = json_obj_val_at(_marks, j as u32);
-        mark.glyph = handle_from_name(Some(json_obj_key_bytes_at(_marks, j as u32))) as GlyphHandle;
+        mark.glyph = handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle;
         mark.mark_class = 0 as GlyphClass;
         mark.anchor = otl_anchor_absent();
-        if anchor_record.is_null() || json_type_of(anchor_record) != JsonType::Object {
-            (*array).push(mark);
-        } else {
-            let mut _class_name: *const ParsedValue = json_obj_get_type(
-                anchor_record,
-                b"class\0" as *const u8 as *const ::core::ffi::c_char,
-                JsonType::String,
-            );
-            if _class_name.is_null() {
+        match anchor_record.get_typed(b"class", JsonType::String) {
+            None => {
                 (*array).push(mark);
-            } else {
-                // Deduplicates by class name, `strlen`-bounded (matching
-                // the original's Bob Jenkins hash + `memcmp`, both driven
-                // by `strlen`, not the JSON string's own `.length`) --
-                // see `CffSidEntry` (rust/README.md) for why this
-                // distinction is preserved rather than simplified away.
-                // The id registered here is a placeholder, overwritten
-                // below once every distinct class name is known and can
-                // be renumbered in alphabetical order -- the original's
-                // insert-time id (`HASH_COUNT` at insert time) is
-                // equally provisional, later replaced by a
-                // `HASH_SORT`-driven renumbering pass.
-                let class_name: Vec<u8> = ::core::ffi::CStr::from_ptr(
-                    json_str_ptr(_class_name) as *const ::core::ffi::c_char
-                )
-                .to_bytes()
-                .to_vec();
+            }
+            Some(class_name_val) => {
+                // Deduplicates by class name, matching the original's Bob
+                // Jenkins hash + `memcmp` -- see `CffSidEntry`
+                // (rust/README.md) for why this distinction is preserved
+                // rather than simplified away. The id registered here is
+                // a placeholder, overwritten below once every distinct
+                // class name is known and can be renumbered in
+                // alphabetical order -- the original's insert-time id
+                // (`HASH_COUNT` at insert time) is equally provisional,
+                // later replaced by a `HASH_SORT`-driven renumbering
+                // pass.
+                let class_name = class_name_val.as_str_bytes().unwrap_or(&[]).to_vec();
                 (*h).entry(class_name).or_insert(0 as GlyphClass);
                 mark.anchor.present = true;
-                mark.anchor.x = json_obj_getnum(
-                    anchor_record,
-                    b"x\0" as *const u8 as *const ::core::ffi::c_char,
-                ) as Pos;
-                mark.anchor.y = json_obj_getnum(
-                    anchor_record,
-                    b"y\0" as *const u8 as *const ::core::ffi::c_char,
-                ) as Pos;
+                mark.anchor.x = anchor_record.get_num(b"x") as Pos;
+                mark.anchor.y = anchor_record.get_num(b"y") as Pos;
                 (*array).push(mark);
             }
         }
-        j = j.wrapping_add(1);
     }
     // The original's `HASH_SORT`-with-`compare_class_hash` step sorts
     // hash nodes alphabetically by class name (`strcmp`), then renumbers
@@ -150,27 +130,21 @@ pub unsafe fn otl_parse_mark_array(
     // the resolved id) and looking up its now-final id. Every entry with
     // `.anchor.present` is guaranteed to have registered its class name
     // in the loop above, so (as in the original) there is no null/absent
-    // check here before re-deriving it.
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*array).len() {
-        if (&(*array))[j_0 as usize].anchor.present {
-            let anchor_record_0: *const ParsedValue = json_obj_val_at(_marks, j_0 as u32);
-            let mut _class_name_0: *const ParsedValue = json_obj_get_type(
-                anchor_record_0,
-                b"class\0" as *const u8 as *const ::core::ffi::c_char,
-                JsonType::String,
-            );
-            let class_name_0: Vec<u8> = ::core::ffi::CStr::from_ptr(
-                json_str_ptr(_class_name_0) as *const ::core::ffi::c_char
-            )
-            .to_bytes()
-            .to_vec();
-            (&mut (*array))[j_0 as usize].mark_class = match (*h).get(&class_name_0) {
+    // check here before re-deriving it. `fields.len() == (*array).len()`
+    // here: the loop above pushes exactly one mark per field, on every
+    // branch.
+    for (idx, (_, anchor_record)) in fields.iter().enumerate() {
+        if (&(*array))[idx].anchor.present {
+            let class_name = anchor_record
+                .get_typed(b"class", JsonType::String)
+                .and_then(ParsedValue::as_str_bytes)
+                .unwrap_or(&[])
+                .to_vec();
+            (&mut (*array))[idx].mark_class = match (*h).get(&class_name) {
                 Some(&id) => id,
                 None => 0 as GlyphClass,
             };
         }
-        j_0 = j_0.wrapping_add(1);
     }
 }
 pub unsafe fn otl_anchor_absent() -> Anchor {
@@ -214,20 +188,12 @@ pub unsafe fn otl_parse_anchor(v: *const ParsedValue) -> Anchor {
         x: 0_i32 as Pos,
         y: 0_i32 as Pos,
     };
-    if v.is_null() || json_type_of(v) != JsonType::Object {
+    let Some(v) = (unsafe { v.as_ref() }).filter(|v| v.as_object().is_some()) else {
         return anchor;
-    }
+    };
     anchor.present = true;
-    anchor.x = json_obj_getnum_fallback(
-        v,
-        b"x\0" as *const u8 as *const ::core::ffi::c_char,
-        0_i32 as ::core::ffi::c_double,
-    ) as Pos;
-    anchor.y = json_obj_getnum_fallback(
-        v,
-        b"y\0" as *const u8 as *const ::core::ffi::c_char,
-        0_i32 as ::core::ffi::c_double,
-    ) as Pos;
+    anchor.x = v.get_num_or(b"x", 0.0) as Pos;
+    anchor.y = v.get_num_or(b"y", 0.0) as Pos;
     return anchor;
 }
 pub unsafe fn bk_from_anchor(a: Anchor) -> *mut BkBlock {
@@ -1089,14 +1055,13 @@ pub unsafe fn gpos_parse_value(pos: *const ParsedValue) -> PositionValue {
         d_width: 0.0f64,
         d_height: 0.0f64,
     };
-    if pos.is_null() || json_type_of(pos) != JsonType::Object {
+    let Some(pos) = (unsafe { pos.as_ref() }).filter(|p| p.as_object().is_some()) else {
         return v;
-    }
-    v.dx = json_obj_getnum(pos, b"dx\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
-    v.dy = json_obj_getnum(pos, b"dy\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
-    v.d_width = json_obj_getnum(pos, b"dWidth\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
-    v.d_height =
-        json_obj_getnum(pos, b"dHeight\0" as *const u8 as *const ::core::ffi::c_char) as Pos;
+    };
+    v.dx = pos.get_num(b"dx") as Pos;
+    v.dy = pos.get_num(b"dy") as Pos;
+    v.d_width = pos.get_num(b"dWidth") as Pos;
+    v.d_height = pos.get_num(b"dHeight") as Pos;
     return v;
 }
 pub unsafe fn required_position_format(v: PositionValue) -> u8 {
@@ -1177,6 +1142,7 @@ pub unsafe fn bk_gpos_value(v: PositionValue, format: u16) -> *mut BkBlock {
 mod read_anchor_and_value_tests {
     use super::*;
     use crate::support::handle::handle_from_index;
+    use crate::support::primitives::GlyphId;
     use crate::table::otl::coverage::{otl_coverage_create, otl_coverage_free, push_to_coverage};
 
     #[test]
