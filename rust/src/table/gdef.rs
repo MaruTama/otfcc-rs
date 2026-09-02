@@ -21,10 +21,7 @@ use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
-    json_object_push, json_object_push_bytes_key, preserialize,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
 use crate::table::otl::coverage::build_coverage;
 #[derive(Copy, Clone)]
@@ -212,37 +209,29 @@ pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
         lig_carets,
     }))
 }
-unsafe fn dump_gdef_lig_carets(gdef: *const GdefTable) -> *mut BuiltValue {
+unsafe fn dump_gdef_lig_carets(gdef: *const GdefTable) -> BuiltValue {
     let lig_carets: &Vec<CaretValueRecord> = &(*gdef).lig_carets;
-    let mut _carets: *mut BuiltValue = json_object_new(lig_carets.len());
+    let mut _carets = BuiltValue::new_object(lig_carets.len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < lig_carets.len() {
         let name: &[u8] = &lig_carets[j as usize].glyph.name;
         let carets: &Vec<CaretValue> = &lig_carets[j as usize].carets;
-        let mut _record: *mut BuiltValue = json_array_new(carets.len());
+        let mut _record = BuiltValue::new_array(carets.len());
         let mut k: GlyphId = 0 as GlyphId;
         while (k as usize) < carets.len() {
-            let mut _cv: *mut BuiltValue = json_object_new(1_usize);
+            let mut _cv = BuiltValue::new_object(1);
             if carets[k as usize].format as i32 == 2_i32 {
-                json_object_push(
-                    _cv,
-                    b"atPoint\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new(carets[k as usize].point_index as i64),
-                );
+                _cv.push_field(b"atPoint", BuiltValue::Int(carets[k as usize].point_index as i64));
             } else {
-                json_object_push(
-                    _cv,
-                    b"at\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new(carets[k as usize].coordiante as i64),
-                );
+                _cv.push_field(b"at", BuiltValue::Int(carets[k as usize].coordiante as i64));
             }
-            json_array_push(_record, _cv);
+            _record.push_item(_cv);
             k = k.wrapping_add(1);
         }
-        json_object_push_bytes_key(_carets, name, preserialize(_record));
+        _carets.push_field_bytes_key(name, _record.preserialize());
         j = j.wrapping_add(1);
     }
-    return _carets;
+    _carets
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_gdef(
@@ -260,32 +249,20 @@ pub unsafe fn otfcc_dump_gdef(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _gdef: *mut BuiltValue = json_object_new(4_usize);
+        let mut _gdef = BuiltValue::new_object(4);
         if let Some(cd) = (*gdef).glyph_class_def.as_deref() {
-            json_object_push(
-                _gdef,
-                b"glyphClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                dump_class_def(cd).into_raw(),
-            );
+            _gdef.push_field(b"glyphClassDef", dump_class_def(cd));
         }
         if let Some(cd) = (*gdef).mark_attach_class_def.as_deref() {
-            json_object_push(
-                _gdef,
-                b"markAttachClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                dump_class_def(cd).into_raw(),
-            );
+            _gdef.push_field(b"markAttachClassDef", dump_class_def(cd));
         }
         if !(*gdef).lig_carets.is_empty() {
-            json_object_push(
-                _gdef,
-                b"ligCarets\0" as *const u8 as *const ::core::ffi::c_char,
-                dump_gdef_lig_carets(gdef),
-            );
+            _gdef.push_field(b"ligCarets", dump_gdef_lig_carets(gdef));
         }
         json_object_push(
             root,
             b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,
-            _gdef,
+            _gdef.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

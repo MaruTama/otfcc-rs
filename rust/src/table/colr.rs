@@ -21,10 +21,7 @@ use crate::support::primitives::{ColorId, GlyphId};
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
-    json_object_push, json_string_new_from_bytes, preserialize,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 #[derive(Clone)]
 pub struct ColrLayer {
     pub glyph: GlyphHandle,
@@ -153,56 +150,24 @@ pub unsafe fn otfcc_dump_colr(
     let mappings: &Vec<ColrMapping> = colr;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _colr: *mut BuiltValue = json_array_new(mappings.len());
-        let mut __caryll_index: usize = 0_usize;
-        let mut keep: usize = 1_usize;
-        while keep != 0 && __caryll_index < mappings.len() {
-            let mapping: &ColrMapping = &mappings[__caryll_index];
-            while keep != 0 {
-                let mut _map: *mut BuiltValue = json_object_new(2_usize);
-                json_object_push(
-                    _map,
-                    b"from\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_string_new_from_bytes(&mapping.glyph.name),
-                );
-                let mut _layers: *mut BuiltValue = json_array_new(mapping.layers.len());
-                let mut __caryll_index_0: usize = 0_usize;
-                let mut keep_0: usize = 1_usize;
-                while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
-                    let layer: &ColrLayer = &mapping.layers[__caryll_index_0];
-                    while keep_0 != 0 {
-                        let mut _layer: *mut BuiltValue = json_object_new(2_usize);
-                        json_object_push(
-                            _layer,
-                            b"layer\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_string_new_from_bytes(&layer.glyph.name),
-                        );
-                        json_object_push(
-                            _layer,
-                            b"paletteIndex\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_integer_new(layer.palette_index as i64),
-                        );
-                        json_array_push(_layers, _layer);
-                        keep_0 = (keep_0 == 0) as i32 as usize;
-                    }
-                    keep_0 = (keep_0 == 0) as i32 as usize;
-                    __caryll_index_0 = __caryll_index_0.wrapping_add(1);
-                }
-                json_object_push(
-                    _map,
-                    b"to\0" as *const u8 as *const ::core::ffi::c_char,
-                    preserialize(_layers),
-                );
-                json_array_push(_colr, _map);
-                keep = (keep == 0) as i32 as usize;
+        let mut _colr = BuiltValue::new_array(mappings.len());
+        for mapping in mappings.iter() {
+            let mut _map = BuiltValue::new_object(2);
+            _map.push_field(b"from", BuiltValue::str_truncated_at_nul(&mapping.glyph.name));
+            let mut _layers = BuiltValue::new_array(mapping.layers.len());
+            for layer in mapping.layers.iter() {
+                let mut _layer = BuiltValue::new_object(2);
+                _layer.push_field(b"layer", BuiltValue::str_truncated_at_nul(&layer.glyph.name));
+                _layer.push_field(b"paletteIndex", BuiltValue::Int(layer.palette_index as i64));
+                _layers.push_item(_layer);
             }
-            keep = (keep == 0) as i32 as usize;
-            __caryll_index = __caryll_index.wrapping_add(1);
+            _map.push_field(b"to", _layers.preserialize());
+            _colr.push_item(_map);
         }
         json_object_push(
             root,
             b"COLR\0" as *const u8 as *const ::core::ffi::c_char,
-            _colr,
+            _colr.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

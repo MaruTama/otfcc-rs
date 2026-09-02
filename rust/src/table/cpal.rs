@@ -13,10 +13,7 @@ use crate::support::primitives::{ColorId, TableId};
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
-    json_object_push, preserialize,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 #[derive(Copy, Clone)]
 pub struct CpalColor {
     pub red: u8,
@@ -194,69 +191,37 @@ pub fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
     Some(Box::new(CpalTable { version, palettes }))
 }
 #[inline]
-unsafe fn dump_color(color: *const CpalColor) -> *mut BuiltValue {
-    let mut _color: *mut BuiltValue = json_object_new(5_usize);
-    json_object_push(
-        _color,
-        b"red\0" as *const u8 as *const ::core::ffi::c_char,
-        json_integer_new((*color).red as i64),
-    );
-    json_object_push(
-        _color,
-        b"green\0" as *const u8 as *const ::core::ffi::c_char,
-        json_integer_new((*color).green as i64),
-    );
-    json_object_push(
-        _color,
-        b"blue\0" as *const u8 as *const ::core::ffi::c_char,
-        json_integer_new((*color).blue as i64),
-    );
+unsafe fn dump_color(color: *const CpalColor) -> BuiltValue {
+    let mut _color = BuiltValue::new_object(5);
+    _color.push_field(b"red", BuiltValue::Int((*color).red as i64));
+    _color.push_field(b"green", BuiltValue::Int((*color).green as i64));
+    _color.push_field(b"blue", BuiltValue::Int((*color).blue as i64));
     if (*color).alpha as i32 != 0xff_i32 {
-        json_object_push(
-            _color,
-            b"alpha\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*color).alpha as i64),
-        );
+        _color.push_field(b"alpha", BuiltValue::Int((*color).alpha as i64));
     }
     if (*color).label as i32 != 0xffff_i32 {
-        json_object_push(
-            _color,
-            b"label\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*color).label as i64),
-        );
+        _color.push_field(b"label", BuiltValue::Int((*color).label as i64));
     }
-    return preserialize(_color);
+    _color.preserialize()
 }
 #[inline]
-unsafe fn dump_palette(palette: *const CpalPalette) -> *mut BuiltValue {
-    let mut _palette: *mut BuiltValue = json_object_new(3_usize);
+unsafe fn dump_palette(palette: *const CpalPalette) -> BuiltValue {
+    let mut _palette = BuiltValue::new_object(3);
     if (*palette).type_0 != 0 {
-        json_object_push(
-            _palette,
-            b"type\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*palette).type_0 as i64),
-        );
+        _palette.push_field(b"type", BuiltValue::Int((*palette).type_0 as i64));
     }
     if (*palette).label != 0xffff_u32 {
-        json_object_push(
-            _palette,
-            b"label\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*palette).label as i64),
-        );
+        _palette.push_field(b"label", BuiltValue::Int((*palette).label as i64));
     }
     let colorset: &Vec<CpalColor> = &(*palette).colorset;
-    let a: *mut BuiltValue = json_array_new(colorset.len());
+    let mut a = BuiltValue::new_array(colorset.len());
     let mut j: ColorId = 0 as ColorId;
     while (j as usize) < colorset.len() {
-        json_array_push(a, dump_color(&colorset[j as usize] as *const CpalColor));
+        a.push_item(dump_color(&colorset[j as usize] as *const CpalColor));
         j = j.wrapping_add(1);
     }
-    json_object_push(
-        _palette,
-        b"colors\0" as *const u8 as *const ::core::ffi::c_char,
-        a,
-    );
-    return _palette;
+    _palette.push_field(b"colors", a);
+    _palette
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_cpal(
@@ -275,30 +240,19 @@ pub unsafe fn otfcc_dump_cpal(
     let palettes: &Vec<CpalPalette> = &(*table).palettes;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _t: *mut BuiltValue = json_object_new(2_usize);
-        json_object_push(
-            _t,
-            b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).version as i64),
-        );
-        let mut _a: *mut BuiltValue = json_array_new(palettes.len());
+        let mut _t = BuiltValue::new_object(2);
+        _t.push_field(b"version", BuiltValue::Int((*table).version as i64));
+        let mut _a = BuiltValue::new_array(palettes.len());
         let mut j: TableId = 0 as TableId;
         while (j as usize) < palettes.len() {
-            json_array_push(
-                _a,
-                dump_palette(&palettes[j as usize] as *const CpalPalette),
-            );
+            _a.push_item(dump_palette(&palettes[j as usize] as *const CpalPalette));
             j = j.wrapping_add(1);
         }
-        json_object_push(
-            _t,
-            b"palettes\0" as *const u8 as *const ::core::ffi::c_char,
-            _a,
-        );
+        _t.push_field(b"palettes", _a);
         json_object_push(
             root,
             b"CPAL\0" as *const u8 as *const ::core::ffi::c_char,
-            _t,
+            _t.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

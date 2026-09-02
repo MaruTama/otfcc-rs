@@ -6,10 +6,7 @@ use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::base64::base64_encode;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
-    json_object_push, json_string_new, json_string_new_length,
-};
+use crate::support::built_json::{BuiltValue, json_object_push};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -119,63 +116,25 @@ pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: *mut BuiltValue, opti
     let entries: &Vec<SvgAssignment> = svg;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _svg: *mut BuiltValue = json_array_new(entries.len());
-        let mut __caryll_index: usize = 0_usize;
-        let mut keep: usize = 1_usize;
-        while keep != 0 && __caryll_index < entries.len() {
-            let a: &SvgAssignment = &entries[__caryll_index];
-            while keep != 0 {
-                let mut _a: *mut BuiltValue = json_object_new(4_usize);
-                json_object_push(
-                    _a,
-                    b"start\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*a).start as i64),
-                );
-                json_object_push(
-                    _a,
-                    b"end\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*a).end as i64),
-                );
-                if can_use_plain_format(&a.document) {
-                    json_object_push(
-                        _a,
-                        b"format\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_string_new(b"plain\0" as *const u8 as *const ::core::ffi::c_char),
-                    );
-                    json_object_push(
-                        _a,
-                        b"document\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_string_new_length(
-                            a.document.len() as ::core::ffi::c_uint,
-                            a.document.as_ptr() as *mut ::core::ffi::c_char,
-                        ),
-                    );
-                } else {
-                    let encoded = base64_encode(&a.document);
-                    json_object_push(
-                        _a,
-                        b"format\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_string_new(b"base64\0" as *const u8 as *const ::core::ffi::c_char),
-                    );
-                    json_object_push(
-                        _a,
-                        b"document\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_string_new_length(
-                            encoded.len() as ::core::ffi::c_uint,
-                            encoded.as_ptr() as *mut ::core::ffi::c_char,
-                        ),
-                    );
-                }
-                json_array_push(_svg, _a);
-                keep = (keep == 0) as i32 as usize;
+        let mut _svg = BuiltValue::new_array(entries.len());
+        for a in entries.iter() {
+            let mut _a = BuiltValue::new_object(4);
+            _a.push_field(b"start", BuiltValue::Int(a.start as i64));
+            _a.push_field(b"end", BuiltValue::Int(a.end as i64));
+            if can_use_plain_format(&a.document) {
+                _a.push_field(b"format", BuiltValue::Str(b"plain".to_vec()));
+                _a.push_field(b"document", BuiltValue::Str(a.document.clone()));
+            } else {
+                let encoded = base64_encode(&a.document);
+                _a.push_field(b"format", BuiltValue::Str(b"base64".to_vec()));
+                _a.push_field(b"document", BuiltValue::Str(encoded));
             }
-            keep = (keep == 0) as i32 as usize;
-            __caryll_index = __caryll_index.wrapping_add(1);
+            _svg.push_item(_a);
         }
         json_object_push(
             root,
             b"SVG_\0" as *const u8 as *const ::core::ffi::c_char,
-            _svg,
+            _svg.into_raw(),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
