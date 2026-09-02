@@ -5,10 +5,7 @@ use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint,
-    json_obj_getint_fallback, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::{ColorId, TableId};
 use crate::vendor::json::JsonType;
 
@@ -255,114 +252,63 @@ pub unsafe fn otfcc_dump_cpal(
     }
 }
 #[inline]
-unsafe fn parse_color(mut _color: *const ParsedValue) -> CpalColor {
-    let mut color: CpalColor = WHITE;
-    if _color.is_null() || json_type_of(_color) != JsonType::Object {
-        return color;
-    }
-    color.red = json_obj_getint_fallback(
-        _color,
-        b"red\0" as *const u8 as *const ::core::ffi::c_char,
-        0_i32,
-    ) as u8;
-    color.green = json_obj_getint_fallback(
-        _color,
-        b"green\0" as *const u8 as *const ::core::ffi::c_char,
-        0_i32,
-    ) as u8;
-    color.blue = json_obj_getint_fallback(
-        _color,
-        b"blue\0" as *const u8 as *const ::core::ffi::c_char,
-        0_i32,
-    ) as u8;
-    color.alpha = json_obj_getint_fallback(
-        _color,
-        b"alpha\0" as *const u8 as *const ::core::ffi::c_char,
-        0xff_i32,
-    ) as u8;
-    color.label = json_obj_getint_fallback(
-        _color,
-        b"label\0" as *const u8 as *const ::core::ffi::c_char,
-        0xffff_i32,
-    ) as u16;
-    return color;
+fn parse_color(color: Option<&ParsedValue>) -> CpalColor {
+    let mut c: CpalColor = WHITE;
+    let Some(color) = color.filter(|v| v.as_object().is_some()) else {
+        return c;
+    };
+    c.red = color.get_int_or(b"red", 0) as u8;
+    c.green = color.get_int_or(b"green", 0) as u8;
+    c.blue = color.get_int_or(b"blue", 0) as u8;
+    c.alpha = color.get_int_or(b"alpha", 0xff) as u8;
+    c.label = color.get_int_or(b"label", 0xffff) as u16;
+    c
 }
 pub unsafe fn otfcc_parse_cpal(
     root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<CpalTable>> {
-    let table: *const ParsedValue;
-    table = json_obj_get_type(
-        root,
-        b"CPAL\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if table.is_null() {
-        return None;
-    }
-    let mut cpal: Option<Box<CpalTable>> = None;
+    let table = root.as_ref().and_then(|r| r.get_typed(b"CPAL", JsonType::Object))?;
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"CPAL"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut _palettes: *const ParsedValue = json_obj_get_type(
-            table,
-            b"palettes\0" as *const u8 as *const ::core::ffi::c_char,
-            JsonType::Array,
-        );
-        if _palettes.is_null() || json_arr_len(_palettes) == 0 {
-            return None;
+    // Matches the pre-migration control flow exactly: an empty/missing
+    // `palettes` array returns `None` here without ever calling
+    // `logger_finish` -- an unbalanced logger start/finish that predates
+    // this conversion, preserved rather than fixed (see the crate's
+    // "no behavior change" rule).
+    let palette_items = table
+        .get_typed(b"palettes", JsonType::Array)
+        .and_then(ParsedValue::as_array)
+        .filter(|items| !items.is_empty())?;
+    let version = table.get_int(b"version") as u16;
+    let mut cpal: Box<CpalTable> = Box::new(CpalTable {
+        version,
+        palettes: Vec::new(),
+    });
+    for _palette in palette_items {
+        if _palette.as_object().is_none() {
+            continue;
         }
-        let version = json_obj_getint(
-            table,
-            b"version\0" as *const u8 as *const ::core::ffi::c_char,
-        ) as u16;
-        cpal = Some(Box::new(CpalTable {
-            version,
-            palettes: Vec::new(),
-        }));
-        let mut j: TableId = 0 as TableId;
-        while (j as ::core::ffi::c_uint) < json_arr_len(_palettes) {
-            let mut _palette: *const ParsedValue = json_arr_at(_palettes, j as u32);
-            if !(_palette.is_null() || json_type_of(_palette) != JsonType::Object) {
-                let mut _colors: *const ParsedValue = json_obj_get_type(
-                    _palette,
-                    b"colors\0" as *const u8 as *const ::core::ffi::c_char,
-                    JsonType::Array,
-                );
-                if !_colors.is_null() {
-                    let mut palette: CpalPalette = CpalPalette {
-                        colorset: Vec::new(),
-                        type_0: 0,
-                        label: 0,
-                    };
-                    palette.type_0 = json_obj_getint(
-                        _palette,
-                        b"type\0" as *const u8 as *const ::core::ffi::c_char,
-                    ) as u32;
-                    palette.label = json_obj_getint_fallback(
-                        _palette,
-                        b"type\0" as *const u8 as *const ::core::ffi::c_char,
-                        0xffff_i32,
-                    ) as u32;
-                    let mut k: ColorId = 0 as ColorId;
-                    while (k as ::core::ffi::c_uint) < json_arr_len(_colors) {
-                        palette
-                            .colorset
-                            .push(parse_color(json_arr_at(_colors, k as u32)));
-                        k = k.wrapping_add(1);
-                    }
-                    cpal.as_mut().unwrap().palettes.push(palette);
-                }
-            }
-            j = j.wrapping_add(1);
+        let Some(color_items) = _palette
+            .get_typed(b"colors", JsonType::Array)
+            .and_then(ParsedValue::as_array)
+        else {
+            continue;
+        };
+        let mut palette: CpalPalette = CpalPalette {
+            colorset: Vec::new(),
+            type_0: _palette.get_int(b"type") as u32,
+            label: _palette.get_int_or(b"type", 0xffff) as u32,
+        };
+        for _color in color_items {
+            palette.colorset.push(parse_color(Some(_color)));
         }
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        cpal.palettes.push(palette);
     }
-    return cpal;
+    logger_finish(&mut *options.logger.borrow_mut());
+    Some(cpal)
 }
 #[inline]
 unsafe fn build_palette_type(cpal: *const CpalTable) -> *mut BkBlock {

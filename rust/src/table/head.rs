@@ -7,9 +7,7 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_obj_get, json_obj_get_type, json_obj_getnum_fallback, otfcc_parse_flags,
-};
+use crate::support::parsed_json::{ParsedValue, otfcc_parse_flags};
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json::JsonType;
@@ -173,107 +171,47 @@ pub unsafe fn otfcc_parse_head(
     // Reproduces `init_head`'s two non-zero defaults exactly:
     // `.magic_number` is never set anywhere in this function's body below
     // (unlike every other field), so it must carry this default through;
-    // `.units_per_em` *is* always overwritten by the `json_obj_getnum_fallback`
-    // call below, so its zeroed value here is immediately discarded either way.
+    // `.units_per_em` *is* always overwritten by the `get_num_or` call
+    // below, so its zeroed value here is immediately discarded either way.
     let mut head_val: HeadTable = ::core::mem::zeroed();
     head_val.magic_number = 0x5f0f3cf5_u32;
     head_val.units_per_em = 1000_u16;
     let mut head_box: Box<HeadTable> = Box::new(head_val);
+    let Some(table) = root.as_ref().and_then(|r| r.get_typed(b"head", JsonType::Object)) else {
+        return Some(head_box);
+    };
     let head: *mut HeadTable = head_box.as_mut() as *mut HeadTable;
-    let table: *const ParsedValue;
-    table = json_obj_get_type(
-        root,
-        b"head\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
+    logger_start_sds(
+        &mut *options.logger.borrow_mut(),
+        crate::bytesbuild!(b"head"),
     );
-    if !table.is_null() {
-        logger_start_sds(
-            &mut *options.logger.borrow_mut(),
-            crate::bytesbuild!(b"head"),
-        );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            (*head).version = otfcc_to_fixed(json_obj_getnum_fallback(
-                table,
-                b"version\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ));
-            (*head).font_revision = otfcc_to_fixed(json_obj_getnum_fallback(
-                table,
-                b"fontRevision\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            )) as u32;
-            (*head).flags = otfcc_parse_flags(
-                json_obj_get(table, b"flags\0" as *const u8 as *const ::core::ffi::c_char),
-                &HEAD_FLAGS_LABELS,
-            ) as u16;
-            (*head).units_per_em = json_obj_getnum_fallback(
-                table,
-                b"unitsPerEm\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*head).created = json_obj_getnum_fallback(
-                table,
-                b"created\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i64;
-            (*head).modified = json_obj_getnum_fallback(
-                table,
-                b"modified\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i64;
-            (*head).x_min = json_obj_getnum_fallback(
-                table,
-                b"xMin\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*head).x_max = json_obj_getnum_fallback(
-                table,
-                b"xMax\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*head).y_min = json_obj_getnum_fallback(
-                table,
-                b"yMin\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*head).y_max = json_obj_getnum_fallback(
-                table,
-                b"yMax\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*head).mac_style = otfcc_parse_flags(
-                json_obj_get(
-                    table,
-                    b"macStyle\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
-                &MAC_STYLE_LABELS,
-            ) as u16;
-            (*head).lowest_rec_ppem = json_obj_getnum_fallback(
-                table,
-                b"lowestRecPPEM\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*head).font_directory_hint = json_obj_getnum_fallback(
-                table,
-                b"fontDirectoryHint\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*head).index_to_loc_format = json_obj_getnum_fallback(
-                table,
-                b"indexToLocFormat\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*head).glyph_data_format = json_obj_getnum_fallback(
-                table,
-                b"glyphDataFormat\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
-        }
-    }
-    return Some(head_box);
+    (*head).version = otfcc_to_fixed(table.get_num_or(b"version", 0.0));
+    (*head).font_revision = otfcc_to_fixed(table.get_num_or(b"fontRevision", 0.0)) as u32;
+    (*head).flags = otfcc_parse_flags(
+        table
+            .get(b"flags")
+            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+        &HEAD_FLAGS_LABELS,
+    ) as u16;
+    (*head).units_per_em = table.get_num_or(b"unitsPerEm", 0.0) as u16;
+    (*head).created = table.get_num_or(b"created", 0.0) as i64;
+    (*head).modified = table.get_num_or(b"modified", 0.0) as i64;
+    (*head).x_min = table.get_num_or(b"xMin", 0.0) as i16;
+    (*head).x_max = table.get_num_or(b"xMax", 0.0) as i16;
+    (*head).y_min = table.get_num_or(b"yMin", 0.0) as i16;
+    (*head).y_max = table.get_num_or(b"yMax", 0.0) as i16;
+    (*head).mac_style = otfcc_parse_flags(
+        table
+            .get(b"macStyle")
+            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+        &MAC_STYLE_LABELS,
+    ) as u16;
+    (*head).lowest_rec_ppem = table.get_num_or(b"lowestRecPPEM", 0.0) as u16;
+    (*head).font_directory_hint = table.get_num_or(b"fontDirectoryHint", 0.0) as i16;
+    (*head).index_to_loc_format = table.get_num_or(b"indexToLocFormat", 0.0) as i16;
+    (*head).glyph_data_format = table.get_num_or(b"glyphDataFormat", 0.0) as i16;
+    logger_finish(&mut *options.logger.borrow_mut());
+    Some(head_box)
 }
 #[allow(improper_ctypes_definitions)]
 pub fn otfcc_build_head(head: Option<&HeadTable>) -> Option<Buffer> {

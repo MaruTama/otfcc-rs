@@ -9,13 +9,9 @@ use crate::support::handle::{
     otfcc_handle_empty, otfcc_handle_init,
 };
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len,
-    json_obj_val_at, json_str_len, json_str_ptr, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::GlyphId;
 use crate::vendor::json::JsonType;
-use libc::strcmp;
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -218,95 +214,48 @@ pub unsafe fn otfcc_parse_tsi(
     options: &Options,
     tag: *const ::core::ffi::c_char,
 ) -> Option<TsiTable> {
-    let mut _tsi: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
-    _tsi = json_obj_get_type(root, tag, JsonType::Object);
-    if _tsi.is_null() {
-        return None;
-    }
+    let tag_key = ::core::ffi::CStr::from_ptr(tag).to_bytes();
+    let _tsi = root.as_ref().and_then(|r| r.get_typed(tag_key, JsonType::Object))?;
     let mut tsi: TsiTable = Vec::new();
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut _glyphs: *const ParsedValue = json_obj_get_type(
-            _tsi,
-            b"glyphs\0" as *const u8 as *const ::core::ffi::c_char,
-            JsonType::Object,
-        );
-        if !_glyphs.is_null() {
-            let mut j: u32 = 0_u32;
-            while j < json_obj_len(_glyphs) {
-                let mut _content: *const ParsedValue = json_obj_val_at(_glyphs, j);
-                if !(_content.is_null() || json_type_of(_content) != JsonType::String) {
-                    tsi.push(TsiEntry {
-                        type_0: TsiEntryType::Glyph,
-                        glyph: handle_from_name(Some(json_obj_key_bytes_at(_glyphs, j)))
-                            as GlyphHandle,
-                        content: ::core::slice::from_raw_parts(
-                            json_str_ptr(_content) as *const u8,
-                            json_str_len(_content) as usize,
-                        )
-                        .to_vec(),
-                    });
-                }
-                j = j.wrapping_add(1);
-            }
+    if let Some(fields) = _tsi
+        .get_typed(b"glyphs", JsonType::Object)
+        .and_then(ParsedValue::as_object)
+    {
+        for (key, _content) in fields {
+            let Some(bytes) = _content.as_str_bytes() else {
+                continue;
+            };
+            tsi.push(TsiEntry {
+                type_0: TsiEntryType::Glyph,
+                glyph: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
+                content: bytes.to_vec(),
+            });
         }
-        let mut _extra: *const ParsedValue = json_obj_get_type(
-            _tsi,
-            b"extra\0" as *const u8 as *const ::core::ffi::c_char,
-            JsonType::Object,
-        );
-        if !_extra.is_null() {
-            let mut j_0: u32 = 0_u32;
-            while j_0 < json_obj_len(_extra) {
-                let mut _key: *mut ::core::ffi::c_char = json_obj_key_at(_extra, j_0);
-                let mut _content_0: *const ParsedValue = json_obj_val_at(_extra, j_0);
-                if !(_content_0.is_null() || json_type_of(_content_0) != JsonType::String) {
-                    if strcmp(_key, b"cvt\0" as *const u8 as *const ::core::ffi::c_char)
-                        == 0_i32
-                    {
-                        tsi.push(TsiEntry {
-                            type_0: TsiEntryType::Cvt,
-                            glyph: otfcc_handle_empty() as GlyphHandle,
-                            content: ::core::slice::from_raw_parts(
-                                json_str_ptr(_content_0) as *const u8,
-                                json_str_len(_content_0) as usize,
-                            )
-                            .to_vec(),
-                        });
-                    } else if strcmp(_key, b"fpgm\0" as *const u8 as *const ::core::ffi::c_char)
-                        == 0_i32
-                    {
-                        tsi.push(TsiEntry {
-                            type_0: TsiEntryType::Fpgm,
-                            glyph: otfcc_handle_empty() as GlyphHandle,
-                            content: ::core::slice::from_raw_parts(
-                                json_str_ptr(_content_0) as *const u8,
-                                json_str_len(_content_0) as usize,
-                            )
-                            .to_vec(),
-                        });
-                    } else if strcmp(_key, b"prep\0" as *const u8 as *const ::core::ffi::c_char)
-                        == 0_i32
-                    {
-                        tsi.push(TsiEntry {
-                            type_0: TsiEntryType::Prep,
-                            glyph: otfcc_handle_empty() as GlyphHandle,
-                            content: ::core::slice::from_raw_parts(
-                                json_str_ptr(_content_0) as *const u8,
-                                json_str_len(_content_0) as usize,
-                            )
-                            .to_vec(),
-                        });
-                    }
-                }
-                j_0 = j_0.wrapping_add(1);
-            }
-        }
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
     }
-    return Some(tsi);
+    if let Some(fields) = _tsi
+        .get_typed(b"extra", JsonType::Object)
+        .and_then(ParsedValue::as_object)
+    {
+        for (key, _content_0) in fields {
+            let Some(bytes) = _content_0.as_str_bytes() else {
+                continue;
+            };
+            let type_0 = match &key[..key.len() - 1] {
+                b"cvt" => TsiEntryType::Cvt,
+                b"fpgm" => TsiEntryType::Fpgm,
+                b"prep" => TsiEntryType::Prep,
+                _ => continue,
+            };
+            tsi.push(TsiEntry {
+                type_0,
+                glyph: otfcc_handle_empty() as GlyphHandle,
+                content: bytes.to_vec(),
+            });
+        }
+    }
+    logger_finish(&mut *options.logger.borrow_mut());
+    Some(tsi)
 }
 // c2rust residue: the original had this as a numeric `switch` over
 // `TsiEntryType as c_uint` with a fallthrough `panic!` for "no case

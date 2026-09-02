@@ -8,11 +8,8 @@ use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
 };
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get, json_obj_get_type, json_obj_getint,
-    json_obj_getnum, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of,
-};
-use crate::support::primitives::{GlyphId, Pos, ShapeId};
+use crate::support::parsed_json::ParsedValue;
+use crate::support::primitives::{GlyphId, Pos};
 use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
 use crate::table::otl::coverage::{
     Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
@@ -264,109 +261,69 @@ pub unsafe fn otfcc_dump_gdef(
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-unsafe fn lig_caret_from_json(mut _carets: *const ParsedValue, lc: *mut LigCaretTable) {
-    if _carets.is_null() || json_type_of(_carets) != JsonType::Object {
+unsafe fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: *mut LigCaretTable) {
+    let Some(fields) = carets.and_then(ParsedValue::as_object) else {
         return;
-    }
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < json_obj_len(_carets) {
-        let a: *const ParsedValue = json_obj_val_at(_carets, j as u32);
-        if !(a.is_null() || json_type_of(a) != JsonType::Array) {
-            let mut v: CaretValueRecord = CaretValueRecord {
-                glyph: Handle {
-                    state: HandleState::Empty,
-                    index: 0,
-                    name: Vec::new(),
-                },
-                carets: Vec::new(),
+    };
+    for (key, a) in fields {
+        let Some(items) = a.as_array() else {
+            continue;
+        };
+        let mut v: CaretValueRecord = CaretValueRecord {
+            glyph: Handle {
+                state: HandleState::Empty,
+                index: 0,
+                name: Vec::new(),
+            },
+            carets: Vec::new(),
+        };
+        v.glyph = handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle;
+        for _caret in items {
+            let mut caret: CaretValue = CaretValue {
+                format: 1_i8,
+                coordiante: 0_i32 as Pos,
+                point_index: 0xffff_i32 as i16,
             };
-            v.glyph =
-                handle_from_name(Some(json_obj_key_bytes_at(_carets, j as u32))) as GlyphHandle;
-            let caret_count: ShapeId = json_arr_len(a) as ShapeId;
-            let mut k: GlyphId = 0 as GlyphId;
-            while (k as i32) < caret_count as i32 {
-                let mut caret: CaretValue = CaretValue {
-                    format: 0,
-                    coordiante: 0.,
-                    point_index: 0,
-                };
-                caret.format = 1_i8;
-                caret.coordiante = 0_i32 as Pos;
-                caret.point_index = 0xffff_i32 as i16;
-                let mut _caret: *const ParsedValue = json_arr_at(a, k as u32);
-                if !_caret.is_null() && json_type_of(_caret) == JsonType::Object {
-                    if !json_obj_get_type(
-                        _caret,
-                        b"atPoint\0" as *const u8 as *const ::core::ffi::c_char,
-                        JsonType::Integer,
-                    )
-                    .is_null()
-                    {
-                        caret.format = 2_i8;
-                        caret.point_index = json_obj_getint(
-                            _caret,
-                            b"atPoint\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) as i16;
-                    } else {
-                        caret.coordiante = json_obj_getnum(
-                            _caret,
-                            b"at\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) as Pos;
-                    }
+            if _caret.as_object().is_some() {
+                if _caret.get_typed(b"atPoint", JsonType::Integer).is_some() {
+                    caret.format = 2_i8;
+                    caret.point_index = _caret.get_int(b"atPoint") as i16;
+                } else {
+                    caret.coordiante = _caret.get_num(b"at") as Pos;
                 }
-                v.carets.push(caret);
-                k = k.wrapping_add(1);
             }
-            (*lc).push(v);
+            v.carets.push(caret);
         }
-        j = j.wrapping_add(1);
+        (*lc).push(v);
     }
 }
 pub unsafe fn otfcc_parse_gdef(
     root: *const ParsedValue,
     options: &Options,
 ) -> Option<Box<GdefTable>> {
-    let mut gdef: Option<Box<GdefTable>> = None;
-    let table: *const ParsedValue;
-    table = json_obj_get_type(
-        root,
-        b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
+    let table = root.as_ref().and_then(|r| r.get_typed(b"GDEF", JsonType::Object))?;
+    logger_start_sds(
+        &mut *options.logger.borrow_mut(),
+        crate::bytesbuild!(b"GDEF"),
     );
-    if !table.is_null() {
-        logger_start_sds(
-            &mut *options.logger.borrow_mut(),
-            crate::bytesbuild!(b"GDEF"),
-        );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            gdef = Some(Box::new(GdefTable {
-                glyph_class_def: None,
-                mark_attach_class_def: None,
-                lig_carets: Vec::new(),
-            }));
-            gdef.as_mut().unwrap().glyph_class_def =
-                classdef_from_raw(parse_class_def(json_obj_get(
-                    table,
-                    b"glyphClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                )));
-            gdef.as_mut().unwrap().mark_attach_class_def =
-                classdef_from_raw(parse_class_def(json_obj_get(
-                    table,
-                    b"markAttachClassDef\0" as *const u8 as *const ::core::ffi::c_char,
-                )));
-            lig_caret_from_json(
-                json_obj_get(
-                    table,
-                    b"ligCarets\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
-                &raw mut gdef.as_mut().unwrap().lig_carets,
-            );
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
-        }
-    }
-    return gdef;
+    let mut gdef: Box<GdefTable> = Box::new(GdefTable {
+        glyph_class_def: None,
+        mark_attach_class_def: None,
+        lig_carets: Vec::new(),
+    });
+    gdef.glyph_class_def = classdef_from_raw(parse_class_def(
+        table
+            .get(b"glyphClassDef")
+            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+    ));
+    gdef.mark_attach_class_def = classdef_from_raw(parse_class_def(
+        table
+            .get(b"markAttachClassDef")
+            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+    ));
+    lig_caret_from_json(table.get(b"ligCarets"), &raw mut gdef.lig_carets);
+    logger_finish(&mut *options.logger.borrow_mut());
+    Some(gdef)
 }
 unsafe fn write_lig_caret_rec(cr: *mut CaretValueRecord) -> *mut BkBlock {
     let carets: &Vec<CaretValue> = &(*cr).carets;
