@@ -3,7 +3,7 @@
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
 use crate::support::parsed_json::{ParsedValue, json_obj_get};
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
@@ -47,7 +47,7 @@ pub fn otfcc_read_fpgm_prep(packet: &Packet, tag: u32) -> Option<Box<FpgmPrepTab
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn table_dump_table_fpgm_prep(
     table: Option<&FpgmPrepTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
     tag: *const ::core::ffi::c_char,
 ) {
@@ -58,15 +58,13 @@ pub unsafe fn table_dump_table_fpgm_prep(
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        json_object_push(
-            root,
-            tag,
+        root.push_field(
+            ::core::ffi::CStr::from_ptr(tag).to_bytes(),
             dump_ttinstr(
                 (*table).bytes.as_ptr() as *mut u8,
                 (*table).bytes.len() as u32,
                 options,
-            )
-            .into_raw(),
+            ),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

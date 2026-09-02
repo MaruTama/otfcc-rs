@@ -62,7 +62,7 @@ use crate::libcff::charstring_il::{cff_compile_glyph_to_il, cff_optimize_il};
 use crate::libcff::subr::{
     cff_il_graph_to_buffers, cff_insert_il_to_graph, cff_subr_graph_dispose, cff_subr_graph_init,
 };
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::json_new_vq;
 use crate::table::glyf::{glyf_point_init, otfcc_new_glyf_glyph, table_glyf_create_n};
@@ -1550,7 +1550,7 @@ unsafe fn fd_to_json(table: *const CffTable) -> BuiltValue {
 }
 pub unsafe fn otfcc_dump_cff(
     table: Option<&CffTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table: *const CffTable = table.map_or(::core::ptr::null(), |t| t as *const CffTable);
@@ -1563,11 +1563,7 @@ pub unsafe fn otfcc_dump_cff(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        json_object_push(
-            root,
-            b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
-            fd_to_json(table).into_raw(),
-        );
+        root.push_field(b"CFF_", fd_to_json(table));
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

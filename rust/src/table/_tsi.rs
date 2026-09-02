@@ -2,7 +2,7 @@
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, otfcc_handle_dup,
@@ -174,7 +174,7 @@ pub unsafe fn otfcc_read_tsi(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_tsi(
     tsi: Option<&TsiTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
     tag: *const ::core::ffi::c_char,
 ) {
@@ -207,7 +207,7 @@ pub unsafe fn otfcc_dump_tsi(
         }
         _tsi.push_field(b"glyphs", _glyphs);
         _tsi.push_field(b"extra", _extra);
-        json_object_push(root, tag, _tsi.into_raw());
+        root.push_field(::core::ffi::CStr::from_ptr(tag).to_bytes(), _tsi);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

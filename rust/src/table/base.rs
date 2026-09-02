@@ -6,7 +6,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -270,7 +270,7 @@ unsafe fn axis_to_json(axis: *const BaseAxis) -> BuiltValue {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_base(
     base: Option<&BaseTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let base = match base {
@@ -290,11 +290,7 @@ pub unsafe fn otfcc_dump_base(
         if let Some(vertical) = (*base).vertical.as_deref() {
             _base.push_field(b"vertical", axis_to_json(vertical));
         }
-        json_object_push(
-            root,
-            b"BASE\0" as *const u8 as *const ::core::ffi::c_char,
-            _base.into_raw(),
-        );
+        root.push_field(b"BASE", _base);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

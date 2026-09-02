@@ -5,7 +5,7 @@ use crate::logger::{
 };
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -137,7 +137,7 @@ pub fn otfcc_read_name(packet: &Packet, options: &Options) -> Option<NameTable> 
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_name(
     name: Option<&NameTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let name = match name {
@@ -164,11 +164,7 @@ pub unsafe fn otfcc_dump_name(
             _name.push_item(record);
             j = j.wrapping_add(1);
         }
-        json_object_push(
-            root,
-            b"name\0" as *const u8 as *const ::core::ffi::c_char,
-            _name.into_raw(),
-        );
+        root.push_field(b"name", _name);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

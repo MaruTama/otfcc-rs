@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::logger::{logger_finish, logger_start_sds};
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
 use crate::support::primitives::TableId;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
@@ -142,7 +142,7 @@ unsafe fn _dump_lookup(lookup: *const Lookup) -> BuiltValue {
 }
 pub unsafe fn otfcc_dump_otl(
     table: Option<&OtlTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
     tag: *const ::core::ffi::c_char,
 ) {
@@ -241,7 +241,7 @@ pub unsafe fn otfcc_dump_otl(
             ___loggedstep_v_2 = false;
             logger_finish(&mut *options.logger.borrow_mut());
         }
-        json_object_push(root, tag, otl.into_raw());
+        root.push_field(::core::ffi::CStr::from_ptr(tag).to_bytes(), otl);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

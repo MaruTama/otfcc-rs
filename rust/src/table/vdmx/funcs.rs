@@ -13,7 +13,7 @@ use crate::support::parsed_json::{
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkgraph::bk_build_block_no_minimize;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::table::vdmx::types::{VdmxRatioRange, VdmxRecord, VdmxTable};
 // `group_offset` (read from the per-ratio offset table) used to be handed
 // straight to `data.offset()` with no check against the table's actual
@@ -82,7 +82,7 @@ pub fn otfcc_read_vdmx(packet: &Packet, options: &Options) -> Option<Box<VdmxTab
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_vdmx(
     vdmx: Option<&VdmxTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let vdmx = match vdmx {
@@ -117,11 +117,7 @@ pub unsafe fn otfcc_dump_vdmx(
             _ratios.push_item(_rr);
         }
         _vdmx.push_field(b"ratios", _ratios);
-        json_object_push(
-            root,
-            b"VDMX\0" as *const u8 as *const ::core::ffi::c_char,
-            _vdmx.into_raw(),
-        );
+        root.push_field(b"VDMX", _vdmx);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

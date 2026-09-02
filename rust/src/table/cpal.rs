@@ -13,7 +13,7 @@ use crate::support::primitives::{ColorId, TableId};
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 #[derive(Copy, Clone)]
 pub struct CpalColor {
     pub red: u8,
@@ -226,7 +226,7 @@ unsafe fn dump_palette(palette: *const CpalPalette) -> BuiltValue {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_cpal(
     table: Option<&CpalTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -249,11 +249,7 @@ pub unsafe fn otfcc_dump_cpal(
             j = j.wrapping_add(1);
         }
         _t.push_field(b"palettes", _a);
-        json_object_push(
-            root,
-            b"CPAL\0" as *const u8 as *const ::core::ffi::c_char,
-            _t.into_raw(),
-        );
+        root.push_field(b"CPAL", _t);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

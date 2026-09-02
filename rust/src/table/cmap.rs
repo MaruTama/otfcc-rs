@@ -17,7 +17,7 @@ use crate::logger::{
 use crate::support::NULL;
 use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId, Unicode};
@@ -601,7 +601,7 @@ pub fn otfcc_read_cmap(packet: &Packet, options: &Options) -> Option<Box<CmapTab
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_cmap(
     table: Option<&CmapTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -626,11 +626,7 @@ pub unsafe fn otfcc_dump_cmap(
                     cmap.push_field_bytes_key(&key, BuiltValue::str_truncated_at_nul(&glyph.name));
                 }
             }
-            json_object_push(
-                root,
-                b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-                cmap.into_raw(),
-            );
+            root.push_field(b"cmap", cmap);
         }
         if !(*table).uvs.is_empty() {
             let mut uvs = BuiltValue::new_object((*table).uvs.len());
@@ -649,11 +645,7 @@ pub unsafe fn otfcc_dump_cmap(
                     uvs.push_field_bytes_key(&key_0, BuiltValue::str_truncated_at_nul(&glyph.name));
                 }
             }
-            json_object_push(
-                root,
-                b"cmap_uvs\0" as *const u8 as *const ::core::ffi::c_char,
-                uvs.into_raw(),
-            );
+            root.push_field(b"cmap_uvs", uvs);
         }
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

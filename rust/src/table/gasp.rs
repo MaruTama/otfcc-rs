@@ -4,7 +4,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -76,7 +76,7 @@ pub fn otfcc_read_gasp(packet: &Packet, options: &Options) -> Option<Box<GaspTab
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_gasp(
     table: Option<&GaspTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -111,11 +111,7 @@ pub unsafe fn otfcc_dump_gasp(
             t.push_item(rec);
             j = j.wrapping_add(1);
         }
-        json_object_push(
-            root,
-            b"gasp\0" as *const u8 as *const ::core::ffi::c_char,
-            t.into_raw(),
-        );
+        root.push_field(b"gasp", t);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

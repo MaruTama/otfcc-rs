@@ -6,7 +6,7 @@ use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::base64::base64_encode;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -104,7 +104,7 @@ fn can_use_plain_format(doc: &[u8]) -> bool {
             && doc[4_usize] as i32 == 'l' as i32;
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: *mut BuiltValue, options: &Options) {
+pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &Options) {
     let svg = match svg {
         Some(s) => s,
         None => return,
@@ -131,11 +131,7 @@ pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: *mut BuiltValue, opti
             }
             _svg.push_item(_a);
         }
-        json_object_push(
-            root,
-            b"SVG_\0" as *const u8 as *const ::core::ffi::c_char,
-            _svg.into_raw(),
-        );
+        root.push_field(b"SVG_", _svg);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

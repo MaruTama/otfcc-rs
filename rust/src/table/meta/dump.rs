@@ -3,7 +3,7 @@ use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::options::Options;
 
 use crate::support::base64::base64_encode;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::table::meta::types::{MetaEntry, MetaTable};
 #[inline]
 unsafe fn is_string_tag(tag: u32) -> bool {
@@ -12,7 +12,7 @@ unsafe fn is_string_tag(tag: u32) -> bool {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_meta(
     meta: Option<&MetaTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let meta = match meta {
@@ -48,11 +48,7 @@ pub unsafe fn otfcc_dump_meta(
             _entries.push_item(_e);
         }
         _meta.push_field(b"entries", _entries);
-        json_object_push(
-            root,
-            b"meta\0" as *const u8 as *const ::core::ffi::c_char,
-            _meta.into_raw(),
-        );
+        root.push_field(b"meta", _meta);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

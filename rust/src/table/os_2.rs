@@ -4,7 +4,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -419,7 +419,7 @@ pub static UNICODE_RANGE_LABELS4: [&::core::ffi::CStr; 27] = [
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_os_2(
     table: Option<&Os2Table>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -586,11 +586,7 @@ pub unsafe fn otfcc_dump_os_2(
             b"usUpperOpticalPointSize",
             BuiltValue::Int((*table).us_upper_optical_point_size as i64),
         );
-        json_object_push(
-            root,
-            b"OS_2\0" as *const u8 as *const ::core::ffi::c_char,
-            os_2.into_raw(),
-        );
+        root.push_field(b"OS_2", os_2);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

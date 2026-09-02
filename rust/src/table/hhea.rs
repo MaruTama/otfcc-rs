@@ -4,7 +4,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum_fallback};
@@ -75,7 +75,7 @@ pub fn otfcc_read_hhea(packet: &Packet, options: &Options) -> Option<Box<HheaTab
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_hhea(
     table: Option<&HheaTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -118,11 +118,7 @@ pub unsafe fn otfcc_dump_hhea(
             BuiltValue::Int((*table).caret_slope_run as i64),
         );
         hhea.push_field(b"caretOffset", BuiltValue::Int((*table).caret_offset as i64));
-        json_object_push(
-            root,
-            b"hhea\0" as *const u8 as *const ::core::ffi::c_char,
-            hhea.into_raw(),
-        );
+        root.push_field(b"hhea", hhea);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

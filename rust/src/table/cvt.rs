@@ -4,7 +4,7 @@ use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::base64::base64_decode;
 use crate::support::binio::read_16u;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -46,7 +46,7 @@ pub fn otfcc_read_cvt(packet: &Packet, tag: u32) -> Option<Box<CvtTable>> {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_cvt(
     table: Option<&CvtTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
     tag: *const ::core::ffi::c_char,
 ) {
@@ -64,7 +64,7 @@ pub unsafe fn otfcc_dump_cvt(
         for &w in &table.words {
             arr.push_item(BuiltValue::Int(w as i64));
         }
-        json_object_push(root, tag, arr.into_raw());
+        root.push_field(::core::ffi::CStr::from_ptr(tag).to_bytes(), arr);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

@@ -4,7 +4,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::{
@@ -108,7 +108,7 @@ static MAC_STYLE_LABELS: [&::core::ffi::CStr; 7] = [
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_head(
     table: Option<&HeadTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -161,11 +161,7 @@ pub unsafe fn otfcc_dump_head(
             b"glyphDataFormat",
             BuiltValue::Int((*table).glyph_data_format as i64),
         );
-        json_object_push(
-            root,
-            b"head\0" as *const u8 as *const ::core::ffi::c_char,
-            head.into_raw(),
-        );
+        root.push_field(b"head", head);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

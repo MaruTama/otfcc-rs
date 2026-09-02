@@ -5,7 +5,7 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::glyph_order::otfcc_set_glyph_order_by_gid;
@@ -439,7 +439,7 @@ pub fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<PostTab
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_post(
     table: Option<&PostTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -486,11 +486,7 @@ pub unsafe fn otfcc_dump_post(
             b"maxMemType1",
             BuiltValue::Int((*table).max_mem_type1 as i64),
         );
-        json_object_push(
-            root,
-            b"post\0" as *const u8 as *const ::core::ffi::c_char,
-            post.into_raw(),
-        );
+        root.push_field(b"post", post);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

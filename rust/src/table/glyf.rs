@@ -20,7 +20,7 @@ use crate::support::stdio::stderr;
 use crate::table::fvar::FvarTable;
 use crate::vendor::json::JsonType;
 
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::parsed_json::{
     ParsedValue, json_arr_at, json_arr_len, json_bool_val, json_boolof, json_dbl_val, json_int_val,
     json_obj_get, json_obj_get_type, json_obj_getbool, json_obj_getint, json_obj_getnum,
@@ -540,7 +540,7 @@ unsafe fn glyf_dump_glyph(g: *const Glyph, options: &Options, ctx: *const GlyfIO
     }
     glyph
 }
-pub unsafe fn otfcc_dump_glyphorder(table: *const GlyfTable, root: *mut BuiltValue) {
+pub unsafe fn otfcc_dump_glyphorder(table: *const GlyfTable, root: &mut BuiltValue) {
     if table.is_null() {
         return;
     }
@@ -551,16 +551,12 @@ pub unsafe fn otfcc_dump_glyphorder(table: *const GlyfTable, root: *mut BuiltVal
         order.push_item(BuiltValue::str_truncated_at_nul(&(*g).name));
         j = j.wrapping_add(1);
     }
-    json_object_push(
-        root,
-        b"glyph_order\0" as *const u8 as *const ::core::ffi::c_char,
-        order.preserialize().into_raw(),
-    );
+    root.push_field(b"glyph_order", order.preserialize());
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_glyf(
     table: Option<&GlyfTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
     ctx: *const GlyfIOContext,
 ) {
@@ -581,11 +577,7 @@ pub unsafe fn otfcc_dump_glyf(
             glyf.push_field_bytes_key(&(*g).name, glyf_dump_glyph(g, options, ctx));
             j = j.wrapping_add(1);
         }
-        json_object_push(
-            root,
-            b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-            glyf.into_raw(),
-        );
+        root.push_field(b"glyf", glyf);
         if !options.ignore_glyph_order {
             otfcc_dump_glyphorder(table, root);
         }

@@ -9,7 +9,7 @@ use crate::support::parsed_json::{ParsedValue, json_numof};
 use crate::support::primitives::Pos;
 
 use crate::font::caryll_sfnt::Packet;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::primitives::otfcc_from_fixed;
 use crate::vf::axis::{VfAxes, VfAxis};
 use crate::vf::region::{VqAxisSpan, VqRegion};
@@ -304,7 +304,7 @@ pub fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTab
 }
 pub unsafe fn otfcc_dump_fvar(
     table: Option<&FvarTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -360,11 +360,7 @@ pub unsafe fn otfcc_dump_fvar(
             );
         }
         t.push_field(b"masters", _masters);
-        json_object_push(
-            root,
-            b"fvar\0" as *const u8 as *const ::core::ffi::c_char,
-            t.into_raw(),
-        );
+        root.push_field(b"fvar", t);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

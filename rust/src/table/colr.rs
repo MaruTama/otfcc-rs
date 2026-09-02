@@ -21,7 +21,7 @@ use crate::support::primitives::{ColorId, GlyphId};
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 #[derive(Clone)]
 pub struct ColrLayer {
     pub glyph: GlyphHandle,
@@ -136,7 +136,7 @@ pub fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<ColrTable> 
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_colr(
     colr: Option<&ColrTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let colr = match colr {
@@ -164,11 +164,7 @@ pub unsafe fn otfcc_dump_colr(
             _map.push_field(b"to", _layers.preserialize());
             _colr.push_item(_map);
         }
-        json_object_push(
-            root,
-            b"COLR\0" as *const u8 as *const ::core::ffi::c_char,
-            _colr.into_raw(),
-        );
+        root.push_field(b"COLR", _colr);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

@@ -21,7 +21,7 @@ use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
 use crate::table::otl::coverage::build_coverage;
 #[derive(Copy, Clone)]
@@ -236,7 +236,7 @@ unsafe fn dump_gdef_lig_carets(gdef: *const GdefTable) -> BuiltValue {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_gdef(
     gdef: Option<&GdefTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let gdef = match gdef {
@@ -259,11 +259,7 @@ pub unsafe fn otfcc_dump_gdef(
         if !(*gdef).lig_carets.is_empty() {
             _gdef.push_field(b"ligCarets", dump_gdef_lig_carets(gdef));
         }
-        json_object_push(
-            root,
-            b"GDEF\0" as *const u8 as *const ::core::ffi::c_char,
-            _gdef.into_raw(),
-        );
+        root.push_field(b"GDEF", _gdef);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
