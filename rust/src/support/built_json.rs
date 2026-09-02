@@ -88,30 +88,140 @@ pub enum BuiltValue {
     Object(Vec<(Vec<u8>, BuiltValue)>),
 }
 
-// The constructor layer below mirrors `vendor::json_builder`'s API
-// name-for-name, targeting `*mut BuiltValue` instead of `*mut
-// vendor::json::JsonValue` -- the point, same as `parsed_json`'s own
-// accessor layer, is that a `table/*/dump.rs` file's call *expressions*
-// stay textually identical when it's switched over; only the `use` line
-// and the function's own signature change.
+// Stage 10: `BuiltValue`'s data has been fully safe from the start (it's a
+// plain enum over `Vec`/`Box`-owned variants) -- the unsafety was entirely
+// in a free-function shell (`json_array_new`/`json_object_push`/etc., kept
+// raw-pointer-shaped on purpose so `table/*/dump.rs` call sites could stay
+// textually identical to the old C `json_builder` idiom during the
+// mechanical c2rust port, the same reasoning `support/buffer.rs` used for
+// `Buffer`, Stage 9's target). This `impl` is the safe replacement API;
+// the free functions below are now thin wrappers over it, migrated one
+// batch of consumer files at a time (see the plan doc's Stage 10).
+impl BuiltValue {
+    /// Pre-sized array constructor; `capacity` is a capacity hint only
+    /// (`Vec::push` beyond it just reallocates).
+    pub fn new_array(capacity: usize) -> BuiltValue {
+        BuiltValue::Array(Vec::with_capacity(capacity))
+    }
+
+    /// Pre-sized object constructor; see [`new_array`](Self::new_array) on
+    /// the capacity hint.
+    pub fn new_object(capacity: usize) -> BuiltValue {
+        BuiltValue::Object(Vec::with_capacity(capacity))
+    }
+
+    /// Appends `value` to `self`, taking ownership of it. No-op (but still
+    /// drops `value`) if `self` isn't actually an array -- every real call
+    /// site only ever pushes into a value it got from
+    /// [`new_array`](Self::new_array) itself, so this never fires in
+    /// practice; kept lenient rather than panicking to match this layer's
+    /// long-standing read-accessor style.
+    pub fn push_item(&mut self, value: BuiltValue) {
+        if let BuiltValue::Array(items) = self {
+            items.push(value);
+        }
+    }
+
+    /// Pushes `(key, value)`, `key` copied verbatim (embedded NULs
+    /// included) -- matches the old `json_object_push`/
+    /// `json_object_push_length`'s raw `memcpy`. No-op (but still drops
+    /// `value`) if `self` isn't actually an object.
+    pub fn push_field(&mut self, key: &[u8], value: BuiltValue) {
+        if let BuiltValue::Object(fields) = self {
+            fields.push((key.to_vec(), value));
+        }
+    }
+
+    /// [`push_field`](Self::push_field), for a `Handle.name`-shaped `&[u8]`
+    /// key -- truncates at the first embedded NUL the same way `strlen`
+    /// would, matching `parsed_json`'s and the old `json_builder`'s own
+    /// `json_object_push_bytes_key`.
+    pub fn push_field_bytes_key(&mut self, key: &[u8], value: BuiltValue) {
+        let len = key.iter().position(|&b| b == 0).unwrap_or(key.len());
+        self.push_field(&key[..len], value);
+    }
+
+    /// Push `value` under a four-character OpenType tag, unpacked
+    /// big-endian from `tag`.
+    pub fn push_tag(&mut self, tag: u32, value: BuiltValue) {
+        let tag_bytes: [u8; 4] = [
+            ((tag & 0xff000000u32) >> 24) as u8,
+            ((tag & 0xff0000u32) >> 16) as u8,
+            ((tag & 0xff00u32) >> 8) as u8,
+            (tag & 0xffu32) as u8,
+        ];
+        self.push_field(&tag_bytes, value);
+    }
+
+    /// A string value, for a `Handle.name`-shaped `&[u8]` -- truncates at
+    /// the first embedded NUL the same way `strlen` would, matching the old
+    /// `json_string_new_from_bytes`.
+    pub fn str_truncated_at_nul(bytes: &[u8]) -> BuiltValue {
+        let len = bytes.iter().position(|&b| b == 0).unwrap_or(bytes.len());
+        BuiltValue::Str(bytes[..len].to_vec())
+    }
+
+    /// A coordinate, written as an integer when it is one so the JSON stays
+    /// readable -- matches the old `json_new_position` exactly. Uses
+    /// `f64::round` directly rather than an `extern "C" { fn round(...) }`
+    /// declaration: both round half away from zero identically, so there
+    /// is nothing left to import libm for.
+    pub fn position(z: crate::support::primitives::Pos) -> BuiltValue {
+        if z.round() == z {
+            BuiltValue::Int(z as i64)
+        } else {
+            BuiltValue::Double(z)
+        }
+    }
+
+    /// Serialize a bitfield as a JSON object of `label: true` pairs, one
+    /// per set bit -- matches the old `otfcc_dump_flags` exactly.
+    pub fn dump_flags(flags: c_int, labels: &[&::core::ffi::CStr]) -> BuiltValue {
+        let mut v = BuiltValue::new_object(0);
+        for (j, label) in labels.iter().enumerate() {
+            if flags & (1 as c_int) << j != 0 {
+                v.push_field(label.to_bytes(), BuiltValue::Bool(true));
+            }
+        }
+        v
+    }
+
+    /// Serializes `self` now (packed mode) and keeps the bytes, so the
+    /// writer can splice them in verbatim later instead of descending into
+    /// `self` a second time. Consumes `self` -- matches the old
+    /// `preserialize`'s contract exactly, minus the separate
+    /// `json_measure_ex`/`malloc`/`json_builder_free` steps that a
+    /// `Vec<u8>`-returning serializer makes unnecessary.
+    pub fn preserialize(self) -> BuiltValue {
+        let opts = JsonSerializeOpts {
+            mode: JSON_SERIALIZE_MODE_PACKED,
+            opts: 0,
+            indent_size: 0,
+        };
+        let bytes = json_serialize_ex(&self, opts);
+        BuiltValue::PreSerialized(bytes)
+    }
+}
+
+// The free-function API below is now a thin compatibility shell over the
+// `impl BuiltValue` above, kept so every not-yet-migrated call site (see
+// the plan doc's Stage 10 phase list) keeps compiling unchanged. Each
+// function is deleted once its last caller migrates to the safe method
+// directly.
 
 /// Pre-sized array constructor; `length` is a capacity hint only (unlike
 /// the old `json_array_new`, `Vec::push` beyond it just reallocates --
 /// there is no separate `additional_length_allocated` bookkeeping to get
 /// wrong).
 pub unsafe fn json_array_new(length: usize) -> *mut BuiltValue {
-    Box::into_raw(Box::new(BuiltValue::Array(Vec::with_capacity(length))))
+    Box::into_raw(Box::new(BuiltValue::new_array(length)))
 }
 
-/// Appends `value` to `array`, taking ownership of it. No-op (but still
-/// consumes `value`) if `array` isn't actually an array -- every real call
-/// site only ever passes a value it got from `json_array_new` itself, so
-/// this never fires in practice; kept lenient rather than panicking to
-/// match this layer's read-accessor style.
+/// Appends `value` to `array`, taking ownership of it.
 pub unsafe fn json_array_push(array: *mut BuiltValue, value: *mut BuiltValue) -> *mut BuiltValue {
     let v = *unsafe { Box::from_raw(value) };
-    if let Some(BuiltValue::Array(items)) = unsafe { array.as_mut() } {
-        items.push(v);
+    if let Some(a) = unsafe { array.as_mut() } {
+        a.push_item(v);
     }
     array
 }
@@ -119,7 +229,7 @@ pub unsafe fn json_array_push(array: *mut BuiltValue, value: *mut BuiltValue) ->
 /// Pre-sized object constructor; see [`json_array_new`] on the capacity
 /// hint.
 pub unsafe fn json_object_new(length: usize) -> *mut BuiltValue {
-    Box::into_raw(Box::new(BuiltValue::Object(Vec::with_capacity(length))))
+    Box::into_raw(Box::new(BuiltValue::new_object(length)))
 }
 
 /// Pushes `(name, value)`, `name` taken as a NUL-terminated C string.
@@ -141,11 +251,10 @@ pub unsafe fn json_object_push_length(
     name: *const c_char,
     value: *mut BuiltValue,
 ) -> *mut BuiltValue {
-    let key =
-        unsafe { ::core::slice::from_raw_parts(name as *const u8, name_length as usize) }.to_vec();
+    let key = unsafe { ::core::slice::from_raw_parts(name as *const u8, name_length as usize) };
     let v = *unsafe { Box::from_raw(value) };
-    if let Some(BuiltValue::Object(fields)) = unsafe { object.as_mut() } {
-        fields.push((key, v));
+    if let Some(o) = unsafe { object.as_mut() } {
+        o.push_field(key, v);
     }
     object
 }
@@ -160,11 +269,11 @@ pub(crate) unsafe fn json_object_push_bytes_key(
     name: &[u8],
     value: *mut BuiltValue,
 ) -> *mut BuiltValue {
-    let len = match name.iter().position(|&b| b == 0) {
-        Some(p) => p,
-        None => name.len(),
-    };
-    unsafe { json_object_push_length(object, len as c_uint, name.as_ptr() as *const c_char, value) }
+    let v = *unsafe { Box::from_raw(value) };
+    if let Some(o) = unsafe { object.as_mut() } {
+        o.push_field_bytes_key(name, v);
+    }
+    object
 }
 
 /// A NUL-terminated C string, copied verbatim (embedded NULs impossible
@@ -178,9 +287,8 @@ pub unsafe fn json_string_new(buf: *const c_char) -> *mut BuiltValue {
 /// `length` bytes verbatim (embedded NULs included), matching the old
 /// `json_string_new_length`'s raw `memcpy`.
 pub unsafe fn json_string_new_length(length: c_uint, buf: *const c_char) -> *mut BuiltValue {
-    let bytes =
-        unsafe { ::core::slice::from_raw_parts(buf as *const u8, length as usize) }.to_vec();
-    Box::into_raw(Box::new(BuiltValue::Str(bytes)))
+    let bytes = unsafe { ::core::slice::from_raw_parts(buf as *const u8, length as usize) };
+    Box::into_raw(Box::new(BuiltValue::Str(bytes.to_vec())))
 }
 
 /// [`json_string_new`], for a `Handle.name`-shaped `Vec<u8>` value --
@@ -188,11 +296,7 @@ pub unsafe fn json_string_new_length(length: c_uint, buf: *const c_char) -> *mut
 /// matching `parsed_json`'s and the old `json_builder`'s own
 /// `json_string_new_from_bytes`.
 pub(crate) unsafe fn json_string_new_from_bytes(buf: &[u8]) -> *mut BuiltValue {
-    let len = match buf.iter().position(|&b| b == 0) {
-        Some(p) => p,
-        None => buf.len(),
-    };
-    Box::into_raw(Box::new(BuiltValue::Str(buf[..len].to_vec())))
+    Box::into_raw(Box::new(BuiltValue::str_truncated_at_nul(buf)))
 }
 
 pub unsafe fn json_integer_new(integer: i64) -> *mut BuiltValue {
@@ -216,13 +320,7 @@ pub unsafe fn json_null_new() -> *mut BuiltValue {
 /// doc comment on why a plain slice reproduces the original's
 /// NUL-terminated-table walk).
 pub unsafe fn otfcc_dump_flags(flags: c_int, labels: &[&::core::ffi::CStr]) -> *mut BuiltValue {
-    let v = unsafe { json_object_new(0) };
-    for (j, label) in labels.iter().enumerate() {
-        if flags & (1 as c_int) << j != 0 {
-            unsafe { json_object_push(v, label.as_ptr(), json_boolean_new(1)) };
-        }
-    }
-    v
+    Box::into_raw(Box::new(BuiltValue::dump_flags(flags, labels)))
 }
 
 /// Push `b` under a four-character OpenType tag, unpacked big-endian from
@@ -232,26 +330,17 @@ pub unsafe fn json_object_push_tag(
     tag: u32,
     b: *mut BuiltValue,
 ) -> *mut BuiltValue {
-    let tags: [c_char; 4] = [
-        ((tag & 0xff000000u32) >> 24) as c_char,
-        ((tag & 0xff0000u32) >> 16) as c_char,
-        ((tag & 0xff00u32) >> 8) as c_char,
-        (tag & 0xffu32) as c_char,
-    ];
-    unsafe { json_object_push_length(a, 4, tags.as_ptr(), b) }
+    let v = *unsafe { Box::from_raw(b) };
+    if let Some(o) = unsafe { a.as_mut() } {
+        o.push_tag(tag, v);
+    }
+    a
 }
 
 /// A coordinate, written as an integer when it is one so the JSON stays
-/// readable -- matches `json_funcs::json_new_position` exactly. Uses
-/// `f64::round` directly rather than the old `extern "C" { fn round(...) }`
-/// declaration: both round half away from zero identically, so there is
-/// nothing left to import libm for.
+/// readable -- matches `json_funcs::json_new_position` exactly.
 pub unsafe fn json_new_position(z: crate::support::primitives::Pos) -> *mut BuiltValue {
-    if z.round() == z {
-        unsafe { json_integer_new(z as i64) }
-    } else {
-        unsafe { json_double_new(z) }
-    }
+    Box::into_raw(Box::new(BuiltValue::position(z)))
 }
 
 /// Serializes `x` now (packed mode) and keeps the bytes, so the writer can
@@ -262,13 +351,7 @@ pub unsafe fn json_new_position(z: crate::support::primitives::Pos) -> *mut Buil
 /// unnecessary.
 pub unsafe fn preserialize(x: *mut BuiltValue) -> *mut BuiltValue {
     let v = *unsafe { Box::from_raw(x) };
-    let opts = JsonSerializeOpts {
-        mode: JSON_SERIALIZE_MODE_PACKED,
-        opts: 0,
-        indent_size: 0,
-    };
-    let bytes = json_serialize_ex(&v, opts);
-    Box::into_raw(Box::new(BuiltValue::PreSerialized(bytes)))
+    Box::into_raw(Box::new(v.preserialize()))
 }
 
 const F_SPACES_AROUND_BRACKETS: c_int = 1 << 0;
@@ -604,6 +687,112 @@ mod tests {
                 }
                 _ => panic!("expected an object"),
             }
+        }
+    }
+
+    // The tests below exercise the safe `impl BuiltValue` API (Stage 10
+    // Phase 1) directly, with no `unsafe` at all -- unlike the tests
+    // above, which still go through the old free-function shell to keep
+    // covering it while consumer files migrate off it one batch at a time.
+
+    #[test]
+    fn safe_api_builds_and_serializes_an_object_with_no_unsafe() {
+        let mut obj = BuiltValue::new_object(2);
+        obj.push_field(b"a", BuiltValue::Int(1));
+        obj.push_field(b"b", BuiltValue::Bool(true));
+        let mut arr = BuiltValue::new_array(2);
+        arr.push_item(BuiltValue::Int(1));
+        arr.push_item(BuiltValue::Null);
+        obj.push_field(b"c", arr);
+        let opts = JsonSerializeOpts {
+            mode: JSON_SERIALIZE_MODE_PACKED,
+            opts: 0,
+            indent_size: 0,
+        };
+        assert_eq!(
+            json_serialize_ex(&obj, opts),
+            br#"{"a":1,"b":true,"c":[1,null]}"#
+        );
+    }
+
+    #[test]
+    fn safe_api_push_item_on_a_non_array_is_a_lenient_no_op() {
+        let mut not_an_array = BuiltValue::Int(0);
+        not_an_array.push_item(BuiltValue::Bool(true));
+        assert_eq!(not_an_array, BuiltValue::Int(0));
+    }
+
+    #[test]
+    fn safe_api_push_field_on_a_non_object_is_a_lenient_no_op() {
+        let mut not_an_object = BuiltValue::Null;
+        not_an_object.push_field(b"key", BuiltValue::Bool(true));
+        assert_eq!(not_an_object, BuiltValue::Null);
+    }
+
+    #[test]
+    fn safe_api_push_field_bytes_key_truncates_at_the_first_nul() {
+        let mut obj = BuiltValue::new_object(1);
+        obj.push_field_bytes_key(b"abc\0def", BuiltValue::Int(1));
+        assert_eq!(obj, BuiltValue::Object(vec![(b"abc".to_vec(), BuiltValue::Int(1))]));
+    }
+
+    #[test]
+    fn safe_api_push_tag_unpacks_big_endian() {
+        let mut obj = BuiltValue::new_object(1);
+        obj.push_tag(0x47535542u32, BuiltValue::Bool(true)); // "GSUB"
+        assert_eq!(
+            obj,
+            BuiltValue::Object(vec![(b"GSUB".to_vec(), BuiltValue::Bool(true))])
+        );
+    }
+
+    #[test]
+    fn safe_api_str_truncated_at_nul_matches_the_free_function() {
+        assert_eq!(
+            BuiltValue::str_truncated_at_nul(b"xy\0z"),
+            BuiltValue::Str(b"xy".to_vec())
+        );
+        assert_eq!(
+            BuiltValue::str_truncated_at_nul(b"no-nul"),
+            BuiltValue::Str(b"no-nul".to_vec())
+        );
+    }
+
+    #[test]
+    fn safe_api_position_picks_int_or_double() {
+        assert_eq!(BuiltValue::position(3.0), BuiltValue::Int(3));
+        assert_eq!(BuiltValue::position(-2.0), BuiltValue::Int(-2));
+        assert_eq!(BuiltValue::position(3.5), BuiltValue::Double(3.5));
+    }
+
+    #[test]
+    fn safe_api_dump_flags_emits_only_set_bits() {
+        let labels: &[&::core::ffi::CStr] = &[c"bold", c"italic", c"underline"];
+        // bit 0 (bold) and bit 2 (underline) set, bit 1 (italic) clear.
+        let v = BuiltValue::dump_flags(0b101, labels);
+        assert_eq!(
+            v,
+            BuiltValue::Object(vec![
+                (b"bold".to_vec(), BuiltValue::Bool(true)),
+                (b"underline".to_vec(), BuiltValue::Bool(true)),
+            ])
+        );
+    }
+
+    #[test]
+    fn safe_api_preserialize_matches_the_unsafe_free_function() {
+        let mut obj = BuiltValue::new_object(1);
+        obj.push_field(b"x", BuiltValue::Int(42));
+        let pre = obj.clone().preserialize();
+        let opts = JsonSerializeOpts {
+            mode: JSON_SERIALIZE_MODE_PACKED,
+            opts: 0,
+            indent_size: 0,
+        };
+        assert_eq!(json_serialize_ex(&pre, opts), json_serialize_ex(&obj, opts));
+        match pre {
+            BuiltValue::PreSerialized(bytes) => assert_eq!(bytes, br#"{"x":42}"#),
+            _ => panic!("expected PreSerialized"),
         }
     }
 }
