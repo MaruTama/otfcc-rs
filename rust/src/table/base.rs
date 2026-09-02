@@ -9,10 +9,7 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_numof, json_obj_get_type, json_obj_getstr_share, json_obj_key_at,
-    json_obj_len, json_obj_val_at, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::{Pos, TableId};
 use crate::vendor::json::JsonType;
 
@@ -301,28 +298,19 @@ pub unsafe fn otfcc_dump_base(
 /// Never a real FFI boundary -- internal call site only, same rationale
 /// as every other instance of this allow in the crate.
 #[allow(improper_ctypes_definitions)]
-unsafe fn base_script_from_json(mut _sr: *const ParsedValue) -> (u32, Vec<BaseValue>) {
-    let default_baseline_tag = str2tag(json_obj_getstr_share(
-        _sr,
-        b"defaultBaseline\0" as *const u8 as *const ::core::ffi::c_char,
-    ));
-    let _basevalues: *const ParsedValue = json_obj_get_type(
-        _sr,
-        b"baselines\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if _basevalues.is_null() {
+unsafe fn base_script_from_json(sr: *const ParsedValue) -> (u32, Vec<BaseValue>) {
+    let sr = unsafe { sr.as_ref() };
+    let default_baseline_tag = str2tag(sr.and_then(|v| v.get_bytes(b"defaultBaseline")));
+    let Some(basevalues) = sr.and_then(|v| v.get_typed(b"baselines", JsonType::Object)) else {
         return (default_baseline_tag, Vec::new());
-    }
-    let base_values_count = json_obj_len(_basevalues);
-    let mut base_values: Vec<BaseValue> = Vec::with_capacity(base_values_count as usize);
-    let mut j: TableId = 0 as TableId;
-    while (j as u32) < base_values_count {
+    };
+    let fields = basevalues.as_object().unwrap();
+    let mut base_values: Vec<BaseValue> = Vec::with_capacity(fields.len());
+    for (key, val) in fields {
         base_values.push(BaseValue {
-            tag: str2tag(json_obj_key_at(_basevalues, j as u32)),
-            coordinate: json_numof(json_obj_val_at(_basevalues, j as u32)) as Pos,
+            tag: str2tag(Some(&key[..key.len() - 1])),
+            coordinate: val.as_num().unwrap_or(0.0) as Pos,
         });
-        j = j.wrapping_add(1);
     }
     (default_baseline_tag, base_values)
 }
@@ -332,25 +320,22 @@ unsafe fn base_script_from_json(mut _sr: *const ParsedValue) -> (u32, Vec<BaseVa
 /// by tag -- stable, not `sort_unstable_by_key`, the same deliberately
 /// conservative choice made for `Coverage`/`ClassDef`/`gpos_pair.rs`
 /// since `qsort` itself gives no stability guarantee.
-unsafe fn axis_from_json(mut _axis: *const ParsedValue) -> Option<Box<BaseAxis>> {
-    if _axis.is_null() {
-        return None;
-    }
-    let script_count = json_obj_len(_axis);
-    let mut entries: Vec<BaseScriptEntry> = Vec::with_capacity(script_count as usize);
-    let mut j: TableId = 0 as TableId;
-    while (j as u32) < script_count {
-        let script_val = json_obj_val_at(_axis, j as u32);
-        if !script_val.is_null() && json_type_of(script_val) == JsonType::Object {
-            let tag = str2tag(json_obj_key_at(_axis, j as u32));
-            let (default_baseline_tag, base_values) = base_script_from_json(script_val);
-            entries.push(BaseScriptEntry {
-                tag,
-                default_baseline_tag,
-                base_values,
-            });
+unsafe fn axis_from_json(axis: *const ParsedValue) -> Option<Box<BaseAxis>> {
+    let axis = unsafe { axis.as_ref() }?;
+    let mut entries: Vec<BaseScriptEntry> = Vec::new();
+    if let Some(fields) = axis.as_object() {
+        for (key, val) in fields {
+            if val.as_object().is_some() {
+                let tag = str2tag(Some(&key[..key.len() - 1]));
+                let (default_baseline_tag, base_values) =
+                    base_script_from_json(val as *const ParsedValue);
+                entries.push(BaseScriptEntry {
+                    tag,
+                    default_baseline_tag,
+                    base_values,
+                });
+            }
         }
-        j = j.wrapping_add(1);
     }
     entries.sort_by_key(|e| e.tag);
     Some(Box::new(BaseAxis { entries }))
@@ -360,29 +345,24 @@ pub unsafe fn otfcc_parse_base(
     options: &Options,
 ) -> Option<Box<BaseTable>> {
     let mut base: Option<Box<BaseTable>> = None;
-    let table: *const ParsedValue;
-    table = json_obj_get_type(
-        root,
-        b"BASE\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if !table.is_null() {
+    let table = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"BASE", JsonType::Object));
+    if let Some(table) = table {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"BASE"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            let horizontal = axis_from_json(json_obj_get_type(
-                table,
-                b"horizontal\0" as *const u8 as *const ::core::ffi::c_char,
-                JsonType::Object,
-            ));
-            let vertical = axis_from_json(json_obj_get_type(
-                table,
-                b"vertical\0" as *const u8 as *const ::core::ffi::c_char,
-                JsonType::Object,
-            ));
+            let horizontal = axis_from_json(
+                table
+                    .get_typed(b"horizontal", JsonType::Object)
+                    .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+            );
+            let vertical = axis_from_json(
+                table
+                    .get_typed(b"vertical", JsonType::Object)
+                    .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+            );
             base = Some(Box::new(BaseTable {
                 horizontal,
                 vertical,
@@ -546,23 +526,21 @@ pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> Option<Buffer> {
     Some(bk_build_block(root))
 }
 #[inline]
-unsafe fn str2tag(mut tags: *const ::core::ffi::c_char) -> u32 {
-    if tags.is_null() {
+fn str2tag(tags: Option<&[u8]>) -> u32 {
+    let Some(tags) = tags else {
         return 0_u32;
-    }
+    };
     let mut tag: u32 = 0_u32;
     let mut len: u8 = 0_u8;
-    while *tags as i32 != 0 && (len as i32) < 4_i32
-    {
-        tag = tag << 8_i32 | *tags as u32;
-        tags = tags.offset(1);
+    for &b in tags.iter().take(4) {
+        tag = tag << 8_i32 | b as u32;
         len = len.wrapping_add(1);
     }
     while (len as i32) < 4_i32 {
         tag = tag << 8_i32 | ' ' as i32 as u32;
         len = len.wrapping_add(1);
     }
-    return tag;
+    tag
 }
 
 #[cfg(test)]

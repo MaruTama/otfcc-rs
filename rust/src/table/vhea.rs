@@ -7,9 +7,7 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_obj_get_type, json_obj_getnum, json_obj_getnum_fallback,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json::JsonType;
@@ -148,13 +146,8 @@ pub unsafe fn otfcc_parse_vhea(
 ) -> Option<Box<VheaTable>> {
     let mut vhea_box: Option<Box<VheaTable>> = None;
     let vhea: *mut VheaTable;
-    let table: *const ParsedValue;
-    table = json_obj_get_type(
-        root,
-        b"vhea\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if !table.is_null() {
+    let table = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"vhea", JsonType::Object));
+    if let Some(table) = table {
         vhea_box = Some(Box::new(::core::mem::zeroed()));
         vhea = vhea_box.as_deref_mut().unwrap() as *mut VheaTable;
         logger_start_sds(
@@ -163,60 +156,17 @@ pub unsafe fn otfcc_parse_vhea(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            (*vhea).version = otfcc_to_fixed(json_obj_getnum(
-                table,
-                b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            ));
-            (*vhea).ascent = json_obj_getnum_fallback(
-                table,
-                b"ascent\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*vhea).descent = json_obj_getnum_fallback(
-                table,
-                b"descent\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*vhea).line_gap = json_obj_getnum_fallback(
-                table,
-                b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*vhea).advance_height_max = json_obj_getnum_fallback(
-                table,
-                b"advanceHeightMax\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*vhea).min_top = json_obj_getnum_fallback(
-                table,
-                b"minTop\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*vhea).min_bottom = json_obj_getnum_fallback(
-                table,
-                b"minBottom\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*vhea).y_max_extent = json_obj_getnum_fallback(
-                table,
-                b"yMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*vhea).caret_slope_rise = json_obj_getnum_fallback(
-                table,
-                b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*vhea).caret_slope_run = json_obj_getnum_fallback(
-                table,
-                b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*vhea).caret_offset = json_obj_getnum_fallback(
-                table,
-                b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
+            (*vhea).version = otfcc_to_fixed(table.get_num(b"version"));
+            (*vhea).ascent = table.get_num(b"ascent") as i16;
+            (*vhea).descent = table.get_num(b"descent") as i16;
+            (*vhea).line_gap = table.get_num(b"lineGap") as i16;
+            (*vhea).advance_height_max = table.get_num(b"advanceHeightMax") as i16;
+            (*vhea).min_top = table.get_num(b"minTop") as i16;
+            (*vhea).min_bottom = table.get_num(b"minBottom") as i16;
+            (*vhea).y_max_extent = table.get_num(b"yMaxExtent") as i16;
+            (*vhea).caret_slope_rise = table.get_num(b"caretSlopeRise") as i16;
+            (*vhea).caret_slope_run = table.get_num(b"caretSlopeRun") as i16;
+            (*vhea).caret_offset = table.get_num(b"caretOffset") as i16;
             ___loggedstep_v = false;
             logger_finish(&mut *options.logger.borrow_mut());
         }

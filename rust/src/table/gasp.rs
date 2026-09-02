@@ -7,10 +7,7 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getbool,
-    json_obj_getint_fallback, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::GlyphSize;
 use crate::vendor::json::JsonType;
 
@@ -121,13 +118,8 @@ pub unsafe fn otfcc_parse_gasp(
     options: &Options,
 ) -> Option<Box<GaspTable>> {
     let mut gasp: Option<Box<GaspTable>> = None;
-    let table: *const ParsedValue;
-    table = json_obj_get_type(
-        root,
-        b"gasp\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Array,
-    );
-    if !table.is_null() {
+    let table = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"gasp", JsonType::Array));
+    if let Some(table) = table {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"gasp"),
@@ -138,39 +130,19 @@ pub unsafe fn otfcc_parse_gasp(
                 version: 1,
                 records: Vec::new(),
             }));
-            let mut j: u16 = 0_u16;
-            while (j as ::core::ffi::c_uint) < json_arr_len(table) {
-                let r: *const ParsedValue = json_arr_at(table, j as u32);
-                if !(r.is_null() || json_type_of(r) != JsonType::Object) {
-                    let mut record: GaspRecord = GaspRecord {
-                        range_max_ppem: 0,
-                        dogray: false,
-                        gridfit: false,
-                        symmetric_smoothing: false,
-                        symmetric_gridfit: false,
-                    };
-                    record.range_max_ppem = json_obj_getint_fallback(
-                        r,
-                        b"rangeMaxPPEM\0" as *const u8 as *const ::core::ffi::c_char,
-                        0xffff_i32,
-                    ) as GlyphSize;
-                    record.dogray =
-                        json_obj_getbool(r, b"dogray\0" as *const u8 as *const ::core::ffi::c_char);
-                    record.gridfit = json_obj_getbool(
-                        r,
-                        b"gridfit\0" as *const u8 as *const ::core::ffi::c_char,
-                    );
-                    record.symmetric_smoothing = json_obj_getbool(
-                        r,
-                        b"symmetric_smoothing\0" as *const u8 as *const ::core::ffi::c_char,
-                    );
-                    record.symmetric_gridfit = json_obj_getbool(
-                        r,
-                        b"symmetric_gridfit\0" as *const u8 as *const ::core::ffi::c_char,
-                    );
-                    gasp.as_mut().unwrap().records.push(record);
+            if let Some(items) = table.as_array() {
+                for r in items {
+                    if r.as_object().is_some() {
+                        let record = GaspRecord {
+                            range_max_ppem: r.get_int_or(b"rangeMaxPPEM", 0xffff_i32) as GlyphSize,
+                            dogray: r.get_bool(b"dogray"),
+                            gridfit: r.get_bool(b"gridfit"),
+                            symmetric_smoothing: r.get_bool(b"symmetric_smoothing"),
+                            symmetric_gridfit: r.get_bool(b"symmetric_gridfit"),
+                        };
+                        gasp.as_mut().unwrap().records.push(record);
+                    }
                 }
-                j = j.wrapping_add(1);
             }
             ___loggedstep_v = false;
             logger_finish(&mut *options.logger.borrow_mut());

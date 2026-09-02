@@ -2,17 +2,13 @@
 use crate::support::handle::{
     GlyphHandle, handle_from_index, handle_from_name, otfcc_handle_dispose,
 };
-use crate::support::parsed_json::{
-    ParsedValue, json_dbl_val, json_int_val, json_obj_key_bytes_at, json_obj_len, json_obj_val_at,
-    json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::Coverage;
 
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::{GlyphClass, GlyphId};
-use crate::vendor::json::JsonType;
 /// `glyphs`/`classes` were a hand-rolled `malloc`/`realloc` pair of parallel
 /// arrays (grown, pushed to, and truncated only ever together -- confirmed
 /// by survey before this conversion), now `Vec<GlyphHandle>`/
@@ -178,26 +174,24 @@ pub(crate) unsafe fn dump_class_def(cd: *const ClassDef) -> BuiltValue {
     }
     a.preserialize()
 }
-pub(crate) unsafe fn parse_class_def(mut _cd: *const ParsedValue) -> *mut ClassDef {
-    if _cd.is_null() || json_type_of(_cd) != JsonType::Object {
+pub(crate) unsafe fn parse_class_def(cd: *const ParsedValue) -> *mut ClassDef {
+    let fields = unsafe { cd.as_ref() }.and_then(ParsedValue::as_object);
+    let Some(fields) = fields else {
         return ::core::ptr::null_mut::<ClassDef>();
-    }
+    };
     let cd: *mut ClassDef = otl_class_def_create();
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < json_obj_len(_cd) {
-        let h: GlyphHandle =
-            handle_from_name(Some(json_obj_key_bytes_at(_cd, j as u32))) as GlyphHandle;
-        let mut _cid: *const ParsedValue = json_obj_val_at(_cd, j as u32);
-        let mut cls: GlyphClass = 0 as GlyphClass;
-        if json_type_of(_cid) == JsonType::Integer {
-            cls = json_int_val(_cid) as GlyphClass;
-        } else if json_type_of(_cid) == JsonType::Double {
-            cls = json_dbl_val(_cid) as GlyphClass;
-        }
-        push_class_def(cd, h as GlyphHandle, cls);
-        j = j.wrapping_add(1);
+    for (key, val) in fields {
+        let h: GlyphHandle = handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle;
+        let cls: GlyphClass = if let Some(i) = val.as_int() {
+            i as GlyphClass
+        } else if let Some(d) = val.as_double() {
+            d as GlyphClass
+        } else {
+            0 as GlyphClass
+        };
+        push_class_def(cd, h, cls);
     }
-    return cd;
+    cd
 }
 pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> Buffer {
     let mut buf = Buffer::new();

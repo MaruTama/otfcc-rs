@@ -9,13 +9,9 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_obj_getsds,
-    json_obj_getstr_share, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::GlyphId;
 use crate::vendor::json::JsonType;
-use libc::strcmp;
 
 pub struct SvgAssignment {
     pub start: GlyphId,
@@ -138,15 +134,7 @@ pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, opti
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_svg(root: *const ParsedValue, options: &Options) -> Option<SvgTable> {
-    let mut _svg: *const ParsedValue = ::core::ptr::null();
-    _svg = json_obj_get_type(
-        root,
-        b"SVG_\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Array,
-    );
-    if _svg.is_null() {
-        return None;
-    }
+    let svg_val = unsafe { root.as_ref() }.and_then(|r| r.get_typed(b"SVG_", JsonType::Array))?;
     let mut svg: SvgTable = Vec::new();
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
@@ -154,32 +142,16 @@ pub unsafe fn otfcc_parse_svg(root: *const ParsedValue, options: &Options) -> Op
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut j: GlyphId = 0 as GlyphId;
-        while (j as ::core::ffi::c_uint) < json_arr_len(_svg) {
-            let mut _a: *const ParsedValue = json_arr_at(_svg, j as u32);
-            if !(_a.is_null() || json_type_of(_a) != JsonType::Object) {
-                let format: *const ::core::ffi::c_char = json_obj_getstr_share(
-                    _a,
-                    b"format\0" as *const u8 as *const ::core::ffi::c_char,
-                );
-                let doc: Option<Vec<u8>> =
-                    json_obj_getsds(_a, b"document\0" as *const u8 as *const ::core::ffi::c_char);
-                if !format.is_null() {
-                    if let Some(doc) = doc {
+        if let Some(items) = svg_val.as_array() {
+            for a in items {
+                if a.as_object().is_some() {
+                    let format = a.get_bytes(b"format");
+                    let doc = a.get_bytes_owned(b"document");
+                    if let (Some(format), Some(doc)) = (format, doc) {
                         let mut asg: SvgAssignment = svg_assignment_empty();
-                        asg.start = json_obj_getint(
-                            _a,
-                            b"start\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) as GlyphId;
-                        asg.end = json_obj_getint(
-                            _a,
-                            b"end\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) as GlyphId;
-                        if strcmp(
-                            format,
-                            b"plain\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) == 0_i32
-                        {
+                        asg.start = a.get_int(b"start") as GlyphId;
+                        asg.end = a.get_int(b"end") as GlyphId;
+                        if format == b"plain" {
                             asg.document = doc;
                         } else {
                             asg.document = base64_encode(&doc);
@@ -188,7 +160,6 @@ pub unsafe fn otfcc_parse_svg(root: *const ParsedValue, options: &Options) -> Op
                     }
                 }
             }
-            j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
