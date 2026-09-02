@@ -468,9 +468,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         if !font.is_null() {
             otfcc_font_free(font);
         }
-        if !root.is_null() {
-            drop(Box::from_raw(root));
-        }
+        drop(BuiltValue::from_raw(root));
         // `inPath`/`outputPath` are `CString`/`Option<CString>` now --
         // both drop on their own at the end of this function's scope, no
         // explicit free needed.

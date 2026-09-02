@@ -57,7 +57,7 @@
 //!   is still ported in full below (it was cheap and already written), so
 //!   nothing was lost by not narrowing further here.
 
-use ::core::ffi::{c_char, c_int, c_uint};
+use ::core::ffi::{c_char, c_int};
 
 use crate::vendor::emyg_dtoa::emyg_dtoa;
 pub use crate::vendor::json_builder::{
@@ -88,15 +88,19 @@ pub enum BuiltValue {
     Object(Vec<(Vec<u8>, BuiltValue)>),
 }
 
-// Stage 10: `BuiltValue`'s data has been fully safe from the start (it's a
-// plain enum over `Vec`/`Box`-owned variants) -- the unsafety was entirely
-// in a free-function shell (`json_array_new`/`json_object_push`/etc., kept
-// raw-pointer-shaped on purpose so `table/*/dump.rs` call sites could stay
-// textually identical to the old C `json_builder` idiom during the
-// mechanical c2rust port, the same reasoning `support/buffer.rs` used for
-// `Buffer`, Stage 9's target). This `impl` is the safe replacement API;
-// the free functions below are now thin wrappers over it, migrated one
-// batch of consumer files at a time (see the plan doc's Stage 10).
+// Stage 10 (complete): `BuiltValue`'s data has been fully safe from the
+// start (it's a plain enum over `Vec`/`Box`-owned variants) -- the
+// unsafety was entirely in a free-function shell (`json_array_new`/
+// `json_object_push`/etc., kept raw-pointer-shaped on purpose so
+// `table/*/dump.rs` call sites could stay textually identical to the old C
+// `json_builder` idiom during the mechanical c2rust port, the same
+// reasoning `support/buffer.rs` used for `Buffer`, Stage 9's target). This
+// `impl` is the safe replacement API; every consumer across the crate now
+// calls it directly, so the free-function shell itself has been deleted
+// (see the plan doc's Stage 10 Phase 12). `into_raw`/`from_raw` below
+// remain as the one legitimate bridge across the `FontSerializer`
+// type-erasure boundary (`json_writer.rs`/`bin/otfccdump.rs`), matching
+// `Buffer::into_raw`/`Buffer::from_raw`'s equivalent role after Stage 9.
 impl BuiltValue {
     /// Pre-sized array constructor; `capacity` is a capacity hint only
     /// (`Vec::push` beyond it just reallocates).
@@ -202,9 +206,11 @@ impl BuiltValue {
         BuiltValue::PreSerialized(bytes)
     }
 
-    // The pair below is the bridge into not-yet-migrated call sites still
-    // using the free-function API below, mirroring `Buffer::into_raw`/
-    // `Buffer::from_raw`'s role during Stage 9. Not for use anywhere else.
+    // The pair below is the bridge across the `FontSerializer` type-erasure
+    // boundary (`json_writer.rs`'s single `.into_raw()` at the very end of
+    // `serialize`; `bin/otfccdump.rs`'s matching `from_raw` on the way
+    // back), mirroring `Buffer::into_raw`/`Buffer::from_raw`'s role after
+    // Stage 9. Not for use anywhere else.
     pub fn into_raw(self) -> *mut BuiltValue {
         Box::into_raw(Box::new(self))
     }
@@ -218,132 +224,6 @@ impl BuiltValue {
             Some(*unsafe { Box::from_raw(ptr) })
         }
     }
-}
-
-// The free-function API below is now a thin compatibility shell over the
-// `impl BuiltValue` above, kept so every not-yet-migrated call site (see
-// the plan doc's Stage 10 phase list) keeps compiling unchanged. Each
-// function is deleted once its last caller migrates to the safe method
-// directly.
-
-/// Pre-sized array constructor; `length` is a capacity hint only (unlike
-/// the old `json_array_new`, `Vec::push` beyond it just reallocates --
-/// there is no separate `additional_length_allocated` bookkeeping to get
-/// wrong).
-pub unsafe fn json_array_new(length: usize) -> *mut BuiltValue {
-    Box::into_raw(Box::new(BuiltValue::new_array(length)))
-}
-
-/// Appends `value` to `array`, taking ownership of it.
-pub unsafe fn json_array_push(array: *mut BuiltValue, value: *mut BuiltValue) -> *mut BuiltValue {
-    let v = *unsafe { Box::from_raw(value) };
-    if let Some(a) = unsafe { array.as_mut() } {
-        a.push_item(v);
-    }
-    array
-}
-
-/// Pre-sized object constructor; see [`json_array_new`] on the capacity
-/// hint.
-pub unsafe fn json_object_new(length: usize) -> *mut BuiltValue {
-    Box::into_raw(Box::new(BuiltValue::new_object(length)))
-}
-
-/// Pushes `(name, value)`, `name` taken as a NUL-terminated C string.
-pub unsafe fn json_object_push(
-    object: *mut BuiltValue,
-    name: *const c_char,
-    value: *mut BuiltValue,
-) -> *mut BuiltValue {
-    let name_length = unsafe { ::libc::strlen(name) } as c_uint;
-    unsafe { json_object_push_length(object, name_length, name, value) }
-}
-
-/// [`json_object_push`], but with an explicit byte length instead of
-/// `strlen` -- copies exactly `name_length` bytes verbatim (embedded NULs
-/// included), matching the old `json_object_push_length`'s raw `memcpy`.
-pub unsafe fn json_object_push_length(
-    object: *mut BuiltValue,
-    name_length: c_uint,
-    name: *const c_char,
-    value: *mut BuiltValue,
-) -> *mut BuiltValue {
-    let key = unsafe { ::core::slice::from_raw_parts(name as *const u8, name_length as usize) };
-    let v = *unsafe { Box::from_raw(value) };
-    if let Some(o) = unsafe { object.as_mut() } {
-        o.push_field(key, v);
-    }
-    object
-}
-
-/// A NUL-terminated C string, copied verbatim (embedded NULs impossible
-/// here since `strlen` finds the length).
-pub unsafe fn json_string_new(buf: *const c_char) -> *mut BuiltValue {
-    let length = unsafe { ::libc::strlen(buf) } as c_uint;
-    unsafe { json_string_new_length(length, buf) }
-}
-
-/// [`json_string_new`], with an explicit byte length -- copies exactly
-/// `length` bytes verbatim (embedded NULs included), matching the old
-/// `json_string_new_length`'s raw `memcpy`.
-pub unsafe fn json_string_new_length(length: c_uint, buf: *const c_char) -> *mut BuiltValue {
-    let bytes = unsafe { ::core::slice::from_raw_parts(buf as *const u8, length as usize) };
-    Box::into_raw(Box::new(BuiltValue::Str(bytes.to_vec())))
-}
-
-pub unsafe fn json_integer_new(integer: i64) -> *mut BuiltValue {
-    Box::into_raw(Box::new(BuiltValue::Int(integer)))
-}
-
-pub unsafe fn json_double_new(dbl: f64) -> *mut BuiltValue {
-    Box::into_raw(Box::new(BuiltValue::Double(dbl)))
-}
-
-pub unsafe fn json_boolean_new(b: c_int) -> *mut BuiltValue {
-    Box::into_raw(Box::new(BuiltValue::Bool(b != 0)))
-}
-
-pub unsafe fn json_null_new() -> *mut BuiltValue {
-    Box::into_raw(Box::new(BuiltValue::Null))
-}
-
-/// Serialize a bitfield as a JSON object of `label: true` pairs, one per
-/// set bit -- matches `json_funcs::otfcc_dump_flags` exactly (see its own
-/// doc comment on why a plain slice reproduces the original's
-/// NUL-terminated-table walk).
-pub unsafe fn otfcc_dump_flags(flags: c_int, labels: &[&::core::ffi::CStr]) -> *mut BuiltValue {
-    Box::into_raw(Box::new(BuiltValue::dump_flags(flags, labels)))
-}
-
-/// Push `b` under a four-character OpenType tag, unpacked big-endian from
-/// `tag` -- matches `json_funcs::json_object_push_tag` exactly.
-pub unsafe fn json_object_push_tag(
-    a: *mut BuiltValue,
-    tag: u32,
-    b: *mut BuiltValue,
-) -> *mut BuiltValue {
-    let v = *unsafe { Box::from_raw(b) };
-    if let Some(o) = unsafe { a.as_mut() } {
-        o.push_tag(tag, v);
-    }
-    a
-}
-
-/// A coordinate, written as an integer when it is one so the JSON stays
-/// readable -- matches `json_funcs::json_new_position` exactly.
-pub unsafe fn json_new_position(z: crate::support::primitives::Pos) -> *mut BuiltValue {
-    Box::into_raw(Box::new(BuiltValue::position(z)))
-}
-
-/// Serializes `x` now (packed mode) and keeps the bytes, so the writer can
-/// splice them in verbatim later instead of descending into `x` a second
-/// time. Consumes `x` -- matches `json_funcs::preserialize`'s contract
-/// exactly, minus the separate `json_measure_ex`/`malloc`/
-/// `json_builder_free` steps that a `Vec<u8>`-returning serializer makes
-/// unnecessary.
-pub unsafe fn preserialize(x: *mut BuiltValue) -> *mut BuiltValue {
-    let v = *unsafe { Box::from_raw(x) };
-    Box::into_raw(Box::new(v.preserialize()))
 }
 
 const F_SPACES_AROUND_BRACKETS: c_int = 1 << 0;
@@ -519,60 +399,47 @@ mod tests {
     /// against `vendor::json_builder` (object containing an array,
     /// strings needing every escape case, positive/negative/zero
     /// integers, a double, both booleans, null, and a nested empty
-    /// array/object), built solely through this module's own constructor
-    /// API.
-    unsafe fn build_sample_tree() -> BuiltValue {
-        unsafe {
-            let new_root = json_object_new(8);
+    /// array/object), built solely through this module's own safe
+    /// constructor API.
+    fn build_sample_tree() -> BuiltValue {
+        let mut root = BuiltValue::new_object(8);
 
-            json_object_push(
-                new_root,
-                c"name".as_ptr(),
-                json_string_new(c"quote\" back\\slash\ttab".as_ptr()),
-            );
+        root.push_field(b"name", BuiltValue::Str(b"quote\" back\\slash\ttab".to_vec()));
 
-            let control_bytes: &[u8] = &[0, 8, 11, 12, 10, 13, b'a', 0xff];
-            json_object_push(
-                new_root,
-                c"controls".as_ptr(),
-                json_string_new_length(
-                    control_bytes.len() as c_uint,
-                    control_bytes.as_ptr() as *const c_char,
-                ),
-            );
+        let control_bytes: &[u8] = &[0, 8, 11, 12, 10, 13, b'a', 0xff];
+        root.push_field(b"controls", BuiltValue::Str(control_bytes.to_vec()));
 
-            let new_arr = json_array_new(5);
-            // `i64::MIN` is deliberately excluded, matching what the
-            // former differential test against the old builder also had
-            // to exclude: this module's own `write_value` uses
-            // `i64::to_string()` and handles it correctly, but is kept out
-            // of this fixture for continuity with that history rather than
-            // for any correctness reason of its own.
-            for n in [0i64, 1, -1, 12345, i64::MIN + 1, i64::MAX] {
-                json_array_push(new_arr, json_integer_new(n));
-            }
-            json_object_push(new_root, c"ints".as_ptr(), new_arr);
-
-            for (dbl, key) in [
-                (0.0f64, c"zero"),
-                (-0.0f64, c"negzero"),
-                (3.5f64, c"frac"),
-                (-123.456f64, c"negfrac"),
-                (1.0e20f64, c"big"),
-                (1.0e-20f64, c"small"),
-            ] {
-                json_object_push(new_root, key.as_ptr(), json_double_new(dbl));
-            }
-
-            json_object_push(new_root, c"true".as_ptr(), json_boolean_new(1));
-            json_object_push(new_root, c"false".as_ptr(), json_boolean_new(0));
-            json_object_push(new_root, c"null".as_ptr(), json_null_new());
-
-            json_object_push(new_root, c"emptyarr".as_ptr(), json_array_new(0));
-            json_object_push(new_root, c"emptyobj".as_ptr(), json_object_new(0));
-
-            *Box::from_raw(new_root)
+        let mut arr = BuiltValue::new_array(5);
+        // `i64::MIN` is deliberately excluded, matching what the
+        // former differential test against the old builder also had
+        // to exclude: this module's own `write_value` uses
+        // `i64::to_string()` and handles it correctly, but is kept out
+        // of this fixture for continuity with that history rather than
+        // for any correctness reason of its own.
+        for n in [0i64, 1, -1, 12345, i64::MIN + 1, i64::MAX] {
+            arr.push_item(BuiltValue::Int(n));
         }
+        root.push_field(b"ints", arr);
+
+        for (dbl, key) in [
+            (0.0f64, "zero"),
+            (-0.0f64, "negzero"),
+            (3.5f64, "frac"),
+            (-123.456f64, "negfrac"),
+            (1.0e20f64, "big"),
+            (1.0e-20f64, "small"),
+        ] {
+            root.push_field(key.as_bytes(), BuiltValue::Double(dbl));
+        }
+
+        root.push_field(b"true", BuiltValue::Bool(true));
+        root.push_field(b"false", BuiltValue::Bool(false));
+        root.push_field(b"null", BuiltValue::Null);
+
+        root.push_field(b"emptyarr", BuiltValue::new_array(0));
+        root.push_field(b"emptyobj", BuiltValue::new_object(0));
+
+        root
     }
 
     /// Fixed-fixture regression coverage for `json_serialize_ex`'s exact
@@ -597,16 +464,14 @@ mod tests {
         ignore = "libc memmove in vendor/emyg_dtoa.rs unsupported under Miri"
     )]
     fn packed_matches_the_known_good_fixture() {
-        unsafe {
-            let tree = build_sample_tree();
-            let opts = JsonSerializeOpts {
-                mode: JSON_SERIALIZE_MODE_PACKED,
-                opts: 0,
-                indent_size: 0,
-            };
-            let expected: &[u8] = b"\x7b\x22\x6e\x61\x6d\x65\x22\x3a\x22\x71\x75\x6f\x74\x65\x5c\x22\x20\x62\x61\x63\x6b\x5c\x5c\x73\x6c\x61\x73\x68\x5c\x74\x74\x61\x62\x22\x2c\x22\x63\x6f\x6e\x74\x72\x6f\x6c\x73\x22\x3a\x22\x5c\x75\x30\x30\x30\x30\x5c\x62\x5c\x75\x30\x30\x30\x62\x5c\x66\x5c\x6e\x5c\x72\x61\xff\x22\x2c\x22\x69\x6e\x74\x73\x22\x3a\x5b\x30\x2c\x31\x2c\x2d\x31\x2c\x31\x32\x33\x34\x35\x2c\x2d\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x2c\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x5d\x2c\x22\x7a\x65\x72\x6f\x22\x3a\x30\x2e\x30\x2c\x22\x6e\x65\x67\x7a\x65\x72\x6f\x22\x3a\x30\x2e\x30\x2c\x22\x66\x72\x61\x63\x22\x3a\x33\x2e\x35\x2c\x22\x6e\x65\x67\x66\x72\x61\x63\x22\x3a\x2d\x31\x32\x33\x2e\x34\x35\x36\x2c\x22\x62\x69\x67\x22\x3a\x31\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x2e\x30\x2c\x22\x73\x6d\x61\x6c\x6c\x22\x3a\x31\x65\x2d\x32\x30\x2c\x22\x74\x72\x75\x65\x22\x3a\x74\x72\x75\x65\x2c\x22\x66\x61\x6c\x73\x65\x22\x3a\x66\x61\x6c\x73\x65\x2c\x22\x6e\x75\x6c\x6c\x22\x3a\x6e\x75\x6c\x6c\x2c\x22\x65\x6d\x70\x74\x79\x61\x72\x72\x22\x3a\x5b\x5d\x2c\x22\x65\x6d\x70\x74\x79\x6f\x62\x6a\x22\x3a\x7b\x7d\x7d";
-            assert_eq!(json_serialize_ex(&tree, opts), expected);
-        }
+        let tree = build_sample_tree();
+        let opts = JsonSerializeOpts {
+            mode: JSON_SERIALIZE_MODE_PACKED,
+            opts: 0,
+            indent_size: 0,
+        };
+        let expected: &[u8] = b"\x7b\x22\x6e\x61\x6d\x65\x22\x3a\x22\x71\x75\x6f\x74\x65\x5c\x22\x20\x62\x61\x63\x6b\x5c\x5c\x73\x6c\x61\x73\x68\x5c\x74\x74\x61\x62\x22\x2c\x22\x63\x6f\x6e\x74\x72\x6f\x6c\x73\x22\x3a\x22\x5c\x75\x30\x30\x30\x30\x5c\x62\x5c\x75\x30\x30\x30\x62\x5c\x66\x5c\x6e\x5c\x72\x61\xff\x22\x2c\x22\x69\x6e\x74\x73\x22\x3a\x5b\x30\x2c\x31\x2c\x2d\x31\x2c\x31\x32\x33\x34\x35\x2c\x2d\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x2c\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x5d\x2c\x22\x7a\x65\x72\x6f\x22\x3a\x30\x2e\x30\x2c\x22\x6e\x65\x67\x7a\x65\x72\x6f\x22\x3a\x30\x2e\x30\x2c\x22\x66\x72\x61\x63\x22\x3a\x33\x2e\x35\x2c\x22\x6e\x65\x67\x66\x72\x61\x63\x22\x3a\x2d\x31\x32\x33\x2e\x34\x35\x36\x2c\x22\x62\x69\x67\x22\x3a\x31\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x2e\x30\x2c\x22\x73\x6d\x61\x6c\x6c\x22\x3a\x31\x65\x2d\x32\x30\x2c\x22\x74\x72\x75\x65\x22\x3a\x74\x72\x75\x65\x2c\x22\x66\x61\x6c\x73\x65\x22\x3a\x66\x61\x6c\x73\x65\x2c\x22\x6e\x75\x6c\x6c\x22\x3a\x6e\x75\x6c\x6c\x2c\x22\x65\x6d\x70\x74\x79\x61\x72\x72\x22\x3a\x5b\x5d\x2c\x22\x65\x6d\x70\x74\x79\x6f\x62\x6a\x22\x3a\x7b\x7d\x7d";
+        assert_eq!(json_serialize_ex(&tree, opts), expected);
     }
 
     #[test]
@@ -616,55 +481,42 @@ mod tests {
         ignore = "libc memmove in vendor/emyg_dtoa.rs unsupported under Miri"
     )]
     fn multiline_matches_the_known_good_fixture() {
-        unsafe {
-            let tree = build_sample_tree();
-            let opts = JsonSerializeOpts {
-                mode: JSON_SERIALIZE_MODE_MULTILINE,
-                opts: 0,
-                indent_size: 4,
-            };
-            let expected: &[u8] = b"\x7b\x0a\x20\x20\x20\x20\x22\x6e\x61\x6d\x65\x22\x3a\x20\x22\x71\x75\x6f\x74\x65\x5c\x22\x20\x62\x61\x63\x6b\x5c\x5c\x73\x6c\x61\x73\x68\x5c\x74\x74\x61\x62\x22\x2c\x0a\x20\x20\x20\x20\x22\x63\x6f\x6e\x74\x72\x6f\x6c\x73\x22\x3a\x20\x22\x5c\x75\x30\x30\x30\x30\x5c\x62\x5c\x75\x30\x30\x30\x62\x5c\x66\x5c\x6e\x5c\x72\x61\xff\x22\x2c\x0a\x20\x20\x20\x20\x22\x69\x6e\x74\x73\x22\x3a\x20\x5b\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x30\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x31\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x2d\x31\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x31\x32\x33\x34\x35\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x2d\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x0a\x20\x20\x20\x20\x5d\x2c\x0a\x20\x20\x20\x20\x22\x7a\x65\x72\x6f\x22\x3a\x20\x30\x2e\x30\x2c\x0a\x20\x20\x20\x20\x22\x6e\x65\x67\x7a\x65\x72\x6f\x22\x3a\x20\x30\x2e\x30\x2c\x0a\x20\x20\x20\x20\x22\x66\x72\x61\x63\x22\x3a\x20\x33\x2e\x35\x2c\x0a\x20\x20\x20\x20\x22\x6e\x65\x67\x66\x72\x61\x63\x22\x3a\x20\x2d\x31\x32\x33\x2e\x34\x35\x36\x2c\x0a\x20\x20\x20\x20\x22\x62\x69\x67\x22\x3a\x20\x31\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x2e\x30\x2c\x0a\x20\x20\x20\x20\x22\x73\x6d\x61\x6c\x6c\x22\x3a\x20\x31\x65\x2d\x32\x30\x2c\x0a\x20\x20\x20\x20\x22\x74\x72\x75\x65\x22\x3a\x20\x74\x72\x75\x65\x2c\x0a\x20\x20\x20\x20\x22\x66\x61\x6c\x73\x65\x22\x3a\x20\x66\x61\x6c\x73\x65\x2c\x0a\x20\x20\x20\x20\x22\x6e\x75\x6c\x6c\x22\x3a\x20\x6e\x75\x6c\x6c\x2c\x0a\x20\x20\x20\x20\x22\x65\x6d\x70\x74\x79\x61\x72\x72\x22\x3a\x20\x5b\x5d\x2c\x0a\x20\x20\x20\x20\x22\x65\x6d\x70\x74\x79\x6f\x62\x6a\x22\x3a\x20\x7b\x7d\x0a\x7d";
-            assert_eq!(json_serialize_ex(&tree, opts), expected);
-        }
+        let tree = build_sample_tree();
+        let opts = JsonSerializeOpts {
+            mode: JSON_SERIALIZE_MODE_MULTILINE,
+            opts: 0,
+            indent_size: 4,
+        };
+        let expected: &[u8] = b"\x7b\x0a\x20\x20\x20\x20\x22\x6e\x61\x6d\x65\x22\x3a\x20\x22\x71\x75\x6f\x74\x65\x5c\x22\x20\x62\x61\x63\x6b\x5c\x5c\x73\x6c\x61\x73\x68\x5c\x74\x74\x61\x62\x22\x2c\x0a\x20\x20\x20\x20\x22\x63\x6f\x6e\x74\x72\x6f\x6c\x73\x22\x3a\x20\x22\x5c\x75\x30\x30\x30\x30\x5c\x62\x5c\x75\x30\x30\x30\x62\x5c\x66\x5c\x6e\x5c\x72\x61\xff\x22\x2c\x0a\x20\x20\x20\x20\x22\x69\x6e\x74\x73\x22\x3a\x20\x5b\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x30\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x31\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x2d\x31\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x31\x32\x33\x34\x35\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x2d\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x2c\x0a\x20\x20\x20\x20\x20\x20\x20\x20\x39\x32\x32\x33\x33\x37\x32\x30\x33\x36\x38\x35\x34\x37\x37\x35\x38\x30\x37\x0a\x20\x20\x20\x20\x5d\x2c\x0a\x20\x20\x20\x20\x22\x7a\x65\x72\x6f\x22\x3a\x20\x30\x2e\x30\x2c\x0a\x20\x20\x20\x20\x22\x6e\x65\x67\x7a\x65\x72\x6f\x22\x3a\x20\x30\x2e\x30\x2c\x0a\x20\x20\x20\x20\x22\x66\x72\x61\x63\x22\x3a\x20\x33\x2e\x35\x2c\x0a\x20\x20\x20\x20\x22\x6e\x65\x67\x66\x72\x61\x63\x22\x3a\x20\x2d\x31\x32\x33\x2e\x34\x35\x36\x2c\x0a\x20\x20\x20\x20\x22\x62\x69\x67\x22\x3a\x20\x31\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x30\x2e\x30\x2c\x0a\x20\x20\x20\x20\x22\x73\x6d\x61\x6c\x6c\x22\x3a\x20\x31\x65\x2d\x32\x30\x2c\x0a\x20\x20\x20\x20\x22\x74\x72\x75\x65\x22\x3a\x20\x74\x72\x75\x65\x2c\x0a\x20\x20\x20\x20\x22\x66\x61\x6c\x73\x65\x22\x3a\x20\x66\x61\x6c\x73\x65\x2c\x0a\x20\x20\x20\x20\x22\x6e\x75\x6c\x6c\x22\x3a\x20\x6e\x75\x6c\x6c\x2c\x0a\x20\x20\x20\x20\x22\x65\x6d\x70\x74\x79\x61\x72\x72\x22\x3a\x20\x5b\x5d\x2c\x0a\x20\x20\x20\x20\x22\x65\x6d\x70\x74\x79\x6f\x62\x6a\x22\x3a\x20\x7b\x7d\x0a\x7d";
+        assert_eq!(json_serialize_ex(&tree, opts), expected);
     }
 
     #[test]
     fn preserialize_splices_verbatim_into_a_parent() {
-        unsafe {
-            // A subtree built and preserialized in isolation, then
-            // spliced into a fresh parent, must serialize identically to
-            // the same subtree built directly inside that parent -- the
-            // whole point of `PreSerialized` is that splicing it changes
-            // nothing observable.
-            let sub_a = json_object_new(1);
-            json_object_push_length(sub_a, 1, c"x".as_ptr(), json_integer_new(42));
-            let pre = preserialize(sub_a);
+        // A subtree built and preserialized in isolation, then spliced
+        // into a fresh parent, must serialize identically to the same
+        // subtree built directly inside that parent -- the whole point of
+        // `PreSerialized` is that splicing it changes nothing observable.
+        let mut sub_a = BuiltValue::new_object(1);
+        sub_a.push_field(b"x", BuiltValue::Int(42));
+        let pre = sub_a.preserialize();
 
-            let parent_with_pre = json_object_new(1);
-            json_object_push_length(parent_with_pre, 5, c"child".as_ptr(), pre);
-            let parent_with_pre = *Box::from_raw(parent_with_pre);
+        let mut parent_with_pre = BuiltValue::new_object(1);
+        parent_with_pre.push_field(b"child", pre);
 
-            let sub_b = json_object_new(1);
-            json_object_push_length(sub_b, 1, c"x".as_ptr(), json_integer_new(42));
-            let sub_b = *Box::from_raw(sub_b);
-            let parent_direct = BuiltValue::Object(vec![(b"child".to_vec(), sub_b)]);
+        let sub_b = BuiltValue::Object(vec![(b"x".to_vec(), BuiltValue::Int(42))]);
+        let parent_direct = BuiltValue::Object(vec![(b"child".to_vec(), sub_b)]);
 
-            let opts = JsonSerializeOpts {
-                mode: JSON_SERIALIZE_MODE_PACKED,
-                opts: 0,
-                indent_size: 0,
-            };
-            assert_eq!(
-                json_serialize_ex(&parent_with_pre, opts),
-                json_serialize_ex(&parent_direct, opts),
-            );
-        }
+        let opts = JsonSerializeOpts {
+            mode: JSON_SERIALIZE_MODE_PACKED,
+            opts: 0,
+            indent_size: 0,
+        };
+        assert_eq!(
+            json_serialize_ex(&parent_with_pre, opts),
+            json_serialize_ex(&parent_direct, opts),
+        );
     }
-
-    // The tests below exercise the safe `impl BuiltValue` API (Stage 10
-    // Phase 1) directly, with no `unsafe` at all -- unlike the tests
-    // above, which still go through the old free-function shell to keep
-    // covering it while consumer files migrate off it one batch at a time.
 
     #[test]
     fn safe_api_builds_and_serializes_an_object_with_no_unsafe() {
@@ -751,7 +603,7 @@ mod tests {
     }
 
     #[test]
-    fn safe_api_preserialize_matches_the_unsafe_free_function() {
+    fn safe_api_preserialize_matches_a_direct_serialize() {
         let mut obj = BuiltValue::new_object(1);
         obj.push_field(b"x", BuiltValue::Int(42));
         let pre = obj.clone().preserialize();
