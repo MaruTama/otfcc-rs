@@ -4,10 +4,7 @@ use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, otfcc_handle_dup,
     otfcc_handle_move,
 };
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint_fallback,
-    json_str_bytes, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::Packet;
@@ -21,10 +18,7 @@ use crate::support::primitives::{ColorId, GlyphId};
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
-    json_object_push, json_string_new_from_bytes, preserialize,
-};
+use crate::support::built_json::BuiltValue;
 #[derive(Clone)]
 pub struct ColrLayer {
     pub glyph: GlyphHandle,
@@ -139,7 +133,7 @@ pub fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<ColrTable> 
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_colr(
     colr: Option<&ColrTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let colr = match colr {
@@ -153,75 +147,31 @@ pub unsafe fn otfcc_dump_colr(
     let mappings: &Vec<ColrMapping> = colr;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _colr: *mut BuiltValue = json_array_new(mappings.len());
-        let mut __caryll_index: usize = 0_usize;
-        let mut keep: usize = 1_usize;
-        while keep != 0 && __caryll_index < mappings.len() {
-            let mapping: &ColrMapping = &mappings[__caryll_index];
-            while keep != 0 {
-                let mut _map: *mut BuiltValue = json_object_new(2_usize);
-                json_object_push(
-                    _map,
-                    b"from\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_string_new_from_bytes(&mapping.glyph.name),
-                );
-                let mut _layers: *mut BuiltValue = json_array_new(mapping.layers.len());
-                let mut __caryll_index_0: usize = 0_usize;
-                let mut keep_0: usize = 1_usize;
-                while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
-                    let layer: &ColrLayer = &mapping.layers[__caryll_index_0];
-                    while keep_0 != 0 {
-                        let mut _layer: *mut BuiltValue = json_object_new(2_usize);
-                        json_object_push(
-                            _layer,
-                            b"layer\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_string_new_from_bytes(&layer.glyph.name),
-                        );
-                        json_object_push(
-                            _layer,
-                            b"paletteIndex\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_integer_new(layer.palette_index as i64),
-                        );
-                        json_array_push(_layers, _layer);
-                        keep_0 = (keep_0 == 0) as i32 as usize;
-                    }
-                    keep_0 = (keep_0 == 0) as i32 as usize;
-                    __caryll_index_0 = __caryll_index_0.wrapping_add(1);
-                }
-                json_object_push(
-                    _map,
-                    b"to\0" as *const u8 as *const ::core::ffi::c_char,
-                    preserialize(_layers),
-                );
-                json_array_push(_colr, _map);
-                keep = (keep == 0) as i32 as usize;
+        let mut _colr = BuiltValue::new_array(mappings.len());
+        for mapping in mappings.iter() {
+            let mut _map = BuiltValue::new_object(2);
+            _map.push_field(b"from", BuiltValue::str_truncated_at_nul(&mapping.glyph.name));
+            let mut _layers = BuiltValue::new_array(mapping.layers.len());
+            for layer in mapping.layers.iter() {
+                let mut _layer = BuiltValue::new_object(2);
+                _layer.push_field(b"layer", BuiltValue::str_truncated_at_nul(&layer.glyph.name));
+                _layer.push_field(b"paletteIndex", BuiltValue::Int(layer.palette_index as i64));
+                _layers.push_item(_layer);
             }
-            keep = (keep == 0) as i32 as usize;
-            __caryll_index = __caryll_index.wrapping_add(1);
+            _map.push_field(b"to", _layers.preserialize());
+            _colr.push_item(_map);
         }
-        json_object_push(
-            root,
-            b"COLR\0" as *const u8 as *const ::core::ffi::c_char,
-            _colr,
-        );
+        root.push_field(b"COLR", _colr);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_colr(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<ColrTable> {
-    let mut _colr: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
-    _colr = json_obj_get_type(
-        root,
-        b"COLR\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Array,
-    );
-    if _colr.is_null() {
-        return None;
-    }
+    let colr_val = root.get_typed(b"COLR", JsonType::Array)?;
     let mut colr: ColrTable = Vec::new();
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
@@ -229,21 +179,14 @@ pub unsafe fn otfcc_parse_colr(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut j: GlyphId = 0 as GlyphId;
-        while (j as ::core::ffi::c_uint) < json_arr_len(_colr) {
-            let mut _mapping: *const ParsedValue = json_arr_at(_colr, j as u32);
-            if !(_mapping.is_null() || json_type_of(_mapping) != JsonType::Object) {
-                let mut _baseglyph: *const ParsedValue = json_obj_get_type(
-                    _mapping,
-                    b"from\0" as *const u8 as *const ::core::ffi::c_char,
-                    JsonType::String,
-                );
-                let mut _layers: *const ParsedValue = json_obj_get_type(
-                    _mapping,
-                    b"to\0" as *const u8 as *const ::core::ffi::c_char,
-                    JsonType::Array,
-                );
-                if !(_baseglyph.is_null() || _layers.is_null()) {
+        if let Some(mappings) = colr_val.as_array() {
+            for mapping in mappings {
+                if mapping.as_object().is_none() {
+                    continue;
+                }
+                let baseglyph = mapping.get_typed(b"from", JsonType::String);
+                let layers_val = mapping.get_typed(b"to", JsonType::Array);
+                if let (Some(baseglyph), Some(layers_val)) = (baseglyph, layers_val) {
                     let mut m: ColrMapping = ColrMapping {
                         glyph: Handle {
                             state: HandleState::Empty,
@@ -252,35 +195,27 @@ pub unsafe fn otfcc_parse_colr(
                         },
                         layers: Vec::new(),
                     };
-                    m.glyph = handle_from_name(Some(json_str_bytes(_baseglyph))) as GlyphHandle;
-                    let mut k: GlyphId = 0 as GlyphId;
-                    while (k as ::core::ffi::c_uint) < json_arr_len(_layers) {
-                        let mut _layer: *const ParsedValue = json_arr_at(_layers, k as u32);
-                        if !(_layer.is_null() || json_type_of(_layer) != JsonType::Object) {
-                            let mut _layerglyph: *const ParsedValue = json_obj_get_type(
-                                _layer,
-                                b"layer\0" as *const u8 as *const ::core::ffi::c_char,
-                                JsonType::String,
-                            );
-                            if !_layerglyph.is_null() {
+                    m.glyph = handle_from_name(baseglyph.as_str_bytes().map(|b| b.to_vec()))
+                        as GlyphHandle;
+                    if let Some(layer_items) = layers_val.as_array() {
+                        for layer in layer_items {
+                            if layer.as_object().is_none() {
+                                continue;
+                            }
+                            if let Some(layerglyph) = layer.get_typed(b"layer", JsonType::String) {
                                 m.layers.push(ColrLayer {
-                                    glyph: handle_from_name(Some(json_str_bytes(_layerglyph)))
-                                        as GlyphHandle,
-                                    palette_index: json_obj_getint_fallback(
-                                        _layer,
-                                        b"paletteIndex\0" as *const u8
-                                            as *const ::core::ffi::c_char,
-                                        0xffff_i32,
-                                    ) as ColorId,
+                                    glyph: handle_from_name(
+                                        layerglyph.as_str_bytes().map(|b| b.to_vec()),
+                                    ) as GlyphHandle,
+                                    palette_index: layer.get_int_or(b"paletteIndex", 0xffff_i32)
+                                        as ColorId,
                                 });
                             }
                         }
-                        k = k.wrapping_add(1);
                     }
                     colr.push(m);
                 }
             }
-            j = j.wrapping_add(1);
         }
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());

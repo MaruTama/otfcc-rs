@@ -4,12 +4,10 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_double_new, json_integer_new, json_object_new, json_object_push,
-};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type, json_obj_getnum_fallback};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::F16Dot16;
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json::JsonType;
@@ -77,7 +75,7 @@ pub fn otfcc_read_hhea(packet: &Packet, options: &Options) -> Option<Box<HheaTab
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_hhea(
     table: Option<&HheaTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -90,147 +88,68 @@ pub unsafe fn otfcc_dump_hhea(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let hhea: *mut BuiltValue = json_object_new(13_usize);
-        json_object_push(
-            hhea,
-            b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            json_double_new(otfcc_from_fixed((*table).version)),
+        let mut hhea = BuiltValue::new_object(13);
+        hhea.push_field(
+            b"version",
+            BuiltValue::Double(otfcc_from_fixed((*table).version)),
         );
-        json_object_push(
-            hhea,
-            b"ascender\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).ascender as i64),
+        hhea.push_field(b"ascender", BuiltValue::Int((*table).ascender as i64));
+        hhea.push_field(b"descender", BuiltValue::Int((*table).descender as i64));
+        hhea.push_field(b"lineGap", BuiltValue::Int((*table).line_gap as i64));
+        hhea.push_field(
+            b"advanceWidthMax",
+            BuiltValue::Int((*table).advance_width_max as i64),
         );
-        json_object_push(
-            hhea,
-            b"descender\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).descender as i64),
+        hhea.push_field(
+            b"minLeftSideBearing",
+            BuiltValue::Int((*table).min_left_side_bearing as i64),
         );
-        json_object_push(
-            hhea,
-            b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).line_gap as i64),
+        hhea.push_field(
+            b"minRightSideBearing",
+            BuiltValue::Int((*table).min_right_side_bearing as i64),
         );
-        json_object_push(
-            hhea,
-            b"advanceWidthMax\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).advance_width_max as i64),
+        hhea.push_field(b"xMaxExtent", BuiltValue::Int((*table).x_max_extent as i64));
+        hhea.push_field(
+            b"caretSlopeRise",
+            BuiltValue::Int((*table).caret_slope_rise as i64),
         );
-        json_object_push(
-            hhea,
-            b"minLeftSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).min_left_side_bearing as i64),
+        hhea.push_field(
+            b"caretSlopeRun",
+            BuiltValue::Int((*table).caret_slope_run as i64),
         );
-        json_object_push(
-            hhea,
-            b"minRightSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).min_right_side_bearing as i64),
-        );
-        json_object_push(
-            hhea,
-            b"xMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).x_max_extent as i64),
-        );
-        json_object_push(
-            hhea,
-            b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caret_slope_rise as i64),
-        );
-        json_object_push(
-            hhea,
-            b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caret_slope_run as i64),
-        );
-        json_object_push(
-            hhea,
-            b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*table).caret_offset as i64),
-        );
-        json_object_push(
-            root,
-            b"hhea\0" as *const u8 as *const ::core::ffi::c_char,
-            hhea,
-        );
+        hhea.push_field(b"caretOffset", BuiltValue::Int((*table).caret_offset as i64));
+        root.push_field(b"hhea", hhea);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn otfcc_parse_hhea(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<HheaTable>> {
     let mut hhea_val: HheaTable = ::core::mem::zeroed();
     hhea_val.version = 0x10000_i32 as F16Dot16;
     let mut hhea_box: Box<HheaTable> = Box::new(hhea_val);
     let hhea: *mut HheaTable = hhea_box.as_mut() as *mut HheaTable;
-    let table: *const ParsedValue;
-    table = json_obj_get_type(
-        root,
-        b"hhea\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if !table.is_null() {
+    let table = root.get_typed(b"hhea", JsonType::Object);
+    if let Some(table) = table {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"hhea"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            (*hhea).version = otfcc_to_fixed(json_obj_getnum_fallback(
-                table,
-                b"version\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ));
-            (*hhea).ascender = json_obj_getnum_fallback(
-                table,
-                b"ascender\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*hhea).descender = json_obj_getnum_fallback(
-                table,
-                b"descender\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*hhea).line_gap = json_obj_getnum_fallback(
-                table,
-                b"lineGap\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*hhea).advance_width_max = json_obj_getnum_fallback(
-                table,
-                b"advanceWidthMax\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*hhea).min_left_side_bearing = json_obj_getnum_fallback(
-                table,
-                b"minLeftSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*hhea).min_right_side_bearing = json_obj_getnum_fallback(
-                table,
-                b"minRightSideBearing\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*hhea).x_max_extent = json_obj_getnum_fallback(
-                table,
-                b"xMaxExtent\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*hhea).caret_slope_rise = json_obj_getnum_fallback(
-                table,
-                b"caretSlopeRise\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*hhea).caret_slope_run = json_obj_getnum_fallback(
-                table,
-                b"caretSlopeRun\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*hhea).caret_offset = json_obj_getnum_fallback(
-                table,
-                b"caretOffset\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
+            (*hhea).version = otfcc_to_fixed(table.get_num(b"version"));
+            (*hhea).ascender = table.get_num(b"ascender") as i16;
+            (*hhea).descender = table.get_num(b"descender") as i16;
+            (*hhea).line_gap = table.get_num(b"lineGap") as i16;
+            (*hhea).advance_width_max = table.get_num(b"advanceWidthMax") as u16;
+            (*hhea).min_left_side_bearing = table.get_num(b"minLeftSideBearing") as i16;
+            (*hhea).min_right_side_bearing = table.get_num(b"minRightSideBearing") as i16;
+            (*hhea).x_max_extent = table.get_num(b"xMaxExtent") as i16;
+            (*hhea).caret_slope_rise = table.get_num(b"caretSlopeRise") as i16;
+            (*hhea).caret_slope_run = table.get_num(b"caretSlopeRun") as i16;
+            (*hhea).caret_offset = table.get_num(b"caretOffset") as i16;
             ___loggedstep_v = false;
             logger_finish(&mut *options.logger.borrow_mut());
         }

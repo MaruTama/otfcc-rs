@@ -3,17 +3,13 @@
 use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
-use crate::support::built_json::json_object_push_tag;
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
-use crate::support::parsed_json::{ParsedValue, json_numof};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::Pos;
 
 use crate::font::caryll_sfnt::Packet;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_double_new, json_integer_new,
-    json_object_new, json_object_push, json_object_push_bytes_key,
-};
+use crate::support::built_json::BuiltValue;
 use crate::support::primitives::otfcc_from_fixed;
 use crate::vf::axis::{VfAxes, VfAxis};
 use crate::vf::region::{VqAxisSpan, VqRegion};
@@ -308,7 +304,7 @@ pub fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTab
 }
 pub unsafe fn otfcc_dump_fvar(
     table: Option<&FvarTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -323,110 +319,48 @@ pub unsafe fn otfcc_dump_fvar(
     let instances: &Vec<FvarInstance> = &(*table).instances;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let t: *mut BuiltValue = json_object_new(2_usize);
-        let mut _axes: *mut BuiltValue = json_object_new(axes.len());
-        let mut __caryll_index: usize = 0_usize;
-        let mut keep: usize = 1_usize;
-        while keep != 0 && __caryll_index < axes.len() {
-            let axis: &VfAxis = &axes[__caryll_index];
-            while keep != 0 {
-                let mut _axis: *mut BuiltValue = json_object_new(5_usize);
-                json_object_push(
-                    _axis,
-                    b"minValue\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_double_new((*axis).min_value as ::core::ffi::c_double),
-                );
-                json_object_push(
-                    _axis,
-                    b"defaultValue\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_double_new((*axis).default_value as ::core::ffi::c_double),
-                );
-                json_object_push(
-                    _axis,
-                    b"maxValue\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_double_new((*axis).max_value as ::core::ffi::c_double),
-                );
-                json_object_push(
-                    _axis,
-                    b"flags\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*axis).flags as i64),
-                );
-                json_object_push(
-                    _axis,
-                    b"axisNameID\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*axis).axis_name_id as i64),
-                );
-                json_object_push_tag(_axes, (*axis).tag, _axis);
-                keep = (keep == 0) as i32 as usize;
-            }
-            keep = (keep == 0) as i32 as usize;
-            __caryll_index = __caryll_index.wrapping_add(1);
+        let mut t = BuiltValue::new_object(2);
+        let mut _axes = BuiltValue::new_object(axes.len());
+        for axis in axes.iter() {
+            let mut _axis = BuiltValue::new_object(5);
+            _axis.push_field(b"minValue", BuiltValue::Double(axis.min_value));
+            _axis.push_field(b"defaultValue", BuiltValue::Double(axis.default_value));
+            _axis.push_field(b"maxValue", BuiltValue::Double(axis.max_value));
+            _axis.push_field(b"flags", BuiltValue::Int(axis.flags as i64));
+            _axis.push_field(b"axisNameID", BuiltValue::Int(axis.axis_name_id as i64));
+            _axes.push_tag(axis.tag, _axis);
         }
-        json_object_push(
-            t,
-            b"axes\0" as *const u8 as *const ::core::ffi::c_char,
-            _axes,
-        );
-        let mut _instances: *mut BuiltValue = json_array_new(instances.len());
-        let mut __caryll_index_0: usize = 0_usize;
-        let mut keep_0: usize = 1_usize;
-        while keep_0 != 0 && __caryll_index_0 < instances.len() {
-            let instance: &FvarInstance = &instances[__caryll_index_0];
-            while keep_0 != 0 {
-                let mut _instance: *mut BuiltValue = json_object_new(4_usize);
-                json_object_push(
-                    _instance,
-                    b"subfamilyNameID\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*instance).subfamily_name_id as i64),
+        t.push_field(b"axes", _axes);
+        let mut _instances = BuiltValue::new_array(instances.len());
+        for instance in instances.iter() {
+            let mut _instance = BuiltValue::new_object(4);
+            _instance.push_field(
+                b"subfamilyNameID",
+                BuiltValue::Int(instance.subfamily_name_id as i64),
+            );
+            if instance.post_script_name_id != 0 {
+                _instance.push_field(
+                    b"postScriptNameID",
+                    BuiltValue::Int(instance.post_script_name_id as i64),
                 );
-                if (*instance).post_script_name_id != 0 {
-                    json_object_push(
-                        _instance,
-                        b"postScriptNameID\0" as *const u8 as *const ::core::ffi::c_char,
-                        json_integer_new((*instance).post_script_name_id as i64),
-                    );
-                }
-                json_object_push(
-                    _instance,
-                    b"flags\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*instance).flags as i64),
-                );
-                json_object_push(
-                    _instance,
-                    b"coordinates\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_new_v_vp(&raw const instance.coordinates, table).into_raw(),
-                );
-                json_array_push(_instances, _instance);
-                keep_0 = (keep_0 == 0) as i32 as usize;
             }
-            keep_0 = (keep_0 == 0) as i32 as usize;
-            __caryll_index_0 = __caryll_index_0.wrapping_add(1);
+            _instance.push_field(b"flags", BuiltValue::Int(instance.flags as i64));
+            _instance.push_field(
+                b"coordinates",
+                json_new_v_vp(&raw const instance.coordinates, table),
+            );
+            _instances.push_item(_instance);
         }
-        json_object_push(
-            t,
-            b"instances\0" as *const u8 as *const ::core::ffi::c_char,
-            _instances,
-        );
-        let mut _masters: *mut BuiltValue = json_object_new((*table).masters.len());
+        t.push_field(b"instances", _instances);
+        let mut _masters = BuiltValue::new_object((*table).masters.len());
         for master in (*table).masters.values() {
-            json_object_push_bytes_key(
-                _masters,
+            _masters.push_field_bytes_key(
                 &master.name,
-                json_new_vq_region_explicit(master.region, table)
-                    .preserialize()
-                    .into_raw(),
+                json_new_vq_region_explicit(master.region, table).preserialize(),
             );
         }
-        json_object_push(
-            t,
-            b"masters\0" as *const u8 as *const ::core::ffi::c_char,
-            _masters,
-        );
-        json_object_push(
-            root,
-            b"fvar\0" as *const u8 as *const ::core::ffi::c_char,
-            t,
-        );
+        t.push_field(b"masters", _masters);
+        root.push_field(b"fvar", t);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
@@ -487,7 +421,10 @@ pub unsafe fn json_new_v_vp(x: *const VV, fvar: *const FvarTable) -> BuiltValue 
     }
 }
 pub unsafe fn json_vq_of(cv: *const ParsedValue, mut _fvar: *const FvarTable) -> VQ {
-    return vq_create_still(json_numof(cv) as Pos);
+    let n = unsafe { cv.as_ref() }
+        .and_then(ParsedValue::as_num)
+        .unwrap_or(0.0);
+    vq_create_still(n as Pos)
 }
 pub unsafe fn json_new_vq_axis_span(s: *const VqAxisSpan) -> BuiltValue {
     if vq_axis_span_is_one(s) {

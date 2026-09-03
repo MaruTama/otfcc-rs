@@ -3,10 +3,7 @@ use libc::{strlen, strtol};
 
 use crate::logger::{LOG_VL_NOTICE, LoggerType, logger_log_sds};
 use crate::otf_reader::FontBuilder;
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_at,
-    json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 
 use crate::font::caryll_font::{Font, FontSubtype};
 use crate::support::NULL;
@@ -48,18 +45,12 @@ unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> i32 {
         10_i32,
     ) as i32;
 }
-unsafe fn otfcc_decide_font_subtype_from_json(root: *const ParsedValue) -> FontSubtype {
-    if !json_obj_get_type(
-        root,
-        b"CFF_\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    )
-    .is_null()
-    {
-        return FontSubtype::Cff;
+fn otfcc_decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {
+    if root.get_typed(b"CFF_", JsonType::Object).is_some() {
+        FontSubtype::Cff
     } else {
-        return FontSubtype::Ttf;
-    };
+        FontSubtype::Ttf
+    }
 }
 // `name` is `Vec<u8>` now instead of `SdsRaw`: the duplicate-name path
 // used to leave the old `SdsRaw` `name` deliberately un-freed (a
@@ -131,10 +122,13 @@ unsafe fn escalate_glyph_order_by_name(
         }
     }
 }
-unsafe fn place_order_entries_from_glyf(table: *const ParsedValue, go: *mut GlyphOrder) {
-    let mut j: u32 = 0_u32;
-    while j < json_obj_len(table) {
-        let gname: Vec<u8> = json_obj_key_bytes_at(table, j);
+unsafe fn place_order_entries_from_glyf(table: &ParsedValue, go: *mut GlyphOrder) {
+    let Some(fields) = table.as_object() else {
+        return;
+    };
+    for (j, (key, _)) in fields.iter().enumerate() {
+        let gname: Vec<u8> = key[..key.len() - 1].to_vec();
+        let j = j as u32;
         if gname.as_slice() == b".notdef" {
             set_order_by_name(go, gname, GlyphOrderPass::Notdef, 0_u32);
         } else if gname.as_slice() == b".null" {
@@ -142,20 +136,20 @@ unsafe fn place_order_entries_from_glyf(table: *const ParsedValue, go: *mut Glyp
         } else {
             set_order_by_name(go, gname, GlyphOrderPass::Glyf, j);
         }
-        j = j.wrapping_add(1);
     }
 }
-unsafe fn place_order_entries_from_cmap(table: *const ParsedValue, go: *mut GlyphOrder) {
-    let mut j: u32 = 0_u32;
-    while j < json_obj_len(table) {
-        // Borrows `json_obj_key_at`'s pointer directly rather than an
+unsafe fn place_order_entries_from_cmap(table: &ParsedValue, go: *mut GlyphOrder) {
+    let Some(fields) = table.as_object() else {
+        return;
+    };
+    for (key, item) in fields {
+        // Borrows the object key's own storage directly rather than an
         // owned `sds` copy -- every JSON object key is already
         // NUL-terminated in `ParsedValue`'s own storage, so `strlen` sees
         // the same length `sdslen` used to on the copy. Same reasoning as
         // `table/cmap.rs`'s `parse_unicode` (this function inlines the
         // identical U+XXXX-or-decimal parse).
-        let unicode_str: *const ::core::ffi::c_char = json_obj_key_at(table, j);
-        let item: *const ParsedValue = json_obj_val_at(table, j);
+        let unicode_str: *const ::core::ffi::c_char = key.as_ptr() as *const ::core::ffi::c_char;
         let unicode: i32;
         if strlen(unicode_str) > 2_usize
             && *unicode_str.offset(0_i32 as isize) as i32
@@ -171,39 +165,27 @@ unsafe fn place_order_entries_from_cmap(table: *const ParsedValue, go: *mut Glyp
         } else {
             unicode = atoi(unicode_str as *const ::core::ffi::c_char);
         }
-        if json_type_of(item) == JsonType::String
-            && unicode > 0_i32
-            && unicode <= 0x10ffff_i32
-        {
-            let gname: Vec<u8> = json_str_bytes(item);
-            escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::Cmap, unicode as u32);
+        if let Some(bytes) = item.as_str_bytes() {
+            if unicode > 0_i32 && unicode <= 0x10ffff_i32 {
+                let gname: Vec<u8> = bytes.to_vec();
+                escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::Cmap, unicode as u32);
+            }
         }
-        j = j.wrapping_add(1);
     }
 }
-unsafe fn place_order_entries_from_subtable(
-    table: *const ParsedValue,
-    go: *mut GlyphOrder,
-    zero_only: bool,
-) {
-    let mut uplimit: u32 = json_arr_len(table);
-    if uplimit >= 1_u32 && zero_only as i32 != 0 {
-        uplimit = 1_u32;
-    }
-    let mut j: u32 = 0_u32;
-    while j < uplimit {
-        let item: *const ParsedValue = json_arr_at(table, j);
-        if json_type_of(item) == JsonType::String {
-            let gname: Vec<u8> = json_str_bytes(item);
-            escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::GlyphOrder, j);
+unsafe fn place_order_entries_from_subtable(table: &ParsedValue, go: *mut GlyphOrder, zero_only: bool) {
+    let Some(items) = table.as_array() else {
+        return;
+    };
+    let uplimit = if zero_only { items.len().min(1) } else { items.len() };
+    for (j, item) in items.iter().enumerate().take(uplimit) {
+        if let Some(bytes) = item.as_str_bytes() {
+            let gname: Vec<u8> = bytes.to_vec();
+            escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::GlyphOrder, j as u32);
         }
-        j = j.wrapping_add(1);
     }
 }
-unsafe fn parse_glyph_order(
-    root: *const ParsedValue,
-    options: &Options,
-) -> Option<Box<GlyphOrder>> {
+unsafe fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphOrder>> {
     // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
     // (`malloc`) + `Box::from_raw` -- see the matching note in
     // `consolidate.rs`'s `otfcc_consolidate_font`. `go` stays a raw-pointer
@@ -215,40 +197,17 @@ unsafe fn parse_glyph_order(
         by_name: ::std::collections::HashMap::new(),
     });
     let go: *mut GlyphOrder = go_box.as_mut() as *mut GlyphOrder;
-    if json_type_of(root) != JsonType::Object {
+    if root.as_object().is_none() {
         return Some(go_box);
     }
-    let mut table: *const ParsedValue;
-    table = json_obj_get_type(
-        root,
-        b"glyf\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if !table.is_null() {
+    if let Some(table) = root.get_typed(b"glyf", JsonType::Object) {
         place_order_entries_from_glyf(table, go);
-        table = json_obj_get_type(
-            root,
-            b"cmap\0" as *const u8 as *const ::core::ffi::c_char,
-            JsonType::Object,
-        );
-        if !table.is_null() {
+        if let Some(table) = root.get_typed(b"cmap", JsonType::Object) {
             place_order_entries_from_cmap(table, go);
         }
-        table = json_obj_get_type(
-            root,
-            b"glyph_order\0" as *const u8 as *const ::core::ffi::c_char,
-            JsonType::Array,
-        );
-        if !table.is_null() {
+        if let Some(table) = root.get_typed(b"glyph_order", JsonType::Array) {
             let mut ignore_glyph_order: bool = options.ignore_glyph_order;
-            if ignore_glyph_order as i32 != 0
-                && !json_obj_get_type(
-                    root,
-                    b"SVG_\0" as *const u8 as *const ::core::ffi::c_char,
-                    JsonType::Array,
-                )
-                .is_null()
-            {
+            if ignore_glyph_order && root.get_typed(b"SVG_", JsonType::Array).is_some() {
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
                     LOG_VL_NOTICE,
@@ -271,7 +230,7 @@ impl FontBuilder for JsonReader {
         options: *const ::core::ffi::c_void,
     ) -> *mut ::core::ffi::c_void {
         let options: &Options = &*(options as *const Options);
-        let root: *const ParsedValue = _root as *const ParsedValue;
+        let root: &ParsedValue = &*(_root as *const ParsedValue);
         let font: *mut Font = (otfcc_font_create)();
         if font.is_null() {
             return ::core::ptr::null_mut::<::core::ffi::c_void>();

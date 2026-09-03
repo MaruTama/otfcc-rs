@@ -1,12 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{memcpy, snprintf, strlen, strtol};
 
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_int_val, json_str_len, json_str_ptr, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 
 use crate::support::options::Options;
-use crate::vendor::json::JsonType;
 
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::built_json::BuiltValue;
@@ -868,82 +865,71 @@ pub unsafe fn parse_ttinstr(
         unsafe fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_char, i32) -> (),
     >,
 ) {
-    if col.is_null() {
+    let Some(col_ref) = col.as_ref() else {
         make.expect("non-null function pointer")(context, Vec::new());
-    } else if json_type_of(col) == JsonType::String {
-        let instructions_vec = base64_decode(::core::slice::from_raw_parts(
-            json_str_ptr(col) as *const u8,
-            json_str_len(col) as usize,
-        ))
-        .unwrap_or_default();
-        make.expect("non-null function pointer")(context, instructions_vec);
-    } else if json_type_of(col) == JsonType::Array {
-        let mut istrlen: usize = 0_usize;
-        let mut j: u32 = 0_u32;
-        while j < json_arr_len(col) {
-            let record: *const ParsedValue = json_arr_at(col, j);
-            if json_type_of(record) == JsonType::String {
-                istrlen = istrlen.wrapping_add(
-                    json_str_len(record).wrapping_add(1 as ::core::ffi::c_uint) as usize,
-                );
-            } else if json_type_of(record) == JsonType::Integer {
-                istrlen = istrlen
-                    .wrapping_add((1_i32 + 20_i32) as usize);
-            } else {
-                make.expect("non-null function pointer")(context, Vec::new());
-                return;
-            }
-            j = j.wrapping_add(1);
-        }
-        // Zero-filled, `istrlen + 1` bytes: the fill loop below writes
-        // exactly `istrlen` bytes, leaving the last one at its zero-
-        // initialized value as `parse_instrs`'s NUL terminator (it reads
-        // this buffer with `strlen`) -- same size and same guarantee
-        // `sdsnewlen(NULL, istrlen + 1)` gave, without needing `sds` at
-        // all.
-        let mut instr_string: Vec<u8> = vec![0u8; istrlen.wrapping_add(1_usize)];
-        let mut head: *mut ::core::ffi::c_char =
-            instr_string.as_mut_ptr() as *mut ::core::ffi::c_char;
-        let mut j_0: u32 = 0_u32;
-        while j_0 < json_arr_len(col) {
-            let record_0: *const ParsedValue = json_arr_at(col, j_0);
-            if json_type_of(record_0) == JsonType::String {
-                memcpy(
-                    head as *mut ::core::ffi::c_void,
-                    json_str_ptr(record_0) as *const ::core::ffi::c_void,
-                    (::core::mem::size_of::<::core::ffi::c_char>() as usize)
-                        .wrapping_mul(json_str_len(record_0) as usize),
-                );
-                head = head.offset(json_str_len(record_0) as isize);
-            } else if json_type_of(record_0) == JsonType::Integer {
-                let n: i32 = snprintf(
-                    head,
-                    20_usize,
-                    b"%d\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_int_val(record_0) as i32,
-                );
-                head = head.offset(n as isize);
-            }
-            *head = '\n' as i32 as ::core::ffi::c_char;
-            head = head.offset(1);
-            j_0 = j_0.wrapping_add(1);
-        }
-        let instructions_0: Option<Vec<u8>> = parse_instrs(
-            instr_string.as_mut_ptr() as *mut ::core::ffi::c_char,
-            context,
-            wrong,
-        );
-        match instructions_0 {
-            Some(v) if !v.is_empty() => {
-                make.expect("non-null function pointer")(context, v);
-            }
-            _ => {
-                make.expect("non-null function pointer")(context, Vec::new());
-            }
-        }
-    } else {
-        make.expect("non-null function pointer")(context, Vec::new());
+        return;
     };
+    if let Some(bytes) = col_ref.as_str_bytes() {
+        let instructions_vec = base64_decode(bytes).unwrap_or_default();
+        make.expect("non-null function pointer")(context, instructions_vec);
+        return;
+    }
+    let Some(items) = col_ref.as_array() else {
+        make.expect("non-null function pointer")(context, Vec::new());
+        return;
+    };
+    let mut istrlen: usize = 0_usize;
+    for record in items {
+        if let Some(bytes) = record.as_str_bytes() {
+            istrlen = istrlen.wrapping_add(bytes.len().wrapping_add(1_usize));
+        } else if record.as_int().is_some() {
+            istrlen = istrlen.wrapping_add(1_usize + 20_usize);
+        } else {
+            make.expect("non-null function pointer")(context, Vec::new());
+            return;
+        }
+    }
+    // Zero-filled, `istrlen + 1` bytes: the fill loop below writes
+    // exactly `istrlen` bytes, leaving the last one at its zero-
+    // initialized value as `parse_instrs`'s NUL terminator (it reads
+    // this buffer with `strlen`) -- same size and same guarantee
+    // `sdsnewlen(NULL, istrlen + 1)` gave, without needing `sds` at
+    // all.
+    let mut instr_string: Vec<u8> = vec![0u8; istrlen.wrapping_add(1_usize)];
+    let mut head: *mut ::core::ffi::c_char = instr_string.as_mut_ptr() as *mut ::core::ffi::c_char;
+    for record in items {
+        if let Some(bytes) = record.as_str_bytes() {
+            memcpy(
+                head as *mut ::core::ffi::c_void,
+                bytes.as_ptr() as *const ::core::ffi::c_void,
+                bytes.len(),
+            );
+            head = head.offset(bytes.len() as isize);
+        } else if let Some(n) = record.as_int() {
+            let written: i32 = snprintf(
+                head,
+                20_usize,
+                b"%d\0" as *const u8 as *const ::core::ffi::c_char,
+                n as i32,
+            );
+            head = head.offset(written as isize);
+        }
+        *head = '\n' as i32 as ::core::ffi::c_char;
+        head = head.offset(1);
+    }
+    let instructions_0: Option<Vec<u8>> = parse_instrs(
+        instr_string.as_mut_ptr() as *mut ::core::ffi::c_char,
+        context,
+        wrong,
+    );
+    match instructions_0 {
+        Some(v) if !v.is_empty() => {
+            make.expect("non-null function pointer")(context, v);
+        }
+        _ => {
+            make.expect("non-null function pointer")(context, Vec::new());
+        }
+    }
 }
 
 #[cfg(test)]

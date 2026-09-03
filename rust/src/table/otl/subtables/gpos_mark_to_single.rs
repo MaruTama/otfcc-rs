@@ -3,10 +3,7 @@
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
 };
-use crate::support::parsed_json::{
-    ParsedValue, json_obj_get_type, json_obj_key_at, json_obj_key_bytes_at, json_obj_len,
-    json_obj_val_at, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
     Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
 };
@@ -16,10 +13,7 @@ use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_p
 use crate::bk::bkgraph::bk_build_block;
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_integer_new, json_object_new, json_object_push, json_object_push_bytes_key,
-    json_string_new_from_bytes, preserialize,
-};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
@@ -187,99 +181,82 @@ pub unsafe fn otl_read_gpos_mark_to_single(
         }
     }
 }
-pub unsafe fn otl_gpos_dump_mark_to_single(st: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gpos_dump_mark_to_single(st: *const Subtable) -> BuiltValue {
     let Subtable::GposMarkToSingle(mut_subtable) = &*st else {
         unreachable!()
     };
     let subtable: *const GposMarkToSingleSubtable = mut_subtable;
-    let mut _subtable: *mut BuiltValue = json_object_new(3_usize);
-    let mut _marks: *mut BuiltValue = json_object_new((*subtable).mark_array.len());
-    let mut _bases: *mut BuiltValue = json_object_new((*subtable).base_array.len());
+    let mut _subtable = BuiltValue::new_object(3);
+    let mut _marks = BuiltValue::new_object((*subtable).mark_array.len());
+    let mut _bases = BuiltValue::new_object((*subtable).base_array.len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).mark_array.len() {
-        let mut _mark: *mut BuiltValue = json_object_new(3_usize);
+        let mut _mark = BuiltValue::new_object(3);
         let mark_class_name: Vec<u8> = crate::bytesbuild!(
             b"anchor",
             (&(*subtable).mark_array)[j as usize].mark_class as i32,
         );
-        json_object_push(
-            _mark,
-            b"class\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new_from_bytes(&mark_class_name),
+        _mark.push_field(b"class", BuiltValue::str_truncated_at_nul(&mark_class_name));
+        _mark.push_field(
+            b"x",
+            BuiltValue::Int((&(*subtable).mark_array)[j as usize].anchor.x as i64),
         );
-        json_object_push(
-            _mark,
-            b"x\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((&(*subtable).mark_array)[j as usize].anchor.x as i64),
+        _mark.push_field(
+            b"y",
+            BuiltValue::Int((&(*subtable).mark_array)[j as usize].anchor.y as i64),
         );
-        json_object_push(
-            _mark,
-            b"y\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((&(*subtable).mark_array)[j as usize].anchor.y as i64),
-        );
-        json_object_push_bytes_key(
-            _marks,
+        _marks.push_field_bytes_key(
             &(&(*subtable).mark_array)[j as usize].glyph.name,
-            preserialize(_mark),
+            _mark.preserialize(),
         );
         j = j.wrapping_add(1);
     }
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).base_array.len() {
-        let mut _base: *mut BuiltValue = json_object_new((*subtable).class_count as usize);
+        let mut _base = BuiltValue::new_object((*subtable).class_count as usize);
         let mut k: GlyphClass = 0 as GlyphClass;
         while (k as i32) < (*subtable).class_count as i32 {
             if (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].present {
-                let mut _anchor: *mut BuiltValue = json_object_new(2_usize);
-                json_object_push(
-                    _anchor,
-                    b"x\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new(
+                let mut _anchor = BuiltValue::new_object(2);
+                _anchor.push_field(
+                    b"x",
+                    BuiltValue::Int(
                         (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].x as i64,
                     ),
                 );
-                json_object_push(
-                    _anchor,
-                    b"y\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new(
+                _anchor.push_field(
+                    b"y",
+                    BuiltValue::Int(
                         (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].y as i64,
                     ),
                 );
-                let mark_class_name_0: Vec<u8> =
-                    crate::bytesbuild!(b"anchor", k as i32);
-                json_object_push_bytes_key(_base, &mark_class_name_0, _anchor);
+                let mark_class_name_0: Vec<u8> = crate::bytesbuild!(b"anchor", k as i32);
+                _base.push_field_bytes_key(&mark_class_name_0, _anchor);
             }
             k = k.wrapping_add(1);
         }
-        json_object_push_bytes_key(
-            _bases,
+        _bases.push_field_bytes_key(
             &(&(*subtable).base_array)[j_0 as usize].glyph.name,
-            preserialize(_base),
+            _base.preserialize(),
         );
         j_0 = j_0.wrapping_add(1);
     }
-    json_object_push(
-        _subtable,
-        b"marks\0" as *const u8 as *const ::core::ffi::c_char,
-        _marks,
-    );
-    json_object_push(
-        _subtable,
-        b"bases\0" as *const u8 as *const ::core::ffi::c_char,
-        _bases,
-    );
-    return _subtable;
+    _subtable.push_field(b"marks", _marks);
+    _subtable.push_field(b"bases", _bases);
+    _subtable
 }
 unsafe fn parse_bases(
-    mut _bases: *const ParsedValue,
+    bases: *const ParsedValue,
     subtable: *mut GposMarkToSingleSubtable,
     h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
     options: &Options,
 ) {
     let class_count: GlyphClass = (*h).len() as GlyphClass;
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < json_obj_len(_bases) {
-        let gname: *mut ::core::ffi::c_char = json_obj_key_at(_bases, j as u32);
+    let Some(fields) = unsafe { bases.as_ref() }.and_then(ParsedValue::as_object) else {
+        return;
+    };
+    for (key, base_record) in fields {
+        let gname = &key[..key.len() - 1];
         let mut base: BaseRecord = BaseRecord {
             glyph: Handle {
                 state: HandleState::Empty,
@@ -288,69 +265,62 @@ unsafe fn parse_bases(
             },
             anchors: Vec::new(),
         };
-        base.glyph = handle_from_name(Some(json_obj_key_bytes_at(_bases, j as u32))) as GlyphHandle;
+        base.glyph = handle_from_name(Some(gname.to_vec())) as GlyphHandle;
         // Indexed by `class_id` below, out of JSON key order -- pre-sized
         // and filled with "absent" rather than built with `.push()`.
         base.anchors = vec![otl_anchor_absent(); class_count as usize];
-        let base_record: *const ParsedValue = json_obj_val_at(_bases, j as u32);
-        if base_record.is_null() || json_type_of(base_record) != JsonType::Object {
-            (*subtable).base_array.push(base);
-        } else {
-            let mut k_0: GlyphClass = 0 as GlyphClass;
-            while (k_0 as ::core::ffi::c_uint) < json_obj_len(base_record) {
-                let name_ptr: *mut ::core::ffi::c_char = json_obj_key_at(base_record, k_0 as u32);
-                // `strlen`-bounded, matching `otl_parse_mark_array`'s
-                // registration key exactly.
-                let class_name: Vec<u8> = ::core::ffi::CStr::from_ptr(name_ptr).to_bytes().to_vec();
-                match (*h).get(&class_name) {
-                    None => {
-                        logger_log_sds(
-                            &mut *options.logger.borrow_mut(),
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(
-                                b"[OTFCC-fea] Invalid anchor class name <",
-                                name_ptr,
-                                b"> for /",
-                                gname,
-                                b". This base anchor is ignored.\n",
-                            ),
-                        );
-                    }
-                    Some(&class_id) => {
-                        base.anchors[class_id as usize] =
-                            otl_parse_anchor(json_obj_val_at(base_record, k_0 as u32));
+        match base_record.as_object() {
+            None => {
+                (*subtable).base_array.push(base);
+            }
+            Some(inner_fields) => {
+                for (name_key, val) in inner_fields {
+                    let class_name = &name_key[..name_key.len() - 1];
+                    match (*h).get(class_name) {
+                        None => {
+                            logger_log_sds(
+                                &mut *options.logger.borrow_mut(),
+                                LOG_VL_IMPORTANT,
+                                LoggerType::Warning,
+                                crate::bytesbuild!(
+                                    b"[OTFCC-fea] Invalid anchor class name <",
+                                    class_name,
+                                    b"> for /",
+                                    gname,
+                                    b". This base anchor is ignored.\n",
+                                ),
+                            );
+                        }
+                        Some(&class_id) => {
+                            base.anchors[class_id as usize] =
+                                otl_parse_anchor(val as *const ParsedValue);
+                        }
                     }
                 }
-                k_0 = k_0.wrapping_add(1);
+                (*subtable).base_array.push(base);
             }
-            (*subtable).base_array.push(base);
         }
-        j = j.wrapping_add(1);
     }
 }
 pub unsafe fn otl_gpos_parse_mark_to_single(
     mut _subtable: *const ParsedValue,
     options: &Options,
 ) -> *mut Subtable {
-    let mut _marks: *const ParsedValue = json_obj_get_type(
-        _subtable,
-        b"marks\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    let mut _bases: *const ParsedValue = json_obj_get_type(
-        _subtable,
-        b"bases\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if _marks.is_null() || _bases.is_null() {
+    let subtable_val = unsafe { _subtable.as_ref() };
+    let marks = subtable_val.and_then(|v| v.get_typed(b"marks", JsonType::Object));
+    let bases = subtable_val.and_then(|v| v.get_typed(b"bases", JsonType::Object));
+    let (Some(marks), Some(bases)) = (marks, bases) else {
         return ::core::ptr::null_mut::<Subtable>();
-    }
+    };
     let st: *mut GposMarkToSingleSubtable = subtable_gpos_mark_to_single_create();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
-    otl_parse_mark_array(_marks, &raw mut (*st).mark_array, &raw mut h);
+    otl_parse_mark_array(
+        marks as *const ParsedValue,
+        &raw mut (*st).mark_array,
+        &raw mut h,
+    );
     (*st).class_count = h.len() as GlyphClass;
-    parse_bases(_bases, st, &raw mut h, options);
+    parse_bases(bases as *const ParsedValue, st, &raw mut h, options);
     return subtable_from_raw(st, Subtable::GposMarkToSingle);
 }
 pub unsafe fn otfcc_build_gpos_mark_to_single(

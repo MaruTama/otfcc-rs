@@ -4,16 +4,11 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_dbl_val, json_int_val, json_obj_get,
-    json_obj_get_type, json_obj_getnum_fallback, json_str_len, json_str_ptr, json_type_of,
-    otfcc_parse_flags,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::vendor::json::JsonType;
-use libc::memcpy;
 #[derive(Copy, Clone)]
 pub struct Os2Table {
     pub version: u16,
@@ -419,7 +414,7 @@ pub static UNICODE_RANGE_LABELS4: [&::core::ffi::CStr; 27] = [
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_os_2(
     table: Option<&Os2Table>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let table = match table {
@@ -586,17 +581,13 @@ pub unsafe fn otfcc_dump_os_2(
             b"usUpperOpticalPointSize",
             BuiltValue::Int((*table).us_upper_optical_point_size as i64),
         );
-        json_object_push(
-            root,
-            b"OS_2\0" as *const u8 as *const ::core::ffi::c_char,
-            os_2.into_raw(),
-        );
+        root.push_field(b"OS_2", os_2);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn otfcc_parse_os_2(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<Os2Table>> {
     // `Box::new` cannot return null (it aborts on allocation failure), so
@@ -607,261 +598,84 @@ pub unsafe fn otfcc_parse_os_2(
     os2_val.version = 4;
     let mut os_2_box: Box<Os2Table> = Box::new(os2_val);
     let os_2: *mut Os2Table = os_2_box.as_mut() as *mut Os2Table;
-    let table: *const ParsedValue;
-    table = json_obj_get_type(
-        root,
-        b"OS_2\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if !table.is_null() {
+    let table = root.get_typed(b"OS_2", JsonType::Object);
+    if let Some(table) = table {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"OS/2"),
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            (*os_2).version = json_obj_getnum_fallback(
-                table,
-                b"version\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*os_2).x_avg_char_width = json_obj_getnum_fallback(
-                table,
-                b"xAvgCharWidth\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).us_weight_class = json_obj_getnum_fallback(
-                table,
-                b"usWeightClass\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*os_2).us_width_class = json_obj_getnum_fallback(
-                table,
-                b"usWidthClass\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*os_2).fs_type = otfcc_parse_flags(
-                json_obj_get(
-                    table,
-                    b"fsType\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
-                &FS_TYPE_LABELS,
-            ) as u16;
-            (*os_2).y_subscript_x_size = json_obj_getnum_fallback(
-                table,
-                b"ySubscriptXSize\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).y_subscript_y_size = json_obj_getnum_fallback(
-                table,
-                b"ySubscriptYSize\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).y_subscript_x_offset = json_obj_getnum_fallback(
-                table,
-                b"ySubscriptXOffset\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).y_subscript_y_offset = json_obj_getnum_fallback(
-                table,
-                b"ySubscriptYOffset\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).y_supscript_x_size = json_obj_getnum_fallback(
-                table,
-                b"ySupscriptXSize\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).y_supscript_y_size = json_obj_getnum_fallback(
-                table,
-                b"ySupscriptYSize\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).y_supscript_x_offset = json_obj_getnum_fallback(
-                table,
-                b"ySupscriptXOffset\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).y_supscript_y_offset = json_obj_getnum_fallback(
-                table,
-                b"ySupscriptYOffset\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).y_strikeout_size = json_obj_getnum_fallback(
-                table,
-                b"yStrikeoutSize\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).y_strikeout_position = json_obj_getnum_fallback(
-                table,
-                b"yStrikeoutPosition\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).s_family_class = json_obj_getnum_fallback(
-                table,
-                b"sFamilyClass\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).fs_selection = otfcc_parse_flags(
-                json_obj_get(
-                    table,
-                    b"fsSelection\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
-                &FS_SELECTION_LABELS,
-            ) as u16;
-            (*os_2).us_first_char_index = json_obj_getnum_fallback(
-                table,
-                b"usFirstCharIndex\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*os_2).us_last_char_index = json_obj_getnum_fallback(
-                table,
-                b"usLastCharIndex\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*os_2).s_typo_ascender = json_obj_getnum_fallback(
-                table,
-                b"sTypoAscender\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).s_typo_descender = json_obj_getnum_fallback(
-                table,
-                b"sTypoDescender\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).s_typo_line_gap = json_obj_getnum_fallback(
-                table,
-                b"sTypoLineGap\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).us_win_ascent = json_obj_getnum_fallback(
-                table,
-                b"usWinAscent\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*os_2).us_win_descent = json_obj_getnum_fallback(
-                table,
-                b"usWinDescent\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*os_2).ul_code_page_range1 = otfcc_parse_flags(
-                json_obj_get(
-                    table,
-                    b"ulCodePageRange1\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
-                &CODE_PAGE_LABELS1,
-            );
-            (*os_2).ul_code_page_range2 = otfcc_parse_flags(
-                json_obj_get(
-                    table,
-                    b"ulCodePageRange2\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
-                &CODE_PAGE_LABELS2,
-            );
-            (*os_2).ul_unicode_range1 = otfcc_parse_flags(
-                json_obj_get(
-                    table,
-                    b"ulUnicodeRange1\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
-                &UNICODE_RANGE_LABELS1,
-            );
-            (*os_2).ul_unicode_range2 = otfcc_parse_flags(
-                json_obj_get(
-                    table,
-                    b"ulUnicodeRange2\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
-                &UNICODE_RANGE_LABELS2,
-            );
-            (*os_2).ul_unicode_range3 = otfcc_parse_flags(
-                json_obj_get(
-                    table,
-                    b"ulUnicodeRange3\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
-                &UNICODE_RANGE_LABELS3,
-            );
-            (*os_2).ul_unicode_range4 = otfcc_parse_flags(
-                json_obj_get(
-                    table,
-                    b"ulUnicodeRange4\0" as *const u8 as *const ::core::ffi::c_char,
-                ),
-                &UNICODE_RANGE_LABELS4,
-            );
-            (*os_2).sx_height = json_obj_getnum_fallback(
-                table,
-                b"sxHeight\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).s_cap_height = json_obj_getnum_fallback(
-                table,
-                b"sCapHeight\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as i16;
-            (*os_2).us_default_char = json_obj_getnum_fallback(
-                table,
-                b"usDefaultChar\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*os_2).us_break_char = json_obj_getnum_fallback(
-                table,
-                b"usBreakChar\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*os_2).us_max_context = json_obj_getnum_fallback(
-                table,
-                b"usMaxContext\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*os_2).us_lower_optical_point_size = json_obj_getnum_fallback(
-                table,
-                b"usLowerOpticalPointSize\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            (*os_2).us_upper_optical_point_size = json_obj_getnum_fallback(
-                table,
-                b"usUpperOpticalPointSize\0" as *const u8 as *const ::core::ffi::c_char,
-                0_i32 as ::core::ffi::c_double,
-            ) as u16;
-            let panose: *const ParsedValue;
-            panose = json_obj_get_type(
-                table,
-                b"panose\0" as *const u8 as *const ::core::ffi::c_char,
-                JsonType::Array,
-            );
-            if !panose.is_null() {
-                let mut j: u32 = 0_u32;
-                while j < json_arr_len(panose) && j < 10_u32 {
-                    let term: *const ParsedValue = json_arr_at(panose, j);
-                    if json_type_of(term) == JsonType::Integer {
-                        (*os_2).panose[j as usize] = json_int_val(term) as u8;
-                    } else if json_type_of(term) == JsonType::Double {
-                        (*os_2).panose[j as usize] = json_dbl_val(term) as u8;
+            (*os_2).version = table.get_num(b"version") as u16;
+            (*os_2).x_avg_char_width = table.get_num(b"xAvgCharWidth") as i16;
+            (*os_2).us_weight_class = table.get_num(b"usWeightClass") as u16;
+            (*os_2).us_width_class = table.get_num(b"usWidthClass") as u16;
+            (*os_2).fs_type = table
+                .get(b"fsType")
+                .map_or(0, |v| v.flags(&FS_TYPE_LABELS)) as u16;
+            (*os_2).y_subscript_x_size = table.get_num(b"ySubscriptXSize") as i16;
+            (*os_2).y_subscript_y_size = table.get_num(b"ySubscriptYSize") as i16;
+            (*os_2).y_subscript_x_offset = table.get_num(b"ySubscriptXOffset") as i16;
+            (*os_2).y_subscript_y_offset = table.get_num(b"ySubscriptYOffset") as i16;
+            (*os_2).y_supscript_x_size = table.get_num(b"ySupscriptXSize") as i16;
+            (*os_2).y_supscript_y_size = table.get_num(b"ySupscriptYSize") as i16;
+            (*os_2).y_supscript_x_offset = table.get_num(b"ySupscriptXOffset") as i16;
+            (*os_2).y_supscript_y_offset = table.get_num(b"ySupscriptYOffset") as i16;
+            (*os_2).y_strikeout_size = table.get_num(b"yStrikeoutSize") as i16;
+            (*os_2).y_strikeout_position = table.get_num(b"yStrikeoutPosition") as i16;
+            (*os_2).s_family_class = table.get_num(b"sFamilyClass") as i16;
+            (*os_2).fs_selection = table
+                .get(b"fsSelection")
+                .map_or(0, |v| v.flags(&FS_SELECTION_LABELS)) as u16;
+            (*os_2).us_first_char_index = table.get_num(b"usFirstCharIndex") as u16;
+            (*os_2).us_last_char_index = table.get_num(b"usLastCharIndex") as u16;
+            (*os_2).s_typo_ascender = table.get_num(b"sTypoAscender") as i16;
+            (*os_2).s_typo_descender = table.get_num(b"sTypoDescender") as i16;
+            (*os_2).s_typo_line_gap = table.get_num(b"sTypoLineGap") as i16;
+            (*os_2).us_win_ascent = table.get_num(b"usWinAscent") as u16;
+            (*os_2).us_win_descent = table.get_num(b"usWinDescent") as u16;
+            (*os_2).ul_code_page_range1 = table
+                .get(b"ulCodePageRange1")
+                .map_or(0, |v| v.flags(&CODE_PAGE_LABELS1));
+            (*os_2).ul_code_page_range2 = table
+                .get(b"ulCodePageRange2")
+                .map_or(0, |v| v.flags(&CODE_PAGE_LABELS2));
+            (*os_2).ul_unicode_range1 = table
+                .get(b"ulUnicodeRange1")
+                .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS1));
+            (*os_2).ul_unicode_range2 = table
+                .get(b"ulUnicodeRange2")
+                .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS2));
+            (*os_2).ul_unicode_range3 = table
+                .get(b"ulUnicodeRange3")
+                .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS3));
+            (*os_2).ul_unicode_range4 = table
+                .get(b"ulUnicodeRange4")
+                .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS4));
+            (*os_2).sx_height = table.get_num(b"sxHeight") as i16;
+            (*os_2).s_cap_height = table.get_num(b"sCapHeight") as i16;
+            (*os_2).us_default_char = table.get_num(b"usDefaultChar") as u16;
+            (*os_2).us_break_char = table.get_num(b"usBreakChar") as u16;
+            (*os_2).us_max_context = table.get_num(b"usMaxContext") as u16;
+            (*os_2).us_lower_optical_point_size =
+                table.get_num(b"usLowerOpticalPointSize") as u16;
+            (*os_2).us_upper_optical_point_size =
+                table.get_num(b"usUpperOpticalPointSize") as u16;
+            if let Some(panose) = table.get_typed(b"panose", JsonType::Array) {
+                let items = panose.as_array().unwrap();
+                for (j, term) in items.iter().enumerate().take(10) {
+                    if let Some(i) = term.as_int() {
+                        (*os_2).panose[j] = i as u8;
+                    } else if let Some(d) = term.as_double() {
+                        (*os_2).panose[j] = d as u8;
                     }
-                    j = j.wrapping_add(1);
                 }
             }
-            let vendorid: *const ParsedValue;
-            vendorid = json_obj_get_type(
-                table,
-                b"achVendID\0" as *const u8 as *const ::core::ffi::c_char,
-                JsonType::String,
-            );
-            if !vendorid.is_null() {
-                (*os_2).ach_vend_id[0_i32 as usize] = ' ' as i32 as u8;
-                (*os_2).ach_vend_id[1_i32 as usize] = ' ' as i32 as u8;
-                (*os_2).ach_vend_id[2_i32 as usize] = ' ' as i32 as u8;
-                (*os_2).ach_vend_id[3_i32 as usize] = ' ' as i32 as u8;
-                if json_str_len(vendorid) >= 4 as ::core::ffi::c_uint {
-                    memcpy(
-                        &raw mut (*os_2).ach_vend_id as *mut u8 as *mut ::core::ffi::c_void,
-                        json_str_ptr(vendorid) as *const ::core::ffi::c_void,
-                        4_usize,
-                    );
-                } else {
-                    memcpy(
-                        &raw mut (*os_2).ach_vend_id as *mut u8 as *mut ::core::ffi::c_void,
-                        json_str_ptr(vendorid) as *const ::core::ffi::c_void,
-                        json_str_len(vendorid) as usize,
-                    );
+            if let Some(vendorid) = table.get_typed(b"achVendID", JsonType::String) {
+                (*os_2).ach_vend_id = [b' '; 4];
+                if let Some(bytes) = vendorid.as_str_bytes() {
+                    let n = bytes.len().min(4);
+                    (&mut (*os_2).ach_vend_id)[..n].copy_from_slice(&bytes[..n]);
                 }
             }
             ___loggedstep_v = false;

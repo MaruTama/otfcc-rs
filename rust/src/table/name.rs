@@ -5,16 +5,10 @@ use crate::logger::{
 };
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
-    json_object_push, json_string_new_length,
-};
+use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getint, json_str_len,
-    json_str_ptr, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::support::unicodeconv::{utf8toutf16be, utf16be_to_utf8};
 use crate::vendor::json::JsonType;
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
@@ -140,7 +134,7 @@ pub fn otfcc_read_name(packet: &Packet, options: &Options) -> Option<NameTable> 
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_name(
     name: Option<&NameTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let name = match name {
@@ -154,210 +148,119 @@ pub unsafe fn otfcc_dump_name(
     let records: &Vec<NameRecord> = name;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _name: *mut BuiltValue = json_array_new(records.len());
+        let mut _name = BuiltValue::new_array(records.len());
         let mut j: u16 = 0_u16;
         while (j as usize) < records.len() {
             let r: *const NameRecord = &records[j as usize];
-            let record: *mut BuiltValue = json_object_new(5_usize);
-            json_object_push(
-                record,
-                b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).platform_id as i64),
-            );
-            json_object_push(
-                record,
-                b"encodingID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).encoding_id as i64),
-            );
-            json_object_push(
-                record,
-                b"languageID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).language_id as i64),
-            );
-            json_object_push(
-                record,
-                b"nameID\0" as *const u8 as *const ::core::ffi::c_char,
-                json_integer_new((*r).name_id as i64),
-            );
-            json_object_push(
-                record,
-                b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
-                json_string_new_length(
-                    (*r).name_string.len() as ::core::ffi::c_uint,
-                    (*r).name_string.as_ptr() as *const ::core::ffi::c_char,
-                ),
-            );
-            json_array_push(_name, record);
+            let mut record = BuiltValue::new_object(5);
+            record.push_field(b"platformID", BuiltValue::Int((*r).platform_id as i64));
+            record.push_field(b"encodingID", BuiltValue::Int((*r).encoding_id as i64));
+            record.push_field(b"languageID", BuiltValue::Int((*r).language_id as i64));
+            record.push_field(b"nameID", BuiltValue::Int((*r).name_id as i64));
+            record.push_field(b"nameString", BuiltValue::Str((*r).name_string.clone()));
+            _name.push_item(record);
             j = j.wrapping_add(1);
         }
-        json_object_push(
-            root,
-            b"name\0" as *const u8 as *const ::core::ffi::c_char,
-            _name,
-        );
+        root.push_field(b"name", _name);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_parse_name(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<NameTable> {
     let mut name: NameTable = Vec::new();
-    let table: *const ParsedValue;
-    table = json_obj_get_type(
-        root,
-        b"name\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Array,
+    let Some(items) = root
+        .get_typed(b"name", JsonType::Array)
+        .and_then(ParsedValue::as_array)
+    else {
+        return Some(name);
+    };
+    logger_start_sds(
+        &mut *options.logger.borrow_mut(),
+        crate::bytesbuild!(b"name"),
     );
-    if !table.is_null() {
-        logger_start_sds(
-            &mut *options.logger.borrow_mut(),
-            crate::bytesbuild!(b"name"),
-        );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            let mut j: u32 = 0_u32;
-            while j < json_arr_len(table) {
-                let mut _record: *const ParsedValue = json_arr_at(table, j);
-                if !_record.is_null() && json_type_of(_record) == JsonType::Object {
-                    if json_obj_get_type(
-                        _record,
-                        b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
-                        JsonType::Integer,
-                    )
-                    .is_null()
-                    {
-                        logger_log_sds(
-                            &mut *options.logger.borrow_mut(),
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(
-                                b"Missing or invalid platformID for name entry ",
-                                j,
-                                b"\n",
-                            ),
-                        );
-                    } else if json_obj_get_type(
-                        _record,
-                        b"encodingID\0" as *const u8 as *const ::core::ffi::c_char,
-                        JsonType::Integer,
-                    )
-                    .is_null()
-                    {
-                        logger_log_sds(
-                            &mut *options.logger.borrow_mut(),
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(
-                                b"Missing or invalid encodingID for name entry ",
-                                j,
-                                b"\n",
-                            ),
-                        );
-                    } else if json_obj_get_type(
-                        _record,
-                        b"languageID\0" as *const u8 as *const ::core::ffi::c_char,
-                        JsonType::Integer,
-                    )
-                    .is_null()
-                    {
-                        logger_log_sds(
-                            &mut *options.logger.borrow_mut(),
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(
-                                b"Missing or invalid languageID for name entry ",
-                                j,
-                                b"\n",
-                            ),
-                        );
-                    } else if json_obj_get_type(
-                        _record,
-                        b"nameID\0" as *const u8 as *const ::core::ffi::c_char,
-                        JsonType::Integer,
-                    )
-                    .is_null()
-                    {
-                        logger_log_sds(
-                            &mut *options.logger.borrow_mut(),
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(
-                                b"Missing or invalid nameID for name entry ",
-                                j,
-                                b"\n",
-                            ),
-                        );
-                    } else if json_obj_get_type(
-                        _record,
-                        b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
-                        JsonType::String,
-                    )
-                    .is_null()
-                    {
-                        logger_log_sds(
-                            &mut *options.logger.borrow_mut(),
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(
-                                b"Missing or invalid name string for name entry ",
-                                j,
-                                b"\n",
-                            ),
-                        );
-                    } else {
-                        let mut record: NameRecord = NameRecord {
-                            platform_id: 0,
-                            encoding_id: 0,
-                            language_id: 0,
-                            name_id: 0,
-                            name_string: Vec::new(),
-                        };
-                        record.platform_id = json_obj_getint(
-                            _record,
-                            b"platformID\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) as u16;
-                        record.encoding_id = json_obj_getint(
-                            _record,
-                            b"encodingID\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) as u16;
-                        record.language_id = json_obj_getint(
-                            _record,
-                            b"languageID\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) as u16;
-                        record.name_id = json_obj_getint(
-                            _record,
-                            b"nameID\0" as *const u8 as *const ::core::ffi::c_char,
-                        ) as u16;
-                        let str: *const ParsedValue = json_obj_get_type(
-                            _record,
-                            b"nameString\0" as *const u8 as *const ::core::ffi::c_char,
-                            JsonType::String,
-                        );
-                        record.name_string = ::core::slice::from_raw_parts(
-                            json_str_ptr(str) as *const u8,
-                            json_str_len(str) as usize,
-                        )
-                        .to_vec();
-                        name.push(record);
-                    }
-                }
-                j = j.wrapping_add(1);
-            }
-            name.sort_by(|a, b| {
-                a.platform_id
-                    .cmp(&b.platform_id)
-                    .then(a.encoding_id.cmp(&b.encoding_id))
-                    .then(a.language_id.cmp(&b.language_id))
-                    .then(a.name_id.cmp(&b.name_id))
-            });
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
+    for (j, _record) in items.iter().enumerate() {
+        let j = j as u32;
+        if _record.as_object().is_none() {
+            continue;
+        }
+        if _record.get_typed(b"platformID", JsonType::Integer).is_none() {
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(
+                    b"Missing or invalid platformID for name entry ",
+                    j,
+                    b"\n",
+                ),
+            );
+        } else if _record.get_typed(b"encodingID", JsonType::Integer).is_none() {
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(
+                    b"Missing or invalid encodingID for name entry ",
+                    j,
+                    b"\n",
+                ),
+            );
+        } else if _record.get_typed(b"languageID", JsonType::Integer).is_none() {
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(
+                    b"Missing or invalid languageID for name entry ",
+                    j,
+                    b"\n",
+                ),
+            );
+        } else if _record.get_typed(b"nameID", JsonType::Integer).is_none() {
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"Missing or invalid nameID for name entry ", j, b"\n",),
+            );
+        } else if _record.get_typed(b"nameString", JsonType::String).is_none() {
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(
+                    b"Missing or invalid name string for name entry ",
+                    j,
+                    b"\n",
+                ),
+            );
+        } else {
+            let record: NameRecord = NameRecord {
+                platform_id: _record.get_int(b"platformID") as u16,
+                encoding_id: _record.get_int(b"encodingID") as u16,
+                language_id: _record.get_int(b"languageID") as u16,
+                name_id: _record.get_int(b"nameID") as u16,
+                name_string: _record
+                    .get_bytes(b"nameString")
+                    .map(|b| b.to_vec())
+                    .unwrap_or_default(),
+            };
+            name.push(record);
         }
     }
-    return Some(name);
+    name.sort_by(|a, b| {
+        a.platform_id
+            .cmp(&b.platform_id)
+            .then(a.encoding_id.cmp(&b.encoding_id))
+            .then(a.language_id.cmp(&b.language_id))
+            .then(a.name_id.cmp(&b.name_id))
+    });
+    logger_finish(&mut *options.logger.borrow_mut());
+    Some(name)
 }
 #[allow(improper_ctypes_definitions)]
 pub fn otfcc_build_name(name: Option<&NameTable>) -> Option<Buffer> {

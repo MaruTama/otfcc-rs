@@ -6,12 +6,10 @@ use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, ShapeId};
 
 use crate::font::caryll_font::Font;
-use crate::support::NULL;
 use crate::support::built_json::BuiltValue;
 
 use crate::table::glyf::GlyfIOContext;
 
-use crate::support::built_json::json_object_new;
 use crate::table::_tsi::otfcc_dump_tsi;
 use crate::table::base::otfcc_dump_base;
 use crate::table::cff::otfcc_dump_cff;
@@ -45,21 +43,18 @@ impl FontSerializer for JsonSerializer {
     ) -> *mut ::core::ffi::c_void {
         let font = font as *mut Font;
         let options: &Options = &*(options as *const Options);
-        let root: *mut BuiltValue = json_object_new(48_usize);
-        if root.is_null() {
-            return NULL;
-        }
-        otfcc_dump_fvar((*font).fvar.as_deref(), root, options);
-        otfcc_dump_head((*font).head.as_deref(), root, options);
-        otfcc_dump_hhea((*font).hhea.as_deref(), root, options);
-        otfcc_dump_maxp((*font).maxp.as_deref(), root, options);
-        otfcc_dump_vhea((*font).vhea.as_deref(), root, options);
-        otfcc_dump_post((*font).post.as_deref(), root, options);
-        otfcc_dump_os_2((*font).os_2.as_deref(), root, options);
-        otfcc_dump_name((*font).name.as_ref(), root, options);
-        otfcc_dump_meta((*font).meta.as_deref(), root, options);
-        otfcc_dump_cmap((*font).cmap.as_deref(), root, options);
-        otfcc_dump_cff((*font).cff.as_deref(), root, options);
+        let mut root = BuiltValue::new_object(48);
+        otfcc_dump_fvar((*font).fvar.as_deref(), &mut root, options);
+        otfcc_dump_head((*font).head.as_deref(), &mut root, options);
+        otfcc_dump_hhea((*font).hhea.as_deref(), &mut root, options);
+        otfcc_dump_maxp((*font).maxp.as_deref(), &mut root, options);
+        otfcc_dump_vhea((*font).vhea.as_deref(), &mut root, options);
+        otfcc_dump_post((*font).post.as_deref(), &mut root, options);
+        otfcc_dump_os_2((*font).os_2.as_deref(), &mut root, options);
+        otfcc_dump_name((*font).name.as_ref(), &mut root, options);
+        otfcc_dump_meta((*font).meta.as_deref(), &mut root, options);
+        otfcc_dump_cmap((*font).cmap.as_deref(), &mut root, options);
+        otfcc_dump_cff((*font).cff.as_deref(), &mut root, options);
         // `GlyfIOContext` needs both `head` (for `index_to_loc_format`) and
         // `maxp` (for `num_glyphs`) -- a malformed/CFF-flavored font can
         // legitimately have neither, the same "head+maxp missing" case
@@ -80,61 +75,61 @@ impl FontSerializer for JsonSerializer {
                 has_vertical_metrics: (*font).vhea.is_some(),
                 export_fd_select: (*font).cff.as_deref().map_or(false, |c| c.is_cid),
             };
-            otfcc_dump_glyf((*font).glyf.as_ref(), root, options, &raw mut ctx);
+            otfcc_dump_glyf((*font).glyf.as_ref(), &mut root, options, &raw mut ctx);
         }
         if !options.ignore_hints {
             table_dump_table_fpgm_prep(
                 (*font).fpgm.as_deref(),
-                root,
+                &mut root,
                 options,
                 b"fpgm\0" as *const u8 as *const ::core::ffi::c_char,
             );
             table_dump_table_fpgm_prep(
                 (*font).prep.as_deref(),
-                root,
+                &mut root,
                 options,
                 b"prep\0" as *const u8 as *const ::core::ffi::c_char,
             );
             otfcc_dump_cvt(
                 (*font).cvt_.as_deref(),
-                root,
+                &mut root,
                 options,
                 b"cvt_\0" as *const u8 as *const ::core::ffi::c_char,
             );
-            otfcc_dump_gasp((*font).gasp.as_deref(), root, options);
+            otfcc_dump_gasp((*font).gasp.as_deref(), &mut root, options);
         }
-        otfcc_dump_vdmx((*font).vdmx.as_deref(), root, options);
+        otfcc_dump_vdmx((*font).vdmx.as_deref(), &mut root, options);
         otfcc_dump_otl(
             (*font).gsub.as_deref(),
-            root,
+            &mut root,
             options,
             b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
         );
         otfcc_dump_otl(
             (*font).gpos.as_deref(),
-            root,
+            &mut root,
             options,
             b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
         );
-        otfcc_dump_gdef((*font).gdef.as_deref(), root, options);
-        otfcc_dump_base((*font).base.as_deref(), root, options);
-        otfcc_dump_cpal((*font).cpal.as_deref(), root, options);
-        otfcc_dump_colr((*font).colr.as_ref(), root, options);
-        otfcc_dump_svg((*font).svg.as_ref(), root, options);
+        otfcc_dump_gdef((*font).gdef.as_deref(), &mut root, options);
+        otfcc_dump_base((*font).base.as_deref(), &mut root, options);
+        otfcc_dump_cpal((*font).cpal.as_deref(), &mut root, options);
+        otfcc_dump_colr((*font).colr.as_ref(), &mut root, options);
+        otfcc_dump_svg((*font).svg.as_ref(), &mut root, options);
         otfcc_dump_tsi(
             (*font).tsi_01.as_ref(),
-            root,
+            &mut root,
             options,
             b"TSI_01\0" as *const u8 as *const ::core::ffi::c_char,
         );
         otfcc_dump_tsi(
             (*font).tsi_23.as_ref(),
-            root,
+            &mut root,
             options,
             b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
         );
-        otfcc_dump_tsi5((*font).tsi5.as_deref(), root);
-        return root as *mut ::core::ffi::c_void;
+        otfcc_dump_tsi5((*font).tsi5.as_deref(), &mut root);
+        return root.into_raw() as *mut ::core::ffi::c_void;
     }
 }
 pub unsafe fn serialize_to_json(

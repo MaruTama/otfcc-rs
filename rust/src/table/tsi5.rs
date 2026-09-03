@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::parsed_json::{ParsedValue, json_obj_get_type};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
 
 use crate::support::handle::{GlyphHandle, handle_from_index};
@@ -8,7 +8,7 @@ use crate::support::font_reader::FontReader;
 
 use crate::font::caryll_sfnt::Packet;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{BuiltValue, json_object_push};
+use crate::support::built_json::BuiltValue;
 use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::table::otl::classdef::{dump_class_def, parse_class_def};
 use crate::vendor::json::JsonType;
@@ -57,32 +57,20 @@ pub unsafe fn otfcc_read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
     Some(unwrap_class_def(tsi5))
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: *mut BuiltValue) {
+pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: &mut BuiltValue) {
     let table = match table {
         Some(t) => t as *const Tsi5Table,
         None => return,
     };
-    json_object_push(
-        root,
-        b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,
-        dump_class_def(table).into_raw(),
-    );
+    root.push_field(b"TSI5", dump_class_def(table));
 }
-pub unsafe fn otfcc_parse_tsi5(root: *const ParsedValue) -> Option<Box<Tsi5Table>> {
-    let mut _tsi: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
-    _tsi = json_obj_get_type(
-        root,
-        b"TSI5\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if _tsi.is_null() {
-        return None;
-    }
-    let raw = parse_class_def(_tsi);
+pub unsafe fn otfcc_parse_tsi5(root: &ParsedValue) -> Option<Box<Tsi5Table>> {
+    let tsi = root.get_typed(b"TSI5", JsonType::Object)?;
+    let raw = parse_class_def(tsi as *const ParsedValue);
     if raw.is_null() {
         return None;
     }
-    return Some(unwrap_class_def(raw));
+    Some(unwrap_class_def(raw))
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffer> {

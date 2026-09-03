@@ -3,9 +3,7 @@
 use crate::support::handle::{
     GlyphHandle, Handle, handle_from_index, handle_from_name, otfcc_handle_dup,
 };
-use crate::support::parsed_json::{
-    ParsedValue, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_str_bytes, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
     Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
 };
@@ -16,13 +14,10 @@ use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_p
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{
-    BuiltValue, json_object_new, json_object_push_bytes_key, json_string_new_from_bytes,
-};
+use crate::support::built_json::BuiltValue;
 use crate::table::otl::coverage::build_coverage_format;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::{GsubSingleEntry, GsubSingleSubtable, Subtable, subtable_from_raw};
@@ -136,44 +131,36 @@ pub unsafe fn otl_read_gsub_single(
     }
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gsub_dump_single(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gsub_dump_single(mut _subtable: *const Subtable) -> BuiltValue {
     let Subtable::GsubSingle(mut_subtable) = &*_subtable else {
         unreachable!()
     };
     let subtable: *const GsubSingleSubtable = mut_subtable;
-    let st: *mut BuiltValue = json_object_new((*subtable).len());
+    let mut st = BuiltValue::new_object((*subtable).len());
     let mut j: usize = 0_usize;
     while j < (*subtable).len() {
-        json_object_push_bytes_key(
-            st,
+        st.push_field_bytes_key(
             &(&(*subtable))[j].from.name,
-            json_string_new_from_bytes(&(&(*subtable))[j].to.name),
+            BuiltValue::str_truncated_at_nul(&(&(*subtable))[j].to.name),
         );
         j = j.wrapping_add(1);
     }
-    return st;
+    st
 }
 pub unsafe fn otl_gsub_parse_single(
     mut _subtable: *const ParsedValue,
     mut _options: &Options,
 ) -> *mut Subtable {
     let subtable: *mut GsubSingleSubtable = subtable_gsub_single_create();
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < json_obj_len(_subtable) {
-        let val = json_obj_val_at(_subtable, j as u32);
-        if !val.is_null()
-            && json_type_of(val) as ::core::ffi::c_uint
-                == JsonType::String as i32 as ::core::ffi::c_uint
-        {
-            let from: GlyphHandle =
-                handle_from_name(Some(json_obj_key_bytes_at(_subtable, j as u32))) as GlyphHandle;
-            let to: GlyphHandle = handle_from_name(Some(json_str_bytes(val))) as GlyphHandle;
-            (*subtable).push(GsubSingleEntry {
-                from: from as GlyphHandle,
-                to: to as GlyphHandle,
-            });
+    if let Some(fields) = unsafe { _subtable.as_ref() }.and_then(ParsedValue::as_object) {
+        for (key, val) in fields {
+            if let Some(to_bytes) = val.as_str_bytes() {
+                let from: GlyphHandle =
+                    handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle;
+                let to: GlyphHandle = handle_from_name(Some(to_bytes.to_vec())) as GlyphHandle;
+                (*subtable).push(GsubSingleEntry { from, to });
+            }
         }
-        j = j.wrapping_add(1);
     }
     return subtable_from_raw(subtable, Subtable::GsubSingle);
 }

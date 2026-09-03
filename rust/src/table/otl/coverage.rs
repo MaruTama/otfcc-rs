@@ -2,15 +2,12 @@
 use crate::support::handle::{
     GlyphHandle, handle_from_index, handle_from_name, otfcc_handle_dispose,
 };
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_str_bytes, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::GlyphId;
-use crate::vendor::json::JsonType;
 /// A glyph coverage set: C by way of c2rust had this as a hand-rolled
 /// `malloc`/`realloc` array (`num_glyphs`/`capacity`/`glyphs: *mut
 /// GlyphHandle`); it was never anything but a growable array of
@@ -217,20 +214,15 @@ pub(crate) unsafe fn dump_coverage(coverage: *const Coverage) -> BuiltValue {
 }
 pub(crate) unsafe fn parse_coverage(cov: *const ParsedValue) -> *mut Coverage {
     let c: *mut Coverage = otl_coverage_create();
-    if cov.is_null() || json_type_of(cov) != JsonType::Array {
+    let Some(items) = unsafe { cov.as_ref() }.and_then(ParsedValue::as_array) else {
         return c;
-    }
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < json_arr_len(cov) {
-        if json_type_of(json_arr_at(cov, j as u32)) == JsonType::String {
-            push_to_coverage(
-                c,
-                handle_from_name(Some(json_str_bytes(json_arr_at(cov, j as u32)))) as GlyphHandle,
-            );
+    };
+    for item in items {
+        if let Some(name) = item.as_str_bytes() {
+            push_to_coverage(c, handle_from_name(Some(name.to_vec())) as GlyphHandle);
         }
-        j = j.wrapping_add(1);
     }
-    return c;
+    c
 }
 pub(crate) unsafe fn build_coverage_format(coverage: *const Coverage, format: u16) -> Buffer {
     if (*coverage).is_empty() {

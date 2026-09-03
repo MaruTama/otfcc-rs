@@ -7,16 +7,11 @@ use crate::logger::{
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_getnum, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkgraph::bk_build_block_no_minimize;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_integer_new, json_object_new,
-    json_object_push,
-};
+use crate::support::built_json::BuiltValue;
 use crate::table::vdmx::types::{VdmxRatioRange, VdmxRecord, VdmxTable};
 // `group_offset` (read from the per-ratio offset table) used to be handed
 // straight to `data.offset()` with no check against the table's actual
@@ -85,7 +80,7 @@ pub fn otfcc_read_vdmx(packet: &Packet, options: &Options) -> Option<Box<VdmxTab
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_vdmx(
     vdmx: Option<&VdmxTable>,
-    root: *mut BuiltValue,
+    root: &mut BuiltValue,
     options: &Options,
 ) {
     let vdmx = match vdmx {
@@ -98,106 +93,38 @@ pub unsafe fn otfcc_dump_vdmx(
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        let mut _vdmx: *mut BuiltValue = json_object_new(2_usize);
-        json_object_push(
-            _vdmx,
-            b"version\0" as *const u8 as *const ::core::ffi::c_char,
-            json_integer_new((*vdmx).version as i64),
-        );
+        let mut _vdmx = BuiltValue::new_object(2);
+        _vdmx.push_field(b"version", BuiltValue::Int((*vdmx).version as i64));
         let ratios: &Vec<VdmxRatioRange> = &(*vdmx).ratios;
-        let mut _ratios: *mut BuiltValue = json_array_new(ratios.len());
-        let mut __caryll_index: usize = 0_usize;
-        let mut keep: usize = 1_usize;
-        while keep != 0 && __caryll_index < ratios.len() {
-            let rr: &VdmxRatioRange = &ratios[__caryll_index];
-            while keep != 0 {
-                let mut _rr: *mut BuiltValue = json_object_new(5_usize);
-                json_object_push(
-                    _rr,
-                    b"bCharset\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*rr).b_charset as i64),
-                );
-                json_object_push(
-                    _rr,
-                    b"xRatio\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*rr).x_ratio as i64),
-                );
-                json_object_push(
-                    _rr,
-                    b"yStartRatio\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*rr).y_start_ratio as i64),
-                );
-                json_object_push(
-                    _rr,
-                    b"yEndRatio\0" as *const u8 as *const ::core::ffi::c_char,
-                    json_integer_new((*rr).y_end_ratio as i64),
-                );
-                let mut _records: *mut BuiltValue = json_array_new(rr.records.len());
-                let mut __caryll_index_0: usize = 0_usize;
-                let mut keep_0: usize = 1_usize;
-                while keep_0 != 0 && __caryll_index_0 < rr.records.len() {
-                    let r: &VdmxRecord = &rr.records[__caryll_index_0];
-                    while keep_0 != 0 {
-                        let mut _r: *mut BuiltValue = json_object_new(3_usize);
-                        json_object_push(
-                            _r,
-                            b"yPelHeight\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_integer_new((*r).y_pel_height as i64),
-                        );
-                        json_object_push(
-                            _r,
-                            b"yMax\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_integer_new((*r).y_max as i64),
-                        );
-                        json_object_push(
-                            _r,
-                            b"yMin\0" as *const u8 as *const ::core::ffi::c_char,
-                            json_integer_new((*r).y_min as i64),
-                        );
-                        json_array_push(_records, _r);
-                        keep_0 = (keep_0 == 0) as i32 as usize;
-                    }
-                    keep_0 = (keep_0 == 0) as i32 as usize;
-                    __caryll_index_0 = __caryll_index_0.wrapping_add(1);
-                }
-                json_object_push(
-                    _rr,
-                    b"records\0" as *const u8 as *const ::core::ffi::c_char,
-                    _records,
-                );
-                json_array_push(_ratios, _rr);
-                keep = (keep == 0) as i32 as usize;
+        let mut _ratios = BuiltValue::new_array(ratios.len());
+        for rr in ratios.iter() {
+            let mut _rr = BuiltValue::new_object(5);
+            _rr.push_field(b"bCharset", BuiltValue::Int(rr.b_charset as i64));
+            _rr.push_field(b"xRatio", BuiltValue::Int(rr.x_ratio as i64));
+            _rr.push_field(b"yStartRatio", BuiltValue::Int(rr.y_start_ratio as i64));
+            _rr.push_field(b"yEndRatio", BuiltValue::Int(rr.y_end_ratio as i64));
+            let mut _records = BuiltValue::new_array(rr.records.len());
+            for r in rr.records.iter() {
+                let mut _r = BuiltValue::new_object(3);
+                _r.push_field(b"yPelHeight", BuiltValue::Int(r.y_pel_height as i64));
+                _r.push_field(b"yMax", BuiltValue::Int(r.y_max as i64));
+                _r.push_field(b"yMin", BuiltValue::Int(r.y_min as i64));
+                _records.push_item(_r);
             }
-            keep = (keep == 0) as i32 as usize;
-            __caryll_index = __caryll_index.wrapping_add(1);
+            _rr.push_field(b"records", _records);
+            _ratios.push_item(_rr);
         }
-        json_object_push(
-            _vdmx,
-            b"ratios\0" as *const u8 as *const ::core::ffi::c_char,
-            _ratios,
-        );
-        json_object_push(
-            root,
-            b"VDMX\0" as *const u8 as *const ::core::ffi::c_char,
-            _vdmx,
-        );
+        _vdmx.push_field(b"ratios", _ratios);
+        root.push_field(b"VDMX", _vdmx);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 pub unsafe fn otfcc_parse_vdmx(
-    root: *const ParsedValue,
+    root: &ParsedValue,
     options: &Options,
 ) -> Option<Box<VdmxTable>> {
-    let mut _vdmx: *const ParsedValue = ::core::ptr::null::<ParsedValue>();
-    _vdmx = json_obj_get_type(
-        root,
-        b"VDMX\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Object,
-    );
-    if _vdmx.is_null() {
-        return None;
-    }
+    let vdmx_dump = root.get_typed(b"VDMX", JsonType::Object)?;
     let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable {
         version: 0,
         ratios: Vec::new(),
@@ -206,79 +133,46 @@ pub unsafe fn otfcc_parse_vdmx(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"VDMX"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        (*vdmx).version = json_obj_getnum(
-            _vdmx,
-            b"version\0" as *const u8 as *const ::core::ffi::c_char,
-        ) as u16;
-        let mut _ratios: *const ParsedValue = json_obj_get_type(
-            _vdmx,
-            b"ratios\0" as *const u8 as *const ::core::ffi::c_char,
-            JsonType::Array,
-        );
-        let mut j: usize = 0_usize;
-        while j < json_arr_len(_ratios) as usize {
-            let mut _rr: *const ParsedValue = json_arr_at(_ratios, j as u32);
-            if !(_rr.is_null() || json_type_of(_rr) != JsonType::Object) {
-                let mut r: VdmxRatioRange = VdmxRatioRange {
-                    b_charset: 0,
-                    x_ratio: 0,
-                    y_start_ratio: 0,
-                    y_end_ratio: 0,
-                    records: Vec::new(),
-                };
-                r.b_charset = json_obj_getnum(
-                    _rr,
-                    b"bCharset\0" as *const u8 as *const ::core::ffi::c_char,
-                ) as u8;
-                r.x_ratio =
-                    json_obj_getnum(_rr, b"xRatio\0" as *const u8 as *const ::core::ffi::c_char)
-                        as u8;
-                r.y_start_ratio = json_obj_getnum(
-                    _rr,
-                    b"yStartRatio\0" as *const u8 as *const ::core::ffi::c_char,
-                ) as u8;
-                r.y_end_ratio = json_obj_getnum(
-                    _rr,
-                    b"yEndRatio\0" as *const u8 as *const ::core::ffi::c_char,
-                ) as u8;
-                let mut _records: *const ParsedValue = json_obj_get_type(
-                    _rr,
-                    b"records\0" as *const u8 as *const ::core::ffi::c_char,
-                    JsonType::Array,
-                );
-                if !_records.is_null() {
-                    let mut j_0: usize = 0_usize;
-                    while j_0 < json_arr_len(_records) as usize {
-                        let mut _r: *const ParsedValue = json_arr_at(_records, j_0 as u32);
-                        if !(_r.is_null() || json_type_of(_r) != JsonType::Object) {
-                            r.records.push(VdmxRecord {
-                                y_pel_height: json_obj_getnum(
-                                    _r,
-                                    b"yPelHeight\0" as *const u8 as *const ::core::ffi::c_char,
-                                ) as u16,
-                                y_max: json_obj_getnum(
-                                    _r,
-                                    b"yMax\0" as *const u8 as *const ::core::ffi::c_char,
-                                ) as i16,
-                                y_min: json_obj_getnum(
-                                    _r,
-                                    b"yMin\0" as *const u8 as *const ::core::ffi::c_char,
-                                ) as i16,
-                            });
-                        }
-                        j_0 = j_0.wrapping_add(1);
-                    }
-                    (*vdmx).ratios.push(r);
-                }
+    vdmx.version = vdmx_dump.get_num(b"version") as u16;
+    if let Some(ratio_items) = vdmx_dump
+        .get_typed(b"ratios", JsonType::Array)
+        .and_then(ParsedValue::as_array)
+    {
+        for _rr in ratio_items {
+            if _rr.as_object().is_none() {
+                continue;
             }
-            j = j.wrapping_add(1);
+            let mut r: VdmxRatioRange = VdmxRatioRange {
+                b_charset: _rr.get_num(b"bCharset") as u8,
+                x_ratio: _rr.get_num(b"xRatio") as u8,
+                y_start_ratio: _rr.get_num(b"yStartRatio") as u8,
+                y_end_ratio: _rr.get_num(b"yEndRatio") as u8,
+                records: Vec::new(),
+            };
+            // A `records` array with the right type is required for this
+            // ratio range to be kept at all -- matches the pre-migration
+            // control flow exactly, `r` (and the fields already read above)
+            // is discarded when it's absent.
+            if let Some(record_items) = _rr
+                .get_typed(b"records", JsonType::Array)
+                .and_then(ParsedValue::as_array)
+            {
+                for _r in record_items {
+                    if _r.as_object().is_none() {
+                        continue;
+                    }
+                    r.records.push(VdmxRecord {
+                        y_pel_height: _r.get_num(b"yPelHeight") as u16,
+                        y_max: _r.get_num(b"yMax") as i16,
+                        y_min: _r.get_num(b"yMin") as i16,
+                    });
+                }
+                vdmx.ratios.push(r);
+            }
         }
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
     }
-    return Some(vdmx);
+    logger_finish(&mut *options.logger.borrow_mut());
+    Some(vdmx)
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {

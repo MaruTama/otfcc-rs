@@ -2,9 +2,7 @@
 
 use crate::support::font_reader::FontReader;
 use crate::support::handle::{GlyphHandle, Handle, handle_from_name, otfcc_handle_dup};
-use crate::support::parsed_json::{
-    ParsedValue, json_obj_get, json_obj_key_bytes_at, json_obj_len, json_obj_val_at, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
     Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
 };
@@ -13,13 +11,10 @@ use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_p
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId};
-use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
-use crate::support::built_json::{
-    BuiltValue, json_object_new, json_object_push, json_object_push_bytes_key, preserialize,
-};
+use crate::support::built_json::BuiltValue;
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
@@ -116,60 +111,43 @@ pub unsafe fn otl_read_gpos_cursive(
     subtable_gpos_cursive_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gpos_dump_cursive(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gpos_dump_cursive(mut _subtable: *const Subtable) -> BuiltValue {
     let Subtable::GposCursive(mut_subtable) = &*_subtable else {
         unreachable!()
     };
     let subtable: *const GposCursiveSubtable = mut_subtable;
-    let st: *mut BuiltValue = json_object_new((*subtable).len());
+    let mut st = BuiltValue::new_object((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
-        let rec: *mut BuiltValue = json_object_new(2_usize);
-        json_object_push(
-            rec,
-            b"enter\0" as *const u8 as *const ::core::ffi::c_char,
-            otl_dump_anchor((&(*subtable))[j as usize].enter).into_raw(),
-        );
-        json_object_push(
-            rec,
-            b"exit\0" as *const u8 as *const ::core::ffi::c_char,
-            otl_dump_anchor((&(*subtable))[j as usize].exit).into_raw(),
-        );
-        json_object_push_bytes_key(
-            st,
-            &(&(*subtable))[j as usize].target.name,
-            preserialize(rec),
-        );
+        let mut rec = BuiltValue::new_object(2);
+        rec.push_field(b"enter", otl_dump_anchor((&(*subtable))[j as usize].enter));
+        rec.push_field(b"exit", otl_dump_anchor((&(*subtable))[j as usize].exit));
+        st.push_field_bytes_key(&(&(*subtable))[j as usize].target.name, rec.preserialize());
         j = j.wrapping_add(1);
     }
-    return st;
+    st
 }
 pub unsafe fn otl_gpos_parse_cursive(
     mut _subtable: *const ParsedValue,
     mut _options: &Options,
 ) -> *mut Subtable {
     let subtable: *mut GposCursiveSubtable = subtable_gpos_cursive_create();
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as ::core::ffi::c_uint) < json_obj_len(_subtable) {
-        let val = json_obj_val_at(_subtable, j as u32);
-        if !val.is_null()
-            && json_type_of(val) as ::core::ffi::c_uint
-                == JsonType::Object as i32 as ::core::ffi::c_uint
-        {
-            (*subtable).push(GposCursiveEntry {
-                target: handle_from_name(Some(json_obj_key_bytes_at(_subtable, j as u32)))
-                    as GlyphHandle,
-                enter: otl_parse_anchor(json_obj_get(
-                    val,
-                    b"enter\0" as *const u8 as *const ::core::ffi::c_char,
-                )),
-                exit: otl_parse_anchor(json_obj_get(
-                    val,
-                    b"exit\0" as *const u8 as *const ::core::ffi::c_char,
-                )),
-            });
+    if let Some(fields) = unsafe { _subtable.as_ref() }.and_then(ParsedValue::as_object) {
+        for (key, val) in fields {
+            if val.as_object().is_some() {
+                (*subtable).push(GposCursiveEntry {
+                    target: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
+                    enter: otl_parse_anchor(
+                        val.get(b"enter")
+                            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+                    ),
+                    exit: otl_parse_anchor(
+                        val.get(b"exit")
+                            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+                    ),
+                });
+            }
         }
-        j = j.wrapping_add(1);
     }
     return subtable_from_raw(subtable, Subtable::GposCursive);
 }

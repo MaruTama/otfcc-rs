@@ -1,10 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
-use crate::support::parsed_json::{
-    ParsedValue, json_arr_at, json_arr_len, json_obj_get_type, json_obj_key_bytes_at, json_obj_len,
-    json_obj_val_at, json_str_bytes, json_type_of,
-};
+use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
     Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage,
     read_coverage,
@@ -16,10 +13,7 @@ use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::bk_build_block;
 use crate::support::buffer::Buffer;
-use crate::support::built_json::{
-    BuiltValue, json_array_new, json_array_push, json_object_new, json_object_push,
-    json_string_new_from_bytes, preserialize,
-};
+use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId};
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
@@ -162,90 +156,62 @@ pub unsafe fn otl_read_gsub_ligature(
     }
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) -> *mut BuiltValue {
+pub unsafe fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) -> BuiltValue {
     let Subtable::GsubLigature(mut_subtable) = &*_subtable else {
         unreachable!()
     };
     let subtable: *const GsubLigatureSubtable = mut_subtable;
-    let st: *mut BuiltValue = json_array_new((*subtable).len());
+    let mut st = BuiltValue::new_array((*subtable).len());
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
-        let entry: *mut BuiltValue = json_object_new(2_usize);
-        json_object_push(
-            entry,
-            b"from\0" as *const u8 as *const ::core::ffi::c_char,
-            dump_coverage(&(&(*subtable))[j as usize].from as *const Coverage).into_raw(),
+        let mut entry = BuiltValue::new_object(2);
+        entry.push_field(
+            b"from",
+            dump_coverage(&(&(*subtable))[j as usize].from as *const Coverage),
         );
-        json_object_push(
-            entry,
-            b"to\0" as *const u8 as *const ::core::ffi::c_char,
-            json_string_new_from_bytes(&(&(*subtable))[j as usize].to.name),
+        entry.push_field(
+            b"to",
+            BuiltValue::str_truncated_at_nul(&(&(*subtable))[j as usize].to.name),
         );
-        json_array_push(st, preserialize(entry));
+        st.push_item(entry.preserialize());
         j = j.wrapping_add(1);
     }
-    let ret: *mut BuiltValue = json_object_new(1_usize);
-    json_object_push(
-        ret,
-        b"substitutions\0" as *const u8 as *const ::core::ffi::c_char,
-        st,
-    );
-    return ret;
+    let mut ret = BuiltValue::new_object(1);
+    ret.push_field(b"substitutions", st);
+    ret
 }
 pub unsafe fn otl_gsub_parse_ligature(
     mut _subtable: *const ParsedValue,
     mut _options: &Options,
 ) -> *mut Subtable {
-    if !json_obj_get_type(
-        _subtable,
-        b"substitutions\0" as *const u8 as *const ::core::ffi::c_char,
-        JsonType::Array,
-    )
-    .is_null()
+    let subtable_val = unsafe { _subtable.as_ref() };
+    if let Some(subs) = subtable_val.and_then(|v| v.get_typed(b"substitutions", JsonType::Array))
     {
-        _subtable = json_obj_get_type(
-            _subtable,
-            b"substitutions\0" as *const u8 as *const ::core::ffi::c_char,
-            JsonType::Array,
-        );
         let st: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
-        let n: GlyphId = json_arr_len(_subtable) as GlyphId;
-        let mut k: GlyphId = 0 as GlyphId;
-        while (k as i32) < n as i32 {
-            let entry: *const ParsedValue = json_arr_at(_subtable, k as u32);
-            let mut _from: *const ParsedValue = json_obj_get_type(
-                entry,
-                b"from\0" as *const u8 as *const ::core::ffi::c_char,
-                JsonType::Array,
-            );
-            let mut _to: *const ParsedValue = json_obj_get_type(
-                entry,
-                b"to\0" as *const u8 as *const ::core::ffi::c_char,
-                JsonType::String,
-            );
-            if !(_from.is_null() || _to.is_null()) {
-                (*st).push(GsubLigatureEntry {
-                    from: coverage_from_raw(parse_coverage(_from)),
-                    to: handle_from_name(Some(json_str_bytes(_to))) as GlyphHandle,
-                });
+        if let Some(items) = subs.as_array() {
+            for entry in items {
+                let from = entry.get_typed(b"from", JsonType::Array);
+                let to = entry.get_typed(b"to", JsonType::String);
+                if let (Some(from), Some(to)) = (from, to) {
+                    (*st).push(GsubLigatureEntry {
+                        from: coverage_from_raw(parse_coverage(from as *const ParsedValue)),
+                        to: handle_from_name(to.as_str_bytes().map(|b| b.to_vec())) as GlyphHandle,
+                    });
+                }
             }
-            k = k.wrapping_add(1);
         }
         return subtable_from_raw(st, Subtable::GsubLigature);
     } else {
         let st_0: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
-        let n_0: GlyphId = json_obj_len(_subtable) as GlyphId;
-        let mut k_0: GlyphId = 0 as GlyphId;
-        while (k_0 as i32) < n_0 as i32 {
-            let mut _from_0: *const ParsedValue = json_obj_val_at(_subtable, k_0 as u32);
-            if !(_from_0.is_null() || json_type_of(_from_0) != JsonType::Array) {
-                (*st_0).push(GsubLigatureEntry {
-                    from: coverage_from_raw(parse_coverage(_from_0)),
-                    to: handle_from_name(Some(json_obj_key_bytes_at(_subtable, k_0 as u32)))
-                        as GlyphHandle,
-                });
+        if let Some(fields) = subtable_val.and_then(ParsedValue::as_object) {
+            for (key, from) in fields {
+                if from.as_array().is_some() {
+                    (*st_0).push(GsubLigatureEntry {
+                        from: coverage_from_raw(parse_coverage(from as *const ParsedValue)),
+                        to: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
+                    });
+                }
             }
-            k_0 = k_0.wrapping_add(1);
         }
         return subtable_from_raw(st_0, Subtable::GsubLigature);
     };
