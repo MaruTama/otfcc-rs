@@ -49,7 +49,7 @@ pub unsafe fn table_dump_table_fpgm_prep(
     table: Option<&FpgmPrepTable>,
     root: &mut BuiltValue,
     options: &Options,
-    tag: *const ::core::ffi::c_char,
+    tag: &[u8],
 ) {
     let table = match table {
         Some(t) => t,
@@ -59,7 +59,7 @@ pub unsafe fn table_dump_table_fpgm_prep(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         root.push_field(
-            ::core::ffi::CStr::from_ptr(tag).to_bytes(),
+            tag,
             dump_ttinstr(
                 (*table).bytes.as_ptr() as *mut u8,
                 (*table).bytes.len() as u32,
@@ -83,18 +83,17 @@ pub unsafe fn wrong_fpgm_prep_instr(
 pub unsafe fn otfcc_parse_fpgm_prep(
     root: &ParsedValue,
     options: &Options,
-    tag: *const ::core::ffi::c_char,
+    tag: &[u8],
 ) -> Option<Box<FpgmPrepTable>> {
     let mut t: Option<Box<FpgmPrepTable>> = None;
-    let key = unsafe { ::core::ffi::CStr::from_ptr(tag) }.to_bytes();
-    let table = root.get(key);
+    let table = root.get(tag);
     if let Some(table) = table {
         let table = table as *const ParsedValue;
         logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
             let mut boxed = Box::new(FpgmPrepTable {
-                tag: ::core::ffi::CStr::from_ptr(tag).to_bytes().to_vec(),
+                tag: tag.to_vec(),
                 bytes: Vec::new(),
             });
             parse_ttinstr(

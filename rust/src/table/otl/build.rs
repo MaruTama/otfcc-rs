@@ -327,11 +327,7 @@ unsafe fn get_lookup_heuristics(
     }
     return heu;
 }
-unsafe fn write_otl_lookups(
-    table: *const OtlTable,
-    options: &Options,
-    tag: *const ::core::ffi::c_char,
-) -> *mut BkBlock {
+unsafe fn write_otl_lookups(table: *const OtlTable, options: &Options, tag: &[u8]) -> *mut BkBlock {
     // `subtables`/`subtable_quantity`/`prefer_ext_for_this_lut` were three
     // separately `__caryll_allocate_clean`'d, index-parallel arrays, sized
     // once to `lookups.len()` and never resized after -- `Vec`s built the
@@ -695,11 +691,7 @@ unsafe fn write_otl_script_and_languages(table: *const OtlTable) -> *mut BkBlock
     }
     return root;
 }
-pub unsafe fn otfcc_build_otl(
-    table: Option<&OtlTable>,
-    options: &Options,
-    tag: *const ::core::ffi::c_char,
-) -> Option<Buffer> {
+pub unsafe fn otfcc_build_otl(table: Option<&OtlTable>, options: &Options, tag: &[u8]) -> Option<Buffer> {
     let table: *const OtlTable = table.map_or(::core::ptr::null(), |t| t as *const OtlTable);
     if table.is_null() {
         return None;

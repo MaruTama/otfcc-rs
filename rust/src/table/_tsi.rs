@@ -168,12 +168,7 @@ pub unsafe fn otfcc_read_tsi(
     return Some(tsi);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_tsi(
-    tsi: Option<&TsiTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-    tag: *const ::core::ffi::c_char,
-) {
+pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, options: &Options, tag: &[u8]) {
     let tsi = match tsi {
         Some(t) => t,
         None => return,
@@ -203,19 +198,14 @@ pub unsafe fn otfcc_dump_tsi(
         }
         _tsi.push_field(b"glyphs", _glyphs);
         _tsi.push_field(b"extra", _extra);
-        root.push_field(::core::ffi::CStr::from_ptr(tag).to_bytes(), _tsi);
+        root.push_field(tag, _tsi);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_parse_tsi(
-    root: &ParsedValue,
-    options: &Options,
-    tag: *const ::core::ffi::c_char,
-) -> Option<TsiTable> {
-    let tag_key = ::core::ffi::CStr::from_ptr(tag).to_bytes();
-    let _tsi = root.get_typed(tag_key, JsonType::Object)?;
+pub unsafe fn otfcc_parse_tsi(root: &ParsedValue, options: &Options, tag: &[u8]) -> Option<TsiTable> {
+    let _tsi = root.get_typed(tag, JsonType::Object)?;
     let mut tsi: TsiTable = Vec::new();
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     if let Some(fields) = _tsi

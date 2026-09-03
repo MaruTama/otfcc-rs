@@ -258,17 +258,17 @@ impl FontBuilder for JsonReader {
             (*font).fpgm = otfcc_parse_fpgm_prep(
                 root,
                 options,
-                b"fpgm\0" as *const u8 as *const ::core::ffi::c_char,
+                b"fpgm",
             );
             (*font).prep = otfcc_parse_fpgm_prep(
                 root,
                 options,
-                b"prep\0" as *const u8 as *const ::core::ffi::c_char,
+                b"prep",
             );
             (*font).cvt_ = otfcc_parse_cvt(
                 root,
                 options,
-                b"cvt_\0" as *const u8 as *const ::core::ffi::c_char,
+                b"cvt_",
             );
             (*font).gasp = otfcc_parse_gasp(root, options);
         }
@@ -278,12 +278,12 @@ impl FontBuilder for JsonReader {
             (*font).gsub = otfcc_parse_otl(
                 root,
                 options,
-                b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
+                b"GSUB",
             );
             (*font).gpos = otfcc_parse_otl(
                 root,
                 options,
-                b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
+                b"GPOS",
             );
             (*font).gdef = otfcc_parse_gdef(root, options);
         }
@@ -294,12 +294,12 @@ impl FontBuilder for JsonReader {
         (*font).tsi_01 = otfcc_parse_tsi(
             root,
             options,
-            b"TSI_01\0" as *const u8 as *const ::core::ffi::c_char,
+            b"TSI_01",
         );
         (*font).tsi_23 = otfcc_parse_tsi(
             root,
             options,
-            b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
+            b"TSI_23",
         );
         (*font).tsi5 = otfcc_parse_tsi5(root);
         return font as *mut ::core::ffi::c_void;

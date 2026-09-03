@@ -425,12 +425,7 @@ fn tag4_matches(a: &[u8], b: &[u8]) -> bool {
 /// same "resolve at the point of use" pattern `libcff/subr.rs`'s
 /// `resolve_subr_ref` established for a comparable aliasing shape in
 /// Stage 9.
-unsafe fn feature_merger_activate(
-    d: *mut ParsedValue,
-    sametag: bool,
-    objtype: *const ::core::ffi::c_char,
-    options: &Options,
-) {
+unsafe fn feature_merger_activate(d: *mut ParsedValue, sametag: bool, objtype: &[u8], options: &Options) {
     let Some(d) = (unsafe { d.as_mut() }) else {
         return;
     };
@@ -482,17 +477,12 @@ unsafe fn feature_merger_activate(
 unsafe fn figure_out_features_from_json(
     features: *mut ParsedValue,
     lh: &Vec<LookupEntry>,
-    tag: *const ::core::ffi::c_char,
+    tag: &[u8],
     options: &Options,
 ) -> Vec<FeatureEntry> {
     let mut fh: Vec<FeatureEntry> = Vec::new();
     if options.merge_features {
-        feature_merger_activate(
-            features,
-            true,
-            b"feature\0" as *const u8 as *const ::core::ffi::c_char,
-            options,
-        );
+        feature_merger_activate(features, true, b"feature", options);
     }
     // `feature_merger_activate` (above) is the only thing that ever
     // mutates `features`'s tree, and it has already returned by the time
@@ -599,7 +589,7 @@ pub fn is_valid_language_name(name: &[u8]) -> bool {
 unsafe fn figure_out_languages_from_json(
     languages: *const ParsedValue,
     fh: &Vec<FeatureEntry>,
-    tag: *const ::core::ffi::c_char,
+    tag: &[u8],
     options: &Options,
 ) -> std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> {
     let mut sh: std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> =
@@ -684,11 +674,7 @@ unsafe fn figure_out_languages_from_json(
     }
     return sh;
 }
-pub unsafe fn otfcc_parse_otl(
-    root: &ParsedValue,
-    options: &Options,
-    tag: *const ::core::ffi::c_char,
-) -> Option<Box<OtlTable>> {
+pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8]) -> Option<Box<OtlTable>> {
     let otl: *mut OtlTable;
     let mut otl_box: Option<Box<OtlTable>> = None;
     // `table`/`languages`/`features`/`lookups`/`lookup_order` all stay raw
@@ -703,9 +689,8 @@ pub unsafe fn otfcc_parse_otl(
     // activate` itself uses internally, sidesteps that entirely: every
     // reborrow here is a temporary that retires at the end of its own
     // statement, long before the mutation happens.
-    let tag_key = unsafe { ::core::ffi::CStr::from_ptr(tag) }.to_bytes();
     let table: *const ParsedValue = root
-        .get_typed(tag_key, JsonType::Object)
+        .get_typed(tag, JsonType::Object)
         .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
     if !table.is_null() {
         otl_box = Some(Box::new(OtlTable {
@@ -846,7 +831,7 @@ mod feature_merger_tests {
         ]);
         let options = Options::default();
         unsafe {
-            feature_merger_activate(&mut d as *mut ParsedValue, true, c"feature".as_ptr(), &options);
+            feature_merger_activate(&mut d as *mut ParsedValue, true, b"feature", &options);
         }
         let fields = d.as_object().unwrap();
         assert_eq!(fields[0].0, b"test1\0");
@@ -869,7 +854,7 @@ mod feature_merger_tests {
         ]);
         let options = Options::default();
         unsafe {
-            feature_merger_activate(&mut d as *mut ParsedValue, true, c"feature".as_ptr(), &options);
+            feature_merger_activate(&mut d as *mut ParsedValue, true, b"feature", &options);
         }
         let fields = d.as_object().unwrap();
         // Neither entry is an alias: the first 4 bytes ("aaaa" vs "bbbb")
@@ -889,7 +874,7 @@ mod feature_merger_tests {
         ]);
         let options = Options::default();
         unsafe {
-            feature_merger_activate(&mut d as *mut ParsedValue, false, c"lookup".as_ptr(), &options);
+            feature_merger_activate(&mut d as *mut ParsedValue, false, b"lookup", &options);
         }
         let fields = d.as_object().unwrap();
         assert_eq!(fields[1].1, ParsedValue::Str(b"aaaa1\0".to_vec()));
