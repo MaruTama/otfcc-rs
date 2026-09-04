@@ -101,8 +101,7 @@ unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
             if should_decode_as_bytes(&raw const record) {
                 record.name_string = bytes.to_vec();
             } else if should_decode_as_utf16(&raw const record) {
-                record.name_string =
-                    utf16be_to_utf8(bytes.as_ptr(), bytes.len() as i32);
+                record.name_string = utf16be_to_utf8(bytes);
             } else {
                 record.name_string = base64_encode(bytes);
             }
@@ -277,7 +276,7 @@ pub fn otfcc_build_name(name: Option<&NameTable>) -> Option<Buffer> {
         buf.write_u16be(record.name_id);
         let cbefore = strings.pos();
         if unsafe { should_decode_as_utf16(record) } {
-            let u16: Vec<u8> = unsafe { utf8toutf16be(&record.name_string) };
+            let u16: Vec<u8> = utf8toutf16be(&record.name_string);
             strings.write_bytes(&u16);
         } else if unsafe { should_decode_as_bytes(record) } {
             strings.write_bytes(&record.name_string);
