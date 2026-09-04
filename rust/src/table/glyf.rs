@@ -168,8 +168,8 @@ unsafe fn create_point(p: *mut Point) {
     (*p).on_curve = TRUE_0 as i8;
 }
 unsafe fn copy_point(dst: *mut Point, src: *const Point) {
-    vq_copy(&raw mut (*dst).x, &raw const (*src).x);
-    vq_copy(&raw mut (*dst).y, &raw const (*src).y);
+    vq_copy(&mut (*dst).x, &(*src).x);
+    vq_copy(&mut (*dst).y, &(*src).y);
     (*dst).on_curve = (*src).on_curve;
 }
 #[inline]
@@ -599,11 +599,11 @@ unsafe fn glyf_parse_point(pointdump: &ParsedValue) -> Point {
     for (key, val) in fields {
         match &key[..key.len() - 1] {
             b"x" => vq_replace(
-                &raw mut point.x,
+                &mut point.x,
                 json_vq_of(val as *const ParsedValue, ::core::ptr::null::<FvarTable>()) as VQ,
             ),
             b"y" => vq_replace(
-                &raw mut point.y,
+                &mut point.y,
                 json_vq_of(val as *const ParsedValue, ::core::ptr::null::<FvarTable>()) as VQ,
             ),
             b"on" => point.on_curve = val.as_bool().unwrap_or(false) as i8,
@@ -630,8 +630,8 @@ unsafe fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
     let mut ref_0: ComponentReference = (glyf_component_reference_empty)();
     let Some(_gname) = refdump.get_typed(b"glyph", JsonType::String) else {
         ref_0.glyph.name = Vec::new();
-        vq_replace(&raw mut ref_0.x, vq_create_still(0_i32 as Pos) as VQ);
-        vq_replace(&raw mut ref_0.y, vq_create_still(0_i32 as Pos) as VQ);
+        vq_replace(&mut ref_0.x, vq_create_still(0_i32 as Pos) as VQ);
+        vq_replace(&mut ref_0.y, vq_create_still(0_i32 as Pos) as VQ);
         ref_0.a = 1.0f64 as Scale;
         ref_0.b = 0.0f64 as Scale;
         ref_0.c = 0.0f64 as Scale;
@@ -642,14 +642,14 @@ unsafe fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
     };
     ref_0.glyph = handle_from_name(_gname.as_str_bytes().map(|b| b.to_vec())) as GlyphHandle;
     vq_replace(
-        &raw mut ref_0.x,
+        &mut ref_0.x,
         json_vq_of(
             refdump.get(b"x").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
             ::core::ptr::null::<FvarTable>(),
         ) as VQ,
     );
     vq_replace(
-        &raw mut ref_0.y,
+        &mut ref_0.y,
         json_vq_of(
             refdump.get(b"y").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
             ::core::ptr::null::<FvarTable>(),
@@ -762,14 +762,14 @@ unsafe fn otfcc_glyf_parse_glyph(
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     (*g).name = order_entry.name.clone();
     vq_replace(
-        &raw mut (*g).advance_width,
+        &mut (*g).advance_width,
         json_vq_of(
             glyphdump.get(b"advanceWidth").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
             ::core::ptr::null::<FvarTable>(),
         ) as VQ,
     );
     vq_replace(
-        &raw mut (*g).horizontal_origin,
+        &mut (*g).horizontal_origin,
         json_vq_of(
             glyphdump
                 .get(b"horizontalOrigin")
@@ -778,14 +778,14 @@ unsafe fn otfcc_glyf_parse_glyph(
         ) as VQ,
     );
     vq_replace(
-        &raw mut (*g).advance_height,
+        &mut (*g).advance_height,
         json_vq_of(
             glyphdump.get(b"advanceHeight").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
             ::core::ptr::null::<FvarTable>(),
         ) as VQ,
     );
     vq_replace(
-        &raw mut (*g).vertical_origin,
+        &mut (*g).vertical_origin,
         json_vq_of(
             glyphdump.get(b"verticalOrigin").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
             ::core::ptr::null::<FvarTable>(),

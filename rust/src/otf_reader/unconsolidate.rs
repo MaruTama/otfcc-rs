@@ -426,9 +426,9 @@ unsafe fn merge_hmtx(font: *mut Font) {
         } else {
             hmtx.left_side_bearing[(j as u32).wrapping_sub(count_a) as usize]
         };
-        vq_inplace_plus(&raw mut (*g).advance_width, vq_create_still(adw) as VQ);
+        vq_inplace_plus(&mut (*g).advance_width, vq_create_still(adw) as VQ);
         vq_inplace_plus(
-            &raw mut (*g).horizontal_origin,
+            &mut (*g).horizontal_origin,
             vq_create_still(-lsb + (*g).stat.x_min) as VQ,
         );
     }
@@ -464,9 +464,9 @@ unsafe fn merge_vmtx(font: *mut Font) {
         } else {
             vmtx.top_side_bearing[(j_1 as u32).wrapping_sub(count_a) as usize]
         };
-        vq_inplace_plus(&raw mut (*g).advance_height, vq_create_still(adh) as VQ);
+        vq_inplace_plus(&mut (*g).advance_height, vq_create_still(adh) as VQ);
         vq_inplace_plus(
-            &raw mut (*g).vertical_origin,
+            &mut (*g).vertical_origin,
             vq_create_still(if let Some(v) = &vorgs {
                 v[j_1 as usize]
             } else {

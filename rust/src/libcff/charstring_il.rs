@@ -355,10 +355,10 @@ pub unsafe fn cff_compile_glyph_to_il(
         while (j_0 as usize) < (*newcontour).len() {
             let dx: VQ = vq_minus((&(*newcontour))[j_0 as usize].x.clone(), x.clone());
             let dy: VQ = vq_minus((&(*newcontour))[j_0 as usize].y.clone(), y.clone());
-            vq_copy_replace(&raw mut x, (&(*newcontour))[j_0 as usize].x.clone());
-            vq_copy_replace(&raw mut y, (&(*newcontour))[j_0 as usize].y.clone());
-            vq_replace(&raw mut (&mut (*newcontour))[j_0 as usize].x, dx);
-            vq_replace(&raw mut (&mut (*newcontour))[j_0 as usize].y, dy);
+            vq_copy_replace(&mut x, (&(*newcontour))[j_0 as usize].x.clone());
+            vq_copy_replace(&mut y, (&(*newcontour))[j_0 as usize].y.clone());
+            vq_replace(&mut (&mut (*newcontour))[j_0 as usize].x, dx);
+            vq_replace(&mut (&mut (*newcontour))[j_0 as usize].y, dy);
             j_0 = j_0.wrapping_add(1);
         }
         c = c.wrapping_add(1);
