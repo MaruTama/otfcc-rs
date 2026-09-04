@@ -673,7 +673,7 @@ pub(crate) unsafe fn callback_draw_lineto(
             },
             on_curve: 0,
         };
-        glyf_point_init(&raw mut z);
+        glyf_point_init(&mut z);
         z.on_curve = TRUE_0 as i8;
         vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
         vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
@@ -706,7 +706,7 @@ pub(crate) unsafe fn callback_draw_curveto(
             },
             on_curve: 0,
         };
-        glyf_point_init(&raw mut z);
+        glyf_point_init(&mut z);
         z.on_curve = FALSE_0 as i8;
         vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
         vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
@@ -722,7 +722,7 @@ pub(crate) unsafe fn callback_draw_curveto(
             },
             on_curve: 0,
         };
-        glyf_point_init(&raw mut z_0);
+        glyf_point_init(&mut z_0);
         z_0.on_curve = FALSE_0 as i8;
         vq_copy_replace(&mut z_0.x, vq_create_still(x2 as Pos) as VQ);
         vq_copy_replace(&mut z_0.y, vq_create_still(y2 as Pos) as VQ);
@@ -738,7 +738,7 @@ pub(crate) unsafe fn callback_draw_curveto(
             },
             on_curve: 0,
         };
-        glyf_point_init(&raw mut z_1);
+        glyf_point_init(&mut z_1);
         z_1.on_curve = TRUE_0 as i8;
         vq_copy_replace(&mut z_1.x, vq_create_still(x3 as Pos) as VQ);
         vq_copy_replace(&mut z_1.y, vq_create_still(y3 as Pos) as VQ);
@@ -1692,12 +1692,12 @@ unsafe fn cff_make_charstrings(context: *mut CffCharstringBuilderContext) -> (Bu
             (*context).nominal_width_x,
         );
         cff_optimize_il(il, &*(*context).options);
-        cff_insert_il_to_graph(&raw mut (*context).graph, il);
+        cff_insert_il_to_graph(&mut (*context).graph, &*il);
         drop(Box::from_raw(il));
         il = ::core::ptr::null_mut::<CffCharstringIl>();
         j = j.wrapping_add(1);
     }
-    cff_il_graph_to_buffers(&raw mut (*context).graph, &*(*context).options)
+    cff_il_graph_to_buffers(&mut (*context).graph, &*(*context).options)
 }
 // Deduplicates by string content, first registration wins -- returns the
 // existing SID if the string was already registered, otherwise assigns
@@ -2132,10 +2132,10 @@ unsafe fn writecff_cid_keyed(
     g2c_context.default_width = (*cff).private_dict.as_deref().unwrap().default_width_x as u16;
     g2c_context.nominal_width_x = (*cff).private_dict.as_deref().unwrap().nominal_width_x as u16;
     g2c_context.options = options as *const Options;
-    cff_subr_graph_init(&raw mut g2c_context.graph);
+    cff_subr_graph_init(&mut g2c_context.graph);
     g2c_context.graph.do_subroutinize = options.cff_do_subroutinize;
     let (s, gs, ls) = cff_make_charstrings(&raw mut g2c_context);
-    cff_subr_graph_dispose(&raw mut g2c_context.graph);
+    cff_subr_graph_dispose(&mut g2c_context.graph);
     let mut additional_top_dict_ops_size: u32 = 0_u32;
     let mut off: u32 = h
         .len()

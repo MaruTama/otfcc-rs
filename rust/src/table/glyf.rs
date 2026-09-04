@@ -27,7 +27,22 @@ use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_copy, vq_create_still, vq_get_still, vq_is_still, vq_replace};
 
+// `#[repr(C)]`: `table/glyf/read.rs`'s `apply_polymorphism` reinterprets a
+// `&mut ComponentReference.x` as `&mut Point` (`get_x`/`get_y` are called
+// through a `*mut Point`-typed pointer that sometimes really points at a
+// `ComponentReference`, relying on both structs starting with the same
+// `x: VQ, y: VQ` prefix). Without `#[repr(C)]` on both structs, Rust's
+// default layout does not guarantee matching field order/offsets between
+// two independently-declared structs -- this pun is undefined behavior
+// today even though it happens to work with the current compiler's layout
+// choices. `#[repr(C)]` makes the existing, intentional prefix-sharing
+// layout-legal with no behavior change (declaration order becomes the
+// guaranteed field order). The pun itself (`CoordPartGetter`/`get_x`/
+// `get_y` in `table/glyf/read.rs`) is a separate, larger redesign left for
+// a future investigation -- this is only the minimal fix that makes the
+// current code sound.
 #[derive(Clone)]
+#[repr(C)]
 pub struct Point {
     pub x: VQ,
     pub y: VQ,
@@ -65,7 +80,10 @@ pub enum RefAnchorStatus {
     AnchorConsolidatingAnchor = 4,
     AnchorConsolidatingXy = 5,
 }
+// `#[repr(C)]`: see the identical comment on `Point` above -- this struct
+// is the other half of the `x: VQ, y: VQ` prefix-sharing pun.
 #[derive(Clone)]
+#[repr(C)]
 pub struct ComponentReference {
     pub x: VQ,
     pub y: VQ,
@@ -162,22 +180,22 @@ pub struct GlyfIOContext {
 /// down to bit 0 rather than trusting it -- so this is typed as the `i8` it is
 /// applied to, which is what lets the two sites drop their casts.
 pub const MASK_ON_CURVE: i8 = 1;
-unsafe fn create_point(p: *mut Point) {
-    (*p).x = vq_create_still(0_i32 as Pos);
-    (*p).y = vq_create_still(0_i32 as Pos);
-    (*p).on_curve = TRUE_0 as i8;
+fn create_point(p: &mut Point) {
+    p.x = vq_create_still(0_i32 as Pos);
+    p.y = vq_create_still(0_i32 as Pos);
+    p.on_curve = TRUE_0 as i8;
 }
-unsafe fn copy_point(dst: *mut Point, src: *const Point) {
-    vq_copy(&mut (*dst).x, &(*src).x);
-    vq_copy(&mut (*dst).y, &(*src).y);
-    (*dst).on_curve = (*src).on_curve;
+fn copy_point(dst: &mut Point, src: &Point) {
+    vq_copy(&mut dst.x, &src.x);
+    vq_copy(&mut dst.y, &src.y);
+    dst.on_curve = src.on_curve;
 }
 #[inline]
-pub unsafe fn glyf_point_init(x: *mut Point) {
+pub fn glyf_point_init(x: &mut Point) {
     create_point(x);
 }
 #[inline]
-pub unsafe fn glyf_point_dup(src: Point) -> Point {
+pub fn glyf_point_dup(src: Point) -> Point {
     let mut dst: Point = Point {
         x: VQ {
             kernel: 0.,
@@ -189,20 +207,21 @@ pub unsafe fn glyf_point_dup(src: Point) -> Point {
         },
         on_curve: 0,
     };
-    glyf_point_copy(&raw mut dst, &raw const src);
+    glyf_point_copy(&mut dst, &src);
     return dst;
 }
 #[inline]
-unsafe fn glyf_point_copy(dst: *mut Point, src: *const Point) {
+fn glyf_point_copy(dst: &mut Point, src: &Point) {
     copy_point(dst, src);
 }
 /// Grows `arr` to `n` points, default-constructing each new one via
-/// [`glyf_point_init`] -- also called directly from `libcff/charstring_il.rs`
-/// and `table/cff.rs`, since the `PointElementInterface` vtable this used to
-/// dispatch through is gone (single static, no real polymorphism).
+/// [`glyf_point_init`] -- also called directly from `table/cff.rs`, since the
+/// `PointElementInterface` vtable this used to dispatch through is gone
+/// (single static, no real polymorphism). (`libcff/charstring_il.rs` calls
+/// the by-value [`glyf_point_dup`] instead, not this one.)
 #[inline]
-unsafe fn glyf_contour_fill(arr: *mut Contour, n: usize) {
-    while (*arr).len() < n {
+fn glyf_contour_fill(arr: &mut Contour, n: usize) {
+    while arr.len() < n {
         let mut x: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -214,27 +233,33 @@ unsafe fn glyf_contour_fill(arr: *mut Contour, n: usize) {
             },
             on_curve: 0,
         };
-        glyf_point_init(&raw mut x);
-        (*arr).push(x);
+        glyf_point_init(&mut x);
+        arr.push(x);
     }
 }
 #[inline]
-unsafe fn init_glyf_reference(ref_0: *mut ComponentReference) {
-    (*ref_0).glyph = otfcc_handle_empty() as GlyphHandle;
-    (*ref_0).x = vq_create_still(0_i32 as Pos);
-    (*ref_0).y = vq_create_still(0_i32 as Pos);
-    (*ref_0).a = 1_i32 as Scale;
-    (*ref_0).b = 0_i32 as Scale;
-    (*ref_0).c = 0_i32 as Scale;
-    (*ref_0).d = 1_i32 as Scale;
-    (*ref_0).is_anchored = RefAnchorStatus::Xy;
-    (*ref_0).outer = 0 as ShapeId;
-    (*ref_0).inner = (*ref_0).outer;
-    (*ref_0).round_to_grid = false;
-    (*ref_0).use_my_metrics = false;
+fn init_glyf_reference(ref_0: &mut ComponentReference) {
+    // `otfcc_handle_empty` is still an `unsafe fn` in `support/handle.rs`
+    // (a separate, not-yet-converted raw-pointer shell around `Handle`,
+    // out of scope here) -- trivially safe internally
+    // (`Handle::default()`), so this is a single narrow `unsafe {}` rather
+    // than the whole function, the same way `vf/vq.rs`'s `vqs_compare`
+    // bridges to the still-raw `vq_compare_region`.
+    ref_0.glyph = unsafe { otfcc_handle_empty() } as GlyphHandle;
+    ref_0.x = vq_create_still(0_i32 as Pos);
+    ref_0.y = vq_create_still(0_i32 as Pos);
+    ref_0.a = 1_i32 as Scale;
+    ref_0.b = 0_i32 as Scale;
+    ref_0.c = 0_i32 as Scale;
+    ref_0.d = 1_i32 as Scale;
+    ref_0.is_anchored = RefAnchorStatus::Xy;
+    ref_0.outer = 0 as ShapeId;
+    ref_0.inner = ref_0.outer;
+    ref_0.round_to_grid = false;
+    ref_0.use_my_metrics = false;
 }
 #[inline]
-pub unsafe fn glyf_component_reference_empty() -> ComponentReference {
+pub fn glyf_component_reference_empty() -> ComponentReference {
     let mut x: ComponentReference = ComponentReference {
         x: VQ {
             kernel: 0.,
@@ -259,11 +284,11 @@ pub unsafe fn glyf_component_reference_empty() -> ComponentReference {
         inner: 0,
         outer: 0,
     };
-    glyf_component_reference_init(&raw mut x);
+    glyf_component_reference_init(&mut x);
     return x;
 }
 #[inline]
-pub unsafe fn glyf_component_reference_init(x: *mut ComponentReference) {
+pub fn glyf_component_reference_init(x: &mut ComponentReference) {
     init_glyf_reference(x);
 }
 /// `Box::new` is the allocation and the struct literal is the zero-init
@@ -592,7 +617,7 @@ unsafe fn glyf_parse_point(pointdump: &ParsedValue) -> Point {
         },
         on_curve: 0,
     };
-    glyf_point_init(&raw mut point);
+    glyf_point_init(&mut point);
     let Some(fields) = pointdump.as_object() else {
         return point;
     };
