@@ -673,7 +673,7 @@ pub(crate) unsafe fn callback_draw_lineto(
             },
             on_curve: 0,
         };
-        glyf_point_init(&raw mut z);
+        glyf_point_init(&mut z);
         z.on_curve = TRUE_0 as i8;
         vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
         vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
@@ -706,7 +706,7 @@ pub(crate) unsafe fn callback_draw_curveto(
             },
             on_curve: 0,
         };
-        glyf_point_init(&raw mut z);
+        glyf_point_init(&mut z);
         z.on_curve = FALSE_0 as i8;
         vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
         vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
@@ -722,7 +722,7 @@ pub(crate) unsafe fn callback_draw_curveto(
             },
             on_curve: 0,
         };
-        glyf_point_init(&raw mut z_0);
+        glyf_point_init(&mut z_0);
         z_0.on_curve = FALSE_0 as i8;
         vq_copy_replace(&mut z_0.x, vq_create_still(x2 as Pos) as VQ);
         vq_copy_replace(&mut z_0.y, vq_create_still(y2 as Pos) as VQ);
@@ -738,7 +738,7 @@ pub(crate) unsafe fn callback_draw_curveto(
             },
             on_curve: 0,
         };
-        glyf_point_init(&raw mut z_1);
+        glyf_point_init(&mut z_1);
         z_1.on_curve = TRUE_0 as i8;
         vq_copy_replace(&mut z_1.x, vq_create_still(x3 as Pos) as VQ);
         vq_copy_replace(&mut z_1.y, vq_create_still(y3 as Pos) as VQ);

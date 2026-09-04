@@ -133,7 +133,7 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
             return None;
         }
         let mut contour: Contour = Vec::new();
-        glyf_contour_fill(&raw mut contour, n as usize);
+        glyf_contour_fill(&mut contour, n as usize);
         (*contours).push(contour);
         points_in_glyph = last_point_in_current_contour as u32 + 1;
     }
