@@ -197,7 +197,7 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
             r.i16().ok()?
         };
         vq_replace(
-            &raw mut (*next_point(
+            &mut (*next_point(
                 contours,
                 &raw mut current_contour,
                 &raw mut current_contour_point_index,
@@ -225,7 +225,7 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
             r.i16().ok()?
         };
         vq_replace(
-            &raw mut (*next_point(
+            &mut (*next_point(
                 contours,
                 &raw mut current_contour,
                 &raw mut current_contour_point_index,
@@ -242,10 +242,10 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
         let mut k: ShapeId = 0 as ShapeId;
         while (k as usize) < (&(*contours))[j_1 as usize].len() {
             let z: *mut Point = &raw mut (&mut (*contours))[j_1 as usize][k as usize];
-            vq_inplace_plus(&raw mut cx, (*z).x.clone());
-            vq_inplace_plus(&raw mut cy, (*z).y.clone());
-            vq_copy_replace(&raw mut (*z).x, cx.clone());
-            vq_copy_replace(&raw mut (*z).y, cy.clone());
+            vq_inplace_plus(&mut cx, (*z).x.clone());
+            vq_inplace_plus(&mut cy, (*z).y.clone());
+            vq_copy_replace(&mut (*z).x, cx.clone());
+            vq_copy_replace(&mut (*z).y, cy.clone());
             k = k.wrapping_add(1);
         }
         (&mut (*contours))[j_1 as usize].shrink_to_fit();
@@ -736,13 +736,13 @@ unsafe fn apply_polymorphism(
         < n_touched_points as i32
     {
         vq_add_delta(
-            &raw mut (*glyph).horizontal_origin,
+            &mut (*glyph).horizontal_origin,
             true,
             r,
             *delta_x.offset(total_points as isize),
         );
         vq_add_delta(
-            &raw mut (*glyph).advance_width,
+            &mut (*glyph).advance_width,
             true,
             r,
             *delta_x
@@ -754,14 +754,14 @@ unsafe fn apply_polymorphism(
         < n_touched_points as i32
     {
         vq_add_delta(
-            &raw mut (*glyph).vertical_origin,
+            &mut (*glyph).vertical_origin,
             true,
             r,
             *delta_y
                 .offset((total_points as i32 + 2_i32) as isize),
         );
         vq_add_delta(
-            &raw mut (*glyph).advance_height,
+            &mut (*glyph).advance_height,
             true,
             r,
             *delta_y

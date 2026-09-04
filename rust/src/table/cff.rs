@@ -643,7 +643,7 @@ pub(crate) unsafe fn callback_draw_setwidth(
 ) {
     let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     vq_replace(
-        &raw mut (*(*context).g).advance_width,
+        &mut (*(*context).g).advance_width,
         vq_create_still(width as Pos + (*context).nominal_width_x as Pos) as VQ,
     );
 }
@@ -675,8 +675,8 @@ pub(crate) unsafe fn callback_draw_lineto(
         };
         glyf_point_init(&raw mut z);
         z.on_curve = TRUE_0 as i8;
-        vq_copy_replace(&raw mut z.x, vq_create_still(x1 as Pos) as VQ);
-        vq_copy_replace(&raw mut z.y, vq_create_still(y1 as Pos) as VQ);
+        vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
+        vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
         (*contour).push(z);
         (*context).j_point =
             ((*context).j_point as i32 + 1_i32) as ShapeId;
@@ -708,8 +708,8 @@ pub(crate) unsafe fn callback_draw_curveto(
         };
         glyf_point_init(&raw mut z);
         z.on_curve = FALSE_0 as i8;
-        vq_copy_replace(&raw mut z.x, vq_create_still(x1 as Pos) as VQ);
-        vq_copy_replace(&raw mut z.y, vq_create_still(y1 as Pos) as VQ);
+        vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
+        vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
         (*contour).push(z);
         let mut z_0: Point = Point {
             x: VQ {
@@ -724,8 +724,8 @@ pub(crate) unsafe fn callback_draw_curveto(
         };
         glyf_point_init(&raw mut z_0);
         z_0.on_curve = FALSE_0 as i8;
-        vq_copy_replace(&raw mut z_0.x, vq_create_still(x2 as Pos) as VQ);
-        vq_copy_replace(&raw mut z_0.y, vq_create_still(y2 as Pos) as VQ);
+        vq_copy_replace(&mut z_0.x, vq_create_still(x2 as Pos) as VQ);
+        vq_copy_replace(&mut z_0.y, vq_create_still(y2 as Pos) as VQ);
         (*contour).push(z_0);
         let mut z_1: Point = Point {
             x: VQ {
@@ -740,8 +740,8 @@ pub(crate) unsafe fn callback_draw_curveto(
         };
         glyf_point_init(&raw mut z_1);
         z_1.on_curve = TRUE_0 as i8;
-        vq_copy_replace(&raw mut z_1.x, vq_create_still(x3 as Pos) as VQ);
-        vq_copy_replace(&raw mut z_1.y, vq_create_still(y3 as Pos) as VQ);
+        vq_copy_replace(&mut z_1.x, vq_create_still(x3 as Pos) as VQ);
+        vq_copy_replace(&mut z_1.y, vq_create_still(y3 as Pos) as VQ);
         (*contour).push(z_1);
         (*context).j_point =
             ((*context).j_point as i32 + 3_i32) as ShapeId;
@@ -943,7 +943,7 @@ unsafe fn build_outline(
         bc.nominal_width_x = pd.nominal_width_x;
     }
     vq_replace(
-        &raw mut (*g).advance_width,
+        &mut (*g).advance_width,
         vq_create_still(bc.default_width_x as Pos) as VQ,
     );
     let char_strings_offset = &(*f).char_strings.offset;
@@ -982,10 +982,10 @@ unsafe fn build_outline(
         let mut k: ShapeId = 0 as ShapeId;
         while (k as usize) < (*contour).len() {
             let z: *mut Point = &raw mut (&mut (*contour))[k as usize];
-            vq_inplace_plus(&raw mut cx, (*z).x.clone());
-            vq_inplace_plus(&raw mut cy, (*z).y.clone());
-            vq_copy_replace(&raw mut (*z).x, cx.clone());
-            vq_copy_replace(&raw mut (*z).y, cy.clone());
+            vq_inplace_plus(&mut cx, (*z).x.clone());
+            vq_inplace_plus(&mut cy, (*z).y.clone());
+            vq_copy_replace(&mut (*z).x, cx.clone());
+            vq_copy_replace(&mut (*z).y, cy.clone());
             k = k.wrapping_add(1);
         }
         if vq_compare(
@@ -1196,12 +1196,12 @@ unsafe fn apply_cff_matrix(
                     let zx: VQ = vq_dup((&(*contour))[k as usize].x.clone());
                     let zy: VQ = vq_dup((&(*contour))[k as usize].y.clone());
                     vq_replace(
-                        &raw mut (&mut (*contour))[k as usize].x,
+                        &mut (&mut (*contour))[k as usize].x,
                         vq_point_linear_tfm(x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone())
                             as VQ,
                     );
                     vq_replace(
-                        &raw mut (&mut (*contour))[k as usize].y,
+                        &mut (&mut (*contour))[k as usize].y,
                         vq_point_linear_tfm(y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone())
                             as VQ,
                     );

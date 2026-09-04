@@ -174,7 +174,7 @@ pub unsafe fn stat_single_glyph(
         ref_0.c = (*gr).a * (*rr).c + (*gr).c * (*rr).d;
         ref_0.d = (*gr).b * (*rr).c + (*rr).d * (*gr).d;
         vq_replace(
-            &raw mut ref_0.x,
+            &mut ref_0.x,
             vq_create_still(
                 vq_get_still((*rr).x.clone())
                     + (*rr).a as Pos * vq_get_still((*gr).x.clone())
@@ -182,7 +182,7 @@ pub unsafe fn stat_single_glyph(
             ) as VQ,
         );
         vq_replace(
-            &raw mut ref_0.y,
+            &mut ref_0.y,
             vq_create_still(
                 vq_get_still((*rr).y.clone())
                     + (*rr).c as Pos * vq_get_still((*gr).x.clone())
@@ -413,7 +413,7 @@ unsafe fn stat_hmtx(font: *mut Font) {
     for j in 0..(*glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
         if vq_is_zero((*g).horizontal_origin.clone(), 1.0f64 / 1000.0f64) {
-            vq_replace(&raw mut (*g).horizontal_origin, (vq_neutral)() as VQ);
+            vq_replace(&mut (*g).horizontal_origin, (vq_neutral)() as VQ);
         } else {
             lsb_at_x_0 = false;
         }

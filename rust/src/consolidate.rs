@@ -352,7 +352,7 @@ pub unsafe fn get_point_coordinates(
             if *stated as i32 == n as i32 {
                 let p: *mut Point = &raw mut (&mut (*g).contours)[c as usize][pj as usize];
                 vq_replace(
-                    x,
+                    &mut *x,
                     vq_point_linear_tfm(
                         (*gr).x.clone(),
                         (*gr).a as Pos,
@@ -362,7 +362,7 @@ pub unsafe fn get_point_coordinates(
                     ) as VQ,
                 );
                 vq_replace(
-                    y,
+                    &mut *y,
                     vq_point_linear_tfm(
                         (*gr).y.clone(),
                         (*gr).c as Pos,
@@ -389,7 +389,7 @@ pub unsafe fn get_point_coordinates(
         ref_0.c = (*gr).a * (*rr).c + (*gr).c * (*rr).d;
         ref_0.d = (*gr).b * (*rr).c + (*rr).d * (*gr).d;
         vq_replace(
-            &raw mut ref_0.x,
+            &mut ref_0.x,
             vq_point_linear_tfm(
                 (*rr).x.clone(),
                 (*rr).a as Pos,
@@ -399,7 +399,7 @@ pub unsafe fn get_point_coordinates(
             ) as VQ,
         );
         vq_replace(
-            &raw mut ref_0.y,
+            &mut ref_0.y,
             vq_point_linear_tfm(
                 (*rr).y.clone(),
                 (*rr).c as Pos,
@@ -524,8 +524,8 @@ pub unsafe fn consolidate_anchor_ref(
         inner_y.clone(),
     );
     if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingAnchor {
-        vq_replace(&raw mut (*rr).x, rrx);
-        vq_replace(&raw mut (*rr).y, rry);
+        vq_replace(&mut (*rr).x, rrx);
+        vq_replace(&mut (*rr).y, rry);
         (*rr).is_anchored = RefAnchorStatus::AnchorConsolidated;
     } else {
         if fabs(
