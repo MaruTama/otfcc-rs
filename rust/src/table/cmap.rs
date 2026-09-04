@@ -77,14 +77,20 @@ unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> i32 {
         10_i32,
     ) as i32;
 }
-pub unsafe fn otfcc_encode_cmap_by_index(
-    cmap: *mut CmapTable,
+pub fn otfcc_encode_cmap_by_index(
+    cmap: &mut CmapTable,
     c: i32,
     gid: u16,
 ) -> bool {
-    match (*cmap).unicodes.entry(c) {
+    match cmap.unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_index(gid as GlyphId) as GlyphHandle);
+            // `handle_from_index` is a separate, not-yet-converted
+            // raw-pointer-adjacent `Handle` shell (`support/handle.rs`),
+            // out of scope here -- trivially safe internally, so this is a
+            // single narrow `unsafe {}` rather than the whole function, the
+            // same way `vf/vq.rs`'s `vqs_compare` and `table/glyf.rs`'s
+            // `init_glyf_reference` bridge to their own out-of-scope shells.
+            v.insert(unsafe { handle_from_index(gid as GlyphId) } as GlyphHandle);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,
@@ -96,50 +102,40 @@ pub unsafe fn otfcc_encode_cmap_by_index(
 // ("already mapped") path used to leave the old `SdsRaw` `name` unfreed
 // -- a pre-existing leak this migration didn't own until now -- but that
 // hazard is gone by construction: an unused `Vec<u8>` just drops.
-//
-// Never a real FFI boundary -- internal call sites only, same rationale
-// as every other instance of this allow in the crate.
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_encode_cmap_by_name(
-    cmap: *mut CmapTable,
+pub fn otfcc_encode_cmap_by_name(
+    cmap: &mut CmapTable,
     c: i32,
     name: Vec<u8>,
 ) -> bool {
-    match (*cmap).unicodes.entry(c) {
+    match cmap.unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_name(Some(name)) as GlyphHandle);
+            // See `otfcc_encode_cmap_by_index` above for why this is a
+            // narrow `unsafe {}` rather than an `unsafe fn`.
+            v.insert(unsafe { handle_from_name(Some(name)) } as GlyphHandle);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-pub unsafe fn otfcc_unmap_cmap(cmap: *mut CmapTable, c: i32) -> bool {
+pub fn otfcc_unmap_cmap(cmap: &mut CmapTable, c: i32) -> bool {
     // Removing the entry drops its `GlyphHandle` (freeing the glyph
     // name), replacing the explicit `otfcc_handle_dispose` + manual
     // node walk this walk used to do.
-    (*cmap).unicodes.remove(&c).is_some()
+    cmap.unicodes.remove(&c).is_some()
 }
-pub unsafe fn otfcc_cmap_lookup(
-    cmap: *const CmapTable,
-    c: i32,
-) -> *mut GlyphHandle {
-    // `cmap` is `*const` but the original returned a mutable-looking
-    // pointer into the same hash node regardless -- raw-pointer
-    // constness was never enforced here, only advisory, matching the
-    // rest of this crate's `*const`/`*mut` cmap plumbing.
-    match (*cmap).unicodes.get(&c) {
-        Some(glyph) => glyph as *const GlyphHandle as *mut GlyphHandle,
-        None => ::core::ptr::null_mut::<GlyphHandle>(),
-    }
+pub fn otfcc_cmap_lookup(cmap: &CmapTable, c: i32) -> Option<&GlyphHandle> {
+    cmap.unicodes.get(&c)
 }
-pub unsafe fn otfcc_encode_cmap_uvs_by_index(
-    cmap: *mut CmapTable,
+pub fn otfcc_encode_cmap_uvs_by_index(
+    cmap: &mut CmapTable,
     c: CmapUvsKey,
     gid: u16,
 ) -> bool {
-    match (*cmap).uvs.entry(c) {
+    match cmap.uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_index(gid as GlyphId) as GlyphHandle);
+            // See `otfcc_encode_cmap_by_index` above for why this is a
+            // narrow `unsafe {}` rather than an `unsafe fn`.
+            v.insert(unsafe { handle_from_index(gid as GlyphId) } as GlyphHandle);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,
@@ -147,31 +143,24 @@ pub unsafe fn otfcc_encode_cmap_uvs_by_index(
 }
 // Same `Vec<u8>`-in shape as `otfcc_encode_cmap_by_name` above, same
 // reason.
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_encode_cmap_uvs_by_name(
-    cmap: *mut CmapTable,
+pub fn otfcc_encode_cmap_uvs_by_name(
+    cmap: &mut CmapTable,
     c: CmapUvsKey,
     name: Vec<u8>,
 ) -> bool {
-    match (*cmap).uvs.entry(c) {
+    match cmap.uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(handle_from_name(Some(name)) as GlyphHandle);
+            v.insert(unsafe { handle_from_name(Some(name)) } as GlyphHandle);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,
     }
 }
-pub unsafe fn otfcc_unmap_cmap_uvs(cmap: *mut CmapTable, c: CmapUvsKey) -> bool {
-    (*cmap).uvs.remove(&c).is_some()
+pub fn otfcc_unmap_cmap_uvs(cmap: &mut CmapTable, c: CmapUvsKey) -> bool {
+    cmap.uvs.remove(&c).is_some()
 }
-pub unsafe fn otfcc_cmap_lookup_uvs(
-    cmap: *const CmapTable,
-    c: CmapUvsKey,
-) -> *mut GlyphHandle {
-    match (*cmap).uvs.get(&c) {
-        Some(glyph) => glyph as *const GlyphHandle as *mut GlyphHandle,
-        None => ::core::ptr::null_mut::<GlyphHandle>(),
-    }
+pub fn otfcc_cmap_lookup_uvs(cmap: &CmapTable, c: CmapUvsKey) -> Option<&GlyphHandle> {
+    cmap.uvs.get(&c)
 }
 // Every reader below takes the *whole* cmap table's bytes (`data`) plus an
 // absolute offset into it, instead of the original's `(start: pointer,
@@ -212,7 +201,7 @@ pub unsafe fn otfcc_cmap_lookup_uvs(
 // total a few million -- so this budget is generous for real fonts and a
 // hard stop for crafted ones.
 const MAX_TOTAL_CMAP_MAPPINGS: u32 = 4_000_000;
-unsafe fn read_format12(data: &[u8], offset: usize, cmap: *mut CmapTable, budget: &mut u32) {
+fn read_format12(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u32) {
     let mut r = match FontReader::new(data).at(offset) {
         Ok(r) => r,
         Err(_) => return,
@@ -253,7 +242,7 @@ unsafe fn read_format12(data: &[u8], offset: usize, cmap: *mut CmapTable, budget
         }
     }
 }
-unsafe fn read_format4(data: &[u8], offset: usize, cmap: *mut CmapTable, budget: &mut u32) {
+fn read_format4(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u32) {
     let available = data.len().saturating_sub(offset);
     if available < 14 {
         return;
@@ -337,11 +326,11 @@ unsafe fn read_format4(data: &[u8], offset: usize, cmap: *mut CmapTable, budget:
         }
     }
 }
-unsafe fn read_uvs_default(
+fn read_uvs_default(
     data: &[u8],
     offset: usize,
     selector: Unicode,
-    cmap: *mut CmapTable,
+    cmap: &mut CmapTable,
     budget: &mut u32,
 ) {
     let mut r = match FontReader::new(data).at(offset) {
@@ -359,26 +348,25 @@ unsafe fn read_uvs_default(
         let end = start_unicode_value.wrapping_add(additional_count as u32);
         while u <= end && *budget > 0 {
             *budget -= 1;
-            let g = otfcc_cmap_lookup(cmap, u as i32);
-            if !g.is_null() {
+            if let Some(gid) = otfcc_cmap_lookup(cmap, u as i32).map(|g| g.index) {
                 otfcc_encode_cmap_uvs_by_index(
                     cmap,
                     CmapUvsKey {
                         unicode: u,
                         selector,
                     },
-                    (*g).index,
+                    gid,
                 );
             }
             u = u.wrapping_add(1);
         }
     }
 }
-unsafe fn read_uvs_non_default(
+fn read_uvs_non_default(
     data: &[u8],
     offset: usize,
     selector: Unicode,
-    cmap: *mut CmapTable,
+    cmap: &mut CmapTable,
 ) {
     let mut r = match FontReader::new(data).at(offset) {
         Ok(r) => r,
@@ -401,7 +389,7 @@ unsafe fn read_uvs_non_default(
         );
     }
 }
-unsafe fn read_format14(data: &[u8], offset: usize, cmap: *mut CmapTable, budget: &mut u32) {
+fn read_format14(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u32) {
     let mut r = match FontReader::new(data).at(offset) {
         Ok(r) => r,
         Err(_) => return,
@@ -455,10 +443,10 @@ unsafe fn read_format14(data: &[u8], offset: usize, cmap: *mut CmapTable, budget
         }
     }
 }
-unsafe fn read_cmap_mapping_table(
+fn read_cmap_mapping_table(
     data: &[u8],
     offset: usize,
-    cmap: *mut CmapTable,
+    cmap: &mut CmapTable,
     required_format: TableId,
     budget: &mut u32,
 ) {
@@ -477,10 +465,10 @@ unsafe fn read_cmap_mapping_table(
         }
     }
 }
-unsafe fn read_cmap_mapping_table_uvs(
+fn read_cmap_mapping_table_uvs(
     data: &[u8],
     offset: usize,
-    cmap: *mut CmapTable,
+    cmap: &mut CmapTable,
     budget: &mut u32,
 ) {
     let Some(format) = FontReader::new(data)
@@ -507,7 +495,7 @@ pub static FORMAT_PRIORITIES: [TableId; 3] = [12, 4, 0];
 // `take_while(|&f| f != 0)` stops before reaching it, matching the
 // original's `while FORMAT_PRIORITIES[k] != 0` loop exactly: only formats
 // 12 and 4 are ever dispatched as a `required_format`, never 0.
-unsafe fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
+fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
     let mut header = FontReader::new(data);
     header.skip(2)?; // version
     let num_tables = header.u16()? as usize;
@@ -517,7 +505,7 @@ unsafe fn parse_cmap(data: &[u8]) -> Result<Box<CmapTable>, ReadError> {
         unicodes: std::collections::BTreeMap::new(),
         uvs: std::collections::BTreeMap::new(),
     });
-    let cmap: *mut CmapTable = cmap_box.as_mut() as *mut CmapTable;
+    let cmap: &mut CmapTable = cmap_box.as_mut();
 
     // Nothing in the cmap directory requires each entry's subtable offset
     // to be distinct -- the spec explicitly allows encoding records to
@@ -582,7 +570,7 @@ pub fn otfcc_read_cmap(packet: &Packet, options: &Options) -> Option<Box<CmapTab
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_CMAP)?;
-    match unsafe { parse_cmap(&table.data) } {
+    match parse_cmap(&table.data) {
         Ok(cmap) => Some(cmap),
         Err(_) => {
             logger_log_sds(
@@ -596,57 +584,50 @@ pub fn otfcc_read_cmap(packet: &Packet, options: &Options) -> Option<Box<CmapTab
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_cmap(
+pub fn otfcc_dump_cmap(
     table: Option<&CmapTable>,
     root: &mut BuiltValue,
     options: &Options,
 ) {
-    let table = match table {
-        Some(t) => t as *const CmapTable,
-        None => return,
-    };
+    let Some(table) = table else { return };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"cmap"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        if !(*table).unicodes.is_empty() {
-            let mut cmap = BuiltValue::new_object((*table).unicodes.len());
-            for (&unicode, glyph) in (*table).unicodes.iter() {
-                if !glyph.name.is_empty() {
-                    let key: Vec<u8> = if options.decimal_cmap {
-                        crate::bytesbuild!(unicode)
-                    } else {
-                        crate::bytesbuild!(b"U+", Hex4Upper(unicode as u32))
-                    };
-                    cmap.push_field_bytes_key(&key, BuiltValue::str_truncated_at_nul(&glyph.name));
-                }
+    if !table.unicodes.is_empty() {
+        let mut cmap = BuiltValue::new_object(table.unicodes.len());
+        for (&unicode, glyph) in table.unicodes.iter() {
+            if !glyph.name.is_empty() {
+                let key: Vec<u8> = if options.decimal_cmap {
+                    crate::bytesbuild!(unicode)
+                } else {
+                    crate::bytesbuild!(b"U+", Hex4Upper(unicode as u32))
+                };
+                cmap.push_field_bytes_key(&key, BuiltValue::str_truncated_at_nul(&glyph.name));
             }
-            root.push_field(b"cmap", cmap);
         }
-        if !(*table).uvs.is_empty() {
-            let mut uvs = BuiltValue::new_object((*table).uvs.len());
-            for (key, glyph) in (*table).uvs.iter() {
-                if !glyph.name.is_empty() {
-                    let key_0: Vec<u8> = if options.decimal_cmap {
-                        crate::bytesbuild!(key.unicode, b" ", key.selector,)
-                    } else {
-                        crate::bytesbuild!(
-                            b"U+",
-                            Hex4Upper(key.unicode),
-                            b" U+",
-                            Hex4Upper(key.selector),
-                        )
-                    };
-                    uvs.push_field_bytes_key(&key_0, BuiltValue::str_truncated_at_nul(&glyph.name));
-                }
-            }
-            root.push_field(b"cmap_uvs", uvs);
-        }
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        root.push_field(b"cmap", cmap);
     }
+    if !table.uvs.is_empty() {
+        let mut uvs = BuiltValue::new_object(table.uvs.len());
+        for (key, glyph) in table.uvs.iter() {
+            if !glyph.name.is_empty() {
+                let key_0: Vec<u8> = if options.decimal_cmap {
+                    crate::bytesbuild!(key.unicode, b" ", key.selector,)
+                } else {
+                    crate::bytesbuild!(
+                        b"U+",
+                        Hex4Upper(key.unicode),
+                        b" U+",
+                        Hex4Upper(key.selector),
+                    )
+                };
+                uvs.push_field_bytes_key(&key_0, BuiltValue::str_truncated_at_nul(&glyph.name));
+            }
+        }
+        root.push_field(b"cmap_uvs", uvs);
+    }
+    logger_finish(&mut *options.logger.borrow_mut());
 }
 // `unicode_str` borrows the object key's own storage directly (`key.as_ptr()`
 // at the call site) rather than going through an owned `sds` copy: every
@@ -669,16 +650,15 @@ unsafe fn parse_unicode(unicode_str: *const ::core::ffi::c_char) -> Unicode {
         return atoi(unicode_str as *const ::core::ffi::c_char) as Unicode;
     };
 }
-unsafe fn parse_cmap_unicodes(
-    cmap: *mut CmapTable,
-    table: Option<&ParsedValue>,
-    options: &Options,
-) {
+fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &Options) {
     let Some(fields) = table.and_then(ParsedValue::as_object) else {
         return;
     };
     for (key, item) in fields {
-        let unicode: Unicode = parse_unicode(key.as_ptr() as *const ::core::ffi::c_char);
+        // `parse_unicode` is a separate raw-C-string shell (`libc::strtol`/
+        // `atoi` on the key's own NUL-terminated storage), out of scope here.
+        let unicode: Unicode =
+            unsafe { parse_unicode(key.as_ptr() as *const ::core::ffi::c_char) };
         let Some(bytes) = item.as_str_bytes() else {
             continue;
         };
@@ -687,22 +667,22 @@ unsafe fn parse_cmap_unicodes(
         }
         let gname: Vec<u8> = bytes.to_vec();
         if !otfcc_encode_cmap_by_name(cmap, unicode as i32, gname.clone()) {
-            let current_map: *mut GlyphHandle =
-                otfcc_cmap_lookup(cmap, unicode as i32) as *mut GlyphHandle;
-            logger_log_sds(
-                &mut *options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"U+",
-                    Hex4Upper(unicode as u32),
-                    b" is already mapped to ",
-                    &(*current_map).name,
-                    b". Assignment to ",
-                    &gname,
-                    b" is ignored.",
-                ),
-            );
+            if let Some(current_map) = otfcc_cmap_lookup(cmap, unicode as i32) {
+                logger_log_sds(
+                    &mut *options.logger.borrow_mut(),
+                    LOG_VL_IMPORTANT,
+                    LoggerType::Warning,
+                    crate::bytesbuild!(
+                        b"U+",
+                        Hex4Upper(unicode as u32),
+                        b" is already mapped to ",
+                        &current_map.name,
+                        b". Assignment to ",
+                        &gname,
+                        b" is ignored.",
+                    ),
+                );
+            }
         }
     }
 }
@@ -725,16 +705,14 @@ unsafe fn parse_uvs_key(uvs_str: *const ::core::ffi::c_char) -> CmapUvsKey {
     }
     return k;
 }
-unsafe fn parse_cmap_uvs(
-    cmap: *mut CmapTable,
-    table: Option<&ParsedValue>,
-    options: &Options,
-) {
+fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &Options) {
     let Some(fields) = table.and_then(ParsedValue::as_object) else {
         return;
     };
     for (key, item) in fields {
-        let k: CmapUvsKey = parse_uvs_key(key.as_ptr() as *const ::core::ffi::c_char);
+        // `parse_uvs_key` is the same raw-C-string shell as `parse_unicode`,
+        // out of scope here.
+        let k: CmapUvsKey = unsafe { parse_uvs_key(key.as_ptr() as *const ::core::ffi::c_char) };
         let Some(bytes) = item.as_str_bytes() else {
             continue;
         };
@@ -747,36 +725,34 @@ unsafe fn parse_cmap_uvs(
         }
         let gname: Vec<u8> = bytes.to_vec();
         if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname.clone()) {
-            let current_map: *mut GlyphHandle = otfcc_cmap_lookup_uvs(cmap, k) as *mut GlyphHandle;
-            logger_log_sds(
-                &mut *options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"UVS U+",
-                    Hex4Upper(k.unicode),
-                    b" U+",
-                    Hex4Upper(k.selector),
-                    b" is already mapped to ",
-                    &(*current_map).name,
-                    b". Assignment to ",
-                    &gname,
-                    b" is ignored.",
-                ),
-            );
+            if let Some(current_map) = otfcc_cmap_lookup_uvs(cmap, k) {
+                logger_log_sds(
+                    &mut *options.logger.borrow_mut(),
+                    LOG_VL_IMPORTANT,
+                    LoggerType::Warning,
+                    crate::bytesbuild!(
+                        b"UVS U+",
+                        Hex4Upper(k.unicode),
+                        b" U+",
+                        Hex4Upper(k.selector),
+                        b" is already mapped to ",
+                        &current_map.name,
+                        b". Assignment to ",
+                        &gname,
+                        b" is ignored.",
+                    ),
+                );
+            }
         }
     }
 }
-pub unsafe fn otfcc_parse_cmap(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<CmapTable>> {
+pub fn otfcc_parse_cmap(root: &ParsedValue, options: &Options) -> Option<Box<CmapTable>> {
     root.as_object()?;
     let mut cmap_box: Box<CmapTable> = Box::new(CmapTable {
         unicodes: std::collections::BTreeMap::new(),
         uvs: std::collections::BTreeMap::new(),
     });
-    let cmap: *mut CmapTable = cmap_box.as_mut() as *mut CmapTable;
+    let cmap: &mut CmapTable = cmap_box.as_mut();
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"cmap"),
@@ -795,7 +771,7 @@ pub unsafe fn otfcc_parse_cmap(
     logger_finish(&mut *options.logger.borrow_mut());
     Some(cmap_box)
 }
-unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> Buffer {
+fn otfcc_build_cmap_format4(cmap: &CmapTable) -> Buffer {
     let mut buf = Buffer::new();
     let mut end_count = Buffer::new();
     let mut start_count = Buffer::new();
@@ -810,7 +786,7 @@ unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> Buffer {
     let mut last_glyph_id_array_offset: usize = 0_usize;
     let mut is_sequencial: bool = true;
     let mut segments_count: u16 = 0_u16;
-    for (&unicode, glyph) in (*cmap).unicodes.iter() {
+    for (&unicode, glyph) in cmap.unicodes.iter() {
         if unicode <= 0xffff_i32 {
             if !started {
                 started = true;
@@ -921,7 +897,7 @@ unsafe fn otfcc_build_cmap_format4(cmap: *const CmapTable) -> Buffer {
     buf.write_u16be(buf.len() as u16);
     buf
 }
-unsafe fn otfcc_try_build_cmap_format4(cmap: *const CmapTable) -> Option<Buffer> {
+fn otfcc_try_build_cmap_format4(cmap: &CmapTable) -> Option<Buffer> {
     let buf = otfcc_build_cmap_format4(cmap);
     if buf.len() > UINT16_MAX as usize {
         None
@@ -929,7 +905,7 @@ unsafe fn otfcc_try_build_cmap_format4(cmap: *const CmapTable) -> Option<Buffer>
         Some(buf)
     }
 }
-unsafe fn otfcc_build_cmap_format12(cmap: *const CmapTable) -> Buffer {
+fn otfcc_build_cmap_format12(cmap: &CmapTable) -> Buffer {
     let mut buf = Buffer::new();
     buf.write_u16be(12_u16);
     buf.write_u16be(0_u16);
@@ -942,7 +918,7 @@ unsafe fn otfcc_build_cmap_format12(cmap: *const CmapTable) -> Buffer {
     let mut last_unicode_end: i32 = 0xffffff_i32;
     let mut last_gid_start: i32 = 0xffffff_i32;
     let mut last_gid_end: i32 = 0xffffff_i32;
-    for (&unicode, glyph) in (*cmap).unicodes.iter() {
+    for (&unicode, glyph) in cmap.unicodes.iter() {
         if !started {
             started = true;
             last_unicode_end = unicode;
@@ -979,19 +955,19 @@ pub const MAX_UNICODE: i32 = 0x110001_i32;
 pub const HAS_DEFAULT: i32 = 1_i32;
 pub const HAS_NON_DEFAULT: i32 = 2_i32;
 #[inline]
-unsafe fn write_default_range(dflt: &mut Buffer, n_ranges: *mut u32, mut start: Unicode, end: Unicode) {
+fn write_default_range(dflt: &mut Buffer, n_ranges: &mut u32, mut start: Unicode, end: Unicode) {
     while end.wrapping_sub(start) > 0xff as Unicode {
         dflt.write_u24be(start);
         dflt.write_u8(0xff_u8);
         start = start.wrapping_add(0x100 as Unicode);
-        *n_ranges = (*n_ranges).wrapping_add(1_u32);
+        *n_ranges = n_ranges.wrapping_add(1_u32);
     }
     dflt.write_u24be(start);
     dflt.write_u8(end.wrapping_sub(start) as u8);
-    *n_ranges = (*n_ranges).wrapping_add(1_u32);
+    *n_ranges = n_ranges.wrapping_add(1_u32);
 }
 unsafe fn build_format14_for_selector(
-    cmap: *const CmapTable,
+    cmap: &CmapTable,
     selector: Unicode,
     dflt: &mut Buffer,
     nondflt: &mut Buffer,
@@ -1014,18 +990,21 @@ unsafe fn build_format14_for_selector(
         *non_defaults.offset(s as isize) = 0xffff as GlyphId;
         s = s.wrapping_add(1);
     }
-    for (key, glyph) in (*cmap).uvs.iter() {
+    for (key, glyph) in cmap.uvs.iter() {
         let u: Unicode = key.unicode as Unicode;
         if !(key.selector != selector || u >= MAX_UNICODE as Unicode) {
             if !glyph.name.is_empty() {
                 let uvs_gid: GlyphId = glyph.index;
-                let g: *mut GlyphHandle = otfcc_cmap_lookup(cmap, u as i32);
-                if g.is_null() {
-                    *non_defaults.offset(u as isize) = uvs_gid;
-                } else if uvs_gid as i32 == (*g).index as i32 {
-                    *defaults.offset(u as isize) = uvs_gid;
-                } else {
-                    *non_defaults.offset(u as isize) = uvs_gid;
+                match otfcc_cmap_lookup(cmap, u as i32) {
+                    None => {
+                        *non_defaults.offset(u as isize) = uvs_gid;
+                    }
+                    Some(g) if uvs_gid as i32 == g.index as i32 => {
+                        *defaults.offset(u as isize) = uvs_gid;
+                    }
+                    Some(_) => {
+                        *non_defaults.offset(u as isize) = uvs_gid;
+                    }
                 }
             }
         }
@@ -1053,7 +1032,7 @@ unsafe fn build_format14_for_selector(
         {
             write_default_range(
                 dflt,
-                &raw mut num_unicode_value_ranges,
+                &mut num_unicode_value_ranges,
                 start_unicode_value,
                 u_0.wrapping_sub(1 as Unicode),
             );
@@ -1082,9 +1061,9 @@ unsafe fn build_format14_for_selector(
         0_i32
     })) as u8;
 }
-unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> Buffer {
+unsafe fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
     let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];
-    for (key, _) in (*cmap).uvs.iter() {
+    for (key, _) in cmap.uvs.iter() {
         if key.selector < MAX_UNICODE as u32 {
             valid_selectors[key.selector as usize] = true;
         }
@@ -1148,12 +1127,12 @@ unsafe fn otfcc_build_cmap_format14(cmap: *const CmapTable) -> Buffer {
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer> {
     let cmap = match cmap {
-        Some(c) if !c.unicodes.is_empty() => c as *const CmapTable,
+        Some(c) if !c.unicodes.is_empty() => c,
         _ => return None,
     };
     let mut requires_format12: bool = false;
-    let has_uvs: bool = !(*cmap).uvs.is_empty();
-    for (&unicode, _) in (*cmap).unicodes.iter() {
+    let has_uvs: bool = !cmap.uvs.is_empty();
+    for (&unicode, _) in cmap.unicodes.iter() {
         if unicode > 0xffff_i32 {
             requires_format12 = true;
         }
@@ -1279,7 +1258,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 32);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format4(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
+        read_format4(&data, 0, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
         assert_eq!(cmap.unicodes.get(&0x41).unwrap().index, 5);
         assert!(!cmap.unicodes.contains_key(&0xFFFF));
     }
@@ -1306,7 +1285,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 36);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format4(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
+        read_format4(&data, 0, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
         assert_eq!(cmap.unicodes.get(&0x41).unwrap().index, 7);
         assert_eq!(cmap.unicodes.get(&0x42).unwrap().index, 8);
     }
@@ -1325,7 +1304,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 28);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
+        read_format12(&data, 0, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
         assert_eq!(cmap.unicodes.get(&0x1F600).unwrap().index, 10);
         assert_eq!(cmap.unicodes.get(&0x1F601).unwrap().index, 11);
     }
@@ -1347,7 +1326,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 16);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
+        read_format12(&data, 0, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
         assert!(cmap.unicodes.is_empty());
     }
 
@@ -1375,7 +1354,7 @@ mod cmap_read_tests {
 
         let mut cmap = empty_cmap();
         let start = std::time::Instant::now();
-        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
+        read_format12(&data, 0, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
         assert!(start.elapsed() < std::time::Duration::from_secs(5));
 
         assert_eq!(cmap.unicodes.get(&0x10fffe).unwrap().index, 10);
@@ -1413,7 +1392,7 @@ mod cmap_read_tests {
         let mut cmap = empty_cmap();
         let mut budget: u32 = 5;
         let start = std::time::Instant::now();
-        unsafe { read_format12(&data, 0, cmap.as_mut() as *mut CmapTable, &mut budget) };
+        read_format12(&data, 0, cmap.as_mut(), &mut budget);
         assert!(start.elapsed() < std::time::Duration::from_secs(5));
 
         assert_eq!(budget, 0, "the shared budget must be fully consumed, not per-group");
@@ -1431,7 +1410,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 4);
 
         let mut cmap = empty_cmap();
-        unsafe { read_uvs_default(&data, 0, 0xFE00, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
+        read_uvs_default(&data, 0, 0xFE00, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
         assert!(cmap.uvs.is_empty());
     }
 
@@ -1442,7 +1421,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 4);
 
         let mut cmap = empty_cmap();
-        unsafe { read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut() as *mut CmapTable) };
+        read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut());
         assert!(cmap.uvs.is_empty());
     }
 
@@ -1455,7 +1434,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 9);
 
         let mut cmap = empty_cmap();
-        unsafe { read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut() as *mut CmapTable) };
+        read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut());
         let g = cmap
             .uvs
             .get(&CmapUvsKey {
@@ -1475,7 +1454,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 10);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format14(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
+        read_format14(&data, 0, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
         assert!(cmap.uvs.is_empty());
     }
 
@@ -1499,7 +1478,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 21);
 
         let mut cmap = empty_cmap();
-        unsafe { read_format14(&data, 0, cmap.as_mut() as *mut CmapTable, &mut { MAX_TOTAL_CMAP_MAPPINGS }) };
+        read_format14(&data, 0, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
         assert!(cmap.uvs.is_empty());
     }
 
@@ -1523,7 +1502,7 @@ mod cmap_read_tests {
         data.extend_from_slice(&0xFFFF_FFF0u32.to_be_bytes()); // offset: far past the table
         assert_eq!(data.len(), 12);
 
-        let cmap = unsafe { parse_cmap(&data).unwrap() };
+        let cmap = parse_cmap(&data).unwrap();
         assert!(cmap.unicodes.is_empty());
     }
 
@@ -1532,7 +1511,7 @@ mod cmap_read_tests {
         let mut data = Vec::new();
         data.extend_from_slice(&0u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes()); // numTables, but no entries follow
-        assert!(unsafe { parse_cmap(&data) }.is_err());
+        assert!(parse_cmap(&data).is_err());
     }
 
     #[test]
@@ -1562,7 +1541,7 @@ mod cmap_read_tests {
         data.extend_from_slice(&12u32.to_be_bytes()); // offset: right after the 12-byte directory
         data.extend_from_slice(&subtable);
 
-        let cmap = unsafe { parse_cmap(&data).unwrap() };
+        let cmap = parse_cmap(&data).unwrap();
         assert_eq!(cmap.unicodes.get(&0x41).unwrap().index, 5);
     }
 
@@ -1619,7 +1598,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), directory_len + subtable.len());
 
         let start = std::time::Instant::now();
-        let cmap = unsafe { parse_cmap(&data).unwrap() };
+        let cmap = parse_cmap(&data).unwrap();
         let elapsed = start.elapsed();
 
         assert_eq!(cmap.unicodes.len() as u32, NUM_GROUPS * GROUP_SPAN);
