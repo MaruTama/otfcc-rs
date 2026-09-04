@@ -82,19 +82,19 @@ impl FontSerializer for JsonSerializer {
                 (*font).fpgm.as_deref(),
                 &mut root,
                 options,
-                b"fpgm\0" as *const u8 as *const ::core::ffi::c_char,
+                b"fpgm",
             );
             table_dump_table_fpgm_prep(
                 (*font).prep.as_deref(),
                 &mut root,
                 options,
-                b"prep\0" as *const u8 as *const ::core::ffi::c_char,
+                b"prep",
             );
             otfcc_dump_cvt(
                 (*font).cvt_.as_deref(),
                 &mut root,
                 options,
-                b"cvt_\0" as *const u8 as *const ::core::ffi::c_char,
+                b"cvt_",
             );
             otfcc_dump_gasp((*font).gasp.as_deref(), &mut root, options);
         }
@@ -103,13 +103,13 @@ impl FontSerializer for JsonSerializer {
             (*font).gsub.as_deref(),
             &mut root,
             options,
-            b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
+            b"GSUB",
         );
         otfcc_dump_otl(
             (*font).gpos.as_deref(),
             &mut root,
             options,
-            b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
+            b"GPOS",
         );
         otfcc_dump_gdef((*font).gdef.as_deref(), &mut root, options);
         otfcc_dump_base((*font).base.as_deref(), &mut root, options);
@@ -120,13 +120,13 @@ impl FontSerializer for JsonSerializer {
             (*font).tsi_01.as_ref(),
             &mut root,
             options,
-            b"TSI_01\0" as *const u8 as *const ::core::ffi::c_char,
+            b"TSI_01",
         );
         otfcc_dump_tsi(
             (*font).tsi_23.as_ref(),
             &mut root,
             options,
-            b"TSI_23\0" as *const u8 as *const ::core::ffi::c_char,
+            b"TSI_23",
         );
         otfcc_dump_tsi5((*font).tsi5.as_deref(), &mut root);
         return root.into_raw() as *mut ::core::ffi::c_void;

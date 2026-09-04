@@ -140,12 +140,7 @@ unsafe fn _dump_lookup(lookup: *const Lookup) -> BuiltValue {
     );
     dump
 }
-pub unsafe fn otfcc_dump_otl(
-    table: Option<&OtlTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-    tag: *const ::core::ffi::c_char,
-) {
+pub unsafe fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: &Options, tag: &[u8]) {
     let table: *const OtlTable = table.map_or(::core::ptr::null(), |t| t as *const OtlTable);
     if table.is_null()
         || (*table).languages.is_empty()
@@ -241,7 +236,7 @@ pub unsafe fn otfcc_dump_otl(
             ___loggedstep_v_2 = false;
             logger_finish(&mut *options.logger.borrow_mut());
         }
-        root.push_field(::core::ffi::CStr::from_ptr(tag).to_bytes(), otl);
+        root.push_field(tag, otl);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }

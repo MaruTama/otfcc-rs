@@ -40,12 +40,7 @@ pub fn otfcc_read_cvt(packet: &Packet, tag: u32) -> Option<Box<CvtTable>> {
     Some(Box::new(CvtTable { words }))
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_cvt(
-    table: Option<&CvtTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-    tag: *const ::core::ffi::c_char,
-) {
+pub fn otfcc_dump_cvt(table: Option<&CvtTable>, root: &mut BuiltValue, options: &Options, tag: &[u8]) {
     let table = match table {
         Some(t) => t,
         None => return,
@@ -60,17 +55,13 @@ pub unsafe fn otfcc_dump_cvt(
         for &w in &table.words {
             arr.push_item(BuiltValue::Int(w as i64));
         }
-        root.push_field(::core::ffi::CStr::from_ptr(tag).to_bytes(), arr);
+        root.push_field(tag, arr);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-pub unsafe fn otfcc_parse_cvt(
-    root: &ParsedValue,
-    options: &Options,
-    tag: *const ::core::ffi::c_char,
-) -> Option<Box<CvtTable>> {
-    let key = ::core::ffi::CStr::from_ptr(tag).to_bytes();
+pub fn otfcc_parse_cvt(root: &ParsedValue, options: &Options, tag: &[u8]) -> Option<Box<CvtTable>> {
+    let key = tag;
     if let Some(items) = root
         .get_typed(key, JsonType::Array)
         .and_then(ParsedValue::as_array)

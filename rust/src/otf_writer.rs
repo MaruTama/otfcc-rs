@@ -227,7 +227,7 @@ impl FontSerializer for OtfSerializer {
             otfcc_build_otl(
                 (*font).gsub.as_deref(),
                 options,
-                b"GSUB\0" as *const u8 as *const ::core::ffi::c_char,
+                b"GSUB",
             ),
         );
         otfcc_sfnt_builder_push_table(
@@ -236,7 +236,7 @@ impl FontSerializer for OtfSerializer {
             otfcc_build_otl(
                 (*font).gpos.as_deref(),
                 options,
-                b"GPOS\0" as *const u8 as *const ::core::ffi::c_char,
+                b"GPOS",
             ),
         );
         otfcc_sfnt_builder_push_table(
