@@ -27,7 +27,22 @@ use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_copy, vq_create_still, vq_get_still, vq_is_still, vq_replace};
 
+// `#[repr(C)]`: `table/glyf/read.rs`'s `apply_polymorphism` reinterprets a
+// `&mut ComponentReference.x` as `&mut Point` (`get_x`/`get_y` are called
+// through a `*mut Point`-typed pointer that sometimes really points at a
+// `ComponentReference`, relying on both structs starting with the same
+// `x: VQ, y: VQ` prefix). Without `#[repr(C)]` on both structs, Rust's
+// default layout does not guarantee matching field order/offsets between
+// two independently-declared structs -- this pun is undefined behavior
+// today even though it happens to work with the current compiler's layout
+// choices. `#[repr(C)]` makes the existing, intentional prefix-sharing
+// layout-legal with no behavior change (declaration order becomes the
+// guaranteed field order). The pun itself (`CoordPartGetter`/`get_x`/
+// `get_y` in `table/glyf/read.rs`) is a separate, larger redesign left for
+// a future investigation -- this is only the minimal fix that makes the
+// current code sound.
 #[derive(Clone)]
+#[repr(C)]
 pub struct Point {
     pub x: VQ,
     pub y: VQ,
@@ -65,7 +80,10 @@ pub enum RefAnchorStatus {
     AnchorConsolidatingAnchor = 4,
     AnchorConsolidatingXy = 5,
 }
+// `#[repr(C)]`: see the identical comment on `Point` above -- this struct
+// is the other half of the `x: VQ, y: VQ` prefix-sharing pun.
 #[derive(Clone)]
+#[repr(C)]
 pub struct ComponentReference {
     pub x: VQ,
     pub y: VQ,
