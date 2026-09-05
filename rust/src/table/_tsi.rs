@@ -146,15 +146,15 @@ pub unsafe fn otfcc_read_tsi(
             match entry.gid as i32 {
                 65530 => {
                     tsi_entry.type_0 = TsiEntryType::Prep;
-                    otfcc_handle_init(&raw mut tsi_entry.glyph);
+                    otfcc_handle_init(&mut tsi_entry.glyph);
                 }
                 65531 => {
                     tsi_entry.type_0 = TsiEntryType::Cvt;
-                    otfcc_handle_init(&raw mut tsi_entry.glyph);
+                    otfcc_handle_init(&mut tsi_entry.glyph);
                 }
                 65533 => {
                     tsi_entry.type_0 = TsiEntryType::Fpgm;
-                    otfcc_handle_init(&raw mut tsi_entry.glyph);
+                    otfcc_handle_init(&mut tsi_entry.glyph);
                 }
                 _ => {
                     tsi_entry.type_0 = TsiEntryType::Glyph;

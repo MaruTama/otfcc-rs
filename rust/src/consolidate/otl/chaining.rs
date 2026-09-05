@@ -109,7 +109,7 @@ pub unsafe fn consolidate_chaining(
                         ),
                     );
                 }
-                otfcc_handle_dispose(&raw mut (&mut (*rule).apply)[j_0 as usize].lookup);
+                otfcc_handle_dispose(&mut (&mut (*rule).apply)[j_0 as usize].lookup);
             }
         } else if (*h).state == HandleState::Index {
             if (*h).index as usize >= (*table).lookups.len() {

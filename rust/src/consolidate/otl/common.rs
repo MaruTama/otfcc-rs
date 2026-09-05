@@ -35,7 +35,7 @@ pub unsafe fn fontop_consolidate_coverage(
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &(*h).name, b".\n",),
             );
-            otfcc_handle_dispose(h);
+            otfcc_handle_dispose(&mut *h);
         }
         j = j.wrapping_add(1);
     }
@@ -64,7 +64,7 @@ pub unsafe fn fontop_consolidate_class_def(
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &(*h).name, b".\n",),
             );
-            otfcc_handle_dispose(h);
+            otfcc_handle_dispose(&mut *h);
             (&mut (*cd).classes)[j as usize] = 0 as GlyphClass;
         }
         j = j.wrapping_add(1);
