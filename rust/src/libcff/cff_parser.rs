@@ -176,19 +176,9 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
     (*cff).head.hdr_size = header_reader.u8().unwrap_or(0);
     (*cff).head.off_size = header_reader.u8().unwrap_or(0);
     pos = (*cff).head.hdr_size as u32;
-    extract_index(
-        (*cff).raw_data,
-        (*cff).raw_length,
-        pos,
-        &raw mut (*cff).name,
-    );
-    pos = 4_u32.wrapping_add(get_index_length(&raw mut (*cff).name));
-    extract_index(
-        (*cff).raw_data,
-        (*cff).raw_length,
-        pos,
-        &raw mut (*cff).top_dict,
-    );
+    extract_index(header_slice, pos, &mut (*cff).name);
+    pos = 4_u32.wrapping_add(get_index_length(&(*cff).name));
+    extract_index(header_slice, pos, &mut (*cff).top_dict);
     if (*cff).name.count != (*cff).top_dict.count {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
@@ -204,24 +194,14 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
         );
     }
     pos = 4_u32
-        .wrapping_add(get_index_length(&raw mut (*cff).name))
-        .wrapping_add(get_index_length(&raw mut (*cff).top_dict));
-    extract_index(
-        (*cff).raw_data,
-        (*cff).raw_length,
-        pos,
-        &raw mut (*cff).string,
-    );
+        .wrapping_add(get_index_length(&(*cff).name))
+        .wrapping_add(get_index_length(&(*cff).top_dict));
+    extract_index(header_slice, pos, &mut (*cff).string);
     pos = 4_u32
-        .wrapping_add(get_index_length(&raw mut (*cff).name))
-        .wrapping_add(get_index_length(&raw mut (*cff).top_dict))
-        .wrapping_add(get_index_length(&raw mut (*cff).string));
-    extract_index(
-        (*cff).raw_data,
-        (*cff).raw_length,
-        pos,
-        &raw mut (*cff).global_subr,
-    );
+        .wrapping_add(get_index_length(&(*cff).name))
+        .wrapping_add(get_index_length(&(*cff).top_dict))
+        .wrapping_add(get_index_length(&(*cff).string));
+    extract_index(header_slice, pos, &mut (*cff).global_subr);
     // The Top DICT INDEX's `data` is the concatenation of every entry's
     // dict bytes; entry 0 (the only one a well-formed OpenType CFF table
     // ever has, per `(*cff).name.count != (*cff).top_dict.count`'s warning
@@ -246,15 +226,10 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
         let mut offset_0: i32;
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHAR_STRINGS, 0_u32);
         if offset_0 != -1_i32 {
-            extract_index(
-                (*cff).raw_data,
-                (*cff).raw_length,
-                offset_0 as u32,
-                &raw mut (*cff).char_strings,
-            );
+            extract_index(header_slice, offset_0 as u32, &mut (*cff).char_strings);
             (*cff).cnt_glyph = (*cff).char_strings.count as u16;
         } else {
-            empty_index(&raw mut (*cff).char_strings);
+            empty_index(&mut (*cff).char_strings);
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
@@ -292,14 +267,9 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
         }
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_ARRAY, 0_u32);
         if offset_0 != -1_i32 {
-            extract_index(
-                (*cff).raw_data,
-                (*cff).raw_length,
-                offset_0 as u32,
-                &raw mut (*cff).font_dict,
-            );
+            extract_index(header_slice, offset_0 as u32, &mut (*cff).font_dict);
         } else {
-            empty_index(&raw mut (*cff).font_dict);
+            empty_index(&mut (*cff).font_dict);
         }
     }
     let mut private_len: i32 = -1_i32;
@@ -320,8 +290,7 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
     // or an out-of-range pair now falls through to the same `empty_index`
     // fallback the "no Private key at all" case already used.
     let private_dict_bytes: Option<&[u8]> = if private_off >= 0 && private_len >= 0 {
-        let raw_slice = ::core::slice::from_raw_parts((*cff).raw_data, (*cff).raw_length as usize);
-        raw_slice
+        header_slice
             .get(private_off as usize..)
             .and_then(|s| s.get(..private_len as usize))
     } else {
@@ -331,16 +300,15 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
         offset = parse_dict_key_int(private_bytes, OP_SUBRS, 0_u32);
         if offset != -1_i32 {
             extract_index(
-                (*cff).raw_data,
-                (*cff).raw_length,
+                header_slice,
                 (private_off + offset) as u32,
-                &raw mut (*cff).local_subr,
+                &mut (*cff).local_subr,
             );
         } else {
-            empty_index(&raw mut (*cff).local_subr);
+            empty_index(&mut (*cff).local_subr);
         }
     } else {
-        empty_index(&raw mut (*cff).local_subr);
+        empty_index(&mut (*cff).local_subr);
     };
 }
 pub unsafe fn cff_open_stream(
@@ -425,13 +393,12 @@ pub unsafe fn cff_close(file: *mut CffFile) {
 // since its two callers both read `(*f).fdselect` from a shared `CffFile`
 // across repeated per-glyph calls -- moving it out on the first call would
 // leave it invalid for the rest.
-pub unsafe fn cff_parse_subr(
+pub fn cff_parse_subr(
     idx: u16,
-    raw: *mut u8,
-    raw_length: u32,
+    raw: &[u8],
     fdarray: &CffIndex,
     select: &CffFdSelect,
-    subr: *mut CffIndex,
+    subr: &mut CffIndex,
 ) -> u8 {
     let mut fd: u8 = 0_u8;
     let off_private: i32;
@@ -494,23 +461,26 @@ pub unsafe fn cff_parse_subr(
         .get(fd_dict_start..)
         .and_then(|s| s.get(..fd_dict_len))
         .unwrap_or(&[]);
-    off_private = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 1_u32);
-    len_private = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 0_u32);
+    // `parse_dict_key_int` is a separate, not-yet-converted `libcff/
+    // cff_dict.rs` shell -- already takes a safe `&[u8]`, unsafe only as
+    // stale marker residue, out of scope here -- so this is a narrow
+    // `unsafe {}` rather than the whole function, the same way `vf/vq.rs`'s
+    // `vqs_compare` bridges to `vq_compare_region`.
+    off_private = unsafe { parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 1_u32) };
+    len_private = unsafe { parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 0_u32) };
     // Same bounds hole as `parse_cff_bytecode`'s Local Subrs lookup above:
     // `off_private`/`len_private` are Private-DICT-controlled operands,
     // unvalidated against `raw_length` until now.
     let private_dict_bytes: Option<&[u8]> = if off_private >= 0 && len_private >= 0 {
-        let raw_slice = ::core::slice::from_raw_parts(raw, raw_length as usize);
-        raw_slice
-            .get(off_private as usize..)
+        raw.get(off_private as usize..)
             .and_then(|s| s.get(..len_private as usize))
     } else {
         None
     };
     if let Some(private_bytes) = private_dict_bytes {
-        off_subr = parse_dict_key_int(private_bytes, OP_SUBRS, 0_u32);
+        off_subr = unsafe { parse_dict_key_int(private_bytes, OP_SUBRS, 0_u32) };
         if off_subr != -1_i32 {
-            extract_index(raw, raw_length, (off_private + off_subr) as u32, subr);
+            extract_index(raw, (off_private + off_subr) as u32, subr);
         } else {
             empty_index(subr);
         }
@@ -2792,18 +2762,12 @@ mod cff_parse_subr_tests {
         };
         let select = CffFdSelect::Format0(vec![99]);
         let mut subr = empty_cff_index();
-        unsafe {
-            let fd = cff_parse_subr(
-                0,
-                ::core::ptr::null_mut(),
-                0,
-                &fdarray,
-                &select,
-                &raw mut subr,
-            );
-            assert_eq!(fd, 99);
-            assert_eq!(subr.count, 0);
-        }
+        // `raw` is never touched on this path -- `fd` (99) is already past
+        // `fdarray.count` (1), so `cff_parse_subr` takes its early-return
+        // branch before reading any font bytes.
+        let fd = cff_parse_subr(0, &[], &fdarray, &select, &mut subr);
+        assert_eq!(fd, 99);
+        assert_eq!(subr.count, 0);
     }
 }
 
