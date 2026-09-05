@@ -50,10 +50,38 @@ pub struct TuplePolymorphizerCtx {
     pub allow_iup: bool,
     pub n_phantom_points: ShapeId,
 }
-// No longer `extern "C"`: `get_x`/`get_y` never cross the crate's real FFI
-// boundary (`ffi/dll.rs`) -- purely internal Rust-to-Rust indirect calls,
-// same reasoning as `cff_dict.rs`'s `parse_to_callback` and friends.
-pub type CoordPartGetter = Option<unsafe fn(*mut Point) -> *mut VQ>;
+// Replaces the old `CoordPartGetter`/`get_x`/`get_y` function-pointer
+// design, which called through a `*mut Point`-typed pointer that
+// `apply_polymorphism` sometimes actually pointed at a `ComponentReference`
+// (`&raw mut (*r_0).x as *mut Point`) -- relying on `Point`/
+// `ComponentReference` sharing the same `x: VQ, y: VQ` field prefix. That
+// pun was undefined behavior without `#[repr(C)]` on both structs (fixed
+// separately), but even layout-legal, a pointer that lies about which
+// concrete type it addresses is exactly the kind of translation residue
+// this migration removes when it can. `CoordRef` says which struct a
+// pointer really is; `coord_of` (below) is the single place that resolves
+// `(CoordRef, Axis)` to the right field, mirroring `libcff/subr.rs`'s
+// `SubrRef`/`resolve_subr_ref` selector pattern for a different aliasing
+// problem.
+#[derive(Copy, Clone)]
+enum CoordRef {
+    Point(*mut Point),
+    ComponentAnchor(*mut ComponentReference),
+}
+#[derive(Copy, Clone)]
+enum Axis {
+    X,
+    Y,
+}
+#[inline]
+unsafe fn coord_of<'a>(r: CoordRef, axis: Axis) -> &'a mut VQ {
+    match (r, axis) {
+        (CoordRef::Point(p), Axis::X) => &mut (*p).x,
+        (CoordRef::Point(p), Axis::Y) => &mut (*p).y,
+        (CoordRef::ComponentAnchor(c), Axis::X) => &mut (*c).x,
+        (CoordRef::ComponentAnchor(c), Axis::Y) => &mut (*c).y,
+    }
+}
 #[derive(Copy, Clone)]
 pub struct PackedDeltaRun {
     pub length: ShapeId,
@@ -496,27 +524,17 @@ unsafe fn read_packed_delta(
     }
     Some(r.pos())
 }
-pub unsafe fn get_x(z: *mut Point) -> *mut VQ {
-    return &raw mut (*z).x;
-}
-pub unsafe fn get_y(z: *mut Point) -> *mut VQ {
-    return &raw mut (*z).y;
-}
 #[inline]
 // `nudges`/`glyph_refs` are borrowed slices now, not raw pointers: this
 // function neither owns nor frees either array, only reads (`glyph_refs`)
 // or reads-then-writes (`nudges`) into them by index -- the same access
 // shape `&mut [_]`/`&[_]` already model directly.
-//
-// Never a real FFI boundary -- internal call site only, same rationale
-// as every other instance of this allow in the crate.
-#[allow(improper_ctypes_definitions)]
 unsafe fn fill_the_gaps(
     j_min: ShapeId,
     j_max: ShapeId,
     nudges: &mut [VqSegment],
-    glyph_refs: &[*mut Point],
-    getter: CoordPartGetter,
+    glyph_refs: &[CoordRef],
+    axis: Axis,
 ) {
     let mut j: ShapeId = j_min;
     while (j as i32) < j_max as i32 {
@@ -547,16 +565,13 @@ unsafe fn fill_the_gaps(
             }
             if nudges[j_next as usize].is_touched() && nudges[j_prev as usize].is_touched() {
                 let untouch_j: F16Dot16 = otfcc_to_fixed(
-                    (*getter.expect("non-null function pointer")(glyph_refs[j as usize])).kernel
-                        as ::core::ffi::c_double,
+                    coord_of(glyph_refs[j as usize], axis).kernel as ::core::ffi::c_double,
                 );
                 let untouch_prev: F16Dot16 = otfcc_to_fixed(
-                    (*getter.expect("non-null function pointer")(glyph_refs[j_prev as usize]))
-                        .kernel as ::core::ffi::c_double,
+                    coord_of(glyph_refs[j_prev as usize], axis).kernel as ::core::ffi::c_double,
                 );
                 let untouch_next: F16Dot16 = otfcc_to_fixed(
-                    (*getter.expect("non-null function pointer")(glyph_refs[j_next as usize]))
-                        .kernel as ::core::ffi::c_double,
+                    coord_of(glyph_refs[j_next as usize], axis).kernel as ::core::ffi::c_double,
                 );
                 let delta_prev: F16Dot16 = otfcc_to_fixed(
                     nudges[j_prev as usize].unwrap_delta().quantity as ::core::ffi::c_double,
@@ -598,18 +613,15 @@ unsafe fn fill_the_gaps(
 // but never owned or freed here (unchanged from before -- it was never
 // this function's allocation).
 //
-// Never a real FFI boundary -- internal call site only, same rationale
-// as every other instance of this allow in the crate.
-#[allow(improper_ctypes_definitions)]
 unsafe fn apply_coords(
     total_points: ShapeId,
     glyph: *mut Glyph,
-    glyph_refs: &[*mut Point],
+    glyph_refs: &[CoordRef],
     n_touched_points: ShapeId,
     tuple_delta: *const Pos,
     points: *const ShapeId,
     r: *const VqRegion,
-    getter: CoordPartGetter,
+    axis: Axis,
 ) {
     let mut nudges: Vec<VqSegment> = Vec::with_capacity(total_points as usize);
     let mut j: ShapeId = 0 as ShapeId;
@@ -639,12 +651,16 @@ unsafe fn apply_coords(
     while keep != 0 && __caryll_index < (*glyph).contours.len() {
         let c: *mut Contour = &raw mut (&mut (*glyph).contours)[__caryll_index];
         while keep != 0 {
+            // Always `Axis::X` here regardless of `axis` -- matches the
+            // original's unconditional `get_x`, preserved as-is rather than
+            // silently changed to `axis` (a behavior question outside the
+            // scope of this pun-removal, flagged separately).
             fill_the_gaps(
                 j_first,
                 (j_first as usize).wrapping_add((*c).len()) as ShapeId,
                 &mut nudges,
                 glyph_refs,
-                Some(get_x as unsafe fn(*mut Point) -> *mut VQ),
+                Axis::X,
             );
             j_first = (j_first as usize).wrapping_add((*c).len()) as ShapeId as ShapeId;
             keep = (keep == 0) as i32 as usize;
@@ -657,9 +673,9 @@ unsafe fn apply_coords(
         if !(nudges[j_1 as usize].unwrap_delta().quantity == 0.
             && nudges[j_1 as usize].is_touched())
         {
-            let coordinate_part: *mut VQ =
-                getter.expect("non-null function pointer")(glyph_refs[j_1 as usize]);
-            (*coordinate_part).shift.push(nudges[j_1 as usize]);
+            coord_of(glyph_refs[j_1 as usize], axis)
+                .shift
+                .push(nudges[j_1 as usize]);
         }
         j_1 = j_1.wrapping_add(1);
     }
@@ -674,12 +690,12 @@ unsafe fn apply_polymorphism(
     delta_y: *const Pos,
     r: *const VqRegion,
 ) {
-    // A local `Vec<*mut Point>` now, not a `__caryll_allocate_clean`'d/
+    // A local `Vec<CoordRef>` now, not a `__caryll_allocate_clean`'d/
     // `free`'d array -- built with exactly `total_points` entries by
     // construction (the two fill loops below run exactly that many times
     // between them, matching what the array used to be pre-sized to),
     // dropped automatically at the end of this function.
-    let mut glyph_refs: Vec<*mut Point> = Vec::with_capacity(total_points as usize);
+    let mut glyph_refs: Vec<CoordRef> = Vec::with_capacity(total_points as usize);
     let mut __caryll_index: usize = 0_usize;
     let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < (*glyph).contours.len() {
@@ -690,7 +706,7 @@ unsafe fn apply_polymorphism(
             while keep_0 != 0 && __caryll_index_0 < (*c).len() {
                 let g: *mut Point = &raw mut (&mut (*c))[__caryll_index_0];
                 while keep_0 != 0 {
-                    glyph_refs.push(g);
+                    glyph_refs.push(CoordRef::Point(g));
                     keep_0 = (keep_0 == 0) as i32 as usize;
                 }
                 keep_0 = (keep_0 == 0) as i32 as usize;
@@ -706,7 +722,7 @@ unsafe fn apply_polymorphism(
     while keep_1 != 0 && __caryll_index_1 < (*glyph).references.len() {
         let r_0: *mut ComponentReference = &raw mut (&mut (*glyph).references)[__caryll_index_1];
         while keep_1 != 0 {
-            glyph_refs.push(&raw mut (*r_0).x as *mut Point);
+            glyph_refs.push(CoordRef::ComponentAnchor(r_0));
             keep_1 = (keep_1 == 0) as i32 as usize;
         }
         keep_1 = (keep_1 == 0) as i32 as usize;
@@ -720,7 +736,7 @@ unsafe fn apply_polymorphism(
         delta_x,
         points,
         r,
-        Some(get_x as unsafe fn(*mut Point) -> *mut VQ),
+        Axis::X,
     );
     apply_coords(
         total_points,
@@ -730,7 +746,7 @@ unsafe fn apply_polymorphism(
         delta_y,
         points,
         r,
-        Some(get_y as unsafe fn(*mut Point) -> *mut VQ),
+        Axis::Y,
     );
     if (total_points as i32 + 1_i32)
         < n_touched_points as i32
