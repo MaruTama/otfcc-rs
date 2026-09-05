@@ -293,10 +293,10 @@ unsafe fn consolidate_fd_select(
                     b").\n",
                 ),
             );
-            otfcc_handle_dispose(h);
+            otfcc_handle_dispose(&mut *h);
         }
     } else if !(*h).name.is_empty() {
-        otfcc_handle_dispose(h);
+        otfcc_handle_dispose(&mut *h);
     }
 }
 pub unsafe fn consolidate_glyph(g: *mut Glyph, font: *mut Font, options: &Options) {
@@ -624,7 +624,7 @@ pub unsafe fn consolidate_cmap(font: *mut Font, options: &Options) {
                         b".\n",
                     ),
                 );
-                otfcc_handle_dispose(glyph as *mut GlyphHandle);
+                otfcc_handle_dispose(glyph);
             }
         }
     }
@@ -645,7 +645,7 @@ pub unsafe fn consolidate_cmap(font: *mut Font, options: &Options) {
                         b".\n",
                     ),
                 );
-                otfcc_handle_dispose(glyph as *mut GlyphHandle);
+                otfcc_handle_dispose(glyph);
             }
         }
     }
@@ -1122,7 +1122,7 @@ unsafe fn consolidate_colr(font: *mut Font, options: &Options) {
                     },
                     layers: Vec::new(),
                 };
-                otfcc_handle_copy(&raw mut m.glyph, &raw mut mapping.glyph);
+                otfcc_handle_copy(&mut m.glyph, &mapping.glyph);
                 let mut __caryll_index_0: usize = 0_usize;
                 let mut keep_0: usize = 1_usize;
                 while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {

@@ -166,7 +166,7 @@ pub unsafe fn stat_single_glyph(
         glyf_component_reference_init(&mut ref_0);
         let rr: *const ComponentReference = &raw const (&(*g).references)[r as usize];
         otfcc_handle_replace(
-            &raw mut ref_0.glyph,
+            &mut ref_0.glyph,
             handle_from_index((*rr).glyph.index) as Handle,
         );
         ref_0.a = (*gr).a * (*rr).a + (*rr).b * (*gr).c;

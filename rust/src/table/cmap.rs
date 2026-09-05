@@ -84,13 +84,7 @@ pub fn otfcc_encode_cmap_by_index(
 ) -> bool {
     match cmap.unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            // `handle_from_index` is a separate, not-yet-converted
-            // raw-pointer-adjacent `Handle` shell (`support/handle.rs`),
-            // out of scope here -- trivially safe internally, so this is a
-            // single narrow `unsafe {}` rather than the whole function, the
-            // same way `vf/vq.rs`'s `vqs_compare` and `table/glyf.rs`'s
-            // `init_glyf_reference` bridge to their own out-of-scope shells.
-            v.insert(unsafe { handle_from_index(gid as GlyphId) } as GlyphHandle);
+            v.insert(handle_from_index(gid as GlyphId) as GlyphHandle);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,
@@ -109,9 +103,7 @@ pub fn otfcc_encode_cmap_by_name(
 ) -> bool {
     match cmap.unicodes.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            // See `otfcc_encode_cmap_by_index` above for why this is a
-            // narrow `unsafe {}` rather than an `unsafe fn`.
-            v.insert(unsafe { handle_from_name(Some(name)) } as GlyphHandle);
+            v.insert(handle_from_name(Some(name)) as GlyphHandle);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,
@@ -133,9 +125,7 @@ pub fn otfcc_encode_cmap_uvs_by_index(
 ) -> bool {
     match cmap.uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            // See `otfcc_encode_cmap_by_index` above for why this is a
-            // narrow `unsafe {}` rather than an `unsafe fn`.
-            v.insert(unsafe { handle_from_index(gid as GlyphId) } as GlyphHandle);
+            v.insert(handle_from_index(gid as GlyphId) as GlyphHandle);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,
@@ -150,7 +140,7 @@ pub fn otfcc_encode_cmap_uvs_by_name(
 ) -> bool {
     match cmap.uvs.entry(c) {
         std::collections::btree_map::Entry::Vacant(v) => {
-            v.insert(unsafe { handle_from_name(Some(name)) } as GlyphHandle);
+            v.insert(handle_from_name(Some(name)) as GlyphHandle);
             true
         }
         std::collections::btree_map::Entry::Occupied(_) => false,

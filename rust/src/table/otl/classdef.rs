@@ -267,7 +267,7 @@ pub(crate) unsafe fn shrink_class_def(cd: *mut ClassDef) {
             (&mut (*cd).classes)[k] = c;
             k += 1;
         } else {
-            otfcc_handle_dispose(&raw mut (&mut (*cd).glyphs)[j]);
+            otfcc_handle_dispose(&mut (&mut (*cd).glyphs)[j]);
         }
     }
     (*cd).glyphs.truncate(k);

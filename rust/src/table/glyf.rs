@@ -239,13 +239,7 @@ fn glyf_contour_fill(arr: &mut Contour, n: usize) {
 }
 #[inline]
 fn init_glyf_reference(ref_0: &mut ComponentReference) {
-    // `otfcc_handle_empty` is still an `unsafe fn` in `support/handle.rs`
-    // (a separate, not-yet-converted raw-pointer shell around `Handle`,
-    // out of scope here) -- trivially safe internally
-    // (`Handle::default()`), so this is a single narrow `unsafe {}` rather
-    // than the whole function, the same way `vf/vq.rs`'s `vqs_compare`
-    // bridges to the still-raw `vq_compare_region`.
-    ref_0.glyph = unsafe { otfcc_handle_empty() } as GlyphHandle;
+    ref_0.glyph = otfcc_handle_empty() as GlyphHandle;
     ref_0.x = vq_create_still(0_i32 as Pos);
     ref_0.y = vq_create_still(0_i32 as Pos);
     ref_0.a = 1_i32 as Scale;
