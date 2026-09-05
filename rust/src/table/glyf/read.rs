@@ -651,16 +651,12 @@ unsafe fn apply_coords(
     while keep != 0 && __caryll_index < (*glyph).contours.len() {
         let c: *mut Contour = &raw mut (&mut (*glyph).contours)[__caryll_index];
         while keep != 0 {
-            // Always `Axis::X` here regardless of `axis` -- matches the
-            // original's unconditional `get_x`, preserved as-is rather than
-            // silently changed to `axis` (a behavior question outside the
-            // scope of this pun-removal, flagged separately).
             fill_the_gaps(
                 j_first,
                 (j_first as usize).wrapping_add((*c).len()) as ShapeId,
                 &mut nudges,
                 glyph_refs,
-                Axis::X,
+                axis,
             );
             j_first = (j_first as usize).wrapping_add((*c).len()) as ShapeId as ShapeId;
             keep = (keep == 0) as i32 as usize;
@@ -696,37 +692,27 @@ unsafe fn apply_polymorphism(
     // between them, matching what the array used to be pre-sized to),
     // dropped automatically at the end of this function.
     let mut glyph_refs: Vec<CoordRef> = Vec::with_capacity(total_points as usize);
-    let mut __caryll_index: usize = 0_usize;
-    let mut keep: usize = 1_usize;
-    while keep != 0 && __caryll_index < (*glyph).contours.len() {
-        let c: *mut Contour = &raw mut (&mut (*glyph).contours)[__caryll_index];
-        while keep != 0 {
-            let mut __caryll_index_0: usize = 0_usize;
-            let mut keep_0: usize = 1_usize;
-            while keep_0 != 0 && __caryll_index_0 < (*c).len() {
-                let g: *mut Point = &raw mut (&mut (*c))[__caryll_index_0];
-                while keep_0 != 0 {
-                    glyph_refs.push(CoordRef::Point(g));
-                    keep_0 = (keep_0 == 0) as i32 as usize;
-                }
-                keep_0 = (keep_0 == 0) as i32 as usize;
-                __caryll_index_0 = __caryll_index_0.wrapping_add(1);
-            }
-            keep = (keep == 0) as i32 as usize;
+    // `.iter_mut()` instead of the c2rust `while keep != 0 && idx < len {
+    // let g = &raw mut (&mut *container)[idx]; ... }` idiom used elsewhere
+    // in this crate -- that idiom re-borrows the *whole* container fresh
+    // on every iteration, which invalidates every previously-derived
+    // element pointer from earlier iterations under Stacked Borrows the
+    // moment a later iteration's raw pointer is actually dereferenced
+    // (confirmed with `cargo miri test`: retagging a stale pointer from
+    // this exact loop shape is flagged as Undefined Behavior). Harmless
+    // on real hardware -- nothing here was ever miscompiled -- but a
+    // latent soundness violation the loop shape itself created, invisible
+    // until a Miri-run test actually called `apply_polymorphism` (no
+    // existing unit test did). `.iter_mut()` yields disjoint `&mut T`
+    // elements from a single reborrow of the whole container, so casting
+    // each to a raw pointer for later use is sound.
+    for c in (*glyph).contours.iter_mut() {
+        for g in c.iter_mut() {
+            glyph_refs.push(CoordRef::Point(g as *mut Point));
         }
-        keep = (keep == 0) as i32 as usize;
-        __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let mut __caryll_index_1: usize = 0_usize;
-    let mut keep_1: usize = 1_usize;
-    while keep_1 != 0 && __caryll_index_1 < (*glyph).references.len() {
-        let r_0: *mut ComponentReference = &raw mut (&mut (*glyph).references)[__caryll_index_1];
-        while keep_1 != 0 {
-            glyph_refs.push(CoordRef::ComponentAnchor(r_0));
-            keep_1 = (keep_1 == 0) as i32 as usize;
-        }
-        keep_1 = (keep_1 == 0) as i32 as usize;
-        __caryll_index_1 = __caryll_index_1.wrapping_add(1);
+    for r_0 in (*glyph).references.iter_mut() {
+        glyph_refs.push(CoordRef::ComponentAnchor(r_0 as *mut ComponentReference));
     }
     apply_coords(
         total_points,
@@ -1503,6 +1489,69 @@ mod gvar_polymorphize_tests {
             let new_offset = read_packed_delta(&data, 0, 1, &mut deltas).unwrap();
             assert_eq!(new_offset, 2);
             assert_eq!(deltas[0], 5.0);
+        }
+    }
+
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libm's round via otfcc_to_fixed, unsupported under Miri on macOS"
+    )]
+    fn fill_the_gaps_interpolates_an_untouched_points_delta_using_its_own_axis_kernel() {
+        // Regression test for a bug traced back to the original C source,
+        // commit 2ddee94f "do some more abstraction" (2017-11-13): that
+        // commit merged applyPolymorphism's separate X and Y blocks into
+        // one applyCoords(..., getter) helper called once per axis, but
+        // left its *inner* fillTheGaps call hardcoded to getX -- so the
+        // Y-axis pass filled in untouched points' deltas by interpolating
+        // against neighbors' X coordinates instead of their Y coordinates.
+        // Ported faithfully (bug included) through every refactor since,
+        // C and Rust alike, until now.
+        //
+        // Three points in one contour: P0/P2 touched, P1 untouched. P1's
+        // X and Y original coordinates sit at different fractional
+        // positions between P0 and P2 (25% along X, 75% along Y) so the
+        // correct interpolated Y-delta (using Y's own 75% ratio) differs
+        // sharply from what reusing X's 25% ratio would produce.
+        unsafe {
+            let mut glyph = otfcc_new_glyf_glyph();
+            let mut contour: Contour = Vec::new();
+            for (x, y) in [(0.0, 0.0), (5.0, 150.0), (20.0, 200.0)] {
+                contour.push(Point {
+                    x: vq_create_still(x),
+                    y: vq_create_still(y),
+                    on_curve: 1,
+                });
+            }
+            glyph.contours.push(contour);
+
+            let r = vq_create_region(1);
+            let points: [ShapeId; 2] = [0, 2];
+            let delta_x: [Pos; 2] = [0.0, 100.0];
+            let delta_y: [Pos; 2] = [0.0, 1000.0];
+            let glyph_ptr: *mut Glyph = &mut *glyph;
+            apply_polymorphism(
+                3,
+                glyph_ptr,
+                2,
+                points.as_ptr(),
+                delta_x.as_ptr(),
+                delta_y.as_ptr(),
+                r,
+            );
+            vq_delete_region(r);
+
+            let p1 = &glyph.contours[0][1];
+            // X: P1 sits 25% of the way from P0 to P2 -> interpolated
+            // delta_x is 25% of the way from 0 to 100.
+            assert_eq!(p1.x.shift.len(), 1);
+            assert_eq!(p1.x.shift[0].unwrap_delta().quantity, 25.0);
+            // Y: P1 sits 75% of the way from P0 to P2 -> interpolated
+            // delta_y is 75% of the way from 0 to 1000 (750), not the
+            // 25%-of-1000 = 250 the bug would have produced by reusing
+            // X's ratio.
+            assert_eq!(p1.y.shift.len(), 1);
+            assert_eq!(p1.y.shift[0].unwrap_delta().quantity, 750.0);
         }
     }
 }
