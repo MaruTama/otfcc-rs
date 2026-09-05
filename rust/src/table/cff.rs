@@ -47,8 +47,7 @@ use crate::libcff::cff_codecs::cff_encode_cff_operator;
 use crate::libcff::cff_dict::{build_dict, cff_dict_create, cff_dict_free, parse_to_callback};
 use crate::libcff::cff_fdselect::cff_build_fd_select;
 use crate::libcff::cff_index::{
-    build_index, cff_index_create, cff_index_dispose, cff_index_free, cff_index_init,
-    new_index_by_callback,
+    build_index, cff_index_create, cff_index_free, new_index_by_callback,
 };
 use crate::libcff::cff_parser::{cff_close, cff_open_stream, cff_parse_outline, cff_parse_subr};
 use crate::libcff::cff_string::get_cff_sid;
@@ -899,7 +898,6 @@ unsafe fn build_outline(
         offset: Vec::new(),
         data: Vec::new(),
     };
-    cff_index_init(&raw mut local_subrs);
     let mut bc: OutlineBuilderContext = OutlineBuilderContext {
         g: g,
         j_contour: 0 as ShapeId,
@@ -913,23 +911,22 @@ unsafe fn build_outline(
         randx: 0_u64,
     };
     let fd: u8;
+    let f_raw_data = ::core::slice::from_raw_parts((*f).raw_data, (*f).raw_length as usize);
     if !matches!((*f).fdselect, CffFdSelect::Unspecified) {
         fd = cff_parse_subr(
             i,
-            (*f).raw_data,
-            (*f).raw_length,
+            f_raw_data,
             &(*f).font_dict,
             &(*f).fdselect,
-            &raw mut local_subrs,
+            &mut local_subrs,
         );
     } else {
         fd = cff_parse_subr(
             i,
-            (*f).raw_data,
-            (*f).raw_length,
+            f_raw_data,
             &(*f).top_dict,
             &(*f).fdselect,
-            &raw mut local_subrs,
+            &mut local_subrs,
         );
     }
     (*g).fd_select = handle_from_index(fd as GlyphId) as FdHandle;
@@ -1011,9 +1008,9 @@ unsafe fn build_outline(
         j = j.wrapping_add(1);
     }
     (*g).contours.shrink_to_fit();
-    // `cx`/`cy` are plain owned locals, never moved out, so they auto-drop
-    // when this function returns -- no explicit dispose call is needed.
-    cff_index_dispose(&raw mut local_subrs);
+    // `cx`/`cy`/`local_subrs` are plain owned locals, never moved out, so
+    // they auto-drop when this function returns -- no explicit dispose
+    // call is needed.
     (*context).seed = bc.randx;
 }
 // Returns `Vec<u8>`, its only callers direct Rust call sites (never a real
@@ -1951,7 +1948,7 @@ unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) 
         .map(|(_, value)| Buffer::from_bytes(&value))
         .collect();
     let strings: *mut CffIndex = new_index_by_callback(n, blobs.into_iter());
-    let final_blob = build_index(strings);
+    let final_blob = build_index(&*strings);
     cff_index_free(strings);
     return final_blob;
 }
@@ -1972,7 +1969,7 @@ unsafe fn cff_compile_nameindex(cff: *mut CffTable) -> Buffer {
     let mut name_data: Vec<u8> = (*cff).font_name.clone();
     name_data.push(0_u8);
     (*name_index).data = name_data;
-    let buf = build_index(name_index);
+    let buf = build_index(&*name_index);
     cff_index_free(name_index);
     (*cff).font_name = Vec::new();
     return buf;
@@ -2115,7 +2112,7 @@ unsafe fn writecff_cid_keyed(
     let mut r: Buffer;
     if (*cff).is_cid {
         fd_array_index = cff_make_fdarray(&raw const (*cff).fd_array, &raw mut string_hash);
-        r = build_index(fd_array_index);
+        r = build_index(&*fd_array_index);
     } else {
         r = Buffer::new();
     }
@@ -2263,7 +2260,7 @@ unsafe fn writecff_cid_keyed(
             fd_array_privates.push(p_0);
             j = j.wrapping_add(1);
         }
-        r = build_index(fd_array_index);
+        r = build_index(&*fd_array_index);
         cff_index_free(fd_array_index);
         blob.write_buffer_owned(r);
         for (j_0, p_0) in fd_array_privates.into_iter().enumerate() {
