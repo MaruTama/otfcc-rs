@@ -188,44 +188,39 @@ pub fn otfcc_read_cpal(packet: &Packet) -> Option<Box<CpalTable>> {
     Some(Box::new(CpalTable { version, palettes }))
 }
 #[inline]
-unsafe fn dump_color(color: *const CpalColor) -> BuiltValue {
+fn dump_color(color: &CpalColor) -> BuiltValue {
     let mut _color = BuiltValue::new_object(5);
-    _color.push_field(b"red", BuiltValue::Int((*color).red as i64));
-    _color.push_field(b"green", BuiltValue::Int((*color).green as i64));
-    _color.push_field(b"blue", BuiltValue::Int((*color).blue as i64));
-    if (*color).alpha as i32 != 0xff_i32 {
-        _color.push_field(b"alpha", BuiltValue::Int((*color).alpha as i64));
+    _color.push_field(b"red", BuiltValue::Int(color.red as i64));
+    _color.push_field(b"green", BuiltValue::Int(color.green as i64));
+    _color.push_field(b"blue", BuiltValue::Int(color.blue as i64));
+    if color.alpha as i32 != 0xff_i32 {
+        _color.push_field(b"alpha", BuiltValue::Int(color.alpha as i64));
     }
-    if (*color).label as i32 != 0xffff_i32 {
-        _color.push_field(b"label", BuiltValue::Int((*color).label as i64));
+    if color.label as i32 != 0xffff_i32 {
+        _color.push_field(b"label", BuiltValue::Int(color.label as i64));
     }
     _color.preserialize()
 }
 #[inline]
-unsafe fn dump_palette(palette: *const CpalPalette) -> BuiltValue {
+fn dump_palette(palette: &CpalPalette) -> BuiltValue {
     let mut _palette = BuiltValue::new_object(3);
-    if (*palette).type_0 != 0 {
-        _palette.push_field(b"type", BuiltValue::Int((*palette).type_0 as i64));
+    if palette.type_0 != 0 {
+        _palette.push_field(b"type", BuiltValue::Int(palette.type_0 as i64));
     }
-    if (*palette).label != 0xffff_u32 {
-        _palette.push_field(b"label", BuiltValue::Int((*palette).label as i64));
+    if palette.label != 0xffff_u32 {
+        _palette.push_field(b"label", BuiltValue::Int(palette.label as i64));
     }
-    let colorset: &Vec<CpalColor> = &(*palette).colorset;
+    let colorset: &Vec<CpalColor> = &palette.colorset;
     let mut a = BuiltValue::new_array(colorset.len());
     let mut j: ColorId = 0 as ColorId;
     while (j as usize) < colorset.len() {
-        a.push_item(dump_color(&colorset[j as usize] as *const CpalColor));
+        a.push_item(dump_color(&colorset[j as usize]));
         j = j.wrapping_add(1);
     }
     _palette.push_field(b"colors", a);
     _palette
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_cpal(
-    table: Option<&CpalTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
+pub fn otfcc_dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue, options: &Options) {
     let table = match table {
         Some(t) => t,
         None => return,
@@ -234,15 +229,15 @@ pub unsafe fn otfcc_dump_cpal(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"CPAL"),
     );
-    let palettes: &Vec<CpalPalette> = &(*table).palettes;
+    let palettes: &Vec<CpalPalette> = &table.palettes;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _t = BuiltValue::new_object(2);
-        _t.push_field(b"version", BuiltValue::Int((*table).version as i64));
+        _t.push_field(b"version", BuiltValue::Int(table.version as i64));
         let mut _a = BuiltValue::new_array(palettes.len());
         let mut j: TableId = 0 as TableId;
         while (j as usize) < palettes.len() {
-            _a.push_item(dump_palette(&palettes[j as usize] as *const CpalPalette));
+            _a.push_item(dump_palette(&palettes[j as usize]));
             j = j.wrapping_add(1);
         }
         _t.push_field(b"palettes", _a);
@@ -264,10 +259,7 @@ fn parse_color(color: Option<&ParsedValue>) -> CpalColor {
     c.label = color.get_int_or(b"label", 0xffff) as u16;
     c
 }
-pub unsafe fn otfcc_parse_cpal(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<CpalTable>> {
+pub fn otfcc_parse_cpal(root: &ParsedValue, options: &Options) -> Option<Box<CpalTable>> {
     let table = root.get_typed(b"CPAL", JsonType::Object)?;
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
@@ -311,8 +303,8 @@ pub unsafe fn otfcc_parse_cpal(
     Some(cpal)
 }
 #[inline]
-unsafe fn build_palette_type(cpal: *const CpalTable) -> *mut BkBlock {
-    let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
+unsafe fn build_palette_type(cpal: &CpalTable) -> *mut BkBlock {
+    let palettes: &Vec<CpalPalette> = &cpal.palettes;
     let mut needs_palette_type: bool = false;
     let mut j: TableId = 0 as TableId;
     while (j as usize) < palettes.len() {
@@ -339,8 +331,8 @@ unsafe fn build_palette_type(cpal: *const CpalTable) -> *mut BkBlock {
     return block;
 }
 #[inline]
-unsafe fn build_palette_label(cpal: *const CpalTable) -> *mut BkBlock {
-    let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
+unsafe fn build_palette_label(cpal: &CpalTable) -> *mut BkBlock {
+    let palettes: &Vec<CpalPalette> = &cpal.palettes;
     let mut needs_palette_label: bool = false;
     let mut j: TableId = 0 as TableId;
     while (j as usize) < palettes.len() {
@@ -367,8 +359,8 @@ unsafe fn build_palette_label(cpal: *const CpalTable) -> *mut BkBlock {
     return block;
 }
 #[inline]
-unsafe fn build_palette_entry_label(cpal: *const CpalTable) -> *mut BkBlock {
-    let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
+unsafe fn build_palette_entry_label(cpal: &CpalTable) -> *mut BkBlock {
+    let palettes: &Vec<CpalPalette> = &cpal.palettes;
     let mut needs_palette_entry_label: bool = false;
     let palette: &CpalPalette = &palettes[0_usize];
     let mut j: ColorId = 0 as ColorId;
@@ -396,10 +388,9 @@ unsafe fn build_palette_entry_label(cpal: *const CpalTable) -> *mut BkBlock {
     }
     return block;
 }
-#[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
-    let cpal = cpal? as *const CpalTable;
-    let palettes: &Vec<CpalPalette> = &(*cpal).palettes;
+    let cpal = cpal?;
+    let palettes: &Vec<CpalPalette> = &cpal.palettes;
     if palettes.is_empty() {
         return None;
     }
@@ -442,7 +433,7 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
     let root: *mut BkBlock = bk_new_block(&[
         bk_int(
             BkCellType::B16,
-            ((*cpal).version as i32) as u32,
+            (cpal.version as i32) as u32,
         ),
         bk_int(
             BkCellType::B16,
@@ -466,7 +457,7 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
         );
         j_0 = j_0.wrapping_add(1);
     }
-    if (*cpal).version as i32 > 0_i32 {
+    if cpal.version as i32 > 0_i32 {
         bk_push(
             root,
             &[
