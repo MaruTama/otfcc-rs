@@ -461,13 +461,8 @@ pub fn cff_parse_subr(
         .get(fd_dict_start..)
         .and_then(|s| s.get(..fd_dict_len))
         .unwrap_or(&[]);
-    // `parse_dict_key_int` is a separate, not-yet-converted `libcff/
-    // cff_dict.rs` shell -- already takes a safe `&[u8]`, unsafe only as
-    // stale marker residue, out of scope here -- so this is a narrow
-    // `unsafe {}` rather than the whole function, the same way `vf/vq.rs`'s
-    // `vqs_compare` bridges to `vq_compare_region`.
-    off_private = unsafe { parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 1_u32) };
-    len_private = unsafe { parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 0_u32) };
+    off_private = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 1_u32);
+    len_private = parse_dict_key_int(fd_dict_bytes, OP_PRIVATE, 0_u32);
     // Same bounds hole as `parse_cff_bytecode`'s Local Subrs lookup above:
     // `off_private`/`len_private` are Private-DICT-controlled operands,
     // unvalidated against `raw_length` until now.
@@ -478,7 +473,7 @@ pub fn cff_parse_subr(
         None
     };
     if let Some(private_bytes) = private_dict_bytes {
-        off_subr = unsafe { parse_dict_key_int(private_bytes, OP_SUBRS, 0_u32) };
+        off_subr = parse_dict_key_int(private_bytes, OP_SUBRS, 0_u32);
         if off_subr != -1_i32 {
             extract_index(raw, (off_private + off_subr) as u32, subr);
         } else {

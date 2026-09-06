@@ -2057,7 +2057,7 @@ unsafe fn compile_fd_buffer(
         fd_array[i as usize].as_ref() as *const CffTable as *mut CffTable,
         string_hash,
     );
-    let mut blob: Buffer = build_dict(fd);
+    let mut blob: Buffer = build_dict(&*fd);
     blob.write_buffer_owned(cff_build_offset(0xeeeeeeee_u32 as i32));
     blob.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
     blob.write_buffer_owned(cff_encode_cff_operator(OP_PRIVATE));
@@ -2095,7 +2095,7 @@ unsafe fn writecff_cid_keyed(
     let h = cff_build_header();
     let n = cff_compile_nameindex(cff);
     let top: *mut CffDict = cff_make_fd_dict(cff, &raw mut string_hash);
-    let t = build_dict(top);
+    let t = build_dict(&*top);
     cff_dict_free(top);
     let top_pd: *mut CffDict = cff_make_private_dict(
         (*cff)
@@ -2103,7 +2103,7 @@ unsafe fn writecff_cid_keyed(
             .as_deref_mut()
             .map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict),
     );
-    let mut p = build_dict(top_pd);
+    let mut p = build_dict(&*top_pd);
     p.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
     p.write_buffer_owned(cff_encode_cff_operator(OP_SUBRS));
     cff_dict_free(top_pd);
@@ -2226,7 +2226,7 @@ unsafe fn writecff_cid_keyed(
                     .as_deref_mut()
                     .map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict),
             );
-            let mut p_0 = build_dict(pd);
+            let mut p_0 = build_dict(&*pd);
             p_0.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
             p_0.write_buffer_owned(cff_encode_cff_operator(OP_SUBRS));
             cff_dict_free(pd);
