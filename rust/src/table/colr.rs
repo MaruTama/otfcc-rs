@@ -41,16 +41,14 @@ pub type ColrTable = Vec<ColrMapping>;
 // duplicate always goes through an explicit dup/copy function here, never an
 // implicit derive, so these two are written the same way, not derived.
 pub(crate) fn colr_layer_dup(l: &ColrLayer) -> ColrLayer {
-    unsafe {
-        ColrLayer {
-            glyph: otfcc_handle_dup(l.glyph.clone()),
-            palette_index: l.palette_index,
-        }
+    ColrLayer {
+        glyph: otfcc_handle_dup(l.glyph.clone()),
+        palette_index: l.palette_index,
     }
 }
 fn colr_mapping_dup(m: &ColrMapping) -> ColrMapping {
     ColrMapping {
-        glyph: unsafe { otfcc_handle_dup(m.glyph.clone()) },
+        glyph: otfcc_handle_dup(m.glyph.clone()),
         layers: m.layers.iter().map(colr_layer_dup).collect(),
     }
 }
@@ -100,7 +98,7 @@ unsafe fn parse_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
             layers: Vec::new(),
         };
         let mut base_glyph: GlyphHandle = handle_from_index(gid as GlyphId) as GlyphHandle;
-        otfcc_handle_move(&raw mut mapping.glyph, &raw mut base_glyph);
+        otfcc_handle_move(&mut mapping.glyph, &mut base_glyph);
         for k in 0..num_layers {
             let idx = k as usize + first_layer_index as usize;
             if idx < num_layer_records as usize {

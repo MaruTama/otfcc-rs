@@ -32,13 +32,9 @@ pub struct CffIndex {
 // `FontReader::u8()`/`u16()`/`u24()`/`u32()` are exactly these four reads,
 // checked against the buffer's real length.
 #[inline]
-unsafe fn dispose_cff_index(in_0: *mut CffIndex) {
-    (*in_0).offset = Vec::new();
-    (*in_0).data = Vec::new();
-}
-#[inline]
-pub(crate) unsafe fn cff_index_dispose(x: *mut CffIndex) {
-    dispose_cff_index(x);
+pub(crate) fn cff_index_dispose(x: &mut CffIndex) {
+    x.offset = Vec::new();
+    x.data = Vec::new();
 }
 #[inline]
 pub(crate) unsafe fn cff_index_free(x: *mut CffIndex) {
@@ -51,7 +47,7 @@ pub(crate) unsafe fn cff_index_free(x: *mut CffIndex) {
     // `cff_index_free` call site pairs consistently (confirmed by grep: no
     // generic adapter reclaims a `*mut CffIndex` any other way, unlike
     // `GposPairSubtable`'s `subtable_from_raw`), so this is self-contained.
-    cff_index_dispose(x);
+    cff_index_dispose(&mut *x);
     drop(Box::from_raw(x));
 }
 // A real, valid, empty `CffIndex` value -- as opposed to the all-zero bit
@@ -71,51 +67,26 @@ pub(crate) fn new_empty_cff_index() -> CffIndex {
     }
 }
 #[inline]
-pub(crate) unsafe fn cff_index_create() -> *mut CffIndex {
-    // `Box::new` of an explicit all-zero literal, not `malloc` + `cff_index_
-    // init`'s `memset`: same fields, same zero values, but a real Rust
-    // allocation from here on -- see `cff_index_free`'s matching `Box::
-    // from_raw`. `cff_index_init` itself stays (and keeps using `memset`):
-    // it also zero-initializes a stack-local `CffIndex` at its one other
-    // call site (`table/cff.rs`), which was never a `malloc`/`Box`
-    // allocation to begin with.
+pub(crate) fn cff_index_create() -> *mut CffIndex {
+    // `Box::new`/`Box::into_raw` are both safe -- see `cff_index_free`'s
+    // matching `Box::from_raw`.
     Box::into_raw(Box::new(new_empty_cff_index()))
 }
-#[inline]
-pub(crate) unsafe fn cff_index_init(x: *mut CffIndex) {
-    // No all-zero bit pattern is a valid `CffIndex` any more (it owns two
-    // `Vec` fields), so place a valid empty value directly instead of the
-    // old `memset`.
-    ::core::ptr::write(
-        x,
-        CffIndex {
-            count_type: CffIndexCountType::U16,
-            count: 0 as Arity,
-            off_size: 0,
-            offset: Vec::new(),
-            data: Vec::new(),
-        },
-    );
-}
-pub(crate) unsafe fn get_index_length(i: *const CffIndex) -> u32 {
-    if (*i).count != 0 as Arity {
-        let offset = &(*i).offset;
+pub(crate) fn get_index_length(i: &CffIndex) -> u32 {
+    if i.count != 0 as Arity {
+        let offset = &i.offset;
         return 3_u32
-            .wrapping_add((offset[(*i).count as usize]).wrapping_sub(1_u32))
-            .wrapping_add(
-                (*i).count
-                    .wrapping_add(1_u32)
-                    .wrapping_mul((*i).off_size as u32),
-            );
+            .wrapping_add((offset[i.count as usize]).wrapping_sub(1_u32))
+            .wrapping_add(i.count.wrapping_add(1_u32).wrapping_mul(i.off_size as u32));
     } else {
         return 3_u32;
     };
 }
-pub(crate) unsafe fn empty_index(i: *mut CffIndex) {
+pub(crate) fn empty_index(i: &mut CffIndex) {
     cff_index_dispose(i);
-    (*i).count_type = CffIndexCountType::U16;
-    (*i).count = 0 as Arity;
-    (*i).off_size = 0;
+    i.count_type = CffIndexCountType::U16;
+    i.count = 0 as Arity;
+    i.off_size = 0;
 }
 // This used to run entirely off a bare `*mut u8` with no length at all --
 // `count`/`off_size` and the whole `offset[]` array were read with no
@@ -134,15 +105,9 @@ pub(crate) unsafe fn empty_index(i: *mut CffIndex) {
 // == 0" branch) rather than reading adjacent bytes -- the original never
 // had a failure path to distinguish "malformed" from "legitimately
 // empty" at all.
-pub(crate) unsafe fn extract_index(
-    data: *mut u8,
-    table_length: u32,
-    pos: u32,
-    in_0: *mut CffIndex,
-) {
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+pub(crate) fn extract_index(data: &[u8], pos: u32, in_0: &mut CffIndex) {
     let result: Option<()> = 'parse: {
-        let Ok(mut r) = FontReader::new(slice).at(pos as usize) else {
+        let Ok(mut r) = FontReader::new(data).at(pos as usize) else {
             break 'parse None;
         };
         let Ok(count) = r.u16().map(|v| v as Arity) else {
@@ -151,8 +116,8 @@ pub(crate) unsafe fn extract_index(
         let Ok(off_size) = r.u8() else {
             break 'parse None;
         };
-        (*in_0).count = count;
-        (*in_0).off_size = off_size;
+        in_0.count = count;
+        in_0.off_size = off_size;
         if count > 0 as Arity {
             if !(1..=4).contains(&off_size) {
                 break 'parse None;
@@ -200,19 +165,19 @@ pub(crate) unsafe fn extract_index(
             let Ok(body) = r.bytes(data_len as usize) else {
                 break 'parse None;
             };
-            (*in_0).offset = offset;
-            (*in_0).data = body.to_vec();
+            in_0.offset = offset;
+            in_0.data = body.to_vec();
         } else {
-            (*in_0).offset = Vec::new();
-            (*in_0).data = Vec::new();
+            in_0.offset = Vec::new();
+            in_0.data = Vec::new();
         }
         break 'parse Some(());
     };
     if result.is_none() {
-        (*in_0).count = 0 as Arity;
-        (*in_0).off_size = 0;
-        (*in_0).offset = Vec::new();
-        (*in_0).data = Vec::new();
+        in_0.count = 0 as Arity;
+        in_0.off_size = 0;
+        in_0.offset = Vec::new();
+        in_0.data = Vec::new();
     }
 }
 // Was a `context: *mut c_void` + function-pointer pair (three call sites,
@@ -227,13 +192,12 @@ pub(crate) unsafe fn extract_index(
 // This also folds in what used to be the callback's own allocation +
 // this function's matching `buffree`: the iterator yields owned
 // `Buffer`s, each consumed (and dropped) exactly once per `.next()`.
-pub(crate) unsafe fn new_index_by_callback(
+pub(crate) fn new_index_by_callback(
     length: u32,
     mut items: impl Iterator<Item = Buffer>,
 ) -> *mut CffIndex {
-    let idx: *mut CffIndex = (cff_index_create)();
-    (*idx).count = length as Arity;
-    let mut offset: Vec<u32> = vec![0_u32; (*idx).count.wrapping_add(1 as Arity) as usize];
+    let count = length as Arity;
+    let mut offset: Vec<u32> = vec![0_u32; count.wrapping_add(1 as Arity) as usize];
     offset[0_usize] = 1_u32;
     let mut data: Vec<u8> = Vec::new();
     let mut used: usize = 0_usize;
@@ -257,21 +221,24 @@ pub(crate) unsafe fn new_index_by_callback(
         i = i.wrapping_add(1);
     }
     data.truncate(used);
-    (*idx).offset = offset;
-    (*idx).data = data;
-    (*idx).off_size = 4_u8;
-    return idx;
+    Box::into_raw(Box::new(CffIndex {
+        count_type: CffIndexCountType::U16,
+        count,
+        off_size: 4_u8,
+        offset,
+        data,
+    }))
 }
-pub(crate) unsafe fn build_index(index: *const CffIndex) -> Buffer {
+pub(crate) fn build_index(index: &CffIndex) -> Buffer {
     let mut blob = Buffer::new();
-    if (*index).count == 0 {
+    if index.count == 0 {
         blob.write_u8(0_u8);
         blob.write_u8(0_u8);
         blob.write_u8(0_u8);
         return blob;
     }
-    let offset = &(*index).offset;
-    let last_offset: u32 = offset[(*index).count as usize];
+    let offset = &index.offset;
+    let last_offset: u32 = offset[index.count as usize];
     let off_size: u8;
     if last_offset < 0x100_u32 {
         off_size = 1_u8;
@@ -282,12 +249,12 @@ pub(crate) unsafe fn build_index(index: *const CffIndex) -> Buffer {
     } else {
         off_size = 4_u8;
     }
-    blob.write_u8((*index).count.wrapping_div(256 as Arity) as u8);
-    blob.write_u8((*index).count.wrapping_rem(256 as Arity) as u8);
+    blob.write_u8(index.count.wrapping_div(256 as Arity) as u8);
+    blob.write_u8(index.count.wrapping_rem(256 as Arity) as u8);
     blob.write_u8(off_size);
-    if (*index).count > 0 as Arity {
+    if index.count > 0 as Arity {
         let mut i: Arity = 0 as Arity;
-        while i <= (*index).count {
+        while i <= index.count {
             let offset_i: u32 = offset[i as usize];
             match off_size as i32 {
                 1 => {
@@ -312,9 +279,9 @@ pub(crate) unsafe fn build_index(index: *const CffIndex) -> Buffer {
             }
             i = i.wrapping_add(1);
         }
-        if !(*index).data.is_empty() {
-            let n = (offset[(*index).count as usize]).wrapping_sub(1_u32) as usize;
-            blob.write_bytes(&(&(*index).data)[..n]);
+        if !index.data.is_empty() {
+            let n = (offset[index.count as usize]).wrapping_sub(1_u32) as usize;
+            blob.write_bytes(&index.data[..n]);
         }
     }
     return blob;
@@ -330,7 +297,7 @@ mod extract_index_tests {
         let data = [0x00u8, 0x01, 0x01, 0x01, 0x03, 0xAA, 0xBB];
         unsafe {
             let idx = cff_index_create();
-            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            extract_index(&data, 0, &mut *idx);
             assert_eq!((*idx).count, 1);
             assert_eq!((*idx).off_size, 1);
             assert_eq!((*idx).offset, vec![1, 3]);
@@ -344,7 +311,7 @@ mod extract_index_tests {
         let data = [0x00u8, 0x00, 0x00]; // count=0, off_size=0
         unsafe {
             let idx = cff_index_create();
-            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            extract_index(&data, 0, &mut *idx);
             assert_eq!((*idx).count, 0);
             assert!((*idx).offset.is_empty());
             assert!((*idx).data.is_empty());
@@ -364,7 +331,7 @@ mod extract_index_tests {
         let data = [0x00u8, 0x01, 0x01, 0x01, 0x00];
         unsafe {
             let idx = cff_index_create();
-            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            extract_index(&data, 0, &mut *idx);
             assert_eq!((*idx).count, 0);
             assert!((*idx).offset.is_empty());
             assert!((*idx).data.is_empty());
@@ -381,7 +348,7 @@ mod extract_index_tests {
         let data = [0x00u8, 0x05, 0x04];
         unsafe {
             let idx = cff_index_create();
-            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            extract_index(&data, 0, &mut *idx);
             assert_eq!((*idx).count, 0);
             assert!((*idx).offset.is_empty());
             assert!((*idx).data.is_empty());
@@ -398,7 +365,7 @@ mod extract_index_tests {
         let data = [0x00u8, 0x01, 0x01, 0x01, 200u8, 0xAA, 0xBB];
         unsafe {
             let idx = cff_index_create();
-            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            extract_index(&data, 0, &mut *idx);
             assert_eq!((*idx).count, 0);
             assert!((*idx).offset.is_empty());
             assert!((*idx).data.is_empty());
@@ -419,7 +386,7 @@ mod extract_index_tests {
         let data = [0x00u8, 0x02, 0x01, 0x01, 0x05, 0x03, 0xAA, 0xBB, 0xCC];
         unsafe {
             let idx = cff_index_create();
-            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            extract_index(&data, 0, &mut *idx);
             assert_eq!((*idx).count, 0);
             assert!((*idx).offset.is_empty());
             cff_index_free(idx);
@@ -435,7 +402,7 @@ mod extract_index_tests {
         let data = [0x00u8, 0x01, 0x05, 0x00, 0x00];
         unsafe {
             let idx = cff_index_create();
-            extract_index(data.as_ptr() as *mut u8, data.len() as u32, 0, idx);
+            extract_index(&data, 0, &mut *idx);
             assert_eq!((*idx).count, 0);
             cff_index_free(idx);
         }

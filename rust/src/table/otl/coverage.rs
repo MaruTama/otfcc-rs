@@ -322,7 +322,7 @@ pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
             (&mut (*coverage))[k] = elem;
             k += 1;
         } else {
-            otfcc_handle_dispose(&raw mut (&mut (*coverage))[j]);
+            otfcc_handle_dispose(&mut (&mut (*coverage))[j]);
         }
     }
     (*coverage).truncate(k);
@@ -332,7 +332,7 @@ pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
         let mut rear: usize = 1;
         while rear < (*coverage).len() {
             if (&(*coverage))[rear].index == (&(*coverage))[rear - skip - 1].index {
-                otfcc_handle_dispose(&raw mut (&mut (*coverage))[rear]);
+                otfcc_handle_dispose(&mut (&mut (*coverage))[rear]);
                 skip += 1;
             } else {
                 let elem = (&(*coverage))[rear].clone();

@@ -29,11 +29,7 @@ pub struct CffGetKeyContext {
     pub idx: u32,
 }
 #[inline]
-unsafe fn dispose_dict(dict: *mut CffDict) {
-    (*dict).ents = Vec::new();
-}
-#[inline]
-pub(crate) unsafe fn cff_dict_create() -> *mut CffDict {
+pub(crate) fn cff_dict_create() -> *mut CffDict {
     // `Box::new` of an explicit all-zero literal, not `malloc` + a `memset`
     // init -- see `cff_dict_free`'s matching `Box::from_raw`.
     Box::into_raw(Box::new(CffDict { ents: Vec::new() }))
@@ -50,12 +46,14 @@ pub(crate) unsafe fn cff_dict_free(x: *mut CffDict) {
     // grep: no generic adapter reclaims a `*mut CffDict` any other way,
     // unlike `GposPairSubtable`'s `subtable_from_raw`), so this is
     // self-contained.
-    cff_dict_dispose(x);
+    cff_dict_dispose(&mut *x);
     drop(Box::from_raw(x));
 }
+// Absorbs the old one-line `dispose_dict` helper (same shape as
+// `libcff/cff_index.rs`'s `cff_index_dispose` absorbing `dispose_cff_index`).
 #[inline]
-unsafe fn cff_dict_dispose(x: *mut CffDict) {
-    dispose_dict(x);
+fn cff_dict_dispose(x: &mut CffDict) {
+    x.ents = Vec::new();
 }
 // `data` used to be a raw `(*const u8, u32)` pair: the loop itself always
 // respected `len` correctly (see the `remaining` comment below), but every
@@ -139,7 +137,7 @@ unsafe fn callback_get_key(
         (*context).res = stack[((*context).idx as isize) as usize];
     }
 }
-pub(crate) unsafe fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) -> CffValue {
+pub(crate) fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) -> CffValue {
     let mut context: CffGetKeyContext = CffGetKeyContext {
         found: false,
         res: CffValue::Unset,
@@ -150,14 +148,21 @@ pub(crate) unsafe fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) 
     context.idx = idx;
     context.op = op;
     context.res = CffValue::Unset;
-    parse_to_callback(
-        data,
-        &raw mut context as *mut ::core::ffi::c_void,
-        Some(
-            callback_get_key
-                as unsafe fn(CffDictOperator, u8, &[CffValue], *mut ::core::ffi::c_void) -> (),
-        ),
-    );
+    // `parse_to_callback`/`callback_get_key` are a separate, not-yet-
+    // converted type-erased-context shell (the `*mut c_void` callback
+    // family) -- out of scope here, so this is a narrow `unsafe {}` rather
+    // than the whole function, the same way `vf/vq.rs`'s `vqs_compare`
+    // bridges to `vq_compare_region`.
+    unsafe {
+        parse_to_callback(
+            data,
+            &raw mut context as *mut ::core::ffi::c_void,
+            Some(
+                callback_get_key
+                    as unsafe fn(CffDictOperator, u8, &[CffValue], *mut ::core::ffi::c_void) -> (),
+            ),
+        );
+    }
     return context.res;
 }
 /// `parse_dict_key`'s value as a plain `i32`, `-1` if the key wasn't
@@ -168,16 +173,16 @@ pub(crate) unsafe fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) 
 /// `.t` first). Computed here by actually matching the variant instead,
 /// so a caller can no longer misread a legitimately-`Double` DICT value
 /// as a bogus offset/length by reading the wrong union arm.
-pub(crate) unsafe fn parse_dict_key_int(data: &[u8], op: CffDictOperator, idx: u32) -> i32 {
+pub(crate) fn parse_dict_key_int(data: &[u8], op: CffDictOperator, idx: u32) -> i32 {
     match parse_dict_key(data, op, idx) {
         CffValue::Integer(i) => i,
         CffValue::Double(d) => d as i32,
         CffValue::Unset | CffValue::Operator(_) => -1,
     }
 }
-pub(crate) unsafe fn build_dict(dict: *const CffDict) -> Buffer {
+pub(crate) fn build_dict(dict: &CffDict) -> Buffer {
     let mut blob = Buffer::new();
-    let ents = &(*dict).ents;
+    let ents = &dict.ents;
     let mut i: usize = 0;
     while i < ents.len() {
         let vals = &ents[i].vals;

@@ -1,12 +1,4 @@
-#![allow(unsafe_op_in_unsafe_fn)]
-// Stage 6 removes this; see rust/README.md
-// `Handle` now owns a `Vec<u8>` name, so every `extern "C" fn` here that
-// passes/returns `Handle` by value trips `improper_ctypes_definitions` --
-// none of these are `#[no_mangle]` (the crate's only real FFI surface is
-// the 4 symbols in `ffi/dll.rs`), so `extern "C"` here is c2rust's calling-
-// convention residue, not real FFI. Same rationale as `CaretValueRecord`/
-// `GsubLigatureSubtable` elsewhere in the crate.
-#![allow(improper_ctypes_definitions)]
+#![forbid(unsafe_code)]
 use crate::support::primitives::GlyphId;
 
 /// Which of `Handle`'s fields is meaningful.
@@ -55,34 +47,34 @@ impl Default for Handle {
     }
 }
 #[inline]
-pub(crate) unsafe fn otfcc_handle_empty() -> Handle {
+pub(crate) fn otfcc_handle_empty() -> Handle {
     Handle::default()
 }
 #[inline]
-pub(crate) unsafe fn otfcc_handle_copy(dst: *mut Handle, src: *const Handle) {
-    *dst = (*src).clone();
+pub(crate) fn otfcc_handle_copy(dst: &mut Handle, src: &Handle) {
+    *dst = src.clone();
 }
 #[inline]
-pub(crate) unsafe fn otfcc_handle_dup(src: Handle) -> Handle {
+pub(crate) fn otfcc_handle_dup(src: Handle) -> Handle {
     src.clone()
 }
 #[inline]
-pub(crate) unsafe fn otfcc_handle_init(x: *mut Handle) {
+pub(crate) fn otfcc_handle_init(x: &mut Handle) {
     *x = Handle::default();
 }
 #[inline]
-pub(crate) unsafe fn otfcc_handle_dispose(x: *mut Handle) {
+pub(crate) fn otfcc_handle_dispose(x: &mut Handle) {
     *x = Handle::default();
 }
 #[inline]
-pub(crate) unsafe fn otfcc_handle_replace(dst: *mut Handle, src: Handle) {
+pub(crate) fn otfcc_handle_replace(dst: &mut Handle, src: Handle) {
     *dst = src;
 }
 #[inline]
-pub(crate) unsafe fn otfcc_handle_move(dst: *mut Handle, src: *mut Handle) {
-    *dst = ::core::mem::take(&mut *src);
+pub(crate) fn otfcc_handle_move(dst: &mut Handle, src: &mut Handle) {
+    *dst = ::core::mem::take(src);
 }
-pub(crate) unsafe fn handle_from_index(id: GlyphId) -> Handle {
+pub(crate) fn handle_from_index(id: GlyphId) -> Handle {
     let h: Handle = Handle {
         state: HandleState::Index,
         index: id,
@@ -113,7 +105,7 @@ pub(crate) fn handle_name_eq_bytes(a: &[u8], b: &[u8]) -> bool {
 // present name is a different state from no name at all, and collapsing
 // the two by testing `v.is_empty()` instead would be an observable (if
 // exotic -- an empty-string glyph name) behavior change.
-pub(crate) unsafe fn handle_from_name(s: Option<Vec<u8>>) -> Handle {
+pub(crate) fn handle_from_name(s: Option<Vec<u8>>) -> Handle {
     let mut h: Handle = Handle {
         state: HandleState::Empty,
         index: 0 as GlyphId,
@@ -153,21 +145,17 @@ mod tests {
 
     #[test]
     fn a_fresh_handle_is_empty() {
-        unsafe {
-            let h = otfcc_handle_empty();
-            assert_eq!(h.state, HandleState::Empty);
-            assert_eq!(h.index, 0);
-            assert!(h.name.is_empty());
-        }
+        let h = otfcc_handle_empty();
+        assert_eq!(h.state, HandleState::Empty);
+        assert_eq!(h.index, 0);
+        assert!(h.name.is_empty());
     }
 
     #[test]
     fn from_index_records_the_index_and_no_name() {
-        unsafe {
-            let h = handle_from_index(42);
-            assert_eq!(h.state, HandleState::Index);
-            assert_eq!(h.index, 42);
-            assert!(h.name.is_empty());
-        }
+        let h = handle_from_index(42);
+        assert_eq!(h.state, HandleState::Index);
+        assert_eq!(h.index, 42);
+        assert!(h.name.is_empty());
     }
 }

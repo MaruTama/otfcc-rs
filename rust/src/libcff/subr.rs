@@ -892,21 +892,14 @@ pub fn cff_il_graph_to_buffers(
         }
         e = next;
     }
-    // `new_index_by_callback`/`build_index`/`cff_index_free` are the
-    // still-raw-pointer `CffIndex` API (`libcff/cff_index.rs`), a separate
-    // shell out of scope here -- bridged with narrow `unsafe {}` blocks.
-    let is: *mut CffIndex = unsafe {
-        new_index_by_callback(
-            g.total_char_strings,
-            char_strings[..g.total_char_strings as usize].iter().cloned(),
-        )
-    };
-    let igs: *mut CffIndex = unsafe {
-        new_index_by_callback(max_g_subrs, gsubrs[..max_g_subrs as usize].iter().cloned())
-    };
-    let ils: *mut CffIndex = unsafe {
-        new_index_by_callback(max_l_subrs, lsubrs[..max_l_subrs as usize].iter().cloned())
-    };
+    let is: *mut CffIndex = new_index_by_callback(
+        g.total_char_strings,
+        char_strings[..g.total_char_strings as usize].iter().cloned(),
+    );
+    let igs: *mut CffIndex =
+        new_index_by_callback(max_g_subrs, gsubrs[..max_g_subrs as usize].iter().cloned());
+    let ils: *mut CffIndex =
+        new_index_by_callback(max_l_subrs, lsubrs[..max_l_subrs as usize].iter().cloned());
     for entry in char_strings.iter_mut().take(g.total_char_strings as usize) {
         entry.data = Vec::new();
     }
@@ -916,15 +909,15 @@ pub fn cff_il_graph_to_buffers(
     for entry in lsubrs.iter_mut().take(max_l_subrs as usize) {
         entry.data = Vec::new();
     }
+    let s = build_index(unsafe { &*is });
+    let gs = build_index(unsafe { &*igs });
+    let ls = build_index(unsafe { &*ils });
     unsafe {
-        let s = build_index(is);
-        let gs = build_index(igs);
-        let ls = build_index(ils);
         cff_index_free(is);
         cff_index_free(igs);
         cff_index_free(ils);
-        (s, gs, ls)
     }
+    (s, gs, ls)
 }
 
 // Safety-net coverage for the intrusive doubly-linked-list subroutinizer
@@ -956,7 +949,7 @@ mod subr_graph_tests {
 
     unsafe fn index_count(buf: &Buffer) -> u32 {
         let idx = cff_index_create();
-        extract_index(buf.data.as_ptr() as *mut u8, buf.data.len() as u32, 0, idx);
+        extract_index(&buf.data, 0, &mut *idx);
         let count = (*idx).count;
         cff_index_free(idx);
         count
