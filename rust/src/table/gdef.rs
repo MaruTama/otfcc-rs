@@ -177,11 +177,7 @@ pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     crate::table::otl::coverage::reset_coverage_range_expansion_budget();
     let classdef_offset = FontReader::new(data).at(4).ok()?.u16().ok()?;
     let glyph_class_def = if classdef_offset != 0 {
-        classdef_from_raw(read_class_def(
-            data.as_ptr(),
-            data.len() as u32,
-            classdef_offset as u32,
-        ))
+        classdef_from_raw(read_class_def(data, classdef_offset as u32))
     } else {
         None
     };
@@ -191,11 +187,7 @@ pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
 
     let mark_attach_def_offset = FontReader::new(data).at(10).ok()?.u16().ok()?;
     let mark_attach_class_def = if mark_attach_def_offset != 0 {
-        classdef_from_raw(read_class_def(
-            data.as_ptr(),
-            data.len() as u32,
-            mark_attach_def_offset as u32,
-        ))
+        classdef_from_raw(read_class_def(data, mark_attach_def_offset as u32))
     } else {
         None
     };
@@ -311,16 +303,9 @@ pub unsafe fn otfcc_parse_gdef(
         mark_attach_class_def: None,
         lig_carets: Vec::new(),
     });
-    gdef.glyph_class_def = classdef_from_raw(parse_class_def(
-        table
-            .get(b"glyphClassDef")
-            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-    ));
-    gdef.mark_attach_class_def = classdef_from_raw(parse_class_def(
-        table
-            .get(b"markAttachClassDef")
-            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-    ));
+    gdef.glyph_class_def = classdef_from_raw(parse_class_def(table.get(b"glyphClassDef")));
+    gdef.mark_attach_class_def =
+        classdef_from_raw(parse_class_def(table.get(b"markAttachClassDef")));
     lig_caret_from_json(table.get(b"ligCarets"), &raw mut gdef.lig_carets);
     logger_finish(&mut *options.logger.borrow_mut());
     Some(gdef)

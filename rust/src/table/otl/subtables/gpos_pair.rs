@@ -278,15 +278,12 @@ pub unsafe fn otl_read_gpos_pair(
             // as a plain local raw pointer through that consuming call,
             // then adopted into `(*subtable).first` only once settled.
             let mut first_raw: *mut ClassDef =
-                read_class_def(data, table_length, offset.wrapping_add(cd1_rel as u32));
-            first_raw = expand_class_def(cov_0, first_raw);
+                read_class_def(slice, offset.wrapping_add(cd1_rel as u32));
+            first_raw = expand_class_def(&*cov_0, *Box::from_raw(first_raw));
             otl_coverage_free(cov_0);
             (*subtable).first = classdef_from_raw(first_raw);
-            (*subtable).second = classdef_from_raw(read_class_def(
-                data,
-                table_length,
-                offset.wrapping_add(cd2_rel as u32),
-            ));
+            (*subtable).second =
+                classdef_from_raw(read_class_def(slice, offset.wrapping_add(cd2_rel as u32)));
             if (*subtable).first.is_none() || (*subtable).second.is_none() {
                 break 'parse;
             }
@@ -357,8 +354,8 @@ pub unsafe fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> BuiltValue {
     let first_cd: *const ClassDef = (*subtable).first.as_deref().unwrap();
     let second_cd: *const ClassDef = (*subtable).second.as_deref().unwrap();
     let mut st = BuiltValue::new_object(3);
-    st.push_field(b"first", dump_class_def(first_cd));
-    st.push_field(b"second", dump_class_def(second_cd));
+    st.push_field(b"first", dump_class_def(&*first_cd));
+    st.push_field(b"second", dump_class_def(&*second_cd));
     let mut mat = BuiltValue::new_array(((*first_cd).maxclass as i32 + 1_i32) as usize);
     let mut j: GlyphClass = 0 as GlyphClass;
     while j as i32 <= (*first_cd).maxclass as i32 {
@@ -411,12 +408,10 @@ pub unsafe fn otl_gpos_parse_pair(
     let sv = unsafe { _subtable.as_ref() };
     let mat = sv.and_then(|v| v.get_typed(b"matrix", JsonType::Array));
     (*subtable).first = classdef_from_raw(parse_class_def(
-        sv.and_then(|v| v.get_typed(b"first", JsonType::Object))
-            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+        sv.and_then(|v| v.get_typed(b"first", JsonType::Object)),
     ));
     (*subtable).second = classdef_from_raw(parse_class_def(
-        sv.and_then(|v| v.get_typed(b"second", JsonType::Object))
-            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
+        sv.and_then(|v| v.get_typed(b"second", JsonType::Object)),
     ));
     let Some(mat) = mat else {
         subtable_gpos_pair_free(subtable);
@@ -645,11 +640,11 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
         bk_int(BkCellType::B16, (format2 as i32) as u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_class_def(first_cd))),
+            bk_new_block_from_buffer(Some(build_class_def(&*first_cd))),
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_class_def(second_cd))),
+            bk_new_block_from_buffer(Some(build_class_def(&*second_cd))),
         ),
         bk_int(BkCellType::B16, (class1_count as i32) as u32),
         bk_int(BkCellType::B16, (class2_count as i32) as u32),

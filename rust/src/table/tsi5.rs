@@ -48,7 +48,7 @@ pub unsafe fn otfcc_read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
     let mut j: GlyphId = 0 as GlyphId;
     while let Ok(class) = r.u16() {
         push_class_def(
-            tsi5,
+            &mut *tsi5,
             handle_from_index(j) as GlyphHandle,
             class as GlyphClass,
         );
@@ -58,15 +58,14 @@ pub unsafe fn otfcc_read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
 }
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: &mut BuiltValue) {
-    let table = match table {
-        Some(t) => t as *const Tsi5Table,
-        None => return,
+    let Some(table) = table else {
+        return;
     };
     root.push_field(b"TSI5", dump_class_def(table));
 }
 pub unsafe fn otfcc_parse_tsi5(root: &ParsedValue) -> Option<Box<Tsi5Table>> {
     let tsi = root.get_typed(b"TSI5", JsonType::Object)?;
-    let raw = parse_class_def(tsi as *const ParsedValue);
+    let raw = parse_class_def(Some(tsi));
     if raw.is_null() {
         return None;
     }

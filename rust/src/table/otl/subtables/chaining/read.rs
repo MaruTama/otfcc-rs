@@ -631,11 +631,7 @@ unsafe fn read_contextual_format2(
 
         cds = Box::into_raw(Box::new(ClassDefs {
             bc: None,
-            ic: classdef_from_raw(read_class_def(
-                data as *const u8,
-                table_length,
-                offset.wrapping_add(ic_rel as u32),
-            )),
+            ic: classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))),
             fc: None,
         }));
 
@@ -1157,21 +1153,9 @@ unsafe fn read_chaining_format2(
         }
 
         cds = Box::into_raw(Box::new(ClassDefs {
-            bc: classdef_from_raw(read_class_def(
-                data as *const u8,
-                table_length,
-                offset.wrapping_add(bc_rel as u32),
-            )),
-            ic: classdef_from_raw(read_class_def(
-                data as *const u8,
-                table_length,
-                offset.wrapping_add(ic_rel as u32),
-            )),
-            fc: classdef_from_raw(read_class_def(
-                data as *const u8,
-                table_length,
-                offset.wrapping_add(fc_rel as u32),
-            )),
+            bc: classdef_from_raw(read_class_def(slice, offset.wrapping_add(bc_rel as u32))),
+            ic: classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))),
+            fc: classdef_from_raw(read_class_def(slice, offset.wrapping_add(fc_rel as u32))),
         }));
 
         // First pass: validate every non-empty ClassSet's own header +

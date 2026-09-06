@@ -180,7 +180,7 @@ unsafe fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> 
     let cd: *mut ClassDef = otl_class_def_create();
     for (&gid, v) in h.iter() {
         push_class_def(
-            cd,
+            &mut *cd,
             Handle {
                 state: HandleState::Consolidated,
                 index: gid,

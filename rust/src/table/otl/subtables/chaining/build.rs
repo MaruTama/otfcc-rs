@@ -179,7 +179,7 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_class_def(ic))),
+            bk_new_block_from_buffer(Some(build_class_def(&*ic))),
         ),
         bk_ptr(
             BkCellType::P16,
@@ -409,7 +409,7 @@ pub unsafe fn otfcc_build_contextual_classes(
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_class_def(ic))),
+            bk_new_block_from_buffer(Some(build_class_def(&*ic))),
         ),
         bk_int(
             BkCellType::B16,

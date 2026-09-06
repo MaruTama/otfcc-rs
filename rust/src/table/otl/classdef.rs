@@ -26,25 +26,13 @@ pub struct ClassDefSortRecord {
     pub gid: GlyphId,
     pub cid: GlyphClass,
 }
-pub(crate) unsafe fn otl_class_def_free(x: *mut ClassDef) {
-    if x.is_null() {
-        return;
-    }
-    // Dropping the reclaimed `Box` drops `glyphs`/`classes` first (running
-    // each glyph's `Handle::drop`, freeing every name -- the explicit
-    // per-element `otfcc_handle_dispose` loop this used to need is
-    // redundant, same finding as `Coverage`'s dispose), then deallocates
-    // the shell.
-    drop(Box::from_raw(x));
-}
-pub(crate) unsafe fn otl_class_def_create() -> *mut ClassDef {
+pub(crate) fn otl_class_def_create() -> *mut ClassDef {
     // A real Rust allocation now, not a `malloc`'d shell: `Box::into_raw`
     // gives back a pointer with the same shape (`*mut ClassDef`) every
     // caller already expects, but it must from here on only ever be
-    // reclaimed with `Box::from_raw` (`otl_class_def_free`/
-    // `classdef_from_raw` below, and `tsi5.rs`'s `unwrap_class_def`),
-    // never a bare `free` -- mixing the two is exactly the hazard this
-    // conversion removes.
+    // reclaimed with `Box::from_raw` (`classdef_from_raw` below, and
+    // `tsi5.rs`'s `unwrap_class_def`), never a bare `free` -- mixing the
+    // two is exactly the hazard this conversion removes.
     Box::into_raw(Box::new(ClassDef {
         maxclass: 0,
         glyphs: Vec::new(),
@@ -68,44 +56,51 @@ pub(crate) unsafe fn classdef_from_raw(raw: *mut ClassDef) -> Option<Box<ClassDe
 // `Handle` (aliased `GlyphHandle`) now owns a `Vec<u8>` name, so passing it
 // by value trips `improper_ctypes_definitions`; this is never called across
 // a real FFI boundary (c2rust artifact, not `#[no_mangle]`).
-#[allow(improper_ctypes_definitions)]
-pub(crate) unsafe fn push_class_def(cd: *mut ClassDef, h: GlyphHandle, cls: GlyphClass) {
-    (*cd).glyphs.push(h);
-    (*cd).classes.push(cls);
-    if cls as i32 > (*cd).maxclass as i32 {
-        (*cd).maxclass = cls;
+pub(crate) fn push_class_def(cd: &mut ClassDef, h: GlyphHandle, cls: GlyphClass) {
+    cd.glyphs.push(h);
+    cd.classes.push(cls);
+    if cls as i32 > cd.maxclass as i32 {
+        cd.maxclass = cls;
     }
 }
-// Same `data`/`table_length` trustworthiness and overflow-defeats-guard
-// reasoning as `coverage.rs::read_coverage` (see its comment).
-pub(crate) unsafe fn read_class_def(
-    data: *const u8,
-    table_length: u32,
-    offset: u32,
-) -> *mut ClassDef {
-    let cd = otl_class_def_create();
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-    let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
-        return cd;
+// Same trustworthiness reasoning as `coverage.rs::read_coverage` (see its
+// comment) -- `data` is untrusted font bytes, but the bounds check is now
+// `FontReader`'s, not a raw slice reconstructed from a pointer/length pair.
+pub(crate) fn read_class_def(data: &[u8], offset: u32) -> *mut ClassDef {
+    let mut cd = ClassDef {
+        maxclass: 0,
+        glyphs: Vec::new(),
+        classes: Vec::new(),
     };
-    let Ok(format) = r.u16() else { return cd };
+    let Ok(mut r) = FontReader::new(data).at(offset as usize) else {
+        return Box::into_raw(Box::new(cd));
+    };
+    let Ok(format) = r.u16() else {
+        return Box::into_raw(Box::new(cd));
+    };
     if format == 1 {
-        let Ok(start_gid) = r.u16() else { return cd };
-        let Ok(count) = r.u16() else { return cd };
+        let Ok(start_gid) = r.u16() else {
+            return Box::into_raw(Box::new(cd));
+        };
+        let Ok(count) = r.u16() else {
+            return Box::into_raw(Box::new(cd));
+        };
         if count != 0 && r.require_room(count as usize, 2).is_ok() {
             for j in 0..count {
                 let cls = r.u16().unwrap();
                 push_class_def(
-                    cd,
+                    &mut cd,
                     handle_from_index(start_gid.wrapping_add(j)) as GlyphHandle,
                     cls as GlyphClass,
                 );
             }
         }
     } else if format == 2 {
-        let Ok(range_count) = r.u16() else { return cd };
+        let Ok(range_count) = r.u16() else {
+            return Box::into_raw(Box::new(cd));
+        };
         if r.require_room(range_count as usize, 6).is_err() {
-            return cd;
+            return Box::into_raw(Box::new(cd));
         }
         // `covIndex` is repurposed here to carry the class value, not a
         // coverage position -- `HASH_SORT`-by-it therefore orders the
@@ -127,16 +122,15 @@ pub(crate) unsafe fn read_class_def(
         let mut entries: Vec<(GlyphId, GlyphClass)> = h.into_iter().collect();
         entries.sort_by_key(|&(_, cls)| cls);
         for (gid, cls) in entries {
-            push_class_def(cd, handle_from_index(gid) as GlyphHandle, cls);
+            push_class_def(&mut cd, handle_from_index(gid) as GlyphHandle, cls);
         }
     }
-    cd
+    Box::into_raw(Box::new(cd))
 }
-pub(crate) unsafe fn expand_class_def(
-    cov: *mut Coverage,
-    ocd: *mut ClassDef,
-) -> *mut ClassDef {
-    let cd: *mut ClassDef = otl_class_def_create();
+// `ocd` is consumed here (its entries are read once, then it's dropped),
+// so taking it by value lets the compiler's own drop glue replace the old
+// explicit `otl_class_def_free(ocd)` call at the end.
+pub(crate) fn expand_class_def(cov: &Coverage, ocd: ClassDef) -> *mut ClassDef {
     // No `HASH_SORT` call anywhere in the original -- the final walk is
     // plain insertion order (uthash's natural `.next` list), which
     // `IndexMap` reproduces directly with no separate sort step. `ocd`'s
@@ -145,41 +139,39 @@ pub(crate) unsafe fn expand_class_def(
     // is added with class 0, in `cov`'s order -- exactly the two phases
     // below, sharing one map the way the original shares one hash table.
     let mut h: indexmap::IndexMap<GlyphId, GlyphClass> = indexmap::IndexMap::new();
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*ocd).glyphs.len() {
-        let gid: GlyphId = (&(*ocd).glyphs)[j as usize].index;
-        let cid: GlyphClass = (&(*ocd).classes)[j as usize];
-        h.entry(gid).or_insert(cid);
-        j = j.wrapping_add(1);
+    for j in 0..ocd.glyphs.len() {
+        h.entry(ocd.glyphs[j].index).or_insert(ocd.classes[j]);
     }
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*cov).len() {
-        let gid_0: GlyphId = (&(*cov))[j_0 as usize].index;
-        h.entry(gid_0).or_insert(0 as GlyphClass);
-        j_0 = j_0.wrapping_add(1);
+    for g in cov.iter() {
+        h.entry(g.index).or_insert(0 as GlyphClass);
     }
+    let mut cd = ClassDef {
+        maxclass: 0,
+        glyphs: Vec::new(),
+        classes: Vec::new(),
+    };
     for (gid, cid) in h.into_iter() {
-        push_class_def(cd, handle_from_index(gid) as GlyphHandle, cid);
+        push_class_def(&mut cd, handle_from_index(gid) as GlyphHandle, cid);
     }
-    otl_class_def_free(ocd);
-    return cd;
+    // `ocd` drops here (its own Vec-drop glue), no explicit free needed.
+    Box::into_raw(Box::new(cd))
 }
-pub(crate) unsafe fn dump_class_def(cd: *const ClassDef) -> BuiltValue {
-    let mut a = BuiltValue::new_object((*cd).glyphs.len());
-    for j in 0..(*cd).glyphs.len() {
-        a.push_field_bytes_key(
-            &(&(*cd).glyphs)[j].name,
-            BuiltValue::Int((&(*cd).classes)[j] as i64),
-        );
+pub(crate) fn dump_class_def(cd: &ClassDef) -> BuiltValue {
+    let mut a = BuiltValue::new_object(cd.glyphs.len());
+    for j in 0..cd.glyphs.len() {
+        a.push_field_bytes_key(&cd.glyphs[j].name, BuiltValue::Int(cd.classes[j] as i64));
     }
     a.preserialize()
 }
-pub(crate) unsafe fn parse_class_def(cd: *const ParsedValue) -> *mut ClassDef {
-    let fields = unsafe { cd.as_ref() }.and_then(ParsedValue::as_object);
-    let Some(fields) = fields else {
+pub(crate) fn parse_class_def(cd: Option<&ParsedValue>) -> *mut ClassDef {
+    let Some(fields) = cd.and_then(ParsedValue::as_object) else {
         return ::core::ptr::null_mut::<ClassDef>();
     };
-    let cd: *mut ClassDef = otl_class_def_create();
+    let mut cd = ClassDef {
+        maxclass: 0,
+        glyphs: Vec::new(),
+        classes: Vec::new(),
+    };
     for (key, val) in fields {
         let h: GlyphHandle = handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle;
         let cls: GlyphClass = if let Some(i) = val.as_int() {
@@ -189,14 +181,14 @@ pub(crate) unsafe fn parse_class_def(cd: *const ParsedValue) -> *mut ClassDef {
         } else {
             0 as GlyphClass
         };
-        push_class_def(cd, h, cls);
+        push_class_def(&mut cd, h, cls);
     }
-    cd
+    Box::into_raw(Box::new(cd))
 }
-pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> Buffer {
+pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
     let mut buf = Buffer::new();
     buf.write_u16be(2_u16);
-    if (*cd).glyphs.is_empty() {
+    if cd.glyphs.is_empty() {
         buf.write_u16be(0_u16);
         return buf;
     }
@@ -204,11 +196,11 @@ pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> Buffer {
     // `free` trio -- same simplification as `Coverage`'s `build_coverage_
     // format`, `sort_by_key` (stable) reproducing `by_gid`'s ordering.
     let mut r: Vec<ClassDefSortRecord> = Vec::new();
-    for j in 0..(*cd).glyphs.len() {
-        if (&(*cd).classes)[j] != 0 {
+    for j in 0..cd.glyphs.len() {
+        if cd.classes[j] != 0 {
             r.push(ClassDefSortRecord {
-                gid: (&(*cd).glyphs)[j].index,
-                cid: (&(*cd).classes)[j],
+                gid: cd.glyphs[j].index,
+                cid: cd.classes[j],
             });
         }
     }
@@ -254,24 +246,24 @@ pub(crate) unsafe fn build_class_def(cd: *const ClassDef) -> Buffer {
     buf.write_buffer_owned(ranges);
     buf
 }
-pub(crate) unsafe fn shrink_class_def(cd: *mut ClassDef) {
+pub(crate) fn shrink_class_def(cd: &mut ClassDef) {
     // Single `truncate` at the end lets `Vec`'s drop glue free any handle
     // this loop's own `otfcc_handle_dispose` calls didn't reach -- same
     // reasoning as `shrink_coverage`.
     let mut k: usize = 0;
-    for j in 0..(*cd).glyphs.len() {
-        if !(&(*cd).glyphs)[j].name.is_empty() {
-            let g = (&(*cd).glyphs)[j].clone();
-            let c = (&(*cd).classes)[j];
-            (&mut (*cd).glyphs)[k] = g;
-            (&mut (*cd).classes)[k] = c;
+    for j in 0..cd.glyphs.len() {
+        if !cd.glyphs[j].name.is_empty() {
+            let g = cd.glyphs[j].clone();
+            let c = cd.classes[j];
+            cd.glyphs[k] = g;
+            cd.classes[k] = c;
             k += 1;
         } else {
-            otfcc_handle_dispose(&mut (&mut (*cd).glyphs)[j]);
+            otfcc_handle_dispose(&mut cd.glyphs[j]);
         }
     }
-    (*cd).glyphs.truncate(k);
-    (*cd).classes.truncate(k);
+    cd.glyphs.truncate(k);
+    cd.classes.truncate(k);
 }
 
 #[cfg(test)]
@@ -287,7 +279,7 @@ mod read_class_def_tests {
         data.extend_from_slice(&3u16.to_be_bytes()); // classValueArray[0]
         data.extend_from_slice(&4u16.to_be_bytes()); // classValueArray[1]
         unsafe {
-            let raw = read_class_def(data.as_ptr(), data.len() as u32, 0);
+            let raw = read_class_def(&data, 0);
             let cd = classdef_from_raw(raw).unwrap();
             assert_eq!(
                 cd.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(),
@@ -309,7 +301,7 @@ mod read_class_def_tests {
         data.extend_from_slice(&10u16.to_be_bytes()); // range1: endGlyphID
         data.extend_from_slice(&1u16.to_be_bytes()); // range1: class
         unsafe {
-            let raw = read_class_def(data.as_ptr(), data.len() as u32, 0);
+            let raw = read_class_def(&data, 0);
             let cd = classdef_from_raw(raw).unwrap();
             // Sorted by class value ascending: class 1 (gid 10) then class 5 (gid 20).
             assert_eq!(cd.classes, vec![1, 5]);
@@ -324,7 +316,7 @@ mod read_class_def_tests {
     fn offset_near_u32_max_does_not_wrap_the_guard() {
         let data = [0u8; 8];
         unsafe {
-            let raw = read_class_def(data.as_ptr(), data.len() as u32, 0xFFFF_FFF0);
+            let raw = read_class_def(&data, 0xFFFF_FFF0);
             let cd = classdef_from_raw(raw).unwrap();
             assert!(cd.glyphs.is_empty());
         }
@@ -337,7 +329,7 @@ mod read_class_def_tests {
         data.extend_from_slice(&0u16.to_be_bytes()); // startGlyphID
         data.extend_from_slice(&0u16.to_be_bytes()); // glyphCount = 0
         unsafe {
-            let raw = read_class_def(data.as_ptr(), data.len() as u32, 0);
+            let raw = read_class_def(&data, 0);
             let cd = classdef_from_raw(raw).unwrap();
             assert!(cd.glyphs.is_empty());
         }
