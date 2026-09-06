@@ -1683,15 +1683,13 @@ unsafe fn cff_make_charstrings(context: *mut CffCharstringBuilderContext) -> (Bu
     }
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*(*context).glyf).len() {
-        let mut il: *mut CffCharstringIl = cff_compile_glyph_to_il(
-            (&(*(*context).glyf))[j as usize].as_deref().unwrap() as *const Glyph,
+        let mut il: CffCharstringIl = cff_compile_glyph_to_il(
+            (&(*(*context).glyf))[j as usize].as_deref().unwrap(),
             (*context).default_width,
             (*context).nominal_width_x,
         );
-        cff_optimize_il(il, &*(*context).options);
-        cff_insert_il_to_graph(&mut (*context).graph, &*il);
-        drop(Box::from_raw(il));
-        il = ::core::ptr::null_mut::<CffCharstringIl>();
+        cff_optimize_il(&mut il, &*(*context).options);
+        cff_insert_il_to_graph(&mut (*context).graph, &il);
         j = j.wrapping_add(1);
     }
     cff_il_graph_to_buffers(&mut (*context).graph, &*(*context).options)
