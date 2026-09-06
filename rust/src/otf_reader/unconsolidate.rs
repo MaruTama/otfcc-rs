@@ -167,7 +167,9 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
     let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
     let num_glyphs: GlyphId = (*glyf).len() as GlyphId;
     let prefix: Vec<u8> = if !options.glyph_name_prefix.is_null() {
-        crate::bytesbuild!(options.glyph_name_prefix)
+        crate::bytesbuild!(crate::support::fmt::CCharRef::from_ptr(
+            options.glyph_name_prefix
+        ))
     } else {
         Vec::new()
     };
