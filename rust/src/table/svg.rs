@@ -31,7 +31,7 @@ pub struct SvgAssignment {
 // needed for this type any more.
 pub type SvgTable = Vec<SvgAssignment>;
 #[inline]
-unsafe fn svg_assignment_empty() -> SvgAssignment {
+fn svg_assignment_empty() -> SvgAssignment {
     SvgAssignment {
         start: 0,
         end: 0,
@@ -39,7 +39,7 @@ unsafe fn svg_assignment_empty() -> SvgAssignment {
     }
 }
 /// 本物のディープコピー（`document` の `Vec<u8>` を複製する）。
-unsafe fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
+fn svg_assignment_dup(src: &SvgAssignment) -> SvgAssignment {
     let mut dst: SvgAssignment = svg_assignment_empty();
     dst.start = src.start;
     dst.end = src.end;
@@ -99,8 +99,7 @@ fn can_use_plain_format(doc: &[u8]) -> bool {
             && doc[3_usize] as i32 == 'm' as i32
             && doc[4_usize] as i32 == 'l' as i32;
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &Options) {
+pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &Options) {
     let svg = match svg {
         Some(s) => s,
         None => return,
@@ -132,8 +131,7 @@ pub unsafe fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, opti
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable> {
+pub fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable> {
     let svg_val = root.get_typed(b"SVG_", JsonType::Array)?;
     let mut svg: SvgTable = Vec::new();
     logger_start_sds(
@@ -174,7 +172,7 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
     };
     // `TABLE_I_SVG.copy` の代わりに各要素を `svg_assignment_dup` で明示的に
     // ディープコピー（`ColrTable`/`TsiTable` の前例どおり `.clone()` は不可）。
-    let mut svg: SvgTable = _svg.iter().map(|a| svg_assignment_dup(a)).collect();
+    let mut svg: SvgTable = _svg.iter().map(svg_assignment_dup).collect();
     svg.sort_by(|a, b| a.start.cmp(&b.start));
     let major: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (svg.len()) as u32)]);
     let mut __caryll_index: usize = 0_usize;
