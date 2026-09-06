@@ -22,7 +22,7 @@ pub struct VqRegion {
     pub dimensions: ShapeId,
     pub spans: Vec<VqAxisSpan>,
 }
-pub unsafe fn vq_create_region(dimensions: ShapeId) -> *mut VqRegion {
+pub fn vq_create_region(dimensions: ShapeId) -> *mut VqRegion {
     Box::into_raw(Box::new(VqRegion {
         dimensions,
         spans: Vec::with_capacity(dimensions as usize),
@@ -31,8 +31,8 @@ pub unsafe fn vq_create_region(dimensions: ShapeId) -> *mut VqRegion {
 pub unsafe fn vq_delete_region(region: *mut VqRegion) {
     drop(Box::from_raw(region));
 }
-pub unsafe fn vq_copy_region(region: *const VqRegion) -> *mut VqRegion {
-    Box::into_raw(Box::new((*region).clone()))
+pub fn vq_copy_region(region: &VqRegion) -> *mut VqRegion {
+    Box::into_raw(Box::new(region.clone()))
 }
 // Was `strncmp` over the whole header+spans byte range (after a
 // `dimensions` shortcut) -- a byte-identity check that made sense when
@@ -45,23 +45,23 @@ pub unsafe fn vq_copy_region(region: *const VqRegion) -> *mut VqRegion {
 // byte-for-byte identity -- that stricter semantics is preserved instead
 // in `RegionKey` (`table/fvar.rs`), which still needs it for `IndexMap`
 // dedup.
-pub unsafe fn vq_compare_region(a: *const VqRegion, b: *const VqRegion) -> i32 {
-    if (*a).dimensions < (*b).dimensions {
+pub fn vq_compare_region(a: &VqRegion, b: &VqRegion) -> i32 {
+    if a.dimensions < b.dimensions {
         return -1;
     }
-    if (*a).dimensions > (*b).dimensions {
+    if a.dimensions > b.dimensions {
         return 1;
     }
-    match (*a).spans.partial_cmp(&(*b).spans) {
+    match a.spans.partial_cmp(&b.spans) {
         Some(::core::cmp::Ordering::Less) => -1,
         Some(::core::cmp::Ordering::Greater) => 1,
         _ => 0,
     }
 }
-pub unsafe fn vq_axis_span_is_one(s: *const VqAxisSpan) -> bool {
-    let a: Pos = (*s).start;
-    let p: Pos = (*s).peak;
-    let z: Pos = (*s).end;
+pub fn vq_axis_span_is_one(s: &VqAxisSpan) -> bool {
+    let a: Pos = s.start;
+    let p: Pos = s.peak;
+    let z: Pos = s.end;
     return a > p
         || p > z
         || a < 0_i32 as Pos
@@ -70,10 +70,10 @@ pub unsafe fn vq_axis_span_is_one(s: *const VqAxisSpan) -> bool {
         || p == 0_i32 as Pos;
 }
 #[inline]
-unsafe fn weight_axis_region(as_0: *const VqAxisSpan, x: Pos) -> Pos {
-    let a: Pos = (*as_0).start;
-    let p: Pos = (*as_0).peak;
-    let z: Pos = (*as_0).end;
+fn weight_axis_region(as_0: &VqAxisSpan, x: Pos) -> Pos {
+    let a: Pos = as_0.start;
+    let p: Pos = as_0.peak;
+    let z: Pos = as_0.end;
     if a > p || p > z {
         return 1_i32 as Pos;
     } else if a < 0_i32 as Pos
@@ -93,12 +93,12 @@ unsafe fn weight_axis_region(as_0: *const VqAxisSpan, x: Pos) -> Pos {
         return (z - x) / (z - p);
     };
 }
-pub unsafe fn vq_region_get_weight(r: *const VqRegion, v: *const VV) -> Pos {
-    let coords: &Vec<Pos> = &*v;
+pub fn vq_region_get_weight(r: &VqRegion, v: &VV) -> Pos {
+    let coords: &Vec<Pos> = v;
     let mut w: Pos = 1_i32 as Pos;
     let mut j: usize = 0_usize;
-    while j < (*r).dimensions as usize && !coords.is_empty() {
-        w *= weight_axis_region(&(&(*r).spans)[j] as *const VqAxisSpan, coords[j]);
+    while j < r.dimensions as usize && !coords.is_empty() {
+        w *= weight_axis_region(&r.spans[j], coords[j]);
         j = j.wrapping_add(1);
     }
     return w;

@@ -145,7 +145,7 @@ fn vqs_compare(a: VqSegment, b: VqSegment) -> i32 {
             0_i32
         }
         (VqSegment::Delta(ad), VqSegment::Delta(bd)) => {
-            let vqrc: i32 = unsafe { vq_compare_region(ad.region, bd.region) };
+            let vqrc: i32 = vq_compare_region(unsafe { &*ad.region }, unsafe { &*bd.region });
             if vqrc != 0 {
                 return vqrc;
             }
@@ -200,7 +200,7 @@ fn vqs_compatible(a: VqSegment, b: VqSegment) -> bool {
     match (a, b) {
         (VqSegment::Still(_), VqSegment::Still(_)) => true,
         (VqSegment::Delta(ad), VqSegment::Delta(bd)) => {
-            0_i32 == unsafe { vq_compare_region(ad.region, bd.region) }
+            0_i32 == vq_compare_region(unsafe { &*ad.region }, unsafe { &*bd.region })
         }
         _ => false,
     }
