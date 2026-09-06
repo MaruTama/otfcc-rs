@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
@@ -40,19 +39,18 @@ pub const COPYRIGHT_LEN: i32 = 32_i32;
 // `.create_table` itself is never read anywhere in the crate --
 // `create_font_table` and its other callee `table_otl_create` are dead
 // for the same reason, deleted alongside it.
-unsafe fn should_decode_as_utf16(record: *const NameRecord) -> bool {
-    return (*record).platform_id as i32 == 0_i32
-        || (*record).platform_id as i32 == 2_i32
-            && (*record).encoding_id as i32 == 1_i32
-        || (*record).platform_id as i32 == 3_i32
-            && ((*record).encoding_id as i32 == 0_i32
-                || (*record).encoding_id as i32 == 1_i32
-                || (*record).encoding_id as i32 == 10_i32);
+fn should_decode_as_utf16(record: &NameRecord) -> bool {
+    return record.platform_id as i32 == 0_i32
+        || record.platform_id as i32 == 2_i32 && record.encoding_id as i32 == 1_i32
+        || record.platform_id as i32 == 3_i32
+            && (record.encoding_id as i32 == 0_i32
+                || record.encoding_id as i32 == 1_i32
+                || record.encoding_id as i32 == 10_i32);
 }
-unsafe fn should_decode_as_bytes(record: *const NameRecord) -> bool {
-    return (*record).platform_id as i32 == 1_i32
-        && (*record).encoding_id as i32 == 0_i32
-        && (*record).language_id as i32 == 0_i32;
+fn should_decode_as_bytes(record: &NameRecord) -> bool {
+    return record.platform_id as i32 == 1_i32
+        && record.encoding_id as i32 == 0_i32
+        && record.language_id as i32 == 0_i32;
 }
 // The record *array* (12 bytes/record starting at offset 6) was already
 // guarded (`length < 6 + 12 * count`) -- but each record's *string*, read
@@ -67,7 +65,7 @@ unsafe fn should_decode_as_bytes(record: *const NameRecord) -> bool {
 // `name_string` instead of the out-of-bounds read -- the same "keep the
 // record, drop only what doesn't fit" choice `table/post.rs::parse_post`
 // made for an out-of-range `glyphNameIndex`.
-unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
+fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
     let mut header = FontReader::new(data);
     header.skip(2)?; // format, unused
     let count = header.u16()? as u32;
@@ -98,9 +96,9 @@ unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
             .and_then(|start| FontReader::new(data).at(start).ok())
             .and_then(|sr| sr.peek_bytes(length_0 as usize).ok());
         if let Some(bytes) = string_bytes {
-            if should_decode_as_bytes(&raw const record) {
+            if should_decode_as_bytes(&record) {
                 record.name_string = bytes.to_vec();
-            } else if should_decode_as_utf16(&raw const record) {
+            } else if should_decode_as_utf16(&record) {
                 record.name_string = utf16be_to_utf8(bytes);
             } else {
                 record.name_string = base64_encode(bytes);
@@ -111,13 +109,12 @@ unsafe fn parse_name(data: &[u8]) -> Result<NameTable, ReadError> {
     Ok(name)
 }
 
-#[allow(improper_ctypes_definitions)]
 pub fn otfcc_read_name(packet: &Packet, options: &Options) -> Option<NameTable> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_NAME)?;
-    match unsafe { parse_name(&table.data) } {
+    match parse_name(&table.data) {
         Ok(name) => Some(name),
         Err(_) => {
             logger_log_sds(
@@ -130,12 +127,7 @@ pub fn otfcc_read_name(packet: &Packet, options: &Options) -> Option<NameTable> 
         }
     }
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_name(
-    name: Option<&NameTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
+pub fn otfcc_dump_name(name: Option<&NameTable>, root: &mut BuiltValue, options: &Options) {
     let name = match name {
         Some(n) => n,
         None => return,
@@ -150,13 +142,13 @@ pub unsafe fn otfcc_dump_name(
         let mut _name = BuiltValue::new_array(records.len());
         let mut j: u16 = 0_u16;
         while (j as usize) < records.len() {
-            let r: *const NameRecord = &records[j as usize];
+            let r: &NameRecord = &records[j as usize];
             let mut record = BuiltValue::new_object(5);
-            record.push_field(b"platformID", BuiltValue::Int((*r).platform_id as i64));
-            record.push_field(b"encodingID", BuiltValue::Int((*r).encoding_id as i64));
-            record.push_field(b"languageID", BuiltValue::Int((*r).language_id as i64));
-            record.push_field(b"nameID", BuiltValue::Int((*r).name_id as i64));
-            record.push_field(b"nameString", BuiltValue::Str((*r).name_string.clone()));
+            record.push_field(b"platformID", BuiltValue::Int(r.platform_id as i64));
+            record.push_field(b"encodingID", BuiltValue::Int(r.encoding_id as i64));
+            record.push_field(b"languageID", BuiltValue::Int(r.language_id as i64));
+            record.push_field(b"nameID", BuiltValue::Int(r.name_id as i64));
+            record.push_field(b"nameString", BuiltValue::Str(r.name_string.clone()));
             _name.push_item(record);
             j = j.wrapping_add(1);
         }
@@ -165,11 +157,7 @@ pub unsafe fn otfcc_dump_name(
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_parse_name(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<NameTable> {
+pub fn otfcc_parse_name(root: &ParsedValue, options: &Options) -> Option<NameTable> {
     let mut name: NameTable = Vec::new();
     let Some(items) = root
         .get_typed(b"name", JsonType::Array)
@@ -261,7 +249,6 @@ pub unsafe fn otfcc_parse_name(
     logger_finish(&mut *options.logger.borrow_mut());
     Some(name)
 }
-#[allow(improper_ctypes_definitions)]
 pub fn otfcc_build_name(name: Option<&NameTable>) -> Option<Buffer> {
     let records: &Vec<NameRecord> = name?;
     let mut buf = Buffer::new();
@@ -275,10 +262,10 @@ pub fn otfcc_build_name(name: Option<&NameTable>) -> Option<Buffer> {
         buf.write_u16be(record.language_id);
         buf.write_u16be(record.name_id);
         let cbefore = strings.pos();
-        if unsafe { should_decode_as_utf16(record) } {
+        if should_decode_as_utf16(record) {
             let u16: Vec<u8> = utf8toutf16be(&record.name_string);
             strings.write_bytes(&u16);
-        } else if unsafe { should_decode_as_bytes(record) } {
+        } else if should_decode_as_bytes(record) {
             strings.write_bytes(&record.name_string);
         } else if let Some(decoded) = base64_decode(&record.name_string) {
             strings.write_bytes(&decoded);
@@ -350,11 +337,9 @@ mod parse_name_tests {
         let mut data = header(1, 6 + 12);
         data.extend(record(1, 0, 0, 0, 5, 0));
         data.extend_from_slice(b"Hello");
-        unsafe {
-            let name = parse_name(&data).unwrap();
-            assert_eq!(name.len(), 1);
-            assert_eq!(name[0].name_string, b"Hello");
-        }
+        let name = parse_name(&data).unwrap();
+        assert_eq!(name.len(), 1);
+        assert_eq!(name[0].name_string, b"Hello");
     }
 
     #[test]
@@ -363,15 +348,13 @@ mod parse_name_tests {
         let mut data = header(1, 6 + 12);
         data.extend(record(3, 1, 0x0409, 0, 4, 0));
         data.extend_from_slice(&[0x00, b'H', 0x00, b'i']);
-        unsafe {
-            let name = parse_name(&data).unwrap();
-            assert_eq!(name[0].name_string, b"Hi");
-        }
+        let name = parse_name(&data).unwrap();
+        assert_eq!(name[0].name_string, b"Hi");
     }
 
     #[test]
     fn truncated_header_errs() {
-        assert!(unsafe { parse_name(&[0, 0, 0, 1]) }.is_err());
+        assert!(parse_name(&[0, 0, 0, 1]).is_err());
     }
 
     #[test]
@@ -379,17 +362,13 @@ mod parse_name_tests {
         // count says 2 records (24 bytes) but only one (12 bytes) is present.
         let mut data = header(2, 6 + 24);
         data.extend(record(1, 0, 0, 0, 0, 0));
-        unsafe {
-            assert!(parse_name(&data).is_err());
-        }
+        assert!(parse_name(&data).is_err());
     }
 
     #[test]
     fn count_large_enough_to_overflow_the_multiplication_errs() {
         let data = header(0xFFFF, 0);
-        unsafe {
-            assert!(parse_name(&data).is_err());
-        }
+        assert!(parse_name(&data).is_err());
     }
 
     #[test]
@@ -401,32 +380,26 @@ mod parse_name_tests {
         let mut data = header(1, 6 + 12);
         data.extend(record(1, 0, 0, 7, 100, 0));
         data.extend_from_slice(b"Hello"); // only 5 bytes actually present
-        unsafe {
-            let name = parse_name(&data).unwrap();
-            assert_eq!(name.len(), 1); // record kept
-            assert_eq!(name[0].name_id, 7); // metadata preserved
-            assert!(name[0].name_string.is_empty()); // string dropped, not read OOB
-        }
+        let name = parse_name(&data).unwrap();
+        assert_eq!(name.len(), 1); // record kept
+        assert_eq!(name[0].name_id, 7); // metadata preserved
+        assert!(name[0].name_string.is_empty()); // string dropped, not read OOB
     }
 
     #[test]
     fn string_offset_itself_past_the_table_end_keeps_the_record_with_an_empty_name() {
         let mut data = header(1, 0xFFFF); // string_offset far past the table
         data.extend(record(1, 0, 0, 0, 1, 0));
-        unsafe {
-            let name = parse_name(&data).unwrap();
-            assert_eq!(name.len(), 1);
-            assert!(name[0].name_string.is_empty());
-        }
+        let name = parse_name(&data).unwrap();
+        assert_eq!(name.len(), 1);
+        assert!(name[0].name_string.is_empty());
     }
 
     #[test]
     fn zero_length_string_is_empty_not_an_error() {
         let mut data = header(1, 6 + 12);
         data.extend(record(1, 0, 0, 0, 0, 0));
-        unsafe {
-            let name = parse_name(&data).unwrap();
-            assert_eq!(name[0].name_string, Vec::<u8>::new());
-        }
+        let name = parse_name(&data).unwrap();
+        assert_eq!(name[0].name_string, Vec::<u8>::new());
     }
 }
