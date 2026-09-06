@@ -333,7 +333,7 @@ unsafe fn parse_otl_common(
                 Byte((tag >> 8 & 0xff) as u8),
                 Byte((tag & 0xff) as u8),
                 b"_",
-                options.glyph_name_prefix,
+                unsafe { crate::support::fmt::CCharRef::from_ptr(options.glyph_name_prefix) },
                 b"_",
                 Dec5(j as i32),
             );
@@ -359,7 +359,9 @@ unsafe fn parse_otl_common(
                     if !options.glyph_name_prefix.is_null() {
                         (*lookup_0).name = crate::bytesbuild!(
                             b"lookup_",
-                            options.glyph_name_prefix,
+                            unsafe {
+                                crate::support::fmt::CCharRef::from_ptr(options.glyph_name_prefix)
+                            },
                             b"_",
                             Byte((tag >> 24 & 0xff) as u8),
                             Byte((tag >> 16 & 0xff) as u8),
@@ -474,7 +476,7 @@ unsafe fn parse_otl_common(
             if !options.glyph_name_prefix.is_null() {
                 (*(&mut (*table).lookups)[j_3]).name = crate::bytesbuild!(
                     b"lookup_",
-                    options.glyph_name_prefix,
+                    unsafe { crate::support::fmt::CCharRef::from_ptr(options.glyph_name_prefix) },
                     b"_",
                     Hex2((*(&(*table).lookups)[j_3]).type_0.raw()),
                     b"_",

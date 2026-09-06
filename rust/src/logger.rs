@@ -93,7 +93,10 @@ impl Default for Logger {
 }
 pub static OTFCC_LOGGER_TYPE_NAMES: [&::core::ffi::CStr; 3] = [c"[ERROR]", c"[WARNING]", c"[NOTE]"];
 pub unsafe fn logger_indent(_self: &mut Logger, segment: *const ::core::ffi::c_char) {
-    logger_indent_sds(_self, crate::bytesbuild!(segment));
+    logger_indent_sds(
+        _self,
+        crate::bytesbuild!(unsafe { crate::support::fmt::CCharRef::from_ptr(segment) }),
+    );
 }
 pub fn logger_indent_sds(self_0: &mut Logger, segment: Vec<u8>) {
     self_0.indents.push(segment);

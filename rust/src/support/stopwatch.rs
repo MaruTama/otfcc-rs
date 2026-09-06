@@ -58,7 +58,7 @@ pub unsafe fn push_stopwatch(sofar: *mut timespec) -> Vec<u8> {
     }
     return crate::bytesbuild!(
         b"Step time = ",
-        secs.as_ptr() as *const ::core::ffi::c_char,
+        unsafe { crate::support::fmt::CCharRef::from_ptr(secs.as_ptr()) },
         b"s.\n",
     );
 }

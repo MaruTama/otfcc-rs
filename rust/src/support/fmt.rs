@@ -19,18 +19,18 @@ use libc::strlen;
 /// caller-controlled bytes here, only on values this crate itself
 /// generates as ASCII digits/hex.
 pub trait SdsPart {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>);
+    fn append_to_vec(self, v: &mut Vec<u8>);
 }
 
 impl SdsPart for &[u8] {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
         v.extend_from_slice(self);
     }
 }
 
 impl<const N: usize> SdsPart for &[u8; N] {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
-        unsafe { (&self[..]).append_to_vec(v) };
+    fn append_to_vec(self, v: &mut Vec<u8>) {
+        (&self[..]).append_to_vec(v);
     }
 }
 
@@ -43,44 +43,56 @@ impl<const N: usize> SdsPart for &[u8; N] {
 /// warning-log wording for a handle with no name, never any dumped/built
 /// output.
 impl SdsPart for &Vec<u8> {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
         let bytes = match self.iter().position(|&b| b == 0) {
             Some(nul_pos) => &self[..nul_pos],
             None => &self[..],
         };
-        unsafe { bytes.append_to_vec(v) };
+        bytes.append_to_vec(v);
     }
 }
 
-/// A C string (`%s`): the bytes up to the terminating NUL.
+/// A borrowed C string (`%s`): the bytes up to the terminating NUL, or the
+/// literal text `(null)` if the pointer was null (what both glibc and
+/// Apple's libc print for a null `%s` argument -- the old code handed the
+/// pointer straight to `vsnprintf`, so any call site that can pass null
+/// was already relying on that).
 ///
-/// A null pointer appends `(null)`, which is what both glibc and Apple's
-/// libc print for `%s`. The old code handed the pointer straight to
-/// `vsnprintf`, so any call site that can pass null was already relying on
-/// that.
-impl SdsPart for *const ::core::ffi::c_char {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
-        if self.is_null() {
-            return unsafe { b"(null)".append_to_vec(v) };
+/// This -- not a blanket `impl SdsPart for *const c_char` -- is where the
+/// unsafety genuinely lives: `SdsPart::append_to_vec` is a safe, `pub`
+/// method, so a raw-pointer-typed impl of it would let any safe code
+/// dereference an arbitrary pointer with no `unsafe` marker at the call
+/// site (clippy's `not_unsafe_ptr_arg_deref` correctly flags exactly
+/// this). Constructing a `CCharRef` is the one unsafe step; once it
+/// exists, appending it is plain, safe byte-slice handling.
+pub struct CCharRef<'a>(&'a [u8]);
+
+impl<'a> CCharRef<'a> {
+    /// # Safety
+    /// `ptr` must be null, or point to a NUL-terminated C string whose
+    /// bytes stay valid for reads for at least `'a`.
+    pub unsafe fn from_ptr(ptr: *const ::core::ffi::c_char) -> Self {
+        if ptr.is_null() {
+            return CCharRef(b"(null)");
         }
-        let bytes = unsafe { ::core::slice::from_raw_parts(self as *const u8, strlen(self)) };
-        v.extend_from_slice(bytes);
+        CCharRef(unsafe { ::core::slice::from_raw_parts(ptr as *const u8, strlen(ptr)) })
     }
 }
 
-impl SdsPart for *mut ::core::ffi::c_char {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
-        unsafe { (self as *const ::core::ffi::c_char).append_to_vec(v) };
+impl SdsPart for CCharRef<'_> {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
+        v.extend_from_slice(self.0);
     }
 }
 
 /// A static C string (`%s`), for the label tables that reach the log and
-/// the JSON output. Identical to the `*const c_char` impl above, minus the
-/// `strlen` and the null check: a `CStr` carries its own length and cannot
-/// be null.
+/// the JSON output. Identical to `CCharRef` above, minus the `strlen` and
+/// the null check: a `CStr` carries its own length and cannot be null --
+/// and unlike a raw pointer, a `&CStr` can't be dangling either, so this
+/// impl needs no `unsafe` construction step at all.
 impl SdsPart for &::core::ffi::CStr {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
-        unsafe { self.to_bytes().append_to_vec(v) };
+    fn append_to_vec(self, v: &mut Vec<u8>) {
+        self.to_bytes().append_to_vec(v);
     }
 }
 
@@ -94,7 +106,7 @@ impl SdsPart for &::core::ffi::CStr {
 pub struct Byte(pub u8);
 
 impl SdsPart for Byte {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
         v.push(self.0);
     }
 }
@@ -115,19 +127,19 @@ fn cat_ascii_vec(v: &mut Vec<u8>, digits: &str) {
 }
 
 impl SdsPart for i32 {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
         cat_ascii_vec(v, &format!("{self}"));
     }
 }
 
 impl SdsPart for ::core::ffi::c_uint {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
         cat_ascii_vec(v, &format!("{self}"));
     }
 }
 
 impl SdsPart for Dec5 {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
         cat_ascii_vec(v, &format!("{:05}", self.0));
     }
 }
@@ -137,25 +149,25 @@ impl SdsPart for Dec5 {
 /// complement -- eight digits, not four. `as u32` reproduces exactly that,
 /// and widens a `u16` the same way C's default promotion does.
 impl SdsPart for Hex4 {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
         cat_ascii_vec(v, &format!("{:04x}", self.0));
     }
 }
 
 impl SdsPart for Hex4Upper {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
         cat_ascii_vec(v, &format!("{:04X}", self.0));
     }
 }
 
 impl SdsPart for Hex2 {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
         cat_ascii_vec(v, &format!("{:02x}", self.0));
     }
 }
 
 impl SdsPart for Hex2Upper {
-    unsafe fn append_to_vec(self, v: &mut Vec<u8>) {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
         cat_ascii_vec(v, &format!("{:02X}", self.0));
     }
 }
@@ -280,7 +292,7 @@ mod tests {
     #[test]
     fn c_string_is_copied_as_bytes_even_when_not_utf8() {
         let name = b"caf\xe9\0";
-        let got = bytesbuild!(name.as_ptr() as *const ::core::ffi::c_char);
+        let got = bytesbuild!(unsafe { CCharRef::from_ptr(name.as_ptr() as *const ::core::ffi::c_char) });
         assert_eq!(got, b"caf\xe9");
     }
 
@@ -294,7 +306,7 @@ mod tests {
             assert_matches_printf!(
                 "%s",
                 ::core::ptr::null::<::core::ffi::c_char>(),
-                bytesbuild!(::core::ptr::null::<::core::ffi::c_char>())
+                bytesbuild!(CCharRef::from_ptr(::core::ptr::null::<::core::ffi::c_char>()))
             );
         }
     }
@@ -308,7 +320,9 @@ mod tests {
     fn byte_slice_keeps_embedded_nul_but_c_string_does_not() {
         let by_slice = bytesbuild!(b"ab\0cd");
         assert_eq!(by_slice, b"ab\0cd");
-        let by_c_string = bytesbuild!(b"ab\0cd\0".as_ptr() as *const ::core::ffi::c_char);
+        let by_c_string = bytesbuild!(unsafe {
+            CCharRef::from_ptr(b"ab\0cd\0".as_ptr() as *const ::core::ffi::c_char)
+        });
         assert_eq!(by_c_string, b"ab");
     }
 
@@ -316,7 +330,7 @@ mod tests {
     fn pieces_are_appended_in_order() {
         let got = bytesbuild!(
             b"lookup_",
-            b"ccmp\0".as_ptr() as *const ::core::ffi::c_char,
+            c"ccmp",
             b"_",
             Hex2(0x1f),
             b"_",
