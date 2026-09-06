@@ -51,7 +51,7 @@ pub unsafe fn consolidate_chaining(
             options,
         );
         shrink_coverage(
-            &mut (&mut (*rule).match_0)[j as usize] as *mut Coverage,
+            &mut (&mut (*rule).match_0)[j as usize],
             true,
         );
         possible = possible as i32 != 0

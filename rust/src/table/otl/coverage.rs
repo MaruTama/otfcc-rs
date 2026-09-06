@@ -43,7 +43,7 @@ pub(crate) fn reset_coverage_range_expansion_budget() {
         ::core::sync::atomic::Ordering::Relaxed,
     );
 }
-pub(crate) unsafe fn otl_coverage_create() -> *mut Coverage {
+pub(crate) fn otl_coverage_create() -> *mut Coverage {
     // A real Rust allocation now, not a `malloc`'d shell: `Box::into_raw`
     // gives back a pointer with the same shape (`*mut Coverage`) every
     // caller already expects, but it must from here on only ever be
@@ -73,12 +73,8 @@ pub(crate) unsafe fn otl_coverage_free(x: *mut Coverage) {
 pub(crate) unsafe fn coverage_from_raw(raw: *mut Coverage) -> Coverage {
     *Box::from_raw(raw)
 }
-// `Handle` (aliased `GlyphHandle`) now owns a `Vec<u8>` name, so passing it
-// by value trips `improper_ctypes_definitions`; this is never called across
-// a real FFI boundary (c2rust artifact, not `#[no_mangle]`).
-#[allow(improper_ctypes_definitions)]
-pub(crate) unsafe fn push_to_coverage(coverage: *mut Coverage, h: GlyphHandle) {
-    (*coverage).push(h);
+pub(crate) fn push_to_coverage(coverage: &mut Coverage, h: GlyphHandle) {
+    coverage.push(h);
 }
 // `data`/`table_length` are always the untouched pointer/length of the
 // whole owning GSUB/GPOS/GDEF table (confirmed by tracing every call site
@@ -96,24 +92,21 @@ pub(crate) unsafe fn push_to_coverage(coverage: *mut Coverage, h: GlyphHandle) {
 // defeats-guard shape as `cmap.rs`'s bugs, just via addition instead of
 // multiplication. `FontReader::at`/`require_room` use `checked_add`/
 // `checked_mul` throughout, closing this.
-pub(crate) unsafe fn read_coverage(
-    data: *const u8,
-    table_length: u32,
-    offset: u32,
-) -> *mut Coverage {
-    let coverage = otl_coverage_create();
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-    let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
-        return coverage;
+pub(crate) fn read_coverage(data: &[u8], offset: u32) -> *mut Coverage {
+    let mut coverage: Coverage = Vec::new();
+    let Ok(mut r) = FontReader::new(data).at(offset as usize) else {
+        return Box::into_raw(Box::new(coverage));
     };
-    let Ok(format) = r.u16() else { return coverage };
+    let Ok(format) = r.u16() else {
+        return Box::into_raw(Box::new(coverage));
+    };
     match format {
         1 => {
             let Ok(glyph_count) = r.u16() else {
-                return coverage;
+                return Box::into_raw(Box::new(coverage));
             };
             if r.require_room(glyph_count as usize, 2).is_err() {
-                return coverage;
+                return Box::into_raw(Box::new(coverage));
             }
             // `HASH_SORT`-by-`covIndex` is a no-op here: `covIndex` was
             // assigned `j` (this loop's own position) at insert time, and
@@ -127,15 +120,15 @@ pub(crate) unsafe fn read_coverage(
                 h.insert(r.u16().unwrap());
             }
             for gid in h.into_iter() {
-                push_to_coverage(coverage, handle_from_index(gid) as GlyphHandle);
+                push_to_coverage(&mut coverage, handle_from_index(gid) as GlyphHandle);
             }
         }
         2 => {
             let Ok(range_count) = r.u16() else {
-                return coverage;
+                return Box::into_raw(Box::new(coverage));
             };
             if r.require_room(range_count as usize, 6).is_err() {
-                return coverage;
+                return Box::into_raw(Box::new(coverage));
             }
             // Unlike format 1, `covIndex` here is `startCoverageIndex + k`
             // (`k` the absolute gid, per the original C -- see
@@ -194,38 +187,38 @@ pub(crate) unsafe fn read_coverage(
             let mut entries: Vec<(GlyphId, i32)> = h.into_iter().collect();
             entries.sort_by_key(|&(_, cov_index)| cov_index);
             for (gid, _) in entries {
-                push_to_coverage(coverage, handle_from_index(gid) as GlyphHandle);
+                push_to_coverage(&mut coverage, handle_from_index(gid) as GlyphHandle);
             }
         }
         _ => {}
     }
-    coverage
+    Box::into_raw(Box::new(coverage))
 }
 // No longer `extern "C"`: every call site (`gsub_multi.rs`, `gsub_ligature.rs`,
 // `gsub_reverse.rs`, `chaining/dump.rs`) calls this directly by name, never
 // through a function-pointer value -- confirmed by grep across the crate.
 // Same for `parse_coverage`/`build_coverage_format`/`build_coverage` below.
-pub(crate) unsafe fn dump_coverage(coverage: *const Coverage) -> BuiltValue {
-    let mut a = BuiltValue::new_array((*coverage).len());
-    for j in 0..(*coverage).len() {
-        a.push_item(BuiltValue::str_truncated_at_nul(&(&(*coverage))[j].name));
+pub(crate) fn dump_coverage(coverage: &Coverage) -> BuiltValue {
+    let mut a = BuiltValue::new_array(coverage.len());
+    for h in coverage {
+        a.push_item(BuiltValue::str_truncated_at_nul(&h.name));
     }
     a.preserialize()
 }
-pub(crate) unsafe fn parse_coverage(cov: *const ParsedValue) -> *mut Coverage {
-    let c: *mut Coverage = otl_coverage_create();
-    let Some(items) = unsafe { cov.as_ref() }.and_then(ParsedValue::as_array) else {
-        return c;
+pub(crate) fn parse_coverage(cov: Option<&ParsedValue>) -> *mut Coverage {
+    let mut c: Coverage = Vec::new();
+    let Some(items) = cov.and_then(ParsedValue::as_array) else {
+        return Box::into_raw(Box::new(c));
     };
     for item in items {
         if let Some(name) = item.as_str_bytes() {
-            push_to_coverage(c, handle_from_name(Some(name.to_vec())) as GlyphHandle);
+            push_to_coverage(&mut c, handle_from_name(Some(name.to_vec())) as GlyphHandle);
         }
     }
-    c
+    Box::into_raw(Box::new(c))
 }
-pub(crate) unsafe fn build_coverage_format(coverage: *const Coverage, format: u16) -> Buffer {
-    if (*coverage).is_empty() {
+pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer {
+    if coverage.is_empty() {
         let mut buf = Buffer::new();
         buf.write_u16be(2_u16);
         buf.write_u16be(0_u16);
@@ -236,7 +229,7 @@ pub(crate) unsafe fn build_coverage_format(coverage: *const Coverage, format: u1
     // made everywhere else in this file) reproduces `by_gid`'s ordering,
     // and the `Vec` drops itself at every one of this function's several
     // return points instead of needing a matching `free` at each.
-    let mut r: Vec<GlyphId> = (*coverage).iter().map(|h| h.index).collect();
+    let mut r: Vec<GlyphId> = coverage.iter().map(|h| h.index).collect();
     r.sort_by_key(|&gid| gid);
     let jj: GlyphId = r.len() as GlyphId;
     let mut format1 = Buffer::new();
@@ -301,13 +294,10 @@ pub(crate) unsafe fn build_coverage_format(coverage: *const Coverage, format: u1
         format2
     }
 }
-pub(crate) unsafe fn build_coverage(coverage: *const Coverage) -> Buffer {
+pub(crate) fn build_coverage(coverage: &Coverage) -> Buffer {
     build_coverage_format(coverage, 0_u16)
 }
-pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
-    if coverage.is_null() {
-        return;
-    }
+pub(crate) fn shrink_coverage(coverage: &mut Coverage, dosort: bool) {
     // Two `truncate`s, not one `num_glyphs = k` at the end as the original
     // did: each `truncate` lets `Vec`'s own drop glue free every handle
     // past the new length, including ones this function's own compaction
@@ -316,32 +306,32 @@ pub(crate) unsafe fn shrink_coverage(coverage: *mut Coverage, dosort: bool) {
     // never becomes a write target itself, is exactly that case) -- the
     // original leaked that name; `truncate` doesn't.
     let mut k: usize = 0;
-    for j in 0..(*coverage).len() {
-        if !(&(*coverage))[j].name.is_empty() {
-            let elem = (&(*coverage))[j].clone();
-            (&mut (*coverage))[k] = elem;
+    for j in 0..coverage.len() {
+        if !coverage[j].name.is_empty() {
+            let elem = coverage[j].clone();
+            coverage[k] = elem;
             k += 1;
         } else {
-            otfcc_handle_dispose(&mut (&mut (*coverage))[j]);
+            otfcc_handle_dispose(&mut coverage[j]);
         }
     }
-    (*coverage).truncate(k);
+    coverage.truncate(k);
     if dosort {
-        (*coverage).sort_by_key(|h| h.index);
+        coverage.sort_by_key(|h| h.index);
         let mut skip: usize = 0;
         let mut rear: usize = 1;
-        while rear < (*coverage).len() {
-            if (&(*coverage))[rear].index == (&(*coverage))[rear - skip - 1].index {
-                otfcc_handle_dispose(&mut (&mut (*coverage))[rear]);
+        while rear < coverage.len() {
+            if coverage[rear].index == coverage[rear - skip - 1].index {
+                otfcc_handle_dispose(&mut coverage[rear]);
                 skip += 1;
             } else {
-                let elem = (&(*coverage))[rear].clone();
-                (&mut (*coverage))[rear - skip] = elem;
+                let elem = coverage[rear].clone();
+                coverage[rear - skip] = elem;
             }
             rear += 1;
         }
-        let new_len = (*coverage).len() - skip;
-        (*coverage).truncate(new_len);
+        let new_len = coverage.len() - skip;
+        coverage.truncate(new_len);
     }
 }
 
@@ -358,7 +348,7 @@ mod read_coverage_tests {
         data.extend_from_slice(&9u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes()); // duplicate, deduped
         unsafe {
-            let raw = read_coverage(data.as_ptr(), data.len() as u32, 0);
+            let raw = read_coverage(&data, 0);
             let cov = coverage_from_raw(raw);
             assert_eq!(cov.iter().map(|h| h.index).collect::<Vec<_>>(), vec![5, 9]);
         }
@@ -373,7 +363,7 @@ mod read_coverage_tests {
         data.extend_from_slice(&12u16.to_be_bytes()); // endGlyphID
         data.extend_from_slice(&0u16.to_be_bytes()); // startCoverageIndex
         unsafe {
-            let raw = read_coverage(data.as_ptr(), data.len() as u32, 0);
+            let raw = read_coverage(&data, 0);
             let cov = coverage_from_raw(raw);
             assert_eq!(
                 cov.iter().map(|h| h.index).collect::<Vec<_>>(),
@@ -390,7 +380,7 @@ mod read_coverage_tests {
         // though `offset` itself points nowhere near the table.
         let data = [0u8; 8];
         unsafe {
-            let raw = read_coverage(data.as_ptr(), data.len() as u32, 0xFFFF_FFF0);
+            let raw = read_coverage(&data, 0xFFFF_FFF0);
             let cov = coverage_from_raw(raw);
             assert!(cov.is_empty());
         }
@@ -400,7 +390,7 @@ mod read_coverage_tests {
     fn truncated_header_is_empty_not_oob() {
         let data = [0u8; 1];
         unsafe {
-            let raw = read_coverage(data.as_ptr(), data.len() as u32, 0);
+            let raw = read_coverage(&data, 0);
             let cov = coverage_from_raw(raw);
             assert!(cov.is_empty());
         }

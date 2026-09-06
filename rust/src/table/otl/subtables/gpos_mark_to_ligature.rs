@@ -98,8 +98,8 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
             break 'parse;
         };
 
-        marks = read_coverage(data, table_length, offset.wrapping_add(marks_rel as u32));
-        bases = read_coverage(data, table_length, offset.wrapping_add(bases_rel as u32));
+        marks = read_coverage(slice, offset.wrapping_add(marks_rel as u32));
+        bases = read_coverage(slice, offset.wrapping_add(bases_rel as u32));
         if marks.is_null() || (*marks).is_empty() || bases.is_null() || (*bases).is_empty() {
             break 'parse;
         }
@@ -358,7 +358,7 @@ pub unsafe fn otfcc_build_gpos_mark_to_ligature(
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).mark_array.len() {
         push_to_coverage(
-            marks,
+            &mut *marks,
             otfcc_handle_dup((&(*subtable).mark_array)[j as usize].glyph.clone() as Handle)
                 as GlyphHandle,
         );
@@ -368,7 +368,7 @@ pub unsafe fn otfcc_build_gpos_mark_to_ligature(
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).lig_array.len() {
         push_to_coverage(
-            bases,
+            &mut *bases,
             otfcc_handle_dup((&(*subtable).lig_array)[j_0 as usize].glyph.clone() as Handle)
                 as GlyphHandle,
         );
@@ -378,11 +378,11 @@ pub unsafe fn otfcc_build_gpos_mark_to_ligature(
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(marks))),
+            bk_new_block_from_buffer(Some(build_coverage(&*marks))),
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(bases))),
+            bk_new_block_from_buffer(Some(build_coverage(&*bases))),
         ),
         bk_int(
             BkCellType::B16,

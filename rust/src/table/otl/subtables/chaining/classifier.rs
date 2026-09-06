@@ -145,9 +145,9 @@ unsafe fn build_rule(
                 Some(v) => v.cls as GlyphClass,
                 None => 0 as GlyphClass,
             };
-            push_to_coverage(cov, handle_from_index(cls) as GlyphHandle);
+            push_to_coverage(&mut *cov, handle_from_index(cls) as GlyphHandle);
         } else {
-            push_to_coverage(cov, handle_from_index(0 as GlyphId) as GlyphHandle);
+            push_to_coverage(&mut *cov, handle_from_index(0 as GlyphId) as GlyphHandle);
         }
         (*new_rule).match_0.push(coverage_from_raw(cov));
         m = m.wrapping_add(1);

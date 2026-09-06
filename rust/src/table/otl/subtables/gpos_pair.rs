@@ -111,7 +111,7 @@ pub unsafe fn otl_read_gpos_pair(
             // matching the original's immediate field assignment, so every
             // exit path below still disposes it correctly via
             // `subtable_gpos_pair_free`'s `Box::from_raw`.
-            let cov = read_coverage(data, table_length, offset.wrapping_add(cov_rel as u32));
+            let cov = read_coverage(slice, offset.wrapping_add(cov_rel as u32));
             let first_raw: *mut ClassDef = otl_class_def_create();
             (*first_raw).glyphs = ::core::mem::take(&mut *cov);
             (*first_raw).maxclass = ((*first_raw).glyphs.len() as i32 - 1) as GlyphClass;
@@ -272,7 +272,7 @@ pub unsafe fn otl_read_gpos_pair(
             let len1_0 = position_format_length(format1_0);
             let len2_0 = position_format_length(format2_0);
 
-            let cov_0 = read_coverage(data, table_length, offset.wrapping_add(cov_rel as u32));
+            let cov_0 = read_coverage(slice, offset.wrapping_add(cov_rel as u32));
             // `expand_class_def` consumes (and internally frees) the `ocd`
             // it's handed and returns a brand-new `*mut ClassDef` -- kept
             // as a plain local raw pointer through that consuming call,
@@ -468,7 +468,7 @@ unsafe fn cov_from_cd(cd: *const ClassDef) -> *mut Coverage {
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*cd).glyphs.len() {
         push_to_coverage(
-            cov,
+            &mut *cov,
             otfcc_handle_dup((&(*cd).glyphs)[j as usize].clone() as Handle) as GlyphHandle,
         );
         j = j.wrapping_add(1);
@@ -526,12 +526,12 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
         j_0 = j_0.wrapping_add(1);
     }
     let cov: *mut Coverage = cov_from_cd(first_cd);
-    shrink_coverage(cov, true);
+    shrink_coverage(&mut *cov, true);
     let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(cov))),
+            bk_new_block_from_buffer(Some(build_coverage(&*cov))),
         ),
         bk_int(BkCellType::B16, (format1 as i32) as u32),
         bk_int(BkCellType::B16, (format2 as i32) as u32),
@@ -634,7 +634,7 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
         bk_int(BkCellType::B16, 2_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(cov))),
+            bk_new_block_from_buffer(Some(build_coverage(&*cov))),
         ),
         bk_int(BkCellType::B16, (format1 as i32) as u32),
         bk_int(BkCellType::B16, (format2 as i32) as u32),

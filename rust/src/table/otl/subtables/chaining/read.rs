@@ -212,7 +212,7 @@ pub unsafe fn single_coverage(
     mut _userdata: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
     let cov: *mut Coverage = otl_coverage_create();
-    push_to_coverage(cov, handle_from_index(gid) as GlyphHandle);
+    push_to_coverage(&mut *cov, handle_from_index(gid) as GlyphHandle);
     return cov;
 }
 pub unsafe fn class_coverage(
@@ -313,7 +313,7 @@ pub unsafe fn class_coverage(
         let mut k: GlyphId = 0 as GlyphId;
         while (k as i32) < max_glyphs as i32 && zero_budget_left() {
             if !classified[k as usize] {
-                push_to_coverage(cov, handle_from_index(k) as GlyphHandle);
+                push_to_coverage(&mut *cov, handle_from_index(k) as GlyphHandle);
             }
             charge_zero_budget();
             k = k.wrapping_add(1);
@@ -323,7 +323,7 @@ pub unsafe fn class_coverage(
         while (j_2 as usize) < (*cd).glyphs.len() && zero_budget_left() {
             if (&(*cd).classes)[j_2 as usize] as i32 == cls as i32 {
                 push_to_coverage(
-                    cov,
+                    &mut *cov,
                     otfcc_handle_dup((&(*cd).glyphs)[j_2 as usize].clone() as Handle)
                         as GlyphHandle,
                 );
@@ -344,8 +344,7 @@ pub unsafe fn format3_coverage(
     mut _userdata: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
     return read_coverage(
-        data as *const u8,
-        table_length,
+        ::core::slice::from_raw_parts(data as *const u8, table_length as usize),
         _offset.wrapping_add(shift as u32).wrapping_sub(2_u32),
     );
 }
@@ -483,7 +482,7 @@ unsafe fn read_contextual_format1(
         let cov_offset = offset.wrapping_add(cov_rel as u32);
         // `read_coverage` always returns a valid (possibly empty) `Coverage`
         // shell, never null, even on malformed input -- see coverage.rs.
-        first_coverage = read_coverage(data as *const u8, table_length, cov_offset);
+        first_coverage = read_coverage(slice, cov_offset);
         if chain_sub_rule_set_count as usize != (*first_coverage).len() {
             break 'parse None;
         }
@@ -1009,7 +1008,7 @@ unsafe fn read_chaining_format1(
         let cov_offset = offset.wrapping_add(cov_rel as u32);
         // `read_coverage` always returns a valid (possibly empty) `Coverage`
         // shell, never null, even on malformed input -- see coverage.rs.
-        first_coverage = read_coverage(data as *const u8, table_length, cov_offset);
+        first_coverage = read_coverage(slice, cov_offset);
         if chain_sub_rule_set_count as usize != (*first_coverage).len() {
             break 'parse None;
         }

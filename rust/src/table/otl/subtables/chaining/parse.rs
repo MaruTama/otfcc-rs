@@ -39,7 +39,7 @@ pub unsafe fn otl_parse_chaining(
     for item in match_items {
         (*rule)
             .match_0
-            .push(coverage_from_raw(parse_coverage(item as *const ParsedValue)));
+            .push(coverage_from_raw(parse_coverage(Some(item))));
     }
     for application in apply_items {
         let mut index: TableId = 0 as TableId;

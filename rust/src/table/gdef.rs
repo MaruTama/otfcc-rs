@@ -133,8 +133,7 @@ unsafe fn read_lig_carets(data: &[u8], lig_caret_offset: usize) -> Option<LigCar
         return None;
     }
     let coverage_rel = FontReader::new(data).at(lig_caret_offset).ok()?.u16().ok()? as usize;
-    let cov: *mut Coverage =
-        read_coverage(data.as_ptr(), data.len() as u32, (lig_caret_offset + coverage_rel) as u32);
+    let cov: *mut Coverage = read_coverage(data, (lig_caret_offset + coverage_rel) as u32);
     if cov.is_null() {
         return None;
     }
@@ -343,7 +342,7 @@ unsafe fn write_lig_carets(lc: *const LigCaretTable) -> *mut BkBlock {
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < records.len() {
         push_to_coverage(
-            cov,
+            &mut *cov,
             otfcc_handle_dup(records[j as usize].glyph.clone() as Handle) as GlyphHandle,
         );
         j = j.wrapping_add(1);
@@ -351,7 +350,7 @@ unsafe fn write_lig_carets(lc: *const LigCaretTable) -> *mut BkBlock {
     let lct: *mut BkBlock = bk_new_block(&[
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(cov))),
+            bk_new_block_from_buffer(Some(build_coverage(&*cov))),
         ),
         bk_int(BkCellType::B16, (records.len()) as u32),
     ]);

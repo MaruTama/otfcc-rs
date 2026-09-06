@@ -1184,7 +1184,7 @@ mod read_anchor_and_value_tests {
     unsafe fn coverage_of(gids: &[GlyphId]) -> *mut Coverage {
         let cov = otl_coverage_create();
         for &gid in gids {
-            push_to_coverage(cov, handle_from_index(gid) as GlyphHandle);
+            push_to_coverage(&mut *cov, handle_from_index(gid) as GlyphHandle);
         }
         cov
     }

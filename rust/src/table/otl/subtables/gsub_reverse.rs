@@ -128,12 +128,12 @@ pub unsafe fn otl_read_gsub_reverse(
 
         for (j, &cov_offset) in backtrack_offsets.iter().enumerate() {
             (&mut (*subtable).match_0)[j] =
-                coverage_from_raw(read_coverage(data, table_length, cov_offset));
+                coverage_from_raw(read_coverage(slice, cov_offset));
         }
 
         let input_cov_offset = offset.wrapping_add(input_cov_rel as u32);
         (&mut (*subtable).match_0)[(*subtable).input_index as usize] =
-            coverage_from_raw(read_coverage(data, table_length, input_cov_offset));
+            coverage_from_raw(read_coverage(slice, input_cov_offset));
 
         if n_replacement as usize != (&(*subtable).match_0)[(*subtable).input_index as usize].len()
         {
@@ -143,13 +143,13 @@ pub unsafe fn otl_read_gsub_reverse(
         for (j, &cov_offset) in forward_offsets.iter().enumerate() {
             let fwd_idx = n_backtrack as usize + 1 + j;
             (&mut (*subtable).match_0)[fwd_idx] =
-                coverage_from_raw(read_coverage(data, table_length, cov_offset));
+                coverage_from_raw(read_coverage(slice, cov_offset));
         }
 
         (*subtable).to = Coverage::new();
         for _ in 0..n_replacement {
             push_to_coverage(
-                &mut (*subtable).to as *mut Coverage,
+                &mut (*subtable).to,
                 handle_from_index(header.u16().unwrap() as GlyphId) as GlyphHandle,
             );
         }
@@ -168,13 +168,11 @@ pub unsafe fn otl_gsub_dump_reverse(mut _subtable: *const Subtable) -> BuiltValu
     let mut _match = BuiltValue::new_array((*subtable).match_count as usize);
     let mut j: TableId = 0 as TableId;
     while (j as i32) < (*subtable).match_count as i32 {
-        _match.push_item(dump_coverage(
-            &(&(*subtable).match_0)[j as usize] as *const Coverage,
-        ));
+        _match.push_item(dump_coverage(&(&(*subtable).match_0)[j as usize]));
         j = j.wrapping_add(1);
     }
     _st.push_field(b"match", _match);
-    _st.push_field(b"to", dump_coverage(&(*subtable).to as *const Coverage));
+    _st.push_field(b"to", dump_coverage(&(*subtable).to));
     _st.push_field(b"inputIndex", BuiltValue::Int((*subtable).input_index as i64));
     _st
 }
@@ -199,9 +197,9 @@ pub unsafe fn otl_gsub_parse_reverse(
     for item in match_items {
         (*subtable)
             .match_0
-            .push(coverage_from_raw(parse_coverage(item as *const ParsedValue)));
+            .push(coverage_from_raw(parse_coverage(Some(item))));
     }
-    (*subtable).to = coverage_from_raw(parse_coverage(_to as *const ParsedValue));
+    (*subtable).to = coverage_from_raw(parse_coverage(Some(_to)));
     subtable_from_raw(subtable, Subtable::GsubReverse)
 }
 pub unsafe fn otfcc_build_gsub_reverse(
@@ -226,7 +224,7 @@ pub unsafe fn otfcc_build_gsub_reverse(
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(
-                &(&(*subtable).match_0)[(*subtable).input_index as usize] as *const Coverage,
+                &(&(*subtable).match_0)[(*subtable).input_index as usize],
             ))),
         ),
     ]);
@@ -244,7 +242,7 @@ pub unsafe fn otfcc_build_gsub_reverse(
             &[bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
-                    &(&(*subtable).match_0)[j as usize] as *const Coverage,
+                    &(&(*subtable).match_0)[j as usize],
                 ))),
             )],
         );
@@ -267,7 +265,7 @@ pub unsafe fn otfcc_build_gsub_reverse(
             &[bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
-                    &(&(*subtable).match_0)[j_0 as usize] as *const Coverage,
+                    &(&(*subtable).match_0)[j_0 as usize],
                 ))),
             )],
         );

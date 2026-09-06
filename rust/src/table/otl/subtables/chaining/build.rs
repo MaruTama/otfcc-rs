@@ -86,7 +86,7 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
             &[bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
-                    &(&(*rule).match_0)[j as usize] as *const Coverage,
+                    &(&(*rule).match_0)[j as usize],
                 ))),
             )],
         );
@@ -106,7 +106,7 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
             &[bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
-                    &(&(*rule).match_0)[j_0 as usize] as *const Coverage,
+                    &(&(*rule).match_0)[j_0 as usize],
                 ))),
             )],
         );
@@ -126,7 +126,7 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
             &[bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
-                    &(&(*rule).match_0)[j_1 as usize] as *const Coverage,
+                    &(&(*rule).match_0)[j_1 as usize],
                 ))),
             )],
         );
@@ -171,7 +171,7 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
         bk_int(BkCellType::B16, 2_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(coverage))),
+            bk_new_block_from_buffer(Some(build_coverage(&*coverage))),
         ),
         bk_ptr(
             BkCellType::P16,
@@ -369,7 +369,7 @@ pub unsafe fn otfcc_build_contextual_coverage(
             &[bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
-                    &(&(*rule).match_0)[j as usize] as *const Coverage,
+                    &(&(*rule).match_0)[j as usize],
                 ))),
             )],
         );
@@ -405,7 +405,7 @@ pub unsafe fn otfcc_build_contextual_classes(
         bk_int(BkCellType::B16, 2_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(coverage))),
+            bk_new_block_from_buffer(Some(build_coverage(&*coverage))),
         ),
         bk_ptr(
             BkCellType::P16,

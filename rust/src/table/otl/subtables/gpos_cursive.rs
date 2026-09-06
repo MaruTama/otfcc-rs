@@ -66,7 +66,7 @@ pub unsafe fn otl_read_gpos_cursive(
             break 'parse;
         };
 
-        targets = read_coverage(data, table_length, offset.wrapping_add(from_rel as u32));
+        targets = read_coverage(slice, offset.wrapping_add(from_rel as u32));
         if targets.is_null() || (*targets).is_empty() {
             break 'parse;
         }
@@ -163,7 +163,7 @@ pub unsafe fn otfcc_build_gpos_cursive(
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
         push_to_coverage(
-            cov,
+            &mut *cov,
             otfcc_handle_dup((&(*subtable))[j as usize].target.clone() as Handle) as GlyphHandle,
         );
         j = j.wrapping_add(1);
@@ -172,7 +172,7 @@ pub unsafe fn otfcc_build_gpos_cursive(
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(cov))),
+            bk_new_block_from_buffer(Some(build_coverage(&*cov))),
         ),
         bk_int(BkCellType::B16, ((*subtable).len()) as u32),
     ]);

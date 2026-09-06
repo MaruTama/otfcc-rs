@@ -1,6 +1,6 @@
 use crate::support::built_json::BuiltValue;
 use crate::support::primitives::TableId;
-use crate::table::otl::coverage::{Coverage, dump_coverage};
+use crate::table::otl::coverage::dump_coverage;
 use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_const};
 use crate::table::otl::{ChainingRule, ChainingSubtable, Subtable};
 
@@ -18,9 +18,7 @@ pub unsafe fn otl_dump_chaining(mut _subtable: *const Subtable) -> BuiltValue {
         let mut _match = BuiltValue::new_array((*rule).match_count as usize);
         let mut j: TableId = 0 as TableId;
         while (j as i32) < (*rule).match_count as i32 {
-            _match.push_item(dump_coverage(
-                &(&(*rule).match_0)[j as usize] as *const Coverage,
-            ));
+            _match.push_item(dump_coverage(&(&(*rule).match_0)[j as usize]));
             j = j.wrapping_add(1);
         }
         _st.push_field(b"match", _match);
