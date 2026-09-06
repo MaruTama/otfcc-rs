@@ -10,10 +10,10 @@ pub unsafe fn otl_dump_chaining(mut _subtable: *const Subtable) -> BuiltValue {
             unreachable!()
         };
         let subtable: *const ChainingSubtable = mut_subtable;
-        if !chaining_is_canonical(subtable) {
+        if !chaining_is_canonical(&*subtable) {
             return BuiltValue::Null;
         }
-        let rule: *const ChainingRule = chaining_rule_const(subtable);
+        let rule: *const ChainingRule = chaining_rule_const(&*subtable);
         let mut _st = BuiltValue::new_object(4);
         let mut _match = BuiltValue::new_array((*rule).match_count as usize);
         let mut j: TableId = 0 as TableId;

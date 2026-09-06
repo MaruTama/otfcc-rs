@@ -29,8 +29,8 @@ pub unsafe fn otfcc_chaining_lookup_is_contextual_lookup(lookup: *const Lookup) 
             unreachable!()
         };
         let subtable: *const ChainingSubtable = mut_subtable;
-        if chaining_is_classified(subtable) {
-            let ruleset: *const ChainingRuleSet = chaining_ruleset_const(subtable);
+        if chaining_is_classified(&*subtable) {
+            let ruleset: *const ChainingRuleSet = chaining_ruleset_const(&*subtable);
             let mut k: TableId = 0 as TableId;
             while (k as usize) < (*ruleset).rules.len() {
                 let rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize]
@@ -161,7 +161,7 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
 }
 pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtable) -> Buffer {
     let subtable: *const ChainingSubtable = _subtable;
-    let ruleset: *const ChainingRuleSet = chaining_ruleset_const(subtable);
+    let ruleset: *const ChainingRuleSet = chaining_ruleset_const(&*subtable);
     // `.ic` is reached through a `*const ChainingRuleSet` but still needs a
     // `*mut ClassDef` at the one `&raw mut (*ic).glyphs` site below -- the
     // same const-to-mut cast the original C-shaped code already did.
@@ -332,7 +332,7 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
     return bk_build_block(root);
 }
 pub unsafe fn otfcc_build_chaining(mut _subtable: *const ChainingSubtable) -> Buffer {
-    if chaining_is_classified(_subtable) {
+    if chaining_is_classified(&*_subtable) {
         return otfcc_build_chaining_classes(_subtable);
     } else {
         return otfcc_build_chaining_coverage(_subtable);
@@ -398,7 +398,7 @@ pub unsafe fn otfcc_build_contextual_classes(
     mut _subtable: *const ChainingSubtable,
 ) -> Buffer {
     let subtable: *const ChainingSubtable = _subtable;
-    let ruleset: *const ChainingRuleSet = chaining_ruleset_const(subtable);
+    let ruleset: *const ChainingRuleSet = chaining_ruleset_const(&*subtable);
     let ic: *mut ClassDef = (*ruleset).ic.as_deref().unwrap() as *const ClassDef as *mut ClassDef;
     let coverage: *mut Coverage = &raw mut (*ic).glyphs;
     let root: *mut BkBlock = bk_new_block(&[
@@ -515,7 +515,7 @@ pub unsafe fn otfcc_build_contextual_classes(
     return bk_build_block(root);
 }
 pub unsafe fn otfcc_build_contextual(mut _subtable: *const ChainingSubtable) -> Buffer {
-    if chaining_is_classified(_subtable) {
+    if chaining_is_classified(&*_subtable) {
         return otfcc_build_contextual_classes(_subtable);
     } else {
         return otfcc_build_contextual_coverage(_subtable);

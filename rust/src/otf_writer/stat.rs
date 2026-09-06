@@ -1075,7 +1075,7 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                         unreachable!()
                     };
                     let subtable: *mut ChainingSubtable = mut_subtable;
-                    let rule = chaining_rule_mut(subtable);
+                    let rule = chaining_rule_mut(&mut *subtable);
                     if (maxc as i32) < (*rule).match_count as i32 {
                         maxc = (*rule).match_count;
                     }

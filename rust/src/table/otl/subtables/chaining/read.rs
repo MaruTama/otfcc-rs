@@ -517,7 +517,7 @@ unsafe fn read_contextual_format1(
         // Second pass: build, re-deriving each offset exactly as the first
         // pass did (nothing here is retained across passes, matching the
         // original's own two-pass structure).
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
         (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'rulesets: for j in 0..chain_sub_rule_set_count {
             let srs_rel = FontReader::new(slice)
@@ -663,7 +663,7 @@ unsafe fn read_contextual_format2(
             total_rules = total_rules.saturating_add(srs_count as usize);
         }
 
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
         (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'class_sets: for j in 0..chain_sub_class_set_cnt {
             let src_rel = FontReader::new(slice)
@@ -772,7 +772,7 @@ pub unsafe fn otl_read_contextual(
     // error paths that dispose the subtable without ever reaching one) now
     // sees a valid, possibly-still-empty ruleset from this point on.
     *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
-    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
     let mut format: u16 = 0_u16;
     if let Ok(mut r) = FontReader::new(slice).at(offset as usize) {
         if let Ok(f) = r.u16() {
@@ -1039,7 +1039,7 @@ unsafe fn read_chaining_format1(
             total_rules = total_rules.saturating_add(srs_count as usize);
         }
 
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
         (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'rulesets: for j in 0..chain_sub_rule_set_count {
             let srs_rel = FontReader::new(slice)
@@ -1185,7 +1185,7 @@ unsafe fn read_chaining_format2(
             total_rules = total_rules.saturating_add(srs_count as usize);
         }
 
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
         (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'class_sets: for j in 0..chain_sub_class_set_cnt {
             let src_rel = FontReader::new(slice)
@@ -1285,7 +1285,7 @@ pub unsafe fn otl_read_chaining(
     let subtable: *mut ChainingSubtable = (subtable_chaining_create)();
     // See the identical comment in `otl_read_contextual`.
     *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
-    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
     let mut format: u16 = 0_u16;
     if let Ok(mut r) = FontReader::new(slice).at(offset as usize) {
         if let Ok(f) = r.u16() {

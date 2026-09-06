@@ -32,7 +32,7 @@ pub unsafe fn consolidate_chaining(
         unreachable!()
     };
     let subtable: *mut ChainingSubtable = mut_subtable;
-    if !chaining_is_canonical(subtable) {
+    if !chaining_is_canonical(&*subtable) {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
@@ -41,7 +41,7 @@ pub unsafe fn consolidate_chaining(
         );
         return false;
     }
-    let rule: *mut ChainingRule = chaining_rule_mut(subtable);
+    let rule: *mut ChainingRule = chaining_rule_mut(&mut *subtable);
     let mut possible: bool = true;
     let mut j: TableId = 0 as TableId;
     while (j as i32) < (*rule).match_count as i32 {
