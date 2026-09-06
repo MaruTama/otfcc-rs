@@ -1,10 +1,10 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+#![forbid(unsafe_code)]
 
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::glyph_order::otfcc_set_glyph_order_by_gid;
 use crate::support::primitives::GlyphId;
 
-pub unsafe fn aglfn_setup_names(map: *mut GlyphOrder) {
+pub fn aglfn_setup_names(map: &mut GlyphOrder) {
     otfcc_set_glyph_order_by_gid(map, 0x41 as GlyphId, b"A".to_vec());
     otfcc_set_glyph_order_by_gid(map, 0xc6 as GlyphId, b"AE".to_vec());
     otfcc_set_glyph_order_by_gid(map, 0x1fc as GlyphId, b"AEacute".to_vec());

@@ -14,7 +14,7 @@ use crate::table::gdef::{CaretValueList, CaretValueRecord, GdefTable, clear_lig_
 use crate::table::otl::classdef::ClassDef;
 
 use crate::consolidate::otl::common::fontop_consolidate_class_def;
-use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
+use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::classdef::shrink_class_def;
 
 pub unsafe fn consolidate_gdef(
@@ -25,10 +25,8 @@ pub unsafe fn consolidate_gdef(
     if font.is_null() || (*font).glyph_order.is_none() || gdef.is_null() {
         return;
     }
-    let glyph_order: *mut GlyphOrder = (*font)
-        .glyph_order
-        .as_deref_mut()
-        .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
+    // Guaranteed `Some` by the early return above.
+    let glyph_order = (*font).glyph_order.as_deref().unwrap();
     if let Some(cd) = (*gdef).glyph_class_def.as_deref_mut() {
         let cd: *mut ClassDef = cd;
         fontop_consolidate_class_def(font, cd, options);
@@ -77,7 +75,7 @@ pub unsafe fn consolidate_gdef(
             std::collections::BTreeMap::new();
         let mut j: GlyphId = 0 as GlyphId;
         while (j as usize) < lig_carets.len() {
-            if otfcc_gord_consolidate_handle(glyph_order, &raw mut lig_carets[j as usize].glyph) {
+            if otfcc_gord_consolidate_handle(glyph_order, &mut lig_carets[j as usize].glyph) {
                 let gid: i32 = lig_carets[j as usize].glyph.index as i32;
                 if seen.contains_key(&gid) {
                     logger_log_sds(

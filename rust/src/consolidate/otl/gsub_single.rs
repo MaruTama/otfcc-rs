@@ -19,10 +19,11 @@ pub unsafe fn consolidate_gsub_single(
     mut _subtable: *mut Subtable,
     options: &Options,
 ) -> bool {
-    let glyph_order: *mut GlyphOrder = (*font)
-        .glyph_order
-        .as_deref_mut()
-        .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder);
+    // Guaranteed `Some`: `consolidate_otl` (and hence this function) only
+    // ever runs when `glyf` is present, and `otfcc_consolidate_font`
+    // always populates `glyph_order` before that, whenever `glyf` is
+    // present.
+    let glyph_order: &GlyphOrder = (*font).glyph_order.as_deref().unwrap();
     let Subtable::GsubSingle(mut_subtable) = &mut *_subtable else {
         unreachable!()
     };
@@ -38,8 +39,7 @@ pub unsafe fn consolidate_gsub_single(
         std::collections::BTreeMap::new();
     let mut k: usize = 0_usize;
     while k < (*subtable).len() {
-        if !otfcc_gord_consolidate_handle(glyph_order, &raw mut (&mut (*subtable))[k].from)
-        {
+        if !otfcc_gord_consolidate_handle(glyph_order, &mut (&mut (*subtable))[k].from) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
@@ -50,10 +50,7 @@ pub unsafe fn consolidate_gsub_single(
                     b".\n",
                 ),
             );
-        } else if !otfcc_gord_consolidate_handle(
-            glyph_order,
-            &raw mut (&mut (*subtable))[k].to,
-        ) {
+        } else if !otfcc_gord_consolidate_handle(glyph_order, &mut (&mut (*subtable))[k].to) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
