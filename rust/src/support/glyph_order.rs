@@ -122,28 +122,28 @@ pub(crate) unsafe fn otfcc_glyph_order_create() -> *mut GlyphOrder {
 // no code change needed there. `name` is `Vec<u8>` now instead of `SdsRaw`,
 // so it drops on its own wherever this returns -- no explicit free needed
 // in any branch.
-pub(crate) unsafe fn otfcc_set_glyph_order_by_gid(
-    go: *mut GlyphOrder,
+pub(crate) fn otfcc_set_glyph_order_by_gid(
+    go: &mut GlyphOrder,
     gid: GlyphId,
     mut name: Vec<u8>,
 ) -> Vec<u8> {
-    if let Some(&idx) = (*go).by_gid.get(&gid) {
-        return (&(*go).entries)[idx].name.clone();
+    if let Some(&idx) = go.by_gid.get(&gid) {
+        return go.entries[idx].name.clone();
     }
-    let final_bytes: Vec<u8> = if (*go).by_name.contains_key(&name) {
+    let final_bytes: Vec<u8> = if go.by_name.contains_key(&name) {
         crate::bytesbuild!(b"$$gid", gid as i32)
     } else {
         ::core::mem::take(&mut name)
     };
-    (*go).entries.push(GlyphOrderEntry {
+    go.entries.push(GlyphOrderEntry {
         gid,
         name: final_bytes.clone(),
         order_type: GlyphOrderPass::Unset,
         order_entry: 0,
     });
-    let idx = (*go).entries.len() - 1;
-    (*go).by_gid.insert(gid, idx);
-    (*go).by_name.insert(final_bytes.clone(), idx);
+    let idx = go.entries.len() - 1;
+    go.by_gid.insert(gid, idx);
+    go.by_name.insert(final_bytes.clone(), idx);
     return final_bytes;
 }
 // `name` is a caller-owned clone now (see the two `.clone()` call sites in
@@ -151,33 +151,29 @@ pub(crate) unsafe fn otfcc_set_glyph_order_by_gid(
 // matching the original's "deliberately left un-freed" contract without
 // needing a comment to explain why -- the caller's own copy was never
 // touched, so there is nothing for it to double-free or leak.
-pub(crate) unsafe fn otfcc_set_glyph_order_by_name(
-    go: *mut GlyphOrder,
-    name: Vec<u8>,
-    gid: GlyphId,
-) -> bool {
-    if (*go).by_name.contains_key(&name) {
+pub(crate) fn otfcc_set_glyph_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, gid: GlyphId) -> bool {
+    if go.by_name.contains_key(&name) {
         return false;
     }
-    (*go).entries.push(GlyphOrderEntry {
+    go.entries.push(GlyphOrderEntry {
         gid,
         name: name.clone(),
         order_type: GlyphOrderPass::Unset,
         order_entry: 0,
     });
-    let idx = (*go).entries.len() - 1;
-    (*go).by_gid.insert(gid, idx);
-    (*go).by_name.insert(name, idx);
+    let idx = go.entries.len() - 1;
+    go.by_gid.insert(gid, idx);
+    go.by_name.insert(name, idx);
     return true;
 }
-pub(crate) unsafe fn otfcc_gord_name_a_field_shared(
-    go: *mut GlyphOrder,
+pub(crate) fn otfcc_gord_name_a_field_shared(
+    go: &GlyphOrder,
     gid: GlyphId,
-    field: *mut Vec<u8>,
+    field: &mut Vec<u8>,
 ) -> bool {
-    match (*go).by_gid.get(&gid) {
+    match go.by_gid.get(&gid) {
         Some(&idx) => {
-            *field = (&(*go).entries)[idx].name.clone();
+            *field = go.entries[idx].name.clone();
             true
         }
         None => {
@@ -191,14 +187,11 @@ pub(crate) unsafe fn otfcc_gord_name_a_field_shared(
 // the `sds` sweep reached it) -- same simplification already used
 // throughout the `consolidate/otl/*.rs` sweep, since the name is already
 // the exact `Vec<u8>` a `Handle` wants.
-pub(crate) unsafe fn otfcc_gord_consolidate_handle(
-    go: *mut GlyphOrder,
-    h: *mut GlyphHandle,
-) -> bool {
-    if (*h).state == HandleState::Consolidated {
-        let name_bytes = (*h).name.clone();
-        if let Some(&entry_idx) = (*go).by_name.get(&name_bytes) {
-            let entry = &(&(*go).entries)[entry_idx];
+pub(crate) fn otfcc_gord_consolidate_handle(go: &GlyphOrder, h: &mut GlyphHandle) -> bool {
+    if h.state == HandleState::Consolidated {
+        let name_bytes = h.name.clone();
+        if let Some(&entry_idx) = go.by_name.get(&name_bytes) {
+            let entry = &go.entries[entry_idx];
             *h = Handle {
                 state: HandleState::Consolidated,
                 index: entry.gid,
@@ -215,8 +208,8 @@ pub(crate) unsafe fn otfcc_gord_consolidate_handle(
         // below shows what this was clearly meant to do: fall back to a
         // by_gid lookup, exactly like otfcc_gord_name_a_field_shared's
         // already-correct search. Fixed here.
-        if let Some(&entry_idx) = (*go).by_gid.get(&(*h).index) {
-            let entry = &(&(*go).entries)[entry_idx];
+        if let Some(&entry_idx) = go.by_gid.get(&h.index) {
+            let entry = &go.entries[entry_idx];
             *h = Handle {
                 state: HandleState::Consolidated,
                 index: entry.gid,
@@ -224,10 +217,10 @@ pub(crate) unsafe fn otfcc_gord_consolidate_handle(
             } as GlyphHandle;
             return true;
         }
-    } else if (*h).state == HandleState::Name {
-        let name_bytes = (*h).name.clone();
-        if let Some(&entry_idx) = (*go).by_name.get(&name_bytes) {
-            let entry = &(&(*go).entries)[entry_idx];
+    } else if h.state == HandleState::Name {
+        let name_bytes = h.name.clone();
+        if let Some(&entry_idx) = go.by_name.get(&name_bytes) {
+            let entry = &go.entries[entry_idx];
             *h = Handle {
                 state: HandleState::Consolidated,
                 index: entry.gid,
@@ -235,11 +228,11 @@ pub(crate) unsafe fn otfcc_gord_consolidate_handle(
             } as GlyphHandle;
             return true;
         }
-    } else if (*h).state == HandleState::Index {
+    } else if h.state == HandleState::Index {
         let mut name: Vec<u8> = Vec::new();
-        otfcc_gord_name_a_field_shared(go, (*h).index, &raw mut name);
+        otfcc_gord_name_a_field_shared(go, h.index, &mut name);
         if !name.is_empty() {
-            let idx = (*h).index;
+            let idx = h.index;
             *h = Handle {
                 state: HandleState::Consolidated,
                 index: idx,
@@ -250,8 +243,8 @@ pub(crate) unsafe fn otfcc_gord_consolidate_handle(
     }
     return false;
 }
-pub(crate) unsafe fn gord_lookup_name(go: *mut GlyphOrder, name: Vec<u8>) -> bool {
-    (*go).by_name.contains_key(&name)
+pub(crate) fn gord_lookup_name(go: &GlyphOrder, name: Vec<u8>) -> bool {
+    go.by_name.contains_key(&name)
 }
 #[cfg(test)]
 mod tests {

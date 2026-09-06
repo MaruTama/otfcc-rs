@@ -13,7 +13,7 @@ use crate::font::caryll_font::Font;
 use crate::table::otl::{GsubMultiEntry, GsubMultiSubtable, OtlTable, Subtable};
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
-use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
+use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::subtables::gsub_multi::dispose_gsub_multi_subtable;
 
 pub unsafe fn consolidate_gsub_multi(
@@ -38,12 +38,13 @@ pub unsafe fn consolidate_gsub_multi(
         std::collections::BTreeMap::new();
     let mut k: GlyphId = 0 as GlyphId;
     while (k as usize) < (*subtable).len() {
+        // Guaranteed `Some`: `consolidate_otl` (and hence this function)
+        // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
+        // always populates `glyph_order` before that, whenever `glyf` is
+        // present.
         if !otfcc_gord_consolidate_handle(
-            (*font)
-                .glyph_order
-                .as_deref_mut()
-                .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
-            &raw mut (&mut (*subtable))[k as usize].from,
+            (*font).glyph_order.as_deref().unwrap(),
+            &mut (&mut (*subtable))[k as usize].from,
         ) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),

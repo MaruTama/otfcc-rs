@@ -183,7 +183,7 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
                 Hex2Upper((h.hash[j_0 as usize] as i32) as u32)
                     .append_to_vec(&mut gname);
             }
-            if gord_lookup_name(glyph_order, gname.clone()) {
+            if gord_lookup_name(&*glyph_order, gname.clone()) {
                 let mut n: GlyphId = 2 as GlyphId;
                 let mut still_in: bool = false;
                 loop {
@@ -192,23 +192,26 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
                     }
                     let newname: Vec<u8> =
                         crate::bytesbuild!(&gname, b"-", &prefix, n as i32);
-                    still_in = gord_lookup_name(glyph_order, newname);
+                    still_in = gord_lookup_name(&*glyph_order, newname);
                     if !still_in {
                         break;
                     }
                 }
                 let newname_0: Vec<u8> =
                     crate::bytesbuild!(&gname, b"-", &prefix, n as i32);
-                let shared_name: Vec<u8> = otfcc_set_glyph_order_by_gid(glyph_order, j, newname_0);
+                let shared_name: Vec<u8> =
+                    otfcc_set_glyph_order_by_gid(&mut *glyph_order, j, newname_0);
                 (*g).name = shared_name;
             } else {
-                let shared_name_0: Vec<u8> = otfcc_set_glyph_order_by_gid(glyph_order, j, gname);
+                let shared_name_0: Vec<u8> =
+                    otfcc_set_glyph_order_by_gid(&mut *glyph_order, j, gname);
                 (*g).name = shared_name_0;
             }
         } else if !(options.ignore_glyph_order || options.name_glyphs_by_gid) {
             if !(*g).name.is_empty() {
                 let gname_0: Vec<u8> = crate::bytesbuild!(&prefix, &(*g).name);
-                let shared_name_1: Vec<u8> = otfcc_set_glyph_order_by_gid(glyph_order, j, gname_0);
+                let shared_name_1: Vec<u8> =
+                    otfcc_set_glyph_order_by_gid(&mut *glyph_order, j, gname_0);
                 (*g).name = shared_name_1;
             }
         }
@@ -222,18 +225,18 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
             for (_, &idx) in post_name_map.by_gid.iter() {
                 let entry = &post_name_map.entries[idx];
                 let gname_1: Vec<u8> = crate::bytesbuild!(&prefix, &entry.name);
-                otfcc_set_glyph_order_by_gid(glyph_order, entry.gid, gname_1);
+                otfcc_set_glyph_order_by_gid(&mut *glyph_order, entry.gid, gname_1);
             }
         }
     }
     if (*font).cmap.is_some() && !options.name_glyphs_by_gid {
         let aglfn: *mut GlyphOrder = (otfcc_glyph_order_create)();
-        aglfn_setup_names(aglfn);
+        aglfn_setup_names(&mut *aglfn);
         for (&unicode, glyph) in (*font).cmap.as_ref().unwrap().unicodes.iter() {
             if glyph.index as i32 > 0_i32 {
                 let mut name_bytes: Vec<u8> = Vec::new();
                 if unicode > 0_i32 && unicode < 0xffff_i32 {
-                    otfcc_gord_name_a_field_shared(aglfn, unicode as GlyphId, &raw mut name_bytes);
+                    otfcc_gord_name_a_field_shared(&*aglfn, unicode as GlyphId, &mut name_bytes);
                 }
                 let name: Vec<u8>;
                 if name_bytes.is_empty() {
@@ -241,7 +244,7 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
                 } else {
                     name = crate::bytesbuild!(&prefix, &name_bytes);
                 }
-                otfcc_set_glyph_order_by_gid(glyph_order, glyph.index, name);
+                otfcc_set_glyph_order_by_gid(&mut *glyph_order, glyph.index, name);
             }
         }
         otfcc_glyph_order_free(aglfn);
@@ -270,7 +273,7 @@ unsafe fn create_glyph_order(font: *mut Font, options: &Options) -> *mut GlyphOr
         } else {
             name_0 = crate::bytesbuild!(&prefix, b".notdef");
         }
-        otfcc_set_glyph_order_by_gid(glyph_order, j_1, name_0);
+        otfcc_set_glyph_order_by_gid(&mut *glyph_order, j_1, name_0);
     }
     return glyph_order;
 }
@@ -284,7 +287,7 @@ unsafe fn name_glyphs(font: *mut Font, gord: *mut GlyphOrder) {
     for j in 0..(*glyf).len() as GlyphId {
         let g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
         let mut glyph_name: Vec<u8> = Vec::new();
-        otfcc_gord_name_a_field_shared(gord, j, &raw mut glyph_name);
+        otfcc_gord_name_a_field_shared(&*gord, j, &mut glyph_name);
         (*g).name = glyph_name;
     }
 }

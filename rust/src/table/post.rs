@@ -426,9 +426,9 @@ pub fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<PostTab
             by_gid: ::std::collections::BTreeMap::new(),
             by_name: ::std::collections::HashMap::new(),
         });
-        let go: *mut GlyphOrder = go_box.as_mut() as *mut GlyphOrder;
+        let go: &mut GlyphOrder = go_box.as_mut();
         for (gid, name) in names {
-            unsafe { otfcc_set_glyph_order_by_gid(go, gid, name) };
+            otfcc_set_glyph_order_by_gid(go, gid, name);
         }
         post_val.post_name_map = Some(go_box);
     }
