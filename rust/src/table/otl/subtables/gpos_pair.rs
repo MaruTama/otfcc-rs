@@ -223,14 +223,12 @@ pub unsafe fn otl_read_gpos_pair(
                     if let Some(idx) = h.get_index_of(&second) {
                         let cid = idx + 1;
                         first_values[j3][cid] = read_gpos_value(
-                            data,
-                            table_length,
+                            slice,
                             (second_offset + 2) as u32,
                             format1,
                         );
                         second_values[j3][cid] = read_gpos_value(
-                            data,
-                            table_length,
+                            slice,
                             (second_offset + 2 + len1 as usize) as u32,
                             format2,
                         );
@@ -327,10 +325,9 @@ pub unsafe fn otl_read_gpos_pair(
                     let cell_offset = offset
                         .wrapping_add(16)
                         .wrapping_add((j4 * class2_count as u32 + k2) * stride as u32);
-                    row1.push(read_gpos_value(data, table_length, cell_offset, format1_0));
+                    row1.push(read_gpos_value(slice, cell_offset, format1_0));
                     row2.push(read_gpos_value(
-                        data,
-                        table_length,
+                        slice,
                         cell_offset + len1_0 as u32,
                         format2_0,
                     ));
@@ -446,14 +443,8 @@ pub unsafe fn otl_gpos_parse_pair(
                     } else if let Some(d) = item.as_double() {
                         first_values[j_0][k_0].d_width = d as Pos;
                     } else if item.as_object().is_some() {
-                        first_values[j_0][k_0] = gpos_parse_value(
-                            item.get(b"first")
-                                .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-                        );
-                        second_values[j_0][k_0] = gpos_parse_value(
-                            item.get(b"second")
-                                .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-                        );
+                        first_values[j_0][k_0] = gpos_parse_value(item.get(b"first"));
+                        second_values[j_0][k_0] = gpos_parse_value(item.get(b"second"));
                     }
                 }
             }

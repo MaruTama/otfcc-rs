@@ -76,7 +76,7 @@ pub unsafe fn otl_read_gpos_single(
                 break 'parse;
             };
             let v: PositionValue =
-                read_gpos_value(data, table_length, offset.wrapping_add(6), value_format);
+                read_gpos_value(slice, offset.wrapping_add(6), value_format);
             for j in 0..(*targets).len() {
                 (*subtable).push(GposSingleEntry {
                     target: otfcc_handle_dup((&(*targets))[j].clone() as Handle) as GlyphHandle,
@@ -101,8 +101,7 @@ pub unsafe fn otl_read_gpos_single(
                 (*subtable).push(GposSingleEntry {
                     target: otfcc_handle_dup((&(*targets))[j].clone() as Handle) as GlyphHandle,
                     value: read_gpos_value(
-                        data,
-                        table_length,
+                        slice,
                         offset.wrapping_add(8).wrapping_add((j * stride) as u32),
                         value_format,
                     ),
@@ -148,7 +147,7 @@ pub unsafe fn otl_gpos_parse_single(
             if val.as_object().is_some() {
                 (*subtable).push(GposSingleEntry {
                     target: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
-                    value: gpos_parse_value(val as *const ParsedValue),
+                    value: gpos_parse_value(Some(val)),
                 });
             }
         }

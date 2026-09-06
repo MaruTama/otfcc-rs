@@ -89,7 +89,7 @@ unsafe fn consolidate_mark_array(
         }
         k = k.wrapping_add(1);
     }
-    dispose_mark_array(mark_array);
+    dispose_mark_array(&mut *mark_array);
     // `handle_from_consolidated` (which used to take `entry.name` as an
     // owned `SdsRaw`, dup it internally, and leave the caller to free the
     // original) had no other callers by the time the `sds` sweep reached

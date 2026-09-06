@@ -107,10 +107,9 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
         (*subtable).class_count = class_count as GlyphClass;
         let mark_array_offset = offset.wrapping_add(mark_array_rel as u32);
         otl_read_mark_array(
-            &raw mut (*subtable).mark_array,
-            marks,
-            data,
-            table_length,
+            &mut (*subtable).mark_array,
+            &*marks,
+            slice,
             mark_array_offset,
         );
 
@@ -157,8 +156,7 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
                     let anchor_rel = ar.u16().unwrap();
                     if anchor_rel != 0 {
                         component.push(otl_read_anchor(
-                            data,
-                            table_length,
+                            slice,
                             lig_attach_offset.wrapping_add(anchor_rel as u32),
                         ));
                     } else {
@@ -314,7 +312,7 @@ unsafe fn parse_bases(
                                 }
                                 Some(&class_id) => {
                                     lig.anchors[k][class_id as usize] =
-                                        otl_parse_anchor(val as *const ParsedValue);
+                                        otl_parse_anchor(Some(val));
                                 }
                             }
                         }
@@ -337,11 +335,7 @@ pub unsafe fn otl_gpos_parse_mark_to_ligature(
     };
     let st: *mut GposMarkToLigatureSubtable = subtable_gpos_mark_to_ligature_create();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
-    otl_parse_mark_array(
-        marks as *const ParsedValue,
-        &raw mut (*st).mark_array,
-        &raw mut h,
-    );
+    otl_parse_mark_array(Some(marks), &mut (*st).mark_array, &mut h);
     (*st).class_count = h.len() as GlyphClass;
     parse_bases(bases as *const ParsedValue, st, &raw mut h, options);
     return subtable_from_raw(st, Subtable::GposMarkToLigature);

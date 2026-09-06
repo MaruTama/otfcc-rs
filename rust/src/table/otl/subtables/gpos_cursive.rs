@@ -85,12 +85,12 @@ pub unsafe fn otl_read_gpos_cursive(
                 break 'parse;
             };
             let enter = if enter_offset != 0 {
-                otl_read_anchor(data, table_length, offset.wrapping_add(enter_offset as u32))
+                otl_read_anchor(slice, offset.wrapping_add(enter_offset as u32))
             } else {
                 otl_anchor_absent()
             };
             let exit = if exit_offset != 0 {
-                otl_read_anchor(data, table_length, offset.wrapping_add(exit_offset as u32))
+                otl_read_anchor(slice, offset.wrapping_add(exit_offset as u32))
             } else {
                 otl_anchor_absent()
             };
@@ -137,14 +137,8 @@ pub unsafe fn otl_gpos_parse_cursive(
             if val.as_object().is_some() {
                 (*subtable).push(GposCursiveEntry {
                     target: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
-                    enter: otl_parse_anchor(
-                        val.get(b"enter")
-                            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-                    ),
-                    exit: otl_parse_anchor(
-                        val.get(b"exit")
-                            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-                    ),
+                    enter: otl_parse_anchor(val.get(b"enter")),
+                    exit: otl_parse_anchor(val.get(b"exit")),
                 });
             }
         }
