@@ -9,11 +9,9 @@ use crate::support::handle::{
 };
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
-use crate::support::primitives::{GlyphId, Pos};
+use crate::support::primitives::Pos;
 use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
-use crate::table::otl::coverage::{
-    Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, coverage_from_raw, push_to_coverage, read_coverage};
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
@@ -44,8 +42,8 @@ pub type LigCaretTable = Vec<CaretValueRecord>;
 // (rebuild-in-place, formerly `OTL_I_LIG_CARET_TABLE.clear`). `Vec::clear`
 // alone is enough: each record's compiler-generated drop glue frees its
 // `Handle`'s name and its `Vec<CaretValue>` backing array.
-pub(crate) unsafe fn clear_lig_carets(lc: *mut LigCaretTable) {
-    (*lc).clear();
+pub(crate) fn clear_lig_carets(lc: &mut LigCaretTable) {
+    lc.clear();
 }
 pub struct GdefTable {
     pub glyph_class_def: Option<Box<ClassDef>>,
@@ -119,13 +117,7 @@ fn read_lig_caret_record(data: &[u8], offset: usize) -> CaretValueRecord {
 /// exactly. `lig_caret_offset == 0` (no LigCaretList at all) returns
 /// `Some(Vec::new())`, matching the original's `current_block` value for
 /// "nothing to do, continue on to mark_attach_class_def".
-///
-/// Also fixes a real pre-existing leak: the original allocated `cov` via
-/// `read_coverage` before checking whether it was even well-formed, and
-/// never freed it on either of the two abort branches below (only the
-/// success branch called `otl_coverage_free`) -- `cov` leaked on every
-/// malformed LigCaretList. Every return path here frees it.
-unsafe fn read_lig_carets(data: &[u8], lig_caret_offset: usize) -> Option<LigCaretTable> {
+fn read_lig_carets(data: &[u8], lig_caret_offset: usize) -> Option<LigCaretTable> {
     if lig_caret_offset == 0 {
         return Some(Vec::new());
     }
@@ -133,37 +125,35 @@ unsafe fn read_lig_carets(data: &[u8], lig_caret_offset: usize) -> Option<LigCar
         return None;
     }
     let coverage_rel = FontReader::new(data).at(lig_caret_offset).ok()?.u16().ok()? as usize;
-    let cov: *mut Coverage = read_coverage(data, (lig_caret_offset + coverage_rel) as u32);
-    if cov.is_null() {
-        return None;
-    }
+    // `read_coverage` never returns null (every one of its own failure
+    // paths returns a boxed *empty* `Coverage`, not a null pointer -- see
+    // its own doc comment), so adopting its result into an owned value via
+    // `coverage_from_raw` is a narrow bridge into that raw-pointer return,
+    // not a real null check. Owning `cov` outright (instead of manually
+    // `otl_coverage_free`-ing it on every return path, as the old code
+    // did) also closes what used to be a real leak here: every early
+    // `None` below drops `cov` for free along with everything else on the
+    // stack.
+    let cov: Coverage =
+        unsafe { coverage_from_raw(read_coverage(data, (lig_caret_offset + coverage_rel) as u32)) };
     let lig_glyph_count = FontReader::new(data).at(lig_caret_offset + 2).ok()?.u16().ok()?;
-    if (*cov).len() != lig_glyph_count as usize {
-        otl_coverage_free(cov);
+    if cov.len() != lig_glyph_count as usize {
         return None;
     }
-    if data.len() < lig_caret_offset + 4 + (*cov).len() * 2 {
-        otl_coverage_free(cov);
+    if data.len() < lig_caret_offset + 4 + cov.len() * 2 {
         return None;
     }
-    let Ok(mut off_reader) = FontReader::new(data).at(lig_caret_offset + 4) else {
-        otl_coverage_free(cov);
-        return None;
-    };
-    let mut result = Vec::with_capacity((*cov).len());
-    for j in 0..(*cov).len() {
-        let Ok(lig_glyph_rel) = off_reader.u16() else {
-            otl_coverage_free(cov);
-            return None;
-        };
+    let mut off_reader = FontReader::new(data).at(lig_caret_offset + 4).ok()?;
+    let mut result = Vec::with_capacity(cov.len());
+    for glyph in &cov {
+        let lig_glyph_rel = off_reader.u16().ok()?;
         let mut v = read_lig_caret_record(data, lig_caret_offset + lig_glyph_rel as usize);
-        v.glyph = otfcc_handle_dup((&(*cov))[j].clone() as Handle) as GlyphHandle;
+        v.glyph = otfcc_handle_dup(glyph.clone());
         result.push(v);
     }
-    otl_coverage_free(cov);
     Some(result)
 }
-pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
+pub fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_GDEF)?;
     let data: &[u8] = &table.data;
     if data.len() < 12 {
@@ -175,8 +165,11 @@ pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     // coverage table).
     crate::table::otl::coverage::reset_coverage_range_expansion_budget();
     let classdef_offset = FontReader::new(data).at(4).ok()?.u16().ok()?;
+    // `classdef_from_raw` stays `unsafe fn` (its own `Box::from_raw`
+    // ownership boundary); `read_class_def` itself is a safe fn, so this
+    // is purely a narrow bridge.
     let glyph_class_def = if classdef_offset != 0 {
-        classdef_from_raw(read_class_def(data, classdef_offset as u32))
+        unsafe { classdef_from_raw(read_class_def(data, classdef_offset as u32)) }
     } else {
         None
     };
@@ -186,7 +179,7 @@ pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
 
     let mark_attach_def_offset = FontReader::new(data).at(10).ok()?.u16().ok()?;
     let mark_attach_class_def = if mark_attach_def_offset != 0 {
-        classdef_from_raw(read_class_def(data, mark_attach_def_offset as u32))
+        unsafe { classdef_from_raw(read_class_def(data, mark_attach_def_offset as u32)) }
     } else {
         None
     };
@@ -197,62 +190,46 @@ pub unsafe fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
         lig_carets,
     }))
 }
-unsafe fn dump_gdef_lig_carets(gdef: *const GdefTable) -> BuiltValue {
-    let lig_carets: &Vec<CaretValueRecord> = &(*gdef).lig_carets;
+fn dump_gdef_lig_carets(gdef: &GdefTable) -> BuiltValue {
+    let lig_carets = &gdef.lig_carets;
     let mut _carets = BuiltValue::new_object(lig_carets.len());
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < lig_carets.len() {
-        let name: &[u8] = &lig_carets[j as usize].glyph.name;
-        let carets: &Vec<CaretValue> = &lig_carets[j as usize].carets;
-        let mut _record = BuiltValue::new_array(carets.len());
-        let mut k: GlyphId = 0 as GlyphId;
-        while (k as usize) < carets.len() {
+    for record in lig_carets {
+        let mut _record = BuiltValue::new_array(record.carets.len());
+        for caret in &record.carets {
             let mut _cv = BuiltValue::new_object(1);
-            if carets[k as usize].format as i32 == 2_i32 {
-                _cv.push_field(b"atPoint", BuiltValue::Int(carets[k as usize].point_index as i64));
+            if caret.format as i32 == 2_i32 {
+                _cv.push_field(b"atPoint", BuiltValue::Int(caret.point_index as i64));
             } else {
-                _cv.push_field(b"at", BuiltValue::Int(carets[k as usize].coordiante as i64));
+                _cv.push_field(b"at", BuiltValue::Int(caret.coordiante as i64));
             }
             _record.push_item(_cv);
-            k = k.wrapping_add(1);
         }
-        _carets.push_field_bytes_key(name, _record.preserialize());
-        j = j.wrapping_add(1);
+        _carets.push_field_bytes_key(&record.glyph.name, _record.preserialize());
     }
     _carets
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_gdef(
-    gdef: Option<&GdefTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
-    let gdef = match gdef {
-        Some(g) => g as *const GdefTable,
-        None => return,
+pub fn otfcc_dump_gdef(gdef: Option<&GdefTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(gdef) = gdef else {
+        return;
     };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"GDEF"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut _gdef = BuiltValue::new_object(4);
-        if let Some(cd) = (*gdef).glyph_class_def.as_deref() {
-            _gdef.push_field(b"glyphClassDef", dump_class_def(cd));
-        }
-        if let Some(cd) = (*gdef).mark_attach_class_def.as_deref() {
-            _gdef.push_field(b"markAttachClassDef", dump_class_def(cd));
-        }
-        if !(*gdef).lig_carets.is_empty() {
-            _gdef.push_field(b"ligCarets", dump_gdef_lig_carets(gdef));
-        }
-        root.push_field(b"GDEF", _gdef);
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+    let mut _gdef = BuiltValue::new_object(4);
+    if let Some(cd) = gdef.glyph_class_def.as_deref() {
+        _gdef.push_field(b"glyphClassDef", dump_class_def(cd));
     }
+    if let Some(cd) = gdef.mark_attach_class_def.as_deref() {
+        _gdef.push_field(b"markAttachClassDef", dump_class_def(cd));
+    }
+    if !gdef.lig_carets.is_empty() {
+        _gdef.push_field(b"ligCarets", dump_gdef_lig_carets(gdef));
+    }
+    root.push_field(b"GDEF", _gdef);
+    logger_finish(&mut *options.logger.borrow_mut());
 }
-unsafe fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: *mut LigCaretTable) {
+fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: &mut LigCaretTable) {
     let Some(fields) = carets.and_then(ParsedValue::as_object) else {
         return;
     };
@@ -268,7 +245,7 @@ unsafe fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: *mut LigCaretTab
             },
             carets: Vec::new(),
         };
-        v.glyph = handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle;
+        v.glyph = handle_from_name(Some(key[..key.len() - 1].to_vec()));
         for _caret in items {
             let mut caret: CaretValue = CaretValue {
                 format: 1_i8,
@@ -285,13 +262,10 @@ unsafe fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: *mut LigCaretTab
             }
             v.carets.push(caret);
         }
-        (*lc).push(v);
+        lc.push(v);
     }
 }
-pub unsafe fn otfcc_parse_gdef(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<GdefTable>> {
+pub fn otfcc_parse_gdef(root: &ParsedValue, options: &Options) -> Option<Box<GdefTable>> {
     let table = root.get_typed(b"GDEF", JsonType::Object)?;
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
@@ -302,19 +276,30 @@ pub unsafe fn otfcc_parse_gdef(
         mark_attach_class_def: None,
         lig_carets: Vec::new(),
     });
-    gdef.glyph_class_def = classdef_from_raw(parse_class_def(table.get(b"glyphClassDef")));
+    // `classdef_from_raw` stays `unsafe fn` (its own `Box::from_raw`
+    // ownership boundary); `parse_class_def` itself is a safe fn, so this
+    // is purely a narrow bridge.
+    gdef.glyph_class_def =
+        unsafe { classdef_from_raw(parse_class_def(table.get(b"glyphClassDef"))) };
     gdef.mark_attach_class_def =
-        classdef_from_raw(parse_class_def(table.get(b"markAttachClassDef")));
-    lig_caret_from_json(table.get(b"ligCarets"), &raw mut gdef.lig_carets);
+        unsafe { classdef_from_raw(parse_class_def(table.get(b"markAttachClassDef"))) };
+    lig_caret_from_json(table.get(b"ligCarets"), &mut gdef.lig_carets);
     logger_finish(&mut *options.logger.borrow_mut());
     Some(gdef)
 }
-unsafe fn write_lig_caret_rec(cr: *mut CaretValueRecord) -> *mut BkBlock {
-    let carets: &Vec<CaretValue> = &(*cr).carets;
+// `bk_new_block`/`bk_push`/`bk_new_block_from_buffer`/`bk_build_block`
+// (this function and the two below) stay `unsafe fn`: the `BkBlock` graph
+// API is a separate, not-yet-safened shell (Stage C in the migration plan)
+// whose whole body is choreography through it, not a stray call buried in
+// an otherwise-safe function -- narrow bridging doesn't fit here the way
+// it does for `classdef_from_raw`/`coverage_from_raw` above. Parameters
+// that don't touch `bk_*` are still converted to references where
+// possible, dropping the pointless `*const`-to-`*mut` casts that used to
+// exist purely to satisfy an unnecessarily-`*mut` parameter type.
+unsafe fn write_lig_caret_rec(cr: &CaretValueRecord) -> *mut BkBlock {
+    let carets = &cr.carets;
     let bcr: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (carets.len()) as u32)]);
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < carets.len() {
-        let caret = &carets[j as usize];
+    for caret in carets {
         bk_push(
             bcr,
             &[bk_ptr(
@@ -332,58 +317,47 @@ unsafe fn write_lig_caret_rec(cr: *mut CaretValueRecord) -> *mut BkBlock {
                 ]),
             )],
         );
-        j = j.wrapping_add(1);
     }
-    return bcr;
+    bcr
 }
-unsafe fn write_lig_carets(lc: *const LigCaretTable) -> *mut BkBlock {
-    let records: &Vec<CaretValueRecord> = &*lc;
-    let cov: *mut Coverage = otl_coverage_create();
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < records.len() {
-        push_to_coverage(
-            &mut *cov,
-            otfcc_handle_dup(records[j as usize].glyph.clone() as Handle) as GlyphHandle,
-        );
-        j = j.wrapping_add(1);
+unsafe fn write_lig_carets(records: &LigCaretTable) -> *mut BkBlock {
+    // `otl_coverage_create()`/`otl_coverage_free` were only ever a
+    // `Box::into_raw`/`Box::from_raw` shell around a plain `Coverage`
+    // (`Vec<GlyphHandle>`) -- building it as a local owned value instead
+    // sidesteps that raw-pointer round trip entirely, leaving only the
+    // genuine `bk_*` calls below as this function's unsafe surface.
+    let mut cov: Coverage = Vec::new();
+    for record in records {
+        push_to_coverage(&mut cov, otfcc_handle_dup(record.glyph.clone()));
     }
     let lct: *mut BkBlock = bk_new_block(&[
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(&*cov))),
+            bk_new_block_from_buffer(Some(build_coverage(&cov))),
         ),
         bk_int(BkCellType::B16, (records.len()) as u32),
     ]);
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < records.len() {
+    for record in records {
         bk_push(
             lct,
-            &[bk_ptr(
-                BkCellType::P16,
-                write_lig_caret_rec(
-                    &records[j_0 as usize] as *const CaretValueRecord as *mut CaretValueRecord,
-                ),
-            )],
+            &[bk_ptr(BkCellType::P16, write_lig_caret_rec(record))],
         );
-        j_0 = j_0.wrapping_add(1);
     }
-    otl_coverage_free(cov);
-    return lct;
+    lct
 }
-#[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
-    let gdef = gdef? as *const GdefTable;
+    let gdef = gdef?;
     let mut b_glyph_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let b_attach_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let mut b_lig_caret_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
     let mut b_mark_attach_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
-    if let Some(cd) = (*gdef).glyph_class_def.as_deref() {
+    if let Some(cd) = gdef.glyph_class_def.as_deref() {
         b_glyph_class_def = bk_new_block_from_buffer(Some(build_class_def(cd)));
     }
-    if !(*gdef).lig_carets.is_empty() {
-        b_lig_caret_list = write_lig_carets(&raw const (*gdef).lig_carets);
+    if !gdef.lig_carets.is_empty() {
+        b_lig_caret_list = write_lig_carets(&gdef.lig_carets);
     }
-    if let Some(cd) = (*gdef).mark_attach_class_def.as_deref() {
+    if let Some(cd) = gdef.mark_attach_class_def.as_deref() {
         b_mark_attach_class_def = bk_new_block_from_buffer(Some(build_class_def(cd)));
     }
     let root: *mut BkBlock = bk_new_block(&[
@@ -448,7 +422,7 @@ mod otfcc_read_gdef_tests {
     #[test]
     fn well_formed_table_reads_the_lig_caret() {
         let packet = packet_with_gdef(well_formed_gdef_table());
-        let gdef = unsafe { otfcc_read_gdef(&packet).unwrap() };
+        let gdef = otfcc_read_gdef(&packet).unwrap();
         assert_eq!(gdef.lig_carets.len(), 1);
         assert_eq!(gdef.lig_carets[0].glyph.index, 7);
         assert_eq!(gdef.lig_carets[0].carets.len(), 1);
@@ -461,7 +435,7 @@ mod otfcc_read_gdef_tests {
         let mut data = well_formed_gdef_table();
         data.truncate(10);
         let packet = packet_with_gdef(data);
-        assert!(unsafe { otfcc_read_gdef(&packet) }.is_none());
+        assert!(otfcc_read_gdef(&packet).is_none());
     }
 
     #[test]
@@ -469,7 +443,7 @@ mod otfcc_read_gdef_tests {
         let mut data = well_formed_gdef_table();
         data[8..10].copy_from_slice(&0u16.to_be_bytes()); // LigCaretListOffset = 0
         let packet = packet_with_gdef(data);
-        let gdef = unsafe { otfcc_read_gdef(&packet).unwrap() };
+        let gdef = otfcc_read_gdef(&packet).unwrap();
         assert!(gdef.lig_carets.is_empty());
     }
 
@@ -484,7 +458,7 @@ mod otfcc_read_gdef_tests {
         let mut data = well_formed_gdef_table();
         data[14..16].copy_from_slice(&2u16.to_be_bytes()); // LigGlyphCount = 2
         let packet = packet_with_gdef(data);
-        assert!(unsafe { otfcc_read_gdef(&packet) }.is_none());
+        assert!(otfcc_read_gdef(&packet).is_none());
     }
 
     #[test]
@@ -492,6 +466,6 @@ mod otfcc_read_gdef_tests {
         let mut data = well_formed_gdef_table();
         data[8..10].copy_from_slice(&1000u16.to_be_bytes()); // LigCaretListOffset
         let packet = packet_with_gdef(data);
-        assert!(unsafe { otfcc_read_gdef(&packet) }.is_none());
+        assert!(otfcc_read_gdef(&packet).is_none());
     }
 }

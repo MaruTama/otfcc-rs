@@ -98,7 +98,7 @@ pub unsafe fn consolidate_gdef(
             }
             j = j.wrapping_add(1);
         }
-        clear_lig_carets(&raw mut (*gdef).lig_carets);
+        clear_lig_carets(&mut (*gdef).lig_carets);
         for (gid, (gname, carets)) in seen {
             (*gdef).lig_carets.push(CaretValueRecord {
                 glyph: Handle {
