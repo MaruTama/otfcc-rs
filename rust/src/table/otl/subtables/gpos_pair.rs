@@ -43,7 +43,7 @@ pub struct IndividualGposPair {
     pub sv: PositionValue,
 }
 #[inline]
-unsafe fn subtable_gpos_pair_create() -> *mut GposPairSubtable {
+fn subtable_gpos_pair_create() -> *mut GposPairSubtable {
     Box::into_raw(Box::new(GposPairSubtable {
         first: None,
         second: None,

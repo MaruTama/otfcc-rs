@@ -24,7 +24,7 @@ use crate::table::otl::{GsubSingleEntry, GsubSingleSubtable, Subtable, subtable_
 // `GsubSingleEntry` holds only two `GlyphHandle`s, so dropping the `Vec`
 // runs `Handle`'s own `Drop` for every entry -- no per-element dtor needed
 // anymore.
-pub(crate) unsafe fn dispose_gsub_single_subtable(arr: *mut GsubSingleSubtable) {
+pub(crate) fn dispose_gsub_single_subtable(arr: &mut GsubSingleSubtable) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gsub_single_free(x: *mut GsubSingleSubtable) {
@@ -38,7 +38,7 @@ pub(crate) unsafe fn subtable_gsub_single_free(x: *mut GsubSingleSubtable) {
     // gsub_single.rs`, just no longer from here).
     drop(Box::from_raw(x));
 }
-unsafe fn subtable_gsub_single_create() -> *mut GsubSingleSubtable {
+fn subtable_gsub_single_create() -> *mut GsubSingleSubtable {
     Box::into_raw(Box::new(Vec::new()))
 }
 // `Coverage`/`otl_coverage_create`/`read_coverage` are still raw-pointer-

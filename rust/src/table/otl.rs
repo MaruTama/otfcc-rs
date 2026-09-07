@@ -173,64 +173,54 @@ pub enum Subtable {
 }
 impl Drop for Subtable {
     fn drop(&mut self) {
-        unsafe {
-            match self {
-                Subtable::GsubSingle(x) => {
-                    dispose_gsub_single_subtable(x as *mut GsubSingleSubtable)
-                }
-                Subtable::GsubMulti(x) => dispose_gsub_multi_subtable(x as *mut GsubMultiSubtable),
-                Subtable::GsubLigature(x) => {
-                    dispose_gsub_ligature_subtable(x as *mut GsubLigatureSubtable)
-                }
-                // `ChainingRule`'s and `ChainingRuleSet`'s fields (including
-                // `bc`/`ic`/`fc: Option<Box<ClassDef>>`, converted alongside
-                // this enum) all self-drop now -- no manual dispose left to
-                // call, same reasoning as `GposPair`/`GposMarkToSingle`
-                // above.
-                Subtable::Chaining(_) => {}
-                // `match_0: Vec<Coverage>` and `to: Coverage` both self-drop
-                // -- no manual dispose left to call, same reasoning as the
-                // `GposMarkTo*` arms above. The not-yet-adopted-into-the-enum
-                // intermediate a `*mut GsubReverseSubtable` is between
-                // `_create()` and `subtable_from_raw` no longer needs its own
-                // `dispose_gsub_reverse` either (Stage 7-2-d): `_create()` now
-                // allocates via `Box::into_raw`, so `subtable_gsub_reverse_
-                // free`'s `Box::from_raw` runs this same enum-field drop glue
-                // directly, and a raw `free()` there would have skipped it.
-                Subtable::GsubReverse(_) => {}
-                Subtable::GposSingle(x) => {
-                    dispose_gpos_single_subtable(x as *mut GposSingleSubtable)
-                }
-                // `first`/`second: Option<Box<ClassDef>>` and
-                // `first_values`/`second_values: Vec<Vec<PositionValue>>`
-                // all self-drop now -- no manual dispose left to call, same
-                // reasoning as `GposMarkToSingle` above.
-                Subtable::GposPair(_) => {}
-                Subtable::GposCursive(x) => {
-                    dispose_gpos_cursive_subtable(x as *mut GposCursiveSubtable)
-                }
-                // `mark_array: MarkArray` and `base_array: BaseArray`
-                // (`Vec<BaseRecord>`, `BaseRecord.anchors` now a plain
-                // `Vec<Anchor>`) both self-drop -- no manual dispose left to
-                // call, same reasoning as `Extend` below.
-                Subtable::GposMarkToSingle(_) => {}
-                // `mark_array: MarkArray` and `lig_array: LigatureArray`
-                // (`Vec<LigatureBaseRecord>`, `LigatureBaseRecord.anchors`
-                // now a plain `Vec<Vec<Anchor>>`) both self-drop -- no
-                // manual dispose left to call, same reasoning as
-                // `GposMarkToSingle` above.
-                Subtable::GposMarkToLigature(_) => {}
-                // `subtable: *mut Subtable`'s ownership is always taken (via
-                // `.subtable`) before an `Extend` value is legitimately
-                // dropped -- `otl/read.rs`'s extend-expansion resolves every
-                // `Extend` placeholder to its nested subtable (or, on a
-                // mismatched-type error path, to a scratch `Lookup` that
-                // takes over `.subtable` and drops it itself) before the
-                // shell holding it is ever freed. Matches the old
-                // `dispose_subtable_dependent`'s behavior exactly: `EXTEND`
-                // had no arm there either, falling through its `_ => {}`.
-                Subtable::Extend(_) => {}
-            }
+        match self {
+            Subtable::GsubSingle(x) => dispose_gsub_single_subtable(x),
+            Subtable::GsubMulti(x) => dispose_gsub_multi_subtable(x),
+            Subtable::GsubLigature(x) => dispose_gsub_ligature_subtable(x),
+            // `ChainingRule`'s and `ChainingRuleSet`'s fields (including
+            // `bc`/`ic`/`fc: Option<Box<ClassDef>>`, converted alongside
+            // this enum) all self-drop now -- no manual dispose left to
+            // call, same reasoning as `GposPair`/`GposMarkToSingle`
+            // above.
+            Subtable::Chaining(_) => {}
+            // `match_0: Vec<Coverage>` and `to: Coverage` both self-drop
+            // -- no manual dispose left to call, same reasoning as the
+            // `GposMarkTo*` arms above. The not-yet-adopted-into-the-enum
+            // intermediate a `*mut GsubReverseSubtable` is between
+            // `_create()` and `subtable_from_raw` no longer needs its own
+            // `dispose_gsub_reverse` either (Stage 7-2-d): `_create()` now
+            // allocates via `Box::into_raw`, so `subtable_gsub_reverse_
+            // free`'s `Box::from_raw` runs this same enum-field drop glue
+            // directly, and a raw `free()` there would have skipped it.
+            Subtable::GsubReverse(_) => {}
+            Subtable::GposSingle(x) => dispose_gpos_single_subtable(x),
+            // `first`/`second: Option<Box<ClassDef>>` and
+            // `first_values`/`second_values: Vec<Vec<PositionValue>>`
+            // all self-drop now -- no manual dispose left to call, same
+            // reasoning as `GposMarkToSingle` above.
+            Subtable::GposPair(_) => {}
+            Subtable::GposCursive(x) => dispose_gpos_cursive_subtable(x),
+            // `mark_array: MarkArray` and `base_array: BaseArray`
+            // (`Vec<BaseRecord>`, `BaseRecord.anchors` now a plain
+            // `Vec<Anchor>`) both self-drop -- no manual dispose left to
+            // call, same reasoning as `Extend` below.
+            Subtable::GposMarkToSingle(_) => {}
+            // `mark_array: MarkArray` and `lig_array: LigatureArray`
+            // (`Vec<LigatureBaseRecord>`, `LigatureBaseRecord.anchors`
+            // now a plain `Vec<Vec<Anchor>>`) both self-drop -- no
+            // manual dispose left to call, same reasoning as
+            // `GposMarkToSingle` above.
+            Subtable::GposMarkToLigature(_) => {}
+            // `subtable: *mut Subtable`'s ownership is always taken (via
+            // `.subtable`) before an `Extend` value is legitimately
+            // dropped -- `otl/read.rs`'s extend-expansion resolves every
+            // `Extend` placeholder to its nested subtable (or, on a
+            // mismatched-type error path, to a scratch `Lookup` that
+            // takes over `.subtable` and drops it itself) before the
+            // shell holding it is ever freed. Matches the old
+            // `dispose_subtable_dependent`'s behavior exactly: `EXTEND`
+            // had no arm there either, falling through its `_ => {}`.
+            Subtable::Extend(_) => {}
         }
     }
 }

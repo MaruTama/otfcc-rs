@@ -33,7 +33,7 @@ use crate::vendor::json::JsonType;
 // (`Vec<LigatureBaseRecord>`) fully self-drops -- clearing it (still needed:
 // `consolidate/otl/mark.rs`'s dedup pass clears an in-place array
 // mid-function, not just at end of scope) is exactly `*arr = Vec::new()`.
-pub(crate) unsafe fn dispose_lig_array(arr: *mut LigatureArray) {
+pub(crate) fn dispose_lig_array(arr: &mut LigatureArray) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gpos_mark_to_ligature_free(x: *mut GposMarkToLigatureSubtable) {
@@ -48,7 +48,7 @@ pub(crate) unsafe fn subtable_gpos_mark_to_ligature_free(x: *mut GposMarkToLigat
     // one. `init_mark_to_ligature` had no other callers, so it's gone too.
     drop(Box::from_raw(x));
 }
-unsafe fn subtable_gpos_mark_to_ligature_create() -> *mut GposMarkToLigatureSubtable {
+fn subtable_gpos_mark_to_ligature_create() -> *mut GposMarkToLigatureSubtable {
     Box::into_raw(Box::new(GposMarkToLigatureSubtable {
         class_count: 0,
         mark_array: Vec::new(),

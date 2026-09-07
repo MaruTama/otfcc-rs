@@ -24,7 +24,7 @@ use crate::table::otl::{GposCursiveEntry, GposCursiveSubtable, Subtable, subtabl
 // `GposCursiveEntry` holds only a `GlyphHandle` plus two plain `Anchor`
 // values, so dropping the `Vec` runs `Handle`'s own `Drop` for every entry --
 // no per-element dtor needed anymore.
-pub(crate) unsafe fn dispose_gpos_cursive_subtable(arr: *mut GposCursiveSubtable) {
+pub(crate) fn dispose_gpos_cursive_subtable(arr: &mut GposCursiveSubtable) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gpos_cursive_free(x: *mut GposCursiveSubtable) {
@@ -38,7 +38,7 @@ pub(crate) unsafe fn subtable_gpos_cursive_free(x: *mut GposCursiveSubtable) {
     // gpos_cursive.rs`, just no longer from here).
     drop(Box::from_raw(x));
 }
-unsafe fn subtable_gpos_cursive_create() -> *mut GposCursiveSubtable {
+fn subtable_gpos_cursive_create() -> *mut GposCursiveSubtable {
     Box::into_raw(Box::new(Vec::new()))
 }
 pub unsafe fn otl_read_gpos_cursive(

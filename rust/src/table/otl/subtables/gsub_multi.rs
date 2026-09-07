@@ -25,7 +25,7 @@ use crate::table::otl::{GsubMultiEntry, GsubMultiSubtable, Subtable, subtable_fr
 // `to: Coverage` and `from: GlyphHandle` both self-drop now, so a
 // `GsubMultiSubtable` (`Vec<GsubMultiEntry>`) fully self-drops -- no
 // per-element dtor needed anymore.
-pub(crate) unsafe fn dispose_gsub_multi_subtable(arr: *mut GsubMultiSubtable) {
+pub(crate) fn dispose_gsub_multi_subtable(arr: &mut GsubMultiSubtable) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gsub_multi_free(x: *mut GsubMultiSubtable) {
@@ -39,7 +39,7 @@ pub(crate) unsafe fn subtable_gsub_multi_free(x: *mut GsubMultiSubtable) {
     // gsub_multi.rs`, just no longer from here).
     drop(Box::from_raw(x));
 }
-unsafe fn subtable_gsub_multi_create() -> *mut GsubMultiSubtable {
+fn subtable_gsub_multi_create() -> *mut GsubMultiSubtable {
     Box::into_raw(Box::new(Vec::new()))
 }
 // Each Sequence subtable (`seq_offset`, resolved from the per-entry

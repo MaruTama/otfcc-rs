@@ -27,7 +27,7 @@ use crate::table::otl::{
 // `GposSingleEntry` holds only a `GlyphHandle` plus a plain `PositionValue`,
 // so dropping the `Vec` runs `Handle`'s own `Drop` for every entry -- no
 // per-element dtor needed anymore.
-pub(crate) unsafe fn dispose_gpos_single_subtable(arr: *mut GposSingleSubtable) {
+pub(crate) fn dispose_gpos_single_subtable(arr: &mut GposSingleSubtable) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gpos_single_free(x: *mut GposSingleSubtable) {
@@ -41,7 +41,7 @@ pub(crate) unsafe fn subtable_gpos_single_free(x: *mut GposSingleSubtable) {
     // gpos_single.rs`, just no longer from here).
     drop(Box::from_raw(x));
 }
-unsafe fn subtable_gpos_single_create() -> *mut GposSingleSubtable {
+fn subtable_gpos_single_create() -> *mut GposSingleSubtable {
     Box::into_raw(Box::new(Vec::new()))
 }
 pub unsafe fn otl_read_gpos_single(

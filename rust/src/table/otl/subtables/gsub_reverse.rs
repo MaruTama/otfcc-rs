@@ -32,7 +32,7 @@ unsafe fn subtable_gsub_reverse_free(x: *mut GsubReverseSubtable) {
     drop(Box::from_raw(x));
 }
 #[inline]
-unsafe fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
+fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
     Box::into_raw(Box::new(GsubReverseSubtable {
         match_count: 0,
         input_index: 0,
@@ -45,7 +45,7 @@ unsafe fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
 // `Vec<Coverage>` slice instead of an array of raw pointers to swap by
 // value. `input_index == 0` (nothing to reverse) falls out of slicing an
 // empty range, no separate guard needed.
-unsafe fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
+fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
     match_0[..input_index as usize].reverse();
 }
 pub unsafe fn otl_read_gsub_reverse(

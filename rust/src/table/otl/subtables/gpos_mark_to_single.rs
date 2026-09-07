@@ -32,7 +32,7 @@ use crate::vendor::json::JsonType;
 // self-drops -- clearing it (still needed: `consolidate/otl/mark.rs`'s dedup
 // pass clears an in-place array mid-function, not just at end of scope) is
 // exactly `*arr = Vec::new()`.
-pub(crate) unsafe fn dispose_base_array(arr: *mut BaseArray) {
+pub(crate) fn dispose_base_array(arr: &mut BaseArray) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gpos_mark_to_single_free(x: *mut GposMarkToSingleSubtable) {
@@ -47,7 +47,7 @@ pub(crate) unsafe fn subtable_gpos_mark_to_single_free(x: *mut GposMarkToSingleS
     // one. `init_mark_to_single` had no other callers, so it's gone too.
     drop(Box::from_raw(x));
 }
-unsafe fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSingleSubtable {
+fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSingleSubtable {
     Box::into_raw(Box::new(GposMarkToSingleSubtable {
         class_count: 0,
         mark_array: Vec::new(),

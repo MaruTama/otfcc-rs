@@ -75,7 +75,7 @@ pub unsafe fn consolidate_gpos_single(
         }
         k = k.wrapping_add(1);
     }
-    dispose_gpos_single_subtable(subtable);
+    dispose_gpos_single_subtable(&mut *subtable);
     for (fromid, (fromname, v)) in seen {
         (*subtable).push(GposSingleEntry {
             target: Handle {

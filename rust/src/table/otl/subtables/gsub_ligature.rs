@@ -23,7 +23,7 @@ use crate::vendor::json::JsonType;
 // `from: Coverage` and `to: GlyphHandle` both self-drop now, so a
 // `GsubLigatureSubtable` (`Vec<GsubLigatureEntry>`) fully self-drops -- no
 // per-element dtor needed anymore.
-pub(crate) unsafe fn dispose_gsub_ligature_subtable(arr: *mut GsubLigatureSubtable) {
+pub(crate) fn dispose_gsub_ligature_subtable(arr: &mut GsubLigatureSubtable) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gsub_ligature_free(x: *mut GsubLigatureSubtable) {
@@ -43,15 +43,14 @@ pub(crate) unsafe fn subtable_gsub_ligature_free(x: *mut GsubLigatureSubtable) {
 /// that fresh local -- never reused by the caller afterward -- so disposing
 /// the old `*dst` and move-assigning `src` in is equivalent to (and safer
 /// than) the original's dispose-then-`memcpy`.
-#[allow(improper_ctypes_definitions)]
-pub(crate) unsafe fn subtable_gsub_ligature_replace(
-    dst: *mut GsubLigatureSubtable,
+pub(crate) fn subtable_gsub_ligature_replace(
+    dst: &mut GsubLigatureSubtable,
     src: GsubLigatureSubtable,
 ) {
     dispose_gsub_ligature_subtable(dst);
     *dst = src;
 }
-unsafe fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
+fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
     Box::into_raw(Box::new(Vec::new()))
 }
 // Also fixes a real (if minor) pre-existing leak, same shape as

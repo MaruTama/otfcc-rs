@@ -91,7 +91,7 @@ pub unsafe fn consolidate_gsub_single(
             crate::bytesbuild!(b"[Consolidate] In this lookup, some mappings are ignored.\n",),
         );
     }
-    dispose_gsub_single_subtable(subtable);
+    dispose_gsub_single_subtable(&mut *subtable);
     for (fromid, (fromname, toid, toname)) in seen {
         (*subtable).push(GsubSingleEntry {
             from: Handle {
