@@ -4,7 +4,7 @@ use crate::support::buffer::Buffer;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos};
-use crate::support::sha1::{BYTE, Sha1Ctx};
+use crate::support::sha1::Sha1Ctx;
 use crate::support::fmt::{Hex2Upper, Hex4Upper, SdsPart};
 
 use crate::table::glyf::{ComponentReference, Contour, GlyfTable, Glyph};
@@ -151,9 +151,9 @@ pub unsafe fn name_glyph_by_hash(g: *const Glyph, glyf: *const GlyfTable) -> Gly
         k: [0; 4],
     };
     let mut hash: [u8; 20] = [0; 20];
-    sha1_init(&raw mut ctx);
-    sha1_update(&raw mut ctx, buf.data.as_ptr() as *const BYTE, buf.len());
-    sha1_final(&raw mut ctx, &raw mut hash as *mut BYTE);
+    sha1_init(&mut ctx);
+    sha1_update(&mut ctx, &buf.data);
+    sha1_final(&mut ctx, &mut hash);
     let mut h_0: GlyphHash = GlyphHash { hash: [0; 20] };
     for j in 0..SHA1_BLOCK_SIZE as usize {
         h_0.hash[j] = hash[j];
