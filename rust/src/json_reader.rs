@@ -60,26 +60,20 @@ fn otfcc_decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {
 //
 // Never a real FFI boundary -- internal call site only, same rationale
 // as every other instance of this allow in the crate.
-#[allow(improper_ctypes_definitions)]
-unsafe fn set_order_by_name(
-    go: *mut GlyphOrder,
-    name: Vec<u8>,
-    order_type: GlyphOrderPass,
-    order_entry: u32,
-) {
-    match (*go).by_name.get(&name).copied() {
+fn set_order_by_name(go: &mut GlyphOrder, name: Vec<u8>, order_type: GlyphOrderPass, order_entry: u32) {
+    match go.by_name.get(&name).copied() {
         None => {
-            (*go).entries.push(GlyphOrderEntry {
+            go.entries.push(GlyphOrderEntry {
                 gid: -1_i32 as GlyphId,
                 name: name.clone(),
                 order_type,
                 order_entry,
             });
-            let idx = (*go).entries.len() - 1;
-            (*go).by_name.insert(name, idx);
+            let idx = go.entries.len() - 1;
+            go.by_name.insert(name, idx);
         }
         Some(idx) => {
-            let entry = &mut (&mut (*go).entries)[idx];
+            let entry = &mut go.entries[idx];
             if entry.order_type > order_type {
                 entry.order_type = order_type;
                 entry.order_entry = order_entry;
@@ -87,17 +81,17 @@ unsafe fn set_order_by_name(
         }
     }
 }
-unsafe fn order_glyphs(go: *mut GlyphOrder) {
-    let mut idxs: Vec<usize> = (*go).by_name.values().copied().collect();
+fn order_glyphs(go: &mut GlyphOrder) {
+    let mut idxs: Vec<usize> = go.by_name.values().copied().collect();
     idxs.sort_by(|&a, &b| {
-        let ea = &(&(*go).entries)[a];
-        let eb = &(&(*go).entries)[b];
+        let ea = &go.entries[a];
+        let eb = &go.entries[b];
         (ea.order_type, ea.order_entry).cmp(&(eb.order_type, eb.order_entry))
     });
     let mut gid: GlyphId = 0 as GlyphId;
     for &idx in idxs.iter() {
-        (&mut (*go).entries)[idx].gid = gid;
-        (*go).by_gid.insert(gid, idx);
+        go.entries[idx].gid = gid;
+        go.by_gid.insert(gid, idx);
         gid = (gid as i32 + 1_i32) as GlyphId;
     }
 }
@@ -107,22 +101,21 @@ unsafe fn order_glyphs(go: *mut GlyphOrder) {
 //
 // Never a real FFI boundary -- internal call sites only, same rationale
 // as every other instance of this allow in the crate.
-#[allow(improper_ctypes_definitions)]
-unsafe fn escalate_glyph_order_by_name(
-    go: *mut GlyphOrder,
+fn escalate_glyph_order_by_name(
+    go: &mut GlyphOrder,
     name: &[u8],
     order_type: GlyphOrderPass,
     order_entry: u32,
 ) {
-    if let Some(&idx) = (*go).by_name.get(name) {
-        let entry = &mut (&mut (*go).entries)[idx];
+    if let Some(&idx) = go.by_name.get(name) {
+        let entry = &mut go.entries[idx];
         if entry.order_type > order_type {
             entry.order_type = order_type;
             entry.order_entry = order_entry;
         }
     }
 }
-unsafe fn place_order_entries_from_glyf(table: &ParsedValue, go: *mut GlyphOrder) {
+fn place_order_entries_from_glyf(table: &ParsedValue, go: &mut GlyphOrder) {
     let Some(fields) = table.as_object() else {
         return;
     };
@@ -138,7 +131,11 @@ unsafe fn place_order_entries_from_glyf(table: &ParsedValue, go: *mut GlyphOrder
         }
     }
 }
-unsafe fn place_order_entries_from_cmap(table: &ParsedValue, go: *mut GlyphOrder) {
+// `strlen`/pointer arithmetic on `key.as_ptr()`: a separate, not-yet-
+// converted raw-C-string shell -- same shape as `table/cmap.rs`'s
+// `parse_unicode` (this function inlines the identical U+XXXX-or-decimal
+// parse and stays unsafe for the same reason), out of scope here.
+unsafe fn place_order_entries_from_cmap(table: &ParsedValue, go: &mut GlyphOrder) {
     let Some(fields) = table.as_object() else {
         return;
     };
@@ -173,7 +170,7 @@ unsafe fn place_order_entries_from_cmap(table: &ParsedValue, go: *mut GlyphOrder
         }
     }
 }
-unsafe fn place_order_entries_from_subtable(table: &ParsedValue, go: *mut GlyphOrder, zero_only: bool) {
+fn place_order_entries_from_subtable(table: &ParsedValue, go: &mut GlyphOrder, zero_only: bool) {
     let Some(items) = table.as_array() else {
         return;
     };
@@ -185,25 +182,28 @@ unsafe fn place_order_entries_from_subtable(table: &ParsedValue, go: *mut GlyphO
         }
     }
 }
-unsafe fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphOrder>> {
+fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphOrder>> {
     // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
     // (`malloc`) + `Box::from_raw` -- see the matching note in
-    // `consolidate.rs`'s `otfcc_consolidate_font`. `go` stays a raw-pointer
-    // alias into `go_box` for the rest of this function (unchanged from
-    // here down).
+    // `consolidate.rs`'s `otfcc_consolidate_font`. `go` borrows `go_box` for
+    // the rest of this function (unchanged from here down).
     let mut go_box: Box<GlyphOrder> = Box::new(GlyphOrder {
         entries: Vec::new(),
         by_gid: ::std::collections::BTreeMap::new(),
         by_name: ::std::collections::HashMap::new(),
     });
-    let go: *mut GlyphOrder = go_box.as_mut() as *mut GlyphOrder;
+    let go: &mut GlyphOrder = go_box.as_mut();
     if root.as_object().is_none() {
         return Some(go_box);
     }
     if let Some(table) = root.get_typed(b"glyf", JsonType::Object) {
         place_order_entries_from_glyf(table, go);
         if let Some(table) = root.get_typed(b"cmap", JsonType::Object) {
-            place_order_entries_from_cmap(table, go);
+            // place_order_entries_from_cmap is a separate, not-yet-converted
+            // raw-C-string shell -- out of scope here, so this is a narrow
+            // unsafe {} rather than the whole function, the same way
+            // vf/vq.rs's vqs_compare bridges to vq_compare_region.
+            unsafe { place_order_entries_from_cmap(table, go) };
         }
         if let Some(table) = root.get_typed(b"glyph_order", JsonType::Array) {
             let mut ignore_glyph_order: bool = options.ignore_glyph_order;
@@ -237,14 +237,7 @@ impl FontBuilder for JsonReader {
         }
         (*font).subtype = otfcc_decide_font_subtype_from_json(root);
         (*font).glyph_order = parse_glyph_order(root, options);
-        (*font).glyf = otfcc_parse_glyf(
-            root,
-            (*font)
-                .glyph_order
-                .as_deref_mut()
-                .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
-            options,
-        );
+        (*font).glyf = otfcc_parse_glyf(root, (*font).glyph_order.as_deref(), options);
         (*font).cff = otfcc_parse_cff(root, options);
         (*font).head = otfcc_parse_head(root, options);
         (*font).hhea = otfcc_parse_hhea(root, options);

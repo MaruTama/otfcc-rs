@@ -11,13 +11,13 @@ use crate::support::font_reader::FontReader;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
-use crate::support::primitives::{FontFilePointer, GlyphClass, Pos};
+use crate::support::primitives::{GlyphClass, Pos};
 use crate::table::otl::{Anchor, MarkArray, MarkRecord, PositionValue};
 use crate::vendor::json::JsonType;
 // `MarkRecord` holds only a `GlyphHandle` plus a plain `Anchor`, so dropping
 // the `Vec` runs `Handle`'s own `Drop` for every entry -- no per-element
 // dtor needed anymore.
-pub(crate) unsafe fn dispose_mark_array(arr: *mut MarkArray) {
+pub(crate) fn dispose_mark_array(arr: &mut MarkArray) {
     *arr = Vec::new();
 }
 /// The original checked only that `MarkCount` itself (2 bytes at `offset`)
@@ -33,43 +33,36 @@ pub(crate) unsafe fn dispose_mark_array(arr: *mut MarkArray) {
 /// than the Coverage table's glyph count panicked on `Vec` index out of
 /// bounds (a real, crafted-font-reachable crash, not a memory-safety bug
 /// but still a DoS). Capping the loop at `cov.len()` too fixes it.
-pub unsafe fn otl_read_mark_array(
-    array: *mut MarkArray,
-    cov: *mut Coverage,
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u32,
-) {
-    let slice = ::core::slice::from_raw_parts(data as *const u8, table_length as usize);
-    let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
+pub fn otl_read_mark_array(array: &mut MarkArray, cov: &Coverage, data: &[u8], offset: u32) {
+    let Ok(mut r) = FontReader::new(data).at(offset as usize) else {
         return;
     };
     let Ok(mark_count) = r.u16() else { return };
     if r.require_room(mark_count as usize, 4).is_err() {
         return;
     }
-    let n = (mark_count as usize).min((*cov).len());
-    for j in 0..n {
+    let n = (mark_count as usize).min(cov.len());
+    for glyph in cov.iter().take(n) {
         let mark_class = r.u16().unwrap() as GlyphClass;
         let delta = r.u16().unwrap();
         let anchor = if delta != 0 {
-            otl_read_anchor(data, table_length, offset.wrapping_add(delta as u32))
+            otl_read_anchor(data, offset.wrapping_add(delta as u32))
         } else {
             otl_anchor_absent()
         };
-        (*array).push(MarkRecord {
-            glyph: otfcc_handle_dup((&(*cov))[j].clone() as Handle) as GlyphHandle,
+        array.push(MarkRecord {
+            glyph: otfcc_handle_dup(glyph.clone() as Handle) as GlyphHandle,
             mark_class,
             anchor,
         });
     }
 }
-pub unsafe fn otl_parse_mark_array(
-    marks: *const ParsedValue,
-    array: *mut MarkArray,
-    h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
+pub fn otl_parse_mark_array(
+    marks: Option<&ParsedValue>,
+    array: &mut MarkArray,
+    h: &mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
 ) {
-    let Some(fields) = unsafe { marks.as_ref() }.and_then(ParsedValue::as_object) else {
+    let Some(fields) = marks.and_then(ParsedValue::as_object) else {
         return;
     };
     for (key, anchor_record) in fields {
@@ -91,7 +84,7 @@ pub unsafe fn otl_parse_mark_array(
         mark.anchor = otl_anchor_absent();
         match anchor_record.get_typed(b"class", JsonType::String) {
             None => {
-                (*array).push(mark);
+                array.push(mark);
             }
             Some(class_name_val) => {
                 // Deduplicates by class name, matching the original's Bob
@@ -105,11 +98,11 @@ pub unsafe fn otl_parse_mark_array(
                 // later replaced by a `HASH_SORT`-driven renumbering
                 // pass.
                 let class_name = class_name_val.as_str_bytes().unwrap_or(&[]).to_vec();
-                (*h).entry(class_name).or_insert(0 as GlyphClass);
+                h.entry(class_name).or_insert(0 as GlyphClass);
                 mark.anchor.present = true;
                 mark.anchor.x = anchor_record.get_num(b"x") as Pos;
                 mark.anchor.y = anchor_record.get_num(b"y") as Pos;
-                (*array).push(mark);
+                array.push(mark);
             }
         }
     }
@@ -120,7 +113,7 @@ pub unsafe fn otl_parse_mark_array(
     // `strcmp` exactly on NUL-free byte sequences), so no separate sort
     // step is needed here -- just walk the already-sorted map and
     // replace each placeholder id with its final, alphabetical-rank one.
-    for (rank, id) in (*h).values_mut().enumerate() {
+    for (rank, id) in h.values_mut().enumerate() {
         *id = rank as GlyphClass;
     }
     // Marks were pushed above with `mark_class` left at its placeholder;
@@ -134,20 +127,20 @@ pub unsafe fn otl_parse_mark_array(
     // here: the loop above pushes exactly one mark per field, on every
     // branch.
     for (idx, (_, anchor_record)) in fields.iter().enumerate() {
-        if (&(*array))[idx].anchor.present {
+        if array[idx].anchor.present {
             let class_name = anchor_record
                 .get_typed(b"class", JsonType::String)
                 .and_then(ParsedValue::as_str_bytes)
                 .unwrap_or(&[])
                 .to_vec();
-            (&mut (*array))[idx].mark_class = match (*h).get(&class_name) {
+            array[idx].mark_class = match h.get(&class_name) {
                 Some(&id) => id,
                 None => 0 as GlyphClass,
             };
         }
     }
 }
-pub unsafe fn otl_anchor_absent() -> Anchor {
+pub fn otl_anchor_absent() -> Anchor {
     let anchor: Anchor = Anchor {
         present: false,
         x: 0_i32 as Pos,
@@ -155,16 +148,13 @@ pub unsafe fn otl_anchor_absent() -> Anchor {
     };
     return anchor;
 }
-pub unsafe fn otl_read_anchor(data: FontFilePointer, table_length: u32, offset: u32) -> Anchor {
+pub fn otl_read_anchor(data: &[u8], offset: u32) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
         x: 0_i32 as Pos,
         y: 0_i32 as Pos,
     };
-    let slice = ::core::slice::from_raw_parts(data as *const u8, table_length as usize);
-    let Ok(bytes) =
-        FontReader::new(slice).at(offset as usize).and_then(|mut r| r.bytes(6))
-    else {
+    let Ok(bytes) = FontReader::new(data).at(offset as usize).and_then(|mut r| r.bytes(6)) else {
         return anchor;
     };
     anchor.present = true;
@@ -182,13 +172,13 @@ pub fn otl_dump_anchor(a: Anchor) -> BuiltValue {
         BuiltValue::Null
     }
 }
-pub unsafe fn otl_parse_anchor(v: *const ParsedValue) -> Anchor {
+pub fn otl_parse_anchor(v: Option<&ParsedValue>) -> Anchor {
     let mut anchor: Anchor = Anchor {
         present: false,
         x: 0_i32 as Pos,
         y: 0_i32 as Pos,
     };
-    let Some(v) = (unsafe { v.as_ref() }).filter(|v| v.as_object().is_some()) else {
+    let Some(v) = v.filter(|v| v.as_object().is_some()) else {
         return anchor;
     };
     anchor.present = true;
@@ -981,12 +971,12 @@ pub static BITS_IN: [u8; 256] = [
         + 2_i32
         + 2_i32) as u8,
 ];
-pub unsafe fn position_format_length(format: u16) -> u8 {
+pub fn position_format_length(format: u16) -> u8 {
     return ((BITS_IN[(format as i32 & 0xff_i32) as usize]
         as i32)
         << 1_i32) as u8;
 }
-pub unsafe fn position_zero() -> PositionValue {
+pub fn position_zero() -> PositionValue {
     let v: PositionValue = PositionValue {
         dx: 0.0f64,
         dy: 0.0f64,
@@ -995,22 +985,15 @@ pub unsafe fn position_zero() -> PositionValue {
     };
     return v;
 }
-pub unsafe fn read_gpos_value(
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u32,
-    format: u16,
-) -> PositionValue {
+pub fn read_gpos_value(data: &[u8], offset: u32, format: u16) -> PositionValue {
     let mut v: PositionValue = PositionValue {
         dx: 0.0f64,
         dy: 0.0f64,
         d_width: 0.0f64,
         d_height: 0.0f64,
     };
-    let slice = ::core::slice::from_raw_parts(data as *const u8, table_length as usize);
     let len = position_format_length(format) as usize;
-    let Ok(bytes) =
-        FontReader::new(slice).at(offset as usize).and_then(|mut r| r.bytes(len))
+    let Ok(bytes) = FontReader::new(data).at(offset as usize).and_then(|mut r| r.bytes(len))
     else {
         return v;
     };
@@ -1048,14 +1031,14 @@ pub fn gpos_dump_value(value: PositionValue) -> BuiltValue {
     }
     v.preserialize()
 }
-pub unsafe fn gpos_parse_value(pos: *const ParsedValue) -> PositionValue {
+pub fn gpos_parse_value(pos: Option<&ParsedValue>) -> PositionValue {
     let mut v: PositionValue = PositionValue {
         dx: 0.0f64,
         dy: 0.0f64,
         d_width: 0.0f64,
         d_height: 0.0f64,
     };
-    let Some(pos) = (unsafe { pos.as_ref() }).filter(|p| p.as_object().is_some()) else {
+    let Some(pos) = pos.filter(|p| p.as_object().is_some()) else {
         return v;
     };
     v.dx = pos.get_num(b"dx") as Pos;
@@ -1064,7 +1047,7 @@ pub unsafe fn gpos_parse_value(pos: *const ParsedValue) -> PositionValue {
     v.d_height = pos.get_num(b"dHeight") as Pos;
     return v;
 }
-pub unsafe fn required_position_format(v: PositionValue) -> u8 {
+pub fn required_position_format(v: PositionValue) -> u8 {
     return ((if v.dx != 0. {
         FORMAT_DX as i32
     } else {
@@ -1150,7 +1133,7 @@ mod read_anchor_and_value_tests {
         let mut data = vec![0u8; 6];
         data[2..4].copy_from_slice(&100i16.to_be_bytes());
         data[4..6].copy_from_slice(&(-50i16).to_be_bytes());
-        let anchor = unsafe { otl_read_anchor(data.as_mut_ptr(), data.len() as u32, 0) };
+        let anchor = otl_read_anchor(&data, 0);
         assert!(anchor.present);
         assert_eq!(anchor.x, 100.0);
         assert_eq!(anchor.y, -50.0);
@@ -1158,8 +1141,8 @@ mod read_anchor_and_value_tests {
 
     #[test]
     fn otl_read_anchor_truncated_is_absent_not_oob() {
-        let mut data = vec![0u8; 4];
-        let anchor = unsafe { otl_read_anchor(data.as_mut_ptr(), data.len() as u32, 0) };
+        let data = vec![0u8; 4];
+        let anchor = otl_read_anchor(&data, 0);
         assert!(!anchor.present);
     }
 
@@ -1169,22 +1152,22 @@ mod read_anchor_and_value_tests {
         let mut data = vec![0u8; 4];
         data[0..2].copy_from_slice(&10i16.to_be_bytes());
         data[2..4].copy_from_slice(&20i16.to_be_bytes());
-        let v = unsafe { read_gpos_value(data.as_mut_ptr(), data.len() as u32, 0, format) };
+        let v = read_gpos_value(&data, 0, format);
         assert_eq!((v.dx, v.dy, v.d_width, v.d_height), (10.0, 20.0, 0.0, 0.0));
     }
 
     #[test]
     fn read_gpos_value_truncated_is_zero_not_oob() {
         let format = FORMAT_DX as u16 | FORMAT_DY as u16;
-        let mut data = vec![0u8; 2]; // needs 4 bytes for dx+dy, only 2 present
-        let v = unsafe { read_gpos_value(data.as_mut_ptr(), data.len() as u32, 0, format) };
+        let data = vec![0u8; 2]; // needs 4 bytes for dx+dy, only 2 present
+        let v = read_gpos_value(&data, 0, format);
         assert_eq!((v.dx, v.dy), (0.0, 0.0));
     }
 
     unsafe fn coverage_of(gids: &[GlyphId]) -> *mut Coverage {
         let cov = otl_coverage_create();
         for &gid in gids {
-            push_to_coverage(cov, handle_from_index(gid) as GlyphHandle);
+            push_to_coverage(&mut *cov, handle_from_index(gid) as GlyphHandle);
         }
         cov
     }
@@ -1201,7 +1184,7 @@ mod read_anchor_and_value_tests {
         let cov = unsafe { coverage_of(&[5]) };
         let mut array: MarkArray = Vec::new();
         unsafe {
-            otl_read_mark_array(&raw mut array, cov, data.as_mut_ptr(), data.len() as u32, 0);
+            otl_read_mark_array(&mut array, &*cov, &data, 0);
             otl_coverage_free(cov);
         }
         assert_eq!(array.len(), 1);
@@ -1221,7 +1204,7 @@ mod read_anchor_and_value_tests {
         let cov = unsafe { coverage_of(&[5]) };
         let mut array: MarkArray = Vec::new();
         unsafe {
-            otl_read_mark_array(&raw mut array, cov, data.as_mut_ptr(), data.len() as u32, 0);
+            otl_read_mark_array(&mut array, &*cov, &data, 0);
             otl_coverage_free(cov);
         }
         assert!(!array[0].anchor.present);
@@ -1242,7 +1225,7 @@ mod read_anchor_and_value_tests {
         let cov = unsafe { coverage_of(&[5]) };
         let mut array: MarkArray = Vec::new();
         unsafe {
-            otl_read_mark_array(&raw mut array, cov, data.as_mut_ptr(), data.len() as u32, 0);
+            otl_read_mark_array(&mut array, &*cov, &data, 0);
             otl_coverage_free(cov);
         }
         assert_eq!(array.len(), 1);
@@ -1253,11 +1236,11 @@ mod read_anchor_and_value_tests {
         // The original had no room check at all for the `mark_count`
         // 4-byte records -- a `MarkCount` this large against a 2-byte
         // buffer used to read straight off the end.
-        let mut data = 1000u16.to_be_bytes().to_vec();
+        let data = 1000u16.to_be_bytes().to_vec();
         let cov = unsafe { coverage_of(&[5]) };
         let mut array: MarkArray = Vec::new();
         unsafe {
-            otl_read_mark_array(&raw mut array, cov, data.as_mut_ptr(), data.len() as u32, 0);
+            otl_read_mark_array(&mut array, &*cov, &data, 0);
             otl_coverage_free(cov);
         }
         assert!(array.is_empty());

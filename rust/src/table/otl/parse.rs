@@ -26,7 +26,7 @@ use crate::table::otl::{
     OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable, Subtable,
 };
 use crate::table::otl::{
-    new_feature, new_language, new_lookup, otfcc_delete_lookup, otl_feature_ref_list_dispose,
+    new_feature, new_language, new_lookup, otl_feature_ref_list_dispose,
     otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace,
     subtable_list_slot,
 };
@@ -79,8 +79,8 @@ pub enum LookupOrderType {
     Force = 0,
     File = 1,
 }
-unsafe fn _parse_lookup(
-    lookup: *const ParsedValue,
+fn _parse_lookup(
+    lookup: Option<&ParsedValue>,
     lookup_name: &[u8],
     options: &Options,
     lh: &mut Vec<LookupEntry>,
@@ -233,15 +233,15 @@ unsafe fn _parse_lookup(
     }
     return parsed;
 }
-unsafe fn _declare_lookup_parser(
+fn _declare_lookup_parser(
     llt: LookupType,
     parser: Option<unsafe fn(*const ParsedValue, &Options) -> *mut Subtable>,
-    _lookup: *const ParsedValue,
+    _lookup: Option<&ParsedValue>,
     lookup_name: &[u8],
     options: &Options,
     lh: &mut Vec<LookupEntry>,
 ) -> bool {
-    let lv = unsafe { _lookup.as_ref() };
+    let lv = _lookup;
     let type_0 = lv.and_then(|v| v.get_typed(b"type", JsonType::String));
     let matches_type = type_0
         .and_then(ParsedValue::as_str_bytes)
@@ -284,20 +284,21 @@ unsafe fn _declare_lookup_parser(
         );
         return false;
     };
-    // Transient owner, same shape as `FeatureHash.feature`: raw here because
-    // `LookupHash.lookup` is raw, `Box::into_raw` at construction,
-    // `Box::from_raw` either at the rejection path below
-    // (`otfcc_delete_lookup`) or at the one non-alias push site far below.
-    let lookup: *mut Lookup = Box::into_raw(new_lookup());
-    (*lookup).type_0 = llt;
-    (*lookup).flags = lv
+    // Built as a local owned value, not `Box::into_raw`'d until the very
+    // end (mirrors classdef.rs's/coverage.rs's read_class_def/
+    // read_coverage restructuring) -- the rejection path just lets `lookup`
+    // drop naturally instead of an explicit `otfcc_delete_lookup` call
+    // (that function's own body is exactly `drop(Box::from_raw(...))`).
+    // `LookupEntry.lookup` itself stays `*mut Lookup`: a transient owner
+    // handed off at the one non-alias push site in `otfcc_parse_otl`.
+    let mut lookup: Box<Lookup> = new_lookup();
+    lookup.type_0 = llt;
+    lookup.flags = lv
         .and_then(|v| v.get(b"flags"))
         .map_or(0, |v| v.flags(&LOOKUP_FLAGS_LABELS)) as u16;
     let mark_attachment_type: u16 = lv.map_or(0, |v| v.get_int(b"markAttachmentType")) as u16;
     if mark_attachment_type != 0 {
-        (*lookup).flags = ((*lookup).flags as i32
-            | (mark_attachment_type as i32) << 8_i32)
-            as u16;
+        lookup.flags = (lookup.flags as i32 | (mark_attachment_type as i32) << 8_i32) as u16;
     }
     let subtable_items = subtables.as_array().unwrap();
     logger_start_sds(
@@ -308,50 +309,55 @@ unsafe fn _declare_lookup_parser(
     while ___loggedstep_v {
         for _subtable in subtable_items {
             if _subtable.as_object().is_some() {
-                let _st: *mut Subtable = parser.expect("non-null function pointer")(
-                    _subtable as *const ParsedValue,
-                    options,
-                );
-                (*lookup).subtables.push(subtable_list_slot(_st));
+                // `parser` is still a genuinely unsafe fn pointer (the 10
+                // concrete otl_*_parse_* implementations aren't part of
+                // this dispatcher-safety pass), and subtable_list_slot
+                // reclaims its *mut Subtable return via Box::from_raw --
+                // both narrow, both here.
+                unsafe {
+                    let _st = parser.expect("non-null function pointer")(
+                        _subtable as *const ParsedValue,
+                        options,
+                    );
+                    lookup.subtables.push(subtable_list_slot(_st));
+                }
             }
         }
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
-    if (*lookup).subtables.is_empty() {
+    if lookup.subtables.is_empty() {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Lookup ", lookup_name, b" does not have any subtables."),
         );
-        otfcc_delete_lookup(lookup);
         return false;
     }
     let order_val: u16 = lh.len() as u16;
-    (*lookup).name = name_bytes.clone();
+    lookup.name = name_bytes.clone();
     lh.push(LookupEntry {
         name: name_bytes,
         alias: false,
-        lookup,
+        lookup: Box::into_raw(lookup),
         order_type: LookupOrderType::File,
         order_val,
     });
     return true;
 }
-unsafe fn figure_out_lookups_from_json(
-    lookups: *const ParsedValue,
+fn figure_out_lookups_from_json(
+    lookups: Option<&ParsedValue>,
     options: &Options,
 ) -> Vec<LookupEntry> {
     let mut lh: Vec<LookupEntry> = Vec::new();
-    let Some(fields) = unsafe { lookups.as_ref() }.and_then(ParsedValue::as_object) else {
+    let Some(fields) = lookups.and_then(ParsedValue::as_object) else {
         return lh;
     };
     for (key, lookup_val) in fields {
         let lookup_name = &key[..key.len() - 1];
         if lookup_val.as_object().is_some() {
-            let parsed: bool =
-                _parse_lookup(lookup_val as *const ParsedValue, lookup_name, options, &mut lh);
+            let parsed: bool = _parse_lookup(Some(lookup_val), lookup_name, options, &mut lh);
             if !parsed {
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
@@ -425,10 +431,7 @@ fn tag4_matches(a: &[u8], b: &[u8]) -> bool {
 /// same "resolve at the point of use" pattern `libcff/subr.rs`'s
 /// `resolve_subr_ref` established for a comparable aliasing shape in
 /// Stage 9.
-unsafe fn feature_merger_activate(d: *mut ParsedValue, sametag: bool, objtype: &[u8], options: &Options) {
-    let Some(d) = (unsafe { d.as_mut() }) else {
-        return;
-    };
+fn feature_merger_activate(d: &mut ParsedValue, sametag: bool, objtype: &[u8], options: &Options) {
     let n = match d.as_object() {
         Some(fields) => fields.len(),
         None => return,
@@ -474,8 +477,8 @@ unsafe fn feature_merger_activate(d: *mut ParsedValue, sametag: bool, objtype: &
         }
     }
 }
-unsafe fn figure_out_features_from_json(
-    features: *mut ParsedValue,
+fn figure_out_features_from_json(
+    features: &mut ParsedValue,
     lh: &Vec<LookupEntry>,
     tag: &[u8],
     options: &Options,
@@ -488,7 +491,7 @@ unsafe fn figure_out_features_from_json(
     // mutates `features`'s tree, and it has already returned by the time
     // this shared reborrow is taken -- no interleaving between the write
     // above and the reads below.
-    let Some(fields) = unsafe { features.as_ref() }.and_then(ParsedValue::as_object) else {
+    let Some(fields) = features.as_object() else {
         return fh;
     };
     for (feature_name_key, feature_val) in fields {
@@ -522,18 +525,20 @@ unsafe fn figure_out_features_from_json(
             if !al.is_empty() {
                 let feature_name_bytes: Vec<u8> = feature_name.to_vec();
                 if !fh.iter().any(|e| e.name == feature_name_bytes) {
-                    // Transient owner, same shape as `LookupEntry.lookup`:
-                    // `Box::into_raw` here, `Box::from_raw` at the one
-                    // non-alias push site in `otfcc_parse_otl` -- an alias
-                    // entry's copy of the same pointer is never freed on
-                    // its own.
-                    let feature: *mut Feature = Box::into_raw(new_feature());
-                    (*feature).name = feature_name_bytes.clone();
-                    otl_lookup_ref_list_replace(&raw mut (*feature).lookups, al);
+                    // Built as a local owned value, only `Box::into_raw`'d
+                    // at the very end (same restructuring as
+                    // `_declare_lookup_parser`'s `lookup`); `FeatureEntry.
+                    // feature` itself stays `*mut Feature`, a transient
+                    // owner handed off at the one non-alias push site in
+                    // `otfcc_parse_otl` -- an alias entry's copy of the
+                    // same pointer is never freed on its own.
+                    let mut feature: Box<Feature> = new_feature();
+                    feature.name = feature_name_bytes.clone();
+                    otl_lookup_ref_list_replace(&mut feature.lookups, al);
                     fh.push(FeatureEntry {
                         name: feature_name_bytes,
                         alias: false,
-                        feature,
+                        feature: Box::into_raw(feature),
                     });
                 } else {
                     logger_log_sds(
@@ -548,7 +553,7 @@ unsafe fn figure_out_features_from_json(
                             b"]. This feature will be ignored.\n",
                         ),
                     );
-                    otl_lookup_ref_list_dispose(&raw mut al);
+                    otl_lookup_ref_list_dispose(&mut al);
                 }
             } else {
                 logger_log_sds(
@@ -563,7 +568,7 @@ unsafe fn figure_out_features_from_json(
                         b"]. This feature will be ignored.\n",
                     ),
                 );
-                otl_lookup_ref_list_dispose(&raw mut al);
+                otl_lookup_ref_list_dispose(&mut al);
             }
         } else if let Some(target_bytes) = feature_val.as_str_bytes() {
             let target_owned = target_bytes.to_vec();
@@ -586,15 +591,15 @@ unsafe fn figure_out_features_from_json(
 pub fn is_valid_language_name(name: &[u8]) -> bool {
     return name.len() == 9_usize && name[4] == SCRIPT_LANGUAGE_SEPARATOR as u8;
 }
-unsafe fn figure_out_languages_from_json(
-    languages: *const ParsedValue,
+fn figure_out_languages_from_json(
+    languages: Option<&ParsedValue>,
     fh: &Vec<FeatureEntry>,
     tag: &[u8],
     options: &Options,
 ) -> std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> {
     let mut sh: std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> =
         std::collections::BTreeMap::new();
-    let Some(fields) = unsafe { languages.as_ref() }.and_then(ParsedValue::as_object) else {
+    let Some(fields) = languages.and_then(ParsedValue::as_object) else {
         return sh;
     };
     for (key, language_val) in fields {
@@ -627,19 +632,21 @@ unsafe fn figure_out_languages_from_json(
             if !required_feature.is_null() || !af.is_empty() {
                 let language_name_bytes: Vec<u8> = language_name.to_vec();
                 if !sh.contains_key(&language_name_bytes) {
-                    // Transient owner, same shape as `LookupEntry.lookup`/
-                    // `FeatureEntry.feature`: `Box::into_raw` here,
-                    // `Box::from_raw` at the one push site in
-                    // `otfcc_parse_otl` -- unlike those two, `LanguageHash`
+                    // Built as a local owned value, only `Box::into_raw`'d
+                    // at the very end (same restructuring as
+                    // `_declare_lookup_parser`'s `lookup`); `sh`'s values
+                    // stay `*mut LanguageSystem`, a transient owner handed
+                    // off at the one push site in `otfcc_parse_otl` --
+                    // unlike `LookupEntry`/`FeatureEntry`, `LanguageHash`
                     // has no alias mechanism at all (no JSON string-value
                     // case is handled for `"languages"`, confirmed by
                     // grep before starting), so every entry here really
                     // is unique and really does get pushed.
-                    let language: *mut LanguageSystem = Box::into_raw(new_language());
-                    (*language).name = language_name_bytes.clone();
-                    (*language).required_feature = required_feature as FeatureRef;
-                    otl_feature_ref_list_replace(&raw mut (*language).features, af);
-                    sh.insert(language_name_bytes, language);
+                    let mut language: Box<LanguageSystem> = new_language();
+                    language.name = language_name_bytes.clone();
+                    language.required_feature = required_feature as FeatureRef;
+                    otl_feature_ref_list_replace(&mut language.features, af);
+                    sh.insert(language_name_bytes, Box::into_raw(language));
                 } else {
                     logger_log_sds(
                         &mut *options.logger.borrow_mut(),
@@ -653,7 +660,7 @@ unsafe fn figure_out_languages_from_json(
                             b"]. This language term will be ignored.\n",
                         ),
                     );
-                    otl_feature_ref_list_dispose(&raw mut af);
+                    otl_feature_ref_list_dispose(&mut af);
                 }
             } else {
                 logger_log_sds(
@@ -668,7 +675,7 @@ unsafe fn figure_out_languages_from_json(
                         b"]. This language term will be ignored.\n",
                     ),
                 );
-                otl_feature_ref_list_dispose(&raw mut af);
+                otl_feature_ref_list_dispose(&mut af);
             }
         }
     }
@@ -720,7 +727,8 @@ pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8])
             // + `return otl_box` immediately; on failure, `logger_dedent`
             // and fall through to the shared "log a warning, return None"
             // tail below instead.
-            let mut lh: Vec<LookupEntry> = figure_out_lookups_from_json(lookups, options);
+            let mut lh: Vec<LookupEntry> =
+                figure_out_lookups_from_json(unsafe { lookups.as_ref() }, options);
             let lookup_order: *const ParsedValue = unsafe { table.as_ref() }
                 .and_then(|t| t.get_typed(b"lookupOrder", JsonType::Array))
                 .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
@@ -737,9 +745,9 @@ pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8])
                 }
             }
             let mut fh: Vec<FeatureEntry> =
-                figure_out_features_from_json(features, &lh, tag, options);
+                figure_out_features_from_json(unsafe { &mut *features }, &lh, tag, options);
             let sh: std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> =
-                figure_out_languages_from_json(languages, &fh, tag, options);
+                figure_out_languages_from_json(unsafe { languages.as_ref() }, &fh, tag, options);
             if lh.is_empty() || fh.is_empty() || sh.is_empty() {
                 logger_dedent(&mut *options.logger.borrow_mut());
             } else {
@@ -830,9 +838,7 @@ mod feature_merger_tests {
             (b"test2\0".to_vec(), arr),
         ]);
         let options = Options::default();
-        unsafe {
-            feature_merger_activate(&mut d as *mut ParsedValue, true, b"feature", &options);
-        }
+        feature_merger_activate(&mut d, true, b"feature", &options);
         let fields = d.as_object().unwrap();
         assert_eq!(fields[0].0, b"test1\0");
         assert_eq!(
@@ -853,9 +859,7 @@ mod feature_merger_tests {
             (b"bbbb1\0".to_vec(), arr),
         ]);
         let options = Options::default();
-        unsafe {
-            feature_merger_activate(&mut d as *mut ParsedValue, true, b"feature", &options);
-        }
+        feature_merger_activate(&mut d, true, b"feature", &options);
         let fields = d.as_object().unwrap();
         // Neither entry is an alias: the first 4 bytes ("aaaa" vs "bbbb")
         // never match, so `tag4_matches` rejects every candidate pair.
@@ -873,9 +877,7 @@ mod feature_merger_tests {
             (b"bbbb1\0".to_vec(), arr),
         ]);
         let options = Options::default();
-        unsafe {
-            feature_merger_activate(&mut d as *mut ParsedValue, false, b"lookup", &options);
-        }
+        feature_merger_activate(&mut d, false, b"lookup", &options);
         let fields = d.as_object().unwrap();
         assert_eq!(fields[1].1, ParsedValue::Str(b"aaaa1\0".to_vec()));
     }

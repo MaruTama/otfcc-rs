@@ -936,14 +936,13 @@ mod subr_graph_tests {
     use crate::libcff::charstring_il::{CffCharstringIl, il_push_op, il_push_operand};
     use crate::libcff::{OP_HLINETO, OP_RMOVETO};
 
-    unsafe fn simple_glyph_il(x: f64, y: f64) -> CffCharstringIl {
+    fn simple_glyph_il(x: f64, y: f64) -> CffCharstringIl {
         let mut il = CffCharstringIl { instr: Vec::new() };
-        let il_ptr = &raw mut il;
-        il_push_operand(il_ptr, x);
-        il_push_op(il_ptr, OP_RMOVETO);
-        il_push_operand(il_ptr, y);
-        il_push_op(il_ptr, OP_HLINETO);
-        il_push_op(il_ptr, OP_ENDCHAR);
+        il_push_operand(&mut il, x);
+        il_push_op(&mut il, OP_RMOVETO);
+        il_push_operand(&mut il, y);
+        il_push_op(&mut il, OP_HLINETO);
+        il_push_op(&mut il, OP_ENDCHAR);
         il
     }
 
@@ -1035,17 +1034,15 @@ mod subr_graph_tests {
         // What subroutinization does guarantee is that the *char strings*
         // themselves get smaller once the duplicated sequence is replaced
         // by a short subroutine call in each glyph.
-        unsafe {
-            let il1 = simple_glyph_il(10.0, 20.0);
-            let il2 = simple_glyph_il(10.0, 20.0);
-            let (s_on, _gs_on, _ls_on) = build(&[il1.clone(), il2.clone()], true);
-            let char_strings_on = s_on.data.len();
+        let il1 = simple_glyph_il(10.0, 20.0);
+        let il2 = simple_glyph_il(10.0, 20.0);
+        let (s_on, _gs_on, _ls_on) = build(&[il1.clone(), il2.clone()], true);
+        let char_strings_on = s_on.data.len();
 
-            let (s_off, _gs_off, _ls_off) = build(&[il1, il2], false);
-            let char_strings_off = s_off.data.len();
+        let (s_off, _gs_off, _ls_off) = build(&[il1, il2], false);
+        let char_strings_off = s_off.data.len();
 
-            assert!(char_strings_on < char_strings_off);
-        }
+        assert!(char_strings_on < char_strings_off);
     }
 
     #[test]

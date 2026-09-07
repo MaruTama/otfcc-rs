@@ -30,7 +30,7 @@ pub unsafe fn consolidate_gdef(
     if let Some(cd) = (*gdef).glyph_class_def.as_deref_mut() {
         let cd: *mut ClassDef = cd;
         fontop_consolidate_class_def(font, cd, options);
-        shrink_class_def(cd);
+        shrink_class_def(&mut *cd);
         if (*cd).glyphs.is_empty() {
             // Dropping the `Box` here does exactly what
             // `otl_class_def_free` used to (see `table/gdef.rs`'s
@@ -41,7 +41,7 @@ pub unsafe fn consolidate_gdef(
     if let Some(cd) = (*gdef).mark_attach_class_def.as_deref_mut() {
         let cd: *mut ClassDef = cd;
         fontop_consolidate_class_def(font, cd, options);
-        shrink_class_def(cd);
+        shrink_class_def(&mut *cd);
         if (*cd).glyphs.is_empty() {
             (*gdef).mark_attach_class_def = None;
         }
@@ -98,7 +98,7 @@ pub unsafe fn consolidate_gdef(
             }
             j = j.wrapping_add(1);
         }
-        clear_lig_carets(&raw mut (*gdef).lig_carets);
+        clear_lig_carets(&mut (*gdef).lig_carets);
         for (gid, (gname, carets)) in seen {
             (*gdef).lig_carets.push(CaretValueRecord {
                 glyph: Handle {

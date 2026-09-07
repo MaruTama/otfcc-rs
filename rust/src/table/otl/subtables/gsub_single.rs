@@ -71,8 +71,7 @@ pub unsafe fn otl_read_gsub_single(
         };
 
         from = read_coverage(
-            data,
-            table_length,
+            slice,
             subtable_offset.wrapping_add(from_rel as u32),
         );
         if from.is_null() || (*from).is_empty() {
@@ -131,17 +130,16 @@ pub unsafe fn otl_read_gsub_single(
     }
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gsub_dump_single(mut _subtable: *const Subtable) -> BuiltValue {
-    let Subtable::GsubSingle(mut_subtable) = &*_subtable else {
+pub fn otl_gsub_dump_single(_subtable: &Subtable) -> BuiltValue {
+    let Subtable::GsubSingle(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GsubSingleSubtable = mut_subtable;
-    let mut st = BuiltValue::new_object((*subtable).len());
+    let mut st = BuiltValue::new_object(subtable.len());
     let mut j: usize = 0_usize;
-    while j < (*subtable).len() {
+    while j < subtable.len() {
         st.push_field_bytes_key(
-            &(&(*subtable))[j].from.name,
-            BuiltValue::str_truncated_at_nul(&(&(*subtable))[j].to.name),
+            &subtable[j].from.name,
+            BuiltValue::str_truncated_at_nul(&subtable[j].to.name),
         );
         j = j.wrapping_add(1);
     }
@@ -194,13 +192,13 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).len() {
         push_to_coverage(
-            cov,
+            &mut *cov,
             otfcc_handle_dup((&(*subtable))[j_0 as usize].from.clone() as Handle) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);
     }
     let coverage_buf: Buffer =
-        build_coverage_format(cov, heuristics.contains(BuildHeuristics::GSUB_VERT) as u16);
+        build_coverage_format(&*cov, heuristics.contains(BuildHeuristics::GSUB_VERT) as u16);
     if is_constant_difference as i32 != 0
         && !heuristics.contains(BuildHeuristics::GSUB_VERT)
     {

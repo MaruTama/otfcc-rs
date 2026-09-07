@@ -1,4 +1,4 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
+#![forbid(unsafe_code)]
 //! otfcc's scalar vocabulary, the Rust counterpart of
 //! `c/include/otfcc/primitives.h`.
 //!
@@ -7,10 +7,6 @@
 //! comments come from the C header: they are the only place the *meaning* of
 //! these aliases is written down, and `u16` on its own does not tell a reader
 //! whether a number is a glyph index, a class, or a table index.
-
-unsafe extern "C" {
-    fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
 
 /// 2.14 fixed-point, a value in [-1, 1].
 pub type F2Dot14 = i16;
@@ -53,35 +49,44 @@ pub const F16DOT16_K: i32 =
     1_i32 << F16DOT16_PRECISION - 1_i32;
 pub const F16DOT16_INFINITY: F16Dot16 = 0x7fffffff_i32 as F16Dot16;
 pub const F16DOT16_NEGATIVE_INFINITY: F16Dot16 = 0x80000000 as ::core::ffi::c_uint as F16Dot16;
-pub unsafe fn otfcc_from_f2dot14(x: F2Dot14) -> ::core::ffi::c_double {
+pub fn otfcc_from_f2dot14(x: F2Dot14) -> ::core::ffi::c_double {
     return x as i32 as ::core::ffi::c_double / 16384.0f64;
 }
-pub unsafe fn otfcc_to_f2dot14(x: ::core::ffi::c_double) -> i16 {
-    return round(x * 16384.0f64) as i16;
+// `f64::round`, not libm's `round` through an `extern "C"` block: the two
+// agree bit-for-bit (both round half away from zero, per IEEE 754 / C99),
+// verified across ~16,000 inputs covering every half-way case in both
+// directions, NaN, +/-inf and the exact `x * 16384.0` / `x * 65536.0`
+// shapes these two functions use. Dropping the extern is what lets this
+// whole module become `forbid(unsafe_code)`, and it also un-blocks Miri:
+// `table/glyf/read.rs`'s IUP interpolation regression test was
+// `#[cfg_attr(miri, ignore)]`d purely because reaching `otfcc_to_fixed`
+// meant calling libm `round`, which Miri cannot execute on macOS.
+pub fn otfcc_to_f2dot14(x: ::core::ffi::c_double) -> i16 {
+    return (x * 16384.0f64).round() as i16;
 }
-pub unsafe fn otfcc_from_fixed(x: F16Dot16) -> ::core::ffi::c_double {
+pub fn otfcc_from_fixed(x: F16Dot16) -> ::core::ffi::c_double {
     return x as ::core::ffi::c_double / 65536.0f64;
 }
-pub unsafe fn otfcc_to_fixed(x: ::core::ffi::c_double) -> F16Dot16 {
-    return round(x * 65536.0f64) as F16Dot16;
+pub fn otfcc_to_fixed(x: ::core::ffi::c_double) -> F16Dot16 {
+    return (x * 65536.0f64).round() as F16Dot16;
 }
 #[inline]
-unsafe fn clamp(value: i64) -> F16Dot16 {
+fn clamp(value: i64) -> F16Dot16 {
     value.clamp(F16DOT16_NEGATIVE_INFINITY as i64, F16DOT16_INFINITY as i64) as F16Dot16
 }
-pub unsafe fn otfcc_f1616_add(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
+pub fn otfcc_f1616_add(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     return a + b;
 }
-pub unsafe fn otfcc_f1616_minus(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
+pub fn otfcc_f1616_minus(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     return a - b;
 }
-pub unsafe fn otfcc_f1616_multiply(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
+pub fn otfcc_f1616_multiply(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     let tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
     let product: F16Dot16 = clamp(tmp >> F16DOT16_PRECISION);
     return product;
 }
 #[inline]
-unsafe fn divide(mut a: i64, b: i32) -> F16Dot16 {
+fn divide(mut a: i64, b: i32) -> F16Dot16 {
     if b == 0 {
         return if a < 0 {
             F16DOT16_NEGATIVE_INFINITY
@@ -96,10 +101,10 @@ unsafe fn divide(mut a: i64, b: i32) -> F16Dot16 {
     }
     return clamp(a / b as i64);
 }
-pub unsafe fn otfcc_f1616_muldiv(a: F16Dot16, b: F16Dot16, c: F16Dot16) -> F16Dot16 {
+pub fn otfcc_f1616_muldiv(a: F16Dot16, b: F16Dot16, c: F16Dot16) -> F16Dot16 {
     let tmp: i64 = a as i64 * b as i64 + F16DOT16_K as i64;
     return divide(tmp, c);
 }
-pub unsafe fn otfcc_f1616_divide(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
+pub fn otfcc_f1616_divide(a: F16Dot16, b: F16Dot16) -> F16Dot16 {
     return divide((a as i64) << F16DOT16_PRECISION, b);
 }

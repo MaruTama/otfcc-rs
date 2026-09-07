@@ -427,7 +427,7 @@ pub unsafe fn json_vq_of(cv: *const ParsedValue, mut _fvar: *const FvarTable) ->
     vq_create_still(n as Pos)
 }
 pub unsafe fn json_new_vq_axis_span(s: *const VqAxisSpan) -> BuiltValue {
-    if vq_axis_span_is_one(s) {
+    if vq_axis_span_is_one(&*s) {
         BuiltValue::Str(b"*".to_vec())
     } else {
         let mut a = BuiltValue::new_object(3);

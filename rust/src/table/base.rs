@@ -232,11 +232,11 @@ pub fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<BaseTab
         vertical,
     }))
 }
-unsafe fn axis_to_json(axis: *const BaseAxis) -> BuiltValue {
-    let mut _axis = BuiltValue::new_object((*axis).entries.len());
+fn axis_to_json(axis: &BaseAxis) -> BuiltValue {
+    let mut _axis = BuiltValue::new_object(axis.entries.len());
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*axis).entries.len() {
-        let entry = &(&(*axis).entries)[j as usize];
+    while (j as usize) < axis.entries.len() {
+        let entry = &axis.entries[j as usize];
         if entry.tag != 0 {
             let mut _entry = BuiltValue::new_object(3);
             if entry.default_baseline_tag != 0 {
@@ -264,16 +264,8 @@ unsafe fn axis_to_json(axis: *const BaseAxis) -> BuiltValue {
     }
     _axis
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_base(
-    base: Option<&BaseTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
-    let base = match base {
-        Some(b) => b as *const BaseTable,
-        None => return,
-    };
+pub fn otfcc_dump_base(base: Option<&BaseTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(base) = base else { return };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"BASE"),
@@ -281,10 +273,10 @@ pub unsafe fn otfcc_dump_base(
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _base = BuiltValue::new_object(2);
-        if let Some(horizontal) = (*base).horizontal.as_deref() {
+        if let Some(horizontal) = base.horizontal.as_deref() {
             _base.push_field(b"horizontal", axis_to_json(horizontal));
         }
-        if let Some(vertical) = (*base).vertical.as_deref() {
+        if let Some(vertical) = base.vertical.as_deref() {
             _base.push_field(b"vertical", axis_to_json(vertical));
         }
         root.push_field(b"BASE", _base);
@@ -294,12 +286,7 @@ pub unsafe fn otfcc_dump_base(
 }
 /// Returns `(default_baseline_tag, base_values)`, the JSON-side twin of
 /// `read_base_script`.
-///
-/// Never a real FFI boundary -- internal call site only, same rationale
-/// as every other instance of this allow in the crate.
-#[allow(improper_ctypes_definitions)]
-unsafe fn base_script_from_json(sr: *const ParsedValue) -> (u32, Vec<BaseValue>) {
-    let sr = unsafe { sr.as_ref() };
+fn base_script_from_json(sr: Option<&ParsedValue>) -> (u32, Vec<BaseValue>) {
     let default_baseline_tag = str2tag(sr.and_then(|v| v.get_bytes(b"defaultBaseline")));
     let Some(basevalues) = sr.and_then(|v| v.get_typed(b"baselines", JsonType::Object)) else {
         return (default_baseline_tag, Vec::new());
@@ -320,15 +307,14 @@ unsafe fn base_script_from_json(sr: *const ParsedValue) -> (u32, Vec<BaseValue>)
 /// by tag -- stable, not `sort_unstable_by_key`, the same deliberately
 /// conservative choice made for `Coverage`/`ClassDef`/`gpos_pair.rs`
 /// since `qsort` itself gives no stability guarantee.
-unsafe fn axis_from_json(axis: *const ParsedValue) -> Option<Box<BaseAxis>> {
-    let axis = unsafe { axis.as_ref() }?;
+fn axis_from_json(axis: Option<&ParsedValue>) -> Option<Box<BaseAxis>> {
+    let axis = axis?;
     let mut entries: Vec<BaseScriptEntry> = Vec::new();
     if let Some(fields) = axis.as_object() {
         for (key, val) in fields {
             if val.as_object().is_some() {
                 let tag = str2tag(Some(&key[..key.len() - 1]));
-                let (default_baseline_tag, base_values) =
-                    base_script_from_json(val as *const ParsedValue);
+                let (default_baseline_tag, base_values) = base_script_from_json(Some(val));
                 entries.push(BaseScriptEntry {
                     tag,
                     default_baseline_tag,
@@ -340,10 +326,7 @@ unsafe fn axis_from_json(axis: *const ParsedValue) -> Option<Box<BaseAxis>> {
     entries.sort_by_key(|e| e.tag);
     Some(Box::new(BaseAxis { entries }))
 }
-pub unsafe fn otfcc_parse_base(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<BaseTable>> {
+pub fn otfcc_parse_base(root: &ParsedValue, options: &Options) -> Option<Box<BaseTable>> {
     let mut base: Option<Box<BaseTable>> = None;
     let table = root.get_typed(b"BASE", JsonType::Object);
     if let Some(table) = table {
@@ -353,16 +336,8 @@ pub unsafe fn otfcc_parse_base(
         );
         let mut ___loggedstep_v: bool = true;
         while ___loggedstep_v {
-            let horizontal = axis_from_json(
-                table
-                    .get_typed(b"horizontal", JsonType::Object)
-                    .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-            );
-            let vertical = axis_from_json(
-                table
-                    .get_typed(b"vertical", JsonType::Object)
-                    .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-            );
+            let horizontal = axis_from_json(table.get_typed(b"horizontal", JsonType::Object));
+            let vertical = axis_from_json(table.get_typed(b"vertical", JsonType::Object));
             base = Some(Box::new(BaseTable {
                 horizontal,
                 vertical,
@@ -373,14 +348,11 @@ pub unsafe fn otfcc_parse_base(
     }
     return base;
 }
-pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
-    if axis.is_null() {
-        return ::core::ptr::null_mut::<BkBlock>();
-    }
+pub unsafe fn axis_to_bk(axis: &BaseAxis) -> *mut BkBlock {
     let mut taglist: BaseTagList = BaseTagList { items: Vec::new() };
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*axis).entries.len() {
-        let entry: &BaseScriptEntry = &(&(*axis).entries)[j as usize];
+    while (j as usize) < axis.entries.len() {
+        let entry: &BaseScriptEntry = &axis.entries[j as usize];
         if entry.default_baseline_tag != 0 {
             if !taglist.items.contains(&entry.default_baseline_tag) {
                 taglist.items.push(entry.default_baseline_tag);
@@ -411,11 +383,11 @@ pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
     }
     let base_script_list: *mut BkBlock = bk_new_block(&[bk_int(
         BkCellType::B16,
-        ((*axis).entries.len() as i32) as u32,
+        (axis.entries.len() as i32) as u32,
     )]);
     let mut j_1: TableId = 0 as TableId;
-    while (j_1 as usize) < (*axis).entries.len() {
-        let entry_0: &BaseScriptEntry = &(&(*axis).entries)[j_1 as usize];
+    while (j_1 as usize) < axis.entries.len() {
+        let entry_0: &BaseScriptEntry = &axis.entries[j_1 as usize];
         let base_values: *mut BkBlock = bk_new_block(&[]);
         let mut default_index: TableId = 0 as TableId;
         let mut m: TableId = 0 as TableId;
@@ -503,21 +475,16 @@ pub unsafe fn axis_to_bk(axis: *const BaseAxis) -> *mut BkBlock {
         bk_ptr(BkCellType::P16, base_script_list),
     ]);
 }
-#[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> Option<Buffer> {
-    let base = base? as *const BaseTable;
-    let horizontal_bk = (*base)
+    let base = base?;
+    let horizontal_bk = base
         .horizontal
         .as_deref()
-        .map_or(::core::ptr::null_mut(), |a| {
-            axis_to_bk(a as *const BaseAxis)
-        });
-    let vertical_bk = (*base)
+        .map_or(::core::ptr::null_mut(), |a| axis_to_bk(a));
+    let vertical_bk = base
         .vertical
         .as_deref()
-        .map_or(::core::ptr::null_mut(), |a| {
-            axis_to_bk(a as *const BaseAxis)
-        });
+        .map_or(::core::ptr::null_mut(), |a| axis_to_bk(a));
     let root: *mut BkBlock = bk_new_block(&[
         bk_int(BkCellType::B32, 0x10000_u32),
         bk_ptr(BkCellType::P16, horizontal_bk),

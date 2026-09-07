@@ -66,7 +66,7 @@ pub unsafe fn otl_read_gpos_single(
             break 'parse;
         };
 
-        targets = read_coverage(data, table_length, offset.wrapping_add(from_rel as u32));
+        targets = read_coverage(slice, offset.wrapping_add(from_rel as u32));
         if targets.is_null() || (*targets).is_empty() {
             break 'parse;
         }
@@ -76,7 +76,7 @@ pub unsafe fn otl_read_gpos_single(
                 break 'parse;
             };
             let v: PositionValue =
-                read_gpos_value(data, table_length, offset.wrapping_add(6), value_format);
+                read_gpos_value(slice, offset.wrapping_add(6), value_format);
             for j in 0..(*targets).len() {
                 (*subtable).push(GposSingleEntry {
                     target: otfcc_handle_dup((&(*targets))[j].clone() as Handle) as GlyphHandle,
@@ -101,8 +101,7 @@ pub unsafe fn otl_read_gpos_single(
                 (*subtable).push(GposSingleEntry {
                     target: otfcc_handle_dup((&(*targets))[j].clone() as Handle) as GlyphHandle,
                     value: read_gpos_value(
-                        data,
-                        table_length,
+                        slice,
                         offset.wrapping_add(8).wrapping_add((j * stride) as u32),
                         value_format,
                     ),
@@ -122,17 +121,16 @@ pub unsafe fn otl_read_gpos_single(
     subtable_gpos_single_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gpos_dump_single(mut _subtable: *const Subtable) -> BuiltValue {
-    let Subtable::GposSingle(mut_subtable) = &*_subtable else {
+pub fn otl_gpos_dump_single(_subtable: &Subtable) -> BuiltValue {
+    let Subtable::GposSingle(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GposSingleSubtable = mut_subtable;
-    let mut st = BuiltValue::new_object((*subtable).len());
+    let mut st = BuiltValue::new_object(subtable.len());
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).len() {
+    while (j as usize) < subtable.len() {
         st.push_field_bytes_key(
-            &(&(*subtable))[j as usize].target.name,
-            gpos_dump_value((&(*subtable))[j as usize].value),
+            &subtable[j as usize].target.name,
+            gpos_dump_value(subtable[j as usize].value),
         );
         j = j.wrapping_add(1);
     }
@@ -148,7 +146,7 @@ pub unsafe fn otl_gpos_parse_single(
             if val.as_object().is_some() {
                 (*subtable).push(GposSingleEntry {
                     target: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
-                    value: gpos_parse_value(val as *const ParsedValue),
+                    value: gpos_parse_value(Some(val)),
                 });
             }
         }
@@ -183,12 +181,12 @@ pub unsafe fn otfcc_build_gpos_single(
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).len() {
         push_to_coverage(
-            cov,
+            &mut *cov,
             otfcc_handle_dup((&(*subtable))[j_0 as usize].target.clone() as Handle) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let coverage_buf: Buffer = build_coverage(cov);
+    let coverage_buf: Buffer = build_coverage(&*cov);
     if is_const {
         let b: *mut BkBlock = bk_new_block(&[
             bk_int(BkCellType::B16, 1_u32),

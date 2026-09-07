@@ -51,7 +51,7 @@ pub unsafe fn consolidate_gsub_ligature(
                 options,
             );
             shrink_coverage(
-                &mut (&mut (*subtable))[k as usize].from as *mut Coverage,
+                &mut (&mut (*subtable))[k as usize].from,
                 false,
             );
             if (&(*subtable))[k as usize].from.is_empty() {

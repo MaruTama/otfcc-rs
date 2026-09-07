@@ -177,7 +177,7 @@ impl FontBuilder for OtfReader {
             (*font).tsi_01 = otfcc_read_tsi(packet, crate::tag::TAG_TSI0, crate::tag::TAG_TSI1);
             (*font).tsi_23 = otfcc_read_tsi(packet, crate::tag::TAG_TSI2, crate::tag::TAG_TSI3);
             (*font).tsi5 = otfcc_read_tsi5(packet);
-            otfcc_unconsolidate_font(font, options);
+            otfcc_unconsolidate_font(&mut *font, options);
             return font as *mut ::core::ffi::c_void;
         };
     }

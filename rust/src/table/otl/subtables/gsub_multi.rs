@@ -93,7 +93,7 @@ pub unsafe fn otl_read_gsub_multi(
             break 'parse;
         };
 
-        from = read_coverage(data, table_length, offset.wrapping_add(from_rel as u32));
+        from = read_coverage(slice, offset.wrapping_add(from_rel as u32));
         if seq_count as usize != (*from).len() {
             break 'parse;
         }
@@ -118,7 +118,7 @@ pub unsafe fn otl_read_gsub_multi(
             let cov: *mut Coverage = otl_coverage_create();
             for _ in 0..n {
                 push_to_coverage(
-                    cov,
+                    &mut *cov,
                     handle_from_index(sr.u16().unwrap() as GlyphId) as GlyphHandle,
                 );
             }
@@ -137,18 +137,14 @@ pub unsafe fn otl_read_gsub_multi(
     subtable_gsub_multi_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gsub_dump_multi(mut _subtable: *const Subtable) -> BuiltValue {
-    let Subtable::GsubMulti(mut_subtable) = &*_subtable else {
+pub fn otl_gsub_dump_multi(_subtable: &Subtable) -> BuiltValue {
+    let Subtable::GsubMulti(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GsubMultiSubtable = mut_subtable;
-    let mut st = BuiltValue::new_object((*subtable).len());
-    for j in 0..(*subtable).len() as GlyphId {
-        let entry = &(&(*subtable))[j as usize];
-        st.push_field_bytes_key(
-            &(*entry).from.name,
-            dump_coverage(&(*entry).to as *const Coverage),
-        );
+    let mut st = BuiltValue::new_object(subtable.len());
+    for j in 0..subtable.len() as GlyphId {
+        let entry = &subtable[j as usize];
+        st.push_field_bytes_key(&entry.from.name, dump_coverage(&entry.to));
     }
     st
 }
@@ -162,7 +158,7 @@ pub unsafe fn otl_gsub_parse_multi(
             if to.as_array().is_some() {
                 (*st).push(GsubMultiEntry {
                     from: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
-                    to: coverage_from_raw(parse_coverage(to as *const ParsedValue)),
+                    to: coverage_from_raw(parse_coverage(Some(to))),
                 });
             }
         }
@@ -177,7 +173,7 @@ unsafe fn build_gsub_multi_subtable_range(
     let cov: *mut Coverage = otl_coverage_create();
     for j in start..end {
         push_to_coverage(
-            cov,
+            &mut *cov,
             otfcc_handle_dup((&(*subtable))[j as usize].from.clone() as Handle) as GlyphHandle,
         );
     }
@@ -185,7 +181,7 @@ unsafe fn build_gsub_multi_subtable_range(
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(cov))),
+            bk_new_block_from_buffer(Some(build_coverage(&*cov))),
         ),
         bk_int(
             BkCellType::B16,

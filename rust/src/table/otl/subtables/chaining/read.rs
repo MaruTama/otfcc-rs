@@ -212,7 +212,7 @@ pub unsafe fn single_coverage(
     mut _userdata: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
     let cov: *mut Coverage = otl_coverage_create();
-    push_to_coverage(cov, handle_from_index(gid) as GlyphHandle);
+    push_to_coverage(&mut *cov, handle_from_index(gid) as GlyphHandle);
     return cov;
 }
 pub unsafe fn class_coverage(
@@ -313,7 +313,7 @@ pub unsafe fn class_coverage(
         let mut k: GlyphId = 0 as GlyphId;
         while (k as i32) < max_glyphs as i32 && zero_budget_left() {
             if !classified[k as usize] {
-                push_to_coverage(cov, handle_from_index(k) as GlyphHandle);
+                push_to_coverage(&mut *cov, handle_from_index(k) as GlyphHandle);
             }
             charge_zero_budget();
             k = k.wrapping_add(1);
@@ -323,7 +323,7 @@ pub unsafe fn class_coverage(
         while (j_2 as usize) < (*cd).glyphs.len() && zero_budget_left() {
             if (&(*cd).classes)[j_2 as usize] as i32 == cls as i32 {
                 push_to_coverage(
-                    cov,
+                    &mut *cov,
                     otfcc_handle_dup((&(*cd).glyphs)[j_2 as usize].clone() as Handle)
                         as GlyphHandle,
                 );
@@ -344,8 +344,7 @@ pub unsafe fn format3_coverage(
     mut _userdata: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
     return read_coverage(
-        data as *const u8,
-        table_length,
+        ::core::slice::from_raw_parts(data as *const u8, table_length as usize),
         _offset.wrapping_add(shift as u32).wrapping_sub(2_u32),
     );
 }
@@ -483,7 +482,7 @@ unsafe fn read_contextual_format1(
         let cov_offset = offset.wrapping_add(cov_rel as u32);
         // `read_coverage` always returns a valid (possibly empty) `Coverage`
         // shell, never null, even on malformed input -- see coverage.rs.
-        first_coverage = read_coverage(data as *const u8, table_length, cov_offset);
+        first_coverage = read_coverage(slice, cov_offset);
         if chain_sub_rule_set_count as usize != (*first_coverage).len() {
             break 'parse None;
         }
@@ -518,7 +517,7 @@ unsafe fn read_contextual_format1(
         // Second pass: build, re-deriving each offset exactly as the first
         // pass did (nothing here is retained across passes, matching the
         // original's own two-pass structure).
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
         (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'rulesets: for j in 0..chain_sub_rule_set_count {
             let srs_rel = FontReader::new(slice)
@@ -631,11 +630,7 @@ unsafe fn read_contextual_format2(
 
         cds = Box::into_raw(Box::new(ClassDefs {
             bc: None,
-            ic: classdef_from_raw(read_class_def(
-                data as *const u8,
-                table_length,
-                offset.wrapping_add(ic_rel as u32),
-            )),
+            ic: classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))),
             fc: None,
         }));
 
@@ -668,7 +663,7 @@ unsafe fn read_contextual_format2(
             total_rules = total_rules.saturating_add(srs_count as usize);
         }
 
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
         (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'class_sets: for j in 0..chain_sub_class_set_cnt {
             let src_rel = FontReader::new(slice)
@@ -777,7 +772,7 @@ pub unsafe fn otl_read_contextual(
     // error paths that dispose the subtable without ever reaching one) now
     // sees a valid, possibly-still-empty ruleset from this point on.
     *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
-    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
     let mut format: u16 = 0_u16;
     if let Ok(mut r) = FontReader::new(slice).at(offset as usize) {
         if let Ok(f) = r.u16() {
@@ -1013,7 +1008,7 @@ unsafe fn read_chaining_format1(
         let cov_offset = offset.wrapping_add(cov_rel as u32);
         // `read_coverage` always returns a valid (possibly empty) `Coverage`
         // shell, never null, even on malformed input -- see coverage.rs.
-        first_coverage = read_coverage(data as *const u8, table_length, cov_offset);
+        first_coverage = read_coverage(slice, cov_offset);
         if chain_sub_rule_set_count as usize != (*first_coverage).len() {
             break 'parse None;
         }
@@ -1044,7 +1039,7 @@ unsafe fn read_chaining_format1(
             total_rules = total_rules.saturating_add(srs_count as usize);
         }
 
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
         (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'rulesets: for j in 0..chain_sub_rule_set_count {
             let srs_rel = FontReader::new(slice)
@@ -1157,21 +1152,9 @@ unsafe fn read_chaining_format2(
         }
 
         cds = Box::into_raw(Box::new(ClassDefs {
-            bc: classdef_from_raw(read_class_def(
-                data as *const u8,
-                table_length,
-                offset.wrapping_add(bc_rel as u32),
-            )),
-            ic: classdef_from_raw(read_class_def(
-                data as *const u8,
-                table_length,
-                offset.wrapping_add(ic_rel as u32),
-            )),
-            fc: classdef_from_raw(read_class_def(
-                data as *const u8,
-                table_length,
-                offset.wrapping_add(fc_rel as u32),
-            )),
+            bc: classdef_from_raw(read_class_def(slice, offset.wrapping_add(bc_rel as u32))),
+            ic: classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))),
+            fc: classdef_from_raw(read_class_def(slice, offset.wrapping_add(fc_rel as u32))),
         }));
 
         // First pass: validate every non-empty ClassSet's own header +
@@ -1202,7 +1185,7 @@ unsafe fn read_chaining_format2(
             total_rules = total_rules.saturating_add(srs_count as usize);
         }
 
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
         (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'class_sets: for j in 0..chain_sub_class_set_cnt {
             let src_rel = FontReader::new(slice)
@@ -1302,7 +1285,7 @@ pub unsafe fn otl_read_chaining(
     let subtable: *mut ChainingSubtable = (subtable_chaining_create)();
     // See the identical comment in `otl_read_contextual`.
     *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
-    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable);
+    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
     let mut format: u16 = 0_u16;
     if let Ok(mut r) = FontReader::new(slice).at(offset as usize) {
         if let Ok(f) = r.u16() {

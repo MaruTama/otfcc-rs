@@ -64,7 +64,7 @@ impl FontSerializer for JsonSerializer {
         // building `ctx` (which unconditionally unwrapped both) was the
         // only thing that could panic here -- skip the whole block instead.
         if let (Some(head), Some(maxp)) = ((*font).head.as_deref(), (*font).maxp.as_deref()) {
-            let mut ctx: GlyfIOContext = GlyfIOContext {
+            let ctx: GlyfIOContext = GlyfIOContext {
                 loca_is_long: head.index_to_loc_format != 0,
                 num_glyphs: maxp.num_glyphs as GlyphId,
                 n_phantom_points: 4 as ShapeId,
@@ -75,7 +75,7 @@ impl FontSerializer for JsonSerializer {
                 has_vertical_metrics: (*font).vhea.is_some(),
                 export_fd_select: (*font).cff.as_deref().map_or(false, |c| c.is_cid),
             };
-            otfcc_dump_glyf((*font).glyf.as_ref(), &mut root, options, &raw mut ctx);
+            otfcc_dump_glyf((*font).glyf.as_ref(), &mut root, options, &ctx);
         }
         if !options.ignore_hints {
             table_dump_table_fpgm_prep(

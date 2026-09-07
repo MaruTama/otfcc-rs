@@ -145,9 +145,9 @@ unsafe fn build_rule(
                 Some(v) => v.cls as GlyphClass,
                 None => 0 as GlyphClass,
             };
-            push_to_coverage(cov, handle_from_index(cls) as GlyphHandle);
+            push_to_coverage(&mut *cov, handle_from_index(cls) as GlyphHandle);
         } else {
-            push_to_coverage(cov, handle_from_index(0 as GlyphId) as GlyphHandle);
+            push_to_coverage(&mut *cov, handle_from_index(0 as GlyphId) as GlyphHandle);
         }
         (*new_rule).match_0.push(coverage_from_raw(cov));
         m = m.wrapping_add(1);
@@ -180,7 +180,7 @@ unsafe fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> 
     let cd: *mut ClassDef = otl_class_def_create();
     for (&gid, v) in h.iter() {
         push_class_def(
-            cd,
+            &mut *cd,
             Handle {
                 state: HandleState::Consolidated,
                 index: gid,
@@ -211,7 +211,7 @@ pub unsafe fn try_classify_around(
     let mut classno_b: i32 = 0_i32;
     let mut classno_i: i32 = 0_i32;
     let mut classno_f: i32 = 0_i32;
-    let rule0: *mut ChainingRule = chaining_rule_mut(subtable0);
+    let rule0: *mut ChainingRule = chaining_rule_mut(&mut *subtable0);
     let mut m: TableId = 0 as TableId;
     // Was a `current_block`-flagged `loop`: this `while` runs to
     // completion (every one of `rule0`'s own matches is class-compatible)
@@ -254,7 +254,7 @@ pub unsafe fn try_classify_around(
                 unreachable!()
             };
             let subtable_k: *mut ChainingSubtable = mut_subtable_k;
-            let rule: *mut ChainingRule = chaining_rule_mut(subtable_k);
+            let rule: *mut ChainingRule = chaining_rule_mut(&mut *subtable_k);
             let allcheck: bool = true;
             let mut m_0: TableId = 0 as TableId;
             while (m_0 as i32) < (*rule).match_count as i32 {
@@ -314,7 +314,7 @@ pub unsafe fn try_classify_around(
                     ..Default::default()
                 }),
             );
-            let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(subtable0);
+            let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable0);
             (*ruleset)
                 .rules
                 .push(Some(build_rule(rule0, &hb, &hi, &hf)));
@@ -330,7 +330,7 @@ pub unsafe fn try_classify_around(
                     unreachable!()
                 };
                 let subtable_k_0: *mut ChainingSubtable = mut_subtable_k_0;
-                let rule_0: *mut ChainingRule = chaining_rule_mut(subtable_k_0);
+                let rule_0: *mut ChainingRule = chaining_rule_mut(&mut *subtable_k_0);
                 (*ruleset)
                     .rules
                     .push(Some(build_rule(rule_0, &hb, &hi, &hf)));
@@ -369,7 +369,7 @@ pub unsafe fn otfcc_classified_build_chaining(
             unreachable!()
         };
         let st0: *mut ChainingSubtable = mut_st0;
-        if chaining_is_canonical(st0) {
+        if chaining_is_canonical(&*st0) {
             let mut st: *mut ChainingSubtable = st0;
             j = (j as i32
                 + try_classify_around(lookup, j, &raw mut st) as i32)

@@ -21,8 +21,8 @@ pub unsafe fn consolidate_gpos_pair(
         let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
         fontop_consolidate_class_def(font, first_cd, options);
         fontop_consolidate_class_def(font, second_cd, options);
-        shrink_class_def(first_cd);
-        shrink_class_def(second_cd);
+        shrink_class_def(&mut *first_cd);
+        shrink_class_def(&mut *second_cd);
         return (*first_cd).glyphs.is_empty();
     }
 }

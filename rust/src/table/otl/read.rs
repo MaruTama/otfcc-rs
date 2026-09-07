@@ -262,7 +262,7 @@ unsafe fn parse_language(
             }
         }
         Err(_) => {
-            otl_feature_ref_list_dispose(&raw mut (*lang).features);
+            otl_feature_ref_list_dispose(&mut (*lang).features);
             (*lang).required_feature = ::core::ptr::null::<Feature>();
         }
     }

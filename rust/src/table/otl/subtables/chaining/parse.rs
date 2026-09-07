@@ -28,7 +28,7 @@ pub unsafe fn otl_parse_chaining(
     // `create()` already hands back a valid `Canonical(ChainingRule::
     // default())` -- no separate tag assignment or placement-construct
     // needed, unlike the pre-enum version.
-    let rule: *mut ChainingRule = chaining_rule_mut(subtable);
+    let rule: *mut ChainingRule = chaining_rule_mut(&mut *subtable);
     let match_items = match_val.as_array().unwrap();
     let apply_items = apply_val.as_array().unwrap();
     (*rule).match_count = match_items.len() as TableId;
@@ -39,7 +39,7 @@ pub unsafe fn otl_parse_chaining(
     for item in match_items {
         (*rule)
             .match_0
-            .push(coverage_from_raw(parse_coverage(item as *const ParsedValue)));
+            .push(coverage_from_raw(parse_coverage(Some(item))));
     }
     for application in apply_items {
         let mut index: TableId = 0 as TableId;

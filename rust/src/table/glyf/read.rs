@@ -1144,7 +1144,7 @@ pub unsafe fn otfcc_read_glyf(
             // failing the whole table, the same degradation the
             // zero-length-range case below already used.
             let g = otfcc_read_glyph(data_0, offsets[j0 as usize], glyph_length, options)
-                .unwrap_or_else(|| otfcc_new_glyf_glyph());
+                .unwrap_or_else(otfcc_new_glyf_glyph);
             glyf_val.push(Some(g));
         } else {
             glyf_val.push(Some(otfcc_new_glyf_glyph()));
@@ -1493,10 +1493,12 @@ mod gvar_polymorphize_tests {
     }
 
     #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "calls libm's round via otfcc_to_fixed, unsupported under Miri on macOS"
-    )]
+    // No longer `#[cfg_attr(miri, ignore)]`d: `otfcc_to_fixed` used to reach
+    // libm's `round` through an `extern "C"` block, which Miri cannot execute
+    // on macOS. It uses `f64::round` now (bit-identical, see
+    // `support/primitives.rs`), so this test -- the regression guard for the
+    // IUP X/Y axis mix-up traced back to the original C's 2017 commit
+    // 2ddee94f -- runs under Miri again.
     fn fill_the_gaps_interpolates_an_untouched_points_delta_using_its_own_axis_kernel() {
         // Regression test for a bug traced back to the original C source,
         // commit 2ddee94f "do some more abstraction" (2017-11-13): that

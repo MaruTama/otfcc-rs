@@ -66,7 +66,7 @@ pub unsafe fn otl_read_gpos_cursive(
             break 'parse;
         };
 
-        targets = read_coverage(data, table_length, offset.wrapping_add(from_rel as u32));
+        targets = read_coverage(slice, offset.wrapping_add(from_rel as u32));
         if targets.is_null() || (*targets).is_empty() {
             break 'parse;
         }
@@ -85,12 +85,12 @@ pub unsafe fn otl_read_gpos_cursive(
                 break 'parse;
             };
             let enter = if enter_offset != 0 {
-                otl_read_anchor(data, table_length, offset.wrapping_add(enter_offset as u32))
+                otl_read_anchor(slice, offset.wrapping_add(enter_offset as u32))
             } else {
                 otl_anchor_absent()
             };
             let exit = if exit_offset != 0 {
-                otl_read_anchor(data, table_length, offset.wrapping_add(exit_offset as u32))
+                otl_read_anchor(slice, offset.wrapping_add(exit_offset as u32))
             } else {
                 otl_anchor_absent()
             };
@@ -111,18 +111,17 @@ pub unsafe fn otl_read_gpos_cursive(
     subtable_gpos_cursive_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gpos_dump_cursive(mut _subtable: *const Subtable) -> BuiltValue {
-    let Subtable::GposCursive(mut_subtable) = &*_subtable else {
+pub fn otl_gpos_dump_cursive(_subtable: &Subtable) -> BuiltValue {
+    let Subtable::GposCursive(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GposCursiveSubtable = mut_subtable;
-    let mut st = BuiltValue::new_object((*subtable).len());
+    let mut st = BuiltValue::new_object(subtable.len());
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).len() {
+    while (j as usize) < subtable.len() {
         let mut rec = BuiltValue::new_object(2);
-        rec.push_field(b"enter", otl_dump_anchor((&(*subtable))[j as usize].enter));
-        rec.push_field(b"exit", otl_dump_anchor((&(*subtable))[j as usize].exit));
-        st.push_field_bytes_key(&(&(*subtable))[j as usize].target.name, rec.preserialize());
+        rec.push_field(b"enter", otl_dump_anchor(subtable[j as usize].enter));
+        rec.push_field(b"exit", otl_dump_anchor(subtable[j as usize].exit));
+        st.push_field_bytes_key(&subtable[j as usize].target.name, rec.preserialize());
         j = j.wrapping_add(1);
     }
     st
@@ -137,14 +136,8 @@ pub unsafe fn otl_gpos_parse_cursive(
             if val.as_object().is_some() {
                 (*subtable).push(GposCursiveEntry {
                     target: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
-                    enter: otl_parse_anchor(
-                        val.get(b"enter")
-                            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-                    ),
-                    exit: otl_parse_anchor(
-                        val.get(b"exit")
-                            .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-                    ),
+                    enter: otl_parse_anchor(val.get(b"enter")),
+                    exit: otl_parse_anchor(val.get(b"exit")),
                 });
             }
         }
@@ -163,7 +156,7 @@ pub unsafe fn otfcc_build_gpos_cursive(
     let mut j: GlyphId = 0 as GlyphId;
     while (j as usize) < (*subtable).len() {
         push_to_coverage(
-            cov,
+            &mut *cov,
             otfcc_handle_dup((&(*subtable))[j as usize].target.clone() as Handle) as GlyphHandle,
         );
         j = j.wrapping_add(1);
@@ -172,7 +165,7 @@ pub unsafe fn otfcc_build_gpos_cursive(
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(cov))),
+            bk_new_block_from_buffer(Some(build_coverage(&*cov))),
         ),
         bk_int(BkCellType::B16, ((*subtable).len()) as u32),
     ]);

@@ -50,11 +50,7 @@ pub struct SplineFontContainer {
 // end of a truncated file was silently zero-padded instead of failing the
 // read. `Read::read_exact` (below, and in `otfcc_get16u`/`32`) fails
 // instead, the same way the header/directory fields already did.
-unsafe fn otfcc_read_packets<R: Read + Seek>(
-    font: *mut SplineFontContainer,
-    file: &mut R,
-) -> bool {
-    let font: &mut SplineFontContainer = &mut *font;
+fn otfcc_read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) -> bool {
     // `offset`/`length` below are attacker-controlled (raw fields straight
     // out of the table directory), so a table declaring a length up to
     // u32::MAX used to reach `vec![0u8; length as usize]` unconditionally
@@ -153,22 +149,19 @@ unsafe fn otfcc_read_packets<R: Read + Seek>(
 // `otfcc_read_packets` does, by returning `false` -- can be handled once,
 // in one place, instead of duplicating the "free `font`, return null"
 // cleanup at every read site.
-unsafe fn otfcc_read_sfnt_body<R: Read + Seek>(
-    font: *mut SplineFontContainer,
-    file: &mut R,
-) -> bool {
+fn otfcc_read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut R) -> bool {
     let Some(type_0) = otfcc_get32u(file) else {
         return false;
     };
-    (*font).type_0 = type_0;
-    match (*font).type_0 {
+    font.type_0 = type_0;
+    match font.type_0 {
         crate::tag::SFNT_VERSION_OTTO
         | crate::tag::SFNT_VERSION_TRUE_TYPE
         | crate::tag::SFNT_VERSION_MAC_TRUE
         | crate::tag::SFNT_VERSION_MAC_TYPE1 => {
-            (*font).count = 1;
-            (*font).offsets = vec![0];
-            (*font).packets = (0..(*font).count)
+            font.count = 1;
+            font.offsets = vec![0];
+            font.packets = (0..font.count)
                 .map(|_| Packet {
                     sfnt_version: 0,
                     num_tables: 0,
@@ -187,9 +180,9 @@ unsafe fn otfcc_read_sfnt_body<R: Read + Seek>(
             let Some(count) = otfcc_get32u(file) else {
                 return false;
             };
-            (*font).count = count;
-            (*font).offsets = vec![0; (*font).count as usize];
-            (*font).packets = (0..(*font).count)
+            font.count = count;
+            font.offsets = vec![0; font.count as usize];
+            font.packets = (0..font.count)
                 .map(|_| Packet {
                     sfnt_version: 0,
                     num_tables: 0,
@@ -200,7 +193,7 @@ unsafe fn otfcc_read_sfnt_body<R: Read + Seek>(
                 })
                 .collect();
             let mut i: u32 = 0;
-            let offsets: &mut Vec<u32> = &mut (*font).offsets;
+            let offsets: &mut Vec<u32> = &mut font.offsets;
             while i < offsets.len() as u32 {
                 let Some(v) = otfcc_get32u(file) else {
                     return false;
@@ -211,9 +204,9 @@ unsafe fn otfcc_read_sfnt_body<R: Read + Seek>(
             otfcc_read_packets(font, file)
         }
         _ => {
-            (*font).count = 0;
-            (*font).offsets = Vec::new();
-            (*font).packets = Vec::new();
+            font.count = 0;
+            font.offsets = Vec::new();
+            font.packets = Vec::new();
             true
         }
     }
@@ -244,21 +237,17 @@ pub unsafe fn otfcc_read_sfnt(path: *const ::core::ffi::c_char) -> *mut SplineFo
 /// every one of its thousands-per-process iterations (this used to be
 /// `fmemopen` wrapping a byte buffer as a `FILE*`, back when
 /// `otfcc_read_sfnt` itself was `FILE*`-shaped).
-pub unsafe fn otfcc_read_sfnt_from_reader<R: Read + Seek>(
-    file: &mut R,
-) -> *mut SplineFontContainer {
-    let font: *mut SplineFontContainer = Box::into_raw(Box::new(SplineFontContainer {
+pub fn otfcc_read_sfnt_from_reader<R: Read + Seek>(file: &mut R) -> *mut SplineFontContainer {
+    let mut font = SplineFontContainer {
         type_0: 0,
         count: 0,
         offsets: Vec::new(),
         packets: Vec::new(),
-    }));
-    let ok = otfcc_read_sfnt_body(font, file);
-    if !ok {
-        drop(Box::from_raw(font));
+    };
+    if !otfcc_read_sfnt_body(&mut font, file) {
         return ::core::ptr::null_mut::<SplineFontContainer>();
     }
-    return font;
+    Box::into_raw(Box::new(font))
 }
 pub unsafe fn otfcc_delete_sfnt(font: *mut SplineFontContainer) {
     if font.is_null() {

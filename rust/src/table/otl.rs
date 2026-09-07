@@ -556,17 +556,12 @@ pub struct OtlTable {
 // `otf_reader/unconsolidate.rs`, `table/otl/read.rs`) either needed no
 // replacement at all or shrank to a plain assignment that lets the old
 // value drop itself.
-// Only ever called on a `Lookup` that hasn't been pushed into a `LookupList`
-// yet -- the not-yet-owned scratch/rejection cases in `table/otl/{read,
-// parse}.rs`. Reclaims the `Box` `new_lookup`/`Box::into_raw` produced and
-// drops it, which now does the subtable teardown and `name` free that this
-// function's body used to spell out directly.
-pub unsafe fn otfcc_delete_lookup(lookup: *mut Lookup) {
-    if lookup.is_null() {
-        return;
-    }
-    drop(Box::from_raw(lookup));
-}
+// The not-yet-owned scratch/rejection cases in `table/otl/{read,parse}.rs`
+// that used to call `otfcc_delete_lookup` on a `Lookup` not yet pushed into
+// a `LookupList` now just let the local `Box<Lookup>` drop naturally
+// instead -- `otfcc_delete_lookup` itself (`drop(Box::from_raw(lookup))`)
+// had no other callers left once both sites were converted, confirmed by
+// grep before deleting it.
 /// Same shape as `new_language`/`new_feature`: `Box` is the allocation, the
 /// struct literal is the zero-init the old `__caryll_allocate_clean`
 /// provided.
@@ -617,10 +612,7 @@ pub(crate) unsafe fn otl_lookup_list_filter_env(
 // `LookupRefList`は所有物を持たない要素の配列。disposeはバッキング配列を
 // 解放するだけ（要素そのものへの処理は不要）。`.copy`（テーブル全体クローン）
 // は死んでいたため削除。
-pub(crate) unsafe fn otl_lookup_ref_list_dispose(arr: *mut LookupRefList) {
-    if arr.is_null() {
-        return;
-    }
+pub(crate) fn otl_lookup_ref_list_dispose(arr: &mut LookupRefList) {
     *arr = Vec::new();
 }
 // 元のスワップ&切り詰めループを`Vec::retain`に。要素のdisposeは無いので
@@ -636,7 +628,7 @@ pub(crate) unsafe fn otl_lookup_ref_list_filter_env(
 // `new_feature`で作った空のdestに対して呼ばれる——単純な move-assign
 // で置き換え可能（旧`dispose`+`memcpy`と等価、Rustの代入が古い値を
 // 正しくドロップする）。
-pub(crate) unsafe fn otl_lookup_ref_list_replace(dst: *mut LookupRefList, src: LookupRefList) {
+pub(crate) fn otl_lookup_ref_list_replace(dst: &mut LookupRefList, src: LookupRefList) {
     *dst = src;
 }
 /// Same shape as `new_language`: `Box` is the allocation, the struct
@@ -674,14 +666,11 @@ pub(crate) unsafe fn otl_feature_list_filter_env(
 // （`FeatureList`が指し先の`Feature`を所有する）。
 // `.replace`の唯一の呼び出し箇所(`table/otl/parse.rs`)は`new_language`
 // で作った空のdestに対して呼ばれる——move-assignで置き換え可能。
-pub(crate) unsafe fn otl_feature_ref_list_replace(dst: *mut FeatureRefList, src: FeatureRefList) {
+pub(crate) fn otl_feature_ref_list_replace(dst: &mut FeatureRefList, src: FeatureRefList) {
     *dst = src;
 }
 // `LookupRefList`と同じく所有物を持たない要素の配列。
-pub(crate) unsafe fn otl_feature_ref_list_dispose(arr: *mut FeatureRefList) {
-    if arr.is_null() {
-        return;
-    }
+pub(crate) fn otl_feature_ref_list_dispose(arr: &mut FeatureRefList) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn otl_feature_ref_list_filter_env(
