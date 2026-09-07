@@ -11,20 +11,44 @@ use libc::fprintf;
 // removed.
 //
 // `BkCellValue::Ptr(*mut BkBlock)` cross-references between blocks stay raw
-// pointers rather than becoming arena indices: a focused survey (see
-// rust/README.md) confirmed every `BkBlock` is single-parent-owned (a forest
-// of independently-built trees, never shared across two graphs, never
-// cyclic -- real call sites always finish building a child completely, via
-// `bk_new_block`/`bk_push`, before splicing it into a parent), and teardown
-// is centralized to exactly two places (`bkgraph.rs`'s `bk_delete_graph`,
-// a flat walk over an already-fully-built tree, and `bkpushitems`'s `Embed`
-// arm below, which frees a block immediately after copying its cells and
-// before any other cell can reference it). That ownership discipline is
-// what makes a bare pointer sound here, the same reasoning
-// `CffTable.fd_array: Vec<Box<CffTable>>` relies on for its own child
-// pointers -- an index scheme (`libcff/subr.rs`'s arena-with-tombstones
-// template) is only needed where slots get deleted and revisited
-// mid-algorithm, which never happens to a `BkBlock`.
+// pointers, but NOT because a `BkBlock` is single-parent-owned -- an earlier
+// version of this comment claimed exactly that ("a forest of independently-
+// built trees, never shared... never cyclic") and it was wrong, falsified by
+// actually reading `bkgraph.rs`'s `bk_minimize_graph`/`replaceptr` (2026-09-07):
+// `bk_minimize_graph` finds structurally-equal blocks at the same height and
+// records `entries[k].alias = j`; `replaceptr` then rewrites *every*
+// remaining `P16`/`P32`/`Sp16`/`Sp32` cell in the graph to point at the
+// canonical `entries[index].block` resolved through that alias chain. That's
+// the entire point of minimization -- deliberately making multiple pointer
+// cells across the structure alias the exact same `BkBlock` -- so after
+// `bk_minimize_graph` runs, a block routinely has more than one "parent"
+// cell pointing at it. `bkgraph.rs`'s `dfs_insert_cells`'s `Gray`/`Black`
+// visit-state handling is further, unverified circumstantial evidence the
+// same can happen even pre-minimize, since a strictly single-parent forest
+// would never need second-visit/in-progress-visit guards in the first place.
+//
+// The actual ownership model is a flat arena, not a tree: `BkGraph.entries:
+// Vec<BkGraphNode>` (see `bkgraph.rs`) is populated once per distinct block
+// by the initial DFS and owns every survivor from then on: `bk_delete_graph`
+// frees by walking `entries` directly, never by walking cell pointers, so
+// the post-minimize sharing above never causes a double free -- aliasing a
+// cell's *target* doesn't touch which entry owns which `BkBlock`. A `*mut
+// BkBlock` cell is therefore an index into that arena in disguise, and
+// `BkCellValue::Ptr(*mut BkBlock)` cannot become `Ptr(Box<BkBlock>)`: two
+// `Box`es cannot soundly alias one allocation, and after minimization they
+// routinely would. The correct redesign, if this is ever tackled, is an
+// explicit arena matching what `entries` already does in practice --
+// `BkArena { blocks: Vec<BkBlock> }` + `BkCellValue::Ptr(Option<BlockId>)`
+// (`Option` because a null pointer is a real, frequently-hit state here) --
+// not a `Box`.
+//
+// Separately, `bkpushitems`'s `Embed` arm below (in this file) *is* a
+// genuine single-owner teardown: it frees a block immediately after copying
+// its cells into the parent, before any other cell can ever reference it.
+// That's a distinct population of blocks (ones spliced away at construction
+// time, before any graph exists) from the ones the paragraph above is about
+// (survivors that make it into `BkGraph.entries`), and the two teardown
+// paths don't overlap.
 pub struct BkBlock {
     pub _visitstate: BkCellVisitState,
     pub _index: u32,

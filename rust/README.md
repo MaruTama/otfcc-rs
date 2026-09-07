@@ -2572,6 +2572,23 @@ on the other platform before a commit is trusted.
     With this, every raw pointer Stage 7-2-f named is now resolved (either
     converted, in `BkCellValue::Ptr`'s case, or confirmed already-sound and
     documented as such), closing out Stage 7-2 entirely.
+  - **Correction (2026-09-07): the "single-parent-owned, never shared"
+    claim above is wrong.** Falsified by actually reading `bkgraph.rs`'s
+    `bk_minimize_graph`/`replaceptr`: block deduplication deliberately
+    rewrites multiple pointer cells across the structure to alias the exact
+    same `BkBlock` -- that's the entire point of minimization, not an edge
+    case. It doesn't retroactively make `Ptr(Box<BkBlock>)` unsafe (no code
+    here was ever changed to that), but it does mean the stated *reasoning*
+    for keeping `Ptr(*mut BkBlock)` as-is was accidentally right for the
+    wrong argument. The actual ownership model is a flat arena
+    (`BkGraph.entries: Vec<BkGraphNode>` owns every surviving block and is
+    freed by a flat walk, never by walking cell pointers), which a `*mut
+    BkBlock` cell is really an index into in disguise -- see the corrected
+    comment on `BkBlock` in `bk/bkblock.rs` for the full account. Recorded
+    here as a caution for future readers of this log entry, and as the
+    concrete instance behind this migration's own repeated lesson: don't
+    trust a past comment's claim about aliasing/ownership without reading
+    the code that would falsify it.
 
 - **Fixed the `caryll_sfnt_builder.rs` checksum alignment UB surfaced by the
   `Font` Box化 fix above.** `buf_checksum`/`create_segment` cast a
