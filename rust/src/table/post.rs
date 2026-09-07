@@ -303,10 +303,9 @@ static STANDARD_MAC_NAMES: [&::core::ffi::CStr; 258] = [
 ];
 // The fallible, allocation-free half of the read: parses the fixed header
 // and (for a version-2.0 table) the whole name-index/name-heap structure
-// into plain owned Rust values first, and only builds the `GlyphOrder` (via
-// `otfcc_glyph_order_create`/`otfcc_set_glyph_order_by_gid`, both raw-
-// pointer FFI-shaped calls) once every read has already succeeded -- so an
-// `Err` here never leaves a partially-built `GlyphOrder` to clean up.
+// into plain owned Rust values first, and only builds the `GlyphOrder`
+// (a plain `Box::new`, see below) once every read has already succeeded --
+// so an `Err` here never leaves a partially-built `GlyphOrder` to clean up.
 struct ParsedPost {
     fixed: PostFixedHeader,
     // `None` unless `fixed.version == 0x20000`.
