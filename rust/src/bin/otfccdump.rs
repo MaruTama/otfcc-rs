@@ -61,21 +61,21 @@ unsafe fn getchar() -> i32 {
         _ => -1,
     }
 }
-pub unsafe fn printInfo() {
-    fprintf(
-        stdout,
-        b"This is Polymorphic otfccdump, version %d.%d.%d.\n\0" as *const u8
-            as *const ::core::ffi::c_char,
-        MAIN_VER,
-        SECONDARY_VER,
-        PATCH_VER,
+// `fprintf(stdout, ...)` -> `print!` -- both of these were pure fixed
+// text (the only variadic args are plain integers substituted by
+// value, not by reference or pointer), so there was never a genuine
+// unsafe operation here, just the c2rust libc-call idiom. `stdout`
+// itself stays imported -- it's still needed by the `isatty(fileno(
+// stdout))` check elsewhere in this file.
+pub fn printInfo() {
+    println!(
+        "This is Polymorphic otfccdump, version {}.{}.{}.",
+        MAIN_VER, SECONDARY_VER, PATCH_VER,
     );
 }
-pub unsafe fn printHelp() {
-    fprintf(
-        stdout,
-        b"\nUsage : otfccdump [OPTIONS] input.[otf|ttf|ttc]\n\n -h, --help              : Display this help message and exit.\n -v, --version           : Display version information and exit.\n -o <file>               : Set output file path to <file>. When absent the dump\n                           will be written to STDOUT.\n -n <n>, --ttc-index <n> : Use the <n>th subfont within the input font.\n --pretty                : Prettify the output JSON.\n --ugly                  : Force uglify the output JSON.\n --verbose               : Show more information when building.\n -q, --quiet             : Be silent when building.\n\n --ignore-glyph-order    : Do not export glyph order information.\n --glyph-name-prefix pfx : Add a prefix to the glyph names.\n --ignore-hints          : Do not export hinting information.\n --decimal-cmap          : Export 'cmap' keys as decimal number.\n --hex-cmap              : Export 'cmap' keys as hex number (U+FFFF).\n --name-by-hash          : Name glyphs using its hash value.\n --name-by-gid           : Name glyphs using its glyph id.\n --add-bom               : Add BOM mark in the output. (It is default on Windows\n                           when redirecting to another program. Use --no-bom to\n                           turn it off.)\n\n\0"
-            as *const u8 as *const ::core::ffi::c_char,
+pub fn printHelp() {
+    print!(
+        "\nUsage : otfccdump [OPTIONS] input.[otf|ttf|ttc]\n\n -h, --help              : Display this help message and exit.\n -v, --version           : Display version information and exit.\n -o <file>               : Set output file path to <file>. When absent the dump\n                           will be written to STDOUT.\n -n <n>, --ttc-index <n> : Use the <n>th subfont within the input font.\n --pretty                : Prettify the output JSON.\n --ugly                  : Force uglify the output JSON.\n --verbose               : Show more information when building.\n -q, --quiet             : Be silent when building.\n\n --ignore-glyph-order    : Do not export glyph order information.\n --glyph-name-prefix pfx : Add a prefix to the glyph names.\n --ignore-hints          : Do not export hinting information.\n --decimal-cmap          : Export 'cmap' keys as decimal number.\n --hex-cmap              : Export 'cmap' keys as hex number (U+FFFF).\n --name-by-hash          : Name glyphs using its hash value.\n --name-by-gid           : Name glyphs using its glyph id.\n --add-bom               : Add BOM mark in the output. (It is default on Windows\n                           when redirecting to another program. Use --no-bom to\n                           turn it off.)\n\n"
     );
 }
 unsafe fn main_0(args: Vec<String>) -> i32 {
