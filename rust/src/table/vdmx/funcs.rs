@@ -77,53 +77,40 @@ pub fn otfcc_read_vdmx(packet: &Packet, options: &Options) -> Option<Box<VdmxTab
         }
     }
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_vdmx(
-    vdmx: Option<&VdmxTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
-    let vdmx = match vdmx {
-        Some(v) => v,
-        None => return,
+pub fn otfcc_dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(vdmx) = vdmx else {
+        return;
     };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"VDMX"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut _vdmx = BuiltValue::new_object(2);
-        _vdmx.push_field(b"version", BuiltValue::Int((*vdmx).version as i64));
-        let ratios: &Vec<VdmxRatioRange> = &(*vdmx).ratios;
-        let mut _ratios = BuiltValue::new_array(ratios.len());
-        for rr in ratios.iter() {
-            let mut _rr = BuiltValue::new_object(5);
-            _rr.push_field(b"bCharset", BuiltValue::Int(rr.b_charset as i64));
-            _rr.push_field(b"xRatio", BuiltValue::Int(rr.x_ratio as i64));
-            _rr.push_field(b"yStartRatio", BuiltValue::Int(rr.y_start_ratio as i64));
-            _rr.push_field(b"yEndRatio", BuiltValue::Int(rr.y_end_ratio as i64));
-            let mut _records = BuiltValue::new_array(rr.records.len());
-            for r in rr.records.iter() {
-                let mut _r = BuiltValue::new_object(3);
-                _r.push_field(b"yPelHeight", BuiltValue::Int(r.y_pel_height as i64));
-                _r.push_field(b"yMax", BuiltValue::Int(r.y_max as i64));
-                _r.push_field(b"yMin", BuiltValue::Int(r.y_min as i64));
-                _records.push_item(_r);
-            }
-            _rr.push_field(b"records", _records);
-            _ratios.push_item(_rr);
+    let mut _vdmx = BuiltValue::new_object(2);
+    _vdmx.push_field(b"version", BuiltValue::Int(vdmx.version as i64));
+    let ratios = &vdmx.ratios;
+    let mut _ratios = BuiltValue::new_array(ratios.len());
+    for rr in ratios.iter() {
+        let mut _rr = BuiltValue::new_object(5);
+        _rr.push_field(b"bCharset", BuiltValue::Int(rr.b_charset as i64));
+        _rr.push_field(b"xRatio", BuiltValue::Int(rr.x_ratio as i64));
+        _rr.push_field(b"yStartRatio", BuiltValue::Int(rr.y_start_ratio as i64));
+        _rr.push_field(b"yEndRatio", BuiltValue::Int(rr.y_end_ratio as i64));
+        let mut _records = BuiltValue::new_array(rr.records.len());
+        for r in rr.records.iter() {
+            let mut _r = BuiltValue::new_object(3);
+            _r.push_field(b"yPelHeight", BuiltValue::Int(r.y_pel_height as i64));
+            _r.push_field(b"yMax", BuiltValue::Int(r.y_max as i64));
+            _r.push_field(b"yMin", BuiltValue::Int(r.y_min as i64));
+            _records.push_item(_r);
         }
-        _vdmx.push_field(b"ratios", _ratios);
-        root.push_field(b"VDMX", _vdmx);
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        _rr.push_field(b"records", _records);
+        _ratios.push_item(_rr);
     }
+    _vdmx.push_field(b"ratios", _ratios);
+    root.push_field(b"VDMX", _vdmx);
+    logger_finish(&mut *options.logger.borrow_mut());
 }
-pub unsafe fn otfcc_parse_vdmx(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<VdmxTable>> {
+pub fn otfcc_parse_vdmx(root: &ParsedValue, options: &Options) -> Option<Box<VdmxTable>> {
     let vdmx_dump = root.get_typed(b"VDMX", JsonType::Object)?;
     let mut vdmx: Box<VdmxTable> = Box::new(VdmxTable {
         version: 0,
@@ -177,15 +164,12 @@ pub unsafe fn otfcc_parse_vdmx(
 #[allow(improper_ctypes_definitions)]
 pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
     let vdmx = vdmx?;
-    let ratios: &Vec<VdmxRatioRange> = &(*vdmx).ratios;
+    let ratios: &Vec<VdmxRatioRange> = &vdmx.ratios;
     if ratios.is_empty() {
         return None;
     }
     let root: *mut BkBlock = bk_new_block(&[
-        bk_int(
-            BkCellType::B16,
-            ((*vdmx).version as i32) as u32,
-        ),
+        bk_int(BkCellType::B16, (vdmx.version as i32) as u32),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
     ]);
