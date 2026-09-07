@@ -85,27 +85,30 @@ pub unsafe fn otfcc_delete_sfnt_builder(builder: *mut SfntBuilder) {
 // the same shape as the six `consolidate/otl/*.rs` instances earlier in
 // this migration and unlike `ScriptStatHash`/`FvarMaster`'s insertion
 // order.
-pub unsafe fn otfcc_sfnt_builder_push_table(
-    builder: *mut SfntBuilder,
-    tag: u32,
-    buffer: Option<Buffer>,
-) {
-    if builder.is_null() {
-        return;
-    }
+// `builder.is_null()` was dead: this function's one caller
+// (`otf_writer.rs`'s `OtfSerializer::serialize`) always passes the direct
+// return of `otfcc_new_sfnt_builder`, unconditionally, and
+// `__caryll_allocate_clean` aborts via `handle_alloc_error` on OOM rather
+// than returning null for a nonzero size (`size_of::<SfntBuilder>()` is
+// never zero) -- see `support/alloc.rs`. Dropped along with the pointer.
+pub fn otfcc_sfnt_builder_push_table(builder: &mut SfntBuilder, tag: u32, buffer: Option<Buffer>) {
     let Some(buffer) = buffer else {
         return;
     };
-    let options: *const Options = (*builder).options;
-    if (*builder).tables.contains_key(&(tag as i32)) {
+    if builder.tables.contains_key(&(tag as i32)) {
         // `buffer` just drops here -- same as the old
         // `Buffer::from_raw(buffer)` + implicit drop.
         return;
     }
     let entry = create_segment(tag, buffer);
-    (*builder).tables.insert(tag as i32, entry);
+    builder.tables.insert(tag as i32, entry);
+    // `builder.options: *const Options` is a separate, not-yet-safened
+    // raw-pointer field (this struct has no lifetime parameter to hold a
+    // `&Options` in) -- narrow bridge only, everything else above and
+    // below is plain safe `BTreeMap`/`Buffer` work.
+    let options: &Options = unsafe { &*builder.options };
     logger_log_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         LOG_VL_PROGRESS,
         LoggerType::Progress,
         crate::bytesbuild!(
@@ -118,12 +121,11 @@ pub unsafe fn otfcc_sfnt_builder_push_table(
         ),
     );
 }
-pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> Buffer {
+// `builder.is_null()` was dead here too, same reasoning as
+// `otfcc_sfnt_builder_push_table` above.
+pub fn otfcc_sfnt_builder_serialize(builder: &SfntBuilder) -> Buffer {
     let mut buffer = Buffer::new();
-    if builder.is_null() {
-        return buffer;
-    }
-    let n_tables: u16 = (*builder).tables.len() as u16;
+    let n_tables: u16 = builder.tables.len() as u16;
     let search_range: u16 = ((if (n_tables as i32) < 16_i32 {
         8_i32
     } else {
@@ -137,7 +139,7 @@ pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> Buffer 
             }
         }
     }) * 16_i32) as u16;
-    buffer.write_u32be((*builder).header);
+    buffer.write_u32be(builder.header);
     buffer.write_u16be(n_tables);
     buffer.write_u16be(search_range);
     buffer.write_u16be(
@@ -159,7 +161,7 @@ pub unsafe fn otfcc_sfnt_builder_serialize(builder: *mut SfntBuilder) -> Buffer 
         + n_tables as i32 * 16_i32)
         as usize;
     let mut head_offset: usize = offset;
-    for (tag, table) in (*builder).tables.iter() {
+    for (tag, table) in builder.tables.iter() {
         buffer.write_u32be(*tag as u32);
         buffer.write_u32be(table.checksum);
         buffer.write_u32be(offset as u32);
