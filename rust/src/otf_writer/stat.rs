@@ -1,12 +1,9 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{time, time_t};
 unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_index, otfcc_handle_replace,
-};
+use crate::support::handle::{Handle, HandleState, handle_from_index, otfcc_handle_replace};
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
@@ -14,7 +11,7 @@ use crate::font::caryll_font::{Font, FontSubtype};
 use crate::support::options::Options;
 use crate::support::primitives::{F16Dot16, GlyphId, Length, Pos, Scale, ShapeId};
 
-use crate::table::cff::{CffFontMatrix, CffTable};
+use crate::table::cff::CffFontMatrix;
 
 use crate::table::ltsh::LtshTable;
 
@@ -24,19 +21,14 @@ use crate::table::glyf::{
     ComponentReference, Contour, GlyfTable, Glyph, GlyphStat, Point, RefAnchorStatus,
 };
 
-use crate::table::head::HeadTable;
-use crate::table::hhea::HheaTable;
 use crate::table::hmtx::{HmtxTable, HorizontalMetric};
-use crate::table::maxp::MaxpTable;
-use crate::table::os_2::Os2Table;
-use crate::table::vhea::VheaTable;
 
 use crate::table::otl::subtables::chaining::common::chaining_rule_mut;
 use crate::table::otl::{
-    ChainingSubtable, GsubLigatureEntry, GsubLigatureSubtable, GsubReverseSubtable, Lookup,
-    OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE,
-    OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE,
-    OTL_TYPE_GSUB_REVERSE, OtlTable, Subtable, SubtablePtr, subtable_at,
+    GsubLigatureSubtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_MARK_TO_BASE,
+    OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR,
+    OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_REVERSE, OtlTable, Subtable,
+    SubtablePtr, subtable_at,
 };
 
 use crate::table::vmtx::{VerticalMetric, VmtxTable};
@@ -54,10 +46,10 @@ pub enum StatStatus {
     Completed = 2,
 }
 pub const POS_MAX: ::core::ffi::c_float = FLT_MAX;
-pub unsafe fn stat_single_glyph(
-    table: *const GlyfTable,
-    gr: *mut ComponentReference,
-    stated: *mut StatStatus,
+pub fn stat_single_glyph(
+    table: &GlyfTable,
+    gr: &mut ComponentReference,
+    stated: &mut [StatStatus],
     depth: u8,
     topj: GlyphId,
     options: &Options,
@@ -73,11 +65,11 @@ pub unsafe fn stat_single_glyph(
         n_composite_points: 0_u16,
         n_composite_contours: 0_u16,
     };
-    let j: GlyphId = (*gr).glyph.index;
+    let j: GlyphId = gr.glyph.index;
     if depth as i32 >= 0xff_i32 {
         return stat;
     }
-    if *stated.offset(j as isize) == StatStatus::Doing {
+    if stated[j as usize] == StatStatus::Doing {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
@@ -90,11 +82,11 @@ pub unsafe fn stat_single_glyph(
                 b". The reference will be dropped.\n",
             ),
         );
-        *stated.offset(j as isize) = StatStatus::Completed;
+        stated[j as usize] = StatStatus::Completed;
         return stat;
     }
-    let g: *const Glyph = (&(*table))[j as usize].as_deref().unwrap() as *const Glyph;
-    *stated.offset(j as isize) = StatStatus::Doing;
+    let g: &Glyph = table[j as usize].as_deref().unwrap();
+    stated[j as usize] = StatStatus::Doing;
     let mut xmin: Pos = POS_MAX as Pos;
     let mut xmax: Pos = -POS_MAX as Pos;
     let mut ymin: Pos = POS_MAX as Pos;
@@ -103,24 +95,31 @@ pub unsafe fn stat_single_glyph(
     let mut n_points: u16 = 0_u16;
     let mut n_composite_points: u16;
     let mut n_composite_contours: u16;
-    for c in 0..(*g).contours.len() as ShapeId {
-        let contour: *const Contour = &(&(*g).contours)[c as usize];
-        for pj in 0..(*contour).len() as ShapeId {
-            let p: *const Point = &(&(*contour))[pj as usize];
-            let x: Pos = round(
-                vq_get_still((*gr).x.clone()) as ::core::ffi::c_double
-                    + (*gr).a as ::core::ffi::c_double
-                        * vq_get_still((*p).x.clone()) as ::core::ffi::c_double
-                    + (*gr).b as ::core::ffi::c_double
-                        * vq_get_still((*p).y.clone()) as ::core::ffi::c_double,
-            ) as Pos;
-            let y: Pos = round(
-                vq_get_still((*gr).y.clone()) as ::core::ffi::c_double
-                    + (*gr).c as ::core::ffi::c_double
-                        * vq_get_still((*p).x.clone()) as ::core::ffi::c_double
-                    + (*gr).d as ::core::ffi::c_double
-                        * vq_get_still((*p).y.clone()) as ::core::ffi::c_double,
-            ) as Pos;
+    for c in 0..g.contours.len() as ShapeId {
+        let contour: &Contour = &g.contours[c as usize];
+        for pj in 0..contour.len() as ShapeId {
+            let p: &Point = &contour[pj as usize];
+            // `round` is the crate's one remaining `unsafe extern "C"`
+            // import (declared at the top of this file), so only the two
+            // calls need the narrow block.
+            let x: Pos = unsafe {
+                round(
+                    vq_get_still(gr.x.clone()) as ::core::ffi::c_double
+                        + gr.a as ::core::ffi::c_double
+                            * vq_get_still(p.x.clone()) as ::core::ffi::c_double
+                        + gr.b as ::core::ffi::c_double
+                            * vq_get_still(p.y.clone()) as ::core::ffi::c_double,
+                )
+            } as Pos;
+            let y: Pos = unsafe {
+                round(
+                    vq_get_still(gr.y.clone()) as ::core::ffi::c_double
+                        + gr.c as ::core::ffi::c_double
+                            * vq_get_still(p.x.clone()) as ::core::ffi::c_double
+                        + gr.d as ::core::ffi::c_double
+                            * vq_get_still(p.y.clone()) as ::core::ffi::c_double,
+                )
+            } as Pos;
             if x < xmin {
                 xmin = x;
             }
@@ -137,8 +136,8 @@ pub unsafe fn stat_single_glyph(
         }
     }
     n_composite_points = n_points;
-    n_composite_contours = (*g).contours.len() as u16;
-    for r in 0..(*g).references.len() as ShapeId {
+    n_composite_contours = g.contours.len() as u16;
+    for r in 0..g.references.len() as ShapeId {
         let mut ref_0: ComponentReference = ComponentReference {
             x: VQ {
                 kernel: 0.,
@@ -164,34 +163,31 @@ pub unsafe fn stat_single_glyph(
             outer: 0,
         };
         glyf_component_reference_init(&mut ref_0);
-        let rr: *const ComponentReference = &raw const (&(*g).references)[r as usize];
-        otfcc_handle_replace(
-            &mut ref_0.glyph,
-            handle_from_index((*rr).glyph.index) as Handle,
-        );
-        ref_0.a = (*gr).a * (*rr).a + (*rr).b * (*gr).c;
-        ref_0.b = (*rr).a * (*gr).b + (*rr).b * (*gr).d;
-        ref_0.c = (*gr).a * (*rr).c + (*gr).c * (*rr).d;
-        ref_0.d = (*gr).b * (*rr).c + (*rr).d * (*gr).d;
+        let rr: &ComponentReference = &g.references[r as usize];
+        otfcc_handle_replace(&mut ref_0.glyph, handle_from_index(rr.glyph.index));
+        ref_0.a = gr.a * rr.a + rr.b * gr.c;
+        ref_0.b = rr.a * gr.b + rr.b * gr.d;
+        ref_0.c = gr.a * rr.c + gr.c * rr.d;
+        ref_0.d = gr.b * rr.c + rr.d * gr.d;
         vq_replace(
             &mut ref_0.x,
             vq_create_still(
-                vq_get_still((*rr).x.clone())
-                    + (*rr).a as Pos * vq_get_still((*gr).x.clone())
-                    + (*rr).b as Pos * vq_get_still((*gr).y.clone()),
-            ) as VQ,
+                vq_get_still(rr.x.clone())
+                    + rr.a as Pos * vq_get_still(gr.x.clone())
+                    + rr.b as Pos * vq_get_still(gr.y.clone()),
+            ),
         );
         vq_replace(
             &mut ref_0.y,
             vq_create_still(
-                vq_get_still((*rr).y.clone())
-                    + (*rr).c as Pos * vq_get_still((*gr).x.clone())
-                    + (*rr).d as Pos * vq_get_still((*gr).y.clone()),
-            ) as VQ,
+                vq_get_still(rr.y.clone())
+                    + rr.c as Pos * vq_get_still(gr.x.clone())
+                    + rr.d as Pos * vq_get_still(gr.y.clone()),
+            ),
         );
         let thatstat: GlyphStat = stat_single_glyph(
             table,
-            &raw mut ref_0,
+            &mut ref_0,
             stated,
             (depth as i32 + 1_i32) as u8,
             topj,
@@ -236,29 +232,24 @@ pub unsafe fn stat_single_glyph(
     stat.y_max = ymax;
     stat.nest_depth = nest_depth;
     stat.n_points = n_points;
-    stat.n_contours = (*g).contours.len() as u16;
+    stat.n_contours = g.contours.len() as u16;
     stat.n_composite_points = n_composite_points;
     stat.n_composite_contours = n_composite_contours;
-    *stated.offset(j as isize) = StatStatus::Completed;
+    stated[j as usize] = StatStatus::Completed;
     return stat;
 }
-pub unsafe fn stat_glyf(font: *mut Font, options: &Options) {
-    // Only ever called (from `otfcc_stat_font`) under a `.head.is_some()`
-    // guard.
-    let head: *mut HeadTable = (*font).head.as_deref_mut().unwrap() as *mut HeadTable;
-    // Only ever called (from `otfcc_stat_font`) under a `.glyf.is_some()`
-    // guard.
-    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
-    // A local `Vec` scratch buffer instead of `__caryll_allocate_clean`/
-    // `free` -- `stat_single_glyph` still takes `*mut StatStatus` unchanged
-    // (its own body, including the recursive call passing `stated` through
-    // unmodified, doesn't need to know its scratch buffer moved).
-    let mut stated: Vec<StatStatus> = vec![StatStatus::NotStarted; (*glyf).len()];
+pub fn stat_glyf(font: &mut Font, options: &Options) {
+    // Only ever called (from `otfcc_stat_font`) under a `.head.is_some()`/
+    // `.glyf.is_some()` guard, so `.unwrap()` here just turns "this
+    // invariant broke" from a null-pointer dereference into a panic.
+    let head = font.head.as_deref_mut().unwrap();
+    let glyf = font.glyf.as_mut().unwrap();
+    let mut stated: Vec<StatStatus> = vec![StatStatus::NotStarted; glyf.len()];
     let mut xmin: Pos = 0xffffffff as ::core::ffi::c_uint as Pos;
     let mut xmax: Pos = (0xffffffff as ::core::ffi::c_uint).wrapping_neg() as Pos;
     let mut ymin: Pos = 0xffffffff as ::core::ffi::c_uint as Pos;
     let mut ymax: Pos = (0xffffffff as ::core::ffi::c_uint).wrapping_neg() as Pos;
-    for j in 0..(*glyf).len() as GlyphId {
+    for j in 0..glyf.len() as GlyphId {
         let mut gr: ComponentReference = ComponentReference {
             x: VQ {
                 kernel: 0.,
@@ -283,16 +274,15 @@ pub unsafe fn stat_glyf(font: *mut Font, options: &Options) {
             inner: 0,
             outer: 0,
         };
-        gr.glyph = handle_from_index(j) as GlyphHandle;
+        gr.glyph = handle_from_index(j);
         gr.x = vq_create_still(0_i32 as Pos);
         gr.y = vq_create_still(0_i32 as Pos);
         gr.a = 1_i32 as Scale;
         gr.b = 0_i32 as Scale;
         gr.c = 0_i32 as Scale;
         gr.d = 1_i32 as Scale;
-        let thatstat: GlyphStat =
-            stat_single_glyph(glyf, &raw mut gr, stated.as_mut_ptr(), 0_u8, j, options);
-        (&mut (*glyf))[j as usize].as_mut().unwrap().stat = thatstat;
+        let thatstat: GlyphStat = stat_single_glyph(glyf, &mut gr, &mut stated, 0_u8, j, options);
+        glyf[j as usize].as_mut().unwrap().stat = thatstat;
         if thatstat.x_min < xmin {
             xmin = thatstat.x_min;
         }
@@ -306,15 +296,15 @@ pub unsafe fn stat_glyf(font: *mut Font, options: &Options) {
             ymax = thatstat.y_max;
         }
     }
-    (*head).x_min = xmin as i16;
-    (*head).x_max = xmax as i16;
-    (*head).y_min = ymin as i16;
-    (*head).y_max = ymax as i16;
+    head.x_min = xmin as i16;
+    head.x_max = xmax as i16;
+    head.y_min = ymin as i16;
+    head.y_max = ymax as i16;
 }
-pub unsafe fn stat_maxp(font: *mut Font) {
-    // Only ever called (from `otfcc_stat_font`) under a `.maxp.is_some()`
-    // guard.
-    let maxp: *mut MaxpTable = (*font).maxp.as_deref_mut().unwrap() as *mut MaxpTable;
+pub fn stat_maxp(font: &mut Font) {
+    // Only ever called (from `otfcc_stat_font`) under a `.maxp.is_some()`/
+    // `.glyf.is_some()` guard.
+    let maxp = font.maxp.as_deref_mut().unwrap();
     let mut nest_depth: u16 = 0_u16;
     let mut n_points: u16 = 0_u16;
     let mut n_contours: u16 = 0_u16;
@@ -322,74 +312,63 @@ pub unsafe fn stat_maxp(font: *mut Font) {
     let mut n_composite_points: u16 = 0_u16;
     let mut n_composite_contours: u16 = 0_u16;
     let mut inst_size: u16 = 0_u16;
-    // Only ever called (from `otfcc_stat_font`) under a `.glyf.is_some()`
-    // guard.
-    let glyf: *const GlyfTable = (*font).glyf.as_ref().unwrap() as *const GlyfTable;
-    for j in 0..(*glyf).len() as GlyphId {
-        let g: *const Glyph = (&(*glyf))[j as usize].as_deref().unwrap() as *const Glyph;
-        if (*g).contours.len() > 0_usize {
-            if (*g).stat.n_points as i32 > n_points as i32 {
-                n_points = (*g).stat.n_points;
+    let glyf = font.glyf.as_ref().unwrap();
+    for g in glyf.iter() {
+        let g = g.as_deref().unwrap();
+        if !g.contours.is_empty() {
+            if g.stat.n_points > n_points {
+                n_points = g.stat.n_points;
             }
-            if (*g).stat.n_contours as i32 > n_contours as i32 {
-                n_contours = (*g).stat.n_contours;
+            if g.stat.n_contours > n_contours {
+                n_contours = g.stat.n_contours;
             }
-        } else if (*g).references.len() > 0_usize {
-            if (*g).stat.n_composite_points as i32
-                > n_composite_points as i32
-            {
-                n_composite_points = (*g).stat.n_composite_points;
+        } else if !g.references.is_empty() {
+            if g.stat.n_composite_points > n_composite_points {
+                n_composite_points = g.stat.n_composite_points;
             }
-            if (*g).stat.n_composite_contours as i32
-                > n_composite_contours as i32
-            {
-                n_composite_contours = (*g).stat.n_composite_contours;
+            if g.stat.n_composite_contours > n_composite_contours {
+                n_composite_contours = g.stat.n_composite_contours;
             }
-            if (*g).stat.nest_depth as i32 > nest_depth as i32 {
-                nest_depth = (*g).stat.nest_depth;
+            if g.stat.nest_depth > nest_depth {
+                nest_depth = g.stat.nest_depth;
             }
-            if (*g).references.len() > n_components as usize {
-                n_components = (*g).references.len() as u16;
+            if g.references.len() > n_components as usize {
+                n_components = g.references.len() as u16;
             }
         }
-        if (*g).instructions.len() as i32 > inst_size as i32 {
-            inst_size = (*g).instructions.len() as u16;
+        if g.instructions.len() as i32 > inst_size as i32 {
+            inst_size = g.instructions.len() as u16;
         }
     }
-    (*maxp).max_points = n_points;
-    (*maxp).max_contours = n_contours;
-    (*maxp).max_composite_points = n_composite_points;
-    (*maxp).max_composite_contours = n_composite_contours;
-    (*maxp).max_component_depth = nest_depth;
-    (*maxp).max_component_elements = n_components;
-    (*maxp).max_size_of_instructions = inst_size;
+    maxp.max_points = n_points;
+    maxp.max_contours = n_contours;
+    maxp.max_composite_points = n_composite_points;
+    maxp.max_composite_contours = n_composite_contours;
+    maxp.max_component_depth = nest_depth;
+    maxp.max_component_elements = n_components;
+    maxp.max_size_of_instructions = inst_size;
 }
-unsafe fn stat_hmtx(font: *mut Font) {
-    if (*font).glyf.is_none() {
+fn stat_hmtx(font: &mut Font) {
+    if font.glyf.is_none() {
         return;
     }
-    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
+    let glyf = font.glyf.as_mut().unwrap();
     // Only ever called (from `otfcc_stat_font`) under a `.hhea.is_some()`
     // guard; `.head` is set unconditionally by the pipeline before this
     // point (used below to update `.flags`).
-    let hhea: *mut HheaTable = (*font).hhea.as_deref_mut().unwrap() as *mut HheaTable;
-    let head: *mut HeadTable = (*font)
-        .head
-        .as_deref_mut()
-        .map_or(::core::ptr::null_mut(), |h| h as *mut HeadTable);
-    let mut count_a: GlyphId = (*glyf).len() as GlyphId;
+    let mut count_a: GlyphId = glyf.len() as GlyphId;
     let mut count_k: GlyphId = 0 as GlyphId;
     let mut lsb_at_x_0: bool = true;
-    if (*font).subtype != FontSubtype::Cff {
+    if font.subtype != FontSubtype::Cff {
         while count_a as i32 > 2_i32
             && vq_get_still(
-                (&(*glyf))[(count_a as i32 - 1_i32) as usize]
+                glyf[(count_a as i32 - 1_i32) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_width
                     .clone(),
             ) == vq_get_still(
-                (&(*glyf))[(count_a as i32 - 2_i32) as usize]
+                glyf[(count_a as i32 - 2_i32) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_width
@@ -398,7 +377,7 @@ unsafe fn stat_hmtx(font: *mut Font) {
         {
             count_a = count_a.wrapping_sub(1);
         }
-        count_k = (*glyf).len().wrapping_sub(count_a as usize) as GlyphId;
+        count_k = glyf.len().wrapping_sub(count_a as usize) as GlyphId;
     }
     // Both arrays fill sequentially within the one loop below (`j < count_a`
     // covers `metrics`, the rest covers `left_side_bearing` in order), so a
@@ -410,17 +389,17 @@ unsafe fn stat_hmtx(font: *mut Font) {
     let mut min_rsb: Pos = 0x7fff_i32 as Pos;
     let mut max_extent: Pos = -0x8000_i32 as Pos;
     let mut max_width: Length = 0_i32 as Length;
-    for j in 0..(*glyf).len() as GlyphId {
-        let g: *mut Glyph = &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap();
-        if vq_is_zero((*g).horizontal_origin.clone(), 1.0f64 / 1000.0f64) {
-            vq_replace(&mut (*g).horizontal_origin, (vq_neutral)() as VQ);
+    for j in 0..glyf.len() as GlyphId {
+        let g = glyf[j as usize].as_mut().unwrap();
+        if vq_is_zero(g.horizontal_origin.clone(), 1.0f64 / 1000.0f64) {
+            vq_replace(&mut g.horizontal_origin, vq_neutral());
         } else {
             lsb_at_x_0 = false;
         }
-        let hori: Pos = vq_get_still((*g).horizontal_origin.clone()) as Pos;
-        let advw: Pos = vq_get_still((*g).advance_width.clone()) as Pos;
-        let lsb: Pos = (*g).stat.x_min - hori;
-        let rsb: Pos = advw + hori - (*g).stat.x_max;
+        let hori: Pos = vq_get_still(g.horizontal_origin.clone()) as Pos;
+        let advw: Pos = vq_get_still(g.advance_width.clone()) as Pos;
+        let lsb: Pos = g.stat.x_min - hori;
+        let rsb: Pos = advw + hori - g.stat.x_max;
         if (j as i32) < count_a as i32 {
             metrics.push(HorizontalMetric {
                 advance_width: advw as Length,
@@ -438,46 +417,45 @@ unsafe fn stat_hmtx(font: *mut Font) {
         if rsb < min_rsb {
             min_rsb = rsb;
         }
-        if (*g).stat.x_max - hori > max_extent {
-            max_extent = (*g).stat.x_max - hori;
+        if g.stat.x_max - hori > max_extent {
+            max_extent = g.stat.x_max - hori;
         }
     }
-    (*hhea).number_of_metrics = count_a as u16;
-    (*hhea).min_left_side_bearing = min_lsb as i16;
-    (*hhea).min_right_side_bearing = min_rsb as i16;
-    (*hhea).x_max_extent = max_extent as i16;
-    (*hhea).advance_width_max = max_width as u16;
-    (*font).hmtx = Some(Box::new(HmtxTable {
+    let hhea = font.hhea.as_deref_mut().unwrap();
+    hhea.number_of_metrics = count_a as u16;
+    hhea.min_left_side_bearing = min_lsb as i16;
+    hhea.min_right_side_bearing = min_rsb as i16;
+    hhea.x_max_extent = max_extent as i16;
+    hhea.advance_width_max = max_width as u16;
+    font.hmtx = Some(Box::new(HmtxTable {
         metrics,
         left_side_bearing,
     }));
-    (*head).flags = ((*head).flags as i32 & !0x2_i32
+    let head = font.head.as_deref_mut().unwrap();
+    head.flags = (head.flags as i32 & !0x2_i32
         | (if lsb_at_x_0 {
             0x2_i32
         } else {
             0_i32
         })) as u16;
 }
-unsafe fn stat_vmtx(font: *mut Font, options: &Options) {
-    if (*font).glyf.is_none() {
+fn stat_vmtx(font: &mut Font, options: &Options) {
+    if font.glyf.is_none() {
         return;
     }
-    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
-    // Only ever called (from `otfcc_stat_font`) under a `.vhea.is_some()`
-    // guard.
-    let vhea: *mut VheaTable = (*font).vhea.as_deref_mut().unwrap() as *mut VheaTable;
-    let mut count_a: GlyphId = (*glyf).len() as GlyphId;
+    let glyf = font.glyf.as_mut().unwrap();
+    let mut count_a: GlyphId = glyf.len() as GlyphId;
     let mut count_k: GlyphId = 0 as GlyphId;
-    if !((*font).subtype == FontSubtype::Cff && !options.cff_short_vmtx) {
+    if !(font.subtype == FontSubtype::Cff && !options.cff_short_vmtx) {
         while count_a as i32 > 2_i32
             && vq_get_still(
-                (&(*glyf))[(count_a as i32 - 1_i32) as usize]
+                glyf[(count_a as i32 - 1_i32) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_height
                     .clone(),
             ) == vq_get_still(
-                (&(*glyf))[(count_a as i32 - 2_i32) as usize]
+                glyf[(count_a as i32 - 2_i32) as usize]
                     .as_deref()
                     .unwrap()
                     .advance_height
@@ -486,7 +464,7 @@ unsafe fn stat_vmtx(font: *mut Font, options: &Options) {
         {
             count_a = count_a.wrapping_sub(1);
         }
-        count_k = (*glyf).len().wrapping_sub(count_a as usize) as GlyphId;
+        count_k = glyf.len().wrapping_sub(count_a as usize) as GlyphId;
     }
     // Same "Vec absorbs both sequential halves of the loop" shape as
     // `stat_hmtx`'s `metrics`/`left_side_bearing`.
@@ -496,12 +474,12 @@ unsafe fn stat_vmtx(font: *mut Font, options: &Options) {
     let mut min_bsb: Pos = 0x7fff_i32 as Pos;
     let mut max_extent: Pos = -0x8000_i32 as Pos;
     let mut max_height: Length = 0_i32 as Length;
-    for j in 0..(*glyf).len() as GlyphId {
-        let g: *const Glyph = (&(*glyf))[j as usize].as_deref().unwrap() as *const Glyph;
-        let vori: Pos = vq_get_still((*g).vertical_origin.clone()) as Pos;
-        let advh: Pos = vq_get_still((*g).advance_height.clone()) as Pos;
-        let tsb: Pos = vori - (*g).stat.y_max;
-        let bsb: Pos = (*g).stat.y_min - vori + advh;
+    for j in 0..glyf.len() as GlyphId {
+        let g = glyf[j as usize].as_deref().unwrap();
+        let vori: Pos = vq_get_still(g.vertical_origin.clone()) as Pos;
+        let advh: Pos = vq_get_still(g.advance_height.clone()) as Pos;
+        let tsb: Pos = vori - g.stat.y_max;
+        let bsb: Pos = g.stat.y_min - vori + advh;
         if (j as i32) < count_a as i32 {
             metrics.push(VerticalMetric {
                 advance_height: advh as Length,
@@ -519,29 +497,31 @@ unsafe fn stat_vmtx(font: *mut Font, options: &Options) {
         if bsb < min_bsb {
             min_bsb = bsb;
         }
-        if vori - (*g).stat.y_min > max_extent {
-            max_extent = vori - (*g).stat.y_min;
+        if vori - g.stat.y_min > max_extent {
+            max_extent = vori - g.stat.y_min;
         }
     }
-    (*vhea).num_of_long_ver_metrics = count_a as u16;
-    (*vhea).min_top = min_tsb as i16;
-    (*vhea).min_bottom = min_bsb as i16;
-    (*vhea).y_max_extent = max_extent as i16;
-    (*vhea).advance_height_max = max_height as i16;
-    (*font).vmtx = Some(Box::new(VmtxTable {
+    // Only ever called (from `otfcc_stat_font`) under a `.vhea.is_some()`
+    // guard.
+    let vhea = font.vhea.as_deref_mut().unwrap();
+    vhea.num_of_long_ver_metrics = count_a as u16;
+    vhea.min_top = min_tsb as i16;
+    vhea.min_bottom = min_bsb as i16;
+    vhea.y_max_extent = max_extent as i16;
+    vhea.advance_height_max = max_height as i16;
+    font.vmtx = Some(Box::new(VmtxTable {
         metrics,
         top_side_bearing,
     }));
 }
-unsafe fn stat_os_2_unicode_ranges(font: *mut Font, options: &Options) {
-    let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
+fn stat_os_2_unicode_ranges(font: &mut Font, options: &Options) {
     let mut u1: u32 = 0_u32;
     let mut u2: u32 = 0_u32;
     let mut u3: u32 = 0_u32;
     let mut u4: u32 = 0_u32;
     let mut min_unicode: i32 = 0xffff_i32;
     let mut max_unicode: i32 = 0_i32;
-    for (&u, _) in (*font).cmap.as_ref().unwrap().unicodes.iter() {
+    for (&u, _) in font.cmap.as_ref().unwrap().unicodes.iter() {
         if u < min_unicode {
             min_unicode = u;
         }
@@ -992,35 +972,35 @@ unsafe fn stat_os_2_unicode_ranges(font: *mut Font, options: &Options) {
             u4 |= (1_i32 << 26_i32) as u32;
         }
     }
+    let os_2 = font.os_2.as_deref_mut().unwrap();
     if !options.keep_unicode_ranges {
-        (*os_2).ul_unicode_range1 = u1;
-        (*os_2).ul_unicode_range2 = u2;
-        (*os_2).ul_unicode_range3 = u3;
-        (*os_2).ul_unicode_range4 = u4;
+        os_2.ul_unicode_range1 = u1;
+        os_2.ul_unicode_range2 = u2;
+        os_2.ul_unicode_range3 = u3;
+        os_2.ul_unicode_range4 = u4;
     }
     if min_unicode < 0x10000_i32 {
-        (*os_2).us_first_char_index = min_unicode as u16;
+        os_2.us_first_char_index = min_unicode as u16;
     } else {
-        (*os_2).us_first_char_index = 0xffff_u16;
+        os_2.us_first_char_index = 0xffff_u16;
     }
     if max_unicode < 0x10000_i32 {
-        (*os_2).us_last_char_index = max_unicode as u16;
+        os_2.us_last_char_index = max_unicode as u16;
     } else {
-        (*os_2).us_last_char_index = 0xffff_u16;
+        os_2.us_last_char_index = 0xffff_u16;
     };
 }
-unsafe fn stat_os_2_average_width(font: *mut Font, options: &Options) {
+fn stat_os_2_average_width(font: &mut Font, options: &Options) {
     if options.keep_average_char_width {
         return;
     }
-    let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
     // Only ever called (from `otfcc_stat_font`, via `stat_os_2`) under a
     // `.glyf.is_some()` guard.
-    let glyf: *const GlyfTable = (*font).glyf.as_ref().unwrap() as *const GlyfTable;
+    let glyf = font.glyf.as_ref().unwrap();
     let mut total_width: u32 = 0_u32;
-    for j in 0..(*glyf).len() as GlyphId {
+    for j in 0..glyf.len() as GlyphId {
         let adw: Pos = vq_get_still(
-            (&(*glyf))[j as usize]
+            glyf[j as usize]
                 .as_deref()
                 .unwrap()
                 .advance_width
@@ -1030,18 +1010,14 @@ unsafe fn stat_os_2_average_width(font: *mut Font, options: &Options) {
             total_width = (total_width as Pos + adw) as u32;
         }
     }
-    (*os_2).x_avg_char_width = (total_width as usize).wrapping_div((*glyf).len()) as i16;
+    let glyf_len = glyf.len();
+    let os_2 = font.os_2.as_deref_mut().unwrap();
+    os_2.x_avg_char_width = (total_width as usize).wrapping_div(glyf_len) as i16;
 }
-unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
-    // c2rust's translation of otfcc's own `foreach(item, vector) { ... }`
-    // macro (c/lib/otf-writer/stat.c): the __caryll_index*/keep* variables
-    // simulate a single-iteration inner while purely so the macro body can
-    // `continue`/`break`; every occurrence here reduces to a plain indexed
-    // for loop over the vector, confirmed against the original C source.
+fn stat_max_context_otl(table: &OtlTable) -> u16 {
     let mut maxc: u16 = 1_u16;
-    for i in 0..(*table).lookups.len() {
-        let lookup: *const Lookup = &raw const *(&(*table).lookups)[i];
-        match (*lookup).type_0 {
+    for lookup in &table.lookups {
+        match lookup.type_0 {
             OTL_TYPE_GPOS_PAIR
             | OTL_TYPE_GPOS_MARK_TO_BASE
             | OTL_TYPE_GPOS_MARK_TO_LIGATURE
@@ -1051,89 +1027,97 @@ unsafe fn stat_max_context_otl(table: *const OtlTable) -> u16 {
                 }
             }
             OTL_TYPE_GSUB_LIGATURE => {
-                for si in 0..(*lookup).subtables.len() {
-                    let elem_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, si);
-                    let Subtable::GsubLigature(mut_subtable) = &mut *elem_ptr else {
-                        unreachable!()
+                for si in 0..lookup.subtables.len() {
+                    // `subtable_at`/the `*mut Subtable` it returns are a
+                    // separate, not-yet-safened shell (the lookup-type-
+                    // tagged subtable list itself) -- narrow bridge only.
+                    // Only reading here, so a shared reference suffices
+                    // even though the c2rust original took `&mut`.
+                    let entries: &GsubLigatureSubtable = unsafe {
+                        let elem_ptr: SubtablePtr = subtable_at(&lookup.subtables, si);
+                        let Subtable::GsubLigature(entries) = &*elem_ptr else {
+                            unreachable!()
+                        };
+                        entries
                     };
-                    let subtable: *mut GsubLigatureSubtable = mut_subtable;
-                    for ei in 0..(*subtable).len() {
-                        let entry: *mut GsubLigatureEntry =
-                            &mut (&mut (*subtable))[ei] as *mut GsubLigatureEntry;
-                        if (maxc as i32)
-                            < (*(*entry).from).len() as i32
-                        {
-                            maxc = (*(*entry).from).len() as u16;
+                    for entry in entries {
+                        if (maxc as usize) < entry.from.len() {
+                            maxc = entry.from.len() as u16;
                         }
                     }
                 }
             }
             OTL_TYPE_GSUB_CHAINING | OTL_TYPE_GPOS_CHAINING => {
-                for si in 0..(*lookup).subtables.len() {
-                    let elem_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, si);
-                    let Subtable::Chaining(mut_subtable) = &mut *elem_ptr else {
-                        unreachable!()
+                for si in 0..lookup.subtables.len() {
+                    // See the comment on the GSUB_LIGATURE arm above.
+                    // `chaining_rule_mut` genuinely needs `&mut
+                    // ChainingSubtable`, and its own `*mut ChainingRule`
+                    // return is a separate untouched shell.
+                    let match_count = unsafe {
+                        let elem_ptr: SubtablePtr = subtable_at(&lookup.subtables, si);
+                        let Subtable::Chaining(subtable) = &mut *elem_ptr else {
+                            unreachable!()
+                        };
+                        (*chaining_rule_mut(subtable)).match_count
                     };
-                    let subtable: *mut ChainingSubtable = mut_subtable;
-                    let rule = chaining_rule_mut(&mut *subtable);
-                    if (maxc as i32) < (*rule).match_count as i32 {
-                        maxc = (*rule).match_count;
+                    if maxc < match_count {
+                        maxc = match_count;
                     }
                 }
             }
             OTL_TYPE_GSUB_REVERSE => {
-                for si in 0..(*lookup).subtables.len() {
-                    let elem_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, si);
-                    let Subtable::GsubReverse(mut_subtable) = &mut *elem_ptr else {
-                        unreachable!()
+                for si in 0..lookup.subtables.len() {
+                    // See the comment on the GSUB_LIGATURE arm above.
+                    let match_count = unsafe {
+                        let elem_ptr: SubtablePtr = subtable_at(&lookup.subtables, si);
+                        let Subtable::GsubReverse(subtable) = &*elem_ptr else {
+                            unreachable!()
+                        };
+                        subtable.match_count
                     };
-                    let subtable: *mut GsubReverseSubtable = mut_subtable;
-                    if (maxc as i32) < (*subtable).match_count as i32
-                    {
-                        maxc = (*subtable).match_count;
+                    if maxc < match_count {
+                        maxc = match_count;
                     }
                 }
             }
             _ => {}
         }
     }
-    return maxc;
+    maxc
 }
-unsafe fn stat_max_context(font: *mut Font) {
-    let os_2: *mut Os2Table = (*font).os_2.as_deref_mut().unwrap() as *mut Os2Table;
+fn stat_max_context(font: &mut Font) {
     let mut maxc: u16 = 1_u16;
-    if let Some(gsub) = (*font).gsub.as_deref() {
-        let maxc_gsub: u16 = stat_max_context_otl(gsub as *const OtlTable);
+    if let Some(gsub) = font.gsub.as_deref() {
+        let maxc_gsub: u16 = stat_max_context_otl(gsub);
         if maxc_gsub as i32 > maxc as i32 {
             maxc = maxc_gsub;
         }
     }
-    if let Some(gpos) = (*font).gpos.as_deref() {
-        let maxc_gpos: u16 = stat_max_context_otl(gpos as *const OtlTable);
+    if let Some(gpos) = font.gpos.as_deref() {
+        let maxc_gpos: u16 = stat_max_context_otl(gpos);
         if maxc_gpos as i32 > maxc as i32 {
             maxc = maxc_gpos;
         }
     }
-    (*os_2).us_max_context = maxc;
+    font.os_2.as_deref_mut().unwrap().us_max_context = maxc;
 }
-unsafe fn stat_os_2(font: *mut Font, options: &Options) {
+fn stat_os_2(font: &mut Font, options: &Options) {
     stat_os_2_unicode_ranges(font, options);
     stat_os_2_average_width(font, options);
     stat_max_context(font);
 }
 pub const MAX_STAT_METRIC: i32 = 4096_i32;
-unsafe fn stat_cff_widths(font: *mut Font) {
-    if (*font).glyf.is_none() || (*font).cff.is_none() {
+fn stat_cff_widths(font: &mut Font) {
+    if font.glyf.is_none() || font.cff.is_none() {
         return;
     }
-    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
-    let cff: *mut CffTable = (*font).cff.as_deref_mut().unwrap() as *mut CffTable;
+    let glyf = font.glyf.as_ref().unwrap();
     // A local `Vec` scratch buffer instead of `__caryll_allocate_clean`/
     // `free`.
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
-    for j in 0..(*glyf).len() as GlyphId {
+    for j in 0..glyf.len() as GlyphId {
         let int_width: u16 = vq_get_still(
-            (&(*glyf))[j as usize]
+            glyf[j as usize]
                 .as_deref()
                 .unwrap()
                 .advance_width
@@ -1153,9 +1137,9 @@ unsafe fn stat_cff_widths(font: *mut Font) {
     }
     let mut nn: u16 = 0_u16;
     let mut nnsum: u32 = 0_u32;
-    for j_1 in 0..(*glyf).len() as GlyphId {
+    for j_1 in 0..glyf.len() as GlyphId {
         let adw: Pos = vq_get_still(
-            (&(*glyf))[j_1 as usize]
+            glyf[j_1 as usize]
                 .as_deref()
                 .unwrap()
                 .advance_width
@@ -1170,33 +1154,34 @@ unsafe fn stat_cff_widths(font: *mut Font) {
     if nn as i32 > 0_i32 {
         nominal_width_x = nnsum.wrapping_div(nn as u32) as i16;
     }
-    if let Some(pd) = (*cff).private_dict.as_deref_mut() {
+    let cff = font.cff.as_deref_mut().unwrap();
+    if let Some(pd) = cff.private_dict.as_deref_mut() {
         pd.default_width_x = maxj as ::core::ffi::c_double;
         if nn as i32 != 0_i32 {
             pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
         }
     }
-    for fd in (*cff).fd_array.iter_mut() {
+    for fd in cff.fd_array.iter_mut() {
         let pd = fd.private_dict.as_deref_mut().unwrap();
         pd.default_width_x = maxj as ::core::ffi::c_double;
         pd.nominal_width_x = nominal_width_x as ::core::ffi::c_double;
     }
 }
-unsafe fn stat_vorg(font: *mut Font) {
-    if (*font).glyf.is_none()
-        || (*font).cff.is_none()
-        || (*font).vhea.is_none()
-        || (*font).vmtx.is_none()
+fn stat_vorg(font: &mut Font) {
+    if font.glyf.is_none()
+        || font.cff.is_none()
+        || font.vhea.is_none()
+        || font.vmtx.is_none()
     {
         return;
     }
-    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
+    let glyf = font.glyf.as_ref().unwrap();
     // A local `Vec` scratch buffer instead of `__caryll_allocate_clean`/
     // `free`.
     let mut frequency: Vec<u32> = vec![0u32; MAX_STAT_METRIC as usize];
-    for j in 0..(*glyf).len() as GlyphId {
+    for j in 0..glyf.len() as GlyphId {
         let vori: Pos = vq_get_still(
-            (&(*glyf))[j as usize]
+            glyf[j as usize]
                 .as_deref()
                 .unwrap()
                 .vertical_origin
@@ -1217,9 +1202,9 @@ unsafe fn stat_vorg(font: *mut Font) {
     }
     let default_vertical_origin = maxj as Pos;
     let mut n_vert_origs: GlyphId = 0 as GlyphId;
-    for j_1 in 0..(*glyf).len() as GlyphId {
+    for j_1 in 0..glyf.len() as GlyphId {
         let vori_0: Pos = vq_get_still(
-            (&(*glyf))[j_1 as usize]
+            glyf[j_1 as usize]
                 .as_deref()
                 .unwrap()
                 .vertical_origin
@@ -1231,9 +1216,9 @@ unsafe fn stat_vorg(font: *mut Font) {
         }
     }
     let mut entries: Vec<VorgEntry> = Vec::with_capacity(n_vert_origs as usize);
-    for j_2 in 0..(*glyf).len() as GlyphId {
+    for j_2 in 0..glyf.len() as GlyphId {
         let vori_1: Pos = vq_get_still(
-            (&(*glyf))[j_2 as usize]
+            glyf[j_2 as usize]
                 .as_deref()
                 .unwrap()
                 .vertical_origin
@@ -1246,172 +1231,176 @@ unsafe fn stat_vorg(font: *mut Font) {
             });
         }
     }
-    (*font).vorg = Some(Box::new(VorgTable {
+    font.vorg = Some(Box::new(VorgTable {
         num_vert_origin_y_metrics: n_vert_origs,
         default_vertical_origin,
         entries,
     }));
 }
-unsafe fn stat_ltsh(font: *mut Font) {
-    if (*font).glyf.is_none() {
+fn stat_ltsh(font: &mut Font) {
+    if font.glyf.is_none() {
         return;
     }
-    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
+    let glyf = font.glyf.as_ref().unwrap();
     let mut need_ltsh: bool = false;
-    for j in 0..(*glyf).len() as GlyphId {
-        if (&(*glyf))[j as usize].as_deref().unwrap().y_pel as i32
-            > 1_i32
-        {
+    for j in 0..glyf.len() as GlyphId {
+        if glyf[j as usize].as_deref().unwrap().y_pel as i32 > 1_i32 {
             need_ltsh = true;
         }
     }
     if !need_ltsh {
         return;
     }
-    let num_glyphs = (*glyf).len() as GlyphId;
+    let num_glyphs = glyf.len() as GlyphId;
     let mut y_pels: Vec<u8> = Vec::with_capacity(num_glyphs as usize);
-    for j_0 in 0..(*glyf).len() as GlyphId {
-        y_pels.push((&(*glyf))[j_0 as usize].as_deref().unwrap().y_pel);
+    for j_0 in 0..glyf.len() as GlyphId {
+        y_pels.push(glyf[j_0 as usize].as_deref().unwrap().y_pel);
     }
-    (*font).ltsh = Some(Box::new(LtshTable {
+    font.ltsh = Some(Box::new(LtshTable {
         version: 0,
         num_glyphs,
         y_pels,
     }));
 }
-pub unsafe fn otfcc_stat_font(font: *mut Font, options: &Options) {
-    // Raw-pointer aliases, derived once: `Font.{head,maxp,hhea,vhea}`
-    // are never reassigned anywhere in this function's body (only the
-    // table contents they point to are mutated, through calls like
-    // `stat_glyf`/`stat_maxp` that themselves take `*mut Font`), so
-    // deriving these once up front and using them exactly like the old
-    // raw-pointer fields (including the `.is_null()` checks below,
-    // unchanged) preserves every existing guard and control-flow path
-    // without needing `Option`-aware rewriting at each of the ~35 call
-    // sites below.
-    let head: *mut HeadTable = (*font)
-        .head
-        .as_deref_mut()
-        .map_or(::core::ptr::null_mut(), |h| h as *mut HeadTable);
-    let maxp: *mut MaxpTable = (*font)
-        .maxp
-        .as_deref_mut()
-        .map_or(::core::ptr::null_mut(), |m| m as *mut MaxpTable);
-    let glyf: *mut GlyfTable = (*font)
-        .glyf
-        .as_mut()
-        .map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable);
-    if !glyf.is_null() && !head.is_null() {
+// This function's own comment used to justify deriving `*mut HeadTable`/
+// `*mut MaxpTable`/`*mut GlyfTable` aliases once up front and reusing them
+// through ~35 `.is_null()`-guarded call/field sites, specifically to avoid
+// "needing `Option`-aware rewriting". Converting to safe references means
+// doing exactly that rewriting -- each `!x.is_null()` becomes `x.is_some()`,
+// and each block that both reads a scalar `HeadTable` field *and* mutably
+// borrows a different `Font` field first copies that field out (all the
+// `HeadTable` fields read here are plain `Copy` integers) rather than
+// holding a `&HeadTable` alongside the `&mut CffTable`/`&mut MaxpTable`
+// borrow -- the same technique this migration used for `charstring_il.rs`'s
+// `*_roll` functions.
+pub fn otfcc_stat_font(font: &mut Font, options: &Options) {
+    if font.glyf.is_some() && font.head.is_some() {
         stat_glyf(font, options);
         if !options.keep_modified_time {
-            (*head).modified = 2082844800_i64 + time(::core::ptr::null_mut::<time_t>()) as i64;
+            // `time` is the crate's other remaining `unsafe extern "C"`
+            // import in this file.
+            let now = unsafe { time(::core::ptr::null_mut::<time_t>()) };
+            font.head.as_deref_mut().unwrap().modified = 2082844800_i64 + now as i64;
         }
     }
-    if !head.is_null() && (*font).cff.is_some() {
-        let cff: *mut CffTable = (*font).cff.as_deref_mut().unwrap() as *mut CffTable;
-        if (*cff).font_b_box_bottom > (*head).y_min as i32 as ::core::ffi::c_double {
-            (*cff).font_b_box_bottom = (*head).y_min as ::core::ffi::c_double;
+    if font.head.is_some() && font.cff.is_some() {
+        let head_y_min = font.head.as_deref().unwrap().y_min;
+        let head_y_max = font.head.as_deref().unwrap().y_max;
+        let head_x_min = font.head.as_deref().unwrap().x_min;
+        let head_x_max = font.head.as_deref().unwrap().x_max;
+        let units_per_em = font.head.as_deref().unwrap().units_per_em;
+        let glyf_len = font.glyf.as_ref().map(|g| g.len() as u32);
+        let cff = font.cff.as_deref_mut().unwrap();
+        if cff.font_b_box_bottom > head_y_min as i32 as ::core::ffi::c_double {
+            cff.font_b_box_bottom = head_y_min as i32 as ::core::ffi::c_double;
         }
-        if (*cff).font_b_box_top < (*head).y_max as i32 as ::core::ffi::c_double {
-            (*cff).font_b_box_top = (*head).y_max as ::core::ffi::c_double;
+        if cff.font_b_box_top < head_y_max as i32 as ::core::ffi::c_double {
+            cff.font_b_box_top = head_y_max as i32 as ::core::ffi::c_double;
         }
-        if (*cff).font_b_box_left < (*head).x_min as i32 as ::core::ffi::c_double {
-            (*cff).font_b_box_left = (*head).x_min as ::core::ffi::c_double;
+        if cff.font_b_box_left < head_x_min as i32 as ::core::ffi::c_double {
+            cff.font_b_box_left = head_x_min as i32 as ::core::ffi::c_double;
         }
-        if (*cff).font_b_box_right < (*head).x_max as i32 as ::core::ffi::c_double {
-            (*cff).font_b_box_right = (*head).x_max as ::core::ffi::c_double;
+        if cff.font_b_box_right < head_x_max as i32 as ::core::ffi::c_double {
+            cff.font_b_box_right = head_x_max as i32 as ::core::ffi::c_double;
         }
-        if !glyf.is_null() && (*cff).is_cid {
-            (*cff).cid_count = (*glyf).len() as u32;
+        if let Some(len) = glyf_len {
+            if cff.is_cid {
+                cff.cid_count = len;
+            }
         }
-        if (*cff).is_cid {
+        if cff.is_cid {
             // `font_matrix` is `Option<Box<CffFontMatrix>>` now: dropping
             // the old value (reassignment to `None`) recurses through its
             // own field-drop glue for free -- no manual `vq_dispose`
             // calls needed anymore (`VQ`'s `Vec<VqSegment>` shift field
             // already self-drops).
-            (*cff).font_matrix = None;
-            for fd in (*cff).fd_array.iter_mut() {
+            cff.font_matrix = None;
+            for fd in cff.fd_array.iter_mut() {
                 fd.font_matrix = None;
-                if (*head).units_per_em as i32 == 1000_i32 {
+                if units_per_em as i32 == 1000_i32 {
                     fd.font_matrix = None;
                 } else {
                     fd.font_matrix = Some(Box::new(CffFontMatrix {
-                        a: (1.0f64
-                            / (*head).units_per_em as i32 as ::core::ffi::c_double)
-                            as Scale,
+                        a: (1.0f64 / units_per_em as i32 as ::core::ffi::c_double) as Scale,
                         b: 0.0f64 as Scale,
                         c: 0.0f64 as Scale,
-                        d: (1.0f64
-                            / (*head).units_per_em as i32 as ::core::ffi::c_double)
-                            as Scale,
-                        x: (vq_neutral)(),
-                        y: (vq_neutral)(),
+                        d: (1.0f64 / units_per_em as i32 as ::core::ffi::c_double) as Scale,
+                        x: vq_neutral(),
+                        y: vq_neutral(),
                     }));
                 }
             }
-        } else if (*head).units_per_em as i32 == 1000_i32 {
-            (*cff).font_matrix = None;
+        } else if units_per_em as i32 == 1000_i32 {
+            cff.font_matrix = None;
         } else {
-            (*cff).font_matrix = Some(Box::new(CffFontMatrix {
-                a: (1.0f64 / (*head).units_per_em as i32 as ::core::ffi::c_double)
-                    as Scale,
+            cff.font_matrix = Some(Box::new(CffFontMatrix {
+                a: (1.0f64 / units_per_em as i32 as ::core::ffi::c_double) as Scale,
                 b: 0.0f64 as Scale,
                 c: 0.0f64 as Scale,
-                d: (1.0f64 / (*head).units_per_em as i32 as ::core::ffi::c_double)
-                    as Scale,
-                x: (vq_neutral)(),
-                y: (vq_neutral)(),
+                d: (1.0f64 / units_per_em as i32 as ::core::ffi::c_double) as Scale,
+                x: vq_neutral(),
+                y: vq_neutral(),
             }));
         }
         stat_cff_widths(font);
     }
-    if !glyf.is_null() && !maxp.is_null() {
-        (*maxp).num_glyphs = (*glyf).len() as u16;
+    if let Some(len) = font.glyf.as_ref().map(|g| g.len() as u16) {
+        if let Some(maxp) = font.maxp.as_deref_mut() {
+            maxp.num_glyphs = len;
+        }
     }
-    if !glyf.is_null() && (*font).post.is_some() {
-        (*font).post.as_deref_mut().unwrap().max_mem_type42 = (*glyf).len() as u32;
+    if let Some(len) = font.glyf.as_ref().map(|g| g.len() as u32) {
+        if let Some(post) = font.post.as_deref_mut() {
+            post.max_mem_type42 = len;
+        }
     }
-    if !glyf.is_null() && !maxp.is_null() && (*maxp).version == 0x10000 as F16Dot16 {
+    let maxp_version_is_10000 =
+        font.maxp.as_deref().map(|m| m.version) == Some(0x10000 as F16Dot16);
+    if font.glyf.is_some() && font.maxp.is_some() && maxp_version_is_10000 {
         stat_maxp(font);
-        if let Some(fpgm) = &(*font).fpgm {
-            let fpgm_length = fpgm.bytes.len() as u32;
-            if fpgm_length > (*maxp).max_size_of_instructions as u32 {
-                (*maxp).max_size_of_instructions = fpgm_length as u16;
+        if let Some(fpgm_length) = font.fpgm.as_ref().map(|f| f.bytes.len() as u32) {
+            let maxp = font.maxp.as_deref_mut().unwrap();
+            if fpgm_length > maxp.max_size_of_instructions as u32 {
+                maxp.max_size_of_instructions = fpgm_length as u16;
             }
         }
-        if let Some(prep) = &(*font).prep {
-            let prep_length = prep.bytes.len() as u32;
-            if prep_length > (*maxp).max_size_of_instructions as u32 {
-                (*maxp).max_size_of_instructions = prep_length as u16;
+        if let Some(prep_length) = font.prep.as_ref().map(|p| p.bytes.len() as u32) {
+            let maxp = font.maxp.as_deref_mut().unwrap();
+            if prep_length > maxp.max_size_of_instructions as u32 {
+                maxp.max_size_of_instructions = prep_length as u16;
             }
         }
     }
-    if (*font).os_2.is_some() && (*font).cmap.is_some() && !glyf.is_null() {
+    if font.os_2.is_some() && font.cmap.is_some() && font.glyf.is_some() {
         stat_os_2(font, options);
     }
-    if (*font).subtype == FontSubtype::Ttf {
-        if !maxp.is_null() {
-            (*maxp).version = 0x10000_i32 as F16Dot16;
+    if font.subtype == FontSubtype::Ttf {
+        if let Some(maxp) = font.maxp.as_deref_mut() {
+            maxp.version = 0x10000_i32 as F16Dot16;
         }
-    } else if !maxp.is_null() {
-        (*maxp).version = 0x5000_i32 as F16Dot16;
+    } else if let Some(maxp) = font.maxp.as_deref_mut() {
+        maxp.version = 0x5000_i32 as F16Dot16;
     }
-    if !glyf.is_null() && (*font).hhea.is_some() {
+    if font.glyf.is_some() && font.hhea.is_some() {
         stat_hmtx(font);
     }
-    if !glyf.is_null() && (*font).vhea.is_some() {
+    if font.glyf.is_some() && font.vhea.is_some() {
         stat_vmtx(font, options);
         stat_vorg(font);
     }
     stat_ltsh(font);
 }
-pub unsafe fn otfcc_unstat_font(font: *mut Font) {
-    delete_font_table(font, crate::tag::TAG_HDMX);
-    delete_font_table(font, crate::tag::TAG_HMTX);
-    delete_font_table(font, crate::tag::TAG_VORG);
-    delete_font_table(font, crate::tag::TAG_VMTX);
-    delete_font_table(font, crate::tag::TAG_LTSH);
+pub fn otfcc_unstat_font(font: &mut Font) {
+    // `delete_font_table` stays `unsafe fn` (a separate, not-yet-safened
+    // Font-table-removal shell) -- the whole body here is just five calls
+    // into it, so one block covers all of them.
+    unsafe {
+        delete_font_table(font, crate::tag::TAG_HDMX);
+        delete_font_table(font, crate::tag::TAG_HMTX);
+        delete_font_table(font, crate::tag::TAG_VORG);
+        delete_font_table(font, crate::tag::TAG_VMTX);
+        delete_font_table(font, crate::tag::TAG_LTSH);
+    }
 }
 pub const FLT_MAX: ::core::ffi::c_float = __FLT_MAX__;
 pub const __FLT_MAX__: ::core::ffi::c_float = 3.40282347e+38f32;

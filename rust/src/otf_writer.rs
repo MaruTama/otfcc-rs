@@ -65,7 +65,7 @@ impl FontSerializer for OtfSerializer {
     ) -> *mut ::core::ffi::c_void {
         let font = font as *mut Font;
         let options: &Options = &*(options as *const Options);
-        otfcc_stat_font(font, options);
+        otfcc_stat_font(&mut *font, options);
         let builder: *mut SfntBuilder = otfcc_new_sfnt_builder(
             (if (*font).subtype == FontSubtype::Cff {
                 crate::tag::SFNT_VERSION_OTTO as i32
@@ -286,7 +286,7 @@ impl FontSerializer for OtfSerializer {
         }
         let otf: Buffer = otfcc_sfnt_builder_serialize(builder);
         otfcc_delete_sfnt_builder(builder);
-        otfcc_unstat_font(font);
+        otfcc_unstat_font(&mut *font);
         return otf.into_raw() as *mut ::core::ffi::c_void;
     }
 }
