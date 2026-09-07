@@ -1144,7 +1144,7 @@ pub unsafe fn otfcc_read_glyf(
             // failing the whole table, the same degradation the
             // zero-length-range case below already used.
             let g = otfcc_read_glyph(data_0, offsets[j0 as usize], glyph_length, options)
-                .unwrap_or_else(|| otfcc_new_glyf_glyph());
+                .unwrap_or_else(otfcc_new_glyf_glyph);
             glyf_val.push(Some(g));
         } else {
             glyf_val.push(Some(otfcc_new_glyf_glyph()));

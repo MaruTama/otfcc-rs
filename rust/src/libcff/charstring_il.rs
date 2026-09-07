@@ -831,7 +831,7 @@ mod cff_compile_glyph_to_il_tests {
     // array's write at all.
     #[test]
     fn compiling_a_glyph_with_one_contour_does_not_construct_invalid_scratch_values() {
-        let mut g = unsafe { otfcc_new_glyf_glyph() };
+        let mut g = otfcc_new_glyf_glyph();
         g.contours.push(vec![Point {
             x: vq_create_still(0.0),
             y: vq_create_still(0.0),

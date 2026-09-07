@@ -237,14 +237,7 @@ impl FontBuilder for JsonReader {
         }
         (*font).subtype = otfcc_decide_font_subtype_from_json(root);
         (*font).glyph_order = parse_glyph_order(root, options);
-        (*font).glyf = otfcc_parse_glyf(
-            root,
-            (*font)
-                .glyph_order
-                .as_deref_mut()
-                .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
-            options,
-        );
+        (*font).glyf = otfcc_parse_glyf(root, (*font).glyph_order.as_deref(), options);
         (*font).cff = otfcc_parse_cff(root, options);
         (*font).head = otfcc_parse_head(root, options);
         (*font).hhea = otfcc_parse_hhea(root, options);
