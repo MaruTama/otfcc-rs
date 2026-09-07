@@ -156,22 +156,18 @@ pub unsafe fn otl_read_gsub_ligature(
     }
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gsub_dump_ligature(mut _subtable: *const Subtable) -> BuiltValue {
-    let Subtable::GsubLigature(mut_subtable) = &*_subtable else {
+pub fn otl_gsub_dump_ligature(_subtable: &Subtable) -> BuiltValue {
+    let Subtable::GsubLigature(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GsubLigatureSubtable = mut_subtable;
-    let mut st = BuiltValue::new_array((*subtable).len());
+    let mut st = BuiltValue::new_array(subtable.len());
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).len() {
+    while (j as usize) < subtable.len() {
         let mut entry = BuiltValue::new_object(2);
-        entry.push_field(
-            b"from",
-            dump_coverage(&(&(*subtable))[j as usize].from),
-        );
+        entry.push_field(b"from", dump_coverage(&subtable[j as usize].from));
         entry.push_field(
             b"to",
-            BuiltValue::str_truncated_at_nul(&(&(*subtable))[j as usize].to.name),
+            BuiltValue::str_truncated_at_nul(&subtable[j as usize].to.name),
         );
         st.push_item(entry.preserialize());
         j = j.wrapping_add(1);

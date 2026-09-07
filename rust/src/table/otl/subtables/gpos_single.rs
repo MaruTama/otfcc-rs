@@ -121,17 +121,16 @@ pub unsafe fn otl_read_gpos_single(
     subtable_gpos_single_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gpos_dump_single(mut _subtable: *const Subtable) -> BuiltValue {
-    let Subtable::GposSingle(mut_subtable) = &*_subtable else {
+pub fn otl_gpos_dump_single(_subtable: &Subtable) -> BuiltValue {
+    let Subtable::GposSingle(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GposSingleSubtable = mut_subtable;
-    let mut st = BuiltValue::new_object((*subtable).len());
+    let mut st = BuiltValue::new_object(subtable.len());
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).len() {
+    while (j as usize) < subtable.len() {
         st.push_field_bytes_key(
-            &(&(*subtable))[j as usize].target.name,
-            gpos_dump_value((&(*subtable))[j as usize].value),
+            &subtable[j as usize].target.name,
+            gpos_dump_value(subtable[j as usize].value),
         );
         j = j.wrapping_add(1);
     }

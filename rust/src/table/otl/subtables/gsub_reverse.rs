@@ -159,21 +159,20 @@ pub unsafe fn otl_read_gsub_reverse(
     subtable_gsub_reverse_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gsub_dump_reverse(mut _subtable: *const Subtable) -> BuiltValue {
-    let Subtable::GsubReverse(mut_subtable) = &*_subtable else {
+pub fn otl_gsub_dump_reverse(_subtable: &Subtable) -> BuiltValue {
+    let Subtable::GsubReverse(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GsubReverseSubtable = mut_subtable;
     let mut _st = BuiltValue::new_object(3);
-    let mut _match = BuiltValue::new_array((*subtable).match_count as usize);
+    let mut _match = BuiltValue::new_array(subtable.match_count as usize);
     let mut j: TableId = 0 as TableId;
-    while (j as i32) < (*subtable).match_count as i32 {
-        _match.push_item(dump_coverage(&(&(*subtable).match_0)[j as usize]));
+    while (j as i32) < subtable.match_count as i32 {
+        _match.push_item(dump_coverage(&subtable.match_0[j as usize]));
         j = j.wrapping_add(1);
     }
     _st.push_field(b"match", _match);
-    _st.push_field(b"to", dump_coverage(&(*subtable).to));
-    _st.push_field(b"inputIndex", BuiltValue::Int((*subtable).input_index as i64));
+    _st.push_field(b"to", dump_coverage(&subtable.to));
+    _st.push_field(b"inputIndex", BuiltValue::Int(subtable.input_index as i64));
     _st
 }
 pub unsafe fn otl_gsub_parse_reverse(

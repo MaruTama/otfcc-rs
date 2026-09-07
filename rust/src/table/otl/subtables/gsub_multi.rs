@@ -137,18 +137,14 @@ pub unsafe fn otl_read_gsub_multi(
     subtable_gsub_multi_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gsub_dump_multi(mut _subtable: *const Subtable) -> BuiltValue {
-    let Subtable::GsubMulti(mut_subtable) = &*_subtable else {
+pub fn otl_gsub_dump_multi(_subtable: &Subtable) -> BuiltValue {
+    let Subtable::GsubMulti(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GsubMultiSubtable = mut_subtable;
-    let mut st = BuiltValue::new_object((*subtable).len());
-    for j in 0..(*subtable).len() as GlyphId {
-        let entry = &(&(*subtable))[j as usize];
-        st.push_field_bytes_key(
-            &(*entry).from.name,
-            dump_coverage(&(*entry).to),
-        );
+    let mut st = BuiltValue::new_object(subtable.len());
+    for j in 0..subtable.len() as GlyphId {
+        let entry = &subtable[j as usize];
+        st.push_field_bytes_key(&entry.from.name, dump_coverage(&entry.to));
     }
     st
 }

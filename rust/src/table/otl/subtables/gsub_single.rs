@@ -130,17 +130,16 @@ pub unsafe fn otl_read_gsub_single(
     }
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gsub_dump_single(mut _subtable: *const Subtable) -> BuiltValue {
-    let Subtable::GsubSingle(mut_subtable) = &*_subtable else {
+pub fn otl_gsub_dump_single(_subtable: &Subtable) -> BuiltValue {
+    let Subtable::GsubSingle(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GsubSingleSubtable = mut_subtable;
-    let mut st = BuiltValue::new_object((*subtable).len());
+    let mut st = BuiltValue::new_object(subtable.len());
     let mut j: usize = 0_usize;
-    while j < (*subtable).len() {
+    while j < subtable.len() {
         st.push_field_bytes_key(
-            &(&(*subtable))[j].from.name,
-            BuiltValue::str_truncated_at_nul(&(&(*subtable))[j].to.name),
+            &subtable[j].from.name,
+            BuiltValue::str_truncated_at_nul(&subtable[j].to.name),
         );
         j = j.wrapping_add(1);
     }

@@ -343,43 +343,40 @@ pub unsafe fn otl_read_gpos_pair(
     subtable_gpos_pair_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gpos_dump_pair(mut _subtable: *const Subtable) -> BuiltValue {
-    let Subtable::GposPair(mut_subtable) = &*_subtable else {
+pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
+    let Subtable::GposPair(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GposPairSubtable = mut_subtable;
-    let first_cd: *const ClassDef = (*subtable).first.as_deref().unwrap();
-    let second_cd: *const ClassDef = (*subtable).second.as_deref().unwrap();
+    let first_cd: &ClassDef = subtable.first.as_deref().unwrap();
+    let second_cd: &ClassDef = subtable.second.as_deref().unwrap();
     let mut st = BuiltValue::new_object(3);
-    st.push_field(b"first", dump_class_def(&*first_cd));
-    st.push_field(b"second", dump_class_def(&*second_cd));
-    let mut mat = BuiltValue::new_array(((*first_cd).maxclass as i32 + 1_i32) as usize);
+    st.push_field(b"first", dump_class_def(first_cd));
+    st.push_field(b"second", dump_class_def(second_cd));
+    let mut mat = BuiltValue::new_array((first_cd.maxclass as i32 + 1_i32) as usize);
     let mut j: GlyphClass = 0 as GlyphClass;
-    while j as i32 <= (*first_cd).maxclass as i32 {
-        let mut row = BuiltValue::new_array(((*second_cd).maxclass as i32 + 1_i32) as usize);
+    while j as i32 <= first_cd.maxclass as i32 {
+        let mut row = BuiltValue::new_array((second_cd.maxclass as i32 + 1_i32) as usize);
         let mut k: GlyphClass = 0 as GlyphClass;
-        while k as i32 <= (*second_cd).maxclass as i32 {
-            let f1: u8 =
-                required_position_format((&(*subtable).first_values)[j as usize][k as usize]);
-            let f2: u8 =
-                required_position_format((&(*subtable).second_values)[j as usize][k as usize]);
+        while k as i32 <= second_cd.maxclass as i32 {
+            let f1: u8 = required_position_format(subtable.first_values[j as usize][k as usize]);
+            let f2: u8 = required_position_format(subtable.second_values[j as usize][k as usize]);
             if f1 as i32 | f2 as i32 != 0 {
                 if f1 as i32 == FORMAT_DWIDTH as i32 && f2 as i32 == 0_i32 {
                     row.push_item(BuiltValue::position(
-                        (&(*subtable).first_values)[j as usize][k as usize].d_width,
+                        subtable.first_values[j as usize][k as usize].d_width,
                     ));
                 } else {
                     let mut pair = BuiltValue::new_object(2);
                     if f1 != 0 {
                         pair.push_field(
                             b"first",
-                            gpos_dump_value((&(*subtable).first_values)[j as usize][k as usize]),
+                            gpos_dump_value(subtable.first_values[j as usize][k as usize]),
                         );
                     }
                     if f2 != 0 {
                         pair.push_field(
                             b"second",
-                            gpos_dump_value((&(*subtable).second_values)[j as usize][k as usize]),
+                            gpos_dump_value(subtable.second_values[j as usize][k as usize]),
                         );
                     }
                     row.push_item(pair);

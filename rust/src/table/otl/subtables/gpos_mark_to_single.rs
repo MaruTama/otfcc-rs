@@ -171,53 +171,52 @@ pub unsafe fn otl_read_gpos_mark_to_single(
         }
     }
 }
-pub unsafe fn otl_gpos_dump_mark_to_single(st: *const Subtable) -> BuiltValue {
-    let Subtable::GposMarkToSingle(mut_subtable) = &*st else {
+pub fn otl_gpos_dump_mark_to_single(st: &Subtable) -> BuiltValue {
+    let Subtable::GposMarkToSingle(subtable) = st else {
         unreachable!()
     };
-    let subtable: *const GposMarkToSingleSubtable = mut_subtable;
     let mut _subtable = BuiltValue::new_object(3);
-    let mut _marks = BuiltValue::new_object((*subtable).mark_array.len());
-    let mut _bases = BuiltValue::new_object((*subtable).base_array.len());
+    let mut _marks = BuiltValue::new_object(subtable.mark_array.len());
+    let mut _bases = BuiltValue::new_object(subtable.base_array.len());
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).mark_array.len() {
+    while (j as usize) < subtable.mark_array.len() {
         let mut _mark = BuiltValue::new_object(3);
         let mark_class_name: Vec<u8> = crate::bytesbuild!(
             b"anchor",
-            (&(*subtable).mark_array)[j as usize].mark_class as i32,
+            subtable.mark_array[j as usize].mark_class as i32,
         );
         _mark.push_field(b"class", BuiltValue::str_truncated_at_nul(&mark_class_name));
         _mark.push_field(
             b"x",
-            BuiltValue::Int((&(*subtable).mark_array)[j as usize].anchor.x as i64),
+            BuiltValue::Int(subtable.mark_array[j as usize].anchor.x as i64),
         );
         _mark.push_field(
             b"y",
-            BuiltValue::Int((&(*subtable).mark_array)[j as usize].anchor.y as i64),
+            BuiltValue::Int(subtable.mark_array[j as usize].anchor.y as i64),
         );
         _marks.push_field_bytes_key(
-            &(&(*subtable).mark_array)[j as usize].glyph.name,
+            &subtable.mark_array[j as usize].glyph.name,
             _mark.preserialize(),
         );
         j = j.wrapping_add(1);
     }
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*subtable).base_array.len() {
-        let mut _base = BuiltValue::new_object((*subtable).class_count as usize);
+    while (j_0 as usize) < subtable.base_array.len() {
+        let mut _base = BuiltValue::new_object(subtable.class_count as usize);
         let mut k: GlyphClass = 0 as GlyphClass;
-        while (k as i32) < (*subtable).class_count as i32 {
-            if (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].present {
+        while (k as i32) < subtable.class_count as i32 {
+            if subtable.base_array[j_0 as usize].anchors[k as usize].present {
                 let mut _anchor = BuiltValue::new_object(2);
                 _anchor.push_field(
                     b"x",
                     BuiltValue::Int(
-                        (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].x as i64,
+                        subtable.base_array[j_0 as usize].anchors[k as usize].x as i64,
                     ),
                 );
                 _anchor.push_field(
                     b"y",
                     BuiltValue::Int(
-                        (&(*subtable).base_array)[j_0 as usize].anchors[k as usize].y as i64,
+                        subtable.base_array[j_0 as usize].anchors[k as usize].y as i64,
                     ),
                 );
                 let mark_class_name_0: Vec<u8> = crate::bytesbuild!(b"anchor", k as i32);
@@ -226,7 +225,7 @@ pub unsafe fn otl_gpos_dump_mark_to_single(st: *const Subtable) -> BuiltValue {
             k = k.wrapping_add(1);
         }
         _bases.push_field_bytes_key(
-            &(&(*subtable).base_array)[j_0 as usize].glyph.name,
+            &subtable.base_array[j_0 as usize].glyph.name,
             _base.preserialize(),
         );
         j_0 = j_0.wrapping_add(1);

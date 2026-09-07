@@ -185,47 +185,43 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
     subtable_gpos_mark_to_ligature_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
-pub unsafe fn otl_gpos_dump_mark_to_ligature(st: *const Subtable) -> BuiltValue {
-    let Subtable::GposMarkToLigature(mut_subtable) = &*st else {
+pub fn otl_gpos_dump_mark_to_ligature(st: &Subtable) -> BuiltValue {
+    let Subtable::GposMarkToLigature(subtable) = st else {
         unreachable!()
     };
-    let subtable: *const GposMarkToLigatureSubtable = mut_subtable;
     let mut _subtable = BuiltValue::new_object(3);
-    let mut _marks = BuiltValue::new_object((*subtable).mark_array.len());
-    let mut _bases = BuiltValue::new_object((*subtable).lig_array.len());
+    let mut _marks = BuiltValue::new_object(subtable.mark_array.len());
+    let mut _bases = BuiltValue::new_object(subtable.lig_array.len());
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).mark_array.len() {
+    while (j as usize) < subtable.mark_array.len() {
         let mut _mark = BuiltValue::new_object(3);
-        let mark_class_name: Vec<u8> = crate::bytesbuild!(
-            b"ac_",
-            (&(*subtable).mark_array)[j as usize].mark_class as i32,
-        );
+        let mark_class_name: Vec<u8> =
+            crate::bytesbuild!(b"ac_", subtable.mark_array[j as usize].mark_class as i32,);
         _mark.push_field(b"class", BuiltValue::str_truncated_at_nul(&mark_class_name));
         _mark.push_field(
             b"x",
-            BuiltValue::Int((&(*subtable).mark_array)[j as usize].anchor.x as i64),
+            BuiltValue::Int(subtable.mark_array[j as usize].anchor.x as i64),
         );
         _mark.push_field(
             b"y",
-            BuiltValue::Int((&(*subtable).mark_array)[j as usize].anchor.y as i64),
+            BuiltValue::Int(subtable.mark_array[j as usize].anchor.y as i64),
         );
         _marks.push_field_bytes_key(
-            &(&(*subtable).mark_array)[j as usize].glyph.name,
+            &subtable.mark_array[j as usize].glyph.name,
             _mark.preserialize(),
         );
         j = j.wrapping_add(1);
     }
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*subtable).lig_array.len() {
-        let base: *const LigatureBaseRecord =
-            &(&(*subtable).lig_array)[j_0 as usize] as *const LigatureBaseRecord;
-        let base_anchors: &Vec<Vec<Anchor>> = &(*base).anchors;
-        let mut _base = BuiltValue::new_array((*base).component_count as usize);
+    while (j_0 as usize) < subtable.lig_array.len() {
+        let base: &LigatureBaseRecord = &subtable.lig_array[j_0 as usize];
+        let base_anchors: &Vec<Vec<Anchor>> = &base.anchors;
+        let mut _base = BuiltValue::new_array(base.component_count as usize);
         let mut k: GlyphId = 0 as GlyphId;
-        while (k as i32) < (*base).component_count as i32 {
-            let mut _bk = BuiltValue::new_object((*subtable).class_count as usize);
+        while (k as i32) < base.component_count as i32 {
+            let mut _bk = BuiltValue::new_object(subtable.class_count as usize);
             let mut m: GlyphClass = 0 as GlyphClass;
-            while (m as i32) < (*subtable).class_count as i32 {
+            while (m as i32) < subtable.class_count as i32 {
                 if base_anchors[k as usize][m as usize].present {
                     let mut _anchor = BuiltValue::new_object(2);
                     _anchor.push_field(
@@ -244,10 +240,10 @@ pub unsafe fn otl_gpos_dump_mark_to_ligature(st: *const Subtable) -> BuiltValue 
             _base.push_item(_bk);
             k = k.wrapping_add(1);
         }
-        _bases.push_field_bytes_key(&(*base).glyph.name, _base.preserialize());
+        _bases.push_field_bytes_key(&base.glyph.name, _base.preserialize());
         j_0 = j_0.wrapping_add(1);
     }
-    _subtable.push_field(b"classCount", BuiltValue::Int((*subtable).class_count as i64));
+    _subtable.push_field(b"classCount", BuiltValue::Int(subtable.class_count as i64));
     _subtable.push_field(b"marks", _marks);
     _subtable.push_field(b"bases", _bases);
     _subtable
