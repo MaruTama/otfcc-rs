@@ -56,7 +56,8 @@ fn cff_dict_dispose(x: &mut CffDict) {
     x.ents = Vec::new();
 }
 // `data` used to be a raw `(*const u8, u32)` pair: the loop itself always
-// respected `len` correctly (see the `remaining` comment below), but every
+// respected `len` correctly (each iteration passes `&data[pos..]`, a
+// bounds-checked slice, to `cff_decode_cff_token`), but every
 // call site had to construct that pointer from a font-byte-derived offset
 // with no bounds check of its own -- the Private DICT's `offset`/`length`
 // operands are attacker-controlled, and three call sites
@@ -90,8 +91,7 @@ pub(crate) unsafe fn parse_to_callback(
     while pos < data.len() {
         // Same fix as `cff_parse_outline`'s equivalent loop: the token
         // itself, not just where it starts, must stay within `data`.
-        let remaining = data.len() - pos;
-        let Some(adv) = cff_decode_cff_token(data[pos..].as_ptr(), remaining, &raw mut val) else {
+        let Some(adv) = cff_decode_cff_token(&data[pos..], &mut val) else {
             break;
         };
         match val {

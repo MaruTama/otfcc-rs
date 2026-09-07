@@ -571,8 +571,9 @@ pub unsafe fn cff_parse_outline(
     // replaces `start` (a `*mut u8` cursor), the same "cursor into a
     // safe slice instead of raw pointer arithmetic" shape the rest of
     // this crate's parse-boundary work already uses. `cff_decode_cs2_token`
-    // itself is unchanged (still takes a raw pointer + a length), since
-    // it does its own `slice::from_raw_parts` reconstruction internally.
+    // now takes `&data_slice[pos..]` directly -- it dropped its own raw
+    // pointer parameter once its `slice::from_raw_parts` reconstruction
+    // became pure residue (every call site already had a slice in hand).
     let data_slice: &[u8] = ::core::slice::from_raw_parts(data, len as usize);
     let mut pos: usize = 0;
     let mut advance: u32;
@@ -584,10 +585,11 @@ pub unsafe fn cff_parse_outline(
         // not that the token itself stays within `len` -- a token
         // starting near the end of a truncated CharString used to read
         // past it (see `cff_codecs.rs`'s own conversion). Stop cleanly
-        // instead of reading on.
+        // instead of reading on. `remaining` is also reused a few lines
+        // down, for the hintmask/cntrmask bytes that ride along after
+        // the operator instead of going through `cff_decode_cs2_token`.
         let remaining = data_slice.len() - pos;
-        let Some(adv) = cff_decode_cs2_token(data_slice[pos..].as_ptr(), remaining, &raw mut val)
-        else {
+        let Some(adv) = cff_decode_cs2_token(&data_slice[pos..], &mut val) else {
             break;
         };
         advance = adv;
