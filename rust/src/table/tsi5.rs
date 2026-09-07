@@ -1,8 +1,8 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
+use crate::table::otl::classdef::{ClassDef, push_class_def};
 
-use crate::support::handle::{GlyphHandle, handle_from_index};
+use crate::support::handle::handle_from_index;
 
 use crate::support::font_reader::FontReader;
 
@@ -38,58 +38,58 @@ unsafe fn unwrap_class_def(raw: *mut ClassDef) -> Box<ClassDef> {
 // bytes to actually be present, so the loop below now stops one entry
 // earlier on an odd-length table instead of reading past the end; a
 // well-formed (even-length) table parses identically to before.
-pub unsafe fn otfcc_read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
+pub fn otfcc_read_tsi5(packet: &Packet) -> Option<Box<Tsi5Table>> {
     let table = packet
         .pieces
         .iter()
         .find(|p| p.tag == crate::tag::TAG_TSI5)?;
-    let tsi5: *mut Tsi5Table = otl_class_def_create() as *mut Tsi5Table;
+    // Built as a plain local value rather than through
+    // `otl_class_def_create()`/`unwrap_class_def` (both stay, for
+    // `classdef.rs`'s own raw-pointer-constructible callers elsewhere) --
+    // `push_class_def` is already a safe `fn`, so nothing here needs a box
+    // until the very end.
+    let mut tsi5 = ClassDef {
+        maxclass: 0,
+        glyphs: Vec::new(),
+        classes: Vec::new(),
+    };
     let mut r = FontReader::new(&table.data);
     let mut j: GlyphId = 0 as GlyphId;
     while let Ok(class) = r.u16() {
-        push_class_def(
-            &mut *tsi5,
-            handle_from_index(j) as GlyphHandle,
-            class as GlyphClass,
-        );
+        push_class_def(&mut tsi5, handle_from_index(j), class as GlyphClass);
         j = j.wrapping_add(1);
     }
-    Some(unwrap_class_def(tsi5))
+    Some(Box::new(tsi5))
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: &mut BuiltValue) {
+pub fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: &mut BuiltValue) {
     let Some(table) = table else {
         return;
     };
     root.push_field(b"TSI5", dump_class_def(table));
 }
-pub unsafe fn otfcc_parse_tsi5(root: &ParsedValue) -> Option<Box<Tsi5Table>> {
+pub fn otfcc_parse_tsi5(root: &ParsedValue) -> Option<Box<Tsi5Table>> {
     let tsi = root.get_typed(b"TSI5", JsonType::Object)?;
     let raw = parse_class_def(Some(tsi));
     if raw.is_null() {
         return None;
     }
-    Some(unwrap_class_def(raw))
+    // `parse_class_def` genuinely can return null (an empty/absent object),
+    // so this is a real check, not shell residue -- `unwrap_class_def`
+    // stays `unsafe fn` (its own `Box::from_raw` boundary), narrow bridge
+    // only.
+    Some(unsafe { unwrap_class_def(raw) })
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffer> {
-    let tsi5 = tsi5? as *const Tsi5Table;
+pub fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffer> {
+    let tsi5 = tsi5?;
     let mut tsi5cls: Vec<u16> = vec![0; num_glyphs as usize];
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*tsi5).glyphs.len() {
-        if ((&(*tsi5).glyphs)[j as usize].index as i32)
-            < num_glyphs as i32
-        {
-            tsi5cls[(&(*tsi5).glyphs)[j as usize].index as usize] =
-                (&(*tsi5).classes)[j as usize] as u16;
+    for j in 0..tsi5.glyphs.len() {
+        if (tsi5.glyphs[j].index as i32) < num_glyphs as i32 {
+            tsi5cls[tsi5.glyphs[j].index as usize] = tsi5.classes[j];
         }
-        j = j.wrapping_add(1);
     }
     let mut buf = Buffer::new();
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as i32) < num_glyphs as i32 {
+    for j_0 in 0..num_glyphs {
         buf.write_u16be(tsi5cls[j_0 as usize]);
-        j_0 = j_0.wrapping_add(1);
     }
     Some(buf)
 }
@@ -120,12 +120,10 @@ mod otfcc_read_tsi5_tests {
     fn even_length_table_reads_every_class() {
         // Two glyphs: gid 0 -> class 5, gid 1 -> class 300.
         let data = vec![0x00, 0x05, 0x01, 0x2C];
-        unsafe {
-            let packet = packet_with_tsi5(data);
-            let table = otfcc_read_tsi5(&packet).unwrap();
-            assert_eq!(table.classes, vec![5, 300]);
-            assert_eq!(table.glyphs.len(), 2);
-        }
+        let packet = packet_with_tsi5(data);
+        let table = otfcc_read_tsi5(&packet).unwrap();
+        assert_eq!(table.classes, vec![5, 300]);
+        assert_eq!(table.glyphs.len(), 2);
     }
 
     #[test]
@@ -137,19 +135,15 @@ mod otfcc_read_tsi5_tests {
         // both bytes to be present, so the trailing odd byte is dropped
         // instead of read.
         let data = vec![0x00, 0x05, 0xFF]; // one full entry + one stray byte
-        unsafe {
-            let packet = packet_with_tsi5(data);
-            let table = otfcc_read_tsi5(&packet).unwrap();
-            assert_eq!(table.classes, vec![5]);
-        }
+        let packet = packet_with_tsi5(data);
+        let table = otfcc_read_tsi5(&packet).unwrap();
+        assert_eq!(table.classes, vec![5]);
     }
 
     #[test]
     fn empty_table_produces_an_empty_class_def() {
-        unsafe {
-            let packet = packet_with_tsi5(Vec::new());
-            let table = otfcc_read_tsi5(&packet).unwrap();
-            assert!(table.classes.is_empty());
-        }
+        let packet = packet_with_tsi5(Vec::new());
+        let table = otfcc_read_tsi5(&packet).unwrap();
+        assert!(table.classes.is_empty());
     }
 }
