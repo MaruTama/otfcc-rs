@@ -637,7 +637,7 @@ mod regression_tests {
             let start = Instant::now();
             let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
             if !font.is_null() {
-                otfcc_consolidate_font(font, &*options);
+                otfcc_consolidate_font(&mut *font, &*options);
             }
             let elapsed = start.elapsed();
 

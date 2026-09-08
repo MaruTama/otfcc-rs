@@ -439,7 +439,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
-        otfcc_consolidate_font(font, &*options);
+        otfcc_consolidate_font(&mut *font, &*options);
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,

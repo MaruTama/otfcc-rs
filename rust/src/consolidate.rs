@@ -64,38 +64,31 @@ use crate::vf::vq::{vq_get_still, vq_neutral, vq_point_linear_tfm, vq_replace};
 
 pub type OtlConsolidationFunction =
     Option<unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool>;
-unsafe fn by_stem_pos(
-    a: *const PostscriptStemDef,
-    b: *const PostscriptStemDef,
-) -> i32 {
-    if (*a).position == (*b).position {
-        return (*a).map as i32 - (*b).map as i32;
-    } else if (*a).position > (*b).position {
-        return 1_i32;
+fn by_stem_pos(a: &PostscriptStemDef, b: &PostscriptStemDef) -> i32 {
+    if a.position == b.position {
+        a.map as i32 - b.map as i32
+    } else if a.position > b.position {
+        1_i32
     } else {
-        return -1_i32;
-    };
+        -1_i32
+    }
 }
-unsafe fn by_mask_pointindex(
-    a: *const PostscriptHintMask,
-    b: *const PostscriptHintMask,
-) -> i32 {
-    return if (*a).contours_before as i32
-        == (*b).contours_before as i32
-    {
-        (*a).points_before as i32 - (*b).points_before as i32
+fn by_mask_pointindex(a: &PostscriptHintMask, b: &PostscriptHintMask) -> i32 {
+    if a.contours_before as i32 == b.contours_before as i32 {
+        a.points_before as i32 - b.points_before as i32
     } else {
-        (*a).contours_before as i32 - (*b).contours_before as i32
-    };
+        a.contours_before as i32 - b.contours_before as i32
+    }
 }
-unsafe fn consolidate_glyph_contours(g: *mut Glyph, options: &Options) {
+fn consolidate_glyph_contours(g: &mut Glyph, options: &Options) {
     // `Vec::retain` visits every element once, in order, regardless of
     // whether earlier ones were kept -- so `j` here tracks the same
     // "original index" the C-shaped loop counted, and dropped contours are
     // freed automatically (a `Contour`'s only owned resources are its
     // points' `VQ` `Vec`s; no `Handle` involved, unlike `ReferenceList`).
     let mut j: ShapeId = 0 as ShapeId;
-    (*g).contours.retain(|contour| {
+    let name = &g.name;
+    g.contours.retain(|contour| {
         let keep = !contour.is_empty();
         if !keep {
             logger_log_sds(
@@ -106,7 +99,7 @@ unsafe fn consolidate_glyph_contours(g: *mut Glyph, options: &Options) {
                     b"[Consolidate] Removed empty contour #",
                     j as i32,
                     b" in glyph ",
-                    &(*g).name,
+                    name,
                     b".\n",
                 ),
             );
@@ -115,20 +108,10 @@ unsafe fn consolidate_glyph_contours(g: *mut Glyph, options: &Options) {
         keep
     });
 }
-unsafe fn consolidate_glyph_references(
-    g: *mut Glyph,
-    font: *mut Font,
-    options: &Options,
-) {
-    (*g).references.retain_mut(|r| {
-        // `consolidate_glyph_references` is only ever reached through
-        // `consolidate_glyph`, which `consolidate_glyf` only calls after
-        // its own `glyph_order.is_none()` early return -- `glyph_order` is
-        // always `Some` here.
-        let ok = otfcc_gord_consolidate_handle(
-            (*font).glyph_order.as_deref().unwrap(),
-            &mut r.glyph,
-        );
+fn consolidate_glyph_references(g: &mut Glyph, glyph_order: &GlyphOrder, options: &Options) {
+    let name = &g.name;
+    g.references.retain_mut(|r| {
+        let ok = otfcc_gord_consolidate_handle(glyph_order, &mut r.glyph);
         if !ok {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
@@ -138,7 +121,7 @@ unsafe fn consolidate_glyph_references(
                     b"[Consolidate] Ignored absent glyph component reference /",
                     &r.glyph.name,
                     b" within /",
-                    &(*g).name,
+                    name,
                     b".\n",
                 ),
             );
@@ -149,54 +132,44 @@ unsafe fn consolidate_glyph_references(
         ok
     });
 }
-unsafe fn consolidate_glyph_hints(g: *mut Glyph) {
-    if !(*g).stem_h.is_empty() {
-        let stem_h: &mut Vec<PostscriptStemDef> = &mut (*g).stem_h;
+fn consolidate_glyph_hints(g: &mut Glyph) {
+    if !g.stem_h.is_empty() {
+        let stem_h: &mut Vec<PostscriptStemDef> = &mut g.stem_h;
         let mut j: ShapeId = 0 as ShapeId;
         while (j as usize) < stem_h.len() {
             stem_h[j as usize].map = j as u16;
             j = j.wrapping_add(1);
         }
-        stem_h.sort_by(|a, b| {
-            by_stem_pos(a as *const PostscriptStemDef, b as *const PostscriptStemDef).cmp(&0)
-        });
+        stem_h.sort_by(|a, b| by_stem_pos(a, b).cmp(&0));
     }
-    if !(*g).stem_v.is_empty() {
-        let stem_v: &mut Vec<PostscriptStemDef> = &mut (*g).stem_v;
+    if !g.stem_v.is_empty() {
+        let stem_v: &mut Vec<PostscriptStemDef> = &mut g.stem_v;
         let mut j_0: ShapeId = 0 as ShapeId;
         while (j_0 as usize) < stem_v.len() {
             stem_v[j_0 as usize].map = j_0 as u16;
             j_0 = j_0.wrapping_add(1);
         }
-        stem_v.sort_by(|a, b| {
-            by_stem_pos(a as *const PostscriptStemDef, b as *const PostscriptStemDef).cmp(&0)
-        });
+        stem_v.sort_by(|a, b| by_stem_pos(a, b).cmp(&0));
     }
-    let mut hmap: Vec<ShapeId> = vec![0; (*g).stem_h.len()];
-    let mut vmap: Vec<ShapeId> = vec![0; (*g).stem_v.len()];
-    let stem_h: &Vec<PostscriptStemDef> = &(*g).stem_h;
+    let mut hmap: Vec<ShapeId> = vec![0; g.stem_h.len()];
+    let mut vmap: Vec<ShapeId> = vec![0; g.stem_v.len()];
+    let stem_h: &Vec<PostscriptStemDef> = &g.stem_h;
     let mut j_1: ShapeId = 0 as ShapeId;
     while (j_1 as usize) < stem_h.len() {
         hmap[stem_h[j_1 as usize].map as usize] = j_1;
         j_1 = j_1.wrapping_add(1);
     }
-    let stem_v: &Vec<PostscriptStemDef> = &(*g).stem_v;
+    let stem_v: &Vec<PostscriptStemDef> = &g.stem_v;
     let mut j_2: ShapeId = 0 as ShapeId;
     while (j_2 as usize) < stem_v.len() {
         vmap[stem_v[j_2 as usize].map as usize] = j_2;
         j_2 = j_2.wrapping_add(1);
     }
-    if !(*g).hint_masks.is_empty() {
-        let stem_h_len = (*g).stem_h.len();
-        let stem_v_len = (*g).stem_v.len();
-        let hint_masks: &mut Vec<PostscriptHintMask> = &mut (*g).hint_masks;
-        hint_masks.sort_by(|a, b| {
-            by_mask_pointindex(
-                a as *const PostscriptHintMask,
-                b as *const PostscriptHintMask,
-            )
-            .cmp(&0)
-        });
+    if !g.hint_masks.is_empty() {
+        let stem_h_len = g.stem_h.len();
+        let stem_v_len = g.stem_v.len();
+        let hint_masks: &mut Vec<PostscriptHintMask> = &mut g.hint_masks;
+        hint_masks.sort_by(|a, b| by_mask_pointindex(a, b).cmp(&0));
         let mut j_3: ShapeId = 0 as ShapeId;
         while (j_3 as usize) < hint_masks.len() {
             let oldmask: PostscriptHintMask = hint_masks[j_3 as usize];
@@ -215,17 +188,11 @@ unsafe fn consolidate_glyph_hints(g: *mut Glyph) {
             j_3 = j_3.wrapping_add(1);
         }
     }
-    if !(*g).contour_masks.is_empty() {
-        let stem_h_len = (*g).stem_h.len();
-        let stem_v_len = (*g).stem_v.len();
-        let contour_masks: &mut Vec<PostscriptHintMask> = &mut (*g).contour_masks;
-        contour_masks.sort_by(|a, b| {
-            by_mask_pointindex(
-                a as *const PostscriptHintMask,
-                b as *const PostscriptHintMask,
-            )
-            .cmp(&0)
-        });
+    if !g.contour_masks.is_empty() {
+        let stem_h_len = g.stem_h.len();
+        let stem_v_len = g.stem_v.len();
+        let contour_masks: &mut Vec<PostscriptHintMask> = &mut g.contour_masks;
+        contour_masks.sort_by(|a, b| by_mask_pointindex(a, b).cmp(&0));
         let mut j_4: ShapeId = 0 as ShapeId;
         while (j_4 as usize) < contour_masks.len() {
             let oldmask_0: PostscriptHintMask = contour_masks[j_4 as usize];
@@ -245,31 +212,29 @@ unsafe fn consolidate_glyph_hints(g: *mut Glyph) {
         }
     }
 }
-unsafe fn consolidate_fd_select(
-    h: *mut FdHandle,
-    cff: *mut CffTable,
-    options: &Options,
-    gname: &Vec<u8>,
-) {
-    if cff.is_null() || (*cff).fd_array.is_empty() {
+fn consolidate_fd_select(h: &mut FdHandle, cff: Option<&CffTable>, options: &Options, gname: &[u8]) {
+    let Some(cff) = cff else {
+        return;
+    };
+    if cff.fd_array.is_empty() {
         return;
     }
-    let fd_array: &Vec<Box<CffTable>> = &(*cff).fd_array;
-    if (*h).state == HandleState::Index {
-        if (*h).index as usize >= fd_array.len() {
-            (*h).index = 0 as GlyphId;
+    let fd_array: &Vec<Box<CffTable>> = &cff.fd_array;
+    if h.state == HandleState::Index {
+        if h.index as usize >= fd_array.len() {
+            h.index = 0 as GlyphId;
         }
-        let idx = (*h).index;
+        let idx = h.index;
         *h = Handle {
             state: HandleState::Consolidated,
             index: idx,
             name: fd_array[idx as usize].font_name.clone(),
         } as FdHandle;
-    } else if !(*h).name.is_empty() {
+    } else if !h.name.is_empty() {
         let mut found: bool = false;
         let mut j: TableId = 0 as TableId;
         while (j as usize) < fd_array.len() {
-            if handle_name_eq_bytes(&(*h).name, &fd_array[j as usize].font_name) {
+            if handle_name_eq_bytes(&h.name, &fd_array[j as usize].font_name) {
                 found = true;
                 *h = Handle {
                     state: HandleState::Consolidated,
@@ -288,31 +253,32 @@ unsafe fn consolidate_fd_select(
                 LoggerType::Warning,
                 crate::bytesbuild!(
                     b"[Consolidate] CID Subfont ",
-                    &(*h).name,
+                    &h.name,
                     b" is not defined. (in glyph /",
                     gname,
                     b").\n",
                 ),
             );
-            otfcc_handle_dispose(&mut *h);
+            otfcc_handle_dispose(h);
         }
-    } else if !(*h).name.is_empty() {
-        otfcc_handle_dispose(&mut *h);
+    } else if !h.name.is_empty() {
+        // Unreachable: the preceding `else if !h.name.is_empty()` already
+        // covers this same condition with nothing mutating `h.name` in
+        // between -- kept verbatim from the original c2rust translation
+        // rather than pruned as drive-by cleanup outside this PR's scope.
+        otfcc_handle_dispose(h);
     }
 }
-pub unsafe fn consolidate_glyph(g: *mut Glyph, font: *mut Font, options: &Options) {
+pub fn consolidate_glyph(
+    g: &mut Glyph,
+    glyph_order: &GlyphOrder,
+    cff: Option<&CffTable>,
+    options: &Options,
+) {
     consolidate_glyph_contours(g, options);
-    consolidate_glyph_references(g, font, options);
+    consolidate_glyph_references(g, glyph_order, options);
     consolidate_glyph_hints(g);
-    consolidate_fd_select(
-        &raw mut (*g).fd_select,
-        (*font)
-            .cff
-            .as_deref_mut()
-            .map_or(::core::ptr::null_mut(), |c| c as *mut CffTable),
-        options,
-        &(*g).name,
-    );
+    consolidate_fd_select(&mut g.fd_select, cff, options, &g.name);
 }
 // `get_point_coordinates` and `consolidate_anchor_ref` (below) are
 // mutually recursive over a composite glyph's `references` graph -- a
@@ -557,58 +523,65 @@ pub unsafe fn consolidate_anchor_ref(
     // calls are needed.
     return false;
 }
-pub unsafe fn consolidate_glyf(font: *mut Font, options: &Options) {
-    if (*font).glyph_order.is_none() || (*font).glyf.is_none() {
+pub fn consolidate_glyf(font: &mut Font, options: &Options) {
+    if font.glyph_order.is_none() || font.glyf.is_none() {
         return;
     }
-    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
+    let glyph_order: &GlyphOrder = font.glyph_order.as_deref().unwrap();
+    let cff: Option<&CffTable> = font.cff.as_deref();
+    let glyf: &mut GlyfTable = font.glyf.as_mut().unwrap();
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*glyf).len() {
-        if (&(*glyf))[j as usize].is_some() {
-            consolidate_glyph(
-                &raw mut **(&mut (*glyf))[j as usize].as_mut().unwrap(),
-                font,
-                options,
-            );
+    while (j as usize) < glyf.len() {
+        if glyf[j as usize].is_some() {
+            consolidate_glyph(glyf[j as usize].as_mut().unwrap(), glyph_order, cff, options);
         } else {
-            (&mut (*glyf))[j as usize] = Some(otfcc_new_glyf_glyph());
+            glyf[j as usize] = Some(otfcc_new_glyf_glyph());
         }
         j = j.wrapping_add(1);
     }
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*glyf).len() {
-        let g: *mut Glyph = &raw mut **(&mut (*glyf))[j_0 as usize].as_mut().unwrap();
-        logger_start_sds(
-            &mut *options.logger.borrow_mut(),
-            crate::bytesbuild!(&(*g).name),
-        );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
+    // `consolidate_anchor_ref` is a genuinely unsafe recursive walk that
+    // can revisit *any* glyph in the table (not just the one being
+    // processed) while resolving anchor points -- bridged here as one
+    // narrow unsafe block operating on a single raw `*mut GlyfTable`
+    // derived once from `glyf`, the same raw-pointer shape
+    // `consolidate_anchor_ref`'s own signature still requires, rather
+    // than interleaving safe indexing with a freshly-rederived raw
+    // pointer each iteration (the exact Stacked Borrows hazard a past PR
+    // in this crate found and fixed elsewhere -- see
+    // `table/glyf/read.rs`'s `apply_polymorphism`).
+    unsafe {
+        let table: *mut GlyfTable = glyf;
+        let mut j_0: GlyphId = 0 as GlyphId;
+        while (j_0 as usize) < (*table).len() {
+            let g: *mut Glyph = &raw mut **(&mut (*table))[j_0 as usize].as_mut().unwrap();
+            logger_start_sds(
+                &mut *options.logger.borrow_mut(),
+                crate::bytesbuild!(&(*g).name),
+            );
             let mut gr: ComponentReference = (glyf_component_reference_empty)();
             gr.glyph = handle_from_index(j_0) as GlyphHandle;
             let mut r: ShapeId = 0 as ShapeId;
             while (r as usize) < (*g).references.len() {
                 let rr: *mut ComponentReference = &raw mut (&mut (*g).references)[r as usize];
-                consolidate_anchor_ref(glyf, &raw mut gr, rr, options, 0);
+                consolidate_anchor_ref(table, &raw mut gr, rr, options, 0);
                 r = r.wrapping_add(1);
             }
             // `gr` is a plain owned local; every field auto-drops when it
-            // goes out of scope at the end of this block, so no explicit
-            // dispose call is needed.
-            ___loggedstep_v = false;
+            // goes out of scope at the end of this iteration, so no
+            // explicit dispose call is needed.
             logger_finish(&mut *options.logger.borrow_mut());
+            j_0 = j_0.wrapping_add(1);
         }
-        j_0 = j_0.wrapping_add(1);
     }
 }
-pub unsafe fn consolidate_cmap(font: *mut Font, options: &Options) {
-    let glyph_order: Option<&GlyphOrder> = (*font).glyph_order.as_deref();
-    if let Some(glyph_order) = glyph_order.filter(|_| (*font).cmap.is_some()) {
+pub fn consolidate_cmap(font: &mut Font, options: &Options) {
+    let glyph_order: Option<&GlyphOrder> = font.glyph_order.as_deref();
+    if let Some(glyph_order) = glyph_order.filter(|_| font.cmap.is_some()) {
         // A failed resolution disposes the entry's `Handle` in place
         // (leaving it in the map with an empty name) rather than
         // removing the entry -- `dump_cmap`'s "skip if name is null"
         // check is what actually hides it later.
-        for (&unicode, glyph) in (*font).cmap.as_mut().unwrap().unicodes.iter_mut() {
+        for (&unicode, glyph) in font.cmap.as_mut().unwrap().unicodes.iter_mut() {
             if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
@@ -626,8 +599,8 @@ pub unsafe fn consolidate_cmap(font: *mut Font, options: &Options) {
             }
         }
     }
-    if let Some(glyph_order) = glyph_order.filter(|_| (*font).cmap.is_some()) {
-        for (key, glyph) in (*font).cmap.as_mut().unwrap().uvs.iter_mut() {
+    if let Some(glyph_order) = glyph_order.filter(|_| font.cmap.is_some()) {
+        for (key, glyph) in font.cmap.as_mut().unwrap().uvs.iter_mut() {
             if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
@@ -1086,14 +1059,14 @@ unsafe fn consolidate_otl(font: *mut Font, options: &Options) {
         logger_finish(&mut *options.logger.borrow_mut());
     }
 }
-unsafe fn consolidate_colr(font: *mut Font, options: &Options) {
-    if font.is_null() || (*font).colr.is_none() || (*font).glyph_order.is_none() {
+fn consolidate_colr(font: &mut Font, options: &Options) {
+    if font.colr.is_none() || font.glyph_order.is_none() {
         return;
     }
     // Guaranteed `Some` by the early return above.
-    let glyph_order: &GlyphOrder = (*font).glyph_order.as_deref().unwrap();
+    let glyph_order: &GlyphOrder = font.glyph_order.as_deref().unwrap();
     let mut consolidated: ColrTable = Vec::new();
-    let source: &mut Vec<ColrMapping> = (*font).colr.as_mut().unwrap();
+    let source: &mut Vec<ColrMapping> = font.colr.as_mut().unwrap();
     let mut __caryll_index: usize = 0_usize;
     let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < source.len() {
@@ -1165,23 +1138,21 @@ unsafe fn consolidate_colr(font: *mut Font, options: &Options) {
         keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    (*font).colr = Some(consolidated);
+    font.colr = Some(consolidated);
 }
-unsafe fn consolidate_tsi(
-    font: *mut Font,
-    mut _tsi: *mut Option<TsiTable>,
-    options: &Options,
-) {
-    if font.is_null()
-        || (*font).glyf.is_none()
-        || (*_tsi).is_none()
-        || (*font).glyph_order.is_none()
-    {
+// Takes `glyf`/`glyph_order` as separate borrowed pieces (rather than
+// `font: &mut Font` alongside `tsi: &mut Option<TsiTable>`, which would
+// be two simultaneous borrows of the same `Font` whenever a caller
+// passes `&mut font.tsi_01`/`&mut font.tsi_23`) -- the caller
+// (`otfcc_consolidate_font`) borrows `font.glyf`/`font.glyph_order`
+// (shared) and `font.tsi_01`/`font.tsi_23` (mutable, one at a time) as
+// disjoint fields directly off `font`, which Rust allows even though a
+// single `&Font`/`&mut Font` funneled through this function's own
+// parameter list would not.
+fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<TsiTable>, options: &Options) {
+    if tsi.is_none() {
         return;
     }
-    let glyf: *mut GlyfTable = (*font).glyf.as_mut().unwrap() as *mut GlyfTable;
-    // Guaranteed `Some` by the early return above.
-    let glyph_order: &GlyphOrder = (*font).glyph_order.as_deref().unwrap();
     let mut consolidated: TsiTable = Vec::new();
     // `Option<Vec<u8>>` per slot preserves the old null/non-null
     // distinction (`None` = "no entry yet for this GID", `Some` = has
@@ -1189,41 +1160,29 @@ unsafe fn consolidate_tsi(
     // `is_null()` checks relied on -- a plain assignment below correctly
     // drops whatever was there before, so the old explicit
     // free-before-overwrite is now implicit.
-    let mut gid_entries: Vec<Option<Vec<u8>>> = vec![None; (*glyf).len()];
-    let entries: &mut Vec<TsiEntry> = (*_tsi).as_mut().unwrap();
-    let mut __caryll_index: usize = 0_usize;
-    let mut keep: usize = 1_usize;
-    while keep != 0 && __caryll_index < entries.len() {
-        let entry: *mut TsiEntry = &mut entries[__caryll_index];
-        while keep != 0 {
-            if (*entry).type_0 as ::core::ffi::c_uint
-                == TsiEntryType::Glyph as i32 as ::core::ffi::c_uint
-            {
-                if otfcc_gord_consolidate_handle(glyph_order, &mut (*entry).glyph) {
-                    gid_entries[(*entry).glyph.index as usize] =
-                        Some(::core::mem::take(&mut (*entry).content));
-                } else {
-                    logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
-                        LOG_VL_IMPORTANT,
-                        LoggerType::Warning,
-                        crate::bytesbuild!(
-                            b"[Consolidate] Ignored missing glyph of /",
-                            &(*entry).glyph.name,
-                        ),
-                    );
-                }
+    let mut gid_entries: Vec<Option<Vec<u8>>> = vec![None; glyf.len()];
+    let entries: &mut Vec<TsiEntry> = tsi.as_mut().unwrap();
+    for entry in entries.iter_mut() {
+        if entry.type_0 == TsiEntryType::Glyph {
+            if otfcc_gord_consolidate_handle(glyph_order, &mut entry.glyph) {
+                gid_entries[entry.glyph.index as usize] =
+                    Some(::core::mem::take(&mut entry.content));
             } else {
-                let e: TsiEntry = tsi_entry_dup(&*entry);
-                consolidated.push(e);
+                logger_log_sds(
+                    &mut *options.logger.borrow_mut(),
+                    LOG_VL_IMPORTANT,
+                    LoggerType::Warning,
+                    crate::bytesbuild!(b"[Consolidate] Ignored missing glyph of /", &entry.glyph.name),
+                );
             }
-            keep = (keep == 0) as i32 as usize;
+        } else {
+            // `tsi_entry_dup` is a safe fn now that this stack includes
+            // #364's `_tsi.rs` conversion.
+            consolidated.push(tsi_entry_dup(entry));
         }
-        keep = (keep == 0) as i32 as usize;
-        __caryll_index = __caryll_index.wrapping_add(1);
     }
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*glyf).len() {
+    while (j as usize) < glyf.len() {
         let mut e_0: TsiEntry = TsiEntry {
             type_0: TsiEntryType::Glyph,
             glyph: Handle {
@@ -1245,22 +1204,24 @@ unsafe fn consolidate_tsi(
             .cmp(&(b.type_0 as u32))
             .then(a.glyph.index.cmp(&b.glyph.index))
     });
-    // Old `tsi` (the previous `*_tsi`) drops naturally here, when this
+    // Old `tsi` (the previous value) drops naturally here, when this
     // assignment overwrites it -- no explicit `table_tsi_free` needed.
-    *_tsi = Some(consolidated);
+    *tsi = Some(consolidated);
 }
-pub unsafe fn otfcc_consolidate_font(font: *mut Font, options: &Options) {
+pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
     // See `Options::consolidate_warning_budget`'s own doc comment: reset
     // once per font here, not just once at `Options` creation, since one
     // `Options` can drive many conversions over its life.
     options
         .consolidate_warning_budget
         .set(crate::consolidate::otl::chaining::CONSOLIDATE_WARNING_BUDGET);
-    let glyf: *mut GlyfTable = (*font)
-        .glyf
-        .as_mut()
-        .map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable);
-    if !glyf.is_null() && (*font).glyph_order.is_none() {
+    // `font.glyf` itself is never reassigned anywhere below (individual
+    // glyph slots inside it may be, but the `Option` wrapping the whole
+    // table is not), so capturing "is a glyf table present at all" once,
+    // up front, is equivalent to re-checking `font.glyf.is_some()` at
+    // each point the original raw-pointer version did.
+    let has_glyf = font.glyf.is_some();
+    if has_glyf && font.glyph_order.is_none() {
         // Built directly via `Box::new`, not `OTFCC_PKG_GLYPH_ORDER.create`
         // (`malloc`) + `Box::from_raw` -- `Box::from_raw` requires the
         // pointer to have come from Rust's global allocator, which a bare
@@ -1274,15 +1235,16 @@ pub unsafe fn otfcc_consolidate_font(font: *mut Font, options: &Options) {
             by_name: ::std::collections::HashMap::new(),
         });
         let go: &mut GlyphOrder = go_box.as_mut();
+        let glyf: &mut GlyfTable = font.glyf.as_mut().unwrap();
         let mut j: GlyphId = 0 as GlyphId;
-        while (j as usize) < (*glyf).len() {
+        while (j as usize) < glyf.len() {
             let name: Vec<u8>;
-            let glyf_name_empty: bool = (&(*glyf))[j as usize].as_deref().unwrap().name.is_empty();
+            let glyf_name_empty: bool = glyf[j as usize].as_deref().unwrap().name.is_empty();
             if !glyf_name_empty {
-                name = (&(*glyf))[j as usize].as_deref().unwrap().name.clone();
+                name = glyf[j as usize].as_deref().unwrap().name.clone();
             } else {
                 name = crate::bytesbuild!(b"$$gid", j as i32);
-                (&mut (*glyf))[j as usize].as_mut().unwrap().name = name.clone();
+                glyf[j as usize].as_mut().unwrap().name = name.clone();
             }
             // `.clone()`, not a move: `otfcc_set_glyph_order_by_name` always
             // consumes its own copy (no ownership contract to track any
@@ -1316,7 +1278,7 @@ pub unsafe fn otfcc_consolidate_font(font: *mut Font, options: &Options) {
                                 b".",
                             ),
                         );
-                        (&mut (*glyf))[j as usize].as_mut().unwrap().name = newname;
+                        glyf[j as usize].as_mut().unwrap().name = newname;
                     }
                     if success {
                         break;
@@ -1325,78 +1287,69 @@ pub unsafe fn otfcc_consolidate_font(font: *mut Font, options: &Options) {
             }
             j = j.wrapping_add(1);
         }
-        (*font).glyph_order = Some(go_box);
+        font.glyph_order = Some(go_box);
     }
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"glyf"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        consolidate_glyf(font, options);
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
-    }
+    consolidate_glyf(font, options);
+    logger_finish(&mut *options.logger.borrow_mut());
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"cmap"),
     );
-    let mut ___loggedstep_v_0: bool = true;
-    while ___loggedstep_v_0 {
-        consolidate_cmap(font, options);
-        ___loggedstep_v_0 = false;
-        logger_finish(&mut *options.logger.borrow_mut());
-    }
-    if !glyf.is_null() {
-        consolidate_otl(font, options);
+    consolidate_cmap(font, options);
+    logger_finish(&mut *options.logger.borrow_mut());
+    if has_glyf {
+        // `consolidate_otl` is still entangled with the OTL consolidation
+        // dispatch table (`OtlConsolidationFunction`, a fixed function-
+        // pointer type ~9 files' worth of concrete lookup consolidators
+        // must all match simultaneously before it can drop `unsafe`) --
+        // out of scope for this PR, bridged narrowly here instead.
+        unsafe {
+            consolidate_otl(font, options);
+        }
     }
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"COLR"),
     );
-    let mut ___loggedstep_v_1: bool = true;
-    while ___loggedstep_v_1 {
-        consolidate_colr(font, options);
-        ___loggedstep_v_1 = false;
-        logger_finish(&mut *options.logger.borrow_mut());
-    }
+    consolidate_colr(font, options);
+    logger_finish(&mut *options.logger.borrow_mut());
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"TSI_01"),
     );
-    let mut ___loggedstep_v_2: bool = true;
-    while ___loggedstep_v_2 {
-        consolidate_tsi(font, &raw mut (*font).tsi_01, options);
-        ___loggedstep_v_2 = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+    if let (Some(glyf), Some(glyph_order)) = (font.glyf.as_ref(), font.glyph_order.as_deref()) {
+        consolidate_tsi(glyf, glyph_order, &mut font.tsi_01, options);
     }
+    logger_finish(&mut *options.logger.borrow_mut());
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"TSI_23"),
     );
-    let mut ___loggedstep_v_3: bool = true;
-    while ___loggedstep_v_3 {
-        consolidate_tsi(font, &raw mut (*font).tsi_23, options);
-        ___loggedstep_v_3 = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+    if let (Some(glyf), Some(glyph_order)) = (font.glyf.as_ref(), font.glyph_order.as_deref()) {
+        consolidate_tsi(glyf, glyph_order, &mut font.tsi_23, options);
     }
+    logger_finish(&mut *options.logger.borrow_mut());
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"TSI5"),
     );
-    let mut ___loggedstep_v_4: bool = true;
-    while ___loggedstep_v_4 {
-        fontop_consolidate_class_def(
-            font,
-            (*font)
-                .tsi5
-                .as_deref_mut()
-                .map_or(::core::ptr::null_mut(), |c| c as *mut ClassDef),
-            options,
-        );
-        ___loggedstep_v_4 = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+    // `fontop_consolidate_class_def` (in `consolidate/otl/common.rs`)
+    // stays a genuine `unsafe fn` -- untouched by this PR -- so this
+    // call, unlike `consolidate_tsi` above, still bridges through a raw
+    // `*mut Font`/`*mut ClassDef` pair.
+    unsafe {
+        let font_ptr: *mut Font = font;
+        let tsi5_ptr = font
+            .tsi5
+            .as_deref_mut()
+            .map_or(::core::ptr::null_mut(), |c| c as *mut ClassDef);
+        fontop_consolidate_class_def(font_ptr, tsi5_ptr, options);
     }
+    logger_finish(&mut *options.logger.borrow_mut());
 }
 
 #[cfg(test)]
@@ -1515,7 +1468,7 @@ mod composite_reference_cycle_tests {
     // job on an unrelated PR). Two glyphs, each with one plain (non-
     // anchor) reference to the other -- no anchor points needed to
     // reproduce get_point_coordinates's own unbounded self-recursion.
-    unsafe fn cyclic_glyf_table() -> GlyfTable {
+    fn cyclic_glyf_table() -> GlyfTable {
         let mut g0 = otfcc_new_glyf_glyph();
         g0.references.push(reference_to(1));
         let mut g1 = otfcc_new_glyf_glyph();
@@ -1523,7 +1476,7 @@ mod composite_reference_cycle_tests {
         vec![Some(g0), Some(g1)]
     }
 
-    unsafe fn reference_to(gid: GlyphId) -> ComponentReference {
+    fn reference_to(gid: GlyphId) -> ComponentReference {
         let mut r = glyf_component_reference_empty();
         r.glyph = handle_from_index(gid);
         r.a = 1.;

@@ -43,7 +43,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         otfcc_delete_options(options);
         return ::core::ptr::null_mut::<Buffer>();
     }
-    otfcc_consolidate_font(font, &*options);
+    otfcc_consolidate_font(&mut *font, &*options);
     let otf: *mut Buffer = serialize_to_otf(font, &*options) as *mut Buffer;
     otfcc_font_free(font);
     otfcc_delete_options(options);

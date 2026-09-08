@@ -60,7 +60,7 @@ fuzz_target!(|data: &[u8]| {
         otfcc_delete_sfnt(sfnt);
 
         if !font.is_null() {
-            otfcc_consolidate_font(font, &*options);
+            otfcc_consolidate_font(&mut *font, &*options);
             // `serialize_to_json` returns `*mut c_void` (the type-erased
             // FontSerializer trait boundary), not `*mut BuiltValue` --
             // `Box::from_raw` on the untyped pointer would reconstruct a
