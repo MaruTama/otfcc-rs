@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
@@ -412,280 +411,283 @@ pub static UNICODE_RANGE_LABELS4: [&::core::ffi::CStr; 27] = [
     c"Domino_and_Mahjong_Tiles",
 ];
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_os_2(
-    table: Option<&Os2Table>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
-    let table = match table {
-        Some(t) => t as *const Os2Table,
-        None => return,
+pub fn otfcc_dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue, options: &Options) {
+    let Some(table) = table else {
+        return;
     };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"OS/2"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut os_2 = BuiltValue::new_object(30);
-        os_2.push_field(b"version", BuiltValue::Int((*table).version as i64));
-        os_2.push_field(
-            b"xAvgCharWidth",
-            BuiltValue::Int((*table).x_avg_char_width as i64),
-        );
-        os_2.push_field(
-            b"usWeightClass",
-            BuiltValue::Int((*table).us_weight_class as i64),
-        );
-        os_2.push_field(
-            b"usWidthClass",
-            BuiltValue::Int((*table).us_width_class as i64),
-        );
-        os_2.push_field(
-            b"fsType",
-            BuiltValue::dump_flags((*table).fs_type as i32, &FS_TYPE_LABELS),
-        );
-        os_2.push_field(
-            b"ySubscriptXSize",
-            BuiltValue::Int((*table).y_subscript_x_size as i64),
-        );
-        os_2.push_field(
-            b"ySubscriptYSize",
-            BuiltValue::Int((*table).y_subscript_y_size as i64),
-        );
-        os_2.push_field(
-            b"ySubscriptXOffset",
-            BuiltValue::Int((*table).y_subscript_x_offset as i64),
-        );
-        os_2.push_field(
-            b"ySubscriptYOffset",
-            BuiltValue::Int((*table).y_subscript_y_offset as i64),
-        );
-        os_2.push_field(
-            b"ySupscriptXSize",
-            BuiltValue::Int((*table).y_supscript_x_size as i64),
-        );
-        os_2.push_field(
-            b"ySupscriptYSize",
-            BuiltValue::Int((*table).y_supscript_y_size as i64),
-        );
-        os_2.push_field(
-            b"ySupscriptXOffset",
-            BuiltValue::Int((*table).y_supscript_x_offset as i64),
-        );
-        os_2.push_field(
-            b"ySupscriptYOffset",
-            BuiltValue::Int((*table).y_supscript_y_offset as i64),
-        );
-        os_2.push_field(
-            b"yStrikeoutSize",
-            BuiltValue::Int((*table).y_strikeout_size as i64),
-        );
-        os_2.push_field(
-            b"yStrikeoutPosition",
-            BuiltValue::Int((*table).y_strikeout_position as i64),
-        );
-        os_2.push_field(
-            b"sFamilyClass",
-            BuiltValue::Int((*table).s_family_class as i64),
-        );
-        let mut panose = BuiltValue::new_array(10);
-        let mut j: u8 = 0_u8;
-        while (j as i32) < 10_i32 {
-            panose.push_item(BuiltValue::Int((*table).panose[j as usize] as i64));
-            j = j.wrapping_add(1);
-        }
-        os_2.push_field(b"panose", panose);
-        os_2.push_field(
-            b"ulUnicodeRange1",
-            BuiltValue::dump_flags((*table).ul_unicode_range1 as i32, &UNICODE_RANGE_LABELS1),
-        );
-        os_2.push_field(
-            b"ulUnicodeRange2",
-            BuiltValue::dump_flags((*table).ul_unicode_range2 as i32, &UNICODE_RANGE_LABELS2),
-        );
-        os_2.push_field(
-            b"ulUnicodeRange3",
-            BuiltValue::dump_flags((*table).ul_unicode_range3 as i32, &UNICODE_RANGE_LABELS3),
-        );
-        os_2.push_field(
-            b"ulUnicodeRange4",
-            BuiltValue::dump_flags((*table).ul_unicode_range4 as i32, &UNICODE_RANGE_LABELS4),
-        );
-        os_2.push_field(
-            b"achVendID",
-            BuiltValue::str_truncated_at_nul(&(*table).ach_vend_id),
-        );
-        os_2.push_field(
-            b"fsSelection",
-            BuiltValue::dump_flags((*table).fs_selection as i32, &FS_SELECTION_LABELS),
-        );
-        os_2.push_field(
-            b"usFirstCharIndex",
-            BuiltValue::Int((*table).us_first_char_index as i64),
-        );
-        os_2.push_field(
-            b"usLastCharIndex",
-            BuiltValue::Int((*table).us_last_char_index as i64),
-        );
-        os_2.push_field(
-            b"sTypoAscender",
-            BuiltValue::Int((*table).s_typo_ascender as i64),
-        );
-        os_2.push_field(
-            b"sTypoDescender",
-            BuiltValue::Int((*table).s_typo_descender as i64),
-        );
-        os_2.push_field(
-            b"sTypoLineGap",
-            BuiltValue::Int((*table).s_typo_line_gap as i64),
-        );
-        os_2.push_field(
-            b"usWinAscent",
-            BuiltValue::Int((*table).us_win_ascent as i64),
-        );
-        os_2.push_field(
-            b"usWinDescent",
-            BuiltValue::Int((*table).us_win_descent as i64),
-        );
-        os_2.push_field(
-            b"ulCodePageRange1",
-            BuiltValue::dump_flags((*table).ul_code_page_range1 as i32, &CODE_PAGE_LABELS1),
-        );
-        os_2.push_field(
-            b"ulCodePageRange2",
-            BuiltValue::dump_flags((*table).ul_code_page_range2 as i32, &CODE_PAGE_LABELS2),
-        );
-        os_2.push_field(b"sxHeight", BuiltValue::Int((*table).sx_height as i64));
-        os_2.push_field(
-            b"sCapHeight",
-            BuiltValue::Int((*table).s_cap_height as i64),
-        );
-        os_2.push_field(
-            b"usDefaultChar",
-            BuiltValue::Int((*table).us_default_char as i64),
-        );
-        os_2.push_field(
-            b"usBreakChar",
-            BuiltValue::Int((*table).us_break_char as i64),
-        );
-        os_2.push_field(
-            b"usMaxContext",
-            BuiltValue::Int((*table).us_max_context as i64),
-        );
-        os_2.push_field(
-            b"usLowerOpticalPointSize",
-            BuiltValue::Int((*table).us_lower_optical_point_size as i64),
-        );
-        os_2.push_field(
-            b"usUpperOpticalPointSize",
-            BuiltValue::Int((*table).us_upper_optical_point_size as i64),
-        );
-        root.push_field(b"OS_2", os_2);
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+    let mut os_2 = BuiltValue::new_object(30);
+    os_2.push_field(b"version", BuiltValue::Int(table.version as i64));
+    os_2.push_field(
+        b"xAvgCharWidth",
+        BuiltValue::Int(table.x_avg_char_width as i64),
+    );
+    os_2.push_field(
+        b"usWeightClass",
+        BuiltValue::Int(table.us_weight_class as i64),
+    );
+    os_2.push_field(
+        b"usWidthClass",
+        BuiltValue::Int(table.us_width_class as i64),
+    );
+    os_2.push_field(
+        b"fsType",
+        BuiltValue::dump_flags(table.fs_type as i32, &FS_TYPE_LABELS),
+    );
+    os_2.push_field(
+        b"ySubscriptXSize",
+        BuiltValue::Int(table.y_subscript_x_size as i64),
+    );
+    os_2.push_field(
+        b"ySubscriptYSize",
+        BuiltValue::Int(table.y_subscript_y_size as i64),
+    );
+    os_2.push_field(
+        b"ySubscriptXOffset",
+        BuiltValue::Int(table.y_subscript_x_offset as i64),
+    );
+    os_2.push_field(
+        b"ySubscriptYOffset",
+        BuiltValue::Int(table.y_subscript_y_offset as i64),
+    );
+    os_2.push_field(
+        b"ySupscriptXSize",
+        BuiltValue::Int(table.y_supscript_x_size as i64),
+    );
+    os_2.push_field(
+        b"ySupscriptYSize",
+        BuiltValue::Int(table.y_supscript_y_size as i64),
+    );
+    os_2.push_field(
+        b"ySupscriptXOffset",
+        BuiltValue::Int(table.y_supscript_x_offset as i64),
+    );
+    os_2.push_field(
+        b"ySupscriptYOffset",
+        BuiltValue::Int(table.y_supscript_y_offset as i64),
+    );
+    os_2.push_field(
+        b"yStrikeoutSize",
+        BuiltValue::Int(table.y_strikeout_size as i64),
+    );
+    os_2.push_field(
+        b"yStrikeoutPosition",
+        BuiltValue::Int(table.y_strikeout_position as i64),
+    );
+    os_2.push_field(
+        b"sFamilyClass",
+        BuiltValue::Int(table.s_family_class as i64),
+    );
+    let mut panose = BuiltValue::new_array(10);
+    for &p in &table.panose {
+        panose.push_item(BuiltValue::Int(p as i64));
     }
+    os_2.push_field(b"panose", panose);
+    os_2.push_field(
+        b"ulUnicodeRange1",
+        BuiltValue::dump_flags(table.ul_unicode_range1 as i32, &UNICODE_RANGE_LABELS1),
+    );
+    os_2.push_field(
+        b"ulUnicodeRange2",
+        BuiltValue::dump_flags(table.ul_unicode_range2 as i32, &UNICODE_RANGE_LABELS2),
+    );
+    os_2.push_field(
+        b"ulUnicodeRange3",
+        BuiltValue::dump_flags(table.ul_unicode_range3 as i32, &UNICODE_RANGE_LABELS3),
+    );
+    os_2.push_field(
+        b"ulUnicodeRange4",
+        BuiltValue::dump_flags(table.ul_unicode_range4 as i32, &UNICODE_RANGE_LABELS4),
+    );
+    os_2.push_field(
+        b"achVendID",
+        BuiltValue::str_truncated_at_nul(&table.ach_vend_id),
+    );
+    os_2.push_field(
+        b"fsSelection",
+        BuiltValue::dump_flags(table.fs_selection as i32, &FS_SELECTION_LABELS),
+    );
+    os_2.push_field(
+        b"usFirstCharIndex",
+        BuiltValue::Int(table.us_first_char_index as i64),
+    );
+    os_2.push_field(
+        b"usLastCharIndex",
+        BuiltValue::Int(table.us_last_char_index as i64),
+    );
+    os_2.push_field(
+        b"sTypoAscender",
+        BuiltValue::Int(table.s_typo_ascender as i64),
+    );
+    os_2.push_field(
+        b"sTypoDescender",
+        BuiltValue::Int(table.s_typo_descender as i64),
+    );
+    os_2.push_field(
+        b"sTypoLineGap",
+        BuiltValue::Int(table.s_typo_line_gap as i64),
+    );
+    os_2.push_field(b"usWinAscent", BuiltValue::Int(table.us_win_ascent as i64));
+    os_2.push_field(
+        b"usWinDescent",
+        BuiltValue::Int(table.us_win_descent as i64),
+    );
+    os_2.push_field(
+        b"ulCodePageRange1",
+        BuiltValue::dump_flags(table.ul_code_page_range1 as i32, &CODE_PAGE_LABELS1),
+    );
+    os_2.push_field(
+        b"ulCodePageRange2",
+        BuiltValue::dump_flags(table.ul_code_page_range2 as i32, &CODE_PAGE_LABELS2),
+    );
+    os_2.push_field(b"sxHeight", BuiltValue::Int(table.sx_height as i64));
+    os_2.push_field(b"sCapHeight", BuiltValue::Int(table.s_cap_height as i64));
+    os_2.push_field(
+        b"usDefaultChar",
+        BuiltValue::Int(table.us_default_char as i64),
+    );
+    os_2.push_field(b"usBreakChar", BuiltValue::Int(table.us_break_char as i64));
+    os_2.push_field(
+        b"usMaxContext",
+        BuiltValue::Int(table.us_max_context as i64),
+    );
+    os_2.push_field(
+        b"usLowerOpticalPointSize",
+        BuiltValue::Int(table.us_lower_optical_point_size as i64),
+    );
+    os_2.push_field(
+        b"usUpperOpticalPointSize",
+        BuiltValue::Int(table.us_upper_optical_point_size as i64),
+    );
+    root.push_field(b"OS_2", os_2);
+    logger_finish(&mut *options.logger.borrow_mut());
 }
-pub unsafe fn otfcc_parse_os_2(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<Os2Table>> {
-    // `Box::new` cannot return null (it aborts on allocation failure), so
-    // the old `TABLE_I_OS_2.create()`-returned-null defensive check --
-    // guarding a `malloc` that could in principle fail -- has no
-    // equivalent here; there is nothing left to check.
-    let mut os2_val: Os2Table = ::core::mem::zeroed();
-    os2_val.version = 4;
-    let mut os_2_box: Box<Os2Table> = Box::new(os2_val);
-    let os_2: *mut Os2Table = os_2_box.as_mut() as *mut Os2Table;
-    let table = root.get_typed(b"OS_2", JsonType::Object);
-    if let Some(table) = table {
+pub fn otfcc_parse_os_2(root: &ParsedValue, options: &Options) -> Option<Box<Os2Table>> {
+    let mut os_2 = Os2Table {
+        version: 4,
+        x_avg_char_width: 0,
+        us_weight_class: 0,
+        us_width_class: 0,
+        fs_type: 0,
+        y_subscript_x_size: 0,
+        y_subscript_y_size: 0,
+        y_subscript_x_offset: 0,
+        y_subscript_y_offset: 0,
+        y_supscript_x_size: 0,
+        y_supscript_y_size: 0,
+        y_supscript_x_offset: 0,
+        y_supscript_y_offset: 0,
+        y_strikeout_size: 0,
+        y_strikeout_position: 0,
+        s_family_class: 0,
+        panose: [0; 10],
+        ul_unicode_range1: 0,
+        ul_unicode_range2: 0,
+        ul_unicode_range3: 0,
+        ul_unicode_range4: 0,
+        ach_vend_id: [0; 4],
+        fs_selection: 0,
+        us_first_char_index: 0,
+        us_last_char_index: 0,
+        s_typo_ascender: 0,
+        s_typo_descender: 0,
+        s_typo_line_gap: 0,
+        us_win_ascent: 0,
+        us_win_descent: 0,
+        ul_code_page_range1: 0,
+        ul_code_page_range2: 0,
+        sx_height: 0,
+        s_cap_height: 0,
+        us_default_char: 0,
+        us_break_char: 0,
+        us_max_context: 0,
+        us_lower_optical_point_size: 0,
+        us_upper_optical_point_size: 0,
+    };
+    if let Some(table) = root.get_typed(b"OS_2", JsonType::Object) {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"OS/2"),
         );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            (*os_2).version = table.get_num(b"version") as u16;
-            (*os_2).x_avg_char_width = table.get_num(b"xAvgCharWidth") as i16;
-            (*os_2).us_weight_class = table.get_num(b"usWeightClass") as u16;
-            (*os_2).us_width_class = table.get_num(b"usWidthClass") as u16;
-            (*os_2).fs_type = table
-                .get(b"fsType")
-                .map_or(0, |v| v.flags(&FS_TYPE_LABELS)) as u16;
-            (*os_2).y_subscript_x_size = table.get_num(b"ySubscriptXSize") as i16;
-            (*os_2).y_subscript_y_size = table.get_num(b"ySubscriptYSize") as i16;
-            (*os_2).y_subscript_x_offset = table.get_num(b"ySubscriptXOffset") as i16;
-            (*os_2).y_subscript_y_offset = table.get_num(b"ySubscriptYOffset") as i16;
-            (*os_2).y_supscript_x_size = table.get_num(b"ySupscriptXSize") as i16;
-            (*os_2).y_supscript_y_size = table.get_num(b"ySupscriptYSize") as i16;
-            (*os_2).y_supscript_x_offset = table.get_num(b"ySupscriptXOffset") as i16;
-            (*os_2).y_supscript_y_offset = table.get_num(b"ySupscriptYOffset") as i16;
-            (*os_2).y_strikeout_size = table.get_num(b"yStrikeoutSize") as i16;
-            (*os_2).y_strikeout_position = table.get_num(b"yStrikeoutPosition") as i16;
-            (*os_2).s_family_class = table.get_num(b"sFamilyClass") as i16;
-            (*os_2).fs_selection = table
-                .get(b"fsSelection")
-                .map_or(0, |v| v.flags(&FS_SELECTION_LABELS)) as u16;
-            (*os_2).us_first_char_index = table.get_num(b"usFirstCharIndex") as u16;
-            (*os_2).us_last_char_index = table.get_num(b"usLastCharIndex") as u16;
-            (*os_2).s_typo_ascender = table.get_num(b"sTypoAscender") as i16;
-            (*os_2).s_typo_descender = table.get_num(b"sTypoDescender") as i16;
-            (*os_2).s_typo_line_gap = table.get_num(b"sTypoLineGap") as i16;
-            (*os_2).us_win_ascent = table.get_num(b"usWinAscent") as u16;
-            (*os_2).us_win_descent = table.get_num(b"usWinDescent") as u16;
-            (*os_2).ul_code_page_range1 = table
-                .get(b"ulCodePageRange1")
-                .map_or(0, |v| v.flags(&CODE_PAGE_LABELS1));
-            (*os_2).ul_code_page_range2 = table
-                .get(b"ulCodePageRange2")
-                .map_or(0, |v| v.flags(&CODE_PAGE_LABELS2));
-            (*os_2).ul_unicode_range1 = table
-                .get(b"ulUnicodeRange1")
-                .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS1));
-            (*os_2).ul_unicode_range2 = table
-                .get(b"ulUnicodeRange2")
-                .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS2));
-            (*os_2).ul_unicode_range3 = table
-                .get(b"ulUnicodeRange3")
-                .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS3));
-            (*os_2).ul_unicode_range4 = table
-                .get(b"ulUnicodeRange4")
-                .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS4));
-            (*os_2).sx_height = table.get_num(b"sxHeight") as i16;
-            (*os_2).s_cap_height = table.get_num(b"sCapHeight") as i16;
-            (*os_2).us_default_char = table.get_num(b"usDefaultChar") as u16;
-            (*os_2).us_break_char = table.get_num(b"usBreakChar") as u16;
-            (*os_2).us_max_context = table.get_num(b"usMaxContext") as u16;
-            (*os_2).us_lower_optical_point_size =
-                table.get_num(b"usLowerOpticalPointSize") as u16;
-            (*os_2).us_upper_optical_point_size =
-                table.get_num(b"usUpperOpticalPointSize") as u16;
-            if let Some(panose) = table.get_typed(b"panose", JsonType::Array) {
-                let items = panose.as_array().unwrap();
-                for (j, term) in items.iter().enumerate().take(10) {
-                    if let Some(i) = term.as_int() {
-                        (*os_2).panose[j] = i as u8;
-                    } else if let Some(d) = term.as_double() {
-                        (*os_2).panose[j] = d as u8;
-                    }
+        os_2.version = table.get_num(b"version") as u16;
+        os_2.x_avg_char_width = table.get_num(b"xAvgCharWidth") as i16;
+        os_2.us_weight_class = table.get_num(b"usWeightClass") as u16;
+        os_2.us_width_class = table.get_num(b"usWidthClass") as u16;
+        os_2.fs_type = table
+            .get(b"fsType")
+            .map_or(0, |v| v.flags(&FS_TYPE_LABELS)) as u16;
+        os_2.y_subscript_x_size = table.get_num(b"ySubscriptXSize") as i16;
+        os_2.y_subscript_y_size = table.get_num(b"ySubscriptYSize") as i16;
+        os_2.y_subscript_x_offset = table.get_num(b"ySubscriptXOffset") as i16;
+        os_2.y_subscript_y_offset = table.get_num(b"ySubscriptYOffset") as i16;
+        os_2.y_supscript_x_size = table.get_num(b"ySupscriptXSize") as i16;
+        os_2.y_supscript_y_size = table.get_num(b"ySupscriptYSize") as i16;
+        os_2.y_supscript_x_offset = table.get_num(b"ySupscriptXOffset") as i16;
+        os_2.y_supscript_y_offset = table.get_num(b"ySupscriptYOffset") as i16;
+        os_2.y_strikeout_size = table.get_num(b"yStrikeoutSize") as i16;
+        os_2.y_strikeout_position = table.get_num(b"yStrikeoutPosition") as i16;
+        os_2.s_family_class = table.get_num(b"sFamilyClass") as i16;
+        os_2.fs_selection = table
+            .get(b"fsSelection")
+            .map_or(0, |v| v.flags(&FS_SELECTION_LABELS)) as u16;
+        os_2.us_first_char_index = table.get_num(b"usFirstCharIndex") as u16;
+        os_2.us_last_char_index = table.get_num(b"usLastCharIndex") as u16;
+        os_2.s_typo_ascender = table.get_num(b"sTypoAscender") as i16;
+        os_2.s_typo_descender = table.get_num(b"sTypoDescender") as i16;
+        os_2.s_typo_line_gap = table.get_num(b"sTypoLineGap") as i16;
+        os_2.us_win_ascent = table.get_num(b"usWinAscent") as u16;
+        os_2.us_win_descent = table.get_num(b"usWinDescent") as u16;
+        os_2.ul_code_page_range1 = table
+            .get(b"ulCodePageRange1")
+            .map_or(0, |v| v.flags(&CODE_PAGE_LABELS1));
+        os_2.ul_code_page_range2 = table
+            .get(b"ulCodePageRange2")
+            .map_or(0, |v| v.flags(&CODE_PAGE_LABELS2));
+        os_2.ul_unicode_range1 = table
+            .get(b"ulUnicodeRange1")
+            .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS1));
+        os_2.ul_unicode_range2 = table
+            .get(b"ulUnicodeRange2")
+            .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS2));
+        os_2.ul_unicode_range3 = table
+            .get(b"ulUnicodeRange3")
+            .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS3));
+        os_2.ul_unicode_range4 = table
+            .get(b"ulUnicodeRange4")
+            .map_or(0, |v| v.flags(&UNICODE_RANGE_LABELS4));
+        os_2.sx_height = table.get_num(b"sxHeight") as i16;
+        os_2.s_cap_height = table.get_num(b"sCapHeight") as i16;
+        os_2.us_default_char = table.get_num(b"usDefaultChar") as u16;
+        os_2.us_break_char = table.get_num(b"usBreakChar") as u16;
+        os_2.us_max_context = table.get_num(b"usMaxContext") as u16;
+        os_2.us_lower_optical_point_size = table.get_num(b"usLowerOpticalPointSize") as u16;
+        os_2.us_upper_optical_point_size = table.get_num(b"usUpperOpticalPointSize") as u16;
+        if let Some(panose) = table.get_typed(b"panose", JsonType::Array) {
+            let items = panose.as_array().unwrap();
+            for (j, term) in items.iter().enumerate().take(10) {
+                if let Some(i) = term.as_int() {
+                    os_2.panose[j] = i as u8;
+                } else if let Some(d) = term.as_double() {
+                    os_2.panose[j] = d as u8;
                 }
             }
-            if let Some(vendorid) = table.get_typed(b"achVendID", JsonType::String) {
-                (*os_2).ach_vend_id = [b' '; 4];
-                if let Some(bytes) = vendorid.as_str_bytes() {
-                    let n = bytes.len().min(4);
-                    (&mut (*os_2).ach_vend_id)[..n].copy_from_slice(&bytes[..n]);
-                }
-            }
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
         }
+        if let Some(vendorid) = table.get_typed(b"achVendID", JsonType::String) {
+            os_2.ach_vend_id = [b' '; 4];
+            if let Some(bytes) = vendorid.as_str_bytes() {
+                let n = bytes.len().min(4);
+                os_2.ach_vend_id[..n].copy_from_slice(&bytes[..n]);
+            }
+        }
+        logger_finish(&mut *options.logger.borrow_mut());
     }
-    if ((*os_2).version as i32) < 1_i32 {
-        (*os_2).version = 1_u16;
+    if (os_2.version as i32) < 1_i32 {
+        os_2.version = 1_u16;
     }
-    return Some(os_2_box);
+    Some(Box::new(os_2))
 }
 #[allow(improper_ctypes_definitions)]
 pub fn otfcc_build_os_2(os_2: Option<&Os2Table>) -> Option<Buffer> {

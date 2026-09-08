@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
@@ -70,116 +69,77 @@ pub fn otfcc_read_gasp(packet: &Packet, options: &Options) -> Option<Box<GaspTab
         }
     }
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_gasp(
-    table: Option<&GaspTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
-    let table = match table {
-        Some(t) => t,
-        None => return,
+pub fn otfcc_dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(table) = table else {
+        return;
     };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"gasp"),
     );
-    let records: &Vec<GaspRecord> = &(*table).records;
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut t = BuiltValue::new_array(records.len());
-        let mut j: u16 = 0_u16;
-        while (j as usize) < records.len() {
-            let mut rec = BuiltValue::new_object(5);
-            rec.push_field(
-                b"rangeMaxPPEM",
-                BuiltValue::Int(records[j as usize].range_max_ppem as i64),
-            );
-            rec.push_field(b"dogray", BuiltValue::Bool(records[j as usize].dogray));
-            rec.push_field(b"gridfit", BuiltValue::Bool(records[j as usize].gridfit));
-            rec.push_field(
-                b"symmetric_smoothing",
-                BuiltValue::Bool(records[j as usize].symmetric_smoothing),
-            );
-            rec.push_field(
-                b"symmetric_gridfit",
-                BuiltValue::Bool(records[j as usize].symmetric_gridfit),
-            );
-            t.push_item(rec);
-            j = j.wrapping_add(1);
-        }
-        root.push_field(b"gasp", t);
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
-    }
-}
-pub unsafe fn otfcc_parse_gasp(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<GaspTable>> {
-    let mut gasp: Option<Box<GaspTable>> = None;
-    let table = root.get_typed(b"gasp", JsonType::Array);
-    if let Some(table) = table {
-        logger_start_sds(
-            &mut *options.logger.borrow_mut(),
-            crate::bytesbuild!(b"gasp"),
+    let mut t = BuiltValue::new_array(table.records.len());
+    for r in &table.records {
+        let mut rec = BuiltValue::new_object(5);
+        rec.push_field(b"rangeMaxPPEM", BuiltValue::Int(r.range_max_ppem as i64));
+        rec.push_field(b"dogray", BuiltValue::Bool(r.dogray));
+        rec.push_field(b"gridfit", BuiltValue::Bool(r.gridfit));
+        rec.push_field(
+            b"symmetric_smoothing",
+            BuiltValue::Bool(r.symmetric_smoothing),
         );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            gasp = Some(Box::new(GaspTable {
-                version: 1,
-                records: Vec::new(),
-            }));
-            if let Some(items) = table.as_array() {
-                for r in items {
-                    if r.as_object().is_some() {
-                        let record = GaspRecord {
-                            range_max_ppem: r.get_int_or(b"rangeMaxPPEM", 0xffff_i32) as GlyphSize,
-                            dogray: r.get_bool(b"dogray"),
-                            gridfit: r.get_bool(b"gridfit"),
-                            symmetric_smoothing: r.get_bool(b"symmetric_smoothing"),
-                            symmetric_gridfit: r.get_bool(b"symmetric_gridfit"),
-                        };
-                        gasp.as_mut().unwrap().records.push(record);
-                    }
-                }
+        rec.push_field(b"symmetric_gridfit", BuiltValue::Bool(r.symmetric_gridfit));
+        t.push_item(rec);
+    }
+    root.push_field(b"gasp", t);
+    logger_finish(&mut *options.logger.borrow_mut());
+}
+pub fn otfcc_parse_gasp(root: &ParsedValue, options: &Options) -> Option<Box<GaspTable>> {
+    let table = root.get_typed(b"gasp", JsonType::Array)?;
+    logger_start_sds(
+        &mut *options.logger.borrow_mut(),
+        crate::bytesbuild!(b"gasp"),
+    );
+    let mut gasp = GaspTable {
+        version: 1,
+        records: Vec::new(),
+    };
+    if let Some(items) = table.as_array() {
+        for r in items {
+            if r.as_object().is_some() {
+                gasp.records.push(GaspRecord {
+                    range_max_ppem: r.get_int_or(b"rangeMaxPPEM", 0xffff_i32) as GlyphSize,
+                    dogray: r.get_bool(b"dogray"),
+                    gridfit: r.get_bool(b"gridfit"),
+                    symmetric_smoothing: r.get_bool(b"symmetric_smoothing"),
+                    symmetric_gridfit: r.get_bool(b"symmetric_gridfit"),
+                });
             }
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
         }
     }
-    return gasp;
+    logger_finish(&mut *options.logger.borrow_mut());
+    Some(Box::new(gasp))
 }
-pub unsafe fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> Option<Buffer> {
+pub fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> Option<Buffer> {
     let gasp = gasp?;
     let mut buf = Buffer::new();
-    let records: &Vec<GaspRecord> = &(*gasp).records;
     buf.write_u16be(1_u16);
-    buf.write_u16be(records.len() as u16);
-    let mut j: u16 = 0_u16;
-    while (j as usize) < records.len() {
-        let r: *const GaspRecord = &records[j as usize];
-        buf.write_u16be((*r).range_max_ppem);
+    buf.write_u16be(gasp.records.len() as u16);
+    for r in &gasp.records {
+        buf.write_u16be(r.range_max_ppem);
         buf.write_u16be(
-            ((if (*r).dogray as i32 != 0 {
-                GASP_DOGRAY
-            } else {
-                0_i32
-            }) | (if (*r).gridfit as i32 != 0 {
-                GASP_GRIDFIT
-            } else {
-                0_i32
-            }) | (if (*r).symmetric_gridfit as i32 != 0 {
-                GASP_SYMMETRIC_GRIDFIT
-            } else {
-                0_i32
-            }) | (if (*r).symmetric_smoothing as i32 != 0 {
-                GASP_SYMMETRIC_SMOOTHING
-            } else {
-                0_i32
-            })) as u16,
+            ((if r.dogray { GASP_DOGRAY } else { 0_i32 })
+                | (if r.gridfit { GASP_GRIDFIT } else { 0_i32 })
+                | (if r.symmetric_gridfit {
+                    GASP_SYMMETRIC_GRIDFIT
+                } else {
+                    0_i32
+                })
+                | (if r.symmetric_smoothing {
+                    GASP_SYMMETRIC_SMOOTHING
+                } else {
+                    0_i32
+                })) as u16,
         );
-        j = j.wrapping_add(1);
     }
     Some(buf)
 }

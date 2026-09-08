@@ -2,7 +2,6 @@
 pub mod stat;
 
 use crate::support::buffer::Buffer;
-use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
@@ -134,13 +133,7 @@ impl FontSerializer for OtfSerializer {
         otfcc_sfnt_builder_push_table(
             &mut *builder,
             crate::tag::TAG_POST,
-            otfcc_build_post(
-                (*font).post.as_deref(),
-                (*font)
-                    .glyph_order
-                    .as_deref_mut()
-                    .map_or(::core::ptr::null_mut(), |g| g as *mut GlyphOrder),
-            ),
+            otfcc_build_post((*font).post.as_deref(), (*font).glyph_order.as_deref()),
         );
         otfcc_sfnt_builder_push_table(
             &mut *builder,
