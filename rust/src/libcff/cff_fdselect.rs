@@ -74,16 +74,10 @@ pub fn cff_build_fd_select(fd: &CffFdSelect) -> Buffer {
 // negative `offset`, this falls back to `Unspecified` -- the same
 // fallback the original already used for an unrecognized format byte,
 // just extended to cover "malformed" too.
-pub unsafe fn cff_extract_fd_select(
-    data: *mut u8,
-    table_length: u32,
-    offset: i32,
-    nchars: u16,
-) -> CffFdSelect {
+pub fn cff_extract_fd_select(slice: &[u8], offset: i32, nchars: u16) -> CffFdSelect {
     if offset < 0 {
         return CffFdSelect::Unspecified;
     }
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let result: Option<CffFdSelect> = 'parse: {
         let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
             break 'parse None;
@@ -130,39 +124,29 @@ mod cff_extract_fd_select_tests {
     #[test]
     fn format0_reads_the_fd_array() {
         let data = [0x00u8, 3, 7]; // format=0, fds=[3,7]
-        unsafe {
-            let CffFdSelect::Format0(fds) =
-                cff_extract_fd_select(data.as_ptr() as *mut u8, data.len() as u32, 0, 2)
-            else {
-                panic!("expected Format0");
-            };
-            assert_eq!(fds, vec![3, 7]);
-        }
+        let CffFdSelect::Format0(fds) = cff_extract_fd_select(&data, 0, 2) else {
+            panic!("expected Format0");
+        };
+        assert_eq!(fds, vec![3, 7]);
     }
 
     #[test]
     fn format0_truncated_fd_array_falls_back_to_unspecified_instead_of_reading_oob() {
         let data = [0x00u8, 3]; // format=0, one fd, but 2 declared
-        unsafe {
-            let result = cff_extract_fd_select(data.as_ptr() as *mut u8, data.len() as u32, 0, 2);
-            assert!(matches!(result, CffFdSelect::Unspecified));
-        }
+        let result = cff_extract_fd_select(&data, 0, 2);
+        assert!(matches!(result, CffFdSelect::Unspecified));
     }
 
     #[test]
     fn format3_reads_ranges_and_the_trailing_sentinel() {
         let data = [0x03u8, 0x00, 0x01, 0x00, 0x05, 0x02, 0x00, 0x0A];
-        unsafe {
-            let CffFdSelect::Format3 { range3, sentinel } =
-                cff_extract_fd_select(data.as_ptr() as *mut u8, data.len() as u32, 0, 0)
-            else {
-                panic!("expected Format3");
-            };
-            assert_eq!(range3.len(), 1);
-            assert_eq!(range3[0].first, 5);
-            assert_eq!(range3[0].fd, 2);
-            assert_eq!(sentinel, 10);
-        }
+        let CffFdSelect::Format3 { range3, sentinel } = cff_extract_fd_select(&data, 0, 0) else {
+            panic!("expected Format3");
+        };
+        assert_eq!(range3.len(), 1);
+        assert_eq!(range3[0].first, 5);
+        assert_eq!(range3[0].fd, 2);
+        assert_eq!(sentinel, 10);
     }
 
     #[test]
@@ -171,18 +155,14 @@ mod cff_extract_fd_select_tests {
         // The original had no check at all that the table actually held
         // `nranges` 3-byte entries.
         let data = [0x03u8, 0xFF, 0xFF]; // format=3, nranges=65535, nothing else
-        unsafe {
-            let result = cff_extract_fd_select(data.as_ptr() as *mut u8, data.len() as u32, 0, 0);
-            assert!(matches!(result, CffFdSelect::Unspecified));
-        }
+        let result = cff_extract_fd_select(&data, 0, 0);
+        assert!(matches!(result, CffFdSelect::Unspecified));
     }
 
     #[test]
     fn negative_offset_falls_back_to_unspecified_instead_of_reading_before_the_buffer() {
         let data = [0u8; 8];
-        unsafe {
-            let result = cff_extract_fd_select(data.as_ptr() as *mut u8, data.len() as u32, -5, 10);
-            assert!(matches!(result, CffFdSelect::Unspecified));
-        }
+        let result = cff_extract_fd_select(&data, -5, 10);
+        assert!(matches!(result, CffFdSelect::Unspecified));
     }
 }

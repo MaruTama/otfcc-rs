@@ -58,12 +58,7 @@ pub enum CffCharset {
 // falls back to `IsoAdobe` -- the same fallback the original already used
 // for an unrecognized format byte, just extended to cover "malformed"
 // too, since the original drew no distinction between the two.
-pub unsafe fn cff_extract_charset(
-    data: *mut u8,
-    table_length: u32,
-    offset: i32,
-    nchars: u16,
-) -> CffCharset {
+pub fn cff_extract_charset(slice: &[u8], offset: i32, nchars: u16) -> CffCharset {
     if offset == CFF_CHARSET_OFFSET_ISO_ADOBE {
         return CffCharset::IsoAdobe;
     } else if offset == CFF_CHARSET_OFFSET_EXPERT {
@@ -74,7 +69,6 @@ pub unsafe fn cff_extract_charset(
     if offset < 0 {
         return CffCharset::IsoAdobe;
     }
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let offset = offset as usize;
     let result: Option<CffCharset> = 'parse: {
         let Ok(mut r) = FontReader::new(slice).at(offset) else {
@@ -206,14 +200,10 @@ mod cff_extract_charset_tests {
         // (and every other non-sentinel test below) starts the real data
         // at offset 3.
         let data = [0u8, 0, 0, 0x00, 0x00, 0x05, 0x00, 0x0A]; // format=0, glyphs=[5,10]
-        unsafe {
-            let CffCharset::Format0(glyph) =
-                cff_extract_charset(data.as_ptr() as *mut u8, data.len() as u32, 3, 3)
-            else {
-                panic!("expected Format0");
-            };
-            assert_eq!(glyph, vec![5, 10]);
-        }
+        let CffCharset::Format0(glyph) = cff_extract_charset(&data, 3, 3) else {
+            panic!("expected Format0");
+        };
+        assert_eq!(glyph, vec![5, 10]);
     }
 
     #[test]
@@ -222,32 +212,24 @@ mod cff_extract_charset_tests {
         // straight to `u32`; for `nchars == 0` that wrapped to
         // `0xFFFFFFFF` and `Vec::with_capacity` aborted immediately.
         let data = [0u8, 0, 0, 0x00];
-        unsafe {
-            let CffCharset::Format0(glyph) =
-                cff_extract_charset(data.as_ptr() as *mut u8, data.len() as u32, 3, 0)
-            else {
-                panic!("expected Format0");
-            };
-            assert!(glyph.is_empty());
-        }
+        let CffCharset::Format0(glyph) = cff_extract_charset(&data, 3, 0) else {
+            panic!("expected Format0");
+        };
+        assert!(glyph.is_empty());
     }
 
     #[test]
     fn format0_truncated_glyph_array_falls_back_to_iso_adobe_instead_of_reading_oob() {
         let data = [0u8, 0, 0, 0x00, 0x00, 0x05]; // format=0, one glyph's worth of bytes, but 2 needed
-        unsafe {
-            let result = cff_extract_charset(data.as_ptr() as *mut u8, data.len() as u32, 3, 3);
-            assert!(matches!(result, CffCharset::IsoAdobe));
-        }
+        let result = cff_extract_charset(&data, 3, 3);
+        assert!(matches!(result, CffCharset::IsoAdobe));
     }
 
     #[test]
     fn negative_offset_falls_back_to_iso_adobe_instead_of_reading_before_the_buffer() {
         let data = [0u8; 8];
-        unsafe {
-            let result = cff_extract_charset(data.as_ptr() as *mut u8, data.len() as u32, -5, 10);
-            assert!(matches!(result, CffCharset::IsoAdobe));
-        }
+        let result = cff_extract_charset(&data, -5, 10);
+        assert!(matches!(result, CffCharset::IsoAdobe));
     }
 
     #[test]
@@ -256,24 +238,18 @@ mod cff_extract_charset_tests {
         // glyphs (first=100, nleft=1 -> glyphs 100,101) exactly reaches
         // glyphs_encoded_sofar == nchars.
         let data = [0u8, 0, 0, 0x01, 0x00, 0x64, 0x01];
-        unsafe {
-            let CffCharset::Format1(range1) =
-                cff_extract_charset(data.as_ptr() as *mut u8, data.len() as u32, 3, 3)
-            else {
-                panic!("expected Format1");
-            };
-            assert_eq!(range1.len(), 1);
-            assert_eq!(range1[0].first, 100);
-            assert_eq!(range1[0].nleft, 1);
-        }
+        let CffCharset::Format1(range1) = cff_extract_charset(&data, 3, 3) else {
+            panic!("expected Format1");
+        };
+        assert_eq!(range1.len(), 1);
+        assert_eq!(range1[0].first, 100);
+        assert_eq!(range1[0].nleft, 1);
     }
 
     #[test]
     fn format1_truncated_during_the_counting_pass_falls_back_to_iso_adobe() {
         let data = [0u8, 0, 0, 0x01]; // format=1, nothing else -- not even the first range's nleft
-        unsafe {
-            let result = cff_extract_charset(data.as_ptr() as *mut u8, data.len() as u32, 3, 3);
-            assert!(matches!(result, CffCharset::IsoAdobe));
-        }
+        let result = cff_extract_charset(&data, 3, 3);
+        assert!(matches!(result, CffCharset::IsoAdobe));
     }
 }
