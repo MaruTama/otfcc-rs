@@ -64,26 +64,32 @@ fn feature_name_to_tag(name: &[u8]) -> u32 {
     }
     return tag;
 }
-unsafe fn _declare_lookup_writer(
+fn _declare_lookup_writer(
     type_0: LookupType,
     fn_0: OtlBuilder,
-    lookup: *const Lookup,
+    lookup: &Lookup,
     subtables: &mut Vec<Buffer>,
-    last_offset: *mut usize,
-    prefer_extension_for_this_lut: *mut bool,
+    last_offset: &mut usize,
+    prefer_extension_for_this_lut: &mut bool,
     heuristics: BuildHeuristics,
 ) -> TableId {
-    if (*lookup).type_0 == type_0 {
+    if lookup.type_0 == type_0 {
         subtables.clear();
-        subtables.reserve((*lookup).subtables.len());
+        subtables.reserve(lookup.subtables.len());
         let mut total_buf_size_short: usize = 0_usize;
         let mut total_buf_size_ext: usize = 0_usize;
         let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*lookup).subtables.len() {
-            let buf: Buffer = fn_0.expect("non-null function pointer")(
-                subtable_at(&(*lookup).subtables, j as usize) as *const Subtable,
-                heuristics,
-            );
+        while (j as usize) < lookup.subtables.len() {
+            // `subtable_at`/the `fn_0` call are this file's own not-yet-
+            // migrated raw-pointer shells (`SubtablePtr`/the `OtlBuilder`
+            // fn-pointer type) -- narrow bridge, same shape as
+            // `vqs_compare`'s.
+            let buf: Buffer = unsafe {
+                fn_0.expect("non-null function pointer")(
+                    subtable_at(&lookup.subtables, j as usize) as *const Subtable,
+                    heuristics,
+                )
+            };
             total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
             subtables.push(buf);
             total_buf_size_ext = total_buf_size_ext.wrapping_add(8_usize);
@@ -96,28 +102,31 @@ unsafe fn _declare_lookup_writer(
             *last_offset = (*last_offset).wrapping_add(total_buf_size_short);
             *prefer_extension_for_this_lut = false;
         }
-        return (*lookup).subtables.len() as TableId;
+        return lookup.subtables.len() as TableId;
     }
     return 0 as TableId;
 }
-unsafe fn _declare_lookup_writer_split(
+fn _declare_lookup_writer_split(
     type_0: LookupType,
     fn_0: OtlSplitBuilder,
-    lookup: *const Lookup,
+    lookup: &Lookup,
     subtables: &mut Vec<Buffer>,
-    last_offset: *mut usize,
-    prefer_extension_for_this_lut: *mut bool,
+    last_offset: &mut usize,
+    prefer_extension_for_this_lut: &mut bool,
     heuristics: BuildHeuristics,
 ) -> TableId {
-    if (*lookup).type_0 == type_0 {
+    if lookup.type_0 == type_0 {
         subtables.clear();
         let mut total_buf_size_short: usize = 0_usize;
         let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*lookup).subtables.len() {
-            let part: Vec<Buffer> = fn_0.expect("non-null function pointer")(
-                subtable_at(&(*lookup).subtables, j as usize) as *const Subtable,
-                heuristics,
-            );
+        while (j as usize) < lookup.subtables.len() {
+            // Same narrow bridge as `_declare_lookup_writer` above.
+            let part: Vec<Buffer> = unsafe {
+                fn_0.expect("non-null function pointer")(
+                    subtable_at(&lookup.subtables, j as usize) as *const Subtable,
+                    heuristics,
+                )
+            };
             for buf in part {
                 total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
                 subtables.push(buf);
@@ -137,15 +146,24 @@ unsafe fn _declare_lookup_writer_split(
     }
     return 0 as TableId;
 }
-unsafe fn _build_lookup(
-    lookup: *const Lookup,
+fn _build_lookup(
+    lookup: &Lookup,
     subtables: &mut Vec<Buffer>,
-    last_offset: *mut usize,
-    prefer_extension_for_this_lut: *mut bool,
+    last_offset: &mut usize,
+    prefer_extension_for_this_lut: &mut bool,
     heuristics: BuildHeuristics,
 ) -> TableId {
-    if (*lookup).type_0 == OTL_TYPE_GPOS_CHAINING || (*lookup).type_0 == OTL_TYPE_GSUB_CHAINING {
-        return otfcc_classified_build_chaining(lookup, subtables, last_offset);
+    if lookup.type_0 == OTL_TYPE_GPOS_CHAINING || lookup.type_0 == OTL_TYPE_GSUB_CHAINING {
+        // `otfcc_classified_build_chaining` is the chaining/contextual
+        // lookup family's own not-yet-migrated shell -- narrow bridge,
+        // same shape as `vqs_compare`'s.
+        return unsafe {
+            otfcc_classified_build_chaining(
+                lookup as *const Lookup,
+                subtables,
+                last_offset as *mut usize,
+            )
+        };
     }
     let mut written: TableId = 0 as TableId;
     if written == 0 {
@@ -304,19 +322,16 @@ unsafe fn _build_lookup(
     }
     return written;
 }
-unsafe fn get_lookup_heuristics(
-    table: *const OtlTable,
-    lut: *const Lookup,
-) -> BuildHeuristics {
+fn get_lookup_heuristics(table: &OtlTable, lut: &Lookup) -> BuildHeuristics {
     let mut heu: BuildHeuristics = BuildHeuristics::empty();
-    if (*lut).type_0 == OTL_TYPE_GSUB_SINGLE {
+    if lut.type_0 == OTL_TYPE_GSUB_SINGLE {
         let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*table).features.len() {
-            let fea: *const Feature = &raw const *(&(*table).features)[j as usize];
-            if !(feature_name_to_tag(&(*fea).name) != crate::tag::TAG_VERT) {
+        while (j as usize) < table.features.len() {
+            let fea: &Feature = &table.features[j as usize];
+            if !(feature_name_to_tag(&fea.name) != crate::tag::TAG_VERT) {
                 let mut k: TableId = 0 as TableId;
-                while (k as usize) < (*fea).lookups.len() {
-                    if (&(*fea).lookups)[k as usize] == lut {
+                while (k as usize) < fea.lookups.len() {
+                    if std::ptr::eq(fea.lookups[k as usize], lut) {
                         heu.insert(BuildHeuristics::GSUB_VERT);
                     }
                     k = k.wrapping_add(1);
@@ -341,7 +356,7 @@ unsafe fn write_otl_lookups(table: *const OtlTable, options: &Options, tag: &[u8
     let mut j: TableId = 0 as TableId;
     while (j as usize) < (*table).lookups.len() {
         let lookup: *const Lookup = &raw const *(&(*table).lookups)[j as usize];
-        let heu: BuildHeuristics = get_lookup_heuristics(table, lookup);
+        let heu: BuildHeuristics = get_lookup_heuristics(&*table, &*lookup);
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
@@ -357,9 +372,9 @@ unsafe fn write_otl_lookups(table: *const OtlTable, options: &Options, tag: &[u8
             ),
         );
         subtable_quantity[j as usize] = _build_lookup(
-            lookup,
+            &*lookup,
             &mut subtables[j as usize],
-            &raw mut last_offset,
+            &mut last_offset,
             &mut prefer_ext_for_this_lut[j as usize],
             heu,
         );
@@ -527,10 +542,15 @@ unsafe fn write_otl_features(table: *const OtlTable) -> *mut BkBlock {
     }
     return root;
 }
-unsafe fn feature_index(feature: *const Feature, table: *const OtlTable) -> TableId {
+// `feature` is only ever compared for identity against `table.features`'
+// own elements, never dereferenced here -- stays a raw `*const Feature`
+// (a `FeatureRef`, the same intentional borrowed-cross-reference pointer
+// type `LanguageSystem.required_feature`/`.features` already use) rather
+// than becoming `Option<&Feature>`.
+fn feature_index(feature: *const Feature, table: &OtlTable) -> TableId {
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*table).features.len() {
-        if &raw const *(&(*table).features)[j as usize] == feature {
+    while (j as usize) < table.features.len() {
+        if &raw const *table.features[j as usize] == feature {
             return j;
         }
         j = j.wrapping_add(1);
@@ -548,7 +568,7 @@ unsafe fn write_language(
         bk_ptr(BkCellType::P16, ::core::ptr::null_mut()),
         bk_int(
             BkCellType::B16,
-            (feature_index((*lang).required_feature, table) as i32) as u32,
+            (feature_index((*lang).required_feature, &*table) as i32) as u32,
         ),
         bk_int(BkCellType::B16, ((*lang).features.len()) as u32),
     ]);
@@ -558,7 +578,7 @@ unsafe fn write_language(
             root,
             &[bk_int(
                 BkCellType::B16,
-                (feature_index((&(*lang).features)[k as usize], table) as i32)
+                (feature_index((&(*lang).features)[k as usize], &*table) as i32)
                     as u32,
             )],
         );
