@@ -77,8 +77,7 @@ use crate::vendor::json::JsonType;
 // this `impl` was always the safe replacement API underneath it, and
 // every former consumer now calls it directly -- the shell itself is
 // gone (Phase 12), save for `json_parse`/`json_value_free` (the real
-// FFI-adjacent generation/destruction boundary) and `otfcc_parse_flags`
-// (still bridged from one caller, `table/head.rs`).
+// FFI-adjacent generation/destruction boundary).
 impl ParsedValue {
     /// The `JsonType` tag for this value -- `Null` here always means a
     /// real JSON `null`, never "absent"; a lookup that found nothing
@@ -281,10 +280,9 @@ impl ParsedValue {
     }
 
     /// Serialize a bitfield from a JSON object of `label: true` pairs, or
-    /// read it as a raw number directly -- matches the old
-    /// [`otfcc_parse_flags`]'s contract exactly (except that free
-    /// function also folds a null pointer into 0, done by its own thin
-    /// wrapper now instead).
+    /// read it as a raw number directly. Callers with an `Option<&Self>`
+    /// (a missing JSON key) fold that into 0 via `.map_or(0, |v| v.flags(..))`
+    /// themselves, same as every other `Option<&ParsedValue>` accessor here.
     pub fn flags(&self, labels: &[&::core::ffi::CStr]) -> u32 {
         match self {
             ParsedValue::Int(i) => *i as u32,
@@ -670,27 +668,12 @@ pub unsafe fn json_value_free(v: *mut ParsedValue) {
 // Stage 11 completion (Phase 12): the accessor-layer free-function shell
 // this comment used to describe has been fully migrated away and deleted
 // -- every former consumer now calls the safe `impl ParsedValue` API
-// above directly. `otfcc_parse_flags` below is the one survivor (it still
-// has a real caller, `table/head.rs`'s `otfcc_parse_head`, bridging a
-// `&ParsedValue` field to this raw-pointer-shaped helper at its one call
-// site rather than being converted itself, since `ParsedValue::flags` is
-// already the safe entry point it forwards to). `json_parse`/
-// `json_value_free` above remain too, as the legitimate FFI-adjacent
-// generation/destruction pair `bin/otfccbuild.rs`/`ffi/dll.rs` still use.
-
-/// Serialize a bitfield as a JSON object of `label: true` pairs -- see
-/// `json_funcs::otfcc_dump_flags` for the build-side inverse (unaffected
-/// by this module, since it never reads an existing value).
-///
-/// A number is taken as the raw field value; an object is read label by
-/// label. Anything else -- including a missing key, which arrives here as
-/// null -- is 0.
-pub unsafe fn otfcc_parse_flags(v: *const ParsedValue, labels: &[&::core::ffi::CStr]) -> u32 {
-    match unsafe { v.as_ref() } {
-        Some(v) => v.flags(labels),
-        None => 0,
-    }
-}
+// above directly. `otfcc_parse_flags`, its last raw-pointer-shaped
+// survivor (bridging `table/head.rs`'s `otfcc_parse_head`), lost its own
+// last caller once that function switched to calling `ParsedValue::flags`
+// directly and was deleted here too. `json_parse`/`json_value_free` above
+// remain, as the legitimate FFI-adjacent generation/destruction pair
+// `bin/otfccbuild.rs`/`ffi/dll.rs` still use.
 
 #[cfg(test)]
 mod tests {
