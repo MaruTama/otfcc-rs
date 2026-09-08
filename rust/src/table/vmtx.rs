@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::binio::pos_to_u16;
@@ -75,11 +74,7 @@ pub fn otfcc_read_vmtx(
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_vmtx(
-    vmtx: Option<&VmtxTable>,
-    count_a: GlyphId,
-    count_k: GlyphId,
-) -> Buffer {
+pub fn otfcc_build_vmtx(vmtx: Option<&VmtxTable>, count_a: GlyphId, count_k: GlyphId) -> Buffer {
     let mut buf = Buffer::new();
     let vmtx = match vmtx {
         Some(v) => v,
