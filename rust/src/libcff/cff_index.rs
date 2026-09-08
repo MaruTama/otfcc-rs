@@ -66,7 +66,13 @@ pub(crate) fn new_empty_cff_index() -> CffIndex {
         data: Vec::new(),
     }
 }
+// Only this file's and `subr.rs`'s tests still call this directly (`table/
+// cff.rs`'s production dict builders switched to `new_empty_cff_index()` +
+// `Box::into_raw` inline once they started constructing `CffIndex` values
+// locally instead) -- `#[cfg_attr(not(test), ...)]` rather than deleting it
+// outright, since it's still a real, used-by-tests convenience wrapper.
 #[inline]
+#[cfg_attr(not(test), allow(dead_code))]
 pub(crate) fn cff_index_create() -> *mut CffIndex {
     // `Box::new`/`Box::into_raw` are both safe -- see `cff_index_free`'s
     // matching `Box::from_raw`.

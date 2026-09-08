@@ -29,23 +29,19 @@ pub struct CffGetKeyContext {
     pub idx: u32,
 }
 #[inline]
-pub(crate) fn cff_dict_create() -> *mut CffDict {
-    // `Box::new` of an explicit all-zero literal, not `malloc` + a `memset`
-    // init -- see `cff_dict_free`'s matching `Box::from_raw`.
-    Box::into_raw(Box::new(CffDict { ents: Vec::new() }))
-}
-#[inline]
 pub(crate) unsafe fn cff_dict_free(x: *mut CffDict) {
     if x.is_null() {
         return;
     }
     // `ents`/each entry's `vals` are still freed here exactly as before --
     // only the outer shell's own allocator changed, from a bare `malloc`/
-    // `free` pair to `Box::into_raw`/`Box::from_raw`. Every `cff_dict_
-    // create`/`cff_dict_free` call site pairs consistently (confirmed by
-    // grep: no generic adapter reclaims a `*mut CffDict` any other way,
-    // unlike `GposPairSubtable`'s `subtable_from_raw`), so this is
-    // self-contained.
+    // `free` pair to `Box::into_raw`/`Box::from_raw`. Every call site
+    // builds its `*mut CffDict` via `Box::into_raw(Box::new(CffDict {
+    // ents: Vec::new() }))` (formerly the standalone `cff_dict_create()`,
+    // deleted once `table/cff.rs`'s dict builders started constructing the
+    // value locally instead) and reclaims it here (confirmed by grep: no
+    // generic adapter reclaims a `*mut CffDict` any other way, unlike
+    // `GposPairSubtable`'s `subtable_from_raw`), so this is self-contained.
     cff_dict_dispose(&mut *x);
     drop(Box::from_raw(x));
 }
