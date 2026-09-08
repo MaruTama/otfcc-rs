@@ -24,7 +24,7 @@ use crate::table::otl::subtables::gpos_common::{
     otl_read_mark_array,
 };
 use crate::table::otl::{
-    Anchor, GposMarkToLigatureSubtable, LigatureArray, LigatureBaseRecord, Subtable,
+    Anchor, GposMarkToLigatureSubtable, LigatureArray, LigatureBaseRecord, MarkArray, Subtable,
     subtable_from_raw,
 };
 use crate::vendor::json::JsonType;
@@ -248,14 +248,14 @@ pub fn otl_gpos_dump_mark_to_ligature(st: &Subtable) -> BuiltValue {
     _subtable.push_field(b"bases", _bases);
     _subtable
 }
-unsafe fn parse_bases(
-    bases: *const ParsedValue,
-    subtable: *mut GposMarkToLigatureSubtable,
-    h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
+fn parse_bases(
+    bases: Option<&ParsedValue>,
+    lig_array: &mut LigatureArray,
+    h: &std::collections::BTreeMap<Vec<u8>, GlyphClass>,
     options: &Options,
 ) {
-    let class_count: GlyphClass = (*h).len() as GlyphClass;
-    let Some(fields) = unsafe { bases.as_ref() }.and_then(ParsedValue::as_object) else {
+    let class_count: GlyphClass = h.len() as GlyphClass;
+    let Some(fields) = bases.and_then(ParsedValue::as_object) else {
         return;
     };
     for (key, base_record) in fields {
@@ -274,7 +274,7 @@ unsafe fn parse_bases(
         lig.glyph = handle_from_name(Some(gname.to_vec())) as GlyphHandle;
         match base_record.as_array() {
             None => {
-                (*subtable).lig_array.push(lig);
+                lig_array.push(lig);
             }
             Some(components) => {
                 lig.component_count = components.len() as GlyphId;
@@ -291,7 +291,7 @@ unsafe fn parse_bases(
                             // `strlen`-bounded, matching
                             // `otl_parse_mark_array`'s registration key
                             // exactly.
-                            match (*h).get(class_name) {
+                            match h.get(class_name) {
                                 None => {
                                     logger_log_sds(
                                         &mut *options.logger.borrow_mut(),
@@ -314,27 +314,31 @@ unsafe fn parse_bases(
                         }
                     }
                 }
-                (*subtable).lig_array.push(lig);
+                lig_array.push(lig);
             }
         }
     }
 }
-pub unsafe fn otl_gpos_parse_mark_to_ligature(
-    mut _subtable: *const ParsedValue,
+pub fn otl_gpos_parse_mark_to_ligature(
+    _subtable: Option<&ParsedValue>,
     options: &Options,
-) -> *mut Subtable {
-    let subtable_val = unsafe { _subtable.as_ref() };
-    let marks = subtable_val.and_then(|v| v.get_typed(b"marks", JsonType::Object));
-    let bases = subtable_val.and_then(|v| v.get_typed(b"bases", JsonType::Object));
+) -> Option<Subtable> {
+    let marks = _subtable.and_then(|v| v.get_typed(b"marks", JsonType::Object));
+    let bases = _subtable.and_then(|v| v.get_typed(b"bases", JsonType::Object));
     let (Some(marks), Some(bases)) = (marks, bases) else {
-        return ::core::ptr::null_mut::<Subtable>();
+        return None;
     };
-    let st: *mut GposMarkToLigatureSubtable = subtable_gpos_mark_to_ligature_create();
+    let mut mark_array: MarkArray = Vec::new();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
-    otl_parse_mark_array(Some(marks), &mut (*st).mark_array, &mut h);
-    (*st).class_count = h.len() as GlyphClass;
-    parse_bases(bases as *const ParsedValue, st, &raw mut h, options);
-    return subtable_from_raw(st, Subtable::GposMarkToLigature);
+    otl_parse_mark_array(Some(marks), &mut mark_array, &mut h);
+    let class_count = h.len() as GlyphClass;
+    let mut lig_array: LigatureArray = Vec::new();
+    parse_bases(Some(bases), &mut lig_array, &h, options);
+    Some(Subtable::GposMarkToLigature(GposMarkToLigatureSubtable {
+        class_count,
+        mark_array,
+        lig_array,
+    }))
 }
 pub unsafe fn otfcc_build_gpos_mark_to_ligature(
     mut _subtable: *const Subtable,

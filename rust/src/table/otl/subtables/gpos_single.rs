@@ -136,22 +136,22 @@ pub fn otl_gpos_dump_single(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
-pub unsafe fn otl_gpos_parse_single(
-    mut _subtable: *const ParsedValue,
-    mut _options: &Options,
-) -> *mut Subtable {
-    let subtable: *mut GposSingleSubtable = subtable_gpos_single_create();
-    if let Some(fields) = unsafe { _subtable.as_ref() }.and_then(ParsedValue::as_object) {
+pub fn otl_gpos_parse_single(
+    _subtable: Option<&ParsedValue>,
+    _options: &Options,
+) -> Option<Subtable> {
+    let mut subtable: GposSingleSubtable = Vec::new();
+    if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
         for (key, val) in fields {
             if val.as_object().is_some() {
-                (*subtable).push(GposSingleEntry {
+                subtable.push(GposSingleEntry {
                     target: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
                     value: gpos_parse_value(Some(val)),
                 });
             }
         }
     }
-    subtable_from_raw(subtable, Subtable::GposSingle)
+    Some(Subtable::GposSingle(subtable))
 }
 pub unsafe fn otfcc_build_gpos_single(
     mut _subtable: *const Subtable,

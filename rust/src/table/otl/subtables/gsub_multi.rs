@@ -148,22 +148,26 @@ pub fn otl_gsub_dump_multi(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
-pub unsafe fn otl_gsub_parse_multi(
-    mut _subtable: *const ParsedValue,
-    mut _options: &Options,
-) -> *mut Subtable {
-    let st: *mut GsubMultiSubtable = subtable_gsub_multi_create();
-    if let Some(fields) = unsafe { _subtable.as_ref() }.and_then(ParsedValue::as_object) {
+pub fn otl_gsub_parse_multi(
+    _subtable: Option<&ParsedValue>,
+    _options: &Options,
+) -> Option<Subtable> {
+    let mut st: GsubMultiSubtable = Vec::new();
+    if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
         for (key, to) in fields {
             if to.as_array().is_some() {
-                (*st).push(GsubMultiEntry {
+                st.push(GsubMultiEntry {
                     from: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
-                    to: coverage_from_raw(parse_coverage(Some(to))),
+                    // `parse_coverage` is a safe fn; `coverage_from_raw` is
+                    // the one still-unsafe `Box::from_raw` boundary it
+                    // hands off to (same `vqs_compare`-style narrow bridge
+                    // used throughout this migration).
+                    to: unsafe { coverage_from_raw(parse_coverage(Some(to))) },
                 });
             }
         }
     }
-    subtable_from_raw(st, Subtable::GsubMulti)
+    Some(Subtable::GsubMulti(st))
 }
 unsafe fn build_gsub_multi_subtable_range(
     subtable: *const GsubMultiSubtable,
