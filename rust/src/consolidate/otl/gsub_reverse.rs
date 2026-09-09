@@ -1,7 +1,4 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
-use crate::table::otl::coverage::Coverage;
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
@@ -9,39 +6,34 @@ use crate::font::caryll_font::Font;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
 
-use crate::table::otl::{GsubReverseSubtable, OtlTable, Subtable};
+use crate::table::otl::{OtlTable, Subtable};
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 
-pub unsafe fn consolidate_gsub_reverse(
-    font: *mut Font,
-    mut _table: *mut OtlTable,
-    mut _subtable: *mut Subtable,
+pub fn consolidate_gsub_reverse(
+    font: &Font,
+    _table: *const OtlTable,
+    _subtable: &mut Subtable,
     options: &Options,
 ) -> bool {
-    let Subtable::GsubReverse(mut_subtable) = &mut *_subtable else {
+    let Subtable::GsubReverse(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *mut GsubReverseSubtable = mut_subtable;
+    // Guaranteed `Some`: `consolidate_otl` (and hence every caller that
+    // reaches here) only ever runs when `glyf` is present, and
+    // `otfcc_consolidate_font` always populates `glyph_order` before
+    // that, whenever `glyf` is present.
+    let glyph_order = font.glyph_order.as_deref().unwrap();
     let mut j: TableId = 0 as TableId;
-    while (j as i32) < (*subtable).match_count as i32 {
-        fontop_consolidate_coverage(
-            font,
-            &mut (&mut (*subtable).match_0)[j as usize] as *mut Coverage,
-            options,
-        );
+    while (j as i32) < subtable.match_count as i32 {
+        fontop_consolidate_coverage(glyph_order, &mut subtable.match_0[j as usize], options);
         j = j.wrapping_add(1);
     }
-    fontop_consolidate_coverage(font, &mut (*subtable).to as *mut Coverage, options);
-    if (*subtable).input_index as i32
-        >= (*subtable).match_count as i32
-    {
-        (*subtable).input_index =
-            ((*subtable).match_count as i32 - 1_i32) as TableId;
+    fontop_consolidate_coverage(glyph_order, &mut subtable.to, options);
+    if subtable.input_index as i32 >= subtable.match_count as i32 {
+        subtable.input_index = (subtable.match_count as i32 - 1_i32) as TableId;
     }
-    let from: *mut Coverage =
-        &mut (&mut (*subtable).match_0)[(*subtable).input_index as usize] as *mut Coverage;
-    let to: *mut Coverage = &mut (*subtable).to as *mut Coverage;
+    let input_index = subtable.input_index as usize;
     // Deduplicates by `from`'s glyph id, first occurrence wins -- a later
     // duplicate is logged as a warning and dropped, not merged. `BTreeMap`,
     // not `IndexMap`: the original also did a HASH_SORT by that same id
@@ -65,10 +57,10 @@ pub unsafe fn consolidate_gsub_reverse(
     // entirely instead of preserving it.
     let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, i32, Vec<u8>)> =
         std::collections::BTreeMap::new();
-    let n: usize = (*from).len().min((*to).len());
+    let n: usize = subtable.match_0[input_index].len().min(subtable.to.len());
     let mut k: usize = 0;
     while k < n {
-        let fromid: i32 = (&(*from))[k].index as i32;
+        let fromid: i32 = subtable.match_0[input_index][k].index as i32;
         if seen.contains_key(&fromid) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
@@ -76,20 +68,20 @@ pub unsafe fn consolidate_gsub_reverse(
                 LoggerType::Warning,
                 crate::bytesbuild!(
                     b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
-                    &(&(*from))[k].name,
+                    &subtable.match_0[input_index][k].name,
                     b".\n",
                 ),
             );
         } else {
-            let toid: i32 = (&(*to))[k].index as i32;
-            let fromname: Vec<u8> = (&(*from))[k].name.clone();
-            let toname: Vec<u8> = (&(*to))[k].name.clone();
+            let toid: i32 = subtable.to[k].index as i32;
+            let fromname: Vec<u8> = subtable.match_0[input_index][k].name.clone();
+            let toname: Vec<u8> = subtable.to[k].name.clone();
             seen.insert(fromid, (fromname, toid, toname));
         }
         k = k.wrapping_add(1);
     }
     let count: usize = seen.len();
-    if count != (*from).len() || count != (*to).len() {
+    if count != subtable.match_0[input_index].len() || count != subtable.to.len() {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
@@ -99,15 +91,15 @@ pub unsafe fn consolidate_gsub_reverse(
             ),
         );
     }
-    *from = Vec::new();
-    *to = Vec::new();
+    subtable.match_0[input_index] = Vec::new();
+    subtable.to = Vec::new();
     for (fromid, (fromname, toid, toname)) in seen {
-        (*from).push(Handle {
+        subtable.match_0[input_index].push(Handle {
             state: HandleState::Consolidated,
             index: fromid as GlyphId,
             name: fromname,
         } as GlyphHandle);
-        (*to).push(Handle {
+        subtable.to.push(Handle {
             state: HandleState::Consolidated,
             index: toid as GlyphId,
             name: toname,

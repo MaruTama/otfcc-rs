@@ -23,7 +23,6 @@ use crate::support::fmt::Hex4Upper;
 
 use crate::table::cff::CffTable;
 use crate::table::colr::{ColrLayer, ColrMapping, ColrTable, colr_layer_dup};
-use crate::table::gdef::GdefTable;
 
 use crate::table::_tsi::{TsiEntry, TsiEntryType, TsiTable};
 
@@ -32,13 +31,12 @@ use crate::table::glyf::{
     RefAnchorStatus,
 };
 
-use crate::table::otl::classdef::ClassDef;
 use crate::table::otl::{
     Feature, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, OTL_TYPE_GPOS_CHAINING,
     OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE,
     OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE,
     OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE,
-    OTL_TYPE_GSUB_SINGLE, OtlTable, Subtable, SubtablePtr,
+    OTL_TYPE_GSUB_SINGLE, OtlTable, Subtable,
 };
 
 use crate::consolidate::otl::chaining::consolidate_chaining;
@@ -62,8 +60,16 @@ use crate::table::otl::{
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_get_still, vq_neutral, vq_point_linear_tfm, vq_replace};
 
+// `table` stays a raw pointer, never a `&OtlTable`, on purpose: `lookup`
+// (the 3rd param) is `table.lookups[j]` itself, so a blanket `&OtlTable`
+// covering that same memory alongside a live `&mut Lookup` into it is a
+// real Stacked-Borrows violation (confirmed by miri, not just a lint) --
+// `consolidate_chaining`, the one implementation that actually reads
+// `table`, takes narrow `unsafe {}` derefs per access instead (same
+// `vqs_compare`-style bridge used throughout this migration), keeping
+// this dispatch machinery itself fully safe.
 pub type OtlConsolidationFunction =
-    Option<unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool>;
+    Option<fn(&Font, *const OtlTable, &mut Subtable, &Options) -> bool>;
 fn by_stem_pos(a: &PostscriptStemDef, b: &PostscriptStemDef) -> i32 {
     if a.position == b.position {
         a.map as i32 - b.map as i32
@@ -621,20 +627,20 @@ pub fn consolidate_cmap(font: &mut Font, options: &Options) {
         }
     }
 }
-unsafe fn __declare_otl_consolidation(
+fn __declare_otl_consolidation(
     type_0: LookupType,
     fn_0: OtlConsolidationFunction,
-    font: *mut Font,
-    table: *mut OtlTable,
-    lookup: *mut Lookup,
+    font: &Font,
+    table: *const OtlTable,
+    lookup: &mut Lookup,
     options: &Options,
 ) {
-    if lookup.is_null() || (*lookup).subtables.is_empty() || (*lookup).type_0 != type_0 {
+    if lookup.subtables.is_empty() || lookup.type_0 != type_0 {
         return;
     }
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
-        crate::bytesbuild!(&(*lookup).name),
+        crate::bytesbuild!(&lookup.name),
     );
     // Every `logger_log_sds` call below at `LOG_VL_IMPORTANT` is a no-op
     // whenever `verbosity_limit < LOG_VL_IMPORTANT` (`logger_log_sds`
@@ -656,11 +662,38 @@ unsafe fn __declare_otl_consolidation(
     // up" reasoning as `chaining/read.rs`'s `CLASS_COVERAGE_CALL_BUDGET`.
     let show_important =
         options.logger.borrow().verbosity_limit as i32 >= LOG_VL_IMPORTANT as i32;
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*lookup).subtables.len() {
-            if (&(*lookup).subtables)[j as usize].is_none() {
+    let mut j: TableId = 0 as TableId;
+    while (j as usize) < lookup.subtables.len() {
+        if lookup.subtables[j as usize].is_none() {
+            if show_important {
+                logger_log_sds(
+                    &mut *options.logger.borrow_mut(),
+                    LOG_VL_IMPORTANT,
+                    LoggerType::Warning,
+                    crate::bytesbuild!(
+                        b"[Consolidate] Ignored empty subtable ",
+                        j as i32,
+                        b" of lookup ",
+                        &lookup.name,
+                        b".\n",
+                    ),
+                );
+            }
+        } else {
+            let sub = lookup.subtables[j as usize].as_deref_mut().unwrap();
+            let subtable_removed = fn_0.expect("non-null function pointer")(font, table, sub, options);
+            if subtable_removed {
+                // Was a `fndel: SubtableRemover` parameter, one
+                // `LookupType`-keyed function pointer per call site
+                // below, each `transmute`d from `*mut ConcreteType` to
+                // `*mut Subtable` -- sound only because `Subtable` used
+                // to be a union with no discriminant to misinterpret.
+                // Now that it is an enum, `Subtable`'s own `Drop` does
+                // this dispatch, self-describing off the enum's tag, so
+                // setting the slot to `None` (dropping the `Box` in
+                // place) is all that is needed -- no per-type function
+                // pointer, no separate explicit `Box::from_raw`.
+                lookup.subtables[j as usize] = None;
                 if show_important {
                     logger_log_sds(
                         &mut *options.logger.borrow_mut(),
@@ -670,94 +703,55 @@ unsafe fn __declare_otl_consolidation(
                             b"[Consolidate] Ignored empty subtable ",
                             j as i32,
                             b" of lookup ",
-                            &(*lookup).name,
+                            &lookup.name,
                             b".\n",
                         ),
                     );
                 }
-            } else {
-                let subtable_removed: bool;
-                let sub_ptr: SubtablePtr = (&mut (*lookup).subtables)[j as usize]
-                    .as_deref_mut()
-                    .unwrap() as *mut Subtable;
-                subtable_removed =
-                    fn_0.expect("non-null function pointer")(font, table, sub_ptr, options);
-                if subtable_removed {
-                    // Was a `fndel: SubtableRemover` parameter, one
-                    // `LookupType`-keyed function pointer per call site
-                    // below, each `transmute`d from `*mut ConcreteType` to
-                    // `*mut Subtable` -- sound only because `Subtable` used
-                    // to be a union with no discriminant to misinterpret.
-                    // Now that it is an enum, `Subtable`'s own `Drop` does
-                    // this dispatch, self-describing off the enum's tag, so
-                    // setting the slot to `None` (dropping the `Box` in
-                    // place) is all that is needed -- no per-type function
-                    // pointer, no separate explicit `Box::from_raw`.
-                    (&mut (*lookup).subtables)[j as usize] = None;
-                    if show_important {
-                        logger_log_sds(
-                            &mut *options.logger.borrow_mut(),
-                            LOG_VL_IMPORTANT,
-                            LoggerType::Warning,
-                            crate::bytesbuild!(
-                                b"[Consolidate] Ignored empty subtable ",
-                                j as i32,
-                                b" of lookup ",
-                                &(*lookup).name,
-                                b".\n",
-                            ),
-                        );
-                    }
-                }
             }
-            j = j.wrapping_add(1);
         }
-        let mut k: TableId = 0 as TableId;
-        let mut j_0: TableId = 0 as TableId;
-        while (j_0 as usize) < (*lookup).subtables.len() {
-            if (&(*lookup).subtables)[j_0 as usize].is_some() {
-                // `.take()` moves the `Box` out of slot `j_0`, leaving `None`
-                // behind there -- required now that elements are owned
-                // `Box`es rather than freely-aliasable raw pointers: a plain
-                // copy-assign would leave two slots owning the same `Box`,
-                // and `Vec::truncate` below (unlike the old raw-pointer
-                // `Vec`, which had nothing to drop) runs `Drop` on every
-                // truncated-away element, which would double-free it.
-                (&mut (*lookup).subtables)[k as usize] =
-                    (&mut (*lookup).subtables)[j_0 as usize].take();
-                k = k.wrapping_add(1);
-            }
-            j_0 = j_0.wrapping_add(1);
-        }
-        (*lookup).subtables.truncate(k as usize);
-        if k == 0 {
-            logger_log_sds(
-                &mut *options.logger.borrow_mut(),
-                LOG_VL_IMPORTANT,
-                LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Lookup ",
-                    &(*lookup).name,
-                    b" is empty and will be removed.\n",
-                ),
-            );
-        }
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        j = j.wrapping_add(1);
     }
+    let mut k: TableId = 0 as TableId;
+    let mut j_0: TableId = 0 as TableId;
+    while (j_0 as usize) < lookup.subtables.len() {
+        if lookup.subtables[j_0 as usize].is_some() {
+            // `.take()` moves the `Box` out of slot `j_0`, leaving `None`
+            // behind there -- required now that elements are owned
+            // `Box`es rather than freely-aliasable raw pointers: a plain
+            // copy-assign would leave two slots owning the same `Box`,
+            // and `Vec::truncate` below (unlike the old raw-pointer
+            // `Vec`, which had nothing to drop) runs `Drop` on every
+            // truncated-away element, which would double-free it.
+            lookup.subtables[k as usize] = lookup.subtables[j_0 as usize].take();
+            k = k.wrapping_add(1);
+        }
+        j_0 = j_0.wrapping_add(1);
+    }
+    lookup.subtables.truncate(k as usize);
+    if k == 0 {
+        logger_log_sds(
+            &mut *options.logger.borrow_mut(),
+            LOG_VL_IMPORTANT,
+            LoggerType::Warning,
+            crate::bytesbuild!(
+                b"[Consolidate] Lookup ",
+                &lookup.name,
+                b" is empty and will be removed.\n",
+            ),
+        );
+    }
+    logger_finish(&mut *options.logger.borrow_mut());
 }
-pub unsafe fn otfcc_consolidate_lookup(
-    font: *mut Font,
-    table: *mut OtlTable,
-    lookup: *mut Lookup,
+pub fn otfcc_consolidate_lookup(
+    font: &Font,
+    table: *const OtlTable,
+    lookup: &mut Lookup,
     options: &Options,
 ) {
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_SINGLE,
-        Some(
-            consolidate_gsub_single
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_gsub_single),
         font,
         table,
         lookup,
@@ -765,10 +759,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_MULTIPLE,
-        Some(
-            consolidate_gsub_multi
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_gsub_multi),
         font,
         table,
         lookup,
@@ -776,10 +767,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_ALTERNATE,
-        Some(
-            consolidate_gsub_alternative
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_gsub_alternative),
         font,
         table,
         lookup,
@@ -787,10 +775,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_LIGATURE,
-        Some(
-            consolidate_gsub_ligature
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_gsub_ligature),
         font,
         table,
         lookup,
@@ -798,10 +783,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_CHAINING,
-        Some(
-            consolidate_chaining
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_chaining),
         font,
         table,
         lookup,
@@ -809,10 +791,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_REVERSE,
-        Some(
-            consolidate_gsub_reverse
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_gsub_reverse),
         font,
         table,
         lookup,
@@ -820,10 +799,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_SINGLE,
-        Some(
-            consolidate_gpos_single
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_gpos_single),
         font,
         table,
         lookup,
@@ -831,10 +807,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_PAIR,
-        Some(
-            consolidate_gpos_pair
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_gpos_pair),
         font,
         table,
         lookup,
@@ -842,10 +815,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_CURSIVE,
-        Some(
-            consolidate_gpos_cursive
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_gpos_cursive),
         font,
         table,
         lookup,
@@ -853,10 +823,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_CHAINING,
-        Some(
-            consolidate_chaining
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_chaining),
         font,
         table,
         lookup,
@@ -864,10 +831,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_BASE,
-        Some(
-            consolidate_mark_to_single
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_mark_to_single),
         font,
         table,
         lookup,
@@ -875,10 +839,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_MARK,
-        Some(
-            consolidate_mark_to_single
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_mark_to_single),
         font,
         table,
         lookup,
@@ -886,10 +847,7 @@ pub unsafe fn otfcc_consolidate_lookup(
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_LIGATURE,
-        Some(
-            consolidate_mark_to_ligature
-                as unsafe fn(*mut Font, *mut OtlTable, *mut Subtable, &Options) -> bool,
-        ),
+        Some(consolidate_mark_to_ligature),
         font,
         table,
         lookup,
@@ -934,9 +892,9 @@ unsafe fn consolidate_otl_table(
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*table).lookups.len() {
             otfcc_consolidate_lookup(
-                font,
+                &*font,
                 table,
-                &raw mut *(&mut (*table).lookups)[j as usize],
+                &mut (&mut (*table).lookups)[j as usize],
                 options,
             );
             j = j.wrapping_add(1);
@@ -1047,14 +1005,7 @@ unsafe fn consolidate_otl(font: *mut Font, options: &Options) {
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
-        consolidate_gdef(
-            font,
-            (*font)
-                .gdef
-                .as_deref_mut()
-                .map_or(::core::ptr::null_mut(), |g| g as *mut GdefTable),
-            options,
-        );
+        consolidate_gdef(&*font, (*font).gdef.as_deref_mut(), options);
         ___loggedstep_v_1 = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
@@ -1302,11 +1253,14 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
     consolidate_cmap(font, options);
     logger_finish(&mut *options.logger.borrow_mut());
     if has_glyf {
-        // `consolidate_otl` is still entangled with the OTL consolidation
-        // dispatch table (`OtlConsolidationFunction`, a fixed function-
-        // pointer type ~9 files' worth of concrete lookup consolidators
-        // must all match simultaneously before it can drop `unsafe`) --
-        // out of scope for this PR, bridged narrowly here instead.
+        // `OtlConsolidationFunction`'s ~9-file dispatch table is safe now
+        // (see `__declare_otl_consolidation`/`otfcc_consolidate_lookup`
+        // above), but `consolidate_otl`/`consolidate_otl_table` themselves
+        // stay `unsafe fn` for a separate reason: the `otl_*_filter_env`
+        // family (`table/otl.rs`) still walks `LookupRef`/`FeatureRef`
+        // borrowed raw pointers by design (Stage 7-2-f), and `*mut OtlTable`
+        // is still threaded through `.map_or(null_mut(), ...)` -- both out
+        // of scope for this PR, bridged narrowly here instead.
         unsafe {
             consolidate_otl(font, options);
         }
@@ -1337,18 +1291,7 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"TSI5"),
     );
-    // `fontop_consolidate_class_def` (in `consolidate/otl/common.rs`)
-    // stays a genuine `unsafe fn` -- untouched by this PR -- so this
-    // call, unlike `consolidate_tsi` above, still bridges through a raw
-    // `*mut Font`/`*mut ClassDef` pair.
-    unsafe {
-        let font_ptr: *mut Font = font;
-        let tsi5_ptr = font
-            .tsi5
-            .as_deref_mut()
-            .map_or(::core::ptr::null_mut(), |c| c as *mut ClassDef);
-        fontop_consolidate_class_def(font_ptr, tsi5_ptr, options);
-    }
+    fontop_consolidate_class_def(font.glyph_order.as_deref(), font.tsi5.as_deref_mut(), options);
     logger_finish(&mut *options.logger.borrow_mut());
 }
 
