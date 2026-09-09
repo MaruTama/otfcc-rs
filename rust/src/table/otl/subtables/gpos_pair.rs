@@ -43,7 +43,7 @@ pub struct IndividualGposPair {
     pub sv: PositionValue,
 }
 #[inline]
-unsafe fn subtable_gpos_pair_create() -> *mut GposPairSubtable {
+fn subtable_gpos_pair_create() -> *mut GposPairSubtable {
     Box::into_raw(Box::new(GposPairSubtable {
         first: None,
         second: None,
@@ -392,41 +392,29 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     st.push_field(b"matrix", mat);
     st
 }
-pub unsafe fn otl_gpos_parse_pair(
-    mut _subtable: *const ParsedValue,
-    mut _options: &Options,
-) -> *mut Subtable {
-    let class1_count: GlyphClass;
-    let class2_count: GlyphClass;
-    let subtable: *mut GposPairSubtable = (subtable_gpos_pair_create)();
-    let sv = unsafe { _subtable.as_ref() };
-    let mat = sv.and_then(|v| v.get_typed(b"matrix", JsonType::Array));
-    (*subtable).first = classdef_from_raw(parse_class_def(
-        sv.and_then(|v| v.get_typed(b"first", JsonType::Object)),
-    ));
-    (*subtable).second = classdef_from_raw(parse_class_def(
-        sv.and_then(|v| v.get_typed(b"second", JsonType::Object)),
-    ));
-    let Some(mat) = mat else {
-        subtable_gpos_pair_free(subtable);
-        return ::core::ptr::null_mut::<Subtable>();
+pub fn otl_gpos_parse_pair(
+    _subtable: Option<&ParsedValue>,
+    _options: &Options,
+) -> Option<Subtable> {
+    let sv = _subtable;
+    let mat = sv.and_then(|v| v.get_typed(b"matrix", JsonType::Array))?;
+    // `parse_class_def` is a safe fn; `classdef_from_raw` is the one
+    // still-unsafe `Box::from_raw` boundary it hands off to (same
+    // `vqs_compare`-style narrow bridge used throughout this migration).
+    let first: Option<Box<ClassDef>> = unsafe {
+        classdef_from_raw(parse_class_def(
+            sv.and_then(|v| v.get_typed(b"first", JsonType::Object)),
+        ))
     };
-    let first_cd: *mut ClassDef = match (*subtable).first.as_deref_mut() {
-        Some(cd) => cd as *mut ClassDef,
-        None => {
-            subtable_gpos_pair_free(subtable);
-            return ::core::ptr::null_mut::<Subtable>();
-        }
+    let second: Option<Box<ClassDef>> = unsafe {
+        classdef_from_raw(parse_class_def(
+            sv.and_then(|v| v.get_typed(b"second", JsonType::Object)),
+        ))
     };
-    let second_cd: *mut ClassDef = match (*subtable).second.as_deref_mut() {
-        Some(cd) => cd as *mut ClassDef,
-        None => {
-            subtable_gpos_pair_free(subtable);
-            return ::core::ptr::null_mut::<Subtable>();
-        }
-    };
-    class1_count = ((*first_cd).maxclass as i32 + 1_i32) as GlyphClass;
-    class2_count = ((*second_cd).maxclass as i32 + 1_i32) as GlyphClass;
+    let first_cd = first.as_deref()?;
+    let second_cd = second.as_deref()?;
+    let class1_count: GlyphClass = (first_cd.maxclass as i32 + 1_i32) as GlyphClass;
+    let class2_count: GlyphClass = (second_cd.maxclass as i32 + 1_i32) as GlyphClass;
     let mut first_values: Vec<Vec<PositionValue>> =
         vec![vec![position_zero(); class2_count as usize]; class1_count as usize];
     let mut second_values: Vec<Vec<PositionValue>> =
@@ -447,9 +435,12 @@ pub unsafe fn otl_gpos_parse_pair(
             }
         }
     }
-    (*subtable).first_values = first_values;
-    (*subtable).second_values = second_values;
-    return subtable_from_raw(subtable, Subtable::GposPair);
+    Some(Subtable::GposPair(GposPairSubtable {
+        first,
+        second,
+        first_values,
+        second_values,
+    }))
 }
 unsafe fn cov_from_cd(cd: *const ClassDef) -> *mut Coverage {
     let cov: *mut Coverage = otl_coverage_create();

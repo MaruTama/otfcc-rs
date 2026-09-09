@@ -181,16 +181,20 @@ pub unsafe fn cff_encode_cff_float(val: ::core::ffi::c_double) -> Buffer {
 // `parse_to_callback`'s equivalent) -- but that only checks *before*
 // decoding a token, not that the token *itself* stays within bounds, so a
 // token starting near the end of a truncated CharString or DICT could
-// still read past it. Every decoder here now takes `remaining` (the byte
-// count actually available from `start`) and returns `Option<u32>`,
-// `None` on any read that would run past it; both callers stop their walk
-// on `None` instead of reading on.
-pub unsafe fn cff_decode_cs2_token(
-    start: *const u8,
-    remaining: usize,
-    val: *mut CffValue,
-) -> Option<u32> {
-    let slice = ::core::slice::from_raw_parts(start, remaining);
+// still read past it. Every decoder here takes a `slice` (the bytes
+// actually available from `start`) and returns `Option<u32>`, `None` on
+// any read that would run past it; both callers stop their walk on
+// `None` instead of reading on.
+//
+// The `*const u8`/`remaining` raw-pointer-plus-length pair each decoder
+// originally took was itself pure c2rust residue on top of the above --
+// every call site already holds the bytes as a real slice before
+// calling in, so passing `&[u8]` directly (rather than reconstructing
+// one via `slice::from_raw_parts` on this side) removes the last unsafe
+// operation from every decoder except `cff_dec_r` (one narrow `atof`
+// FFI call) and the genuinely-unsafe `cff_encode_cff_float`/`atof`
+// themselves, which this conversion doesn't touch.
+pub fn cff_decode_cs2_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let mut r = FontReader::new(slice);
     let b0 = r.u8().ok()?;
     // A CS2 "operand" always becomes a `Double`, never stays an `Integer`
@@ -247,8 +251,7 @@ pub unsafe fn cff_decode_cs2_token(
     *val = value;
     Some(advance)
 }
-unsafe fn cff_dec_i(start: *const u8, remaining: usize, val: *mut CffValue) -> Option<u32> {
-    let slice = ::core::slice::from_raw_parts(start, remaining);
+fn cff_dec_i(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let mut r = FontReader::new(slice);
     let b0 = r.u8().ok()?;
     let i: i32;
@@ -304,8 +307,7 @@ static NIBBLE_SYMB: [&::core::ffi::CStr; 15] = [
 // instead of a fixed buffer; `atof`/`strtod` is still what actually
 // parses it, unchanged, since that's the number-formatting fidelity this
 // PR isn't trying to touch.
-unsafe fn cff_dec_r(start: *const u8, remaining: usize, val: *mut CffValue) -> Option<u32> {
-    let slice = ::core::slice::from_raw_parts(start, remaining);
+fn cff_dec_r(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let mut text: Vec<u8> = Vec::new();
     let mut nibst: usize = 1;
     loop {
@@ -324,11 +326,14 @@ unsafe fn cff_dec_r(start: *const u8, remaining: usize, val: *mut CffValue) -> O
     }
     let len = (nibst + 1) as u32;
     text.push(0); // NUL-terminate for atof/strtod, matching the original's atof(restr) call
-    *val = CffValue::Double(atof(text.as_ptr() as *const ::core::ffi::c_char));
+    // `atof` is the one remaining genuine unsafe operation in this
+    // function (a real libc FFI call) -- narrowed to just this call,
+    // the same "safe fn, one narrow unsafe {} bridge" shape used
+    // elsewhere in this crate (e.g. `vf/vq.rs`'s `vqs_compare`).
+    *val = CffValue::Double(unsafe { atof(text.as_ptr() as *const ::core::ffi::c_char) });
     Some(len)
 }
-unsafe fn cff_dec_o(start: *const u8, remaining: usize, val: *mut CffValue) -> Option<u32> {
-    let slice = ::core::slice::from_raw_parts(start, remaining);
+fn cff_dec_o(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     let mut r = FontReader::new(slice);
     let b0 = r.u8().ok()?;
     let op: i32;
@@ -351,10 +356,8 @@ unsafe fn cff_dec_o(start: *const u8, remaining: usize, val: *mut CffValue) -> O
     *val = CffValue::Operator(op);
     Some(len)
 }
-unsafe fn cff_dec_e(start: *const u8, remaining: usize, val: *mut CffValue) -> Option<u32> {
-    if remaining < 1 {
-        return None;
-    }
+fn cff_dec_e(slice: &[u8], val: &mut CffValue) -> Option<u32> {
+    let &b0 = slice.first()?;
     // Used to `printf` "Undefined Byte in CFF: %d." here on every call --
     // a raw libc `printf`, not `logger_log_sds`, so it wrote to real stdout
     // unconditionally, bypassing `--quiet`/the fuzz harness's empty logger
@@ -370,278 +373,272 @@ unsafe fn cff_dec_e(start: *const u8, remaining: usize, val: *mut CffValue) -> O
     // in `DE_T2` logs anything at all; removing this brings `cff_dec_e` in
     // line with the rest and closes the amplification at the source
     // instead of trying to rate-limit or dedupe it.
-    *val = CffValue::Integer(*start as i32);
+    *val = CffValue::Integer(b0 as i32);
     Some(1)
 }
-static DE_T2: [Option<unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>>; 256] = {
+static DE_T2: [Option<fn(&[u8], &mut CffValue) -> Option<u32>>; 256] = {
     [
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_o as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_e as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_e as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_e as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_e as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_e as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_e as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_r as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_e as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_i as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
-        Some(cff_dec_e as unsafe fn(*const u8, usize, *mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_o as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_e as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_e as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_e as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_e as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_e as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_e as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_r as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_e as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_i as fn(&[u8], &mut CffValue) -> Option<u32>),
+        Some(cff_dec_e as fn(&[u8], &mut CffValue) -> Option<u32>),
     ]
 };
-pub unsafe fn cff_decode_cff_token(
-    start: *const u8,
-    remaining: usize,
-    val: *mut CffValue,
-) -> Option<u32> {
-    if remaining < 1 {
-        return None;
-    }
-    DE_T2[*start as usize].expect("non-null function pointer")(start, remaining, val)
+pub fn cff_decode_cff_token(slice: &[u8], val: &mut CffValue) -> Option<u32> {
+    let &b0 = slice.first()?;
+    DE_T2[b0 as usize].expect("non-null function pointer")(slice, val)
 }
 
 #[cfg(test)]
@@ -656,51 +653,41 @@ mod token_decoder_tests {
     fn cs2_token_reads_a_single_byte_operand() {
         let data = [100u8]; // 32..=246 -> operand = 100-139 = -39
         let mut val = zeroed_val();
-        unsafe {
-            let advance = cff_decode_cs2_token(data.as_ptr(), data.len(), &raw mut val).unwrap();
-            assert_eq!(advance, 1);
-            assert_eq!(val, CffValue::Double(-39.0));
-        }
+        let advance = cff_decode_cs2_token(&data, &mut val).unwrap();
+        assert_eq!(advance, 1);
+        assert_eq!(val, CffValue::Double(-39.0));
     }
 
     #[test]
     fn cs2_token_reads_a_five_byte_fraction() {
         let data = [255u8, 0, 2, 0x80, 0x00]; // integer=2, fraction=32768/65536=0.5
         let mut val = zeroed_val();
-        unsafe {
-            let advance = cff_decode_cs2_token(data.as_ptr(), data.len(), &raw mut val).unwrap();
-            assert_eq!(advance, 5);
-            assert_eq!(val, CffValue::Double(2.5));
-        }
+        let advance = cff_decode_cs2_token(&data, &mut val).unwrap();
+        assert_eq!(advance, 5);
+        assert_eq!(val, CffValue::Double(2.5));
     }
 
     #[test]
     fn cs2_token_truncated_fraction_is_rejected_instead_of_reading_oob() {
         let data = [255u8, 0, 2]; // needs 5 bytes, only 3 present
         let mut val = zeroed_val();
-        unsafe {
-            assert!(cff_decode_cs2_token(data.as_ptr(), data.len(), &raw mut val).is_none());
-        }
+        assert!(cff_decode_cs2_token(&data, &mut val).is_none());
     }
 
     #[test]
     fn cs2_token_truncated_three_byte_operand_is_rejected_instead_of_reading_oob() {
         let data = [28u8, 0x00]; // needs 3 bytes, only 2 present
         let mut val = zeroed_val();
-        unsafe {
-            assert!(cff_decode_cs2_token(data.as_ptr(), data.len(), &raw mut val).is_none());
-        }
+        assert!(cff_decode_cs2_token(&data, &mut val).is_none());
     }
 
     #[test]
     fn cff_token_reads_a_dict_integer() {
         let data = [200u8]; // 32..=246 -> 200-139 = 61
         let mut val = zeroed_val();
-        unsafe {
-            let advance = cff_decode_cff_token(data.as_ptr(), data.len(), &raw mut val).unwrap();
-            assert_eq!(advance, 1);
-            assert_eq!(val, CffValue::Integer(61));
-        }
+        let advance = cff_decode_cff_token(&data, &mut val).unwrap();
+        assert_eq!(advance, 1);
+        assert_eq!(val, CffValue::Integer(61));
     }
 
     #[test]
@@ -711,11 +698,9 @@ mod token_decoder_tests {
         // that used to fire here on every call.
         let data = [22u8];
         let mut val = zeroed_val();
-        unsafe {
-            let advance = cff_decode_cff_token(data.as_ptr(), data.len(), &raw mut val).unwrap();
-            assert_eq!(advance, 1);
-            assert_eq!(val, CffValue::Integer(22));
-        }
+        let advance = cff_decode_cff_token(&data, &mut val).unwrap();
+        assert_eq!(advance, 1);
+        assert_eq!(val, CffValue::Integer(22));
     }
 
     #[test]
@@ -737,13 +722,9 @@ mod token_decoder_tests {
         let data = [22u8; 500_000];
         let mut val = zeroed_val();
         let start = std::time::Instant::now();
-        unsafe {
-            for i in 0..data.len() {
-                let advance =
-                    cff_decode_cff_token(data[i..].as_ptr(), data.len() - i, &raw mut val)
-                        .unwrap();
-                assert_eq!(advance, 1);
-            }
+        for i in 0..data.len() {
+            let advance = cff_decode_cff_token(&data[i..], &mut val).unwrap();
+            assert_eq!(advance, 1);
         }
         assert!(
             start.elapsed() < std::time::Duration::from_secs(1),
@@ -759,11 +740,9 @@ mod token_decoder_tests {
         // packed as 0x1A, 0x5F -> "1.5".
         let data = [30u8, 0x1A, 0x5F];
         let mut val = zeroed_val();
-        unsafe {
-            let advance = cff_decode_cff_token(data.as_ptr(), data.len(), &raw mut val).unwrap();
-            assert_eq!(advance, 3);
-            assert_eq!(val, CffValue::Double(1.5));
-        }
+        let advance = cff_decode_cff_token(&data, &mut val).unwrap();
+        assert_eq!(advance, 3);
+        assert_eq!(val, CffValue::Double(1.5));
     }
 
     #[test]
@@ -773,17 +752,13 @@ mod token_decoder_tests {
         // never has one used to read arbitrarily far past the buffer.
         let data = [30u8, 0x12]; // neither nibble is 0xf, and there's no more data
         let mut val = zeroed_val();
-        unsafe {
-            assert!(cff_decode_cff_token(data.as_ptr(), data.len(), &raw mut val).is_none());
-        }
+        assert!(cff_decode_cff_token(&data, &mut val).is_none());
     }
 
     #[test]
     fn cff_token_zero_remaining_is_rejected() {
         let data = [42u8];
         let mut val = zeroed_val();
-        unsafe {
-            assert!(cff_decode_cff_token(data.as_ptr(), 0, &raw mut val).is_none());
-        }
+        assert!(cff_decode_cff_token(&data[0..0], &mut val).is_none());
     }
 }

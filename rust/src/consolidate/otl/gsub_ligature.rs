@@ -75,6 +75,6 @@ pub unsafe fn consolidate_gsub_ligature(
         }
         k = k.wrapping_add(1);
     }
-    subtable_gsub_ligature_replace(subtable, nt);
+    subtable_gsub_ligature_replace(&mut *subtable, nt);
     return (*subtable).len() == 0_usize;
 }

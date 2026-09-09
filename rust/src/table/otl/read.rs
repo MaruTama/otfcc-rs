@@ -221,11 +221,11 @@ pub unsafe fn otfcc_read_otl_subtable(
 // back to the original's own recovery: clear this one language's
 // `required_feature`/`features` rather than aborting the whole table
 // (`otl_feature_ref_list_dispose` matches the original's cleanup call).
-unsafe fn parse_language(
+fn parse_language(
     data: &[u8],
     base: u32,
-    lang: *mut LanguageSystem,
-    features: *mut FeatureList,
+    lang: &mut LanguageSystem,
+    features: &FeatureList,
     feature_ref_budget: &mut u32,
 ) {
     let parsed = FontReader::new(data).at(base as usize).and_then(|mut r| {
@@ -241,10 +241,10 @@ unsafe fn parse_language(
     });
     match parsed {
         Ok((rid, feature_indices)) => {
-            if (rid as usize) < (*features).len() {
-                (*lang).required_feature = &raw const *(&(*features))[rid as usize] as FeatureRef;
+            if (rid as usize) < features.len() {
+                lang.required_feature = &raw const *features[rid as usize] as FeatureRef;
             } else {
-                (*lang).required_feature = ::core::ptr::null::<Feature>();
+                lang.required_feature = ::core::ptr::null::<Feature>();
             }
             // See `MAX_TOTAL_FEATURE_REFS_PER_TABLE`'s own doc comment:
             // this budget is shared across every `parse_language` call for
@@ -254,16 +254,15 @@ unsafe fn parse_language(
                     break;
                 }
                 *feature_ref_budget -= 1;
-                if (feature_index as usize) < (*features).len() {
-                    (*lang)
-                        .features
-                        .push(&raw const *(&(*features))[feature_index as usize] as FeatureRef);
+                if (feature_index as usize) < features.len() {
+                    lang.features
+                        .push(&raw const *features[feature_index as usize] as FeatureRef);
                 }
             }
         }
         Err(_) => {
-            otl_feature_ref_list_dispose(&mut (*lang).features);
-            (*lang).required_feature = ::core::ptr::null::<Feature>();
+            otl_feature_ref_list_dispose(&mut lang.features);
+            lang.required_feature = ::core::ptr::null::<Feature>();
         }
     }
 }
@@ -283,7 +282,7 @@ unsafe fn parse_language(
 // unbounded, so a script with a large `lang_sys_count` read straight past
 // the table. `require_room` before that loop closes it. The other is in
 // `parse_language`, see its own comment.
-unsafe fn parse_otl_common(
+fn parse_otl_common(
     data: &[u8],
     lookup_type_base: LookupType,
     options: &Options,
@@ -293,7 +292,6 @@ unsafe fn parse_otl_common(
         features: Vec::new(),
         languages: Vec::new(),
     });
-    let table: *mut OtlTable = table_box.as_mut() as *mut OtlTable;
 
     let script_list_offset = FontReader::new(data).at(4)?.u16()? as u32;
     let feature_list_offset = FontReader::new(data).at(6)?.u16()? as u32;
@@ -312,9 +310,9 @@ unsafe fn parse_otl_common(
         // pushed, so this is checked the same way.
         let mut hr = FontReader::new(data).at(lookup_offset as usize)?;
         hr.require_room(6, 1)?;
-        (*lookup)._offset = lookup_offset;
-        (*lookup).type_0 = LookupType::from_file(lookup_type_base, hr.u16()?);
-        (*table).lookups.push(lookup);
+        lookup._offset = lookup_offset;
+        lookup.type_0 = LookupType::from_file(lookup_type_base, hr.u16()?);
+        table_box.lookups.push(lookup);
     }
 
     // -- Feature list --
@@ -327,7 +325,7 @@ unsafe fn parse_otl_common(
         let feature_offset = feature_list_offset.wrapping_add(fr.u16()? as u32);
         let mut feature: Box<Feature> = new_feature();
         if !options.glyph_name_prefix.is_null() {
-            (*feature).name = crate::bytesbuild!(
+            feature.name = crate::bytesbuild!(
                 Byte((tag >> 24 & 0xff) as u8),
                 Byte((tag >> 16 & 0xff) as u8),
                 Byte((tag >> 8 & 0xff) as u8),
@@ -338,7 +336,7 @@ unsafe fn parse_otl_common(
                 Dec5(j as i32),
             );
         } else {
-            (*feature).name = crate::bytesbuild!(
+            feature.name = crate::bytesbuild!(
                 Byte((tag >> 24 & 0xff) as u8),
                 Byte((tag >> 16 & 0xff) as u8),
                 Byte((tag >> 8 & 0xff) as u8),
@@ -353,11 +351,11 @@ unsafe fn parse_otl_common(
         fer.require_room(lookup_count_0 as usize, 2)?;
         for _ in 0..lookup_count_0.min(MAX_TOTAL_LOOKUPS_PER_TABLE) {
             let lookupid = fer.u16()?;
-            if (lookupid as usize) < (*table).lookups.len() {
-                let lookup_0: *mut Lookup = &raw mut *(&mut (*table).lookups)[lookupid as usize];
-                if (*lookup_0).name.is_empty() {
+            if (lookupid as usize) < table_box.lookups.len() {
+                let lookup_0 = &mut table_box.lookups[lookupid as usize];
+                if lookup_0.name.is_empty() {
                     if !options.glyph_name_prefix.is_null() {
-                        (*lookup_0).name = crate::bytesbuild!(
+                        lookup_0.name = crate::bytesbuild!(
                             b"lookup_",
                             unsafe {
                                 crate::support::fmt::CCharRef::from_ptr(options.glyph_name_prefix)
@@ -372,7 +370,7 @@ unsafe fn parse_otl_common(
                         );
                         lnk = lnk.wrapping_add(1);
                     } else {
-                        (*lookup_0).name = crate::bytesbuild!(
+                        lookup_0.name = crate::bytesbuild!(
                             b"lookup_",
                             Byte((tag >> 24 & 0xff) as u8),
                             Byte((tag >> 16 & 0xff) as u8),
@@ -384,10 +382,16 @@ unsafe fn parse_otl_common(
                         lnk = lnk.wrapping_add(1);
                     }
                 }
-                (*feature).lookups.push(lookup_0 as LookupRef);
+                // A borrowed cross-reference into `table_box.lookups`, not
+                // an owned pointer -- matches `LookupRef`'s established
+                // convention (see `table/otl.rs`) everywhere else in this
+                // migration. `&raw const` is a raw-borrow operator, not a
+                // dereference, so it never needs `unsafe` regardless of
+                // what it's borrowing from.
+                feature.lookups.push(&raw const **lookup_0 as LookupRef);
             }
         }
-        (*table).features.push(feature);
+        table_box.features.push(feature);
     }
 
     // -- Script list --
@@ -408,7 +412,7 @@ unsafe fn parse_otl_common(
             }
             total_languages += 1;
             let mut lang: Box<LanguageSystem> = new_language();
-            (*lang).name = crate::bytesbuild!(
+            lang.name = crate::bytesbuild!(
                 Byte((tag_0 >> 24 & 0xff) as u8),
                 Byte((tag_0 >> 16 & 0xff) as u8),
                 Byte((tag_0 >> 8 & 0xff) as u8),
@@ -419,11 +423,11 @@ unsafe fn parse_otl_common(
             parse_language(
                 data,
                 script_offset_0.wrapping_add(default_lang_system_0 as u32),
-                &raw mut *lang,
-                &raw mut (*table).features,
+                &mut lang,
+                &table_box.features,
                 &mut total_feature_refs,
             );
-            (*table).languages.push(lang);
+            table_box.languages.push(lang);
         }
         // `langSysRecords[]` -- see this function's top comment: the
         // original read `lang_sys_count` (attacker-controlled) entries of
@@ -437,7 +441,7 @@ unsafe fn parse_otl_common(
             }
             total_languages += 1;
             let mut lang_0: Box<LanguageSystem> = new_language();
-            (*lang_0).name = crate::bytesbuild!(
+            lang_0.name = crate::bytesbuild!(
                 Byte((tag_0 >> 24 & 0xff) as u8),
                 Byte((tag_0 >> 16 & 0xff) as u8),
                 Byte((tag_0 >> 8 & 0xff) as u8),
@@ -451,11 +455,11 @@ unsafe fn parse_otl_common(
             parse_language(
                 data,
                 script_offset_0.wrapping_add(lang_sys as u32),
-                &raw mut *lang_0,
-                &raw mut (*table).features,
+                &mut lang_0,
+                &table_box.features,
                 &mut total_feature_refs,
             );
-            (*table).languages.push(lang_0);
+            table_box.languages.push(lang_0);
         }
     }
     if total_languages >= MAX_TOTAL_LANGUAGES {
@@ -471,21 +475,21 @@ unsafe fn parse_otl_common(
         );
     }
 
-    for j_3 in 0..(*table).lookups.len() {
-        if (*(&(*table).lookups)[j_3]).name.is_empty() {
+    for j_3 in 0..table_box.lookups.len() {
+        if table_box.lookups[j_3].name.is_empty() {
             if !options.glyph_name_prefix.is_null() {
-                (*(&mut (*table).lookups)[j_3]).name = crate::bytesbuild!(
+                table_box.lookups[j_3].name = crate::bytesbuild!(
                     b"lookup_",
                     unsafe { crate::support::fmt::CCharRef::from_ptr(options.glyph_name_prefix) },
                     b"_",
-                    Hex2((*(&(*table).lookups)[j_3]).type_0.raw()),
+                    Hex2(table_box.lookups[j_3].type_0.raw()),
                     b"_",
                     j_3 as i32,
                 );
             } else {
-                (*(&mut (*table).lookups)[j_3]).name = crate::bytesbuild!(
+                table_box.lookups[j_3].name = crate::bytesbuild!(
                     b"lookup_",
-                    Hex2((*(&(*table).lookups)[j_3]).type_0.raw()),
+                    Hex2(table_box.lookups[j_3].type_0.raw()),
                     b"_",
                     j_3 as i32,
                 );
@@ -494,14 +498,9 @@ unsafe fn parse_otl_common(
     }
     Ok(table_box)
 }
-unsafe fn otfcc_read_otl_lookup(
-    data: &[u8],
-    lookup: *mut Lookup,
-    max_glyphs: GlyphId,
-    options: &Options,
-) {
+fn otfcc_read_otl_lookup(data: &[u8], lookup: &mut Lookup, max_glyphs: GlyphId, options: &Options) {
     let parsed = FontReader::new(data)
-        .at((*lookup)._offset as usize)
+        .at(lookup._offset as usize)
         .and_then(|mut r| {
             r.skip(2)?; // lookupType, already resolved into type_0
             let flags = r.u16()?;
@@ -510,7 +509,7 @@ unsafe fn otfcc_read_otl_lookup(
             let capped_count = subtable_count.min(MAX_TOTAL_SUBTABLES_PER_LOOKUP);
             let mut subtable_offsets = Vec::with_capacity(capped_count as usize);
             for _ in 0..capped_count {
-                subtable_offsets.push((*lookup)._offset.wrapping_add(r.u16()? as u32));
+                subtable_offsets.push(lookup._offset.wrapping_add(r.u16()? as u32));
             }
             if subtable_count == 0 {
                 return Err(ReadError {
@@ -523,11 +522,11 @@ unsafe fn otfcc_read_otl_lookup(
     let (flags, subtable_offsets) = match parsed {
         Ok(v) => v,
         Err(_) => {
-            (*lookup).type_0 = OTL_TYPE_UNKNOWN;
+            lookup.type_0 = OTL_TYPE_UNKNOWN;
             return;
         }
     };
-    (*lookup).flags = flags;
+    lookup.flags = flags;
     // `otfcc_read_otl_subtable` and everything below it (`subtables/*`)
     // still takes a raw pointer/length pair -- not yet converted to
     // `FontReader`. `data`/`table.data.len()` is the same
@@ -535,39 +534,45 @@ unsafe fn otfcc_read_otl_lookup(
     let raw_data = data.as_ptr() as FontFilePointer;
     let table_length = data.len() as u32;
     for subtable_offset in subtable_offsets {
-        let subtable: *mut Subtable = otfcc_read_otl_subtable(
-            raw_data,
-            table_length,
-            subtable_offset,
-            (*lookup).type_0,
-            max_glyphs,
-            options,
-        );
-        (*lookup).subtables.push(subtable_list_slot(subtable));
+        // `otfcc_read_otl_subtable` (the raw pointer/length binary-format
+        // dispatcher) and `subtable_list_slot` (a `Box::from_raw` boundary)
+        // are this file's/`table/otl.rs`'s own not-yet-migrated shells --
+        // narrow bridge, same shape as `vqs_compare`'s.
+        let subtable: *mut Subtable = unsafe {
+            otfcc_read_otl_subtable(
+                raw_data,
+                table_length,
+                subtable_offset,
+                lookup.type_0,
+                max_glyphs,
+                options,
+            )
+        };
+        lookup.subtables.push(unsafe { subtable_list_slot(subtable) });
     }
-    if (*lookup).type_0 == OTL_TYPE_GSUB_EXTEND || (*lookup).type_0 == OTL_TYPE_GPOS_EXTEND {
-        (*lookup).type_0 = OTL_TYPE_UNKNOWN;
+    if lookup.type_0 == OTL_TYPE_GSUB_EXTEND || lookup.type_0 == OTL_TYPE_GPOS_EXTEND {
+        lookup.type_0 = OTL_TYPE_UNKNOWN;
         let mut j_0: TableId = 0 as TableId;
-        while (j_0 as usize) < (*lookup).subtables.len() {
-            if let Some(elem) = &(&(*lookup).subtables)[j_0 as usize] {
+        while (j_0 as usize) < lookup.subtables.len() {
+            if let Some(elem) = &lookup.subtables[j_0 as usize] {
                 let Subtable::Extend(ext) = elem.as_ref() else {
                     unreachable!()
                 };
-                (*lookup).type_0 = ext.type_0;
+                lookup.type_0 = ext.type_0;
                 break;
             } else {
                 j_0 = j_0.wrapping_add(1);
             }
         }
-        if (*lookup).type_0 != OTL_TYPE_UNKNOWN {
+        if lookup.type_0 != OTL_TYPE_UNKNOWN {
             let mut j_1: TableId = 0 as TableId;
-            while (j_1 as usize) < (*lookup).subtables.len() {
+            while (j_1 as usize) < lookup.subtables.len() {
                 // `.take()` both reads this slot's element (if any) and
                 // leaves `None` behind -- the direct replacement for the old
                 // "copy the raw pointer out, then separately null the slot"
                 // two-step, and the only correct one: a `Box` can't be
                 // copied, only moved.
-                if let Some(elem) = (&mut (*lookup).subtables)[j_1 as usize].take() {
+                if let Some(elem) = lookup.subtables[j_1 as usize].take() {
                     // Every element in this list is known to be an `Extend`
                     // placeholder -- that is what `OTL_TYPE_GSUB_EXTEND`/
                     // `OTL_TYPE_GPOS_EXTEND` means -- so unwrapping it is
@@ -577,18 +582,20 @@ unsafe fn otfcc_read_otl_lookup(
                     let Subtable::Extend(ext) = *elem else {
                         unreachable!()
                     };
-                    if ext.type_0 == (*lookup).type_0 {
+                    if ext.type_0 == lookup.type_0 {
                         // `.subtable`'s ownership transfers to become the new
-                        // list element.
-                        (&mut (*lookup).subtables)[j_1 as usize] = subtable_list_slot(ext.subtable);
+                        // list element. Same narrow bridge as above.
+                        lookup.subtables[j_1 as usize] =
+                            unsafe { subtable_list_slot(ext.subtable) };
                     } else {
                         // A scratch `Lookup` purely to reuse its (now `Drop`-driven)
                         // type-dispatched subtable teardown on this one subtable --
                         // never pushed anywhere, so it's just let go out of scope
                         // instead of the old explicit `otfcc_delete_lookup` call.
                         let mut temp: Box<Lookup> = new_lookup();
-                        (*temp).type_0 = ext.type_0;
-                        (*temp).subtables.push(subtable_list_slot(ext.subtable));
+                        temp.type_0 = ext.type_0;
+                        temp.subtables
+                            .push(unsafe { subtable_list_slot(ext.subtable) });
                         drop(temp);
                         // Slot already `None` from `.take()` above.
                     }
@@ -599,23 +606,23 @@ unsafe fn otfcc_read_otl_lookup(
             // Was `otl_subtable_list_dispose_dependent(..); return;` -- with
             // `SubtableList` now `Vec<Option<Box<Subtable>>>`, there is
             // nothing left to eagerly dispose: whatever remains in
-            // `(*lookup).subtables` (still holding valid, un-expanded
-            // `Extend` placeholders) tears down correctly whenever `lookup`
-            // itself eventually drops, since `Subtable::drop` dispatches off
-            // each element's own enum tag, not `(*lookup).type_0` -- which
-            // this function already overwrote to `OTL_TYPE_UNKNOWN` above,
-            // before B-1 this would have been the wrong type to free by.
+            // `lookup.subtables` (still holding valid, un-expanded `Extend`
+            // placeholders) tears down correctly whenever `lookup` itself
+            // eventually drops, since `Subtable::drop` dispatches off each
+            // element's own enum tag, not `lookup.type_0` -- which this
+            // function already overwrote to `OTL_TYPE_UNKNOWN` above, before
+            // B-1 this would have been the wrong type to free by.
             return;
         }
     }
-    if (*lookup).type_0 == OTL_TYPE_GSUB_CONTEXT {
-        (*lookup).type_0 = OTL_TYPE_GSUB_CHAINING;
+    if lookup.type_0 == OTL_TYPE_GSUB_CONTEXT {
+        lookup.type_0 = OTL_TYPE_GSUB_CHAINING;
     }
-    if (*lookup).type_0 == OTL_TYPE_GPOS_CONTEXT {
-        (*lookup).type_0 = OTL_TYPE_GPOS_CHAINING;
+    if lookup.type_0 == OTL_TYPE_GPOS_CONTEXT {
+        lookup.type_0 = OTL_TYPE_GPOS_CHAINING;
     }
 }
-pub unsafe fn otfcc_read_otl(
+pub fn otfcc_read_otl(
     packet: &Packet,
     options: &Options,
     tag: u32,
@@ -632,20 +639,14 @@ pub unsafe fn otfcc_read_otl(
     // No "corrupted" log on failure here, matching the original: OTL
     // parse failures are silent (unlike most other table readers).
     let mut otl_box = parse_otl_common(&table.data, lookup_type_base, options).ok()?;
-    let otl_ptr: *mut OtlTable = otl_box.as_mut() as *mut OtlTable;
     // See `chaining::read::reset_class_coverage_budgets`'s own doc comment:
     // this must run once per table (GSUB or GPOS), before any of this
     // table's lookups are read, so the budget bounds this whole table's
     // total `class_coverage` cost rather than resetting fresh per subtable.
     crate::table::otl::subtables::chaining::read::reset_class_coverage_budgets();
     crate::table::otl::coverage::reset_coverage_range_expansion_budget();
-    for j in 0..(*otl_ptr).lookups.len() {
-        otfcc_read_otl_lookup(
-            &table.data,
-            &raw mut *(&mut (*otl_ptr).lookups)[j],
-            max_glyphs,
-            options,
-        );
+    for lookup in otl_box.lookups.iter_mut() {
+        otfcc_read_otl_lookup(&table.data, lookup, max_glyphs, options);
     }
     Some(otl_box)
 }
@@ -707,14 +708,12 @@ mod parse_otl_common_tests {
     fn well_formed_table_links_lookup_feature_and_language() {
         let data = well_formed_gsub();
         let options = zeroed_options();
-        unsafe {
-            let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
-            assert_eq!(otl.lookups.len(), 1);
-            assert_eq!(otl.features.len(), 1);
-            assert_eq!(otl.features[0].name, b"liga_00000"); // Dec5 zero-pads the index
-            assert_eq!(otl.features[0].lookups.len(), 1);
-            assert_eq!(otl.languages.len(), 1); // only the non-default langSys; defaultLangSys was 0
-        }
+        let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
+        assert_eq!(otl.lookups.len(), 1);
+        assert_eq!(otl.features.len(), 1);
+        assert_eq!(otl.features[0].name, b"liga_00000"); // Dec5 zero-pads the index
+        assert_eq!(otl.features[0].lookups.len(), 1);
+        assert_eq!(otl.languages.len(), 1); // only the non-default langSys; defaultLangSys was 0
     }
 
     #[test]
@@ -731,9 +730,7 @@ mod parse_otl_common_tests {
         data[44..46].copy_from_slice(&2u16.to_be_bytes()); // langSysCount: claims 2, only 1 present
         data.truncate(52); // cuts off right after the one real langSysRecord
         let options = zeroed_options();
-        unsafe {
-            assert!(parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).is_err());
-        }
+        assert!(parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).is_err());
     }
 
     #[test]
@@ -745,12 +742,10 @@ mod parse_otl_common_tests {
         let mut data = well_formed_gsub();
         data[56..58].copy_from_slice(&5u16.to_be_bytes()); // langSys.featureCount: claims 5, only 1 present
         let options = zeroed_options();
-        unsafe {
-            let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
-            assert_eq!(otl.languages.len(), 1);
-            assert!(otl.languages[0].features.is_empty());
-            assert!(otl.languages[0].required_feature.is_null());
-        }
+        let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
+        assert_eq!(otl.languages.len(), 1);
+        assert!(otl.languages[0].features.is_empty());
+        assert!(otl.languages[0].required_feature.is_null());
     }
 
     #[test]
@@ -802,10 +797,8 @@ mod parse_otl_common_tests {
         data.extend_from_slice(&0u16.to_be_bytes()); // featureCount = 0
 
         let options = zeroed_options();
-        unsafe {
-            let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
-            assert_eq!(otl.languages.len(), MAX_TOTAL_LANGUAGES as usize);
-        }
+        let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
+        assert_eq!(otl.languages.len(), MAX_TOTAL_LANGUAGES as usize);
     }
 
     #[test]
@@ -820,29 +813,23 @@ mod parse_otl_common_tests {
         data[6..8].copy_from_slice(&2u16.to_be_bytes()); // subtableOffsets[0] -> 2 (unused by any real reader here)
         let options = zeroed_options();
         let mut lookup = new_lookup();
-        unsafe {
-            (*lookup)._offset = 0;
-            // Not GSUB_EXTEND/GPOS_EXTEND, so the extend-unwrap branch
-            // below is skipped; not a real per-format type either, so
-            // `otfcc_read_otl_subtable` (unconverted, out of scope) falls
-            // through to its null-return arm -- this test only checks
-            // that one subtable slot was appended, not what's in it.
-            (*lookup).type_0 = OTL_TYPE_GSUB_UNKNOWN;
-            let lookup_ptr: *mut Lookup = lookup.as_mut() as *mut Lookup;
-            otfcc_read_otl_lookup(&data, lookup_ptr, 0, &options);
-            assert_eq!((*lookup_ptr).subtables.len(), 1);
-        }
+        lookup._offset = 0;
+        // Not GSUB_EXTEND/GPOS_EXTEND, so the extend-unwrap branch below is
+        // skipped; not a real per-format type either, so
+        // `otfcc_read_otl_subtable` (unconverted, out of scope) falls
+        // through to its null-return arm -- this test only checks that one
+        // subtable slot was appended, not what's in it.
+        lookup.type_0 = OTL_TYPE_GSUB_UNKNOWN;
+        otfcc_read_otl_lookup(&data, &mut lookup, 0, &options);
+        assert_eq!(lookup.subtables.len(), 1);
     }
 
     #[test]
     fn subtable_count_zero_marks_the_lookup_unknown() {
         let data = well_formed_gsub(); // subtableCount is already 0
         let options = zeroed_options();
-        unsafe {
-            let mut otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
-            let lookup_ptr: *mut Lookup = &raw mut *otl.lookups[0];
-            otfcc_read_otl_lookup(&data, lookup_ptr, 0, &options);
-            assert_eq!((*lookup_ptr).type_0, OTL_TYPE_UNKNOWN);
-        }
+        let mut otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
+        otfcc_read_otl_lookup(&data, &mut otl.lookups[0], 0, &options);
+        assert_eq!(otl.lookups[0].type_0, OTL_TYPE_UNKNOWN);
     }
 }

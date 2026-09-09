@@ -160,7 +160,7 @@ unsafe fn consolidate_base_array(
         }
         k = k.wrapping_add(1);
     }
-    dispose_base_array(base_array);
+    dispose_base_array(&mut *base_array);
     for (gid, entry) in h.into_iter() {
         (*base_array).push(BaseRecord {
             glyph: Handle {
@@ -229,7 +229,7 @@ unsafe fn consolidate_lig_array(
         }
         k = k.wrapping_add(1);
     }
-    dispose_lig_array(lig_array);
+    dispose_lig_array(&mut *lig_array);
     for (gid, entry) in h.into_iter() {
         (*lig_array).push(LigatureBaseRecord {
             glyph: Handle {

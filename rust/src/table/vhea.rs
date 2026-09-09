@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
@@ -95,83 +94,68 @@ pub fn otfcc_read_vhea(packet: &Packet, options: &Options) -> Option<Box<VheaTab
         }
     }
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_vhea(
-    table: Option<&VheaTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
-    let table = match table {
-        Some(t) => t as *const VheaTable,
-        None => return,
+pub fn otfcc_dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(table) = table else {
+        return;
     };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"vhea"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut vhea = BuiltValue::new_object(11);
-        vhea.push_field(
-            b"version",
-            BuiltValue::Double(otfcc_from_fixed((*table).version)),
-        );
-        vhea.push_field(b"ascent", BuiltValue::Int((*table).ascent as i64));
-        vhea.push_field(b"descent", BuiltValue::Int((*table).descent as i64));
-        vhea.push_field(b"lineGap", BuiltValue::Int((*table).line_gap as i64));
-        vhea.push_field(
-            b"advanceHeightMax",
-            BuiltValue::Int((*table).advance_height_max as i64),
-        );
-        vhea.push_field(b"minTop", BuiltValue::Int((*table).min_top as i64));
-        vhea.push_field(b"minBottom", BuiltValue::Int((*table).min_bottom as i64));
-        vhea.push_field(b"yMaxExtent", BuiltValue::Int((*table).y_max_extent as i64));
-        vhea.push_field(
-            b"caretSlopeRise",
-            BuiltValue::Int((*table).caret_slope_rise as i64),
-        );
-        vhea.push_field(
-            b"caretSlopeRun",
-            BuiltValue::Int((*table).caret_slope_run as i64),
-        );
-        vhea.push_field(b"caretOffset", BuiltValue::Int((*table).caret_offset as i64));
-        root.push_field(b"vhea", vhea);
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
-    }
+    let mut vhea = BuiltValue::new_object(11);
+    vhea.push_field(
+        b"version",
+        BuiltValue::Double(otfcc_from_fixed(table.version)),
+    );
+    vhea.push_field(b"ascent", BuiltValue::Int(table.ascent as i64));
+    vhea.push_field(b"descent", BuiltValue::Int(table.descent as i64));
+    vhea.push_field(b"lineGap", BuiltValue::Int(table.line_gap as i64));
+    vhea.push_field(
+        b"advanceHeightMax",
+        BuiltValue::Int(table.advance_height_max as i64),
+    );
+    vhea.push_field(b"minTop", BuiltValue::Int(table.min_top as i64));
+    vhea.push_field(b"minBottom", BuiltValue::Int(table.min_bottom as i64));
+    vhea.push_field(b"yMaxExtent", BuiltValue::Int(table.y_max_extent as i64));
+    vhea.push_field(
+        b"caretSlopeRise",
+        BuiltValue::Int(table.caret_slope_rise as i64),
+    );
+    vhea.push_field(
+        b"caretSlopeRun",
+        BuiltValue::Int(table.caret_slope_run as i64),
+    );
+    vhea.push_field(b"caretOffset", BuiltValue::Int(table.caret_offset as i64));
+    root.push_field(b"vhea", vhea);
+    logger_finish(&mut *options.logger.borrow_mut());
 }
-pub unsafe fn otfcc_parse_vhea(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<VheaTable>> {
-    let mut vhea_box: Option<Box<VheaTable>> = None;
-    let vhea: *mut VheaTable;
-    let table = root.get_typed(b"vhea", JsonType::Object);
-    if let Some(table) = table {
-        vhea_box = Some(Box::new(::core::mem::zeroed()));
-        vhea = vhea_box.as_deref_mut().unwrap() as *mut VheaTable;
-        logger_start_sds(
-            &mut *options.logger.borrow_mut(),
-            crate::bytesbuild!(b"vhea"),
-        );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            (*vhea).version = otfcc_to_fixed(table.get_num(b"version"));
-            (*vhea).ascent = table.get_num(b"ascent") as i16;
-            (*vhea).descent = table.get_num(b"descent") as i16;
-            (*vhea).line_gap = table.get_num(b"lineGap") as i16;
-            (*vhea).advance_height_max = table.get_num(b"advanceHeightMax") as i16;
-            (*vhea).min_top = table.get_num(b"minTop") as i16;
-            (*vhea).min_bottom = table.get_num(b"minBottom") as i16;
-            (*vhea).y_max_extent = table.get_num(b"yMaxExtent") as i16;
-            (*vhea).caret_slope_rise = table.get_num(b"caretSlopeRise") as i16;
-            (*vhea).caret_slope_run = table.get_num(b"caretSlopeRun") as i16;
-            (*vhea).caret_offset = table.get_num(b"caretOffset") as i16;
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
-        }
-    }
-    return vhea_box;
+pub fn otfcc_parse_vhea(root: &ParsedValue, options: &Options) -> Option<Box<VheaTable>> {
+    let table = root.get_typed(b"vhea", JsonType::Object)?;
+    logger_start_sds(
+        &mut *options.logger.borrow_mut(),
+        crate::bytesbuild!(b"vhea"),
+    );
+    let vhea = VheaTable {
+        version: otfcc_to_fixed(table.get_num(b"version")),
+        ascent: table.get_num(b"ascent") as i16,
+        descent: table.get_num(b"descent") as i16,
+        line_gap: table.get_num(b"lineGap") as i16,
+        advance_height_max: table.get_num(b"advanceHeightMax") as i16,
+        min_top: table.get_num(b"minTop") as i16,
+        min_bottom: table.get_num(b"minBottom") as i16,
+        y_max_extent: table.get_num(b"yMaxExtent") as i16,
+        caret_slope_rise: table.get_num(b"caretSlopeRise") as i16,
+        caret_slope_run: table.get_num(b"caretSlopeRun") as i16,
+        caret_offset: table.get_num(b"caretOffset") as i16,
+        dummy0: 0,
+        dummy1: 0,
+        dummy2: 0,
+        dummy3: 0,
+        metric_data_format: 0,
+        num_of_long_ver_metrics: 0,
+    };
+    logger_finish(&mut *options.logger.borrow_mut());
+    Some(Box::new(vhea))
 }
 #[allow(improper_ctypes_definitions)]
 pub fn otfcc_build_vhea(vhea: Option<&VheaTable>) -> Option<Buffer> {

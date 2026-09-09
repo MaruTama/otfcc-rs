@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
@@ -433,107 +431,91 @@ pub fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<PostTab
     }
     Some(Box::new(post_val))
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_post(
-    table: Option<&PostTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
-    let table = match table {
-        Some(t) => t as *const PostTable,
-        None => return,
+pub fn otfcc_dump_post(table: Option<&PostTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(table) = table else {
+        return;
     };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"post"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut post = BuiltValue::new_object(10);
-        post.push_field(
-            b"version",
-            BuiltValue::Double(otfcc_from_fixed((*table).version)),
-        );
-        post.push_field(
-            b"italicAngle",
-            BuiltValue::Int(otfcc_from_fixed((*table).italic_angle) as i64),
-        );
-        post.push_field(
-            b"underlinePosition",
-            BuiltValue::Int((*table).underline_position as i64),
-        );
-        post.push_field(
-            b"underlineThickness",
-            BuiltValue::Int((*table).underline_thickness as i64),
-        );
-        post.push_field(b"isFixedPitch", BuiltValue::Bool((*table).is_fixed_pitch != 0));
-        post.push_field(
-            b"minMemType42",
-            BuiltValue::Int((*table).min_mem_type42 as i64),
-        );
-        post.push_field(
-            b"maxMemType42",
-            BuiltValue::Int((*table).max_mem_type42 as i64),
-        );
-        post.push_field(
-            b"minMemType1",
-            BuiltValue::Int((*table).min_mem_type1 as i64),
-        );
-        post.push_field(
-            b"maxMemType1",
-            BuiltValue::Int((*table).max_mem_type1 as i64),
-        );
-        root.push_field(b"post", post);
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
-    }
+    let mut post = BuiltValue::new_object(10);
+    post.push_field(
+        b"version",
+        BuiltValue::Double(otfcc_from_fixed(table.version)),
+    );
+    post.push_field(
+        b"italicAngle",
+        BuiltValue::Int(otfcc_from_fixed(table.italic_angle) as i64),
+    );
+    post.push_field(
+        b"underlinePosition",
+        BuiltValue::Int(table.underline_position as i64),
+    );
+    post.push_field(
+        b"underlineThickness",
+        BuiltValue::Int(table.underline_thickness as i64),
+    );
+    post.push_field(b"isFixedPitch", BuiltValue::Bool(table.is_fixed_pitch != 0));
+    post.push_field(
+        b"minMemType42",
+        BuiltValue::Int(table.min_mem_type42 as i64),
+    );
+    post.push_field(
+        b"maxMemType42",
+        BuiltValue::Int(table.max_mem_type42 as i64),
+    );
+    post.push_field(
+        b"minMemType1",
+        BuiltValue::Int(table.min_mem_type1 as i64),
+    );
+    post.push_field(
+        b"maxMemType1",
+        BuiltValue::Int(table.max_mem_type1 as i64),
+    );
+    root.push_field(b"post", post);
+    logger_finish(&mut *options.logger.borrow_mut());
 }
-pub unsafe fn otfcc_parse_post(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<PostTable>> {
+pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable>> {
     // `.version`'s `0x30000` default carries through if the "post" JSON key
     // is absent (never overwritten below in that case, unlike every other
-    // field); `post_name_map` is never touched here regardless, so its
-    // zeroed-to-`None` value (a valid bit pattern for `Option<Box<T>>` via
-    // the null-pointer niche optimization) is already the old `init_post`'s
-    // default.
-    let mut post_val: PostTable = ::core::mem::zeroed();
-    post_val.version = 0x30000_i32 as F16Dot16;
-    let mut post_box: Box<PostTable> = Box::new(post_val);
-    let post: *mut PostTable = post_box.as_mut() as *mut PostTable;
-    let table = root.get_typed(b"post", JsonType::Object);
-    if let Some(table) = table {
+    // field); `post_name_map` is never touched here regardless, so it stays
+    // `None`, matching the old `init_post`'s zeroed default.
+    let mut post = PostTable {
+        version: 0x30000_i32 as F16Dot16,
+        italic_angle: 0,
+        underline_position: 0,
+        underline_thickness: 0,
+        is_fixed_pitch: 0,
+        min_mem_type42: 0,
+        max_mem_type42: 0,
+        min_mem_type1: 0,
+        max_mem_type1: 0,
+        post_name_map: None,
+    };
+    if let Some(table) = root.get_typed(b"post", JsonType::Object) {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"post"),
         );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            if options.short_post {
-                (*post).version = 0x30000_i32 as F16Dot16;
-            } else {
-                (*post).version = otfcc_to_fixed(table.get_num(b"version"));
-            }
-            (*post).italic_angle = otfcc_to_fixed(table.get_num(b"italicAngle"));
-            (*post).underline_position = table.get_num(b"underlinePosition") as i16;
-            (*post).underline_thickness = table.get_num(b"underlineThickness") as i16;
-            (*post).is_fixed_pitch = table.get_bool(b"isFixedPitch") as u32;
-            (*post).min_mem_type42 = table.get_num(b"minMemType42") as u32;
-            (*post).max_mem_type42 = table.get_num(b"maxMemType42") as u32;
-            (*post).min_mem_type1 = table.get_num(b"minMemType1") as u32;
-            (*post).max_mem_type1 = table.get_num(b"maxMemType1") as u32;
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
+        if options.short_post {
+            post.version = 0x30000_i32 as F16Dot16;
+        } else {
+            post.version = otfcc_to_fixed(table.get_num(b"version"));
         }
+        post.italic_angle = otfcc_to_fixed(table.get_num(b"italicAngle"));
+        post.underline_position = table.get_num(b"underlinePosition") as i16;
+        post.underline_thickness = table.get_num(b"underlineThickness") as i16;
+        post.is_fixed_pitch = table.get_bool(b"isFixedPitch") as u32;
+        post.min_mem_type42 = table.get_num(b"minMemType42") as u32;
+        post.max_mem_type42 = table.get_num(b"maxMemType42") as u32;
+        post.min_mem_type1 = table.get_num(b"minMemType1") as u32;
+        post.max_mem_type1 = table.get_num(b"maxMemType1") as u32;
+        logger_finish(&mut *options.logger.borrow_mut());
     }
-    return Some(post_box);
+    Some(Box::new(post))
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_post(
-    post: Option<&PostTable>,
-    glyphorder: *mut GlyphOrder,
-) -> Option<Buffer> {
+pub fn otfcc_build_post(post: Option<&PostTable>, glyphorder: Option<&GlyphOrder>) -> Option<Buffer> {
     let post = post?;
     let mut buf = Buffer::new();
     buf.write_u32be(post.version as u32);
@@ -546,6 +528,10 @@ pub unsafe fn otfcc_build_post(
     buf.write_u32be(post.min_mem_type1);
     buf.write_u32be(post.max_mem_type1);
     if post.version == 0x20000 as F16Dot16 {
+        // A version-2.0 post table always has a glyph order to draw names
+        // from (this crate's own consolidation guarantees it) -- matches
+        // the original's unconditional deref.
+        let glyphorder = glyphorder.expect("post version 2.0 requires a glyph order");
         // Walks `by_gid` (ascending gid order), not `by_name`: by the time
         // this runs, `by_name`'s uthash chain had already been sorted by
         // `order_glyphs` (json_reader.rs) into exactly this order and
@@ -553,13 +539,13 @@ pub unsafe fn otfcc_build_post(
         // effective iteration order without depending on `HashMap`'s
         // (unspecified) iteration order the way a literal `by_name` walk
         // would have to.
-        buf.write_u16be((*glyphorder).by_gid.len() as u16);
-        for (_, &idx) in (*glyphorder).by_gid.iter() {
-            let entry = &(&(*glyphorder).entries)[idx];
+        buf.write_u16be(glyphorder.by_gid.len() as u16);
+        for (_, &idx) in glyphorder.by_gid.iter() {
+            let entry = &glyphorder.entries[idx];
             buf.write_u16be((258_i32 + entry.gid as i32) as u16);
         }
-        for (_, &idx) in (*glyphorder).by_gid.iter() {
-            let entry = &(&(*glyphorder).entries)[idx];
+        for (_, &idx) in glyphorder.by_gid.iter() {
+            let entry = &glyphorder.entries[idx];
             buf.write_u8(entry.name.len() as u8);
             buf.write_bytes(&entry.name);
         }

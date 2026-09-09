@@ -28,7 +28,6 @@ use crate::table::otl::{
 use crate::table::otl::{
     new_feature, new_language, new_lookup, otl_feature_ref_list_dispose,
     otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace,
-    subtable_list_slot,
 };
 use crate::vendor::json::JsonType;
 /// Replaces the uthash-based `FeatureHash`. Same shape as `LookupEntry`
@@ -89,7 +88,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_SINGLE,
-            Some(otl_gsub_parse_single as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
+            Some(otl_gsub_parse_single as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
             lookup,
             lookup_name,
             options,
@@ -99,7 +98,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_MULTIPLE,
-            Some(otl_gsub_parse_multi as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
+            Some(otl_gsub_parse_multi as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
             lookup,
             lookup_name,
             options,
@@ -109,7 +108,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_ALTERNATE,
-            Some(otl_gsub_parse_multi as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
+            Some(otl_gsub_parse_multi as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
             lookup,
             lookup_name,
             options,
@@ -120,7 +119,7 @@ fn _parse_lookup(
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_LIGATURE,
             Some(
-                otl_gsub_parse_ligature as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
+                otl_gsub_parse_ligature as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
             ),
             lookup,
             lookup_name,
@@ -131,7 +130,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_CHAINING,
-            Some(otl_parse_chaining as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
+            Some(otl_parse_chaining as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
             lookup,
             lookup_name,
             options,
@@ -142,7 +141,7 @@ fn _parse_lookup(
         parsed = _declare_lookup_parser(
             OTL_TYPE_GSUB_REVERSE,
             Some(
-                otl_gsub_parse_reverse as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
+                otl_gsub_parse_reverse as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
             ),
             lookup,
             lookup_name,
@@ -153,7 +152,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_SINGLE,
-            Some(otl_gpos_parse_single as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
+            Some(otl_gpos_parse_single as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
             lookup,
             lookup_name,
             options,
@@ -163,7 +162,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_PAIR,
-            Some(otl_gpos_parse_pair as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
+            Some(otl_gpos_parse_pair as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
             lookup,
             lookup_name,
             options,
@@ -174,7 +173,7 @@ fn _parse_lookup(
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_CURSIVE,
             Some(
-                otl_gpos_parse_cursive as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
+                otl_gpos_parse_cursive as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
             ),
             lookup,
             lookup_name,
@@ -185,7 +184,7 @@ fn _parse_lookup(
     if !parsed {
         parsed = _declare_lookup_parser(
             OTL_TYPE_GPOS_CHAINING,
-            Some(otl_parse_chaining as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable),
+            Some(otl_parse_chaining as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>),
             lookup,
             lookup_name,
             options,
@@ -197,7 +196,7 @@ fn _parse_lookup(
             OTL_TYPE_GPOS_MARK_TO_BASE,
             Some(
                 otl_gpos_parse_mark_to_single
-                    as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
+                    as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
             ),
             lookup,
             lookup_name,
@@ -210,7 +209,7 @@ fn _parse_lookup(
             OTL_TYPE_GPOS_MARK_TO_MARK,
             Some(
                 otl_gpos_parse_mark_to_single
-                    as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
+                    as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
             ),
             lookup,
             lookup_name,
@@ -223,7 +222,7 @@ fn _parse_lookup(
             OTL_TYPE_GPOS_MARK_TO_LIGATURE,
             Some(
                 otl_gpos_parse_mark_to_ligature
-                    as unsafe fn(*const ParsedValue, &Options) -> *mut Subtable,
+                    as fn(Option<&ParsedValue>, &Options) -> Option<Subtable>,
             ),
             lookup,
             lookup_name,
@@ -235,7 +234,7 @@ fn _parse_lookup(
 }
 fn _declare_lookup_parser(
     llt: LookupType,
-    parser: Option<unsafe fn(*const ParsedValue, &Options) -> *mut Subtable>,
+    parser: Option<fn(Option<&ParsedValue>, &Options) -> Option<Subtable>>,
     _lookup: Option<&ParsedValue>,
     lookup_name: &[u8],
     options: &Options,
@@ -309,18 +308,8 @@ fn _declare_lookup_parser(
     while ___loggedstep_v {
         for _subtable in subtable_items {
             if _subtable.as_object().is_some() {
-                // `parser` is still a genuinely unsafe fn pointer (the 10
-                // concrete otl_*_parse_* implementations aren't part of
-                // this dispatcher-safety pass), and subtable_list_slot
-                // reclaims its *mut Subtable return via Box::from_raw --
-                // both narrow, both here.
-                unsafe {
-                    let _st = parser.expect("non-null function pointer")(
-                        _subtable as *const ParsedValue,
-                        options,
-                    );
-                    lookup.subtables.push(subtable_list_slot(_st));
-                }
+                let st = parser.expect("non-null function pointer")(Some(_subtable), options);
+                lookup.subtables.push(st.map(Box::new));
             }
         }
         ___loggedstep_v = false;

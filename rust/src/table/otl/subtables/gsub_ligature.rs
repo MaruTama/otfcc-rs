@@ -23,7 +23,7 @@ use crate::vendor::json::JsonType;
 // `from: Coverage` and `to: GlyphHandle` both self-drop now, so a
 // `GsubLigatureSubtable` (`Vec<GsubLigatureEntry>`) fully self-drops -- no
 // per-element dtor needed anymore.
-pub(crate) unsafe fn dispose_gsub_ligature_subtable(arr: *mut GsubLigatureSubtable) {
+pub(crate) fn dispose_gsub_ligature_subtable(arr: &mut GsubLigatureSubtable) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gsub_ligature_free(x: *mut GsubLigatureSubtable) {
@@ -43,15 +43,14 @@ pub(crate) unsafe fn subtable_gsub_ligature_free(x: *mut GsubLigatureSubtable) {
 /// that fresh local -- never reused by the caller afterward -- so disposing
 /// the old `*dst` and move-assigning `src` in is equivalent to (and safer
 /// than) the original's dispose-then-`memcpy`.
-#[allow(improper_ctypes_definitions)]
-pub(crate) unsafe fn subtable_gsub_ligature_replace(
-    dst: *mut GsubLigatureSubtable,
+pub(crate) fn subtable_gsub_ligature_replace(
+    dst: &mut GsubLigatureSubtable,
     src: GsubLigatureSubtable,
 ) {
     dispose_gsub_ligature_subtable(dst);
     *dst = src;
 }
-unsafe fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
+fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
     Box::into_raw(Box::new(Vec::new()))
 }
 // Also fixes a real (if minor) pre-existing leak, same shape as
@@ -176,41 +175,41 @@ pub fn otl_gsub_dump_ligature(_subtable: &Subtable) -> BuiltValue {
     ret.push_field(b"substitutions", st);
     ret
 }
-pub unsafe fn otl_gsub_parse_ligature(
-    mut _subtable: *const ParsedValue,
-    mut _options: &Options,
-) -> *mut Subtable {
-    let subtable_val = unsafe { _subtable.as_ref() };
-    if let Some(subs) = subtable_val.and_then(|v| v.get_typed(b"substitutions", JsonType::Array))
-    {
-        let st: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
+pub fn otl_gsub_parse_ligature(
+    _subtable: Option<&ParsedValue>,
+    _options: &Options,
+) -> Option<Subtable> {
+    if let Some(subs) = _subtable.and_then(|v| v.get_typed(b"substitutions", JsonType::Array)) {
+        let mut st: GsubLigatureSubtable = Vec::new();
         if let Some(items) = subs.as_array() {
             for entry in items {
                 let from = entry.get_typed(b"from", JsonType::Array);
                 let to = entry.get_typed(b"to", JsonType::String);
                 if let (Some(from), Some(to)) = (from, to) {
-                    (*st).push(GsubLigatureEntry {
-                        from: coverage_from_raw(parse_coverage(Some(from))),
+                    st.push(GsubLigatureEntry {
+                        // See gsub_multi.rs's otl_gsub_parse_multi for why
+                        // this bridge is narrow rather than the whole fn.
+                        from: unsafe { coverage_from_raw(parse_coverage(Some(from))) },
                         to: handle_from_name(to.as_str_bytes().map(|b| b.to_vec())) as GlyphHandle,
                     });
                 }
             }
         }
-        return subtable_from_raw(st, Subtable::GsubLigature);
+        Some(Subtable::GsubLigature(st))
     } else {
-        let st_0: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
-        if let Some(fields) = subtable_val.and_then(ParsedValue::as_object) {
+        let mut st_0: GsubLigatureSubtable = Vec::new();
+        if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
             for (key, from) in fields {
                 if from.as_array().is_some() {
-                    (*st_0).push(GsubLigatureEntry {
-                        from: coverage_from_raw(parse_coverage(Some(from))),
+                    st_0.push(GsubLigatureEntry {
+                        from: unsafe { coverage_from_raw(parse_coverage(Some(from))) },
                         to: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
                     });
                 }
             }
         }
-        return subtable_from_raw(st_0, Subtable::GsubLigature);
-    };
+        Some(Subtable::GsubLigature(st_0))
+    }
 }
 // Deduplicates by the ligature rule's starting glyph id -- the original
 // uthash `LigatureAggregator` table carried no data beyond a `gid`

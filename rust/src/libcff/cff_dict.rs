@@ -29,23 +29,19 @@ pub struct CffGetKeyContext {
     pub idx: u32,
 }
 #[inline]
-pub(crate) fn cff_dict_create() -> *mut CffDict {
-    // `Box::new` of an explicit all-zero literal, not `malloc` + a `memset`
-    // init -- see `cff_dict_free`'s matching `Box::from_raw`.
-    Box::into_raw(Box::new(CffDict { ents: Vec::new() }))
-}
-#[inline]
 pub(crate) unsafe fn cff_dict_free(x: *mut CffDict) {
     if x.is_null() {
         return;
     }
     // `ents`/each entry's `vals` are still freed here exactly as before --
     // only the outer shell's own allocator changed, from a bare `malloc`/
-    // `free` pair to `Box::into_raw`/`Box::from_raw`. Every `cff_dict_
-    // create`/`cff_dict_free` call site pairs consistently (confirmed by
-    // grep: no generic adapter reclaims a `*mut CffDict` any other way,
-    // unlike `GposPairSubtable`'s `subtable_from_raw`), so this is
-    // self-contained.
+    // `free` pair to `Box::into_raw`/`Box::from_raw`. Every call site
+    // builds its `*mut CffDict` via `Box::into_raw(Box::new(CffDict {
+    // ents: Vec::new() }))` (formerly the standalone `cff_dict_create()`,
+    // deleted once `table/cff.rs`'s dict builders started constructing the
+    // value locally instead) and reclaims it here (confirmed by grep: no
+    // generic adapter reclaims a `*mut CffDict` any other way, unlike
+    // `GposPairSubtable`'s `subtable_from_raw`), so this is self-contained.
     cff_dict_dispose(&mut *x);
     drop(Box::from_raw(x));
 }
@@ -56,7 +52,8 @@ fn cff_dict_dispose(x: &mut CffDict) {
     x.ents = Vec::new();
 }
 // `data` used to be a raw `(*const u8, u32)` pair: the loop itself always
-// respected `len` correctly (see the `remaining` comment below), but every
+// respected `len` correctly (each iteration passes `&data[pos..]`, a
+// bounds-checked slice, to `cff_decode_cff_token`), but every
 // call site had to construct that pointer from a font-byte-derived offset
 // with no bounds check of its own -- the Private DICT's `offset`/`length`
 // operands are attacker-controlled, and three call sites
@@ -90,8 +87,7 @@ pub(crate) unsafe fn parse_to_callback(
     while pos < data.len() {
         // Same fix as `cff_parse_outline`'s equivalent loop: the token
         // itself, not just where it starts, must stay within `data`.
-        let remaining = data.len() - pos;
-        let Some(adv) = cff_decode_cff_token(data[pos..].as_ptr(), remaining, &raw mut val) else {
+        let Some(adv) = cff_decode_cff_token(&data[pos..], &mut val) else {
             break;
         };
         match val {

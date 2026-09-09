@@ -24,7 +24,7 @@ use crate::table::otl::{GposCursiveEntry, GposCursiveSubtable, Subtable, subtabl
 // `GposCursiveEntry` holds only a `GlyphHandle` plus two plain `Anchor`
 // values, so dropping the `Vec` runs `Handle`'s own `Drop` for every entry --
 // no per-element dtor needed anymore.
-pub(crate) unsafe fn dispose_gpos_cursive_subtable(arr: *mut GposCursiveSubtable) {
+pub(crate) fn dispose_gpos_cursive_subtable(arr: &mut GposCursiveSubtable) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gpos_cursive_free(x: *mut GposCursiveSubtable) {
@@ -38,7 +38,7 @@ pub(crate) unsafe fn subtable_gpos_cursive_free(x: *mut GposCursiveSubtable) {
     // gpos_cursive.rs`, just no longer from here).
     drop(Box::from_raw(x));
 }
-unsafe fn subtable_gpos_cursive_create() -> *mut GposCursiveSubtable {
+fn subtable_gpos_cursive_create() -> *mut GposCursiveSubtable {
     Box::into_raw(Box::new(Vec::new()))
 }
 pub unsafe fn otl_read_gpos_cursive(
@@ -126,15 +126,15 @@ pub fn otl_gpos_dump_cursive(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
-pub unsafe fn otl_gpos_parse_cursive(
-    mut _subtable: *const ParsedValue,
-    mut _options: &Options,
-) -> *mut Subtable {
-    let subtable: *mut GposCursiveSubtable = subtable_gpos_cursive_create();
-    if let Some(fields) = unsafe { _subtable.as_ref() }.and_then(ParsedValue::as_object) {
+pub fn otl_gpos_parse_cursive(
+    _subtable: Option<&ParsedValue>,
+    _options: &Options,
+) -> Option<Subtable> {
+    let mut subtable: GposCursiveSubtable = Vec::new();
+    if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
         for (key, val) in fields {
             if val.as_object().is_some() {
-                (*subtable).push(GposCursiveEntry {
+                subtable.push(GposCursiveEntry {
                     target: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
                     enter: otl_parse_anchor(val.get(b"enter")),
                     exit: otl_parse_anchor(val.get(b"exit")),
@@ -142,7 +142,7 @@ pub unsafe fn otl_gpos_parse_cursive(
             }
         }
     }
-    return subtable_from_raw(subtable, Subtable::GposCursive);
+    Some(Subtable::GposCursive(subtable))
 }
 pub unsafe fn otfcc_build_gpos_cursive(
     mut _subtable: *const Subtable,

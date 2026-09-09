@@ -76,7 +76,7 @@ pub unsafe fn consolidate_gpos_cursive(
         }
         k = k.wrapping_add(1);
     }
-    dispose_gpos_cursive_subtable(subtable);
+    dispose_gpos_cursive_subtable(&mut *subtable);
     for (fromid, (fromname, enter, exit)) in seen {
         (*subtable).push(GposCursiveEntry {
             target: Handle {

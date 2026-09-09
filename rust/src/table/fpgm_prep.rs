@@ -44,31 +44,22 @@ pub fn otfcc_read_fpgm_prep(packet: &Packet, tag: u32) -> Option<Box<FpgmPrepTab
         bytes: table.data.clone(),
     }))
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn table_dump_table_fpgm_prep(
+pub fn table_dump_table_fpgm_prep(
     table: Option<&FpgmPrepTable>,
     root: &mut BuiltValue,
     options: &Options,
     tag: &[u8],
 ) {
-    let table = match table {
-        Some(t) => t,
-        None => return,
+    let Some(table) = table else {
+        return;
     };
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        root.push_field(
-            tag,
-            dump_ttinstr(
-                (*table).bytes.as_ptr() as *mut u8,
-                (*table).bytes.len() as u32,
-                options,
-            ),
-        );
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
-    }
+    // `dump_ttinstr` stays `unsafe fn` (its own not-yet-safened
+    // pointer+length parameter pair); `table.bytes` is a plain `Vec<u8>`,
+    // so this is purely a narrow bridge.
+    let dumped = unsafe { dump_ttinstr(table.bytes.as_ptr() as *mut u8, table.bytes.len() as u32, options) };
+    root.push_field(tag, dumped);
+    logger_finish(&mut *options.logger.borrow_mut());
 }
 pub unsafe fn make_fpgm_prep_instr(mut _t: *mut ::core::ffi::c_void, instrs: Vec<u8>) {
     let t: *mut FpgmPrepTable = _t as *mut FpgmPrepTable;
@@ -80,41 +71,34 @@ pub unsafe fn wrong_fpgm_prep_instr(
     mut _pos: i32,
 ) {
 }
-pub unsafe fn otfcc_parse_fpgm_prep(
+pub fn otfcc_parse_fpgm_prep(
     root: &ParsedValue,
     options: &Options,
     tag: &[u8],
 ) -> Option<Box<FpgmPrepTable>> {
-    let mut t: Option<Box<FpgmPrepTable>> = None;
-    let table = root.get(tag);
-    if let Some(table) = table {
-        let table = table as *const ParsedValue;
-        logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            let mut boxed = Box::new(FpgmPrepTable {
-                tag: tag.to_vec(),
-                bytes: Vec::new(),
-            });
-            parse_ttinstr(
-                table,
-                boxed.as_mut() as *mut FpgmPrepTable as *mut ::core::ffi::c_void,
-                Some(make_fpgm_prep_instr as unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()),
-                Some(
-                    wrong_fpgm_prep_instr
-                        as unsafe fn(
-                            *mut ::core::ffi::c_void,
-                            *mut ::core::ffi::c_char,
-                            i32,
-                        ) -> (),
-                ),
-            );
-            t = Some(boxed);
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
-        }
+    let table = root.get(tag)?;
+    logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    let mut boxed = Box::new(FpgmPrepTable {
+        tag: tag.to_vec(),
+        bytes: Vec::new(),
+    });
+    // `parse_ttinstr` stays `unsafe fn` (its `*mut c_void` context +
+    // `unsafe fn` callback-pointer pair is a genuine type-erased boundary,
+    // not c2rust marker residue -- see `make_fpgm_prep_instr`/
+    // `wrong_fpgm_prep_instr` above).
+    unsafe {
+        parse_ttinstr(
+            table as *const ParsedValue,
+            boxed.as_mut() as *mut FpgmPrepTable as *mut ::core::ffi::c_void,
+            Some(make_fpgm_prep_instr as unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()),
+            Some(
+                wrong_fpgm_prep_instr
+                    as unsafe fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_char, i32) -> (),
+            ),
+        );
     }
-    return t;
+    logger_finish(&mut *options.logger.borrow_mut());
+    Some(boxed)
 }
 pub fn otfcc_build_fpgm_prep(table: Option<&FpgmPrepTable>) -> Option<Buffer> {
     let table = table?;

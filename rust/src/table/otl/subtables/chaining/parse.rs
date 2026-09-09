@@ -9,38 +9,33 @@ use crate::support::primitives::TableId;
 use crate::vendor::json::JsonType;
 
 use crate::table::otl::coverage::parse_coverage;
-use crate::table::otl::subtables::chaining::common::{chaining_rule_mut, subtable_chaining_create};
-use crate::table::otl::{
-    ChainLookupApplication, ChainingRule, ChainingSubtable, Subtable, subtable_from_raw,
-};
-pub unsafe fn otl_parse_chaining(
-    mut _subtable: *const ParsedValue,
-    mut _options: &Options,
-) -> *mut Subtable {
-    let sv = unsafe { _subtable.as_ref() };
+use crate::table::otl::{ChainLookupApplication, ChainingRule, ChainingSubtable, Subtable};
+pub fn otl_parse_chaining(_subtable: Option<&ParsedValue>, _options: &Options) -> Option<Subtable> {
+    let sv = _subtable;
     let match_val = sv.and_then(|v| v.get_typed(b"match", JsonType::Array));
     let apply_val = sv.and_then(|v| v.get_typed(b"apply", JsonType::Array));
     let (Some(match_val), Some(apply_val)) = (match_val, apply_val) else {
-        return ::core::ptr::null_mut::<Subtable>();
+        return None;
     };
     let sv = sv.unwrap();
-    let subtable: *mut ChainingSubtable = (subtable_chaining_create)();
-    // `create()` already hands back a valid `Canonical(ChainingRule::
-    // default())` -- no separate tag assignment or placement-construct
-    // needed, unlike the pre-enum version.
-    let rule: *mut ChainingRule = chaining_rule_mut(&mut *subtable);
     let match_items = match_val.as_array().unwrap();
     let apply_items = apply_val.as_array().unwrap();
-    (*rule).match_count = match_items.len() as TableId;
-    (*rule).match_0 = Vec::with_capacity((*rule).match_count as usize);
-    (*rule).apply = Vec::with_capacity(apply_items.len());
-    (*rule).input_begins = sv.get_num_or(b"inputBegins", 0.0) as TableId;
-    (*rule).input_ends = sv.get_num_or(b"inputEnds", (*rule).match_count as f64) as TableId;
+    let mut rule = ChainingRule {
+        match_count: match_items.len() as TableId,
+        match_0: Vec::with_capacity(match_items.len()),
+        ..ChainingRule::default()
+    };
+    rule.input_begins = sv.get_num_or(b"inputBegins", 0.0) as TableId;
+    rule.input_ends = sv.get_num_or(b"inputEnds", rule.match_count as f64) as TableId;
     for item in match_items {
-        (*rule)
-            .match_0
-            .push(coverage_from_raw(parse_coverage(Some(item))));
+        // `parse_coverage` is a safe fn; `coverage_from_raw` is the one
+        // still-unsafe `Box::from_raw` boundary it hands off to (same
+        // `vqs_compare`-style narrow bridge used throughout this
+        // migration).
+        rule.match_0
+            .push(unsafe { coverage_from_raw(parse_coverage(Some(item))) });
     }
+    rule.apply = Vec::with_capacity(apply_items.len());
     for application in apply_items {
         let mut index: TableId = 0 as TableId;
         let mut lookup: LookupHandle = otfcc_handle_empty() as LookupHandle;
@@ -50,7 +45,7 @@ pub unsafe fn otl_parse_chaining(
                 index = application.get_num(b"at") as TableId;
             }
         }
-        (*rule).apply.push(ChainLookupApplication { index, lookup });
+        rule.apply.push(ChainLookupApplication { index, lookup });
     }
-    return subtable_from_raw(subtable, Subtable::Chaining);
+    Some(Subtable::Chaining(ChainingSubtable::Canonical(rule)))
 }

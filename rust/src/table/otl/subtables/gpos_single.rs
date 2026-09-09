@@ -27,7 +27,7 @@ use crate::table::otl::{
 // `GposSingleEntry` holds only a `GlyphHandle` plus a plain `PositionValue`,
 // so dropping the `Vec` runs `Handle`'s own `Drop` for every entry -- no
 // per-element dtor needed anymore.
-pub(crate) unsafe fn dispose_gpos_single_subtable(arr: *mut GposSingleSubtable) {
+pub(crate) fn dispose_gpos_single_subtable(arr: &mut GposSingleSubtable) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gpos_single_free(x: *mut GposSingleSubtable) {
@@ -41,7 +41,7 @@ pub(crate) unsafe fn subtable_gpos_single_free(x: *mut GposSingleSubtable) {
     // gpos_single.rs`, just no longer from here).
     drop(Box::from_raw(x));
 }
-unsafe fn subtable_gpos_single_create() -> *mut GposSingleSubtable {
+fn subtable_gpos_single_create() -> *mut GposSingleSubtable {
     Box::into_raw(Box::new(Vec::new()))
 }
 pub unsafe fn otl_read_gpos_single(
@@ -136,22 +136,22 @@ pub fn otl_gpos_dump_single(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
-pub unsafe fn otl_gpos_parse_single(
-    mut _subtable: *const ParsedValue,
-    mut _options: &Options,
-) -> *mut Subtable {
-    let subtable: *mut GposSingleSubtable = subtable_gpos_single_create();
-    if let Some(fields) = unsafe { _subtable.as_ref() }.and_then(ParsedValue::as_object) {
+pub fn otl_gpos_parse_single(
+    _subtable: Option<&ParsedValue>,
+    _options: &Options,
+) -> Option<Subtable> {
+    let mut subtable: GposSingleSubtable = Vec::new();
+    if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
         for (key, val) in fields {
             if val.as_object().is_some() {
-                (*subtable).push(GposSingleEntry {
+                subtable.push(GposSingleEntry {
                     target: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
                     value: gpos_parse_value(Some(val)),
                 });
             }
         }
     }
-    subtable_from_raw(subtable, Subtable::GposSingle)
+    Some(Subtable::GposSingle(subtable))
 }
 pub unsafe fn otfcc_build_gpos_single(
     mut _subtable: *const Subtable,

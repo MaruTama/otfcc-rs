@@ -87,7 +87,7 @@ pub unsafe fn consolidate_gsub_multi(
         }
         k = k.wrapping_add(1);
     }
-    dispose_gsub_multi_subtable(subtable);
+    dispose_gsub_multi_subtable(&mut *subtable);
     for (fromid, (fromname, to)) in seen {
         (*subtable).push(GsubMultiEntry {
             from: Handle {

@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
@@ -31,10 +30,7 @@ pub fn parse_meta_data(v: Option<&ParsedValue>) -> Option<Vec<u8>> {
     }
     None
 }
-pub unsafe fn otfcc_parse_meta(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<MetaTable>> {
+pub fn otfcc_parse_meta(root: &ParsedValue, options: &Options) -> Option<Box<MetaTable>> {
     let _meta = root.get_typed(b"meta", JsonType::Object)?;
     let entries = _meta
         .get_typed(b"entries", JsonType::Array)

@@ -3,16 +3,13 @@
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, LookupHandle, handle_from_index, otfcc_handle_dup,
 };
-use crate::table::otl::classdef::{ClassDef, otl_class_def_create, push_class_def};
-use crate::table::otl::coverage::{
-    Coverage, coverage_from_raw, otl_coverage_create, push_to_coverage,
-};
+use crate::table::otl::classdef::{ClassDef, push_class_def};
+use crate::table::otl::coverage::{Coverage, push_to_coverage};
 
 use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
 use crate::support::primitives::{GlyphClass, GlyphId, TableId};
 
-use crate::table::otl::classdef::classdef_from_raw;
 use crate::table::otl::subtables::chaining::build::{
     otfcc_build_chaining, otfcc_build_contextual, otfcc_chaining_lookup_is_contextual_lookup,
 };
@@ -28,10 +25,10 @@ pub struct ClassifierValue {
     pub gname: Vec<u8>,
     pub cls: i32,
 }
-unsafe fn class_compatible(
+fn class_compatible(
     h: &mut std::collections::BTreeMap<GlyphId, ClassifierValue>,
-    cov: *mut Coverage,
-    past: *mut i32,
+    cov: &mut Coverage,
+    past: &mut i32,
 ) -> i32 {
     if (*cov).len() == 0_usize {
         return 1_i32;
@@ -101,8 +98,8 @@ unsafe fn class_compatible(
         }
     }
 }
-unsafe fn build_rule(
-    rule: *mut ChainingRule,
+fn build_rule(
+    rule: &ChainingRule,
     hb: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
     hi: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
     hf: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
@@ -113,25 +110,30 @@ unsafe fn build_rule(
     // already-valid in-memory data, not parsing untrusted bytes), so
     // unlike the `read.rs` constructors this returns `Box`, not `Option<Box>`.
     let mut new_rule: Box<ChainingRule> = Box::new(ChainingRule {
-        match_count: (*rule).match_count,
-        input_begins: (*rule).input_begins,
-        input_ends: (*rule).input_ends,
-        match_0: Vec::with_capacity((*rule).match_count as usize),
+        match_count: rule.match_count,
+        input_begins: rule.input_begins,
+        input_ends: rule.input_ends,
+        match_0: Vec::with_capacity(rule.match_count as usize),
         apply: Vec::new(),
     });
     let mut m: TableId = 0 as TableId;
-    while (m as i32) < (*rule).match_count as i32 {
-        let cov: *mut Coverage = otl_coverage_create();
-        if (&(*rule).match_0)[m as usize].len() > 0_usize {
+    while (m as i32) < rule.match_count as i32 {
+        // Built as a plain local `Vec` and pushed directly -- no need for
+        // the `otl_coverage_create()`/`coverage_from_raw()` raw-pointer
+        // round trip other constructors use, since `Coverage` is just
+        // `Vec<GlyphHandle>` and this function never hands the pointer to
+        // anyone else in between.
+        let mut cov: Coverage = Coverage::new();
+        if rule.match_0[m as usize].len() > 0_usize {
             let h: &std::collections::BTreeMap<GlyphId, ClassifierValue> =
-                if (m as i32) < (*rule).input_begins as i32 {
+                if (m as i32) < rule.input_begins as i32 {
                     hb
-                } else if (m as i32) < (*rule).input_ends as i32 {
+                } else if (m as i32) < rule.input_ends as i32 {
                     hi
                 } else {
                     hf
                 };
-            let gid: GlyphId = (&(*rule).match_0)[m as usize][0].index;
+            let gid: GlyphId = rule.match_0[m as usize][0].index;
             // `h.get(&gid)` is unreachable-as-`None` in practice: every
             // glyph reaching this point already passed `class_compatible`
             // for this same `h`, which never returns success without
@@ -145,30 +147,29 @@ unsafe fn build_rule(
                 Some(v) => v.cls as GlyphClass,
                 None => 0 as GlyphClass,
             };
-            push_to_coverage(&mut *cov, handle_from_index(cls) as GlyphHandle);
+            push_to_coverage(&mut cov, handle_from_index(cls) as GlyphHandle);
         } else {
-            push_to_coverage(&mut *cov, handle_from_index(0 as GlyphId) as GlyphHandle);
+            push_to_coverage(&mut cov, handle_from_index(0 as GlyphId) as GlyphHandle);
         }
-        (*new_rule).match_0.push(coverage_from_raw(cov));
+        new_rule.match_0.push(cov);
         m = m.wrapping_add(1);
     }
     // Plain assignment is fine here (unlike the calloc'd-memory case
     // elsewhere in this crate): `Box::new` above already gave `.apply` a
     // valid empty `Vec`, so there's a real (if empty) value to drop first.
-    (*new_rule).apply = Vec::with_capacity((*rule).apply.len());
+    new_rule.apply = Vec::with_capacity(rule.apply.len());
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*rule).apply.len() {
-        let index = (&(*rule).apply)[j as usize].index;
-        let lookup =
-            otfcc_handle_dup((&(*rule).apply)[j as usize].lookup.clone() as Handle) as LookupHandle;
-        (*new_rule)
+    while (j as usize) < rule.apply.len() {
+        let index = rule.apply[j as usize].index;
+        let lookup = otfcc_handle_dup(rule.apply[j as usize].lookup.clone() as Handle) as LookupHandle;
+        new_rule
             .apply
             .push(ChainLookupApplication { index, lookup });
         j = j.wrapping_add(1);
     }
     return new_rule;
 }
-unsafe fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> *mut ClassDef {
+fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> Box<ClassDef> {
     // The dedup key (gid) and the original's `HASH_SORT` key (also gid,
     // via `by_gid_clsh`) are the same, so `BTreeMap`'s natural `Ord`
     // reproduces the sorted walk with no separate sort step -- the
@@ -177,10 +178,20 @@ unsafe fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> 
     // original, where `to_class` sorts and reads but never frees --
     // disposal was always the caller's job, and here that's simply
     // `try_classify_around` letting its `BTreeMap`s drop at scope exit.
-    let cd: *mut ClassDef = otl_class_def_create();
+    //
+    // Built as a plain local `Box` (matching `otl_class_def_create`'s own
+    // zero-init literal) rather than routing through that raw-pointer
+    // constructor -- returning `Box<ClassDef>` directly lets the caller
+    // assign straight into `Option<Box<ClassDef>>` with `Some(...)`,
+    // no `classdef_from_raw` bridge needed.
+    let mut cd = Box::new(ClassDef {
+        maxclass: 0,
+        glyphs: Vec::new(),
+        classes: Vec::new(),
+    });
     for (&gid, v) in h.iter() {
         push_class_def(
-            &mut *cd,
+            &mut cd,
             Handle {
                 state: HandleState::Consolidated,
                 index: gid,
@@ -189,7 +200,7 @@ unsafe fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> 
             v.cls as GlyphClass,
         );
     }
-    return cd;
+    cd
 }
 pub unsafe fn try_classify_around(
     lookup: *const Lookup,
@@ -224,20 +235,20 @@ pub unsafe fn try_classify_around(
         if (m as i32) < (*rule0).input_begins as i32 {
             check = class_compatible(
                 &mut hb,
-                &mut (&mut (*rule0).match_0)[m as usize] as *mut Coverage,
-                &raw mut classno_b,
+                &mut (&mut (*rule0).match_0)[m as usize],
+                &mut classno_b,
             );
         } else if (m as i32) < (*rule0).input_ends as i32 {
             check = class_compatible(
                 &mut hi,
-                &mut (&mut (*rule0).match_0)[m as usize] as *mut Coverage,
-                &raw mut classno_i,
+                &mut (&mut (*rule0).match_0)[m as usize],
+                &mut classno_i,
             );
         } else {
             check = class_compatible(
                 &mut hf,
-                &mut (&mut (*rule0).match_0)[m as usize] as *mut Coverage,
-                &raw mut classno_f,
+                &mut (&mut (*rule0).match_0)[m as usize],
+                &mut classno_f,
             );
         }
         if check == 0 {
@@ -262,21 +273,21 @@ pub unsafe fn try_classify_around(
                 if (m_0 as i32) < (*rule).input_begins as i32 {
                     check_0 = class_compatible(
                         &mut hb,
-                        &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
-                        &raw mut classno_b,
+                        &mut (&mut (*rule).match_0)[m_0 as usize],
+                        &mut classno_b,
                     );
                 } else if (m_0 as i32) < (*rule).input_ends as i32
                 {
                     check_0 = class_compatible(
                         &mut hi,
-                        &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
-                        &raw mut classno_i,
+                        &mut (&mut (*rule).match_0)[m_0 as usize],
+                        &mut classno_i,
                     );
                 } else {
                     check_0 = class_compatible(
                         &mut hf,
-                        &mut (&mut (*rule).match_0)[m_0 as usize] as *mut Coverage,
-                        &raw mut classno_f,
+                        &mut (&mut (*rule).match_0)[m_0 as usize],
+                        &mut classno_f,
                     );
                 }
                 if check_0 == 0 {
@@ -317,7 +328,7 @@ pub unsafe fn try_classify_around(
             let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable0);
             (*ruleset)
                 .rules
-                .push(Some(build_rule(rule0, &hb, &hi, &hf)));
+                .push(Some(build_rule(&*rule0, &hb, &hi, &hf)));
             let mut kk: TableId = 1 as TableId;
             let mut k_0: TableId =
                 (j as i32 + 1_i32) as TableId;
@@ -333,13 +344,13 @@ pub unsafe fn try_classify_around(
                 let rule_0: *mut ChainingRule = chaining_rule_mut(&mut *subtable_k_0);
                 (*ruleset)
                     .rules
-                    .push(Some(build_rule(rule_0, &hb, &hi, &hf)));
+                    .push(Some(build_rule(&*rule_0, &hb, &hi, &hf)));
                 kk = kk.wrapping_add(1);
                 k_0 = k_0.wrapping_add(1);
             }
-            (*ruleset).bc = classdef_from_raw(to_class(&hb));
-            (*ruleset).ic = classdef_from_raw(to_class(&hi));
-            (*ruleset).fc = classdef_from_raw(to_class(&hf));
+            (*ruleset).bc = Some(to_class(&hb));
+            (*ruleset).ic = Some(to_class(&hi));
+            (*ruleset).fc = Some(to_class(&hf));
             *classified_st = subtable0;
         }
     }

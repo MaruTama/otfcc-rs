@@ -32,7 +32,7 @@ unsafe fn subtable_gsub_reverse_free(x: *mut GsubReverseSubtable) {
     drop(Box::from_raw(x));
 }
 #[inline]
-unsafe fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
+fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
     Box::into_raw(Box::new(GsubReverseSubtable {
         match_count: 0,
         input_index: 0,
@@ -45,7 +45,7 @@ unsafe fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
 // `Vec<Coverage>` slice instead of an array of raw pointers to swap by
 // value. `input_index == 0` (nothing to reverse) falls out of slicing an
 // empty range, no separate guard needed.
-unsafe fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
+fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
     match_0[..input_index as usize].reverse();
 }
 pub unsafe fn otl_read_gsub_reverse(
@@ -175,31 +175,28 @@ pub fn otl_gsub_dump_reverse(_subtable: &Subtable) -> BuiltValue {
     _st.push_field(b"inputIndex", BuiltValue::Int(subtable.input_index as i64));
     _st
 }
-pub unsafe fn otl_gsub_parse_reverse(
-    mut _subtable: *const ParsedValue,
-    mut _options: &Options,
-) -> *mut Subtable {
-    let Some(sv) = (unsafe { _subtable.as_ref() }) else {
-        return ::core::ptr::null_mut::<Subtable>();
-    };
-    let Some(_match) = sv.get_typed(b"match", JsonType::Array) else {
-        return ::core::ptr::null_mut::<Subtable>();
-    };
-    let Some(_to) = sv.get_typed(b"to", JsonType::Array) else {
-        return ::core::ptr::null_mut::<Subtable>();
-    };
-    let subtable: *mut GsubReverseSubtable = (subtable_gsub_reverse_create)();
+pub fn otl_gsub_parse_reverse(
+    _subtable: Option<&ParsedValue>,
+    _options: &Options,
+) -> Option<Subtable> {
+    let sv = _subtable?;
+    let _match = sv.get_typed(b"match", JsonType::Array)?;
+    let _to = sv.get_typed(b"to", JsonType::Array)?;
     let match_items = _match.as_array().unwrap();
-    (*subtable).match_count = match_items.len() as TableId;
-    (*subtable).match_0 = Vec::with_capacity((*subtable).match_count as usize);
-    (*subtable).input_index = sv.get_num_or(b"inputIndex", 0.0) as TableId;
+    let match_count = match_items.len() as TableId;
+    let mut match_0: Vec<Coverage> = Vec::with_capacity(match_count as usize);
     for item in match_items {
-        (*subtable)
-            .match_0
-            .push(coverage_from_raw(parse_coverage(Some(item))));
+        // See gsub_multi.rs's otl_gsub_parse_multi for why this bridge is
+        // narrow rather than the whole fn.
+        match_0.push(unsafe { coverage_from_raw(parse_coverage(Some(item))) });
     }
-    (*subtable).to = coverage_from_raw(parse_coverage(Some(_to)));
-    subtable_from_raw(subtable, Subtable::GsubReverse)
+    let subtable = GsubReverseSubtable {
+        match_count,
+        input_index: sv.get_num_or(b"inputIndex", 0.0) as TableId,
+        match_0,
+        to: unsafe { coverage_from_raw(parse_coverage(Some(_to))) },
+    };
+    Some(Subtable::GsubReverse(subtable))
 }
 pub unsafe fn otfcc_build_gsub_reverse(
     mut _subtable: *const Subtable,

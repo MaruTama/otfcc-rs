@@ -105,108 +105,103 @@ pub fn otfcc_read_maxp(packet: &Packet, options: &Options) -> Option<Box<MaxpTab
         }
     }
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_maxp(
-    table: Option<&MaxpTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
-    let table = match table {
-        Some(t) => t as *const MaxpTable,
-        None => return,
+pub fn otfcc_dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(table) = table else {
+        return;
     };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"maxp"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut maxp = BuiltValue::new_object(15);
-        maxp.push_field(
-            b"version",
-            BuiltValue::Double(otfcc_from_fixed((*table).version)),
-        );
-        maxp.push_field(b"numGlyphs", BuiltValue::Int((*table).num_glyphs as i64));
-        maxp.push_field(b"maxPoints", BuiltValue::Int((*table).max_points as i64));
-        maxp.push_field(b"maxContours", BuiltValue::Int((*table).max_contours as i64));
-        maxp.push_field(
-            b"maxCompositePoints",
-            BuiltValue::Int((*table).max_composite_points as i64),
-        );
-        maxp.push_field(
-            b"maxCompositeContours",
-            BuiltValue::Int((*table).max_composite_contours as i64),
-        );
-        maxp.push_field(b"maxZones", BuiltValue::Int((*table).max_zones as i64));
-        maxp.push_field(
-            b"maxTwilightPoints",
-            BuiltValue::Int((*table).max_twilight_points as i64),
-        );
-        maxp.push_field(b"maxStorage", BuiltValue::Int((*table).max_storage as i64));
-        maxp.push_field(
-            b"maxFunctionDefs",
-            BuiltValue::Int((*table).max_function_defs as i64),
-        );
-        maxp.push_field(
-            b"maxInstructionDefs",
-            BuiltValue::Int((*table).max_instruction_defs as i64),
-        );
-        maxp.push_field(
-            b"maxStackElements",
-            BuiltValue::Int((*table).max_stack_elements as i64),
-        );
-        maxp.push_field(
-            b"maxSizeOfInstructions",
-            BuiltValue::Int((*table).max_size_of_instructions as i64),
-        );
-        maxp.push_field(
-            b"maxComponentElements",
-            BuiltValue::Int((*table).max_component_elements as i64),
-        );
-        maxp.push_field(
-            b"maxComponentDepth",
-            BuiltValue::Int((*table).max_component_depth as i64),
-        );
-        root.push_field(b"maxp", maxp);
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
-    }
+    let mut maxp = BuiltValue::new_object(15);
+    maxp.push_field(
+        b"version",
+        BuiltValue::Double(otfcc_from_fixed(table.version)),
+    );
+    maxp.push_field(b"numGlyphs", BuiltValue::Int(table.num_glyphs as i64));
+    maxp.push_field(b"maxPoints", BuiltValue::Int(table.max_points as i64));
+    maxp.push_field(b"maxContours", BuiltValue::Int(table.max_contours as i64));
+    maxp.push_field(
+        b"maxCompositePoints",
+        BuiltValue::Int(table.max_composite_points as i64),
+    );
+    maxp.push_field(
+        b"maxCompositeContours",
+        BuiltValue::Int(table.max_composite_contours as i64),
+    );
+    maxp.push_field(b"maxZones", BuiltValue::Int(table.max_zones as i64));
+    maxp.push_field(
+        b"maxTwilightPoints",
+        BuiltValue::Int(table.max_twilight_points as i64),
+    );
+    maxp.push_field(b"maxStorage", BuiltValue::Int(table.max_storage as i64));
+    maxp.push_field(
+        b"maxFunctionDefs",
+        BuiltValue::Int(table.max_function_defs as i64),
+    );
+    maxp.push_field(
+        b"maxInstructionDefs",
+        BuiltValue::Int(table.max_instruction_defs as i64),
+    );
+    maxp.push_field(
+        b"maxStackElements",
+        BuiltValue::Int(table.max_stack_elements as i64),
+    );
+    maxp.push_field(
+        b"maxSizeOfInstructions",
+        BuiltValue::Int(table.max_size_of_instructions as i64),
+    );
+    maxp.push_field(
+        b"maxComponentElements",
+        BuiltValue::Int(table.max_component_elements as i64),
+    );
+    maxp.push_field(
+        b"maxComponentDepth",
+        BuiltValue::Int(table.max_component_depth as i64),
+    );
+    root.push_field(b"maxp", maxp);
+    logger_finish(&mut *options.logger.borrow_mut());
 }
-pub unsafe fn otfcc_parse_maxp(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<MaxpTable>> {
+pub fn otfcc_parse_maxp(root: &ParsedValue, options: &Options) -> Option<Box<MaxpTable>> {
     // `.version` carries `init_maxp`'s `0x10000` default through if the
     // "maxp" JSON key is absent (never overwritten below in that case);
     // `.max_size_of_instructions`/`.max_component_elements`/
     // `.max_component_depth` are never set anywhere in this function's
     // body regardless, so their zeroed default matches the old
     // `memset`-based one exactly.
-    let mut maxp_val: MaxpTable = ::core::mem::zeroed();
-    maxp_val.version = 0x10000_i32 as F16Dot16;
-    let mut maxp_box: Box<MaxpTable> = Box::new(maxp_val);
-    let maxp: *mut MaxpTable = maxp_box.as_mut() as *mut MaxpTable;
-    let table = root.get_typed(b"maxp", JsonType::Object);
-    if let Some(table) = table {
+    let mut maxp = MaxpTable {
+        version: 0x10000_i32 as F16Dot16,
+        num_glyphs: 0,
+        max_points: 0,
+        max_contours: 0,
+        max_composite_points: 0,
+        max_composite_contours: 0,
+        max_zones: 0,
+        max_twilight_points: 0,
+        max_storage: 0,
+        max_function_defs: 0,
+        max_instruction_defs: 0,
+        max_stack_elements: 0,
+        max_size_of_instructions: 0,
+        max_component_elements: 0,
+        max_component_depth: 0,
+    };
+    if let Some(table) = root.get_typed(b"maxp", JsonType::Object) {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"maxp"),
         );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            (*maxp).version = otfcc_to_fixed(table.get_num(b"version"));
-            (*maxp).num_glyphs = table.get_num(b"numGlyphs") as u16;
-            (*maxp).max_zones = table.get_num(b"maxZones") as u16;
-            (*maxp).max_twilight_points = table.get_num(b"maxTwilightPoints") as u16;
-            (*maxp).max_storage = table.get_num(b"maxStorage") as u16;
-            (*maxp).max_function_defs = table.get_num(b"maxFunctionDefs") as u16;
-            (*maxp).max_instruction_defs = table.get_num(b"maxInstructionDefs") as u16;
-            (*maxp).max_stack_elements = table.get_num(b"maxStackElements") as u16;
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
-        }
+        maxp.version = otfcc_to_fixed(table.get_num(b"version"));
+        maxp.num_glyphs = table.get_num(b"numGlyphs") as u16;
+        maxp.max_zones = table.get_num(b"maxZones") as u16;
+        maxp.max_twilight_points = table.get_num(b"maxTwilightPoints") as u16;
+        maxp.max_storage = table.get_num(b"maxStorage") as u16;
+        maxp.max_function_defs = table.get_num(b"maxFunctionDefs") as u16;
+        maxp.max_instruction_defs = table.get_num(b"maxInstructionDefs") as u16;
+        maxp.max_stack_elements = table.get_num(b"maxStackElements") as u16;
+        logger_finish(&mut *options.logger.borrow_mut());
     }
-    return Some(maxp_box);
+    Some(Box::new(maxp))
 }
 #[allow(improper_ctypes_definitions)]
 pub fn otfcc_build_maxp(maxp: Option<&MaxpTable>) -> Option<Buffer> {

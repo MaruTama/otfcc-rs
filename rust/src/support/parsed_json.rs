@@ -77,8 +77,7 @@ use crate::vendor::json::JsonType;
 // this `impl` was always the safe replacement API underneath it, and
 // every former consumer now calls it directly -- the shell itself is
 // gone (Phase 12), save for `json_parse`/`json_value_free` (the real
-// FFI-adjacent generation/destruction boundary) and `otfcc_parse_flags`
-// (still bridged from one caller, `table/head.rs`).
+// FFI-adjacent generation/destruction boundary).
 impl ParsedValue {
     /// The `JsonType` tag for this value -- `Null` here always means a
     /// real JSON `null`, never "absent"; a lookup that found nothing
@@ -281,10 +280,9 @@ impl ParsedValue {
     }
 
     /// Serialize a bitfield from a JSON object of `label: true` pairs, or
-    /// read it as a raw number directly -- matches the old
-    /// [`otfcc_parse_flags`]'s contract exactly (except that free
-    /// function also folds a null pointer into 0, done by its own thin
-    /// wrapper now instead).
+    /// read it as a raw number directly. Callers with an `Option<&Self>`
+    /// (a missing JSON key) fold that into 0 via `.map_or(0, |v| v.flags(..))`
+    /// themselves, same as every other `Option<&ParsedValue>` accessor here.
     pub fn flags(&self, labels: &[&::core::ffi::CStr]) -> u32 {
         match self {
             ParsedValue::Int(i) => *i as u32,
@@ -309,13 +307,37 @@ impl ParsedValue {
 pub fn parse_json(input: &[u8]) -> Option<ParsedValue> {
     let mut p = Parser { input, pos: 0 };
     p.skip_ws();
-    let v = p.parse_value()?;
+    let v = p.parse_value(0)?;
     p.skip_ws();
     if p.pos != p.input.len() {
         return None; // trailing garbage after the top-level value
     }
     Some(v)
 }
+
+// A JSON document's nesting depth is entirely attacker-controlled --
+// every `{`/`[` recurses once through `parse_value`/`parse_object`/
+// `parse_array` -- and this parser has no other structural limit that
+// would bound it indirectly. An unguarded recursive descent here
+// stack-overflows on a plain, syntactically valid, ~100KB deeply-nested
+// array or object: confirmed empirically (`[[[[...]]]]` 50,000 levels
+// deep reliably crashes `otfccbuild` with SIGABRT well before running
+// out of input bytes; 10,000 levels does not, on an 8MB stack). 512 is
+// far beyond any legitimate font JSON's structural nesting -- unlike
+// generic JSON, this schema has no unbounded recursive shape of its own
+// (tables/lookups/subtables/rules all bottom out after a handful of
+// levels) -- while staying two orders of magnitude below the crash
+// threshold this stack size actually allows, leaving headroom for
+// smaller stacks (some server/container environments default well
+// below 8MB) too. Threaded as an explicit `depth` parameter incremented
+// per recursive descent (matching this crate's other recursion-depth
+// guards, e.g. `consolidate.rs`'s `get_point_coordinates`/
+// `MAX_COMPONENT_REFERENCE_DEPTH`) rather than a `Parser` field that
+// would need manual increment/decrement bookkeeping around every one of
+// `parse_object`/`parse_array`'s several early-return points -- a
+// parameter naturally reflects "current depth on this call path" for
+// sibling values too, with no bookkeeping to get wrong.
+const MAX_JSON_NESTING_DEPTH: u32 = 512;
 
 struct Parser<'a> {
     input: &'a [u8],
@@ -347,10 +369,13 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_value(&mut self) -> Option<ParsedValue> {
+    fn parse_value(&mut self, depth: u32) -> Option<ParsedValue> {
+        if depth > MAX_JSON_NESTING_DEPTH {
+            return None;
+        }
         match self.peek()? {
-            b'{' => self.parse_object(),
-            b'[' => self.parse_array(),
+            b'{' => self.parse_object(depth),
+            b'[' => self.parse_array(depth),
             b'"' => self.parse_string().map(ParsedValue::Str),
             b't' => {
                 self.expect_literal(b"true")?;
@@ -378,7 +403,7 @@ impl<'a> Parser<'a> {
         }
     }
 
-    fn parse_object(&mut self) -> Option<ParsedValue> {
+    fn parse_object(&mut self, depth: u32) -> Option<ParsedValue> {
         self.expect(b'{')?;
         let mut fields = Vec::new();
         self.skip_ws();
@@ -395,7 +420,7 @@ impl<'a> Parser<'a> {
             self.skip_ws();
             self.expect(b':')?;
             self.skip_ws();
-            let value = self.parse_value()?;
+            let value = self.parse_value(depth + 1)?;
             fields.push((key, value));
             self.skip_ws();
             match self.bump()? {
@@ -421,7 +446,7 @@ impl<'a> Parser<'a> {
         Some(ParsedValue::Object(fields))
     }
 
-    fn parse_array(&mut self) -> Option<ParsedValue> {
+    fn parse_array(&mut self, depth: u32) -> Option<ParsedValue> {
         self.expect(b'[')?;
         let mut items = Vec::new();
         self.skip_ws();
@@ -431,7 +456,7 @@ impl<'a> Parser<'a> {
         }
         loop {
             self.skip_ws();
-            items.push(self.parse_value()?);
+            items.push(self.parse_value(depth + 1)?);
             self.skip_ws();
             match self.bump()? {
                 b',' => {
@@ -643,27 +668,12 @@ pub unsafe fn json_value_free(v: *mut ParsedValue) {
 // Stage 11 completion (Phase 12): the accessor-layer free-function shell
 // this comment used to describe has been fully migrated away and deleted
 // -- every former consumer now calls the safe `impl ParsedValue` API
-// above directly. `otfcc_parse_flags` below is the one survivor (it still
-// has a real caller, `table/head.rs`'s `otfcc_parse_head`, bridging a
-// `&ParsedValue` field to this raw-pointer-shaped helper at its one call
-// site rather than being converted itself, since `ParsedValue::flags` is
-// already the safe entry point it forwards to). `json_parse`/
-// `json_value_free` above remain too, as the legitimate FFI-adjacent
-// generation/destruction pair `bin/otfccbuild.rs`/`ffi/dll.rs` still use.
-
-/// Serialize a bitfield as a JSON object of `label: true` pairs -- see
-/// `json_funcs::otfcc_dump_flags` for the build-side inverse (unaffected
-/// by this module, since it never reads an existing value).
-///
-/// A number is taken as the raw field value; an object is read label by
-/// label. Anything else -- including a missing key, which arrives here as
-/// null -- is 0.
-pub unsafe fn otfcc_parse_flags(v: *const ParsedValue, labels: &[&::core::ffi::CStr]) -> u32 {
-    match unsafe { v.as_ref() } {
-        Some(v) => v.flags(labels),
-        None => 0,
-    }
-}
+// above directly. `otfcc_parse_flags`, its last raw-pointer-shaped
+// survivor (bridging `table/head.rs`'s `otfcc_parse_head`), lost its own
+// last caller once that function switched to calling `ParsedValue::flags`
+// directly and was deleted here too. `json_parse`/`json_value_free` above
+// remain, as the legitimate FFI-adjacent generation/destruction pair
+// `bin/otfccbuild.rs`/`ffi/dll.rs` still use.
 
 #[cfg(test)]
 mod tests {
@@ -1077,5 +1087,54 @@ mod tests {
         ]);
         assert_eq!(obj.flags(labels), 0b101);
         assert_eq!(ParsedValue::Null.flags(labels), 0);
+    }
+
+    // `parse_value`/`parse_object`/`parse_array` were mutually recursive
+    // with no depth bound at all -- a plain, syntactically valid deeply-
+    // nested array or object (`[[[[...]]]]`) drove unbounded recursion,
+    // confirmed to reliably crash `otfccbuild` with SIGABRT (stack
+    // overflow) around 50,000 nesting levels (~100KB of input) on an
+    // 8MB stack, well within what an attacker could trivially construct
+    // (that empirical crash-reproduction size is deliberately not what
+    // these tests use, below -- pinning "rejected once past the limit"
+    // only needs to clear `MAX_JSON_NESTING_DEPTH` itself, and a modest
+    // depth keeps this fast under Miri's interpreter, which turned out
+    // to make recursion depth itself the dominant cost: the first draft
+    // of these tests used the full 100,000-level crash-reproduction
+    // size and alone added ~90s to this crate's `cargo miri test`).
+    // This is the JSON-input analogue of `consolidate.rs`'s
+    // `MAX_COMPONENT_REFERENCE_DEPTH` fix for composite-glyph reference
+    // cycles -- same "unbounded recursion on attacker-controlled
+    // structure" shape, this time in the parser itself rather than in a
+    // post-parse tree walk.
+    #[test]
+    fn deeply_nested_array_is_rejected_instead_of_overflowing_the_stack() {
+        let depth = MAX_JSON_NESTING_DEPTH as usize + 100;
+        let mut input = vec![b'['; depth];
+        input.extend(vec![b']'; depth]);
+        assert_eq!(parse_json(&input), None);
+    }
+
+    #[test]
+    fn deeply_nested_object_is_rejected_instead_of_overflowing_the_stack() {
+        let depth = MAX_JSON_NESTING_DEPTH as usize + 100;
+        let mut input = Vec::new();
+        for _ in 0..depth {
+            input.extend_from_slice(b"{\"a\":");
+        }
+        input.push(b'0');
+        input.extend(vec![b'}'; depth]);
+        assert_eq!(parse_json(&input), None);
+    }
+
+    #[test]
+    fn nesting_well_under_the_depth_limit_still_parses() {
+        // Every legitimate font JSON this crate ships or generates nests
+        // far shallower than this, so the limit must not reject
+        // ordinary, well-formed input.
+        let depth = (MAX_JSON_NESTING_DEPTH / 2) as usize;
+        let mut input = vec![b'['; depth];
+        input.extend(vec![b']'; depth]);
+        assert!(parse_json(&input).is_some());
     }
 }

@@ -99,7 +99,7 @@ const MAX_TOTAL_SUBR_CALLS: u32 = 10_000;
 // call site for "no Encoding key in the DICT at all"; this function
 // itself drew no such distinction before, since it never had a failure
 // path.
-unsafe fn parse_encoding(cff: *mut CffFile, offset: i32) -> CffEncoding {
+fn parse_encoding(cff: &CffFile, offset: i32) -> CffEncoding {
     if offset == CFF_STANDARD_ENCODING_OFFSET {
         return CffEncoding::Standard;
     } else if offset == CFF_EXPERT_ENCODING_OFFSET {
@@ -108,7 +108,12 @@ unsafe fn parse_encoding(cff: *mut CffFile, offset: i32) -> CffEncoding {
     if offset < 0 {
         return CffEncoding::Unspecified;
     }
-    let slice = ::core::slice::from_raw_parts((*cff).raw_data, (*cff).raw_length as usize);
+    // `raw_data`/`raw_length` are `cff`'s own genuinely-unsafe fields (the
+    // calloc'd/`Box::into_raw`'d font-byte buffer `cff_open_stream`/
+    // `cff_close` own -- see this file's own comments there); this is the
+    // only unsafe operation this function performs, narrowed the same way
+    // `vf/vq.rs`'s `vqs_compare` bridges to `vq_compare_region`.
+    let slice = unsafe { ::core::slice::from_raw_parts(cff.raw_data, cff.raw_length as usize) };
     let result: Option<CffEncoding> = 'parse: {
         let Ok(mut r) = FontReader::new(slice).at(offset as usize) else {
             break 'parse None;
@@ -159,7 +164,7 @@ unsafe fn parse_encoding(cff: *mut CffFile, offset: i32) -> CffEncoding {
     };
     result.unwrap_or(CffEncoding::Unspecified)
 }
-unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
+fn parse_cff_bytecode(cff: &mut CffFile, options: &Options) {
     let mut pos: u32;
     let offset: i32;
     // No length check guarded these 4 header-byte reads at all -- a `raw_
@@ -169,42 +174,48 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
     // (a garbage `hdr_size` just makes it fail cleanly too, same as any
     // other malformed offset), so there's nothing to gain from bailing out
     // of this function early on a too-short header.
-    let header_slice = ::core::slice::from_raw_parts((*cff).raw_data, (*cff).raw_length as usize);
+    //
+    // `raw_data`/`raw_length` are `cff`'s own genuinely-unsafe fields (see
+    // `parse_encoding`'s identical narrow bridge, just above); every other
+    // operation below only reads/writes `cff`'s already-safe fields or
+    // reuses this one bounds-checked `header_slice`.
+    let header_slice =
+        unsafe { ::core::slice::from_raw_parts(cff.raw_data, cff.raw_length as usize) };
     let mut header_reader = FontReader::new(header_slice);
-    (*cff).head.major = header_reader.u8().unwrap_or(0);
-    (*cff).head.minor = header_reader.u8().unwrap_or(0);
-    (*cff).head.hdr_size = header_reader.u8().unwrap_or(0);
-    (*cff).head.off_size = header_reader.u8().unwrap_or(0);
-    pos = (*cff).head.hdr_size as u32;
-    extract_index(header_slice, pos, &mut (*cff).name);
-    pos = 4_u32.wrapping_add(get_index_length(&(*cff).name));
-    extract_index(header_slice, pos, &mut (*cff).top_dict);
-    if (*cff).name.count != (*cff).top_dict.count {
+    cff.head.major = header_reader.u8().unwrap_or(0);
+    cff.head.minor = header_reader.u8().unwrap_or(0);
+    cff.head.hdr_size = header_reader.u8().unwrap_or(0);
+    cff.head.off_size = header_reader.u8().unwrap_or(0);
+    pos = cff.head.hdr_size as u32;
+    extract_index(header_slice, pos, &mut cff.name);
+    pos = 4_u32.wrapping_add(get_index_length(&cff.name));
+    extract_index(header_slice, pos, &mut cff.top_dict);
+    if cff.name.count != cff.top_dict.count {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(
                 b"[libcff] Bad CFF font: (",
-                (*cff).name.count,
+                cff.name.count,
                 b", name), (",
-                (*cff).top_dict.count,
+                cff.top_dict.count,
                 b", top_dict).\n",
             ),
         );
     }
     pos = 4_u32
-        .wrapping_add(get_index_length(&(*cff).name))
-        .wrapping_add(get_index_length(&(*cff).top_dict));
-    extract_index(header_slice, pos, &mut (*cff).string);
+        .wrapping_add(get_index_length(&cff.name))
+        .wrapping_add(get_index_length(&cff.top_dict));
+    extract_index(header_slice, pos, &mut cff.string);
     pos = 4_u32
-        .wrapping_add(get_index_length(&(*cff).name))
-        .wrapping_add(get_index_length(&(*cff).top_dict))
-        .wrapping_add(get_index_length(&(*cff).string));
-    extract_index(header_slice, pos, &mut (*cff).global_subr);
+        .wrapping_add(get_index_length(&cff.name))
+        .wrapping_add(get_index_length(&cff.top_dict))
+        .wrapping_add(get_index_length(&cff.string));
+    extract_index(header_slice, pos, &mut cff.global_subr);
     // The Top DICT INDEX's `data` is the concatenation of every entry's
     // dict bytes; entry 0 (the only one a well-formed OpenType CFF table
-    // ever has, per `(*cff).name.count != (*cff).top_dict.count`'s warning
+    // ever has, per `cff.name.count != cff.top_dict.count`'s warning
     // below) starts at `offset[0] - 1`, which `extract_index`'s validation
     // guarantees is 0 (CFF INDEX offsets are 1-based). Computed once and
     // reused for every key looked up in the Top DICT below -- previously
@@ -214,22 +225,22 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
     // instead of implicit: a `top_dict` INDEX with more than one entry now
     // safely gets just its first entry's bytes instead of silently reading
     // past them.
-    let top_dict_bytes: &[u8] = if !(*cff).top_dict.data.is_empty() {
-        let top_dict_offset = &(*cff).top_dict.offset;
+    let top_dict_bytes: &[u8] = if !cff.top_dict.data.is_empty() {
+        let top_dict_offset = &cff.top_dict.offset;
         let top_dict_len = top_dict_offset[1].wrapping_sub(top_dict_offset[0]) as usize;
-        let top_dict_data: &[u8] = &(*cff).top_dict.data;
+        let top_dict_data: &[u8] = &cff.top_dict.data;
         top_dict_data.get(..top_dict_len).unwrap_or(&[])
     } else {
         &[]
     };
-    if !(*cff).top_dict.data.is_empty() {
+    if !cff.top_dict.data.is_empty() {
         let mut offset_0: i32;
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHAR_STRINGS, 0_u32);
         if offset_0 != -1_i32 {
-            extract_index(header_slice, offset_0 as u32, &mut (*cff).char_strings);
-            (*cff).cnt_glyph = (*cff).char_strings.count as u16;
+            extract_index(header_slice, offset_0 as u32, &mut cff.char_strings);
+            cff.cnt_glyph = cff.char_strings.count as u16;
         } else {
-            empty_index(&mut (*cff).char_strings);
+            empty_index(&mut cff.char_strings);
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
@@ -239,42 +250,34 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
         }
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_ENCODING, 0_u32);
         if offset_0 != -1_i32 {
-            (*cff).encodings = parse_encoding(cff, offset_0);
+            cff.encodings = parse_encoding(cff, offset_0);
         } else {
-            (*cff).encodings = CffEncoding::Unspecified;
+            cff.encodings = CffEncoding::Unspecified;
         }
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_CHARSET, 0_u32);
         if offset_0 != -1_i32 {
-            (*cff).charsets = cff_extract_charset(
-                (*cff).raw_data,
-                (*cff).raw_length,
-                offset_0,
-                (*cff).char_strings.count as u16,
-            );
+            cff.charsets =
+                cff_extract_charset(header_slice, offset_0, cff.char_strings.count as u16);
         } else {
-            (*cff).charsets = CffCharset::IsoAdobe;
+            cff.charsets = CffCharset::IsoAdobe;
         }
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_SELECT, 0_u32);
-        if (*cff).char_strings.count != 0 && offset_0 != -1_i32 {
-            (*cff).fdselect = cff_extract_fd_select(
-                (*cff).raw_data,
-                (*cff).raw_length,
-                offset_0,
-                (*cff).char_strings.count as u16,
-            );
+        if cff.char_strings.count != 0 && offset_0 != -1_i32 {
+            cff.fdselect =
+                cff_extract_fd_select(header_slice, offset_0, cff.char_strings.count as u16);
         } else {
-            (*cff).fdselect = CffFdSelect::Unspecified;
+            cff.fdselect = CffFdSelect::Unspecified;
         }
         offset_0 = parse_dict_key_int(top_dict_bytes, OP_FD_ARRAY, 0_u32);
         if offset_0 != -1_i32 {
-            extract_index(header_slice, offset_0 as u32, &mut (*cff).font_dict);
+            extract_index(header_slice, offset_0 as u32, &mut cff.font_dict);
         } else {
-            empty_index(&mut (*cff).font_dict);
+            empty_index(&mut cff.font_dict);
         }
     }
     let mut private_len: i32 = -1_i32;
     let mut private_off: i32 = -1_i32;
-    if !(*cff).top_dict.data.is_empty() {
+    if !cff.top_dict.data.is_empty() {
         private_len = parse_dict_key_int(top_dict_bytes, OP_PRIVATE, 0_u32);
         private_off = parse_dict_key_int(top_dict_bytes, OP_PRIVATE, 1_u32);
     }
@@ -302,13 +305,13 @@ unsafe fn parse_cff_bytecode(cff: *mut CffFile, options: &Options) {
             extract_index(
                 header_slice,
                 (private_off + offset) as u32,
-                &mut (*cff).local_subr,
+                &mut cff.local_subr,
             );
         } else {
-            empty_index(&mut (*cff).local_subr);
+            empty_index(&mut cff.local_subr);
         }
     } else {
-        empty_index(&mut (*cff).local_subr);
+        empty_index(&mut cff.local_subr);
     };
 }
 pub unsafe fn cff_open_stream(
@@ -366,7 +369,7 @@ pub unsafe fn cff_open_stream(
     );
     (*file).raw_length = len;
     (*file).cnt_glyph = 0_u16;
-    parse_cff_bytecode(file, options);
+    parse_cff_bytecode(&mut *file, options);
     return file;
 }
 pub unsafe fn cff_close(file: *mut CffFile) {
@@ -498,7 +501,14 @@ pub fn cff_parse_subr(
 // the specific pair this call needs (both in bounds, and consistent with
 // each other and with the INDEX's own data length), not just that
 // `offset.get(idx)` succeeds.
-unsafe fn locate_subr(subr_index: &CffIndex, bias: u16, subr: u32) -> Option<(*const u8, u32)> {
+// Returns the subroutine's own bytes directly instead of a `(*const u8,
+// u32)` pair -- the `.add(data_offset)` pointer arithmetic that used to
+// follow the bounds check above was itself provably in-bounds (the check
+// just above it guarantees `data_offset + data_len <= subr_index.data.
+// len()`), so it was pure c2rust residue on top of an already-safe
+// design: `.get(data_offset..)?.get(..data_len)` expresses the exact
+// same guarantee as a bounds-checked slice instead of a raw offset.
+fn locate_subr(subr_index: &CffIndex, bias: u16, subr: u32) -> Option<&[u8]> {
     let idx = (bias as u32).checked_add(subr)? as usize;
     let start = *subr_index.offset.get(idx)?;
     let end = *subr_index.offset.get(idx.checked_add(1)?)?;
@@ -506,13 +516,10 @@ unsafe fn locate_subr(subr_index: &CffIndex, bias: u16, subr: u32) -> Option<(*c
         return None;
     }
     let data_offset = (start - 1) as usize;
-    let data_len = end - start;
-    if data_offset.checked_add(data_len as usize)? > subr_index.data.len() {
-        return None;
-    }
-    Some((subr_index.data.as_ptr().add(data_offset), data_len))
+    let data_len = (end - start) as usize;
+    subr_index.data.get(data_offset..)?.get(..data_len)
 }
-unsafe fn compute_subr_bias(cnt: u16) -> u16 {
+fn compute_subr_bias(cnt: u16) -> u16 {
     if (cnt as i32) < 1240_i32 {
         return 107_u16;
     } else if (cnt as i32) < 33900_i32 {
@@ -527,9 +534,9 @@ unsafe fn compute_subr_bias(cnt: u16) -> u16 {
 // indexing with an inverted `a..=b` range panics rather than yielding
 // an empty slice, so that guard has to be explicit here where it was
 // implicit in the pointer comparison.
-unsafe fn reverse_stack(stack: *mut CffStack, left: u8, right: u8) {
+fn reverse_stack(stack: &mut CffStack, left: u8, right: u8) {
     if left <= right {
-        (&mut (*stack).stack)[left as usize..=right as usize].reverse();
+        (&mut stack.stack)[left as usize..=right as usize].reverse();
     }
 }
 // `methods: CffIOutlineBuilder` parameter dropped: this was called from
@@ -571,8 +578,9 @@ pub unsafe fn cff_parse_outline(
     // replaces `start` (a `*mut u8` cursor), the same "cursor into a
     // safe slice instead of raw pointer arithmetic" shape the rest of
     // this crate's parse-boundary work already uses. `cff_decode_cs2_token`
-    // itself is unchanged (still takes a raw pointer + a length), since
-    // it does its own `slice::from_raw_parts` reconstruction internally.
+    // now takes `&data_slice[pos..]` directly -- it dropped its own raw
+    // pointer parameter once its `slice::from_raw_parts` reconstruction
+    // became pure residue (every call site already had a slice in hand).
     let data_slice: &[u8] = ::core::slice::from_raw_parts(data, len as usize);
     let mut pos: usize = 0;
     let mut advance: u32;
@@ -584,10 +592,11 @@ pub unsafe fn cff_parse_outline(
         // not that the token itself stays within `len` -- a token
         // starting near the end of a truncated CharString used to read
         // past it (see `cff_codecs.rs`'s own conversion). Stop cleanly
-        // instead of reading on.
+        // instead of reading on. `remaining` is also reused a few lines
+        // down, for the hintmask/cntrmask bytes that ride along after
+        // the operator instead of going through `cff_decode_cs2_token`.
         let remaining = data_slice.len() - pos;
-        let Some(adv) = cff_decode_cs2_token(data_slice[pos..].as_ptr(), remaining, &raw mut val)
-        else {
+        let Some(adv) = cff_decode_cs2_token(&data_slice[pos..], &mut val) else {
             break;
         };
         advance = adv;
@@ -2275,13 +2284,13 @@ pub unsafe fn cff_parse_outline(
                                         .wrapping_sub(2 as Arity)
                                         .wrapping_sub(n_0 as Arity)
                                         as u8;
-                                    reverse_stack(stack, first, last);
+                                    reverse_stack(&mut *stack, first, last);
                                     reverse_stack(
-                                        stack,
+                                        &mut *stack,
                                         (last as i32 - j_2 + 1_i32) as u8,
                                         last,
                                     );
-                                    reverse_stack(stack, first, (last as i32 - j_2) as u8);
+                                    reverse_stack(&mut *stack, first, (last as i32 - j_2) as u8);
                                     (*stack).index = (*stack).index.wrapping_sub(2 as Arity);
                                 }
                             }
@@ -2307,8 +2316,7 @@ pub unsafe fn cff_parse_outline(
                             let subr: u32 = cffnum(
                                 (&mut (*stack).stack)[((*stack).index as isize) as usize],
                             ) as u32;
-                            if let Some((sub_data, sub_len)) = locate_subr(lsubr, lsubr_bias, subr)
-                            {
+                            if let Some(sub_data) = locate_subr(lsubr, lsubr_bias, subr) {
                                 *total_calls = (*total_calls).wrapping_add(1);
                                 if *total_calls > MAX_TOTAL_SUBR_CALLS {
                                     if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
@@ -2325,8 +2333,8 @@ pub unsafe fn cff_parse_outline(
                                     }
                                 } else {
                                     cff_parse_outline(
-                                        sub_data as *mut u8,
-                                        sub_len,
+                                        sub_data.as_ptr() as *mut u8,
+                                        sub_data.len() as u32,
                                         gsubr,
                                         lsubr,
                                         stack,
@@ -2371,9 +2379,7 @@ pub unsafe fn cff_parse_outline(
                             let subr_0: u32 = cffnum(
                                 (&mut (*stack).stack)[((*stack).index as isize) as usize],
                             ) as u32;
-                            if let Some((sub_data, sub_len)) =
-                                locate_subr(gsubr, gsubr_bias, subr_0)
-                            {
+                            if let Some(sub_data) = locate_subr(gsubr, gsubr_bias, subr_0) {
                                 *total_calls = (*total_calls).wrapping_add(1);
                                 if *total_calls > MAX_TOTAL_SUBR_CALLS {
                                     if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
@@ -2390,8 +2396,8 @@ pub unsafe fn cff_parse_outline(
                                     }
                                 } else {
                                     cff_parse_outline(
-                                        sub_data as *mut u8,
-                                        sub_len,
+                                        sub_data.as_ptr() as *mut u8,
+                                        sub_data.len() as u32,
                                         gsubr,
                                         lsubr,
                                         stack,
@@ -2499,22 +2505,19 @@ mod cff_header_and_encoding_tests {
         // The original read the 4 fixed header bytes with no check that
         // `raw_length` was even that long.
         let data = [0x01u8]; // only 1 byte, header needs 4
-        unsafe {
-            let mut cff = cff_file_over(&data);
-            let cff_ptr = &raw mut cff;
-            // Never dereferenced on this path: `name.count == top_dict.count`
-            // (both 0 for a header this short), so the only place this
-            // function reads `options` -- the mismatch-count warning log --
-            // is never reached. A default `Options` stands in for "never
-            // used" now that the parameter is a real reference and can't be
-            // null the way the old raw pointer could.
-            let options: Options = Options::default();
-            parse_cff_bytecode(cff_ptr, &options);
-            assert_eq!(cff.head.major, 1);
-            assert_eq!(cff.head.minor, 0);
-            assert_eq!(cff.head.hdr_size, 0);
-            assert_eq!(cff.head.off_size, 0);
-        }
+        let mut cff = unsafe { cff_file_over(&data) };
+        // Never dereferenced on this path: `name.count == top_dict.count`
+        // (both 0 for a header this short), so the only place this
+        // function reads `options` -- the mismatch-count warning log --
+        // is never reached. A default `Options` stands in for "never
+        // used" now that the parameter is a real reference and can't be
+        // null the way the old raw pointer could.
+        let options: Options = Options::default();
+        parse_cff_bytecode(&mut cff, &options);
+        assert_eq!(cff.head.major, 1);
+        assert_eq!(cff.head.minor, 0);
+        assert_eq!(cff.head.hdr_size, 0);
+        assert_eq!(cff.head.off_size, 0);
     }
 
     #[test]
@@ -2522,34 +2525,28 @@ mod cff_header_and_encoding_tests {
         // offset=0/1 are reserved predefined-encoding sentinels, so the
         // real data starts at offset 2.
         let data = [0u8, 0, 0x00, 0x02, 5, 9]; // format=0, codes=[5,9]
-        unsafe {
-            let mut cff = cff_file_over(&data);
-            let CffEncoding::Format0(code) = parse_encoding(&raw mut cff, 2) else {
-                panic!("expected Format0");
-            };
-            assert_eq!(code, vec![5, 9]);
-        }
+        let cff = unsafe { cff_file_over(&data) };
+        let CffEncoding::Format0(code) = parse_encoding(&cff, 2) else {
+            panic!("expected Format0");
+        };
+        assert_eq!(code, vec![5, 9]);
     }
 
     #[test]
     fn parse_encoding_format0_truncated_falls_back_to_unspecified_instead_of_reading_oob() {
         let data = [0u8, 0, 0x00, 0x02, 5]; // format=0, ncodes=2, only 1 code present
-        unsafe {
-            let mut cff = cff_file_over(&data);
-            let result = parse_encoding(&raw mut cff, 2);
-            assert!(matches!(result, CffEncoding::Unspecified));
-        }
+        let cff = unsafe { cff_file_over(&data) };
+        let result = parse_encoding(&cff, 2);
+        assert!(matches!(result, CffEncoding::Unspecified));
     }
 
     #[test]
     fn parse_encoding_negative_offset_falls_back_to_unspecified_instead_of_reading_before_the_buffer()
      {
         let data = [0u8; 8];
-        unsafe {
-            let mut cff = cff_file_over(&data);
-            let result = parse_encoding(&raw mut cff, -5);
-            assert!(matches!(result, CffEncoding::Unspecified));
-        }
+        let cff = unsafe { cff_file_over(&data) };
+        let result = parse_encoding(&cff, -5);
+        assert!(matches!(result, CffEncoding::Unspecified));
     }
 
     #[test]
@@ -2577,15 +2574,12 @@ mod cff_header_and_encoding_tests {
             0, 0, 0, // Global Subr INDEX: empty
             0, 0, 0,
         ];
-        unsafe {
-            let mut cff = cff_file_over(&data);
-            let cff_ptr = &raw mut cff;
-            let options: Options = Options::default();
-            parse_cff_bytecode(cff_ptr, &options);
-            assert_eq!(cff.top_dict.count, 1, "sanity: Top DICT INDEX parsed");
-            assert_eq!(cff.local_subr.count, 0);
-            assert!(cff.local_subr.data.is_empty());
-        }
+        let mut cff = unsafe { cff_file_over(&data) };
+        let options: Options = Options::default();
+        parse_cff_bytecode(&mut cff, &options);
+        assert_eq!(cff.top_dict.count, 1, "sanity: Top DICT INDEX parsed");
+        assert_eq!(cff.local_subr.count, 0);
+        assert!(cff.local_subr.data.is_empty());
     }
 }
 
@@ -2655,21 +2649,8 @@ mod locate_subr_tests {
     #[test]
     fn finds_the_first_and_second_subroutine() {
         let idx = subr_index(vec![1, 3, 5], vec![0xAA, 0xBB, 0xCC, 0xDD]);
-        unsafe {
-            let (p0, len0) = locate_subr(&idx, 0, 0).unwrap();
-            assert_eq!(len0, 2);
-            assert_eq!(
-                ::core::slice::from_raw_parts(p0, len0 as usize),
-                &[0xAA, 0xBB]
-            );
-
-            let (p1, len1) = locate_subr(&idx, 0, 1).unwrap();
-            assert_eq!(len1, 2);
-            assert_eq!(
-                ::core::slice::from_raw_parts(p1, len1 as usize),
-                &[0xCC, 0xDD]
-            );
-        }
+        assert_eq!(locate_subr(&idx, 0, 0).unwrap(), &[0xAA, 0xBB]);
+        assert_eq!(locate_subr(&idx, 0, 1).unwrap(), &[0xCC, 0xDD]);
     }
 
     #[test]
@@ -2678,17 +2659,13 @@ mod locate_subr_tests {
         // `.offset()` -- a `callsubr`/`callgsubr` operand large enough to
         // run past it read (and then recursed into) arbitrary memory.
         let idx = subr_index(vec![1, 3, 5], vec![0xAA, 0xBB, 0xCC, 0xDD]);
-        unsafe {
-            assert!(locate_subr(&idx, 0, 5).is_none());
-        }
+        assert!(locate_subr(&idx, 0, 5).is_none());
     }
 
     #[test]
     fn bias_plus_subr_overflow_is_rejected() {
         let idx = subr_index(vec![1, 3], vec![0xAA, 0xBB]);
-        unsafe {
-            assert!(locate_subr(&idx, u16::MAX, u32::MAX).is_none());
-        }
+        assert!(locate_subr(&idx, u16::MAX, u32::MAX).is_none());
     }
 
     #[test]
@@ -2697,17 +2674,13 @@ mod locate_subr_tests {
         // against the wraparound bug -- an intermediate entry of 0 (not
         // a valid 1-based offset) was never checked here at all.
         let idx = subr_index(vec![1, 0, 5], vec![0xAA, 0xBB, 0xCC, 0xDD]);
-        unsafe {
-            assert!(locate_subr(&idx, 0, 0).is_none());
-        }
+        assert!(locate_subr(&idx, 0, 0).is_none());
     }
 
     #[test]
     fn a_non_monotonic_offset_pair_is_rejected() {
         let idx = subr_index(vec![5, 1], vec![0xAA, 0xBB, 0xCC, 0xDD]);
-        unsafe {
-            assert!(locate_subr(&idx, 0, 0).is_none());
-        }
+        assert!(locate_subr(&idx, 0, 0).is_none());
     }
 
     #[test]
@@ -2715,9 +2688,7 @@ mod locate_subr_tests {
         // The offsets are internally consistent (monotonic, both >= 1)
         // but claim more data than `subr_index.data` actually holds.
         let idx = subr_index(vec![1, 100], vec![0xAA, 0xBB]);
-        unsafe {
-            assert!(locate_subr(&idx, 0, 0).is_none());
-        }
+        assert!(locate_subr(&idx, 0, 0).is_none());
     }
 }
 

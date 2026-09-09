@@ -1,7 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-unsafe extern "C" {
-    fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
 
 use crate::support::handle::{FdHandle, handle_from_index};
 
@@ -44,10 +41,10 @@ use crate::vf::vq::VQ;
 
 use crate::libcff::cff_charset::cff_build_charset;
 use crate::libcff::cff_codecs::cff_encode_cff_operator;
-use crate::libcff::cff_dict::{build_dict, cff_dict_create, cff_dict_free, parse_to_callback};
+use crate::libcff::cff_dict::{build_dict, cff_dict_free, parse_to_callback};
 use crate::libcff::cff_fdselect::cff_build_fd_select;
 use crate::libcff::cff_index::{
-    build_index, cff_index_create, cff_index_free, new_index_by_callback,
+    build_index, cff_index_free, new_empty_cff_index, new_index_by_callback,
 };
 use crate::libcff::cff_parser::{cff_close, cff_open_stream, cff_parse_outline, cff_parse_subr};
 use crate::libcff::cff_string::get_cff_sid;
@@ -220,9 +217,8 @@ fn otfcc_new_cff_private() -> Box<CffPrivateDict> {
         nominal_width_x: 0.,
     })
 }
-#[inline]
-unsafe fn table_cff_create() -> *mut CffTable {
-    Box::into_raw(Box::new(CffTable {
+fn table_cff_new() -> Box<CffTable> {
+    Box::new(CffTable {
         font_name: Vec::new(),
         is_cid: false,
         version: Vec::new(),
@@ -250,7 +246,13 @@ unsafe fn table_cff_create() -> *mut CffTable {
         cid_count: 0,
         uid_base: 0,
         fd_array: Vec::new(),
-    }))
+    })
+}
+#[inline]
+fn table_cff_create() -> *mut CffTable {
+    // `Box::new`/`Box::into_raw` are both safe -- see `unwrap_cff_table`'s
+    // matching `Box::from_raw`.
+    Box::into_raw(table_cff_new())
 }
 // `table_cff_create`/`fd_from_json` are shared between the top-level table
 // (which becomes `Font.cff`) and `fd_array` children (already `Vec<Box<
@@ -1013,27 +1015,29 @@ unsafe fn build_outline(
     // call is needed.
     (*context).seed = bc.randx;
 }
-// Returns `Vec<u8>`, its only callers direct Rust call sites (never a real
-// FFI boundary) -- goes away with the vtable/extern "C" cleanup, same as
-// every other instance of this allow in the crate.
-#[allow(improper_ctypes_definitions)]
-unsafe fn form_cid_string(cid: CffSid) -> Vec<u8> {
+fn form_cid_string(cid: CffSid) -> Vec<u8> {
     return crate::bytesbuild!(b"CID", cid as i32);
 }
-unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
-    let cff_file: *mut CffFile = (*context).cff_file;
-    let glyphs: *mut GlyfTable = (*context).glyphs;
-    let charset: &CffCharset = &(*cff_file).charsets;
-    if (*(*context).meta).is_cid {
+// `context`'s own fields (`meta`/`glyphs`/`cff_file`) are only read, never
+// reassigned, here -- only what `glyphs` *points to* is mutated -- so a
+// shared `&CffExtractContext` suffices; each field's raw-pointer deref
+// stays its own narrow `unsafe {}`, matching `vqs_compare`'s bridge
+// pattern, since `CffExtractContext` itself is still a raw-pointer shell.
+fn name_glyphs_according_to_cff(context: &CffExtractContext) {
+    let cff_file: &CffFile = unsafe { &*context.cff_file };
+    let glyphs: &mut GlyfTable = unsafe { &mut *context.glyphs };
+    let charset: &CffCharset = &cff_file.charsets;
+    let is_cid = unsafe { &*context.meta }.is_cid;
+    if is_cid {
         match charset {
             CffCharset::Format0(glyph) => {
                 for (j, &g) in glyph.iter().enumerate() {
                     let sid: CffSid = g as CffSid;
                     let glyphname: Option<Vec<u8>> =
-                        get_cff_sid(sid as u16, &(*cff_file).string);
+                        unsafe { get_cff_sid(sid as u16, &cff_file.string) };
                     if let Some(glyphname) = glyphname {
-                        (&mut (*glyphs))[j + 1].as_mut().unwrap().name = glyphname;
-                        (&mut (*glyphs))[j + 1].as_mut().unwrap().cid = sid as GlyphId;
+                        glyphs[j + 1].as_mut().unwrap().name = glyphname;
+                        glyphs[j + 1].as_mut().unwrap().cid = sid as GlyphId;
                     }
                 }
             }
@@ -1046,12 +1050,12 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                         let sid_0: CffSid =
                             (first as i32 + k as i32) as CffSid;
                         let glyphname_0: Vec<u8> = form_cid_string(sid_0);
-                        if (glyphs_named_sofar as usize) < (*glyphs).len() {
-                            (&mut (*glyphs))[glyphs_named_sofar as usize]
+                        if (glyphs_named_sofar as usize) < glyphs.len() {
+                            glyphs[glyphs_named_sofar as usize]
                                 .as_mut()
                                 .unwrap()
                                 .name = glyphname_0;
-                            (&mut (*glyphs))[glyphs_named_sofar as usize]
+                            glyphs[glyphs_named_sofar as usize]
                                 .as_mut()
                                 .unwrap()
                                 .cid = sid_0 as GlyphId;
@@ -1070,12 +1074,12 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                         let sid_1: CffSid =
                             (first_0 as i32 + k_0 as i32) as CffSid;
                         let glyphname_1: Vec<u8> = form_cid_string(sid_1);
-                        if (glyphs_named_sofar_0 as usize) < (*glyphs).len() {
-                            (&mut (*glyphs))[glyphs_named_sofar_0 as usize]
+                        if (glyphs_named_sofar_0 as usize) < glyphs.len() {
+                            glyphs[glyphs_named_sofar_0 as usize]
                                 .as_mut()
                                 .unwrap()
                                 .name = glyphname_1;
-                            (&mut (*glyphs))[glyphs_named_sofar_0 as usize]
+                            glyphs[glyphs_named_sofar_0 as usize]
                                 .as_mut()
                                 .unwrap()
                                 .cid = sid_1 as GlyphId;
@@ -1093,9 +1097,9 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                 for (j_2, &g) in glyph.iter().enumerate() {
                     let sid_2: CffSid = g as CffSid;
                     let glyphname_2: Option<Vec<u8>> =
-                        get_cff_sid(sid_2 as u16, &(*cff_file).string);
+                        unsafe { get_cff_sid(sid_2 as u16, &cff_file.string) };
                     if let Some(glyphname_2) = glyphname_2 {
-                        (&mut (*glyphs))[j_2 + 1].as_mut().unwrap().name = glyphname_2;
+                        glyphs[j_2 + 1].as_mut().unwrap().name = glyphname_2;
                     }
                 }
             }
@@ -1108,10 +1112,10 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                         let sid_3: CffSid =
                             (first_1 as i32 + k_1 as i32) as CffSid;
                         let glyphname_3: Option<Vec<u8>> =
-                            get_cff_sid(sid_3 as u16, &(*cff_file).string);
-                        if (glyphs_named_sofar_1 as usize) < (*glyphs).len() {
+                            unsafe { get_cff_sid(sid_3 as u16, &cff_file.string) };
+                        if (glyphs_named_sofar_1 as usize) < glyphs.len() {
                             if let Some(glyphname_3) = glyphname_3 {
-                                (&mut (*glyphs))[glyphs_named_sofar_1 as usize]
+                                glyphs[glyphs_named_sofar_1 as usize]
                                     .as_mut()
                                     .unwrap()
                                     .name = glyphname_3;
@@ -1131,10 +1135,10 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
                         let sid_4: CffSid =
                             (first_2 as i32 + k_2 as i32) as CffSid;
                         let glyphname_4: Option<Vec<u8>> =
-                            get_cff_sid(sid_4 as u16, &(*cff_file).string);
-                        if (glyphs_named_sofar_2 as usize) < (*glyphs).len() {
+                            unsafe { get_cff_sid(sid_4 as u16, &cff_file.string) };
+                        if (glyphs_named_sofar_2 as usize) < glyphs.len() {
                             if let Some(glyphname_4) = glyphname_4 {
-                                (&mut (*glyphs))[glyphs_named_sofar_2 as usize]
+                                glyphs[glyphs_named_sofar_2 as usize]
                                     .as_mut()
                                     .unwrap()
                                     .name = glyphname_4;
@@ -1149,71 +1153,60 @@ unsafe fn name_glyphs_according_to_cff(context: *mut CffExtractContext) {
         }
     };
 }
-unsafe fn qround(x: ::core::ffi::c_double) -> ::core::ffi::c_double {
+fn qround(x: ::core::ffi::c_double) -> ::core::ffi::c_double {
     return otfcc_from_fixed(otfcc_to_fixed(x));
 }
-unsafe fn apply_cff_matrix(
-    cff: *mut CffTable,
-    glyf: *mut GlyfTable,
-    head: *const HeadTable,
-) {
-    let mut jj: GlyphId = 0 as GlyphId;
-    while (jj as usize) < (*glyf).len() {
-        let g: *mut Glyph = &raw mut **(&mut (*glyf))[jj as usize].as_mut().unwrap();
-        let mut fd: *mut CffTable = cff;
-        if ((*g).fd_select.index as usize) < (*fd).fd_array.len() {
-            fd = (&mut (*fd).fd_array)[(*g).fd_select.index as usize].as_mut() as *mut CffTable;
+fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: &HeadTable) {
+    for gbox in glyf.iter_mut() {
+        let g: &mut Glyph = gbox.as_mut().unwrap();
+        let mut fd: &CffTable = cff;
+        if (g.fd_select.index as usize) < fd.fd_array.len() {
+            fd = &*fd.fd_array[g.fd_select.index as usize];
         }
-        if let Some(fm) = (*fd).font_matrix.as_deref() {
+        if let Some(fm) = fd.font_matrix.as_deref() {
             let a: Scale = qround(
-                (*head).units_per_em as i32 as ::core::ffi::c_double
+                head.units_per_em as i32 as ::core::ffi::c_double
                     * fm.a as ::core::ffi::c_double,
             ) as Scale;
             let b: Scale = qround(
-                (*head).units_per_em as i32 as ::core::ffi::c_double
+                head.units_per_em as i32 as ::core::ffi::c_double
                     * fm.b as ::core::ffi::c_double,
             ) as Scale;
             let c: Scale = qround(
-                (*head).units_per_em as i32 as ::core::ffi::c_double
+                head.units_per_em as i32 as ::core::ffi::c_double
                     * fm.c as ::core::ffi::c_double,
             ) as Scale;
             let d: Scale = qround(
-                (*head).units_per_em as i32 as ::core::ffi::c_double
+                head.units_per_em as i32 as ::core::ffi::c_double
                     * fm.d as ::core::ffi::c_double,
             ) as Scale;
-            let mut x: VQ = vq_scale(fm.x.clone(), (*head).units_per_em as Scale);
+            let mut x: VQ = vq_scale(fm.x.clone(), head.units_per_em as Scale);
             x.kernel = qround(x.kernel as ::core::ffi::c_double) as Pos;
-            let mut y: VQ = vq_scale(fm.y.clone(), (*head).units_per_em as Scale);
+            let mut y: VQ = vq_scale(fm.y.clone(), head.units_per_em as Scale);
             y.kernel = qround(y.kernel as ::core::ffi::c_double) as Pos;
-            let mut j: ShapeId = 0 as ShapeId;
-            while (j as usize) < (*g).contours.len() {
-                let contour: *mut Contour = &raw mut (&mut (*g).contours)[j as usize];
-                let mut k: ShapeId = 0 as ShapeId;
-                while (k as usize) < (*contour).len() {
-                    let zx: VQ = vq_dup((&(*contour))[k as usize].x.clone());
-                    let zy: VQ = vq_dup((&(*contour))[k as usize].y.clone());
+            for contour in g.contours.iter_mut() {
+                for point in contour.iter_mut() {
+                    let zx: VQ = vq_dup(point.x.clone());
+                    let zy: VQ = vq_dup(point.y.clone());
                     vq_replace(
-                        &mut (&mut (*contour))[k as usize].x,
+                        &mut point.x,
                         vq_point_linear_tfm(x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone())
                             as VQ,
                     );
                     vq_replace(
-                        &mut (&mut (*contour))[k as usize].y,
+                        &mut point.y,
                         vq_point_linear_tfm(y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone())
                             as VQ,
                     );
                     // `zx`/`zy` are plain owned locals, never moved out, so
                     // they auto-drop at the end of this iteration -- no
                     // explicit dispose call is needed.
-                    k = k.wrapping_add(1);
                 }
-                j = j.wrapping_add(1);
             }
             // `x`/`y` are plain owned locals, never moved out, so they
             // auto-drop at the end of this block -- no explicit dispose
             // call is needed.
         }
-        jj = jj.wrapping_add(1);
     }
 }
 pub unsafe fn otfcc_read_cff_and_glyf_tables(
@@ -1362,8 +1355,8 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                 );
                 j_0 = j_0.wrapping_add(1);
             }
-            apply_cff_matrix(context.meta, context.glyphs, head);
-            name_glyphs_according_to_cff(&raw mut context);
+            apply_cff_matrix(&*context.meta, &mut *context.glyphs, &*head);
+            name_glyphs_according_to_cff(&context);
             ret.glyphs = context.glyphs;
         }
         cff_close(cff_file);
@@ -1380,186 +1373,175 @@ fn pd_delta_to_json(target: &mut BuiltValue, field: &[u8], values: &[::core::ffi
     }
     target.push_field(field, a);
 }
-unsafe fn pd_to_json(pd: *const CffPrivateDict) -> BuiltValue {
+fn pd_to_json(pd: &CffPrivateDict) -> BuiltValue {
     let mut _pd = BuiltValue::new_object(24);
-    pd_delta_to_json(&mut _pd, b"blueValues", &(*pd).blue_values);
-    pd_delta_to_json(&mut _pd, b"otherBlues", &(*pd).other_blues);
-    pd_delta_to_json(&mut _pd, b"familyBlues", &(*pd).family_blues);
-    pd_delta_to_json(&mut _pd, b"familyOtherBlues", &(*pd).family_other_blues);
-    pd_delta_to_json(&mut _pd, b"stemSnapH", &(*pd).stem_snap_h);
-    pd_delta_to_json(&mut _pd, b"stemSnapV", &(*pd).stem_snap_v);
-    if (*pd).blue_scale != DEFAULT_BLUE_SCALE {
-        _pd.push_field(b"blueScale", BuiltValue::Double((*pd).blue_scale));
+    pd_delta_to_json(&mut _pd, b"blueValues", &pd.blue_values);
+    pd_delta_to_json(&mut _pd, b"otherBlues", &pd.other_blues);
+    pd_delta_to_json(&mut _pd, b"familyBlues", &pd.family_blues);
+    pd_delta_to_json(&mut _pd, b"familyOtherBlues", &pd.family_other_blues);
+    pd_delta_to_json(&mut _pd, b"stemSnapH", &pd.stem_snap_h);
+    pd_delta_to_json(&mut _pd, b"stemSnapV", &pd.stem_snap_v);
+    if pd.blue_scale != DEFAULT_BLUE_SCALE {
+        _pd.push_field(b"blueScale", BuiltValue::Double(pd.blue_scale));
     }
-    if (*pd).blue_shift != DEFAULT_BLUE_SHIFT {
-        _pd.push_field(b"blueShift", BuiltValue::Double((*pd).blue_shift));
+    if pd.blue_shift != DEFAULT_BLUE_SHIFT {
+        _pd.push_field(b"blueShift", BuiltValue::Double(pd.blue_shift));
     }
-    if (*pd).blue_fuzz != DEFAULT_BLUE_FUZZ {
-        _pd.push_field(b"blueFuzz", BuiltValue::Double((*pd).blue_fuzz));
+    if pd.blue_fuzz != DEFAULT_BLUE_FUZZ {
+        _pd.push_field(b"blueFuzz", BuiltValue::Double(pd.blue_fuzz));
     }
-    if (*pd).std_hw != 0. {
-        _pd.push_field(b"stdHW", BuiltValue::Double((*pd).std_hw));
+    if pd.std_hw != 0. {
+        _pd.push_field(b"stdHW", BuiltValue::Double(pd.std_hw));
     }
-    if (*pd).std_vw != 0. {
-        _pd.push_field(b"stdVW", BuiltValue::Double((*pd).std_vw));
+    if pd.std_vw != 0. {
+        _pd.push_field(b"stdVW", BuiltValue::Double(pd.std_vw));
     }
-    if (*pd).force_bold {
-        _pd.push_field(b"forceBold", BuiltValue::Bool((*pd).force_bold));
+    if pd.force_bold {
+        _pd.push_field(b"forceBold", BuiltValue::Bool(pd.force_bold));
     }
-    if (*pd).language_group != 0 {
+    if pd.language_group != 0 {
         _pd.push_field(
             b"languageGroup",
-            BuiltValue::Double((*pd).language_group as ::core::ffi::c_double),
+            BuiltValue::Double(pd.language_group as ::core::ffi::c_double),
         );
     }
-    if (*pd).expansion_factor != DEFAULT_EXPANSION_FACTOR {
-        _pd.push_field(b"expansionFactor", BuiltValue::Double((*pd).expansion_factor));
+    if pd.expansion_factor != DEFAULT_EXPANSION_FACTOR {
+        _pd.push_field(b"expansionFactor", BuiltValue::Double(pd.expansion_factor));
     }
-    if (*pd).initial_random_seed != 0. {
+    if pd.initial_random_seed != 0. {
         _pd.push_field(
             b"initialRandomSeed",
-            BuiltValue::Double((*pd).initial_random_seed),
+            BuiltValue::Double(pd.initial_random_seed),
         );
     }
-    if (*pd).default_width_x != 0. {
-        _pd.push_field(b"defaultWidthX", BuiltValue::Double((*pd).default_width_x));
+    if pd.default_width_x != 0. {
+        _pd.push_field(b"defaultWidthX", BuiltValue::Double(pd.default_width_x));
     }
-    if (*pd).nominal_width_x != 0. {
-        _pd.push_field(b"nominalWidthX", BuiltValue::Double((*pd).nominal_width_x));
+    if pd.nominal_width_x != 0. {
+        _pd.push_field(b"nominalWidthX", BuiltValue::Double(pd.nominal_width_x));
     }
     _pd
 }
-unsafe fn fd_to_json(table: *const CffTable) -> BuiltValue {
+fn fd_to_json(table: &CffTable) -> BuiltValue {
     let mut _cff = BuiltValue::new_object(24);
-    if (*table).is_cid {
-        _cff.push_field(b"isCID", BuiltValue::Bool((*table).is_cid));
+    if table.is_cid {
+        _cff.push_field(b"isCID", BuiltValue::Bool(table.is_cid));
     }
-    if !(*table).version.is_empty() {
-        _cff.push_field(b"version", json_from_sds(&(*table).version));
+    if !table.version.is_empty() {
+        _cff.push_field(b"version", json_from_sds(&table.version));
     }
-    if !(*table).notice.is_empty() {
-        _cff.push_field(b"notice", json_from_sds(&(*table).notice));
+    if !table.notice.is_empty() {
+        _cff.push_field(b"notice", json_from_sds(&table.notice));
     }
-    if !(*table).copyright.is_empty() {
-        _cff.push_field(b"copyright", json_from_sds(&(*table).copyright));
+    if !table.copyright.is_empty() {
+        _cff.push_field(b"copyright", json_from_sds(&table.copyright));
     }
-    if !(*table).font_name.is_empty() {
-        _cff.push_field(b"fontName", json_from_sds(&(*table).font_name));
+    if !table.font_name.is_empty() {
+        _cff.push_field(b"fontName", json_from_sds(&table.font_name));
     }
-    if !(*table).full_name.is_empty() {
-        _cff.push_field(b"fullName", json_from_sds(&(*table).full_name));
+    if !table.full_name.is_empty() {
+        _cff.push_field(b"fullName", json_from_sds(&table.full_name));
     }
-    if !(*table).family_name.is_empty() {
-        _cff.push_field(b"familyName", json_from_sds(&(*table).family_name));
+    if !table.family_name.is_empty() {
+        _cff.push_field(b"familyName", json_from_sds(&table.family_name));
     }
-    if !(*table).weight.is_empty() {
-        _cff.push_field(b"weight", json_from_sds(&(*table).weight));
+    if !table.weight.is_empty() {
+        _cff.push_field(b"weight", json_from_sds(&table.weight));
     }
-    if (*table).is_fixed_pitch {
-        _cff.push_field(b"isFixedPitch", BuiltValue::Bool((*table).is_fixed_pitch));
+    if table.is_fixed_pitch {
+        _cff.push_field(b"isFixedPitch", BuiltValue::Bool(table.is_fixed_pitch));
     }
-    if (*table).italic_angle != 0. {
-        _cff.push_field(b"italicAngle", BuiltValue::Double((*table).italic_angle));
+    if table.italic_angle != 0. {
+        _cff.push_field(b"italicAngle", BuiltValue::Double(table.italic_angle));
     }
-    if (*table).underline_position != -100_i32 as ::core::ffi::c_double {
+    if table.underline_position != -100_i32 as ::core::ffi::c_double {
         _cff.push_field(
             b"underlinePosition",
-            BuiltValue::Double((*table).underline_position),
+            BuiltValue::Double(table.underline_position),
         );
     }
-    if (*table).underline_thickness != 50_i32 as ::core::ffi::c_double {
+    if table.underline_thickness != 50_i32 as ::core::ffi::c_double {
         _cff.push_field(
             b"underlineThickness",
-            BuiltValue::Double((*table).underline_thickness),
+            BuiltValue::Double(table.underline_thickness),
         );
     }
-    if (*table).stroke_width != 0. {
-        _cff.push_field(b"strokeWidth", BuiltValue::Double((*table).stroke_width));
+    if table.stroke_width != 0. {
+        _cff.push_field(b"strokeWidth", BuiltValue::Double(table.stroke_width));
     }
-    if (*table).font_b_box_left != 0. {
-        _cff.push_field(b"fontBBoxLeft", BuiltValue::Double((*table).font_b_box_left));
+    if table.font_b_box_left != 0. {
+        _cff.push_field(b"fontBBoxLeft", BuiltValue::Double(table.font_b_box_left));
     }
-    if (*table).font_b_box_bottom != 0. {
+    if table.font_b_box_bottom != 0. {
         _cff.push_field(
             b"fontBBoxBottom",
-            BuiltValue::Double((*table).font_b_box_bottom),
+            BuiltValue::Double(table.font_b_box_bottom),
         );
     }
-    if (*table).font_b_box_right != 0. {
-        _cff.push_field(b"fontBBoxRight", BuiltValue::Double((*table).font_b_box_right));
+    if table.font_b_box_right != 0. {
+        _cff.push_field(b"fontBBoxRight", BuiltValue::Double(table.font_b_box_right));
     }
-    if (*table).font_b_box_top != 0. {
-        _cff.push_field(b"fontBBoxTop", BuiltValue::Double((*table).font_b_box_top));
+    if table.font_b_box_top != 0. {
+        _cff.push_field(b"fontBBoxTop", BuiltValue::Double(table.font_b_box_top));
     }
-    if let Some(fm) = (*table).font_matrix.as_deref() {
+    if let Some(fm) = table.font_matrix.as_deref() {
         let mut _font_matrix = BuiltValue::new_object(6);
         _font_matrix.push_field(b"a", BuiltValue::Double(fm.a as ::core::ffi::c_double));
         _font_matrix.push_field(b"b", BuiltValue::Double(fm.b as ::core::ffi::c_double));
         _font_matrix.push_field(b"c", BuiltValue::Double(fm.c as ::core::ffi::c_double));
         _font_matrix.push_field(b"d", BuiltValue::Double(fm.d as ::core::ffi::c_double));
-        _font_matrix.push_field(
-            b"x",
-            json_new_vq(fm.x.clone(), ::core::ptr::null::<FvarTable>()),
-        );
-        _font_matrix.push_field(
-            b"y",
-            json_new_vq(fm.y.clone(), ::core::ptr::null::<FvarTable>()),
-        );
+        // `json_new_vq` is still its own not-yet-migrated raw-pointer shell
+        // (`FvarTable` arg) -- narrow bridge, same shape as `vqs_compare`'s.
+        _font_matrix.push_field(b"x", unsafe {
+            json_new_vq(fm.x.clone(), ::core::ptr::null::<FvarTable>())
+        });
+        _font_matrix.push_field(b"y", unsafe {
+            json_new_vq(fm.y.clone(), ::core::ptr::null::<FvarTable>())
+        });
         _cff.push_field(b"fontMatrix", _font_matrix);
     }
-    if let Some(pd) = (*table).private_dict.as_deref() {
-        _cff.push_field(b"privates", pd_to_json(pd as *const CffPrivateDict));
+    if let Some(pd) = table.private_dict.as_deref() {
+        _cff.push_field(b"privates", pd_to_json(pd));
     }
-    if !(*table).cid_registry.is_empty() && !(*table).cid_ordering.is_empty() {
-        _cff.push_field(b"cidRegistry", json_from_sds(&(*table).cid_registry));
-        _cff.push_field(b"cidOrdering", json_from_sds(&(*table).cid_ordering));
+    if !table.cid_registry.is_empty() && !table.cid_ordering.is_empty() {
+        _cff.push_field(b"cidRegistry", json_from_sds(&table.cid_registry));
+        _cff.push_field(b"cidOrdering", json_from_sds(&table.cid_ordering));
         _cff.push_field(
             b"cidSupplement",
-            BuiltValue::Int((*table).cid_supplement as i64),
+            BuiltValue::Int(table.cid_supplement as i64),
         );
     }
-    if !(*table).fd_array.is_empty() {
-        let mut _fd_array = BuiltValue::new_object((*table).fd_array.len());
-        // `table` is `*const CffTable`, but the take/restore below needs a
-        // mutable place -- sound here because nothing else touches `table`
-        // during a dump pass, matching the same "read-only signature,
-        // temporary local mutation" shape the original raw-pointer-through-
-        // a-second-pointer code already relied on.
-        let table_mut: *mut CffTable = table as *mut CffTable;
-        let fd_array: &mut Vec<Box<CffTable>> = &mut (*table_mut).fd_array;
-        let mut j: TableId = 0 as TableId;
-        while (j as usize) < fd_array.len() {
-            let name: Vec<u8> = ::core::mem::take(&mut fd_array[j as usize].font_name);
-            _fd_array.push_field_bytes_key(
-                &name,
-                fd_to_json(fd_array[j as usize].as_ref() as *const CffTable),
-            );
-            fd_array[j as usize].font_name = name;
-            j = j.wrapping_add(1);
+    if !table.fd_array.is_empty() {
+        let mut _fd_array = BuiltValue::new_object(table.fd_array.len());
+        for fd in &table.fd_array {
+            // Each FD's own name is already the key it's stored under in
+            // `fdArray` -- the original raw-pointer code achieved this by
+            // temporarily taking `font_name` out of `fd` (so the nested
+            // `fd_to_json` call saw it as empty and skipped the `fontName`
+            // field entirely) before restoring it for use as the key.
+            // Building the child fully and then dropping that one field
+            // reproduces the exact same output without needing a mutable
+            // borrow of `table` here.
+            let mut child = fd_to_json(fd);
+            if let BuiltValue::Object(fields) = &mut child {
+                fields.retain(|(k, _)| k != b"fontName");
+            }
+            _fd_array.push_field_bytes_key(&fd.font_name, child);
         }
         _cff.push_field(b"fdArray", _fd_array);
     }
     _cff
 }
-pub unsafe fn otfcc_dump_cff(
-    table: Option<&CffTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
-    let table: *const CffTable = table.map_or(::core::ptr::null(), |t| t as *const CffTable);
-    if table.is_null() {
+pub fn otfcc_dump_cff(table: Option<&CffTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(table) = table else {
         return;
-    }
+    };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"CFF"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        root.push_field(b"CFF_", fd_to_json(table));
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
-    }
+    root.push_field(b"CFF_", fd_to_json(table));
+    logger_finish(&mut *options.logger.borrow_mut());
 }
 fn pd_delta_from_json(dump: Option<&ParsedValue>) -> Vec<::core::ffi::c_double> {
     let Some(items) = dump.and_then(ParsedValue::as_array) else {
@@ -1587,84 +1569,81 @@ fn pd_from_json(dump: Option<&ParsedValue>) -> Option<Box<CffPrivateDict>> {
     pd_box.initial_random_seed = dump.get_num(b"initialRandomSeed");
     Some(pd_box)
 }
-unsafe fn fd_from_json(
-    dump: Option<&ParsedValue>,
-    options: &Options,
-    top_level: bool,
-) -> *mut CffTable {
-    let table: *mut CffTable = (table_cff_create)();
+// Builds the whole tree of `CffTable`/`fd_array` children as owned local
+// values first, `Box`ing each one only once it's fully populated -- same
+// "build locally, box at the end" shape as `new_index_by_callback`/
+// `read_class_def`/`read_coverage` -- rather than allocating up front via
+// `table_cff_create()` and writing through a raw pointer field by field.
+fn fd_from_json(dump: Option<&ParsedValue>, options: &Options, top_level: bool) -> Box<CffTable> {
+    let mut table = table_cff_new();
     let Some(dump) = dump.filter(|v| v.as_object().is_some()) else {
         return table;
     };
-    (*table).version = dump.get_bytes_owned(b"version").unwrap_or_default();
-    (*table).notice = dump.get_bytes_owned(b"notice").unwrap_or_default();
-    (*table).copyright = dump.get_bytes_owned(b"copyright").unwrap_or_default();
-    (*table).font_name = dump.get_bytes_owned(b"fontName").unwrap_or_default();
-    (*table).full_name = dump.get_bytes_owned(b"fullName").unwrap_or_default();
-    (*table).family_name = dump.get_bytes_owned(b"familyName").unwrap_or_default();
-    (*table).weight = dump.get_bytes_owned(b"weight").unwrap_or_default();
-    (*table).is_fixed_pitch = dump.get_bool(b"isFixedPitch");
-    (*table).italic_angle = dump.get_num(b"italicAngle");
-    (*table).underline_position = dump.get_num_or(b"underlinePosition", -100.0f64);
-    (*table).underline_thickness = dump.get_num_or(b"underlineThickness", 50.0f64);
-    (*table).stroke_width = dump.get_num(b"strokeWidth");
-    (*table).font_b_box_left = dump.get_num(b"fontBBoxLeft");
-    (*table).font_b_box_bottom = dump.get_num(b"fontBBoxBottom");
-    (*table).font_b_box_right = dump.get_num(b"fontBBoxRight");
-    (*table).font_b_box_top = dump.get_num(b"fontBBoxTop");
-    (*table).private_dict = pd_from_json(dump.get_typed(b"privates", JsonType::Object));
-    (*table).cid_registry = dump.get_bytes_owned(b"cidRegistry").unwrap_or_default();
-    (*table).cid_ordering = dump.get_bytes_owned(b"cidOrdering").unwrap_or_default();
-    (*table).cid_supplement = dump.get_int(b"cidSupplement") as u32;
-    (*table).uid_base = dump.get_int(b"UIDBase") as u32;
-    (*table).cid_count = dump.get_int(b"cidCount") as u32;
-    (*table).cid_font_version = dump.get_num(b"cidFontVersion");
-    (*table).cid_font_revision = dump.get_num(b"cidFontRevision");
+    table.version = dump.get_bytes_owned(b"version").unwrap_or_default();
+    table.notice = dump.get_bytes_owned(b"notice").unwrap_or_default();
+    table.copyright = dump.get_bytes_owned(b"copyright").unwrap_or_default();
+    table.font_name = dump.get_bytes_owned(b"fontName").unwrap_or_default();
+    table.full_name = dump.get_bytes_owned(b"fullName").unwrap_or_default();
+    table.family_name = dump.get_bytes_owned(b"familyName").unwrap_or_default();
+    table.weight = dump.get_bytes_owned(b"weight").unwrap_or_default();
+    table.is_fixed_pitch = dump.get_bool(b"isFixedPitch");
+    table.italic_angle = dump.get_num(b"italicAngle");
+    table.underline_position = dump.get_num_or(b"underlinePosition", -100.0f64);
+    table.underline_thickness = dump.get_num_or(b"underlineThickness", 50.0f64);
+    table.stroke_width = dump.get_num(b"strokeWidth");
+    table.font_b_box_left = dump.get_num(b"fontBBoxLeft");
+    table.font_b_box_bottom = dump.get_num(b"fontBBoxBottom");
+    table.font_b_box_right = dump.get_num(b"fontBBoxRight");
+    table.font_b_box_top = dump.get_num(b"fontBBoxTop");
+    table.private_dict = pd_from_json(dump.get_typed(b"privates", JsonType::Object));
+    table.cid_registry = dump.get_bytes_owned(b"cidRegistry").unwrap_or_default();
+    table.cid_ordering = dump.get_bytes_owned(b"cidOrdering").unwrap_or_default();
+    table.cid_supplement = dump.get_int(b"cidSupplement") as u32;
+    table.uid_base = dump.get_int(b"UIDBase") as u32;
+    table.cid_count = dump.get_int(b"cidCount") as u32;
+    table.cid_font_version = dump.get_num(b"cidFontVersion");
+    table.cid_font_revision = dump.get_num(b"cidFontRevision");
     if let Some(fields) = dump
         .get_typed(b"fdArray", JsonType::Object)
         .and_then(ParsedValue::as_object)
     {
-        (*table).is_cid = true;
-        (*table).fd_array = Vec::with_capacity(fields.len());
+        table.is_cid = true;
+        table.fd_array = Vec::with_capacity(fields.len());
         for (key, val) in fields {
             // `fd_from_json` builds each child fully before returning
             // (unlike the binary-read path, which populates a `fd_array`
             // slot incrementally via a recursive callback) -- so there's
             // no need to push an empty placeholder first here.
-            let mut fd_box: Box<CffTable> =
-                unwrap_cff_table(fd_from_json(Some(val), options, false)).unwrap();
+            let mut fd_box: Box<CffTable> = fd_from_json(Some(val), options, false);
             fd_box.font_name = key[..key.len() - 1].to_vec();
-            (*table).fd_array.push(fd_box);
+            table.fd_array.push(fd_box);
         }
     }
-    if (*table).font_name.is_empty() {
-        (*table).font_name = b"CARYLL_CFFFONT".to_vec();
+    if table.font_name.is_empty() {
+        table.font_name = b"CARYLL_CFFFONT".to_vec();
     }
-    if (*table).private_dict.is_none() {
-        (*table).private_dict = Some(otfcc_new_cff_private());
+    if table.private_dict.is_none() {
+        table.private_dict = Some(otfcc_new_cff_private());
     }
-    if top_level && options.force_cid && (*table).fd_array.is_empty() {
-        let mut fd0_box: Box<CffTable> = unwrap_cff_table((table_cff_create)()).unwrap();
-        fd0_box.private_dict = (*table).private_dict.take();
-        (*table).private_dict = Some(otfcc_new_cff_private());
-        let mut subfont0_name = (*table).font_name.clone();
+    if top_level && options.force_cid && table.fd_array.is_empty() {
+        let mut fd0_box: Box<CffTable> = table_cff_new();
+        fd0_box.private_dict = table.private_dict.take();
+        table.private_dict = Some(otfcc_new_cff_private());
+        let mut subfont0_name = table.font_name.clone();
         subfont0_name.extend_from_slice(b"-subfont0");
         fd0_box.font_name = subfont0_name;
-        (*table).fd_array.push(fd0_box);
-        (*table).is_cid = true;
+        table.fd_array.push(fd0_box);
+        table.is_cid = true;
     }
-    if (*table).is_cid && (*table).cid_registry.is_empty() {
-        (*table).cid_registry = b"CARYLL".to_vec();
+    if table.is_cid && table.cid_registry.is_empty() {
+        table.cid_registry = b"CARYLL".to_vec();
     }
-    if (*table).is_cid && (*table).cid_ordering.is_empty() {
-        (*table).cid_ordering = b"OTFCCAUTOCID".to_vec();
+    if table.is_cid && table.cid_ordering.is_empty() {
+        table.cid_ordering = b"OTFCCAUTOCID".to_vec();
     }
-    return table;
+    table
 }
-pub unsafe fn otfcc_parse_cff(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<CffTable>> {
+pub fn otfcc_parse_cff(root: &ParsedValue, options: &Options) -> Option<Box<CffTable>> {
     let dump = root.get_typed(b"CFF_", JsonType::Object)?;
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
@@ -1672,27 +1651,33 @@ pub unsafe fn otfcc_parse_cff(
     );
     let cff = fd_from_json(Some(dump), options, true);
     logger_finish(&mut *options.logger.borrow_mut());
-    unwrap_cff_table(cff)
+    Some(cff)
 }
-unsafe fn cff_make_charstrings(context: *mut CffCharstringBuilderContext) -> (Buffer, Buffer, Buffer) {
-    if (*(*context).glyf).is_empty() {
+// `CffCharstringBuilderContext.glyf`/`.options` are still raw-pointer
+// fields (their own not-yet-migrated shell), so those two derefs stay
+// narrow `unsafe {}` bridges; everything else here (the `graph` field and
+// every callee) is already safe.
+fn cff_make_charstrings(context: &mut CffCharstringBuilderContext) -> (Buffer, Buffer, Buffer) {
+    let glyf: &GlyfTable = unsafe { &*context.glyf };
+    if glyf.is_empty() {
         // With 0 glyphs, `cff_il_graph_to_buffers` below never runs, so
         // the caller (`writecff_cid_keyed`) still needs three empty (but
         // real) `Buffer`s here.
         return (Buffer::new(), Buffer::new(), Buffer::new());
     }
+    let options: &Options = unsafe { &*context.options };
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*(*context).glyf).len() {
+    while (j as usize) < glyf.len() {
         let mut il: CffCharstringIl = cff_compile_glyph_to_il(
-            (&(*(*context).glyf))[j as usize].as_deref().unwrap(),
-            (*context).default_width,
-            (*context).nominal_width_x,
+            glyf[j as usize].as_deref().unwrap(),
+            context.default_width,
+            context.nominal_width_x,
         );
-        cff_optimize_il(&mut il, &*(*context).options);
-        cff_insert_il_to_graph(&mut (*context).graph, &il);
+        cff_optimize_il(&mut il, options);
+        cff_insert_il_to_graph(&mut context.graph, &il);
         j = j.wrapping_add(1);
     }
-    cff_il_graph_to_buffers(&mut (*context).graph, &*(*context).options)
+    cff_il_graph_to_buffers(&mut context.graph, options)
 }
 // Deduplicates by string content, first registration wins -- returns the
 // existing SID if the string was already registered, otherwise assigns
@@ -1717,24 +1702,24 @@ unsafe fn cff_make_charstrings(context: *mut CffCharstringBuilderContext) -> (Bu
 // treated as the same string for dedup purposes (the original's exact
 // behavior), but the winning entry's full byte content, NUL and all, is
 // still what ends up in the output.
-unsafe fn sidof(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>, s: &[u8]) -> i32 {
+fn sidof(h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>, s: &[u8]) -> i32 {
     let key: Vec<u8> = match s.iter().position(|&b| b == 0) {
         Some(p) => s[..p].to_vec(),
         None => s.to_vec(),
     };
-    if let Some(idx) = (*h).get_index_of(&key) {
+    if let Some(idx) = h.get_index_of(&key) {
         return 391_i32 + idx as i32;
     }
-    let idx = (*h).len();
-    (*h).insert(key, s.to_vec());
+    let idx = h.len();
+    h.insert(key, s.to_vec());
     return 391_i32 + idx as i32;
 }
-unsafe fn cffdict_givemeablank(dict: *mut CffDict) -> *mut CffDictEntry {
-    (*dict).ents.push(CffDictEntry {
+fn cffdict_givemeablank(dict: &mut CffDict) -> &mut CffDictEntry {
+    dict.ents.push(CffDictEntry {
         op: CffDictOperator(0),
         vals: Vec::new(),
     });
-    return (*dict).ents.last_mut().unwrap() as *mut CffDictEntry;
+    dict.ents.last_mut().unwrap()
 }
 /// Append a DICT entry whose operands are numbers.
 ///
@@ -1744,31 +1729,35 @@ unsafe fn cffdict_givemeablank(dict: *mut CffDict) -> *mut CffDictEntry {
 /// the `Double` type with `Pos` operands or `Integer` with integer ones, so
 /// the runtime branch on the type was really two functions -- this one and
 /// [`cffdict_input_ints`] -- and the count is the slice's length.
-unsafe fn cffdict_input_doubles(dict: *mut CffDict, op: CffDictOperator, values: &[f64]) {
-    let last: *mut CffDictEntry = cffdict_givemeablank(dict);
-    (*last).op = op;
+fn cffdict_input_doubles(dict: &mut CffDict, op: CffDictOperator, values: &[f64]) {
     let mut vals: Vec<CffValue> = Vec::with_capacity(values.len());
     for &x in values.iter() {
-        // A whole number is stored as an integer, which is what decides whether
-        // the DICT is encoded with an integer or a real operand later.
-        vals.push(if x == round(x) {
-            CffValue::Integer(round(x) as i32)
+        // A whole number is stored as an integer, which is what decides
+        // whether the DICT is encoded with an integer or a real operand
+        // later. `f64::round` matches C99 `round()` (round half away from
+        // zero) bit-for-bit -- verified across ~16,000 inputs (half-cases,
+        // NaN, +/-inf included) when `support/primitives.rs` made the same
+        // substitution; see [[otfcc-libc-differs-where-c-is-undefined]].
+        vals.push(if x == x.round() {
+            CffValue::Integer(x.round() as i32)
         } else {
             CffValue::Double(x)
         });
     }
-    (*last).vals = vals;
+    let last = cffdict_givemeablank(dict);
+    last.op = op;
+    last.vals = vals;
 }
 
 /// Append a DICT entry whose operands are integers. See [`cffdict_input_doubles`].
-unsafe fn cffdict_input_ints(dict: *mut CffDict, op: CffDictOperator, values: &[i32]) {
-    let last: *mut CffDictEntry = cffdict_givemeablank(dict);
-    (*last).op = op;
+fn cffdict_input_ints(dict: &mut CffDict, op: CffDictOperator, values: &[i32]) {
     let mut vals: Vec<CffValue> = Vec::with_capacity(values.len());
     for &x in values.iter() {
         vals.push(CffValue::Integer(x));
     }
-    (*last).vals = vals;
+    let last = cffdict_givemeablank(dict);
+    last.op = op;
+    last.vals = vals;
 }
 
 /// Was generic over a `CffValueType` (`Double` vs `Integer` operand
@@ -1781,220 +1770,176 @@ unsafe fn cffdict_input_ints(dict: *mut CffDict, op: CffDictOperator, values: &[
 /// at each site because of the one behavior it has that
 /// `cffdict_input_doubles` doesn't: skip emitting the DICT entry entirely
 /// when `arr` is empty, instead of adding one with zero operands.
-unsafe fn cffdict_input_array(
-    dict: *mut CffDict,
-    op: CffDictOperator,
-    arr: &[::core::ffi::c_double],
-) {
+fn cffdict_input_array(dict: &mut CffDict, op: CffDictOperator, arr: &[::core::ffi::c_double]) {
     if arr.is_empty() {
         return;
     }
     cffdict_input_doubles(dict, op, arr);
 }
-unsafe fn cff_make_fd_dict(
-    fd: *mut CffTable,
-    h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
-) -> *mut CffDict {
-    let dict: *mut CffDict = (cff_dict_create)();
-    if !(*fd).cid_registry.is_empty() && !(*fd).cid_ordering.is_empty() {
+// Builds the `CffDict` as an owned local value (`CffDict`'s one field,
+// `ents`, is `pub`) rather than allocating up front via `cff_dict_create()`
+// and writing through a raw pointer -- same "build locally, box at the
+// end" shape as `fd_from_json` above. The caller (`writecff_cid_keyed`)
+// still manages the result as `*mut CffDict` (paired with `cff_dict_free`),
+// since that's a separate, not-yet-migrated shell.
+fn cff_make_fd_dict(fd: &CffTable, h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> *mut CffDict {
+    let mut dict = CffDict { ents: Vec::new() };
+    if !fd.cid_registry.is_empty() && !fd.cid_ordering.is_empty() {
         cffdict_input_ints(
-            dict,
+            &mut dict,
             OP_ROS,
             &[
-                (sidof(h, &(*fd).cid_registry)),
-                (sidof(h, &(*fd).cid_ordering)),
-                ((*fd).cid_supplement) as i32,
+                sidof(h, &fd.cid_registry),
+                sidof(h, &fd.cid_ordering),
+                fd.cid_supplement as i32,
             ],
         );
     }
-    if !(*fd).version.is_empty() {
-        cffdict_input_ints(dict, OP_VERSION, &[(sidof(h, &(*fd).version))]);
+    if !fd.version.is_empty() {
+        cffdict_input_ints(&mut dict, OP_VERSION, &[sidof(h, &fd.version)]);
     }
-    if !(*fd).notice.is_empty() {
-        cffdict_input_ints(dict, OP_NOTICE, &[(sidof(h, &(*fd).notice))]);
+    if !fd.notice.is_empty() {
+        cffdict_input_ints(&mut dict, OP_NOTICE, &[sidof(h, &fd.notice)]);
     }
-    if !(*fd).copyright.is_empty() {
-        cffdict_input_ints(dict, OP_COPYRIGHT, &[(sidof(h, &(*fd).copyright))]);
+    if !fd.copyright.is_empty() {
+        cffdict_input_ints(&mut dict, OP_COPYRIGHT, &[sidof(h, &fd.copyright)]);
     }
-    if !(*fd).full_name.is_empty() {
-        cffdict_input_ints(dict, OP_FULL_NAME, &[(sidof(h, &(*fd).full_name))]);
+    if !fd.full_name.is_empty() {
+        cffdict_input_ints(&mut dict, OP_FULL_NAME, &[sidof(h, &fd.full_name)]);
     }
-    if !(*fd).family_name.is_empty() {
-        cffdict_input_ints(
-            dict,
-            OP_FAMILY_NAME,
-            &[(sidof(h, &(*fd).family_name))],
-        );
+    if !fd.family_name.is_empty() {
+        cffdict_input_ints(&mut dict, OP_FAMILY_NAME, &[sidof(h, &fd.family_name)]);
     }
-    if !(*fd).weight.is_empty() {
-        cffdict_input_ints(dict, OP_WEIGHT, &[(sidof(h, &(*fd).weight))]);
+    if !fd.weight.is_empty() {
+        cffdict_input_ints(&mut dict, OP_WEIGHT, &[sidof(h, &fd.weight)]);
     }
     cffdict_input_doubles(
-        dict,
+        &mut dict,
         OP_FONT_BBOX,
         &[
-            ((*fd).font_b_box_left),
-            ((*fd).font_b_box_bottom),
-            ((*fd).font_b_box_right),
-            ((*fd).font_b_box_top),
+            fd.font_b_box_left,
+            fd.font_b_box_bottom,
+            fd.font_b_box_right,
+            fd.font_b_box_top,
         ],
     );
-    cffdict_input_ints(
-        dict,
-        OP_IS_FIXED_PITCH,
-        &[((*fd).is_fixed_pitch as i32)],
-    );
-    cffdict_input_doubles(dict, OP_ITALIC_ANGLE, &[((*fd).italic_angle)]);
+    cffdict_input_ints(&mut dict, OP_IS_FIXED_PITCH, &[fd.is_fixed_pitch as i32]);
+    cffdict_input_doubles(&mut dict, OP_ITALIC_ANGLE, &[fd.italic_angle]);
+    cffdict_input_doubles(&mut dict, OP_UNDERLINE_POSITION, &[fd.underline_position]);
     cffdict_input_doubles(
-        dict,
-        OP_UNDERLINE_POSITION,
-        &[((*fd).underline_position)],
-    );
-    cffdict_input_doubles(
-        dict,
+        &mut dict,
         OP_UNDERLINE_THICKNESS,
-        &[((*fd).underline_thickness)],
+        &[fd.underline_thickness],
     );
-    cffdict_input_doubles(dict, OP_STROKE_WIDTH, &[((*fd).stroke_width)]);
-    if let Some(fm) = (*fd).font_matrix.as_deref() {
+    cffdict_input_doubles(&mut dict, OP_STROKE_WIDTH, &[fd.stroke_width]);
+    if let Some(fm) = fd.font_matrix.as_deref() {
         cffdict_input_doubles(
-            dict,
+            &mut dict,
             OP_FONT_MATRIX,
             &[
                 fm.a,
                 fm.b,
                 fm.c,
                 fm.d,
-                (vq_get_still(fm.x.clone())) as f64,
-                (vq_get_still(fm.y.clone())) as f64,
+                vq_get_still(fm.x.clone()) as f64,
+                vq_get_still(fm.y.clone()) as f64,
             ],
         );
     }
-    if !(*fd).font_name.is_empty() {
-        cffdict_input_ints(dict, OP_FONT_NAME, &[(sidof(h, &(*fd).font_name))]);
+    if !fd.font_name.is_empty() {
+        cffdict_input_ints(&mut dict, OP_FONT_NAME, &[sidof(h, &fd.font_name)]);
     }
-    if (*fd).cid_font_version != 0. {
-        cffdict_input_doubles(
-            dict,
-            OP_CID_FONT_VERSION,
-            &[((*fd).cid_font_version)],
-        );
+    if fd.cid_font_version != 0. {
+        cffdict_input_doubles(&mut dict, OP_CID_FONT_VERSION, &[fd.cid_font_version]);
     }
-    if (*fd).cid_font_revision != 0. {
-        cffdict_input_doubles(
-            dict,
-            OP_CID_FONT_REVISION,
-            &[((*fd).cid_font_revision)],
-        );
+    if fd.cid_font_revision != 0. {
+        cffdict_input_doubles(&mut dict, OP_CID_FONT_REVISION, &[fd.cid_font_revision]);
     }
-    if (*fd).cid_count != 0 {
-        cffdict_input_ints(dict, OP_CID_COUNT, &[((*fd).cid_count) as i32]);
+    if fd.cid_count != 0 {
+        cffdict_input_ints(&mut dict, OP_CID_COUNT, &[fd.cid_count as i32]);
     }
-    if (*fd).uid_base != 0 {
-        cffdict_input_ints(dict, OP_UID_BASE, &[((*fd).uid_base) as i32]);
+    if fd.uid_base != 0 {
+        cffdict_input_ints(&mut dict, OP_UID_BASE, &[fd.uid_base as i32]);
     }
-    return dict;
+    Box::into_raw(Box::new(dict))
 }
-unsafe fn cff_make_private_dict(pd: *mut CffPrivateDict) -> *mut CffDict {
-    // Was `__caryll_allocate_clean` (calloc) -- unsound now that `CffDict`
-    // owns `ents: Vec<CffDictEntry>`; an all-zero bit pattern is not a
-    // valid `Vec`. `cff_make_fd_dict` two functions above already gets
-    // this right via `cff_dict_create()`; this call site was missed.
-    let dict: *mut CffDict = (cff_dict_create)();
-    if pd.is_null() {
-        return dict;
-    }
-    cffdict_input_array(dict, OP_BLUE_VALUES, &(*pd).blue_values);
-    cffdict_input_array(dict, OP_OTHER_BLUES, &(*pd).other_blues);
-    cffdict_input_array(dict, OP_FAMILY_BLUES, &(*pd).family_blues);
-    cffdict_input_array(dict, OP_FAMILY_OTHER_BLUES, &(*pd).family_other_blues);
-    cffdict_input_array(dict, OP_STEM_SNAP_H, &(*pd).stem_snap_h);
-    cffdict_input_array(dict, OP_STEM_SNAP_V, &(*pd).stem_snap_v);
-    cffdict_input_doubles(dict, OP_BLUE_SCALE, &[((*pd).blue_scale)]);
-    cffdict_input_doubles(dict, OP_BLUE_SHIFT, &[((*pd).blue_shift)]);
-    cffdict_input_doubles(dict, OP_BLUE_FUZZ, &[((*pd).blue_fuzz)]);
-    cffdict_input_doubles(dict, OP_STD_HW, &[((*pd).std_hw)]);
-    cffdict_input_doubles(dict, OP_STD_VW, &[((*pd).std_vw)]);
-    cffdict_input_ints(
-        dict,
-        OP_FORCE_BOLD,
-        &[((*pd).force_bold as i32)],
-    );
-    cffdict_input_ints(dict, OP_LANGUAGE_GROUP, &[((*pd).language_group) as i32]);
-    cffdict_input_doubles(
-        dict,
-        OP_EXPANSION_FACTOR,
-        &[((*pd).expansion_factor)],
-    );
-    cffdict_input_doubles(
-        dict,
-        OP_INITIAL_RANDOM_SEED,
-        &[((*pd).initial_random_seed)],
-    );
-    cffdict_input_doubles(dict, OP_DEFAULT_WIDTH_X, &[((*pd).default_width_x)]);
-    cffdict_input_doubles(dict, OP_NOMINAL_WIDTH_X, &[((*pd).nominal_width_x)]);
-    return dict;
+fn cff_make_private_dict(pd: Option<&CffPrivateDict>) -> *mut CffDict {
+    let mut dict = CffDict { ents: Vec::new() };
+    let Some(pd) = pd else {
+        return Box::into_raw(Box::new(dict));
+    };
+    cffdict_input_array(&mut dict, OP_BLUE_VALUES, &pd.blue_values);
+    cffdict_input_array(&mut dict, OP_OTHER_BLUES, &pd.other_blues);
+    cffdict_input_array(&mut dict, OP_FAMILY_BLUES, &pd.family_blues);
+    cffdict_input_array(&mut dict, OP_FAMILY_OTHER_BLUES, &pd.family_other_blues);
+    cffdict_input_array(&mut dict, OP_STEM_SNAP_H, &pd.stem_snap_h);
+    cffdict_input_array(&mut dict, OP_STEM_SNAP_V, &pd.stem_snap_v);
+    cffdict_input_doubles(&mut dict, OP_BLUE_SCALE, &[pd.blue_scale]);
+    cffdict_input_doubles(&mut dict, OP_BLUE_SHIFT, &[pd.blue_shift]);
+    cffdict_input_doubles(&mut dict, OP_BLUE_FUZZ, &[pd.blue_fuzz]);
+    cffdict_input_doubles(&mut dict, OP_STD_HW, &[pd.std_hw]);
+    cffdict_input_doubles(&mut dict, OP_STD_VW, &[pd.std_vw]);
+    cffdict_input_ints(&mut dict, OP_FORCE_BOLD, &[pd.force_bold as i32]);
+    cffdict_input_ints(&mut dict, OP_LANGUAGE_GROUP, &[pd.language_group as i32]);
+    cffdict_input_doubles(&mut dict, OP_EXPANSION_FACTOR, &[pd.expansion_factor]);
+    cffdict_input_doubles(&mut dict, OP_INITIAL_RANDOM_SEED, &[pd.initial_random_seed]);
+    cffdict_input_doubles(&mut dict, OP_DEFAULT_WIDTH_X, &[pd.default_width_x]);
+    cffdict_input_doubles(&mut dict, OP_NOMINAL_WIDTH_X, &[pd.nominal_width_x]);
+    Box::into_raw(Box::new(dict))
 }
-unsafe fn cffstrings_to_indexblob(h: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> Buffer {
-    let n: u32 = (*h).len() as u32;
+fn cffstrings_to_indexblob(h: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>) -> Buffer {
+    let n: u32 = h.len() as u32;
     // `IndexMap`'s iteration order is insertion order, which is SID
     // order by construction (`sidof` assigns each new string the next
     // sequential SID), so no separate sort step is needed here the way
     // the original's `HASH_SORT` (via `by_sid`) was.
-    let blobs: Vec<Buffer> = ::core::mem::take(&mut *h)
+    let blobs: Vec<Buffer> = ::core::mem::take(h)
         .into_iter()
         .map(|(_, value)| Buffer::from_bytes(&value))
         .collect();
     let strings: *mut CffIndex = new_index_by_callback(n, blobs.into_iter());
-    let final_blob = build_index(&*strings);
-    cff_index_free(strings);
-    return final_blob;
+    // `strings` is `new_index_by_callback`'s own not-yet-migrated
+    // `*mut CffIndex` return shell -- narrow bridge, same shape as
+    // `vqs_compare`'s.
+    let final_blob = build_index(unsafe { &*strings });
+    unsafe { cff_index_free(strings) };
+    final_blob
 }
-unsafe fn cff_compile_nameindex(cff: *mut CffTable) -> Buffer {
-    let name_index: *mut CffIndex = (cff_index_create)();
-    (*name_index).count = 1 as Arity;
-    (*name_index).off_size = 4_u8;
-    if (*cff).font_name.is_empty() {
-        (*cff).font_name = b"Caryll-CFF-FONT".to_vec();
+fn cff_compile_nameindex(cff: &mut CffTable) -> Buffer {
+    if cff.font_name.is_empty() {
+        cff.font_name = b"Caryll-CFF-FONT".to_vec();
     }
-    (*name_index).offset = vec![
-        1_u32,
-        (*cff).font_name.len().wrapping_add(1_usize) as u32,
-    ];
+    let mut name_index = new_empty_cff_index();
+    name_index.count = 1 as Arity;
+    name_index.off_size = 4_u8;
+    name_index.offset = vec![1_u32, cff.font_name.len().wrapping_add(1_usize) as u32];
     // Was `__caryll_allocate_clean`'d to `font_name.len() + 1` bytes but
     // only `font_name.len()` of them ever `memcpy`'d -- the trailing byte
     // stayed zero. `.push(0)` reproduces that exact trailing NUL.
-    let mut name_data: Vec<u8> = (*cff).font_name.clone();
+    let mut name_data: Vec<u8> = cff.font_name.clone();
     name_data.push(0_u8);
-    (*name_index).data = name_data;
-    let buf = build_index(&*name_index);
-    cff_index_free(name_index);
-    (*cff).font_name = Vec::new();
-    return buf;
+    name_index.data = name_data;
+    let buf = build_index(&name_index);
+    cff.font_name = Vec::new();
+    buf
 }
-unsafe fn cff_make_charset(
-    cff: *mut CffTable,
-    glyf: *mut GlyfTable,
-    string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
+fn cff_make_charset(
+    cff: &CffTable,
+    glyf: &GlyfTable,
+    string_hash: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> Buffer {
-    let charset: CffCharset = if (*glyf).len() > 1_usize {
-        let (first, nleft) = if (*cff).is_cid {
-            (1_u16, (*glyf).len().wrapping_sub(2_usize) as u16)
+    let charset: CffCharset = if glyf.len() > 1_usize {
+        let (first, nleft) = if cff.is_cid {
+            (1_u16, glyf.len().wrapping_sub(2_usize) as u16)
         } else {
             let mut j: GlyphId = 1 as GlyphId;
-            while (j as usize) < (*glyf).len() {
-                sidof(
-                    string_hash,
-                    &(&(*glyf))[j as usize].as_deref().unwrap().name,
-                );
+            while (j as usize) < glyf.len() {
+                sidof(string_hash, &glyf[j as usize].as_deref().unwrap().name);
                 j = j.wrapping_add(1);
             }
             (
-                sidof(
-                    string_hash,
-                    &(&(*glyf))[1_usize].as_deref().unwrap().name,
-                ) as u16,
-                (*glyf).len().wrapping_sub(2_usize) as u16,
+                sidof(string_hash, &glyf[1_usize].as_deref().unwrap().name) as u16,
+                glyf.len().wrapping_sub(2_usize) as u16,
             )
         };
         CffCharset::Format2(vec![CffCharsetRangeFormat2 { first, nleft }])
@@ -2008,13 +1953,13 @@ unsafe fn cff_make_charset(
 // own scratch-buffer conversions. `.s`'s old dual role (a running write
 // cursor through the loop, overwritten with the final range count right
 // after) collapses into a single sequential `.push()` per transition.
-unsafe fn cff_make_fdselect(cff: *mut CffTable, glyf: *mut GlyfTable) -> Buffer {
-    if !(*cff).is_cid {
+fn cff_make_fdselect(cff: &CffTable, glyf: &GlyfTable) -> Buffer {
+    if !cff.is_cid {
         return Buffer::new();
     }
-    let fds: CffFdSelect = if !(*glyf).is_empty() {
-        let mut fdi0: u8 = (&(*glyf))[0_usize].as_deref().unwrap().fd_select.index as u8;
-        if fdi0 as usize > (*cff).fd_array.len() {
+    let fds: CffFdSelect = if !glyf.is_empty() {
+        let mut fdi0: u8 = glyf[0_usize].as_deref().unwrap().fd_select.index as u8;
+        if fdi0 as usize > cff.fd_array.len() {
             fdi0 = 0_u8;
         }
         let mut current: u8 = fdi0;
@@ -2023,9 +1968,9 @@ unsafe fn cff_make_fdselect(cff: *mut CffTable, glyf: *mut GlyfTable) -> Buffer 
             fd: current,
         }];
         let mut j: GlyphId = 1 as GlyphId;
-        while (j as usize) < (*glyf).len() {
-            let mut fdi: u8 = (&(*glyf))[j as usize].as_deref().unwrap().fd_select.index as u8;
-            if fdi as usize > (*cff).fd_array.len() {
+        while (j as usize) < glyf.len() {
+            let mut fdi: u8 = glyf[j as usize].as_deref().unwrap().fd_select.index as u8;
+            if fdi as usize > cff.fd_array.len() {
                 fdi = 0_u8;
             }
             if fdi as i32 != current as i32 {
@@ -2039,39 +1984,34 @@ unsafe fn cff_make_fdselect(cff: *mut CffTable, glyf: *mut GlyfTable) -> Buffer 
         }
         CffFdSelect::Format3 {
             range3,
-            sentinel: (*glyf).len() as u16,
+            sentinel: glyf.len() as u16,
         }
     } else {
         CffFdSelect::Unspecified
     };
     return cff_build_fd_select(&fds);
 }
-unsafe fn compile_fd_buffer(
+fn compile_fd_buffer(
     fd_array: &[Box<CffTable>],
-    string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
+    string_hash: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
     i: u32,
 ) -> Buffer {
-    let fd: *mut CffDict = cff_make_fd_dict(
-        fd_array[i as usize].as_ref() as *const CffTable as *mut CffTable,
-        string_hash,
-    );
-    let mut blob: Buffer = build_dict(&*fd);
+    let fd: *mut CffDict = cff_make_fd_dict(&fd_array[i as usize], string_hash);
+    // `fd` is `cff_make_fd_dict`'s own not-yet-migrated `*mut CffDict`
+    // return shell -- narrow bridges, same shape as `vqs_compare`'s.
+    let mut blob: Buffer = build_dict(unsafe { &*fd });
     blob.write_buffer_owned(cff_build_offset(0xeeeeeeee_u32 as i32));
     blob.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
     blob.write_buffer_owned(cff_encode_cff_operator(OP_PRIVATE));
-    cff_dict_free(fd);
+    unsafe { cff_dict_free(fd) };
     blob
 }
-unsafe fn cff_make_fdarray(
-    fd_array: *const Vec<Box<CffTable>>,
-    string_hash: *mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
+fn cff_make_fdarray(
+    fd_array: &[Box<CffTable>],
+    string_hash: &mut indexmap::IndexMap<Vec<u8>, Vec<u8>>,
 ) -> *mut CffIndex {
-    let fd_slice: &[Box<CffTable>] = &*fd_array;
-    let len = fd_slice.len() as u32;
-    new_index_by_callback(
-        len,
-        (0..len).map(|i| unsafe { compile_fd_buffer(fd_slice, string_hash, i) }),
-    )
+    let len = fd_array.len() as u32;
+    new_index_by_callback(len, (0..len).map(|i| compile_fd_buffer(fd_array, string_hash, i)))
 }
 unsafe fn writecff_cid_keyed(
     cff: *mut CffTable,
@@ -2091,31 +2031,26 @@ unsafe fn writecff_cid_keyed(
     let mut blob = Buffer::new();
     let mut string_hash: indexmap::IndexMap<Vec<u8>, Vec<u8>> = indexmap::IndexMap::new();
     let h = cff_build_header();
-    let n = cff_compile_nameindex(cff);
-    let top: *mut CffDict = cff_make_fd_dict(cff, &raw mut string_hash);
+    let n = cff_compile_nameindex(&mut *cff);
+    let top: *mut CffDict = cff_make_fd_dict(&*cff, &mut string_hash);
     let t = build_dict(&*top);
     cff_dict_free(top);
-    let top_pd: *mut CffDict = cff_make_private_dict(
-        (*cff)
-            .private_dict
-            .as_deref_mut()
-            .map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict),
-    );
+    let top_pd: *mut CffDict = cff_make_private_dict((*cff).private_dict.as_deref());
     let mut p = build_dict(&*top_pd);
     p.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
     p.write_buffer_owned(cff_encode_cff_operator(OP_SUBRS));
     cff_dict_free(top_pd);
-    let e = cff_make_fdselect(cff, glyf);
+    let e = cff_make_fdselect(&*cff, &*glyf);
     let mut fd_array_index: *mut CffIndex = ::core::ptr::null_mut::<CffIndex>();
     let mut r: Buffer;
     if (*cff).is_cid {
-        fd_array_index = cff_make_fdarray(&raw const (*cff).fd_array, &raw mut string_hash);
+        fd_array_index = cff_make_fdarray(&(*cff).fd_array, &mut string_hash);
         r = build_index(&*fd_array_index);
     } else {
         r = Buffer::new();
     }
-    let c = cff_make_charset(cff, glyf, &raw mut string_hash);
-    let i = cffstrings_to_indexblob(&raw mut string_hash);
+    let c = cff_make_charset(&*cff, &*glyf, &mut string_hash);
+    let i = cffstrings_to_indexblob(&mut string_hash);
     let mut g2c_context: CffCharstringBuilderContext = CffCharstringBuilderContext {
         glyf: ::core::ptr::null_mut::<GlyfTable>(),
         default_width: 0,
@@ -2129,7 +2064,7 @@ unsafe fn writecff_cid_keyed(
     g2c_context.options = options as *const Options;
     cff_subr_graph_init(&mut g2c_context.graph);
     g2c_context.graph.do_subroutinize = options.cff_do_subroutinize;
-    let (s, gs, ls) = cff_make_charstrings(&raw mut g2c_context);
+    let (s, gs, ls) = cff_make_charstrings(&mut g2c_context);
     cff_subr_graph_dispose(&mut g2c_context.graph);
     let mut additional_top_dict_ops_size: u32 = 0_u32;
     let mut off: u32 = h
@@ -2196,7 +2131,7 @@ unsafe fn writecff_cid_keyed(
         blob.write_buffer_owned(cff_build_offset(p.len() as u32 as i32));
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_PRIVATE));
-        off = (off as usize).wrapping_add(p.len()) as u32 as u32;
+        off = (off as usize).wrapping_add(p.len()) as u32;
     }
     if r.len() != 0_usize {
         blob.write_buffer_owned(cff_build_offset(off as i32));
@@ -2218,12 +2153,8 @@ unsafe fn writecff_cid_keyed(
         let mut fd_array_privates: Vec<Buffer> = Vec::with_capacity((*cff).fd_array.len());
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*cff).fd_array.len() {
-            let pd: *mut CffDict = cff_make_private_dict(
-                (&mut (*cff).fd_array)[j as usize]
-                    .private_dict
-                    .as_deref_mut()
-                    .map_or(::core::ptr::null_mut(), |pd| pd as *mut CffPrivateDict),
-            );
+            let pd: *mut CffDict =
+                cff_make_private_dict((&(*cff).fd_array)[j as usize].private_dict.as_deref());
             let mut p_0 = build_dict(&*pd);
             p_0.write_buffer_owned(cff_build_offset(0xffffffff_u32 as i32));
             p_0.write_buffer_owned(cff_encode_cff_operator(OP_SUBRS));

@@ -36,7 +36,7 @@ pub type TsiTable = Vec<TsiEntry>;
 // conversion and is deleted below, not ported -- the one real duplicate
 // this file needs is per-element (`tsi_entry_dup`, used once from
 // `consolidate.rs`), not a `Vec::clone()`.
-pub(crate) unsafe fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
+pub(crate) fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
     TsiEntry {
         type_0: e.type_0,
         glyph: otfcc_handle_dup(e.glyph.clone()),
@@ -53,7 +53,7 @@ pub struct TsiBuildTarget {
 // glue on their own, so a `TsiEntry` (and therefore a `TsiTable`) tears
 // itself down correctly with no manual per-element walk needed.
 #[inline]
-unsafe fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
+fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
     if tag_index == crate::tag::TAG_TSI0 {
         return gid as i32 != 0xfffe_i32
             && gid as i32 != 0xfffc_i32;
@@ -82,7 +82,7 @@ fn read_tsi_index_entry(index_data: &[u8], idx: u32) -> Result<TsiIndexEntry, Re
 }
 
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_read_tsi(
+pub fn otfcc_read_tsi(
     packet: &Packet,
     tag_index: u32,
     tag_text: u32,
@@ -204,7 +204,7 @@ pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, options: &O
     }
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_parse_tsi(root: &ParsedValue, options: &Options, tag: &[u8]) -> Option<TsiTable> {
+pub fn otfcc_parse_tsi(root: &ParsedValue, options: &Options, tag: &[u8]) -> Option<TsiTable> {
     let _tsi = root.get_typed(tag, JsonType::Object)?;
     let mut tsi: TsiTable = Vec::new();
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
@@ -367,7 +367,7 @@ mod otfcc_read_tsi_tests {
         }
     }
 
-    unsafe fn read(index_data: Vec<u8>, text_data: Vec<u8>) -> TsiTable {
+    fn read(index_data: Vec<u8>, text_data: Vec<u8>) -> TsiTable {
         let p = packet(index_data, text_data);
         otfcc_read_tsi(&p, crate::tag::TAG_TSI0, crate::tag::TAG_TSI1).unwrap()
     }
@@ -375,13 +375,11 @@ mod otfcc_read_tsi_tests {
     #[test]
     fn declared_length_resolves_content_directly() {
         let index = index_record(9, 3, 0);
-        unsafe {
-            let tsi = read(index, b"ABC".to_vec());
-            assert_eq!(tsi.len(), 1);
-            assert_eq!(tsi[0].type_0, TsiEntryType::Glyph);
-            assert_eq!(tsi[0].glyph.index, 9);
-            assert_eq!(tsi[0].content, b"ABC");
-        }
+        let tsi = read(index, b"ABC".to_vec());
+        assert_eq!(tsi.len(), 1);
+        assert_eq!(tsi[0].type_0, TsiEntryType::Glyph);
+        assert_eq!(tsi[0].glyph.index, 9);
+        assert_eq!(tsi[0].content, b"ABC");
     }
 
     #[test]
@@ -392,21 +390,17 @@ mod otfcc_read_tsi_tests {
         // not from "rest of the buffer" (10).
         let mut index = index_record(1, 0x8000, 0);
         index.extend(index_record(2, 1, 5));
-        unsafe {
-            let tsi = read(index, b"0123456789".to_vec());
-            assert_eq!(tsi.len(), 2);
-            assert_eq!(tsi[0].content, b"01234");
-            assert_eq!(tsi[1].content, b"5");
-        }
+        let tsi = read(index, b"0123456789".to_vec());
+        assert_eq!(tsi.len(), 2);
+        assert_eq!(tsi[0].content, b"01234");
+        assert_eq!(tsi[1].content, b"5");
     }
 
     #[test]
     fn sentinel_length_falls_back_to_the_rest_of_the_buffer_with_no_next_entry() {
         let index = index_record(1, 0x8000, 2);
-        unsafe {
-            let tsi = read(index, b"ABCDEF".to_vec());
-            assert_eq!(tsi[0].content, b"CDEF"); // offset 2 to the end
-        }
+        let tsi = read(index, b"ABCDEF".to_vec());
+        assert_eq!(tsi[0].content, b"CDEF"); // offset 2 to the end
     }
 
     #[test]
@@ -417,11 +411,9 @@ mod otfcc_read_tsi_tests {
         // to parse that partial record as real.
         let mut index = index_record(9, 2, 0);
         index.extend_from_slice(&[0xAA, 0xBB, 0xCC]);
-        unsafe {
-            let tsi = read(index, b"AB".to_vec());
-            assert_eq!(tsi.len(), 1);
-            assert_eq!(tsi[0].content, b"AB");
-        }
+        let tsi = read(index, b"AB".to_vec());
+        assert_eq!(tsi.len(), 1);
+        assert_eq!(tsi[0].content, b"AB");
     }
 
     #[test]
@@ -431,10 +423,8 @@ mod otfcc_read_tsi_tests {
         // length. text_offset(0) < text_len(2) passes the original's only
         // check, but 0 + 100 > 2.
         let index = index_record(9, 100, 0);
-        unsafe {
-            let tsi = read(index, b"AB".to_vec());
-            assert!(tsi.is_empty());
-        }
+        let tsi = read(index, b"AB".to_vec());
+        assert!(tsi.is_empty());
     }
 
     #[test]
@@ -442,19 +432,15 @@ mod otfcc_read_tsi_tests {
         // Preserved from the original: an out-of-range text_offset was
         // already checked (`text_offset >= text_part.length`).
         let index = index_record(9, 1, 5);
-        unsafe {
-            let tsi = read(index, b"AB".to_vec());
-            assert!(tsi.is_empty());
-        }
+        let tsi = read(index, b"AB".to_vec());
+        assert!(tsi.is_empty());
     }
 
     #[test]
     fn zero_length_entry_is_skipped() {
         let index = index_record(9, 0, 0);
-        unsafe {
-            let tsi = read(index, b"AB".to_vec());
-            assert!(tsi.is_empty());
-        }
+        let tsi = read(index, b"AB".to_vec());
+        assert!(tsi.is_empty());
     }
 
     #[test]
@@ -465,18 +451,14 @@ mod otfcc_read_tsi_tests {
             (65533u16, TsiEntryType::Fpgm),
         ] {
             let index = index_record(gid, 1, 0);
-            unsafe {
-                let tsi = read(index, b"X".to_vec());
-                assert_eq!(tsi[0].type_0, expected, "gid {gid}");
-            }
+            let tsi = read(index, b"X".to_vec());
+            assert_eq!(tsi[0].type_0, expected, "gid {gid}");
         }
     }
 
     #[test]
     fn empty_index_table_produces_no_entries() {
-        unsafe {
-            let tsi = read(Vec::new(), Vec::new());
-            assert!(tsi.is_empty());
-        }
+        let tsi = read(Vec::new(), Vec::new());
+        assert!(tsi.is_empty());
     }
 }

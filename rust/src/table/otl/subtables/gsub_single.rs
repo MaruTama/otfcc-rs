@@ -24,7 +24,7 @@ use crate::table::otl::{GsubSingleEntry, GsubSingleSubtable, Subtable, subtable_
 // `GsubSingleEntry` holds only two `GlyphHandle`s, so dropping the `Vec`
 // runs `Handle`'s own `Drop` for every entry -- no per-element dtor needed
 // anymore.
-pub(crate) unsafe fn dispose_gsub_single_subtable(arr: *mut GsubSingleSubtable) {
+pub(crate) fn dispose_gsub_single_subtable(arr: &mut GsubSingleSubtable) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gsub_single_free(x: *mut GsubSingleSubtable) {
@@ -38,7 +38,7 @@ pub(crate) unsafe fn subtable_gsub_single_free(x: *mut GsubSingleSubtable) {
     // gsub_single.rs`, just no longer from here).
     drop(Box::from_raw(x));
 }
-unsafe fn subtable_gsub_single_create() -> *mut GsubSingleSubtable {
+fn subtable_gsub_single_create() -> *mut GsubSingleSubtable {
     Box::into_raw(Box::new(Vec::new()))
 }
 // `Coverage`/`otl_coverage_create`/`read_coverage` are still raw-pointer-
@@ -145,22 +145,22 @@ pub fn otl_gsub_dump_single(_subtable: &Subtable) -> BuiltValue {
     }
     st
 }
-pub unsafe fn otl_gsub_parse_single(
-    mut _subtable: *const ParsedValue,
-    mut _options: &Options,
-) -> *mut Subtable {
-    let subtable: *mut GsubSingleSubtable = subtable_gsub_single_create();
-    if let Some(fields) = unsafe { _subtable.as_ref() }.and_then(ParsedValue::as_object) {
+pub fn otl_gsub_parse_single(
+    _subtable: Option<&ParsedValue>,
+    _options: &Options,
+) -> Option<Subtable> {
+    let mut subtable: GsubSingleSubtable = Vec::new();
+    if let Some(fields) = _subtable.and_then(ParsedValue::as_object) {
         for (key, val) in fields {
             if let Some(to_bytes) = val.as_str_bytes() {
                 let from: GlyphHandle =
                     handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle;
                 let to: GlyphHandle = handle_from_name(Some(to_bytes.to_vec())) as GlyphHandle;
-                (*subtable).push(GsubSingleEntry { from, to });
+                subtable.push(GsubSingleEntry { from, to });
             }
         }
     }
-    return subtable_from_raw(subtable, Subtable::GsubSingle);
+    Some(Subtable::GsubSingle(subtable))
 }
 pub unsafe fn otfcc_build_gsub_single_subtable(
     mut _subtable: *const Subtable,

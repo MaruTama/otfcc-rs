@@ -24,7 +24,8 @@ use crate::table::otl::subtables::gpos_common::{
     otl_read_mark_array,
 };
 use crate::table::otl::{
-    Anchor, BaseArray, BaseRecord, GposMarkToSingleSubtable, Subtable, subtable_from_raw,
+    Anchor, BaseArray, BaseRecord, GposMarkToSingleSubtable, MarkArray, Subtable,
+    subtable_from_raw,
 };
 use crate::vendor::json::JsonType;
 // `BaseRecord.anchors` is a plain `Vec<Anchor>` now and `glyph: GlyphHandle`
@@ -32,7 +33,7 @@ use crate::vendor::json::JsonType;
 // self-drops -- clearing it (still needed: `consolidate/otl/mark.rs`'s dedup
 // pass clears an in-place array mid-function, not just at end of scope) is
 // exactly `*arr = Vec::new()`.
-pub(crate) unsafe fn dispose_base_array(arr: *mut BaseArray) {
+pub(crate) fn dispose_base_array(arr: &mut BaseArray) {
     *arr = Vec::new();
 }
 pub(crate) unsafe fn subtable_gpos_mark_to_single_free(x: *mut GposMarkToSingleSubtable) {
@@ -47,7 +48,7 @@ pub(crate) unsafe fn subtable_gpos_mark_to_single_free(x: *mut GposMarkToSingleS
     // one. `init_mark_to_single` had no other callers, so it's gone too.
     drop(Box::from_raw(x));
 }
-unsafe fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSingleSubtable {
+fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSingleSubtable {
     Box::into_raw(Box::new(GposMarkToSingleSubtable {
         class_count: 0,
         mark_array: Vec::new(),
@@ -234,14 +235,14 @@ pub fn otl_gpos_dump_mark_to_single(st: &Subtable) -> BuiltValue {
     _subtable.push_field(b"bases", _bases);
     _subtable
 }
-unsafe fn parse_bases(
-    bases: *const ParsedValue,
-    subtable: *mut GposMarkToSingleSubtable,
-    h: *mut std::collections::BTreeMap<Vec<u8>, GlyphClass>,
+fn parse_bases(
+    bases: Option<&ParsedValue>,
+    base_array: &mut BaseArray,
+    h: &std::collections::BTreeMap<Vec<u8>, GlyphClass>,
     options: &Options,
 ) {
-    let class_count: GlyphClass = (*h).len() as GlyphClass;
-    let Some(fields) = unsafe { bases.as_ref() }.and_then(ParsedValue::as_object) else {
+    let class_count: GlyphClass = h.len() as GlyphClass;
+    let Some(fields) = bases.and_then(ParsedValue::as_object) else {
         return;
     };
     for (key, base_record) in fields {
@@ -260,12 +261,12 @@ unsafe fn parse_bases(
         base.anchors = vec![otl_anchor_absent(); class_count as usize];
         match base_record.as_object() {
             None => {
-                (*subtable).base_array.push(base);
+                base_array.push(base);
             }
             Some(inner_fields) => {
                 for (name_key, val) in inner_fields {
                     let class_name = &name_key[..name_key.len() - 1];
-                    match (*h).get(class_name) {
+                    match h.get(class_name) {
                         None => {
                             logger_log_sds(
                                 &mut *options.logger.borrow_mut(),
@@ -286,27 +287,31 @@ unsafe fn parse_bases(
                         }
                     }
                 }
-                (*subtable).base_array.push(base);
+                base_array.push(base);
             }
         }
     }
 }
-pub unsafe fn otl_gpos_parse_mark_to_single(
-    mut _subtable: *const ParsedValue,
+pub fn otl_gpos_parse_mark_to_single(
+    _subtable: Option<&ParsedValue>,
     options: &Options,
-) -> *mut Subtable {
-    let subtable_val = unsafe { _subtable.as_ref() };
-    let marks = subtable_val.and_then(|v| v.get_typed(b"marks", JsonType::Object));
-    let bases = subtable_val.and_then(|v| v.get_typed(b"bases", JsonType::Object));
+) -> Option<Subtable> {
+    let marks = _subtable.and_then(|v| v.get_typed(b"marks", JsonType::Object));
+    let bases = _subtable.and_then(|v| v.get_typed(b"bases", JsonType::Object));
     let (Some(marks), Some(bases)) = (marks, bases) else {
-        return ::core::ptr::null_mut::<Subtable>();
+        return None;
     };
-    let st: *mut GposMarkToSingleSubtable = subtable_gpos_mark_to_single_create();
+    let mut mark_array: MarkArray = Vec::new();
     let mut h: std::collections::BTreeMap<Vec<u8>, GlyphClass> = std::collections::BTreeMap::new();
-    otl_parse_mark_array(Some(marks), &mut (*st).mark_array, &mut h);
-    (*st).class_count = h.len() as GlyphClass;
-    parse_bases(bases as *const ParsedValue, st, &raw mut h, options);
-    return subtable_from_raw(st, Subtable::GposMarkToSingle);
+    otl_parse_mark_array(Some(marks), &mut mark_array, &mut h);
+    let class_count = h.len() as GlyphClass;
+    let mut base_array: BaseArray = Vec::new();
+    parse_bases(Some(bases), &mut base_array, &h, options);
+    Some(Subtable::GposMarkToSingle(GposMarkToSingleSubtable {
+        class_count,
+        mark_array,
+        base_array,
+    }))
 }
 pub unsafe fn otfcc_build_gpos_mark_to_single(
     mut _subtable: *const Subtable,

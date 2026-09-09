@@ -72,89 +72,83 @@ pub fn otfcc_read_hhea(packet: &Packet, options: &Options) -> Option<Box<HheaTab
         }
     }
 }
-#[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_dump_hhea(
-    table: Option<&HheaTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
-    let table = match table {
-        Some(t) => t as *const HheaTable,
-        None => return,
+pub fn otfcc_dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(table) = table else {
+        return;
     };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"hhea"),
     );
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut hhea = BuiltValue::new_object(13);
-        hhea.push_field(
-            b"version",
-            BuiltValue::Double(otfcc_from_fixed((*table).version)),
-        );
-        hhea.push_field(b"ascender", BuiltValue::Int((*table).ascender as i64));
-        hhea.push_field(b"descender", BuiltValue::Int((*table).descender as i64));
-        hhea.push_field(b"lineGap", BuiltValue::Int((*table).line_gap as i64));
-        hhea.push_field(
-            b"advanceWidthMax",
-            BuiltValue::Int((*table).advance_width_max as i64),
-        );
-        hhea.push_field(
-            b"minLeftSideBearing",
-            BuiltValue::Int((*table).min_left_side_bearing as i64),
-        );
-        hhea.push_field(
-            b"minRightSideBearing",
-            BuiltValue::Int((*table).min_right_side_bearing as i64),
-        );
-        hhea.push_field(b"xMaxExtent", BuiltValue::Int((*table).x_max_extent as i64));
-        hhea.push_field(
-            b"caretSlopeRise",
-            BuiltValue::Int((*table).caret_slope_rise as i64),
-        );
-        hhea.push_field(
-            b"caretSlopeRun",
-            BuiltValue::Int((*table).caret_slope_run as i64),
-        );
-        hhea.push_field(b"caretOffset", BuiltValue::Int((*table).caret_offset as i64));
-        root.push_field(b"hhea", hhea);
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
-    }
+    let mut hhea = BuiltValue::new_object(13);
+    hhea.push_field(
+        b"version",
+        BuiltValue::Double(otfcc_from_fixed(table.version)),
+    );
+    hhea.push_field(b"ascender", BuiltValue::Int(table.ascender as i64));
+    hhea.push_field(b"descender", BuiltValue::Int(table.descender as i64));
+    hhea.push_field(b"lineGap", BuiltValue::Int(table.line_gap as i64));
+    hhea.push_field(
+        b"advanceWidthMax",
+        BuiltValue::Int(table.advance_width_max as i64),
+    );
+    hhea.push_field(
+        b"minLeftSideBearing",
+        BuiltValue::Int(table.min_left_side_bearing as i64),
+    );
+    hhea.push_field(
+        b"minRightSideBearing",
+        BuiltValue::Int(table.min_right_side_bearing as i64),
+    );
+    hhea.push_field(b"xMaxExtent", BuiltValue::Int(table.x_max_extent as i64));
+    hhea.push_field(
+        b"caretSlopeRise",
+        BuiltValue::Int(table.caret_slope_rise as i64),
+    );
+    hhea.push_field(
+        b"caretSlopeRun",
+        BuiltValue::Int(table.caret_slope_run as i64),
+    );
+    hhea.push_field(b"caretOffset", BuiltValue::Int(table.caret_offset as i64));
+    root.push_field(b"hhea", hhea);
+    logger_finish(&mut *options.logger.borrow_mut());
 }
-pub unsafe fn otfcc_parse_hhea(
-    root: &ParsedValue,
-    options: &Options,
-) -> Option<Box<HheaTable>> {
-    let mut hhea_val: HheaTable = ::core::mem::zeroed();
-    hhea_val.version = 0x10000_i32 as F16Dot16;
-    let mut hhea_box: Box<HheaTable> = Box::new(hhea_val);
-    let hhea: *mut HheaTable = hhea_box.as_mut() as *mut HheaTable;
-    let table = root.get_typed(b"hhea", JsonType::Object);
-    if let Some(table) = table {
+pub fn otfcc_parse_hhea(root: &ParsedValue, options: &Options) -> Option<Box<HheaTable>> {
+    let mut hhea = HheaTable {
+        version: 0x10000_i32 as F16Dot16,
+        ascender: 0,
+        descender: 0,
+        line_gap: 0,
+        advance_width_max: 0,
+        min_left_side_bearing: 0,
+        min_right_side_bearing: 0,
+        x_max_extent: 0,
+        caret_slope_rise: 0,
+        caret_slope_run: 0,
+        caret_offset: 0,
+        reserved: [0; 4],
+        metric_data_format: 0,
+        number_of_metrics: 0,
+    };
+    if let Some(table) = root.get_typed(b"hhea", JsonType::Object) {
         logger_start_sds(
             &mut *options.logger.borrow_mut(),
             crate::bytesbuild!(b"hhea"),
         );
-        let mut ___loggedstep_v: bool = true;
-        while ___loggedstep_v {
-            (*hhea).version = otfcc_to_fixed(table.get_num(b"version"));
-            (*hhea).ascender = table.get_num(b"ascender") as i16;
-            (*hhea).descender = table.get_num(b"descender") as i16;
-            (*hhea).line_gap = table.get_num(b"lineGap") as i16;
-            (*hhea).advance_width_max = table.get_num(b"advanceWidthMax") as u16;
-            (*hhea).min_left_side_bearing = table.get_num(b"minLeftSideBearing") as i16;
-            (*hhea).min_right_side_bearing = table.get_num(b"minRightSideBearing") as i16;
-            (*hhea).x_max_extent = table.get_num(b"xMaxExtent") as i16;
-            (*hhea).caret_slope_rise = table.get_num(b"caretSlopeRise") as i16;
-            (*hhea).caret_slope_run = table.get_num(b"caretSlopeRun") as i16;
-            (*hhea).caret_offset = table.get_num(b"caretOffset") as i16;
-            ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
-        }
+        hhea.version = otfcc_to_fixed(table.get_num(b"version"));
+        hhea.ascender = table.get_num(b"ascender") as i16;
+        hhea.descender = table.get_num(b"descender") as i16;
+        hhea.line_gap = table.get_num(b"lineGap") as i16;
+        hhea.advance_width_max = table.get_num(b"advanceWidthMax") as u16;
+        hhea.min_left_side_bearing = table.get_num(b"minLeftSideBearing") as i16;
+        hhea.min_right_side_bearing = table.get_num(b"minRightSideBearing") as i16;
+        hhea.x_max_extent = table.get_num(b"xMaxExtent") as i16;
+        hhea.caret_slope_rise = table.get_num(b"caretSlopeRise") as i16;
+        hhea.caret_slope_run = table.get_num(b"caretSlopeRun") as i16;
+        hhea.caret_offset = table.get_num(b"caretOffset") as i16;
+        logger_finish(&mut *options.logger.borrow_mut());
     }
-    return Some(hhea_box);
+    Some(Box::new(hhea))
 }
 #[allow(improper_ctypes_definitions)]
 pub fn otfcc_build_hhea(hhea: Option<&HheaTable>) -> Option<Buffer> {
