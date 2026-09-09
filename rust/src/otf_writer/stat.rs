@@ -1391,16 +1391,11 @@ pub fn otfcc_stat_font(font: &mut Font, options: &Options) {
     stat_ltsh(font);
 }
 pub fn otfcc_unstat_font(font: &mut Font) {
-    // `delete_font_table` stays `unsafe fn` (a separate, not-yet-safened
-    // Font-table-removal shell) -- the whole body here is just five calls
-    // into it, so one block covers all of them.
-    unsafe {
-        delete_font_table(font, crate::tag::TAG_HDMX);
-        delete_font_table(font, crate::tag::TAG_HMTX);
-        delete_font_table(font, crate::tag::TAG_VORG);
-        delete_font_table(font, crate::tag::TAG_VMTX);
-        delete_font_table(font, crate::tag::TAG_LTSH);
-    }
+    delete_font_table(font, crate::tag::TAG_HDMX);
+    delete_font_table(font, crate::tag::TAG_HMTX);
+    delete_font_table(font, crate::tag::TAG_VORG);
+    delete_font_table(font, crate::tag::TAG_VMTX);
+    delete_font_table(font, crate::tag::TAG_LTSH);
 }
 pub const FLT_MAX: ::core::ffi::c_float = __FLT_MAX__;
 pub const __FLT_MAX__: ::core::ffi::c_float = 3.40282347e+38f32;

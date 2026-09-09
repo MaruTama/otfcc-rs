@@ -150,7 +150,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         &mut *(*options).logger.borrow_mut(),
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    otfcc_options_optimize_to(options, 1_u8);
+    otfcc_options_optimize_to(&mut *options, 1_u8);
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
     // `--keep-glyph-order` and `--dont-ignore-glyph-order` are documented as
@@ -232,7 +232,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                 OPT_OPTIMIZE => {
                     let carg = ::std::ffi::CString::new(arg.unwrap())
                         .expect("optimize level must not contain a NUL byte");
-                    otfcc_options_optimize_to(options, atoi(carg.as_ptr()) as u8);
+                    otfcc_options_optimize_to(&mut *options, atoi(carg.as_ptr()) as u8);
                 }
                 OPT_TIME => {}
                 OPT_IGNORE_HINTS => (*options).ignore_hints = true,

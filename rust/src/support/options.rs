@@ -113,27 +113,25 @@ pub unsafe fn otfcc_delete_options(options: *mut Options) {
         free(options as *mut ::core::ffi::c_void);
     }
 }
-pub unsafe fn otfcc_options_optimize_to(options: *mut Options, level: u8) {
-    unsafe {
-        (*options).cff_roll_char_string = false;
-        (*options).short_post = false;
-        (*options).ignore_glyph_order = false;
-        (*options).cff_short_vmtx = false;
-        (*options).merge_features = false;
-        (*options).force_cid = false;
-        (*options).cff_do_subroutinize = false;
-        if level as i32 >= 1_i32 {
-            (*options).cff_roll_char_string = true;
-            (*options).cff_short_vmtx = true;
-        }
-        if level as i32 >= 2_i32 {
-            (*options).short_post = true;
-            (*options).cff_do_subroutinize = true;
-            (*options).merge_features = true;
-        }
-        if level as i32 >= 3_i32 {
-            (*options).ignore_glyph_order = true;
-            (*options).force_cid = true;
-        }
+pub fn otfcc_options_optimize_to(options: &mut Options, level: u8) {
+    options.cff_roll_char_string = false;
+    options.short_post = false;
+    options.ignore_glyph_order = false;
+    options.cff_short_vmtx = false;
+    options.merge_features = false;
+    options.force_cid = false;
+    options.cff_do_subroutinize = false;
+    if level as i32 >= 1_i32 {
+        options.cff_roll_char_string = true;
+        options.cff_short_vmtx = true;
+    }
+    if level as i32 >= 2_i32 {
+        options.short_post = true;
+        options.cff_do_subroutinize = true;
+        options.merge_features = true;
+    }
+    if level as i32 >= 3_i32 {
+        options.ignore_glyph_order = true;
+        options.force_cid = true;
     }
 }
