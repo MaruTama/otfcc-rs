@@ -1034,7 +1034,7 @@ fn name_glyphs_according_to_cff(context: &CffExtractContext) {
                 for (j, &g) in glyph.iter().enumerate() {
                     let sid: CffSid = g as CffSid;
                     let glyphname: Option<Vec<u8>> =
-                        unsafe { get_cff_sid(sid as u16, &cff_file.string) };
+                        get_cff_sid(sid as u16, &cff_file.string);
                     if let Some(glyphname) = glyphname {
                         glyphs[j + 1].as_mut().unwrap().name = glyphname;
                         glyphs[j + 1].as_mut().unwrap().cid = sid as GlyphId;
@@ -1097,7 +1097,7 @@ fn name_glyphs_according_to_cff(context: &CffExtractContext) {
                 for (j_2, &g) in glyph.iter().enumerate() {
                     let sid_2: CffSid = g as CffSid;
                     let glyphname_2: Option<Vec<u8>> =
-                        unsafe { get_cff_sid(sid_2 as u16, &cff_file.string) };
+                        get_cff_sid(sid_2 as u16, &cff_file.string);
                     if let Some(glyphname_2) = glyphname_2 {
                         glyphs[j_2 + 1].as_mut().unwrap().name = glyphname_2;
                     }
@@ -1112,7 +1112,7 @@ fn name_glyphs_according_to_cff(context: &CffExtractContext) {
                         let sid_3: CffSid =
                             (first_1 as i32 + k_1 as i32) as CffSid;
                         let glyphname_3: Option<Vec<u8>> =
-                            unsafe { get_cff_sid(sid_3 as u16, &cff_file.string) };
+                            get_cff_sid(sid_3 as u16, &cff_file.string);
                         if (glyphs_named_sofar_1 as usize) < glyphs.len() {
                             if let Some(glyphname_3) = glyphname_3 {
                                 glyphs[glyphs_named_sofar_1 as usize]
@@ -1135,7 +1135,7 @@ fn name_glyphs_according_to_cff(context: &CffExtractContext) {
                         let sid_4: CffSid =
                             (first_2 as i32 + k_2 as i32) as CffSid;
                         let glyphname_4: Option<Vec<u8>> =
-                            unsafe { get_cff_sid(sid_4 as u16, &cff_file.string) };
+                            get_cff_sid(sid_4 as u16, &cff_file.string);
                         if (glyphs_named_sofar_2 as usize) < glyphs.len() {
                             if let Some(glyphname_4) = glyphname_4 {
                                 glyphs[glyphs_named_sofar_2 as usize]

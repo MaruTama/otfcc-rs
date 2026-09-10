@@ -411,7 +411,7 @@ static STRING_STANDARD: [&::core::ffi::CStr; 391] = [
 /// any other way in the future. Plain slice indexing (`str.data[start..
 /// end]`) replaces the original's raw `.offset()`/`from_raw_parts` walk --
 /// no unsafe pointer arithmetic left to get wrong here at all.
-pub unsafe fn get_cff_sid(idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
+pub fn get_cff_sid(idx: u16, str: &CffIndex) -> Option<Vec<u8>> {
     if idx as i32 <= 390_i32 {
         return Some(STRING_STANDARD[idx as usize].to_bytes().to_vec());
     }
@@ -456,26 +456,20 @@ mod get_cff_sid_tests {
         // idx <= 390 is always one of the predefined strings, regardless
         // of what (or whether) a custom String INDEX exists.
         let str = string_index(Vec::new(), Vec::new());
-        unsafe {
-            assert_eq!(get_cff_sid(0, &str).unwrap(), b".notdef");
-        }
+        assert_eq!(get_cff_sid(0, &str).unwrap(), b".notdef");
     }
 
     #[test]
     fn custom_sid_reads_the_right_slice() {
         let str = string_index(vec![1, 3, 6], b"ABCDE".to_vec());
-        unsafe {
-            assert_eq!(get_cff_sid(391, &str).unwrap(), b"AB");
-            assert_eq!(get_cff_sid(392, &str).unwrap(), b"CDE");
-        }
+        assert_eq!(get_cff_sid(391, &str).unwrap(), b"AB");
+        assert_eq!(get_cff_sid(392, &str).unwrap(), b"CDE");
     }
 
     #[test]
     fn sid_past_the_index_count_is_rejected() {
         let str = string_index(vec![1, 3], b"AB".to_vec());
-        unsafe {
-            assert!(get_cff_sid(392, &str).is_none());
-        }
+        assert!(get_cff_sid(392, &str).is_none());
     }
 
     #[test]
@@ -487,17 +481,13 @@ mod get_cff_sid_tests {
         // found as a heap-buffer-overflow: `end.wrapping_sub(start)` with
         // `end < start` wraps to a length near `u32::MAX`.
         let str = string_index(vec![5, 1], b"AB".to_vec());
-        unsafe {
-            assert!(get_cff_sid(391, &str).is_none());
-        }
+        assert!(get_cff_sid(391, &str).is_none());
     }
 
     #[test]
     fn zero_offset_is_rejected() {
         let str = string_index(vec![0, 2], b"AB".to_vec());
-        unsafe {
-            assert!(get_cff_sid(391, &str).is_none());
-        }
+        assert!(get_cff_sid(391, &str).is_none());
     }
 
     #[test]
@@ -505,8 +495,6 @@ mod get_cff_sid_tests {
         // The offsets are internally consistent (non-decreasing, both
         // >= 1) but claim more data than `str.data` actually holds.
         let str = string_index(vec![1, 100], b"AB".to_vec());
-        unsafe {
-            assert!(get_cff_sid(391, &str).is_none());
-        }
+        assert!(get_cff_sid(391, &str).is_none());
     }
 }
