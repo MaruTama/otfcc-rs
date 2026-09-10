@@ -10,7 +10,7 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use libc::{fprintf, free, malloc, strtol};
+use libc::{fprintf, strtol};
 use otfcc_rust::support::stdio::stderr;
 
 use otfcc_rust::logger::{
@@ -78,41 +78,27 @@ pub fn printHelp() {
 // left the malloc'd buffer's tail as uninitialized memory that still got
 // treated as `length` valid bytes and fed to `json_parse`. `std::fs::read`
 // reads to actual EOF into a `Vec<u8>` whose length is exactly what was
-// read, so there is no way for a short read to go unnoticed. `_buffer`
-// stays a `malloc`'d `*mut c_char` (the caller's shared `buffer`/`length`
-// locals are also written by `readEntireStdin`, unconverted, and both are
-// freed uniformly downstream with `free()` and read with `json_parse`) --
-// only the reading, not the buffer's ownership shape, changes here.
-pub unsafe fn readEntireFile(
-    inPath: *mut ::core::ffi::c_char,
-    _buffer: *mut *mut ::core::ffi::c_char,
-    _length: *mut ::core::ffi::c_long,
-) -> bool {
-    let path_bytes = unsafe { ::core::ffi::CStr::from_ptr(inPath) }.to_bytes();
-    let os_path = std::ffi::OsStr::from_bytes(path_bytes);
+// read, so there is no way for a short read to go unnoticed.
+//
+// `_buffer`/`_length` out-params and the `malloc`'d backing storage are
+// gone entirely -- the single caller (`main_0`) now just owns the
+// returned `Vec<u8>` directly and passes `.as_ptr()`/`.len()` to
+// `json_parse` itself, the same shape `ffi/dll.rs`'s FFI entry points
+// already use at that same boundary. `readEntireFile` itself has no
+// remaining unsafe operation other than the `fprintf` error-path call.
+pub fn readEntireFile(inPath: &::core::ffi::CStr) -> Option<Vec<u8>> {
+    let os_path = std::ffi::OsStr::from_bytes(inPath.to_bytes());
     let Ok(bytes) = std::fs::read(std::path::Path::new(os_path)) else {
-        fprintf(
-            stderr,
-            b"Cannot read JSON file \"%s\". Exit.\n\0" as *const u8 as *const ::core::ffi::c_char,
-            inPath,
-        );
-        return false;
+        unsafe {
+            fprintf(
+                stderr,
+                b"Cannot read JSON file \"%s\". Exit.\n\0" as *const u8 as *const ::core::ffi::c_char,
+                inPath.as_ptr(),
+            );
+        }
+        return None;
     };
-    let buffer = malloc(bytes.len()) as *mut ::core::ffi::c_char;
-    if buffer.is_null() {
-        fprintf(
-            stderr,
-            b"Cannot read JSON file \"%s\". Exit.\n\0" as *const u8 as *const ::core::ffi::c_char,
-            inPath,
-        );
-        return false;
-    }
-    unsafe {
-        ::core::ptr::copy_nonoverlapping(bytes.as_ptr(), buffer as *mut u8, bytes.len());
-    }
-    *_buffer = buffer;
-    *_length = bytes.len() as ::core::ffi::c_long;
-    true
+    Some(bytes)
 }
 // The old `fgets`/`strlen` loop measured each chunk it read with `strlen`,
 // which stops at the first embedded NUL byte -- any stdin content after an
@@ -121,18 +107,12 @@ pub unsafe fn readEntireFile(
 // `Read::read_to_end` copies exactly the bytes it receives with no such
 // assumption, closing that class of bug structurally, the same way
 // `readEntireFile`'s `std::fs::read` closed the short-read class of bug.
-pub unsafe fn readEntireStdin(
-    _buffer: *mut *mut ::core::ffi::c_char,
-    _length: *mut ::core::ffi::c_long,
-) {
+// Same out-param/`malloc` removal as `readEntireFile` above -- this
+// function has no unsafe operation left at all.
+pub fn readEntireStdin() -> Vec<u8> {
     let mut bytes = Vec::new();
     let _ = std::io::stdin().lock().read_to_end(&mut bytes);
-    let buffer = malloc(bytes.len().max(1)) as *mut ::core::ffi::c_char;
-    unsafe {
-        ::core::ptr::copy_nonoverlapping(bytes.as_ptr(), buffer as *mut u8, bytes.len());
-    }
-    *_buffer = buffer;
-    *_length = bytes.len() as ::core::ffi::c_long;
+    bytes
 }
 unsafe fn main_0(args: Vec<String>) -> i32 {
     let mut begin: timespec = timespec {
@@ -317,8 +297,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         printHelp();
         return EXIT_FAILURE;
     }
-    let mut buffer: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut length: ::core::ffi::c_long = 0;
+    let mut buffer: Vec<u8> = Vec::new();
     logger_start_sds(
         &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Load file"),
@@ -332,13 +311,10 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             );
             let mut ___loggedstep_v_0: bool = true;
             while ___loggedstep_v_0 {
-                if !readEntireFile(
-                    in_path.as_ptr() as *mut ::core::ffi::c_char,
-                    &raw mut buffer,
-                    &raw mut length,
-                ) {
+                let Some(b) = readEntireFile(in_path.as_c_str()) else {
                     return EXIT_FAILURE;
-                }
+                };
+                buffer = b;
                 // No longer freed here (was: `sdsfree(inPath)`) -- doing
                 // so used to leave a dangling pointer that the two later
                 // "Cannot parse JSON file" error messages below still
@@ -357,7 +333,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             );
             let mut ___loggedstep_v_1: bool = true;
             while ___loggedstep_v_1 {
-                readEntireStdin(&raw mut buffer, &raw mut length);
+                buffer = readEntireStdin();
                 ___loggedstep_v_1 = false;
                 logger_finish(&mut *(*options).logger.borrow_mut());
             }
@@ -378,8 +354,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
-        json_root = json_parse(buffer, length as usize);
-        free(buffer as *mut ::core::ffi::c_void);
+        json_root = json_parse(buffer.as_ptr() as *const ::core::ffi::c_char, buffer.len());
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
