@@ -181,7 +181,7 @@ unsafe fn build_gsub_multi_subtable_range(
             otfcc_handle_dup((&(*subtable))[j as usize].from.clone() as Handle) as GlyphHandle,
         );
     }
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
@@ -194,20 +194,20 @@ unsafe fn build_gsub_multi_subtable_range(
     ]);
     for j_0 in start..end {
         let to: *const Coverage = &(&(*subtable))[j_0 as usize].to;
-        let b: *mut BkBlock = bk_new_block(&[bk_int(
+        let mut b: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
             ((*to).len() as i32) as u32,
         )]);
         for k in 0..(*to).len() {
             bk_push(
-                b,
-                &[bk_int(
+                &mut b,
+                vec![bk_int(
                     BkCellType::B16,
                     ((&(*to))[k].index as i32) as u32,
                 )],
             );
         }
-        bk_push(root, &[bk_ptr(BkCellType::P16, b)]);
+        bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(b))]);
     }
     otl_coverage_free(cov);
     return bk_build_block(root);

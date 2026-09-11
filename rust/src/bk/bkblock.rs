@@ -1,59 +1,36 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::fprintf;
 
-// `BkBlock` used to be allocated via `__caryll_allocate_clean`/
-// `__caryll_reallocate`/raw `free`, with `cells` a hand-managed `*mut BkCell`
-// array (`length`=used count, `free`=slack, grown by `bkblock_acells`/
-// `bkblock_grow`). Stage 7-2-f converts `cells` to `Vec<BkCell>` (which
-// tracks its own length/capacity, the same simplification `BkGraph.entries`
-// already got) and `BkBlock` itself to `Box::into_raw`/`Box::from_raw`,
-// matching every other `_create()`-shaped malloc shell this migration has
-// removed.
+// Stage D (2026-09): `BkBlock`/`BkCellValue::Ptr` become an owned, `Box`-based
+// recursive tree. The previous version of this comment (added 2026-09-07,
+// correcting an even earlier "single-parent forest" claim) argued this was
+// *impossible*: `bk_minimize_graph`/`replaceptr` (in `bkgraph.rs`) make
+// multiple cells alias the same block after minimization, so -- the argument
+// went -- two `Box`es would have to alias one allocation.
 //
-// `BkCellValue::Ptr(*mut BkBlock)` cross-references between blocks stay raw
-// pointers, but NOT because a `BkBlock` is single-parent-owned -- an earlier
-// version of this comment claimed exactly that ("a forest of independently-
-// built trees, never shared... never cyclic") and it was wrong, falsified by
-// actually reading `bkgraph.rs`'s `bk_minimize_graph`/`replaceptr` (2026-09-07):
-// `bk_minimize_graph` finds structurally-equal blocks at the same height and
-// records `entries[k].alias = j`; `replaceptr` then rewrites *every*
-// remaining `P16`/`P32`/`Sp16`/`Sp32` cell in the graph to point at the
-// canonical `entries[index].block` resolved through that alias chain. That's
-// the entire point of minimization -- deliberately making multiple pointer
-// cells across the structure alias the exact same `BkBlock` -- so after
-// `bk_minimize_graph` runs, a block routinely has more than one "parent"
-// cell pointing at it. `bkgraph.rs`'s `dfs_insert_cells`'s `Gray`/`Black`
-// visit-state handling is further, unverified circumstantial evidence the
-// same can happen even pre-minimize, since a strictly single-parent forest
-// would never need second-visit/in-progress-visit guards in the first place.
+// That argument conflated two different types. `bk_minimize_graph` operates
+// entirely inside `bkgraph.rs`'s `BkGraph` arena, on `ArenaCellValue::
+// Ptr(Option<BlockId>)` -- a `Copy` index, not a pointer, and a completely
+// separate type from this file's `BkCellValue::Ptr`. By the time any
+// aliasing happens, `bk_new_graph_from_root_block`'s `dfs_convert` has
+// already walked the *raw* `BkBlock` tree once, post-order, converting every
+// node into the arena and freeing every original raw block via `to_free` --
+// so there are zero `BkCellValue::Ptr` values left alive to alias. An
+// exhaustive audit of every one of this crate's ~19 files that call into
+// `bk/` (2026-09, re-run independently of the above argument) confirms
+// aliasing never happens on the construction side either: every block
+// pointer produced by `bk_new_block`/`bk_push`/helper functions is consumed
+// by exactly one later `bk_ptr` call (folded into exactly one parent), or
+// flows straight into `bk_build_block`. `BkCellType::Copy` (the one cell
+// kind whose contract doesn't consume its target) has zero callers anywhere
+// in the crate -- only `Embed` (splice-and-free, i.e. still single-owner) is
+// ever used.
 //
-// The actual ownership model is a flat arena, not a tree: `BkGraph.entries:
-// Vec<BkGraphNode>` (see `bkgraph.rs`) is populated once per distinct block
-// by the initial DFS and owns every survivor from then on: `bk_delete_graph`
-// frees by walking `entries` directly, never by walking cell pointers, so
-// the post-minimize sharing above never causes a double free -- aliasing a
-// cell's *target* doesn't touch which entry owns which `BkBlock`. A `*mut
-// BkBlock` cell is therefore an index into that arena in disguise, and
-// `BkCellValue::Ptr(*mut BkBlock)` cannot become `Ptr(Box<BkBlock>)`: two
-// `Box`es cannot soundly alias one allocation, and after minimization they
-// routinely would. The correct redesign, if this is ever tackled, is an
-// explicit arena matching what `entries` already does in practice --
-// `BkArena { blocks: Vec<BkBlock> }` + `BkCellValue::Ptr(Option<BlockId>)`
-// (`Option` because a null pointer is a real, frequently-hit state here) --
-// not a `Box`.
-//
-// Separately, `bkpushitems`'s `Embed` arm below (in this file) *is* a
-// genuine single-owner teardown: it frees a block immediately after copying
-// its cells into the parent, before any other cell can ever reference it.
-// That's a distinct population of blocks (ones spliced away at construction
-// time, before any graph exists) from the ones the paragraph above is about
-// (survivors that make it into `BkGraph.entries`), and the two teardown
-// paths don't overlap.
+// So the ownership model this file actually needs is a plain tree, not an
+// arena: `Ptr(*mut BkBlock)` -> `Ptr(Option<Box<BkBlock>>)`. Post-minimize
+// sharing is real, but it happens one level up, entirely inside `bkgraph.rs`'s
+// already-arena-based `BkGraph` -- this file's raw tree is consumed, not
+// retained, by the time that sharing occurs.
 pub struct BkBlock {
-    pub _visitstate: BkCellVisitState,
-    pub _index: u32,
-    pub _height: u32,
-    pub _depth: u32,
     pub cells: Vec<BkCell>,
 }
 // Was a C-shaped `struct { t: BkCellType, c2rust_unnamed: union { z: u32,
@@ -64,28 +41,28 @@ pub struct BkBlock {
 // `_ => {}` arms) -- so `t` stays a separate field carrying the width/kind
 // distinctions the two-variant `BkCellValue` enum below can't express on
 // its own; `bk_cell_is_pointer`'s `t >= BkCellType::P16` still decides
-// which variant a given `t` implies. Every field here is `Copy` (`p` is a
-// pointer *value*, not owned data -- see `BkBlock`'s own comment above for
-// what makes that sound), so the new enum stays `Copy` too, independent of
-// `BkBlock` itself no longer being `Copy` once `cells` became a `Vec`.
-#[derive(Copy, Clone)]
+// which variant a given `t` implies.
+//
+// No longer `Copy`, and no longer `Clone` either: `Ptr` now owns a
+// `Box<BkBlock>`, and every construction-time consumer moves cells (built
+// fresh as `vec![...]` literals) exactly once -- nothing needs a second copy.
 pub struct BkCell {
     pub t: BkCellType,
     pub value: BkCellValue,
 }
-#[derive(Copy, Clone)]
 pub enum BkCellValue {
     Int(u32),
-    Ptr(*mut BkBlock),
+    Ptr(Option<Box<BkBlock>>),
 }
 impl BkCell {
-    /// Panics instead of reading union garbage if `t` didn't actually
-    /// imply a pointer cell -- every call site already established this via
-    /// `bk_cell_is_pointer` or a `t`-keyed match arm before reaching here.
-    pub fn as_ptr(&self) -> *mut BkBlock {
+    /// Takes the pointer cell's target, consuming `self`. Panics instead of
+    /// reading union garbage if `t` didn't actually imply a pointer cell --
+    /// every call site already established this via `bk_cell_is_pointer` or
+    /// a `t`-keyed match arm before reaching here.
+    pub fn into_ptr(self) -> Option<Box<BkBlock>> {
         match self.value {
             BkCellValue::Ptr(p) => p,
-            BkCellValue::Int(_) => panic!("BkCell::as_ptr called on an integer cell"),
+            BkCellValue::Int(_) => panic!("BkCell::into_ptr called on an integer cell"),
         }
     }
     pub fn as_int(&self) -> u32 {
@@ -118,52 +95,53 @@ pub enum BkCellType {
     Copy = 254,
     Embed = 255,
 }
-#[derive(Copy, Clone, PartialEq, Eq, Debug)]
-#[repr(u32)]
-pub enum BkCellVisitState {
-    White = 0,
-    Gray = 1,
-    Black = 2,
-}
 use crate::support::buffer::Buffer;
 use crate::support::stdio::stderr;
 
 pub fn bk_cell_is_pointer(cell: &BkCell) -> bool {
     cell.t >= BkCellType::P16
 }
-pub unsafe fn _bkblock_init() -> *mut BkBlock {
-    Box::into_raw(Box::new(BkBlock {
-        _visitstate: BkCellVisitState::White,
-        _index: 0,
-        _height: 0,
-        _depth: 0,
-        cells: Vec::new(),
-    }))
+fn bkpushitems(b: &mut BkBlock, items: Vec<BkCell>) {
+    for item in items {
+        let curtype = item.t;
+        match curtype {
+            BkCellType::Copy | BkCellType::Embed => {
+                // Splices the target's cells into `b`, consuming the
+                // target itself -- the one remaining genuine single-owner
+                // teardown in this file, distinct from a `BkBlock` that
+                // survives into a `BkGraph` (see the module-level comment).
+                // `Copy`/`Embed` only differed (in the old raw-pointer
+                // world) when the source was *also* reachable through some
+                // other cell -- "splice without freeing the source" vs
+                // "splice and free" -- but an owned `Box` tree makes a
+                // second reference to the same target impossible by
+                // construction, and `BkCellType::Copy` has zero callers
+                // anywhere in this crate (confirmed by grep), so both arms
+                // collapse to the same "take ownership, move the cells
+                // over" operation; the (unreachable) `Copy` shell simply
+                // drops, empty, at the end of this block.
+                if let Some(par) = item.into_ptr() {
+                    for cell in par.cells {
+                        b.cells.push(cell);
+                    }
+                }
+            }
+            _ => b.cells.push(item),
+        }
+    }
 }
-pub unsafe fn bkblock_pushint(b: *mut BkBlock, type_0: BkCellType, x: u32) {
-    (*b).cells.push(BkCell {
-        t: type_0,
-        value: BkCellValue::Int(x),
-    });
-}
-pub unsafe fn bkblock_pushptr(b: *mut BkBlock, type_0: BkCellType, p: *mut BkBlock) {
-    (*b).cells.push(BkCell {
-        t: type_0,
-        value: BkCellValue::Ptr(p),
-    });
-}
-/// One (type, value) pair for [`bk_push`] / [`bk_new_block`].
-///
-/// C passed these as varargs -- `bk_push(b, BkCellType::B16, count, BkCellType::P16, child, BkCellType::Over)` --
-/// with a sentinel to say where the list ended and the caller responsible for
-/// keeping each type next to a value of the matching kind. A `BkCell` already
-/// *is* a type plus either an integer or a block pointer, so the list is just a
-/// slice of them, and the sentinel is gone along with the `c_variadic` feature.
-///
-/// Build them with [`bk_int`] and [`bk_ptr`] rather than by hand: which arm of
-/// the union is live is decided by `t`, exactly as the old vararg reader decided
-/// whether to pull a `c_int` or a pointer off the list.
 
+/// A fresh block holding `items`.
+pub fn bk_new_block(items: Vec<BkCell>) -> BkBlock {
+    let mut b = BkBlock { cells: Vec::new() };
+    bkpushitems(&mut b, items);
+    b
+}
+
+/// Append `items` to `b`.
+pub fn bk_push(b: &mut BkBlock, items: Vec<BkCell>) {
+    bkpushitems(b, items);
+}
 /// A cell holding an integer. `t` must be `BkCellType::B8`, `BkCellType::B16` or `BkCellType::B32`.
 #[inline]
 pub fn bk_int(t: BkCellType, z: u32) -> BkCell {
@@ -175,129 +153,86 @@ pub fn bk_int(t: BkCellType, z: u32) -> BkCell {
 
 /// A cell holding a block pointer -- `BkCellType::P16`/`BkCellType::P32`/`BkCellType::Sp16`/`BkCellType::Sp32` for an offset, or
 /// `BkCellType::Copy`/`BkCellType::Embed` to splice the target's cells in.
+/// `p` is `None` for what used to be a null pointer -- a real, frequently
+/// hit state (an absent optional sub-table, for instance).
 #[inline]
-pub fn bk_ptr(t: BkCellType, p: *mut BkBlock) -> BkCell {
+pub fn bk_ptr(t: BkCellType, p: Option<BkBlock>) -> BkCell {
     BkCell {
         t,
-        value: BkCellValue::Ptr(p),
+        value: BkCellValue::Ptr(p.map(Box::new)),
     }
 }
-
-unsafe fn bkpushitems(b: *mut BkBlock, items: &[BkCell]) {
-    for item in items {
-        let curtype = item.t;
-        match curtype {
-            BkCellType::Copy | BkCellType::Embed => {
-                let par: *mut BkBlock = item.as_ptr();
-                // Cloned rather than borrowed: `curtype == Embed` frees `par`
-                // (and, in principle, `par` could alias `b` -- never true in
-                // practice per the ownership note on `BkBlock` above, but a
-                // clone up front means this loop is sound even if it were).
-                if !par.is_null() {
-                    for cell in (*par).cells.clone() {
-                        if bk_cell_is_pointer(&cell) {
-                            bkblock_pushptr(b, cell.t, cell.as_ptr());
-                        } else {
-                            bkblock_pushint(b, cell.t, cell.as_int());
-                        }
-                    }
-                }
-                if curtype == BkCellType::Embed && !par.is_null() {
-                    drop(Box::from_raw(par));
-                }
-            }
-            t if t < BkCellType::P16 => bkblock_pushint(b, curtype, item.as_int()),
-            _ => bkblock_pushptr(b, curtype, item.as_ptr()),
-        }
+/// A fresh block holding `data`'s bytes as `B8` cells. Replaces the former
+/// `bk_new_block_from_string_len(len, *const c_char)`, whose C-string-cast
+/// signature was always gratuitous -- its one caller already held the bytes
+/// in a `Vec<u8>`.
+pub fn bk_new_block_from_bytes(data: &[u8]) -> BkBlock {
+    let mut b = bk_new_block(Vec::new());
+    for &byte in data {
+        b.cells.push(bk_int(BkCellType::B8, byte as u32));
     }
+    b
 }
-
-/// A fresh block holding `items`.
-pub unsafe fn bk_new_block(items: &[BkCell]) -> *mut BkBlock {
-    let b: *mut BkBlock = _bkblock_init();
-    bkpushitems(b, items);
-    return b;
+pub fn bk_new_block_from_buffer(buf: Option<Buffer>) -> Option<BkBlock> {
+    let buf = buf?;
+    Some(bk_new_block_from_bytes(&buf.data))
 }
-
-/// Append `items` to `b`, and hand `b` back so calls can be chained.
-pub unsafe fn bk_push(b: *mut BkBlock, items: &[BkCell]) -> *mut BkBlock {
-    bkpushitems(b, items);
-    return b;
+pub fn bk_new_block_from_buffer_copy(buf: Option<&Buffer>) -> Option<BkBlock> {
+    let buf = buf?;
+    Some(bk_new_block_from_bytes(&buf.data))
 }
-pub unsafe fn bk_new_block_from_string_len(
-    len: usize,
-    str: *const ::core::ffi::c_char,
-) -> *mut BkBlock {
-    if str.is_null() {
-        return ::core::ptr::null_mut::<BkBlock>();
+/// Debug-print `b`'s cells to stderr. Zero callers anywhere in this crate
+/// today (confirmed by grep before this conversion, same as `bufprint`'s
+/// status when Stage 9 reached it) -- kept as a manual-debugging tool rather
+/// than deleted, per that same precedent's resolution.
+pub fn bk_print_block(b: &BkBlock) {
+    unsafe {
+        fprintf(
+            stderr,
+            b"Block size %08x\n\0" as *const u8 as *const ::core::ffi::c_char,
+            b.cells.len() as u32,
+        );
+        fprintf(
+            stderr,
+            b"------------------\n\0" as *const u8 as *const ::core::ffi::c_char,
+        );
     }
-    let b: *mut BkBlock = bk_new_block(&[]);
-    for j in 0..len {
-        bkblock_pushint(b, BkCellType::B8, *str.offset(j as isize) as u32);
-    }
-    return b;
-}
-pub unsafe fn bk_new_block_from_buffer(buf: Option<Buffer>) -> *mut BkBlock {
-    let Some(buf) = buf else {
-        return ::core::ptr::null_mut::<BkBlock>();
-    };
-    let b: *mut BkBlock = bk_new_block(&[]);
-    for &byte in buf.data.iter() {
-        bkblock_pushint(b, BkCellType::B8, byte as u32);
-    }
-    return b;
-}
-pub unsafe fn bk_new_block_from_buffer_copy(buf: Option<&Buffer>) -> *mut BkBlock {
-    let Some(buf) = buf else {
-        return ::core::ptr::null_mut::<BkBlock>();
-    };
-    let b: *mut BkBlock = bk_new_block(&[]);
-    for &byte in buf.data.iter() {
-        bkblock_pushint(b, BkCellType::B8, byte as u32);
-    }
-    return b;
-}
-pub unsafe fn bk_print_block(b: *mut BkBlock) {
-    fprintf(
-        stderr,
-        b"Block size %08x\n\0" as *const u8 as *const ::core::ffi::c_char,
-        (*b).cells.len() as u32,
-    );
-    fprintf(
-        stderr,
-        b"------------------\n\0" as *const u8 as *const ::core::ffi::c_char,
-    );
-    for cell in (*b).cells.iter() {
+    for cell in b.cells.iter() {
         if bk_cell_is_pointer(cell) {
-            let p = cell.as_ptr();
-            if !p.is_null() {
-                fprintf(
-                    stderr,
-                    b"  %3d %p[%d]\n\0" as *const u8 as *const ::core::ffi::c_char,
-                    cell.t as ::core::ffi::c_uint,
-                    p,
-                    (*p)._index,
-                );
-            } else {
-                fprintf(
-                    stderr,
-                    b"  %3d [NULL]\n\0" as *const u8 as *const ::core::ffi::c_char,
-                    cell.t as ::core::ffi::c_uint,
-                );
+            match &cell.value {
+                BkCellValue::Ptr(Some(p)) => unsafe {
+                    fprintf(
+                        stderr,
+                        b"  %3d %p\n\0" as *const u8 as *const ::core::ffi::c_char,
+                        cell.t as ::core::ffi::c_uint,
+                        &**p as *const BkBlock,
+                    );
+                },
+                _ => unsafe {
+                    fprintf(
+                        stderr,
+                        b"  %3d [NULL]\n\0" as *const u8 as *const ::core::ffi::c_char,
+                        cell.t as ::core::ffi::c_uint,
+                    );
+                },
             }
         } else {
-            fprintf(
-                stderr,
-                b"  %3d %d\n\0" as *const u8 as *const ::core::ffi::c_char,
-                cell.t as ::core::ffi::c_uint,
-                cell.as_int(),
-            );
+            unsafe {
+                fprintf(
+                    stderr,
+                    b"  %3d %d\n\0" as *const u8 as *const ::core::ffi::c_char,
+                    cell.t as ::core::ffi::c_uint,
+                    cell.as_int(),
+                );
+            }
         }
     }
-    fprintf(
-        stderr,
-        b"------------------\n\0" as *const u8 as *const ::core::ffi::c_char,
-    );
+    unsafe {
+        fprintf(
+            stderr,
+            b"------------------\n\0" as *const u8 as *const ::core::ffi::c_char,
+        );
+    }
 }
 
 #[cfg(test)]

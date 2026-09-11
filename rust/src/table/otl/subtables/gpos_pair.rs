@@ -15,8 +15,8 @@ use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::bk::bkgraph::BkGraph;
 use crate::bk::bkgraph::{
-    bk_build_graph, bk_delete_graph, bk_estimate_size_of_graph, bk_minimize_graph,
-    bk_new_graph_from_root_block, bk_untangle_graph,
+    bk_build_graph, bk_estimate_size_of_graph, bk_minimize_graph, bk_new_graph_from_root_block,
+    bk_untangle_graph,
 };
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
@@ -454,7 +454,7 @@ unsafe fn cov_from_cd(cd: *const ClassDef) -> *mut Coverage {
     }
     return cov;
 }
-pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -> *mut BkBlock {
+pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -> BkBlock {
     let Subtable::GposPair(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -506,7 +506,7 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
     }
     let cov: *mut Coverage = cov_from_cd(first_cd);
     shrink_coverage(&mut *cov, true);
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
@@ -533,7 +533,7 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
             }
             k_1 = k_1.wrapping_add(1);
         }
-        let pair_set: *mut BkBlock = bk_new_block(&[bk_int(
+        let mut pair_set: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
             (current_pair_count as i32) as u32,
         )]);
@@ -567,21 +567,21 @@ pub unsafe fn otfcc_build_gpos_pair_individual(mut _subtable: *const Subtable) -
         pairs.sort_by_key(|p| p.gid);
         for pair in &pairs {
             bk_push(
-                pair_set,
-                &[
+                &mut pair_set,
+                vec![
                     bk_int(BkCellType::B16, (pair.gid as i32) as u32),
-                    bk_ptr(BkCellType::Embed, bk_gpos_value(pair.fv, format1)),
-                    bk_ptr(BkCellType::Embed, bk_gpos_value(pair.sv, format2)),
+                    bk_ptr(BkCellType::Embed, Some(bk_gpos_value(pair.fv, format1))),
+                    bk_ptr(BkCellType::Embed, Some(bk_gpos_value(pair.sv, format2))),
                 ],
             );
         }
-        bk_push(root, &[bk_ptr(BkCellType::P16, pair_set)]);
+        bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(pair_set))]);
         j_1 = j_1.wrapping_add(1);
     }
     otl_coverage_free(cov);
     return root;
 }
-pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *mut BkBlock {
+pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> BkBlock {
     let Subtable::GposPair(mut_subtable) = &*_subtable else {
         unreachable!()
     };
@@ -609,7 +609,7 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
         j = j.wrapping_add(1);
     }
     let cov: *mut Coverage = cov_from_cd(first_cd);
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 2_u32),
         bk_ptr(
             BkCellType::P16,
@@ -633,21 +633,21 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> *
         let mut k_0: GlyphClass = 0 as GlyphClass;
         while (k_0 as i32) < class2_count as i32 {
             bk_push(
-                root,
-                &[
+                &mut root,
+                vec![
                     bk_ptr(
                         BkCellType::Embed,
-                        bk_gpos_value(
+                        Some(bk_gpos_value(
                             (&(*subtable).first_values)[j_0 as usize][k_0 as usize],
                             format1,
-                        ),
+                        )),
                     ),
                     bk_ptr(
                         BkCellType::Embed,
-                        bk_gpos_value(
+                        Some(bk_gpos_value(
                             (&(*subtable).second_values)[j_0 as usize][k_0 as usize],
                             format2,
-                        ),
+                        )),
                     ),
                 ],
             );
@@ -662,24 +662,18 @@ pub unsafe fn otfcc_build_gpos_pair(
     mut _subtable: *const Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {
-    let format1: *mut BkBlock = otfcc_build_gpos_pair_individual(_subtable);
-    let format2: *mut BkBlock = otfcc_build_gpos_pair_classes(_subtable);
-    let g1: *mut BkGraph = bk_new_graph_from_root_block(format1);
-    let g2: *mut BkGraph = bk_new_graph_from_root_block(format2);
-    bk_minimize_graph(g1);
-    bk_minimize_graph(g2);
-    if bk_estimate_size_of_graph(g1) > bk_estimate_size_of_graph(g2) {
-        bk_delete_graph(g1);
-        bk_untangle_graph(g2);
-        let buf: Buffer = bk_build_graph(g2);
-        bk_delete_graph(g2);
-        return buf;
+    let format1: BkBlock = otfcc_build_gpos_pair_individual(_subtable);
+    let format2: BkBlock = otfcc_build_gpos_pair_classes(_subtable);
+    let mut g1: BkGraph = bk_new_graph_from_root_block(format1);
+    let mut g2: BkGraph = bk_new_graph_from_root_block(format2);
+    bk_minimize_graph(&mut g1);
+    bk_minimize_graph(&mut g2);
+    if bk_estimate_size_of_graph(&g1) > bk_estimate_size_of_graph(&g2) {
+        bk_untangle_graph(&mut g2);
+        return bk_build_graph(&g2);
     } else {
-        bk_delete_graph(g2);
-        bk_untangle_graph(g1);
-        let buf_0: Buffer = bk_build_graph(g1);
-        bk_delete_graph(g1);
-        return buf_0;
+        bk_untangle_graph(&mut g1);
+        return bk_build_graph(&g1);
     };
 }
 

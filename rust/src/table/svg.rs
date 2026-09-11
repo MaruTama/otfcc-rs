@@ -174,7 +174,7 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
     // ディープコピー（`ColrTable`/`TsiTable` の前例どおり `.clone()` は不可）。
     let mut svg: SvgTable = _svg.iter().map(svg_assignment_dup).collect();
     svg.sort_by(|a, b| a.start.cmp(&b.start));
-    let major: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (svg.len()) as u32)]);
+    let mut major: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (svg.len()) as u32)]);
     let mut __caryll_index: usize = 0_usize;
     let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < svg.len() {
@@ -189,8 +189,8 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
             // path).
             let doc_buf = Buffer::from_bytes(&a.document);
             bk_push(
-                major,
-                &[
+                &mut major,
+                vec![
                     bk_int(BkCellType::B16, ((*a).start as i32) as u32),
                     bk_int(BkCellType::B16, ((*a).end as i32) as u32),
                     bk_ptr(
@@ -205,9 +205,9 @@ pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
         keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let root: *mut BkBlock = bk_new_block(&[
+    let root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 0_u32),
-        bk_ptr(BkCellType::P32, major),
+        bk_ptr(BkCellType::P32, Some(major)),
         bk_int(BkCellType::B32, 0_u32),
     ]);
     // `svg` drops naturally at the end of this scope -- `document` is a

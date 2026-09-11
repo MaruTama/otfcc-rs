@@ -161,7 +161,7 @@ pub unsafe fn otfcc_build_gpos_cursive(
         );
         j = j.wrapping_add(1);
     }
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
@@ -172,8 +172,8 @@ pub unsafe fn otfcc_build_gpos_cursive(
     let mut j_0: GlyphId = 0 as GlyphId;
     while (j_0 as usize) < (*subtable).len() {
         bk_push(
-            root,
-            &[
+            &mut root,
+            vec![
                 bk_ptr(
                     BkCellType::P16,
                     bk_from_anchor((&(*subtable))[j_0 as usize].enter),

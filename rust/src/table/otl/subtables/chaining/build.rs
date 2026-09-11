@@ -71,10 +71,10 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
         - (*rule).input_ends as i32) as TableId;
     let n_subst: TableId = (*rule).apply.len() as TableId;
     reverse_backtracks(rule);
-    let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 3_u32)]);
+    let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, 3_u32)]);
     bk_push(
-        root,
-        &[bk_int(
+        &mut root,
+        vec![bk_int(
             BkCellType::B16,
             (n_backtrack as i32) as u32,
         )],
@@ -82,8 +82,8 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
     let mut j: TableId = 0 as TableId;
     while (j as i32) < (*rule).input_begins as i32 {
         bk_push(
-            root,
-            &[bk_ptr(
+            &mut root,
+            vec![bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*rule).match_0)[j as usize],
@@ -93,8 +93,8 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
         j = j.wrapping_add(1);
     }
     bk_push(
-        root,
-        &[bk_int(
+        &mut root,
+        vec![bk_int(
             BkCellType::B16,
             (n_input as i32) as u32,
         )],
@@ -102,8 +102,8 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
     let mut j_0: TableId = (*rule).input_begins;
     while (j_0 as i32) < (*rule).input_ends as i32 {
         bk_push(
-            root,
-            &[bk_ptr(
+            &mut root,
+            vec![bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*rule).match_0)[j_0 as usize],
@@ -113,8 +113,8 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
         j_0 = j_0.wrapping_add(1);
     }
     bk_push(
-        root,
-        &[bk_int(
+        &mut root,
+        vec![bk_int(
             BkCellType::B16,
             (n_lookahead as i32) as u32,
         )],
@@ -122,8 +122,8 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
     let mut j_1: TableId = (*rule).input_ends;
     while (j_1 as i32) < (*rule).match_count as i32 {
         bk_push(
-            root,
-            &[bk_ptr(
+            &mut root,
+            vec![bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*rule).match_0)[j_1 as usize],
@@ -133,8 +133,8 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
         j_1 = j_1.wrapping_add(1);
     }
     bk_push(
-        root,
-        &[bk_int(
+        &mut root,
+        vec![bk_int(
             BkCellType::B16,
             ((*rule).apply.len() as i32) as u32,
         )],
@@ -142,8 +142,8 @@ pub unsafe fn otfcc_build_chaining_coverage(mut _subtable: *const ChainingSubtab
     let mut j_2: TableId = 0 as TableId;
     while (j_2 as i32) < n_subst as i32 {
         bk_push(
-            root,
-            &[
+            &mut root,
+            vec![
                 bk_int(
                     BkCellType::B16,
                     ((&(*rule).apply)[j_2 as usize].index as i32
@@ -167,7 +167,7 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
     // same const-to-mut cast the original C-shaped code already did.
     let ic: *mut ClassDef = (*ruleset).ic.as_deref().unwrap() as *const ClassDef as *mut ClassDef;
     let coverage: *mut Coverage = &raw mut (*ic).glyphs;
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 2_u32),
         bk_ptr(
             BkCellType::P16,
@@ -208,7 +208,7 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
     let mut j_1: GlyphClass = 0 as GlyphClass;
     while j_1 as i32 <= (*ic).maxclass as i32 {
         if rcpg[j_1 as usize] != 0 {
-            let cset: *mut BkBlock = bk_new_block(&[bk_int(
+            let mut cset: BkBlock = bk_new_block(vec![bk_int(
                 BkCellType::B16,
                 (rcpg[j_1 as usize] as i32) as u32,
             )]);
@@ -231,10 +231,10 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
                         - (*rule).input_ends as i32)
                         as TableId;
                     let n_subst: TableId = (*rule).apply.len() as TableId;
-                    let r: *mut BkBlock = bk_new_block(&[]);
+                    let mut r: BkBlock = bk_new_block(Vec::new());
                     bk_push(
-                        r,
-                        &[bk_int(
+                        &mut r,
+                        vec![bk_int(
                             BkCellType::B16,
                             (n_backtrack as i32) as u32,
                         )],
@@ -242,8 +242,8 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
                     let mut m: TableId = 0 as TableId;
                     while (m as i32) < (*rule).input_begins as i32 {
                         bk_push(
-                            r,
-                            &[bk_int(
+                            &mut r,
+                            vec![bk_int(
                                 BkCellType::B16,
                                 ((&(*rule).match_0)[m as usize][0].index as i32)
                                     as u32,
@@ -252,8 +252,8 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
                         m = m.wrapping_add(1);
                     }
                     bk_push(
-                        r,
-                        &[bk_int(
+                        &mut r,
+                        vec![bk_int(
                             BkCellType::B16,
                             (n_input as i32) as u32,
                         )],
@@ -263,8 +263,8 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
                         as TableId;
                     while (m_0 as i32) < (*rule).input_ends as i32 {
                         bk_push(
-                            r,
-                            &[bk_int(
+                            &mut r,
+                            vec![bk_int(
                                 BkCellType::B16,
                                 ((&(*rule).match_0)[m_0 as usize][0].index as i32)
                                     as u32,
@@ -273,8 +273,8 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
                         m_0 = m_0.wrapping_add(1);
                     }
                     bk_push(
-                        r,
-                        &[bk_int(
+                        &mut r,
+                        vec![bk_int(
                             BkCellType::B16,
                             (n_lookahead as i32) as u32,
                         )],
@@ -282,8 +282,8 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
                     let mut m_1: TableId = (*rule).input_ends;
                     while (m_1 as i32) < (*rule).match_count as i32 {
                         bk_push(
-                            r,
-                            &[bk_int(
+                            &mut r,
+                            vec![bk_int(
                                 BkCellType::B16,
                                 ((&(*rule).match_0)[m_1 as usize][0].index as i32)
                                     as u32,
@@ -292,8 +292,8 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
                         m_1 = m_1.wrapping_add(1);
                     }
                     bk_push(
-                        r,
-                        &[bk_int(
+                        &mut r,
+                        vec![bk_int(
                             BkCellType::B16,
                             (n_subst as i32) as u32,
                         )],
@@ -301,8 +301,8 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
                     let mut m_2: TableId = 0 as TableId;
                     while (m_2 as i32) < n_subst as i32 {
                         bk_push(
-                            r,
-                            &[
+                            &mut r,
+                            vec![
                                 bk_int(
                                     BkCellType::B16,
                                     ((&(*rule).apply)[m_2 as usize].index as i32
@@ -319,13 +319,13 @@ pub unsafe fn otfcc_build_chaining_classes(mut _subtable: *const ChainingSubtabl
                         );
                         m_2 = m_2.wrapping_add(1);
                     }
-                    bk_push(cset, &[bk_ptr(BkCellType::P16, r)]);
+                    bk_push(&mut cset, vec![bk_ptr(BkCellType::P16, Some(r))]);
                 }
                 k = k.wrapping_add(1);
             }
-            bk_push(root, &[bk_ptr(BkCellType::P16, cset)]);
+            bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(cset))]);
         } else {
-            bk_push(root, &[bk_ptr(BkCellType::P16, ::core::ptr::null_mut())]);
+            bk_push(&mut root, vec![bk_ptr(BkCellType::P16, None)]);
         }
         j_1 = j_1.wrapping_add(1);
     }
@@ -347,17 +347,17 @@ pub unsafe fn otfcc_build_contextual_coverage(
         - (*rule).input_begins as i32) as TableId;
     let n_subst: TableId = (*rule).apply.len() as TableId;
     reverse_backtracks(rule);
-    let root: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, 3_u32)]);
+    let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, 3_u32)]);
     bk_push(
-        root,
-        &[bk_int(
+        &mut root,
+        vec![bk_int(
             BkCellType::B16,
             (n_input as i32) as u32,
         )],
     );
     bk_push(
-        root,
-        &[bk_int(
+        &mut root,
+        vec![bk_int(
             BkCellType::B16,
             (n_subst as i32) as u32,
         )],
@@ -365,8 +365,8 @@ pub unsafe fn otfcc_build_contextual_coverage(
     let mut j: TableId = (*rule).input_begins;
     while (j as i32) < (*rule).input_ends as i32 {
         bk_push(
-            root,
-            &[bk_ptr(
+            &mut root,
+            vec![bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*rule).match_0)[j as usize],
@@ -378,8 +378,8 @@ pub unsafe fn otfcc_build_contextual_coverage(
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as i32) < n_subst as i32 {
         bk_push(
-            root,
-            &[
+            &mut root,
+            vec![
                 bk_int(
                     BkCellType::B16,
                     ((&(*rule).apply)[j_0 as usize].index as i32) as u32,
@@ -401,7 +401,7 @@ pub unsafe fn otfcc_build_contextual_classes(
     let ruleset: *const ChainingRuleSet = chaining_ruleset_const(&*subtable);
     let ic: *mut ClassDef = (*ruleset).ic.as_deref().unwrap() as *const ClassDef as *mut ClassDef;
     let coverage: *mut Coverage = &raw mut (*ic).glyphs;
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 2_u32),
         bk_ptr(
             BkCellType::P16,
@@ -434,7 +434,7 @@ pub unsafe fn otfcc_build_contextual_classes(
     let mut j_1: GlyphClass = 0 as GlyphClass;
     while j_1 as i32 <= (*ic).maxclass as i32 {
         if rcpg[j_1 as usize] != 0 {
-            let cset: *mut BkBlock = bk_new_block(&[bk_int(
+            let mut cset: BkBlock = bk_new_block(vec![bk_int(
                 BkCellType::B16,
                 (rcpg[j_1 as usize] as i32) as u32,
             )]);
@@ -453,17 +453,17 @@ pub unsafe fn otfcc_build_contextual_classes(
                         - (*rule).input_begins as i32)
                         as TableId;
                     let n_subst: TableId = (*rule).apply.len() as TableId;
-                    let r: *mut BkBlock = bk_new_block(&[]);
+                    let mut r: BkBlock = bk_new_block(Vec::new());
                     bk_push(
-                        r,
-                        &[bk_int(
+                        &mut r,
+                        vec![bk_int(
                             BkCellType::B16,
                             (n_input as i32) as u32,
                         )],
                     );
                     bk_push(
-                        r,
-                        &[bk_int(
+                        &mut r,
+                        vec![bk_int(
                             BkCellType::B16,
                             (n_subst as i32) as u32,
                         )],
@@ -473,8 +473,8 @@ pub unsafe fn otfcc_build_contextual_classes(
                         as TableId;
                     while (m as i32) < (*rule).input_ends as i32 {
                         bk_push(
-                            r,
-                            &[bk_int(
+                            &mut r,
+                            vec![bk_int(
                                 BkCellType::B16,
                                 ((&(*rule).match_0)[m as usize][0].index as i32)
                                     as u32,
@@ -485,8 +485,8 @@ pub unsafe fn otfcc_build_contextual_classes(
                     let mut m_0: TableId = 0 as TableId;
                     while (m_0 as i32) < n_subst as i32 {
                         bk_push(
-                            r,
-                            &[
+                            &mut r,
+                            vec![
                                 bk_int(
                                     BkCellType::B16,
                                     ((&(*rule).apply)[m_0 as usize].index as i32)
@@ -502,13 +502,13 @@ pub unsafe fn otfcc_build_contextual_classes(
                         );
                         m_0 = m_0.wrapping_add(1);
                     }
-                    bk_push(cset, &[bk_ptr(BkCellType::P16, r)]);
+                    bk_push(&mut cset, vec![bk_ptr(BkCellType::P16, Some(r))]);
                 }
                 k = k.wrapping_add(1);
             }
-            bk_push(root, &[bk_ptr(BkCellType::P16, cset)]);
+            bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(cset))]);
         } else {
-            bk_push(root, &[bk_ptr(BkCellType::P16, ::core::ptr::null_mut())]);
+            bk_push(&mut root, vec![bk_ptr(BkCellType::P16, None)]);
         }
         j_1 = j_1.wrapping_add(1);
     }

@@ -186,15 +186,15 @@ pub fn otl_parse_anchor(v: Option<&ParsedValue>) -> Anchor {
     anchor.y = v.get_num_or(b"y", 0.0) as Pos;
     return anchor;
 }
-pub unsafe fn bk_from_anchor(a: Anchor) -> *mut BkBlock {
+pub unsafe fn bk_from_anchor(a: Anchor) -> Option<BkBlock> {
     if !a.present {
-        return ::core::ptr::null_mut::<BkBlock>();
+        return None;
     }
-    return bk_new_block(&[
+    return Some(bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_int(BkCellType::B16, (a.x as i16 as i32) as u32),
         bk_int(BkCellType::B16, (a.y as i16 as i32) as u32),
-    ]);
+    ]));
 }
 pub static FORMAT_DX: u8 = 1_u8;
 pub static FORMAT_DY: u8 = 2_u8;
@@ -1080,12 +1080,12 @@ pub fn write_gpos_value(buf: &mut Buffer, v: PositionValue, format: u16) {
         buf.write_u16be(pos_to_u16(v.d_height));
     }
 }
-pub unsafe fn bk_gpos_value(v: PositionValue, format: u16) -> *mut BkBlock {
-    let b: *mut BkBlock = bk_new_block(&[]);
+pub unsafe fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
+    let mut b: BkBlock = bk_new_block(Vec::new());
     if format as i32 & FORMAT_DX as i32 != 0 {
         bk_push(
-            b,
-            &[bk_int(
+            &mut b,
+            vec![bk_int(
                 BkCellType::B16,
                 (v.dx as i16 as i32) as u32,
             )],
@@ -1093,8 +1093,8 @@ pub unsafe fn bk_gpos_value(v: PositionValue, format: u16) -> *mut BkBlock {
     }
     if format as i32 & FORMAT_DY as i32 != 0 {
         bk_push(
-            b,
-            &[bk_int(
+            &mut b,
+            vec![bk_int(
                 BkCellType::B16,
                 (v.dy as i16 as i32) as u32,
             )],
@@ -1102,8 +1102,8 @@ pub unsafe fn bk_gpos_value(v: PositionValue, format: u16) -> *mut BkBlock {
     }
     if format as i32 & FORMAT_DWIDTH as i32 != 0 {
         bk_push(
-            b,
-            &[bk_int(
+            &mut b,
+            vec![bk_int(
                 BkCellType::B16,
                 (v.d_width as i16 as i32) as u32,
             )],
@@ -1111,8 +1111,8 @@ pub unsafe fn bk_gpos_value(v: PositionValue, format: u16) -> *mut BkBlock {
     }
     if format as i32 & FORMAT_DHEIGHT as i32 != 0 {
         bk_push(
-            b,
-            &[bk_int(
+            &mut b,
+            vec![bk_int(
                 BkCellType::B16,
                 (v.d_height as i16 as i32) as u32,
             )],

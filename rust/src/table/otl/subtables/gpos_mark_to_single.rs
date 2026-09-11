@@ -341,7 +341,7 @@ pub unsafe fn otfcc_build_gpos_mark_to_single(
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
@@ -356,15 +356,15 @@ pub unsafe fn otfcc_build_gpos_mark_to_single(
             ((*subtable).class_count as i32) as u32,
         ),
     ]);
-    let mark_array: *mut BkBlock = bk_new_block(&[bk_int(
+    let mut mark_array: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
         ((*subtable).mark_array.len()) as u32,
     )]);
     let mut j_1: GlyphId = 0 as GlyphId;
     while (j_1 as usize) < (*subtable).mark_array.len() {
         bk_push(
-            mark_array,
-            &[
+            &mut mark_array,
+            vec![
                 bk_int(
                     BkCellType::B16,
                     ((&(*subtable).mark_array)[j_1 as usize].mark_class as i32)
@@ -378,7 +378,7 @@ pub unsafe fn otfcc_build_gpos_mark_to_single(
         );
         j_1 = j_1.wrapping_add(1);
     }
-    let base_array: *mut BkBlock = bk_new_block(&[bk_int(
+    let mut base_array: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
         ((*subtable).base_array.len()) as u32,
     )]);
@@ -387,8 +387,8 @@ pub unsafe fn otfcc_build_gpos_mark_to_single(
         let mut k: GlyphClass = 0 as GlyphClass;
         while (k as i32) < (*subtable).class_count as i32 {
             bk_push(
-                base_array,
-                &[bk_ptr(
+                &mut base_array,
+                vec![bk_ptr(
                     BkCellType::P16,
                     bk_from_anchor((&(*subtable).base_array)[j_2 as usize].anchors[k as usize]),
                 )],
@@ -398,10 +398,10 @@ pub unsafe fn otfcc_build_gpos_mark_to_single(
         j_2 = j_2.wrapping_add(1);
     }
     bk_push(
-        root,
-        &[
-            bk_ptr(BkCellType::P16, mark_array),
-            bk_ptr(BkCellType::P16, base_array),
+        &mut root,
+        vec![
+            bk_ptr(BkCellType::P16, Some(mark_array)),
+            bk_ptr(BkCellType::P16, Some(base_array)),
         ],
     );
     otl_coverage_free(marks);

@@ -1066,7 +1066,7 @@ unsafe fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
         }
         selector = selector.wrapping_add(1);
     }
-    let st: *mut BkBlock = bk_new_block(&[
+    let mut st: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 14_u32),
         bk_int(BkCellType::B32, 0_u32),
         bk_int(BkCellType::B32, n_selectors),
@@ -1088,8 +1088,8 @@ unsafe fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
                 Some(nondflt)
             };
             bk_push(
-                st,
-                &[
+                &mut st,
+                vec![
                     bk_int(
                         BkCellType::B8,
                         (selector_0 >> 16_i32 & 0xff as Unicode) as u32,
@@ -1163,13 +1163,13 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> O
         stub
     });
     let format12 = otfcc_build_cmap_format12(cmap);
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 0_u32),
         bk_int(BkCellType::B16, (n_tables as i32) as u32),
     ]);
     bk_push(
-        root,
-        &[
+        &mut root,
+        vec![
             bk_int(BkCellType::B16, 0_u32),
             bk_int(BkCellType::B16, 3_u32),
             bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format4))),
@@ -1177,8 +1177,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> O
     );
     if requires_format12 {
         bk_push(
-            root,
-            &[
+            &mut root,
+            vec![
                 bk_int(BkCellType::B16, 0_u32),
                 bk_int(BkCellType::B16, 4_u32),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format12))),
@@ -1188,8 +1188,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> O
     if has_uvs {
         let format14 = otfcc_build_cmap_format14(cmap);
         bk_push(
-            root,
-            &[
+            &mut root,
+            vec![
                 bk_int(BkCellType::B16, 0_u32),
                 bk_int(BkCellType::B16, 5_u32),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer(Some(format14))),
@@ -1197,8 +1197,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> O
         );
     }
     bk_push(
-        root,
-        &[
+        &mut root,
+        vec![
             bk_int(BkCellType::B16, 3_u32),
             bk_int(BkCellType::B16, 1_u32),
             bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format4))),
@@ -1206,8 +1206,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> O
     );
     if requires_format12 {
         bk_push(
-            root,
-            &[
+            &mut root,
+            vec![
                 bk_int(BkCellType::B16, 3_u32),
                 bk_int(BkCellType::B16, 10_u32),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format12))),

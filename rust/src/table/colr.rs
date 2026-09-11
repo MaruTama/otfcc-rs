@@ -209,16 +209,16 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
     let mut colr: ColrTable = src.iter().map(colr_mapping_dup).collect();
     colr.sort_by(|a, b| a.glyph.index.cmp(&b.glyph.index));
     let mut current_layer_index: GlyphId = 0 as GlyphId;
-    let layer_records: *mut BkBlock = bk_new_block(&[]);
-    let base_records: *mut BkBlock = bk_new_block(&[]);
+    let mut layer_records: BkBlock = bk_new_block(Vec::new());
+    let mut base_records: BkBlock = bk_new_block(Vec::new());
     let mut __caryll_index: usize = 0_usize;
     let mut keep: usize = 1_usize;
     while keep != 0 && __caryll_index < colr.len() {
         let mapping: &ColrMapping = &colr[__caryll_index];
         while keep != 0 {
             bk_push(
-                base_records,
-                &[
+                &mut base_records,
+                vec![
                     bk_int(
                         BkCellType::B16,
                         (mapping.glyph.index as i32) as u32,
@@ -236,8 +236,8 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
                 let layer: &ColrLayer = &mapping.layers[__caryll_index_0];
                 while keep_0 != 0 {
                     bk_push(
-                        layer_records,
-                        &[
+                        &mut layer_records,
+                        vec![
                             bk_int(
                                 BkCellType::B16,
                                 (layer.glyph.index as i32) as u32,
@@ -261,11 +261,11 @@ pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
         keep = (keep == 0) as i32 as usize;
         __caryll_index = __caryll_index.wrapping_add(1);
     }
-    let root: *mut BkBlock = bk_new_block(&[
+    let root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 0_u32),
         bk_int(BkCellType::B16, (colr.len()) as u32),
-        bk_ptr(BkCellType::P32, base_records),
-        bk_ptr(BkCellType::P32, layer_records),
+        bk_ptr(BkCellType::P32, Some(base_records)),
+        bk_ptr(BkCellType::P32, Some(layer_records)),
         bk_int(
             BkCellType::B16,
             (current_layer_index as i32) as u32,

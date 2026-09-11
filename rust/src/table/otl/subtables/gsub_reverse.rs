@@ -215,7 +215,7 @@ pub unsafe fn otfcc_build_gsub_reverse(
         &mut (*(subtable as *mut GsubReverseSubtable)).match_0,
         (*subtable).input_index,
     );
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
@@ -225,8 +225,8 @@ pub unsafe fn otfcc_build_gsub_reverse(
         ),
     ]);
     bk_push(
-        root,
-        &[bk_int(
+        &mut root,
+        vec![bk_int(
             BkCellType::B16,
             ((*subtable).input_index as i32) as u32,
         )],
@@ -234,8 +234,8 @@ pub unsafe fn otfcc_build_gsub_reverse(
     let mut j: TableId = 0 as TableId;
     while (j as i32) < (*subtable).input_index as i32 {
         bk_push(
-            root,
-            &[bk_ptr(
+            &mut root,
+            vec![bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*subtable).match_0)[j as usize],
@@ -245,8 +245,8 @@ pub unsafe fn otfcc_build_gsub_reverse(
         j = j.wrapping_add(1);
     }
     bk_push(
-        root,
-        &[bk_int(
+        &mut root,
+        vec![bk_int(
             BkCellType::B16,
             ((*subtable).match_count as i32
                 - (*subtable).input_index as i32
@@ -257,8 +257,8 @@ pub unsafe fn otfcc_build_gsub_reverse(
         ((*subtable).input_index as i32 + 1_i32) as TableId;
     while (j_0 as i32) < (*subtable).match_count as i32 {
         bk_push(
-            root,
-            &[bk_ptr(
+            &mut root,
+            vec![bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
                     &(&(*subtable).match_0)[j_0 as usize],
@@ -268,8 +268,8 @@ pub unsafe fn otfcc_build_gsub_reverse(
         j_0 = j_0.wrapping_add(1);
     }
     bk_push(
-        root,
-        &[bk_int(
+        &mut root,
+        vec![bk_int(
             BkCellType::B16,
             ((*subtable).to.len() as i32) as u32,
         )],
@@ -277,8 +277,8 @@ pub unsafe fn otfcc_build_gsub_reverse(
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as usize) < (*subtable).to.len() {
         bk_push(
-            root,
-            &[bk_int(
+            &mut root,
+            vec![bk_int(
                 BkCellType::B16,
                 ((&(*subtable).to)[j_1 as usize].index as i32) as u32,
             )],

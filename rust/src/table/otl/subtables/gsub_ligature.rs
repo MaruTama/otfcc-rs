@@ -243,7 +243,7 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
     for &gid in start_gids.iter() {
         push_to_coverage(&mut *startcov, handle_from_index(gid as GlyphId) as GlyphHandle);
     }
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
@@ -263,14 +263,14 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
             }
             j_0 = j_0.wrapping_add(1);
         }
-        let ligset: *mut BkBlock = bk_new_block(&[bk_int(
+        let mut ligset: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
             (n_ligs_here as i32) as u32,
         )]);
         let mut j_1: GlyphId = 0 as GlyphId;
         while (j_1 as i32) < n_ligatures as i32 {
             if (&(*subtable))[j_1 as usize].from[0].index as i32 == gid {
-                let ligdef: *mut BkBlock = bk_new_block(&[
+                let mut ligdef: BkBlock = bk_new_block(vec![
                     bk_int(
                         BkCellType::B16,
                         ((&(*subtable))[j_1 as usize].to.index as i32) as u32,
@@ -285,8 +285,8 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
                     < (&(*subtable))[j_1 as usize].from.len() as i32
                 {
                     bk_push(
-                        ligdef,
-                        &[bk_int(
+                        &mut ligdef,
+                        vec![bk_int(
                             BkCellType::B16,
                             ((&(*subtable))[j_1 as usize].from[m as usize].index
                                 as i32) as u32,
@@ -294,11 +294,11 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
                     );
                     m = m.wrapping_add(1);
                 }
-                bk_push(ligset, &[bk_ptr(BkCellType::P16, ligdef)]);
+                bk_push(&mut ligset, vec![bk_ptr(BkCellType::P16, Some(ligdef))]);
             }
             j_1 = j_1.wrapping_add(1);
         }
-        bk_push(root, &[bk_ptr(BkCellType::P16, ligset)]);
+        bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(ligset))]);
     }
     otl_coverage_free(startcov);
     return bk_build_block(root);

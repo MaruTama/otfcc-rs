@@ -348,7 +348,7 @@ pub fn otfcc_parse_base(root: &ParsedValue, options: &Options) -> Option<Box<Bas
     }
     return base;
 }
-pub unsafe fn axis_to_bk(axis: &BaseAxis) -> *mut BkBlock {
+pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
     let mut taglist: BaseTagList = BaseTagList { items: Vec::new() };
     let mut j: TableId = 0 as TableId;
     while (j as usize) < axis.entries.len() {
@@ -369,26 +369,26 @@ pub unsafe fn axis_to_bk(axis: &BaseAxis) -> *mut BkBlock {
         j = j.wrapping_add(1);
     }
     taglist.items.sort();
-    let base_tag_list: *mut BkBlock = bk_new_block(&[bk_int(
+    let mut base_tag_list: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
         (taglist.items.len() as i32) as u32,
     )]);
     let mut j_0: TableId = 0 as TableId;
     while (j_0 as usize) < taglist.items.len() {
         bk_push(
-            base_tag_list,
-            &[bk_int(BkCellType::B32, taglist.items[j_0 as usize] as u32)],
+            &mut base_tag_list,
+            vec![bk_int(BkCellType::B32, taglist.items[j_0 as usize] as u32)],
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let base_script_list: *mut BkBlock = bk_new_block(&[bk_int(
+    let mut base_script_list: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
         (axis.entries.len() as i32) as u32,
     )]);
     let mut j_1: TableId = 0 as TableId;
     while (j_1 as usize) < axis.entries.len() {
         let entry_0: &BaseScriptEntry = &axis.entries[j_1 as usize];
-        let base_values: *mut BkBlock = bk_new_block(&[]);
+        let mut base_values: BkBlock = bk_new_block(Vec::new());
         let mut default_index: TableId = 0 as TableId;
         let mut m: TableId = 0 as TableId;
         while (m as usize) < taglist.items.len() {
@@ -400,15 +400,15 @@ pub unsafe fn axis_to_bk(axis: &BaseAxis) -> *mut BkBlock {
             }
         }
         bk_push(
-            base_values,
-            &[bk_int(
+            &mut base_values,
+            vec![bk_int(
                 BkCellType::B16,
                 (default_index as i32) as u32,
             )],
         );
         bk_push(
-            base_values,
-            &[bk_int(
+            &mut base_values,
+            vec![bk_int(
                 BkCellType::B16,
                 (taglist.items.len() as i32) as u32,
             )],
@@ -429,63 +429,57 @@ pub unsafe fn axis_to_bk(axis: &BaseAxis) -> *mut BkBlock {
             }
             if found_1 {
                 bk_push(
-                    base_values,
-                    &[bk_ptr(
+                    &mut base_values,
+                    vec![bk_ptr(
                         BkCellType::P16,
-                        bk_new_block(&[
+                        Some(bk_new_block(vec![
                             bk_int(BkCellType::B16, 1_u32),
                             bk_int(
                                 BkCellType::B16,
                                 ((&entry_0.base_values)[found_index as usize].coordinate as i16
                                     as i32) as u32,
                             ),
-                        ]),
+                        ])),
                     )],
                 );
             } else {
                 bk_push(
-                    base_values,
-                    &[bk_ptr(
+                    &mut base_values,
+                    vec![bk_ptr(
                         BkCellType::P16,
-                        bk_new_block(&[
+                        Some(bk_new_block(vec![
                             bk_int(BkCellType::B16, 1_u32),
                             bk_int(BkCellType::B16, 0_u32),
-                        ]),
+                        ])),
                     )],
                 );
             }
             m_0 = m_0.wrapping_add(1);
         }
-        let script_record: *mut BkBlock = bk_new_block(&[
-            bk_ptr(BkCellType::P16, base_values),
-            bk_ptr(BkCellType::P16, ::core::ptr::null_mut()),
+        let script_record: BkBlock = bk_new_block(vec![
+            bk_ptr(BkCellType::P16, Some(base_values)),
+            bk_ptr(BkCellType::P16, None),
             bk_int(BkCellType::B16, 0_u32),
         ]);
         bk_push(
-            base_script_list,
-            &[
+            &mut base_script_list,
+            vec![
                 bk_int(BkCellType::B32, (entry_0.tag) as u32),
-                bk_ptr(BkCellType::P16, script_record),
+                bk_ptr(BkCellType::P16, Some(script_record)),
             ],
         );
         j_1 = j_1.wrapping_add(1);
     }
-    return bk_new_block(&[
-        bk_ptr(BkCellType::P16, base_tag_list),
-        bk_ptr(BkCellType::P16, base_script_list),
+    return bk_new_block(vec![
+        bk_ptr(BkCellType::P16, Some(base_tag_list)),
+        bk_ptr(BkCellType::P16, Some(base_script_list)),
     ]);
 }
-pub unsafe fn otfcc_build_base(base: Option<&BaseTable>) -> Option<Buffer> {
+pub fn otfcc_build_base(base: Option<&BaseTable>) -> Option<Buffer> {
     let base = base?;
-    let horizontal_bk = base
-        .horizontal
-        .as_deref()
-        .map_or(::core::ptr::null_mut(), |a| axis_to_bk(a));
-    let vertical_bk = base
-        .vertical
-        .as_deref()
-        .map_or(::core::ptr::null_mut(), |a| axis_to_bk(a));
-    let root: *mut BkBlock = bk_new_block(&[
+    let horizontal_bk = base.horizontal.as_deref().map(axis_to_bk);
+    let vertical_bk = base.vertical.as_deref().map(axis_to_bk);
+    let root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B32, 0x10000_u32),
         bk_ptr(BkCellType::P16, horizontal_bk),
         bk_ptr(BkCellType::P16, vertical_bk),

@@ -202,7 +202,7 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
     if is_constant_difference as i32 != 0
         && !heuristics.contains(BuildHeuristics::GSUB_VERT)
     {
-        let b: *mut BkBlock = bk_new_block(&[
+        let b: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 1_u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(
@@ -214,7 +214,7 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
         otl_coverage_free(cov);
         return bk_build_block(b);
     } else {
-        let b_0: *mut BkBlock = bk_new_block(&[
+        let mut b_0: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 2_u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(BkCellType::B16, ((*subtable).len()) as u32),
@@ -222,8 +222,8 @@ pub unsafe fn otfcc_build_gsub_single_subtable(
         let mut k: GlyphId = 0 as GlyphId;
         while (k as usize) < (*subtable).len() {
             bk_push(
-                b_0,
-                &[bk_int(
+                &mut b_0,
+                vec![bk_int(
                     BkCellType::B16,
                     ((&(*subtable))[k as usize].to.index as i32) as u32,
                 )],

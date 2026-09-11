@@ -188,19 +188,19 @@ pub unsafe fn otfcc_build_gpos_single(
     }
     let coverage_buf: Buffer = build_coverage(&*cov);
     if is_const {
-        let b: *mut BkBlock = bk_new_block(&[
+        let b: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 1_u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(BkCellType::B16, (format as i32) as u32),
             bk_ptr(
                 BkCellType::Embed,
-                bk_gpos_value((&(*subtable))[0].value, format),
+                Some(bk_gpos_value((&(*subtable))[0].value, format)),
             ),
         ]);
         otl_coverage_free(cov);
         return bk_build_block(b);
     } else {
-        let b_0: *mut BkBlock = bk_new_block(&[
+        let mut b_0: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 2_u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(BkCellType::B16, (format as i32) as u32),
@@ -209,10 +209,10 @@ pub unsafe fn otfcc_build_gpos_single(
         let mut k: GlyphId = 0 as GlyphId;
         while (k as usize) < (*subtable).len() {
             bk_push(
-                b_0,
-                &[bk_ptr(
+                &mut b_0,
+                vec![bk_ptr(
                     BkCellType::Embed,
-                    bk_gpos_value((&(*subtable))[k as usize].value, format),
+                    Some(bk_gpos_value((&(*subtable))[k as usize].value, format)),
                 )],
             );
             k = k.wrapping_add(1);
