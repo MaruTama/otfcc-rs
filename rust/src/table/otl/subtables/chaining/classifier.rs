@@ -386,9 +386,9 @@ pub unsafe fn otfcc_classified_build_chaining(
                 + try_classify_around(lookup, j, &raw mut st) as i32)
                 as TableId;
             let buf: Buffer = if is_contextual as i32 != 0 {
-                otfcc_build_contextual(st)
+                otfcc_build_contextual(&*st)
             } else {
-                otfcc_build_chaining(st)
+                otfcc_build_chaining(&*st)
             };
             if st != st0 {
                 subtable_chaining_free(st);

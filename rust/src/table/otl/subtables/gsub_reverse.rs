@@ -44,7 +44,12 @@ fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
 // middle -- exactly what `[T]::reverse` does, now that `match_0` is a real
 // `Vec<Coverage>` slice instead of an array of raw pointers to swap by
 // value. `input_index == 0` (nothing to reverse) falls out of slicing an
-// empty range, no separate guard needed.
+// empty range, no separate guard needed. Only the parse side
+// (`otl_read_gsub_reverse`, below) still calls this in place -- it owns
+// `subtable`'s only reference during construction, so the `&mut` it takes
+// is sound there; the build side (`otfcc_build_gsub_reverse`) needed a
+// different fix (clone-then-reverse a local instead) once it started
+// taking a shared `&Subtable`.
 fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
     match_0[..input_index as usize].reverse();
 }
@@ -198,29 +203,29 @@ pub fn otl_gsub_parse_reverse(
     };
     Some(Subtable::GsubReverse(subtable))
 }
-pub unsafe fn otfcc_build_gsub_reverse(
-    mut _subtable: *const Subtable,
+pub fn otfcc_build_gsub_reverse(
+    _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {
-    let Subtable::GsubReverse(mut_subtable) = &*_subtable else {
+    let Subtable::GsubReverse(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GsubReverseSubtable = mut_subtable;
-    // `subtable` is `*const` because every other read in this function is
-    // read-only, but sorting `match_0`'s backtrack portion into wire order
-    // in place is pre-existing behavior (unchanged by this field's type),
-    // and nothing else touches `_subtable` during a build pass -- sound to
-    // cast away constness just for this one call.
-    reverse_backtracks(
-        &mut (*(subtable as *mut GsubReverseSubtable)).match_0,
-        (*subtable).input_index,
-    );
+    // The backtrack portion (indices [0, input_index)) needs to be read in
+    // wire order, which is the reverse of `match_0`'s storage order. Rather
+    // than sort `match_0` in place (which used to need a const-cast to a
+    // shared `*const` -- unsound now that this function takes a genuine
+    // shared `&Subtable`), clone just that slice into a local and reverse
+    // the clone; every read below of a backtrack-region index goes through
+    // `backtrack` instead of `subtable.match_0`, and every other region
+    // reads `subtable.match_0` directly, unmodified.
+    let mut backtrack: Vec<Coverage> = subtable.match_0[..subtable.input_index as usize].to_vec();
+    backtrack.reverse();
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(
-                &(&(*subtable).match_0)[(*subtable).input_index as usize],
+                &subtable.match_0[subtable.input_index as usize],
             ))),
         ),
     ]);
@@ -228,17 +233,17 @@ pub unsafe fn otfcc_build_gsub_reverse(
         &mut root,
         vec![bk_int(
             BkCellType::B16,
-            ((*subtable).input_index as i32) as u32,
+            (subtable.input_index as i32) as u32,
         )],
     );
     let mut j: TableId = 0 as TableId;
-    while (j as i32) < (*subtable).input_index as i32 {
+    while (j as i32) < subtable.input_index as i32 {
         bk_push(
             &mut root,
             vec![bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
-                    &(&(*subtable).match_0)[j as usize],
+                    &backtrack[j as usize],
                 ))),
             )],
         );
@@ -248,20 +253,20 @@ pub unsafe fn otfcc_build_gsub_reverse(
         &mut root,
         vec![bk_int(
             BkCellType::B16,
-            ((*subtable).match_count as i32
-                - (*subtable).input_index as i32
+            (subtable.match_count as i32
+                - subtable.input_index as i32
                 - 1_i32) as u32,
         )],
     );
     let mut j_0: TableId =
-        ((*subtable).input_index as i32 + 1_i32) as TableId;
-    while (j_0 as i32) < (*subtable).match_count as i32 {
+        (subtable.input_index as i32 + 1_i32) as TableId;
+    while (j_0 as i32) < subtable.match_count as i32 {
         bk_push(
             &mut root,
             vec![bk_ptr(
                 BkCellType::P16,
                 bk_new_block_from_buffer(Some(build_coverage(
-                    &(&(*subtable).match_0)[j_0 as usize],
+                    &subtable.match_0[j_0 as usize],
                 ))),
             )],
         );
@@ -271,16 +276,16 @@ pub unsafe fn otfcc_build_gsub_reverse(
         &mut root,
         vec![bk_int(
             BkCellType::B16,
-            ((*subtable).to.len() as i32) as u32,
+            (subtable.to.len() as i32) as u32,
         )],
     );
     let mut j_1: TableId = 0 as TableId;
-    while (j_1 as usize) < (*subtable).to.len() {
+    while (j_1 as usize) < subtable.to.len() {
         bk_push(
             &mut root,
             vec![bk_int(
                 BkCellType::B16,
-                ((&(*subtable).to)[j_1 as usize].index as i32) as u32,
+                (subtable.to[j_1 as usize].index as i32) as u32,
             )],
         );
         j_1 = j_1.wrapping_add(1);

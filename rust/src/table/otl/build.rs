@@ -38,26 +38,19 @@ use crate::table::otl::{
 // (confirmed by grep: none of the 9 builder functions are referenced
 // anywhere outside this file).
 //
-// `*const Subtable` -> `&Subtable`, Stage D (2026-09): 7 of the 9 concrete
+// `*const Subtable` -> `&Subtable`, Stage D (2026-09): all 9 concrete
 // builders had no unsafe operation left besides this cast and the now-safe
 // `bk_*` calls Stage D Phase 1 already safened, once the pointless
 // "recast the already-safe `&X` pattern-match binding back to `*const X`"
 // residue each one carried was removed too. `otfcc_build_gsub_reverse`
-// (needs a `&mut` reborrow to sort part of its subtable into wire order in
-// place) and `otfcc_build_gpos_pair`'s two `_individual`/`_classes` helpers
-// (heavy internal `*const ClassDef` pointer chains, a separate, larger
-// conversion) don't fit this signature directly -- see the small bridge
-// functions right below `_build_lookup`'s registrations.
+// and `otfcc_build_gpos_pair`'s `_individual`/`_classes` helpers needed a
+// further pass each (in-place backtrack sorting rewritten to clone-then-
+// reverse a local instead of mutating through a cast-away-const pointer;
+// `*const ClassDef` chains that were themselves the same self-inflicted
+// recast pattern) but land on the same safe signature in the end.
 pub type OtlBuilder = Option<fn(&Subtable, BuildHeuristics) -> Buffer>;
 pub type OtlSplitBuilder = Option<fn(&Subtable, BuildHeuristics) -> Vec<Buffer>>;
 pub const LARGE_SUBTABLE_LIMIT: i32 = 4096_i32;
-// `otfcc_build_gsub_reverse` needs a `&mut` reborrow to sort part of its
-// subtable into wire order in place -- unlike the 7 builders converted
-// alongside it, it can't take a plain `&Subtable` without that in-place
-// mutation becoming unsound. Bridged here rather than touched itself.
-fn build_gsub_reverse_bridge(subtable: &Subtable, heuristics: BuildHeuristics) -> Buffer {
-    unsafe { otfcc_build_gsub_reverse(subtable as *const Subtable, heuristics) }
-}
 fn feature_name_to_tag(name: &[u8]) -> u32 {
     let mut tag: u32 = 0_u32;
     if name.len() > 0_usize {
@@ -238,7 +231,7 @@ fn _build_lookup(
     if written == 0 {
         written = _declare_lookup_writer(
             OTL_TYPE_GSUB_REVERSE,
-            Some(build_gsub_reverse_bridge as fn(&Subtable, BuildHeuristics) -> Buffer),
+            Some(otfcc_build_gsub_reverse as fn(&Subtable, BuildHeuristics) -> Buffer),
             lookup,
             subtables,
             last_offset,
