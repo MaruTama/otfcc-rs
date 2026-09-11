@@ -201,7 +201,7 @@ pub fn otfcc_parse_colr(root: &ParsedValue, options: &Options) -> Option<ColrTab
     Some(colr)
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
+pub fn otfcc_build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
     let src = match _colr {
         Some(c) if !c.is_empty() => c,
         _ => return None,

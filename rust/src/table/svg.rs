@@ -165,7 +165,7 @@ pub fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable
     return Some(svg);
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
+pub fn otfcc_build_svg(_svg: Option<&SvgTable>) -> Option<Buffer> {
     let _svg = match _svg {
         Some(s) if !s.is_empty() => s,
         _ => return None,

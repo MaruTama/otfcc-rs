@@ -162,7 +162,7 @@ pub fn otfcc_parse_vdmx(root: &ParsedValue, options: &Options) -> Option<Box<Vdm
     Some(vdmx)
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
+pub fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
     let vdmx = vdmx?;
     let ratios: &Vec<VdmxRatioRange> = &vdmx.ratios;
     if ratios.is_empty() {
