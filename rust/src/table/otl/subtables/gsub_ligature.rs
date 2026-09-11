@@ -221,44 +221,43 @@ pub fn otl_gsub_parse_ligature(
 // deduplicated set directly -- there is no value to carry, so this isn't
 // even a map the way every other uthash instance in this migration has
 // been.
-pub unsafe fn otfcc_build_gsub_ligature_subtable(
-    mut _subtable: *const Subtable,
+pub fn otfcc_build_gsub_ligature_subtable(
+    _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {
-    let Subtable::GsubLigature(mut_subtable) = &*_subtable else {
+    let Subtable::GsubLigature(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GsubLigatureSubtable = mut_subtable;
-    let n_ligatures: GlyphId = (*subtable).len() as GlyphId;
+    let n_ligatures: GlyphId = subtable.len() as GlyphId;
     let mut start_gids: std::collections::BTreeSet<i32> =
         std::collections::BTreeSet::new();
     let mut j: GlyphId = 0 as GlyphId;
     while (j as i32) < n_ligatures as i32 {
         let sgid: i32 =
-            (&(*subtable))[j as usize].from[0].index as i32;
+            subtable[j as usize].from[0].index as i32;
         start_gids.insert(sgid);
         j = j.wrapping_add(1);
     }
-    let startcov: *mut Coverage = otl_coverage_create();
+    let mut startcov: Coverage = Vec::new();
     for &gid in start_gids.iter() {
-        push_to_coverage(&mut *startcov, handle_from_index(gid as GlyphId) as GlyphHandle);
+        push_to_coverage(&mut startcov, handle_from_index(gid as GlyphId) as GlyphHandle);
     }
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(&*startcov))),
+            bk_new_block_from_buffer(Some(build_coverage(&startcov))),
         ),
         bk_int(
             BkCellType::B16,
-            ((*startcov).len() as i32) as u32,
+            (startcov.len() as i32) as u32,
         ),
     ]);
     for &gid in start_gids.iter() {
         let mut n_ligs_here: GlyphId = 0 as GlyphId;
         let mut j_0: GlyphId = 0 as GlyphId;
         while (j_0 as i32) < n_ligatures as i32 {
-            if (&(*subtable))[j_0 as usize].from[0].index as i32 == gid {
+            if subtable[j_0 as usize].from[0].index as i32 == gid {
                 n_ligs_here = n_ligs_here.wrapping_add(1);
             }
             j_0 = j_0.wrapping_add(1);
@@ -269,26 +268,26 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
         )]);
         let mut j_1: GlyphId = 0 as GlyphId;
         while (j_1 as i32) < n_ligatures as i32 {
-            if (&(*subtable))[j_1 as usize].from[0].index as i32 == gid {
+            if subtable[j_1 as usize].from[0].index as i32 == gid {
                 let mut ligdef: BkBlock = bk_new_block(vec![
                     bk_int(
                         BkCellType::B16,
-                        ((&(*subtable))[j_1 as usize].to.index as i32) as u32,
+                        (subtable[j_1 as usize].to.index as i32) as u32,
                     ),
                     bk_int(
                         BkCellType::B16,
-                        ((&(*subtable))[j_1 as usize].from.len() as i32) as u32,
+                        (subtable[j_1 as usize].from.len() as i32) as u32,
                     ),
                 ]);
                 let mut m: GlyphId = 1 as GlyphId;
                 while (m as i32)
-                    < (&(*subtable))[j_1 as usize].from.len() as i32
+                    < subtable[j_1 as usize].from.len() as i32
                 {
                     bk_push(
                         &mut ligdef,
                         vec![bk_int(
                             BkCellType::B16,
-                            ((&(*subtable))[j_1 as usize].from[m as usize].index
+                            (subtable[j_1 as usize].from[m as usize].index
                                 as i32) as u32,
                         )],
                     );
@@ -300,7 +299,6 @@ pub unsafe fn otfcc_build_gsub_ligature_subtable(
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(ligset))]);
     }
-    otl_coverage_free(startcov);
     return bk_build_block(root);
 }
 

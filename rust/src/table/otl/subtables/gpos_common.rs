@@ -186,7 +186,7 @@ pub fn otl_parse_anchor(v: Option<&ParsedValue>) -> Anchor {
     anchor.y = v.get_num_or(b"y", 0.0) as Pos;
     return anchor;
 }
-pub unsafe fn bk_from_anchor(a: Anchor) -> Option<BkBlock> {
+pub fn bk_from_anchor(a: Anchor) -> Option<BkBlock> {
     if !a.present {
         return None;
     }
@@ -1080,7 +1080,7 @@ pub fn write_gpos_value(buf: &mut Buffer, v: PositionValue, format: u16) {
         buf.write_u16be(pos_to_u16(v.d_height));
     }
 }
-pub unsafe fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
+pub fn bk_gpos_value(v: PositionValue, format: u16) -> BkBlock {
     let mut b: BkBlock = bk_new_block(Vec::new());
     if format as i32 & FORMAT_DX as i32 != 0 {
         bk_push(

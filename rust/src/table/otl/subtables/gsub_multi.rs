@@ -169,23 +169,23 @@ pub fn otl_gsub_parse_multi(
     }
     Some(Subtable::GsubMulti(st))
 }
-unsafe fn build_gsub_multi_subtable_range(
-    subtable: *const GsubMultiSubtable,
+fn build_gsub_multi_subtable_range(
+    subtable: &GsubMultiSubtable,
     start: GlyphId,
     end: GlyphId,
 ) -> Buffer {
-    let cov: *mut Coverage = otl_coverage_create();
+    let mut cov: Coverage = Vec::new();
     for j in start..end {
         push_to_coverage(
-            &mut *cov,
-            otfcc_handle_dup((&(*subtable))[j as usize].from.clone() as Handle) as GlyphHandle,
+            &mut cov,
+            otfcc_handle_dup(subtable[j as usize].from.clone() as Handle) as GlyphHandle,
         );
     }
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(&*cov))),
+            bk_new_block_from_buffer(Some(build_coverage(&cov))),
         ),
         bk_int(
             BkCellType::B16,
@@ -193,44 +193,42 @@ unsafe fn build_gsub_multi_subtable_range(
         ),
     ]);
     for j_0 in start..end {
-        let to: *const Coverage = &(&(*subtable))[j_0 as usize].to;
+        let to: &Coverage = &subtable[j_0 as usize].to;
         let mut b: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
-            ((*to).len() as i32) as u32,
+            (to.len() as i32) as u32,
         )]);
-        for k in 0..(*to).len() {
+        for entry in to {
             bk_push(
                 &mut b,
                 vec![bk_int(
                     BkCellType::B16,
-                    ((&(*to))[k].index as i32) as u32,
+                    (entry.index as i32) as u32,
                 )],
             );
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(b))]);
     }
-    otl_coverage_free(cov);
     return bk_build_block(root);
 }
 pub const GSUB_MULTI_SUBTABLE_SIZE_LIMIT: i32 = 0xff00_i32;
-pub unsafe fn otfcc_build_gsub_multi_subtable_split(
-    mut _subtable: *const Subtable,
+pub fn otfcc_build_gsub_multi_subtable_split(
+    _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Vec<Buffer> {
-    let Subtable::GsubMulti(mut_subtable) = &*_subtable else {
+    let Subtable::GsubMulti(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GsubMultiSubtable = mut_subtable;
     let mut parts: Vec<Buffer> = Vec::new();
     let mut start: GlyphId = 0 as GlyphId;
-    while (start as usize) < (*subtable).len() {
+    while (start as usize) < subtable.len() {
         let mut size: usize = (6_i32 + 4_i32) as usize;
         let mut end: GlyphId = start;
-        while (end as usize) < (*subtable).len() {
+        while (end as usize) < subtable.len() {
             let entry_size: usize = ((2_i32
                 + 2_i32
                 + 2_i32) as usize)
-                .wrapping_add(((&(*subtable))[end as usize].to.len()).wrapping_mul(2_usize));
+                .wrapping_add((subtable[end as usize].to.len()).wrapping_mul(2_usize));
             if end as i32 > start as i32
                 && size.wrapping_add(entry_size) > GSUB_MULTI_SUBTABLE_SIZE_LIMIT as usize
             {
@@ -246,16 +244,6 @@ pub unsafe fn otfcc_build_gsub_multi_subtable_split(
         parts.push(build_gsub_multi_subtable_range(subtable, 0 as GlyphId, 0 as GlyphId));
     }
     parts
-}
-pub unsafe fn otfcc_build_gsub_multi_subtable(
-    mut _subtable: *const Subtable,
-    mut _heuristics: BuildHeuristics,
-) -> Buffer {
-    let Subtable::GsubMulti(mut_subtable) = &*_subtable else {
-        unreachable!()
-    };
-    let subtable: *const GsubMultiSubtable = mut_subtable;
-    return build_gsub_multi_subtable_range(subtable, 0 as GlyphId, (*subtable).len() as GlyphId);
 }
 
 #[cfg(test)]

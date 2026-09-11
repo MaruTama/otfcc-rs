@@ -4,7 +4,7 @@ use crate::support::font_reader::FontReader;
 use crate::support::handle::{GlyphHandle, Handle, handle_from_name, otfcc_handle_dup};
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
-    Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
+    Coverage, otl_coverage_free, push_to_coverage, read_coverage,
 };
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
@@ -144,20 +144,19 @@ pub fn otl_gpos_parse_cursive(
     }
     Some(Subtable::GposCursive(subtable))
 }
-pub unsafe fn otfcc_build_gpos_cursive(
-    mut _subtable: *const Subtable,
+pub fn otfcc_build_gpos_cursive(
+    _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {
-    let Subtable::GposCursive(mut_subtable) = &*_subtable else {
+    let Subtable::GposCursive(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GposCursiveSubtable = mut_subtable;
-    let cov: *mut Coverage = otl_coverage_create();
+    let mut cov: Coverage = Vec::new();
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).len() {
+    while (j as usize) < subtable.len() {
         push_to_coverage(
-            &mut *cov,
-            otfcc_handle_dup((&(*subtable))[j as usize].target.clone() as Handle) as GlyphHandle,
+            &mut cov,
+            otfcc_handle_dup(subtable[j as usize].target.clone() as Handle) as GlyphHandle,
         );
         j = j.wrapping_add(1);
     }
@@ -165,28 +164,27 @@ pub unsafe fn otfcc_build_gpos_cursive(
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(&*cov))),
+            bk_new_block_from_buffer(Some(build_coverage(&cov))),
         ),
-        bk_int(BkCellType::B16, ((*subtable).len()) as u32),
+        bk_int(BkCellType::B16, (subtable.len()) as u32),
     ]);
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*subtable).len() {
+    while (j_0 as usize) < subtable.len() {
         bk_push(
             &mut root,
             vec![
                 bk_ptr(
                     BkCellType::P16,
-                    bk_from_anchor((&(*subtable))[j_0 as usize].enter),
+                    bk_from_anchor(subtable[j_0 as usize].enter),
                 ),
                 bk_ptr(
                     BkCellType::P16,
-                    bk_from_anchor((&(*subtable))[j_0 as usize].exit),
+                    bk_from_anchor(subtable[j_0 as usize].exit),
                 ),
             ],
         );
         j_0 = j_0.wrapping_add(1);
     }
-    otl_coverage_free(cov);
     return bk_build_block(root);
 }
 

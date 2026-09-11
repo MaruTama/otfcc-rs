@@ -37,9 +37,27 @@ use crate::table::otl::{
 // `written == 0`), not real runtime dispatch through a varying value
 // (confirmed by grep: none of the 9 builder functions are referenced
 // anywhere outside this file).
-pub type OtlBuilder = Option<unsafe fn(*const Subtable, BuildHeuristics) -> Buffer>;
-pub type OtlSplitBuilder = Option<unsafe fn(*const Subtable, BuildHeuristics) -> Vec<Buffer>>;
+//
+// `*const Subtable` -> `&Subtable`, Stage D (2026-09): 7 of the 9 concrete
+// builders had no unsafe operation left besides this cast and the now-safe
+// `bk_*` calls Stage D Phase 1 already safened, once the pointless
+// "recast the already-safe `&X` pattern-match binding back to `*const X`"
+// residue each one carried was removed too. `otfcc_build_gsub_reverse`
+// (needs a `&mut` reborrow to sort part of its subtable into wire order in
+// place) and `otfcc_build_gpos_pair`'s two `_individual`/`_classes` helpers
+// (heavy internal `*const ClassDef` pointer chains, a separate, larger
+// conversion) don't fit this signature directly -- see the small bridge
+// functions right below `_build_lookup`'s registrations.
+pub type OtlBuilder = Option<fn(&Subtable, BuildHeuristics) -> Buffer>;
+pub type OtlSplitBuilder = Option<fn(&Subtable, BuildHeuristics) -> Vec<Buffer>>;
 pub const LARGE_SUBTABLE_LIMIT: i32 = 4096_i32;
+// `otfcc_build_gsub_reverse` needs a `&mut` reborrow to sort part of its
+// subtable into wire order in place -- unlike the 7 builders converted
+// alongside it, it can't take a plain `&Subtable` without that in-place
+// mutation becoming unsound. Bridged here rather than touched itself.
+fn build_gsub_reverse_bridge(subtable: &Subtable, heuristics: BuildHeuristics) -> Buffer {
+    unsafe { otfcc_build_gsub_reverse(subtable as *const Subtable, heuristics) }
+}
 fn feature_name_to_tag(name: &[u8]) -> u32 {
     let mut tag: u32 = 0_u32;
     if name.len() > 0_usize {
@@ -80,16 +98,13 @@ fn _declare_lookup_writer(
         let mut total_buf_size_ext: usize = 0_usize;
         let mut j: TableId = 0 as TableId;
         while (j as usize) < lookup.subtables.len() {
-            // `subtable_at`/the `fn_0` call are this file's own not-yet-
-            // migrated raw-pointer shells (`SubtablePtr`/the `OtlBuilder`
-            // fn-pointer type) -- narrow bridge, same shape as
-            // `vqs_compare`'s.
-            let buf: Buffer = unsafe {
-                fn_0.expect("non-null function pointer")(
-                    subtable_at(&lookup.subtables, j as usize) as *const Subtable,
-                    heuristics,
-                )
-            };
+            // `subtable_at` is this file's own not-yet-migrated raw-pointer
+            // shell (`SubtablePtr`) -- narrow bridge, same shape as
+            // `vqs_compare`'s. `fn_0` itself is a safe fn as of Stage D.
+            let buf: Buffer = fn_0.expect("non-null function pointer")(
+                unsafe { &*subtable_at(&lookup.subtables, j as usize) },
+                heuristics,
+            );
             total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
             subtables.push(buf);
             total_buf_size_ext = total_buf_size_ext.wrapping_add(8_usize);
@@ -121,12 +136,10 @@ fn _declare_lookup_writer_split(
         let mut j: TableId = 0 as TableId;
         while (j as usize) < lookup.subtables.len() {
             // Same narrow bridge as `_declare_lookup_writer` above.
-            let part: Vec<Buffer> = unsafe {
-                fn_0.expect("non-null function pointer")(
-                    subtable_at(&lookup.subtables, j as usize) as *const Subtable,
-                    heuristics,
-                )
-            };
+            let part: Vec<Buffer> = fn_0.expect("non-null function pointer")(
+                unsafe { &*subtable_at(&lookup.subtables, j as usize) },
+                heuristics,
+            );
             for buf in part {
                 total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
                 subtables.push(buf);
@@ -171,7 +184,7 @@ fn _build_lookup(
             OTL_TYPE_GSUB_SINGLE,
             Some(
                 otfcc_build_gsub_single_subtable
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
+                    as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -185,7 +198,7 @@ fn _build_lookup(
             OTL_TYPE_GSUB_MULTIPLE,
             Some(
                 otfcc_build_gsub_multi_subtable_split
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> Vec<Buffer>,
+                    as fn(&Subtable, BuildHeuristics) -> Vec<Buffer>,
             ),
             lookup,
             subtables,
@@ -199,7 +212,7 @@ fn _build_lookup(
             OTL_TYPE_GSUB_ALTERNATE,
             Some(
                 otfcc_build_gsub_multi_subtable_split
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> Vec<Buffer>,
+                    as fn(&Subtable, BuildHeuristics) -> Vec<Buffer>,
             ),
             lookup,
             subtables,
@@ -213,7 +226,7 @@ fn _build_lookup(
             OTL_TYPE_GSUB_LIGATURE,
             Some(
                 otfcc_build_gsub_ligature_subtable
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
+                    as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -225,10 +238,7 @@ fn _build_lookup(
     if written == 0 {
         written = _declare_lookup_writer(
             OTL_TYPE_GSUB_REVERSE,
-            Some(
-                otfcc_build_gsub_reverse
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
-            ),
+            Some(build_gsub_reverse_bridge as fn(&Subtable, BuildHeuristics) -> Buffer),
             lookup,
             subtables,
             last_offset,
@@ -241,7 +251,7 @@ fn _build_lookup(
             OTL_TYPE_GPOS_SINGLE,
             Some(
                 otfcc_build_gpos_single
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
+                    as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -255,7 +265,7 @@ fn _build_lookup(
             OTL_TYPE_GPOS_PAIR,
             Some(
                 otfcc_build_gpos_pair
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
+                    as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -269,7 +279,7 @@ fn _build_lookup(
             OTL_TYPE_GPOS_CURSIVE,
             Some(
                 otfcc_build_gpos_cursive
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
+                    as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -283,7 +293,7 @@ fn _build_lookup(
             OTL_TYPE_GPOS_MARK_TO_BASE,
             Some(
                 otfcc_build_gpos_mark_to_single
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
+                    as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -297,7 +307,7 @@ fn _build_lookup(
             OTL_TYPE_GPOS_MARK_TO_MARK,
             Some(
                 otfcc_build_gpos_mark_to_single
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
+                    as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,
@@ -311,7 +321,7 @@ fn _build_lookup(
             OTL_TYPE_GPOS_MARK_TO_LIGATURE,
             Some(
                 otfcc_build_gpos_mark_to_ligature
-                    as unsafe fn(*const Subtable, BuildHeuristics) -> Buffer,
+                    as fn(&Subtable, BuildHeuristics) -> Buffer,
             ),
             lookup,
             subtables,

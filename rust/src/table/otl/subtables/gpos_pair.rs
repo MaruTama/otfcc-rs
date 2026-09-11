@@ -658,12 +658,15 @@ pub unsafe fn otfcc_build_gpos_pair_classes(mut _subtable: *const Subtable) -> B
     otl_coverage_free(cov);
     return root;
 }
-pub unsafe fn otfcc_build_gpos_pair(
-    mut _subtable: *const Subtable,
-    mut _heuristics: BuildHeuristics,
-) -> Buffer {
-    let format1: BkBlock = otfcc_build_gpos_pair_individual(_subtable);
-    let format2: BkBlock = otfcc_build_gpos_pair_classes(_subtable);
+// Matches the now-safe `OtlBuilder` dispatcher type (Stage D) by bridging
+// to `_individual`/`_classes` -- both still `unsafe fn`, with heavy
+// internal `*const ClassDef` pointer chains that are a separate, larger
+// conversion (unlike the 7 other concrete builders in this migration's
+// same pass, whose only unsafe operation turned out to be the `*const
+// Subtable` cast itself plus now-safe `bk_*` calls).
+pub fn otfcc_build_gpos_pair(_subtable: &Subtable, mut _heuristics: BuildHeuristics) -> Buffer {
+    let format1: BkBlock = unsafe { otfcc_build_gpos_pair_individual(_subtable as *const Subtable) };
+    let format2: BkBlock = unsafe { otfcc_build_gpos_pair_classes(_subtable as *const Subtable) };
     let mut g1: BkGraph = bk_new_graph_from_root_block(format1);
     let mut g2: BkGraph = bk_new_graph_from_root_block(format2);
     bk_minimize_graph(&mut g1);

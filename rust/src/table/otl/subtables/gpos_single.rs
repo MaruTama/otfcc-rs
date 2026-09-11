@@ -4,7 +4,7 @@ use crate::support::font_reader::FontReader;
 use crate::support::handle::{GlyphHandle, Handle, handle_from_name, otfcc_handle_dup};
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
-    Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
+    Coverage, otl_coverage_free, push_to_coverage, read_coverage,
 };
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
@@ -153,40 +153,39 @@ pub fn otl_gpos_parse_single(
     }
     Some(Subtable::GposSingle(subtable))
 }
-pub unsafe fn otfcc_build_gpos_single(
-    mut _subtable: *const Subtable,
+pub fn otfcc_build_gpos_single(
+    _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {
-    let Subtable::GposSingle(mut_subtable) = &*_subtable else {
+    let Subtable::GposSingle(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GposSingleSubtable = mut_subtable;
-    let mut is_const: bool = (*subtable).len() > 0_usize;
+    let mut is_const: bool = subtable.len() > 0_usize;
     let mut format: u16 = 0_u16;
-    if (*subtable).len() > 0_usize {
+    if subtable.len() > 0_usize {
         let mut j: GlyphId = 0 as GlyphId;
-        while (j as usize) < (*subtable).len() {
+        while (j as usize) < subtable.len() {
             is_const = is_const as i32 != 0
-                && (&(*subtable))[j as usize].value.dx == (&(*subtable))[0].value.dx
-                && (&(*subtable))[j as usize].value.dy == (&(*subtable))[0].value.dy
-                && (&(*subtable))[j as usize].value.d_width == (&(*subtable))[0].value.d_width
-                && (&(*subtable))[j as usize].value.d_height == (&(*subtable))[0].value.d_height;
+                && subtable[j as usize].value.dx == subtable[0].value.dx
+                && subtable[j as usize].value.dy == subtable[0].value.dy
+                && subtable[j as usize].value.d_width == subtable[0].value.d_width
+                && subtable[j as usize].value.d_height == subtable[0].value.d_height;
             format = (format as i32
-                | required_position_format((&(*subtable))[j as usize].value) as i32)
+                | required_position_format(subtable[j as usize].value) as i32)
                 as u16;
             j = j.wrapping_add(1);
         }
     }
-    let cov: *mut Coverage = otl_coverage_create();
+    let mut cov: Coverage = Vec::new();
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*subtable).len() {
+    while (j_0 as usize) < subtable.len() {
         push_to_coverage(
-            &mut *cov,
-            otfcc_handle_dup((&(*subtable))[j_0 as usize].target.clone() as Handle) as GlyphHandle,
+            &mut cov,
+            otfcc_handle_dup(subtable[j_0 as usize].target.clone() as Handle) as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let coverage_buf: Buffer = build_coverage(&*cov);
+    let coverage_buf: Buffer = build_coverage(&cov);
     if is_const {
         let b: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 1_u32),
@@ -194,30 +193,28 @@ pub unsafe fn otfcc_build_gpos_single(
             bk_int(BkCellType::B16, (format as i32) as u32),
             bk_ptr(
                 BkCellType::Embed,
-                Some(bk_gpos_value((&(*subtable))[0].value, format)),
+                Some(bk_gpos_value(subtable[0].value, format)),
             ),
         ]);
-        otl_coverage_free(cov);
         return bk_build_block(b);
     } else {
         let mut b_0: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, 2_u32),
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(BkCellType::B16, (format as i32) as u32),
-            bk_int(BkCellType::B16, ((*subtable).len()) as u32),
+            bk_int(BkCellType::B16, (subtable.len()) as u32),
         ]);
         let mut k: GlyphId = 0 as GlyphId;
-        while (k as usize) < (*subtable).len() {
+        while (k as usize) < subtable.len() {
             bk_push(
                 &mut b_0,
                 vec![bk_ptr(
                     BkCellType::Embed,
-                    Some(bk_gpos_value((&(*subtable))[k as usize].value, format)),
+                    Some(bk_gpos_value(subtable[k as usize].value, format)),
                 )],
             );
             k = k.wrapping_add(1);
         }
-        otl_coverage_free(cov);
         return bk_build_block(b_0);
     };
 }
