@@ -288,15 +288,10 @@ pub fn otfcc_parse_gdef(root: &ParsedValue, options: &Options) -> Option<Box<Gde
     Some(gdef)
 }
 // `bk_new_block`/`bk_push`/`bk_new_block_from_buffer`/`bk_build_block`
-// (this function and the two below) stay `unsafe fn`: the `BkBlock` graph
-// API is a separate, not-yet-safened shell (Stage C in the migration plan)
-// whose whole body is choreography through it, not a stray call buried in
-// an otherwise-safe function -- narrow bridging doesn't fit here the way
-// it does for `classdef_from_raw`/`coverage_from_raw` above. Parameters
-// that don't touch `bk_*` are still converted to references where
-// possible, dropping the pointless `*const`-to-`*mut` casts that used to
-// exist purely to satisfy an unnecessarily-`*mut` parameter type.
-unsafe fn write_lig_caret_rec(cr: &CaretValueRecord) -> BkBlock {
+// are all safe fn as of Stage D (2026-09) -- this function and the two
+// below no longer have any unsafe operation left at all, now that the
+// `BkBlock` graph API itself has been safened.
+fn write_lig_caret_rec(cr: &CaretValueRecord) -> BkBlock {
     let carets = &cr.carets;
     let mut bcr: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (carets.len()) as u32)]);
     for caret in carets {
@@ -320,7 +315,7 @@ unsafe fn write_lig_caret_rec(cr: &CaretValueRecord) -> BkBlock {
     }
     bcr
 }
-unsafe fn write_lig_carets(records: &LigCaretTable) -> BkBlock {
+fn write_lig_carets(records: &LigCaretTable) -> BkBlock {
     // `otl_coverage_create()`/`otl_coverage_free` were only ever a
     // `Box::into_raw`/`Box::from_raw` shell around a plain `Coverage`
     // (`Vec<GlyphHandle>`) -- building it as a local owned value instead
@@ -345,7 +340,7 @@ unsafe fn write_lig_carets(records: &LigCaretTable) -> BkBlock {
     }
     lct
 }
-pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
+pub fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
     let gdef = gdef?;
     let mut b_glyph_class_def: Option<BkBlock> = None;
     let b_attach_list: Option<BkBlock> = None;

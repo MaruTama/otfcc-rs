@@ -303,7 +303,7 @@ pub fn otfcc_parse_cpal(root: &ParsedValue, options: &Options) -> Option<Box<Cpa
     Some(cpal)
 }
 #[inline]
-unsafe fn build_palette_type(cpal: &CpalTable) -> Option<BkBlock> {
+fn build_palette_type(cpal: &CpalTable) -> Option<BkBlock> {
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
     let mut needs_palette_type: bool = false;
     let mut j: TableId = 0 as TableId;
@@ -331,7 +331,7 @@ unsafe fn build_palette_type(cpal: &CpalTable) -> Option<BkBlock> {
     return Some(block);
 }
 #[inline]
-unsafe fn build_palette_label(cpal: &CpalTable) -> Option<BkBlock> {
+fn build_palette_label(cpal: &CpalTable) -> Option<BkBlock> {
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
     let mut needs_palette_label: bool = false;
     let mut j: TableId = 0 as TableId;
@@ -359,7 +359,7 @@ unsafe fn build_palette_label(cpal: &CpalTable) -> Option<BkBlock> {
     return Some(block);
 }
 #[inline]
-unsafe fn build_palette_entry_label(cpal: &CpalTable) -> Option<BkBlock> {
+fn build_palette_entry_label(cpal: &CpalTable) -> Option<BkBlock> {
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
     let mut needs_palette_entry_label: bool = false;
     let palette: &CpalPalette = &palettes[0_usize];
@@ -388,7 +388,7 @@ unsafe fn build_palette_entry_label(cpal: &CpalTable) -> Option<BkBlock> {
     }
     return Some(block);
 }
-pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
+pub fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
     let cpal = cpal?;
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
     if palettes.is_empty() {
@@ -405,24 +405,23 @@ pub unsafe fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
         let total_colors: ColorId = palette.colorset.len() as ColorId;
         let mut k: ColorId = 0 as ColorId;
         while (k as i32) < num_palettes_entries as i32 {
-            let color: *const CpalColor;
-            if (k as i32) < total_colors as i32 {
-                color = &palette.colorset[k as usize] as *const CpalColor;
+            let color: &CpalColor = if (k as i32) < total_colors as i32 {
+                &palette.colorset[k as usize]
             } else {
-                color = &raw const WHITE;
-            }
+                &WHITE
+            };
             bk_push(
                 &mut color_records,
                 vec![
-                    bk_int(BkCellType::B8, ((*color).blue as i32) as u32),
+                    bk_int(BkCellType::B8, (color.blue as i32) as u32),
                     bk_int(
                         BkCellType::B8,
-                        ((*color).green as i32) as u32,
+                        (color.green as i32) as u32,
                     ),
-                    bk_int(BkCellType::B8, ((*color).red as i32) as u32),
+                    bk_int(BkCellType::B8, (color.red as i32) as u32),
                     bk_int(
                         BkCellType::B8,
-                        ((*color).alpha as i32) as u32,
+                        (color.alpha as i32) as u32,
                     ),
                 ],
             );
