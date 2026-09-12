@@ -15,7 +15,6 @@ use crate::logger::{
 };
 
 use crate::font::caryll_font::Font;
-use crate::support::NULL;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, ShapeId, TableId};
@@ -32,11 +31,11 @@ use crate::table::glyf::{
 };
 
 use crate::table::otl::{
-    Feature, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType, OTL_TYPE_GPOS_CHAINING,
-    OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE,
-    OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE,
-    OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE,
-    OTL_TYPE_GSUB_SINGLE, OtlTable, Subtable,
+    Feature, LanguageSystem, Lookup, LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE,
+    OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK,
+    OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING,
+    OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE,
+    OtlTable, Subtable,
 };
 
 use crate::consolidate::otl::chaining::consolidate_chaining;
@@ -854,30 +853,6 @@ pub fn otfcc_consolidate_lookup(
         options,
     );
 }
-// No longer `extern "C"`: each of these 4 predicates is passed into its own
-// dedicated `otl_*_filter_env` helper (`table/otl.rs`) from exactly one call
-// site below -- a fixed 1:1 association, not runtime-varying dispatch -- so
-// the function-pointer parameter type they flow through dropped `extern "C"`
-// too (confirmed by grep: neither the predicates nor the `otl_*_filter_env`
-// helpers are called from anywhere else in the crate).
-unsafe fn lookup_ref_is_not_empty(
-    r_lut: *const LookupRef,
-    mut _env: *mut ::core::ffi::c_void,
-) -> bool {
-    return !r_lut.is_null() && !(*r_lut).is_null() && !(**r_lut).subtables.is_empty();
-}
-unsafe fn feature_ref_is_not_empty(
-    r_feat: *const FeatureRef,
-    mut _env: *mut ::core::ffi::c_void,
-) -> bool {
-    return !r_feat.is_null() && !(*r_feat).is_null() && !(**r_feat).lookups.is_empty();
-}
-unsafe fn lookup_is_not_empty(r_lut: *const Lookup, mut _env: *mut ::core::ffi::c_void) -> bool {
-    return !r_lut.is_null() && !(*r_lut).subtables.is_empty();
-}
-unsafe fn feature_is_not_empty(r_feat: *const Feature, mut _env: *mut ::core::ffi::c_void) -> bool {
-    return !r_feat.is_null() && !(*r_feat).lookups.is_empty();
-}
 unsafe fn consolidate_otl_table(
     font: *mut Font,
     table: *mut OtlTable,
@@ -902,14 +877,9 @@ unsafe fn consolidate_otl_table(
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*table).features.len() {
             let feature: *mut Feature = &raw mut *(&mut (*table).features)[j_0 as usize];
-            otl_lookup_ref_list_filter_env(
-                &raw mut (*feature).lookups,
-                Some(
-                    lookup_ref_is_not_empty
-                        as unsafe fn(*const LookupRef, *mut ::core::ffi::c_void) -> bool,
-                ),
-                NULL,
-            );
+            otl_lookup_ref_list_filter_env(&mut (*feature).lookups, |lut| {
+                lut.is_some_and(|l| !l.subtables.is_empty())
+            });
             j_0 = j_0.wrapping_add(1);
         }
         let mut j_1: TableId = 0 as TableId;
@@ -933,28 +903,13 @@ unsafe fn consolidate_otl_table(
             {
                 (*lang).required_feature = ::core::ptr::null::<Feature>();
             }
-            otl_feature_ref_list_filter_env(
-                &raw mut (*lang).features,
-                Some(
-                    feature_ref_is_not_empty
-                        as unsafe fn(*const FeatureRef, *mut ::core::ffi::c_void) -> bool,
-                ),
-                NULL,
-            );
+            otl_feature_ref_list_filter_env(&mut (*lang).features, |feat| {
+                feat.is_some_and(|f| !f.lookups.is_empty())
+            });
             j_1 = j_1.wrapping_add(1);
         }
-        otl_lookup_list_filter_env(
-            &raw mut (*table).lookups,
-            Some(lookup_is_not_empty as unsafe fn(*const Lookup, *mut ::core::ffi::c_void) -> bool),
-            NULL,
-        );
-        otl_feature_list_filter_env(
-            &raw mut (*table).features,
-            Some(
-                feature_is_not_empty as unsafe fn(*const Feature, *mut ::core::ffi::c_void) -> bool,
-            ),
-            NULL,
-        );
+        otl_lookup_list_filter_env(&mut (*table).lookups, |lut| !lut.subtables.is_empty());
+        otl_feature_list_filter_env(&mut (*table).features, |feat| !feat.lookups.is_empty());
         let feat_n1: TableId = (*table).features.len() as TableId;
         let lut_n1: TableId = (*table).lookups.len() as TableId;
         if feat_n1 as i32 >= feat_n as i32
@@ -1255,12 +1210,21 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
     if has_glyf {
         // `OtlConsolidationFunction`'s ~9-file dispatch table is safe now
         // (see `__declare_otl_consolidation`/`otfcc_consolidate_lookup`
-        // above), but `consolidate_otl`/`consolidate_otl_table` themselves
-        // stay `unsafe fn` for a separate reason: the `otl_*_filter_env`
-        // family (`table/otl.rs`) still walks `LookupRef`/`FeatureRef`
-        // borrowed raw pointers by design (Stage 7-2-f), and `*mut OtlTable`
-        // is still threaded through `.map_or(null_mut(), ...)` -- both out
-        // of scope for this PR, bridged narrowly here instead.
+        // above), and the `otl_*_filter_env` family (`table/otl.rs`) is
+        // safe too (closures instead of a type-erased `*mut c_void`
+        // callback). `consolidate_otl`/`consolidate_otl_table` themselves
+        // stay `unsafe fn` for a different, deliberate reason: `table:
+        // *mut OtlTable` is kept raw rather than `&mut OtlTable` so that
+        // `otfcc_consolidate_lookup`'s call into `consolidate_chaining`
+        // (which re-derives `(*table).lookups[k]` for a self-referencing
+        // lookup, `k == j`) never aliases the `&mut Lookup` this same loop
+        // holds for index `j` -- promoting `table` to a real `&mut`
+        // reference here would make that self-reference a Stacked Borrows
+        // violation one layer up (the same hazard `otfcc_consolidate_
+        // lookup`'s own doc comment already avoids at its layer). `*mut
+        // Font` stays raw for the same reason; `.map_or(null_mut(), ...)`
+        // is still threaded through -- both out of scope for this PR,
+        // bridged narrowly here instead.
         unsafe {
             consolidate_otl(font, options);
         }
@@ -1298,7 +1262,7 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
 #[cfg(test)]
 mod consolidate_otl_table_tests {
     use super::*;
-    use crate::table::otl::{new_feature, new_language, new_lookup};
+    use crate::table::otl::{LookupRef, new_feature, new_language, new_lookup};
 
     fn empty_font_with_glyph_order() -> Box<Font> {
         Box::new(Font {
