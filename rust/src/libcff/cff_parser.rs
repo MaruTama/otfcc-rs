@@ -29,8 +29,8 @@ use crate::libcff::{
 use crate::support::options::Options;
 use crate::support::primitives::Arity;
 use crate::table::cff::{
-    callback_draw_curveto, callback_draw_getrand, callback_draw_lineto, callback_draw_next_contour,
-    callback_draw_sethint, callback_draw_setmask, callback_draw_setwidth,
+    OutlineBuilderContext, callback_draw_curveto, callback_draw_getrand, callback_draw_lineto,
+    callback_draw_next_contour, callback_draw_sethint, callback_draw_setmask, callback_draw_setwidth,
 };
 use crate::support::fmt::Hex4;
 
@@ -547,13 +547,25 @@ fn reverse_stack(stack: &mut CffStack, left: u8, right: u8) {
 // per-field `.is_none()` fallback-to-`callback_nop_*` branches below were
 // already unreachable dead code; deleted along with the extraction, not
 // just the vtable shell.
+//
+// `outline` itself used to be a `*mut c_void`, cast back to `*mut
+// OutlineBuilderContext` at each `callback_draw_*` call site -- more type
+// erasure that was never actually needed, the same pattern as the vtable
+// above: every one of the ~40 call sites below (including the two
+// recursive `cff_parse_outline` calls for `callsubr`/`callgsubr`) already
+// knows the concrete type at compile time. A real `&mut
+// OutlineBuilderContext` carries the same information with no cast, and
+// Rust's implicit-reborrow rule for `&mut` places (the same mechanism
+// that lets a loop call `f(r)` on a `&mut` binding `r` repeatedly without
+// "value moved" errors) means every one of those call sites, recursive
+// calls included, keeps working unchanged.
 pub unsafe fn cff_parse_outline(
     data: *mut u8,
     len: u32,
     gsubr: &CffIndex,
     lsubr: &CffIndex,
     stack: *mut CffStack,
-    outline: *mut ::core::ffi::c_void,
+    outline: &mut OutlineBuilderContext,
     options: &Options,
     depth: u32,
     total_calls: *mut u32,
@@ -2741,6 +2753,7 @@ mod cff_parse_outline_total_calls_tests {
     use super::*;
     use crate::libcff::cff_index::CffIndexCountType;
     use crate::support::options::Options;
+    use crate::table::glyf::{Glyph, otfcc_new_glyf_glyph};
 
     fn empty_cff_index() -> CffIndex {
         CffIndex {
@@ -2749,6 +2762,21 @@ mod cff_parse_outline_total_calls_tests {
             off_size: 0,
             offset: Vec::new(),
             data: Vec::new(),
+        }
+    }
+
+    fn dummy_outline_context(g: &mut Glyph) -> OutlineBuilderContext<'_> {
+        OutlineBuilderContext {
+            g,
+            j_contour: 0,
+            j_point: 0,
+            default_width_x: 0.0,
+            nominal_width_x: 0.0,
+            defined_h_stems: 0,
+            defined_v_stems: 0,
+            defined_hint_masks: 0,
+            defined_contour_masks: 0,
+            randx: 0,
         }
     }
 
@@ -2827,6 +2855,13 @@ mod cff_parse_outline_total_calls_tests {
         };
         let options = Options::default();
         let mut total_calls: u32 = 0;
+        // This charstring only calls `callgsubr`; it never reaches a draw
+        // operator, so the outline context is never actually touched --
+        // still needs to be a real `&mut Glyph`-backed context now that
+        // `cff_parse_outline` takes one unconditionally rather than a
+        // nullable `*mut c_void`.
+        let mut g = otfcc_new_glyf_glyph();
+        let mut ctx = dummy_outline_context(&mut g);
         unsafe {
             cff_parse_outline(
                 data.as_mut_ptr(),
@@ -2834,7 +2869,7 @@ mod cff_parse_outline_total_calls_tests {
                 &gsubr,
                 &lsubr,
                 &raw mut stack,
-                ::core::ptr::null_mut(),
+                &mut ctx,
                 &options,
                 0,
                 &raw mut total_calls,
@@ -2876,6 +2911,8 @@ mod cff_parse_outline_total_calls_tests {
         };
         let options = Options::default();
         let mut total_calls: u32 = 0;
+        let mut g = otfcc_new_glyf_glyph();
+        let mut ctx = dummy_outline_context(&mut g);
         unsafe {
             cff_parse_outline(
                 data.as_mut_ptr(),
@@ -2883,7 +2920,7 @@ mod cff_parse_outline_total_calls_tests {
                 &gsubr,
                 &lsubr,
                 &raw mut stack,
-                ::core::ptr::null_mut(),
+                &mut ctx,
                 &options,
                 0,
                 &raw mut total_calls,
@@ -2952,32 +2989,31 @@ mod cff_parse_outline_hintmask_tests {
         };
         let options = Options::default();
         let mut total_calls: u32 = 0;
+        let mut g = otfcc_new_glyf_glyph();
+        let mut ctx = OutlineBuilderContext {
+            g: &mut g,
+            j_contour: 0,
+            j_point: 0,
+            default_width_x: 0.0,
+            nominal_width_x: 0.0,
+            defined_h_stems: 0,
+            defined_v_stems: 0,
+            defined_hint_masks: 0,
+            defined_contour_masks: 0,
+            randx: 0,
+        };
         unsafe {
-            let g_ptr = Box::into_raw(otfcc_new_glyf_glyph());
-            let mut ctx = OutlineBuilderContext {
-                g: g_ptr,
-                j_contour: 0,
-                j_point: 0,
-                default_width_x: 0.0,
-                nominal_width_x: 0.0,
-                defined_h_stems: 0,
-                defined_v_stems: 0,
-                defined_hint_masks: 0,
-                defined_contour_masks: 0,
-                randx: 0,
-            };
             cff_parse_outline(
                 data.as_mut_ptr(),
                 len,
                 &gsubr,
                 &lsubr,
                 &raw mut stack,
-                &raw mut ctx as *mut ::core::ffi::c_void,
+                &mut ctx,
                 &options,
                 0,
                 &raw mut total_calls,
             );
-            drop(Box::from_raw(g_ptr));
         }
         // The `hstem` operator ran (and only it -- `hintmask` bailed
         // before doing anything observable) -- `stem` reflects the one
@@ -3019,34 +3055,33 @@ mod cff_parse_outline_hintmask_tests {
         };
         let options = Options::default();
         let mut total_calls: u32 = 0;
+        let mut g = otfcc_new_glyf_glyph();
+        let mut ctx = OutlineBuilderContext {
+            g: &mut g,
+            j_contour: 0,
+            j_point: 0,
+            default_width_x: 0.0,
+            nominal_width_x: 0.0,
+            defined_h_stems: 0,
+            defined_v_stems: 0,
+            defined_hint_masks: 0,
+            defined_contour_masks: 0,
+            randx: 0,
+        };
         unsafe {
-            let g_ptr = Box::into_raw(otfcc_new_glyf_glyph());
-            let mut ctx = OutlineBuilderContext {
-                g: g_ptr,
-                j_contour: 0,
-                j_point: 0,
-                default_width_x: 0.0,
-                nominal_width_x: 0.0,
-                defined_h_stems: 0,
-                defined_v_stems: 0,
-                defined_hint_masks: 0,
-                defined_contour_masks: 0,
-                randx: 0,
-            };
             cff_parse_outline(
                 data.as_mut_ptr(),
                 len,
                 &gsubr,
                 &lsubr,
                 &raw mut stack,
-                &raw mut ctx as *mut ::core::ffi::c_void,
+                &mut ctx,
                 &options,
                 0,
                 &raw mut total_calls,
             );
-            assert_eq!((*ctx.g).stem_h.len(), 256);
-            drop(Box::from_raw(g_ptr));
         }
+        assert_eq!(ctx.g.stem_h.len(), 256);
         assert_eq!(stack.stem, 256);
     }
 }
@@ -3056,6 +3091,7 @@ mod cff_parse_outline_stack_operator_tests {
     use super::*;
     use crate::libcff::cff_index::CffIndexCountType;
     use crate::support::options::Options;
+    use crate::table::glyf::otfcc_new_glyf_glyph;
 
     // A charstring's `put`/`get`/`index`/`roll` operators each take a
     // charstring-supplied stack *value* (not the trusted `(*stack).index`
@@ -3105,6 +3141,22 @@ mod cff_parse_outline_stack_operator_tests {
         let lsubr = empty_cff_index();
         let options = Options::default();
         let mut total_calls: u32 = 0;
+        // None of this module's `put`/`get`/`index`/`roll` charstrings
+        // reach a draw operator -- still needs a real `&mut Glyph`-backed
+        // context now that `cff_parse_outline` takes one unconditionally.
+        let mut g = otfcc_new_glyf_glyph();
+        let mut ctx = OutlineBuilderContext {
+            g: &mut g,
+            j_contour: 0,
+            j_point: 0,
+            default_width_x: 0.0,
+            nominal_width_x: 0.0,
+            defined_h_stems: 0,
+            defined_v_stems: 0,
+            defined_hint_masks: 0,
+            defined_contour_masks: 0,
+            randx: 0,
+        };
         unsafe {
             cff_parse_outline(
                 data.as_mut_ptr(),
@@ -3112,7 +3164,7 @@ mod cff_parse_outline_stack_operator_tests {
                 &gsubr,
                 &lsubr,
                 &raw mut *stack,
-                ::core::ptr::null_mut(),
+                &mut ctx,
                 &options,
                 0,
                 &raw mut total_calls,

@@ -170,9 +170,18 @@ pub struct CffExtractContext {
     pub cff_file: *mut CffFile,
     pub seed: u64,
 }
-#[derive(Copy, Clone)]
-pub struct OutlineBuilderContext {
-    pub g: *mut Glyph,
+// Was `g: *mut Glyph` + `#[derive(Copy, Clone)]` (never actually exercised
+// -- `build_outline` constructs exactly one value, moves it once into
+// `cff_parse_outline`, and it flows through that recursive call and the 8
+// `callback_draw_*` functions below by reference the whole time; grep
+// confirms no `.clone()`/by-value copy anywhere). `g` outlives the `Box`
+// that owns the `Glyph` it points at (the `Box` moves into
+// `context.glyphs[i]` before `g` is taken), so a plain borrow works: taking
+// `&mut` from `context.glyphs[i]` *after* that move, instead of `&raw mut
+// *g_owner` *before* it, points at the exact same allocation the old raw
+// pointer did, just as a lifetime-checked reference instead.
+pub struct OutlineBuilderContext<'a> {
+    pub g: &'a mut Glyph,
     pub j_contour: ShapeId,
     pub j_point: ShapeId,
     pub default_width_x: ::core::ffi::c_double,
@@ -628,31 +637,24 @@ unsafe fn callback_extract_fd(
         _ => {}
     };
 }
-pub(crate) unsafe fn callback_draw_setwidth(
-    mut _context: *mut ::core::ffi::c_void,
-    width: ::core::ffi::c_double,
-) {
-    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
+pub(crate) fn callback_draw_setwidth(context: &mut OutlineBuilderContext, width: ::core::ffi::c_double) {
     vq_replace(
-        &mut (*(*context).g).advance_width,
-        vq_create_still(width as Pos + (*context).nominal_width_x as Pos) as VQ,
+        &mut context.g.advance_width,
+        vq_create_still(width as Pos + context.nominal_width_x as Pos) as VQ,
     );
 }
-pub(crate) unsafe fn callback_draw_next_contour(mut _context: *mut ::core::ffi::c_void) {
-    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    (*(*context).g).contours.push(Vec::new());
-    (*context).j_contour = (*(*context).g).contours.len() as ShapeId;
-    (*context).j_point = 0 as ShapeId;
+pub(crate) fn callback_draw_next_contour(context: &mut OutlineBuilderContext) {
+    context.g.contours.push(Vec::new());
+    context.j_contour = context.g.contours.len() as ShapeId;
+    context.j_point = 0 as ShapeId;
 }
-pub(crate) unsafe fn callback_draw_lineto(
-    mut _context: *mut ::core::ffi::c_void,
+pub(crate) fn callback_draw_lineto(
+    context: &mut OutlineBuilderContext,
     x1: ::core::ffi::c_double,
     y1: ::core::ffi::c_double,
 ) {
-    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    if (*context).j_contour != 0 {
-        let contour: *mut Contour = &raw mut (&mut (*(*context).g).contours)
-            [((*context).j_contour as i32 - 1_i32) as usize];
+    if context.j_contour != 0 {
+        let contour: &mut Contour = &mut context.g.contours[(context.j_contour as i32 - 1_i32) as usize];
         let mut z: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -668,13 +670,12 @@ pub(crate) unsafe fn callback_draw_lineto(
         z.on_curve = TRUE_0 as i8;
         vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
         vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
-        (*contour).push(z);
-        (*context).j_point =
-            ((*context).j_point as i32 + 1_i32) as ShapeId;
+        contour.push(z);
+        context.j_point = (context.j_point as i32 + 1_i32) as ShapeId;
     }
 }
-pub(crate) unsafe fn callback_draw_curveto(
-    mut _context: *mut ::core::ffi::c_void,
+pub(crate) fn callback_draw_curveto(
+    context: &mut OutlineBuilderContext,
     x1: ::core::ffi::c_double,
     y1: ::core::ffi::c_double,
     x2: ::core::ffi::c_double,
@@ -682,10 +683,8 @@ pub(crate) unsafe fn callback_draw_curveto(
     x3: ::core::ffi::c_double,
     y3: ::core::ffi::c_double,
 ) {
-    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    if (*context).j_contour != 0 {
-        let contour: *mut Contour = &raw mut (&mut (*(*context).g).contours)
-            [((*context).j_contour as i32 - 1_i32) as usize];
+    if context.j_contour != 0 {
+        let contour: &mut Contour = &mut context.g.contours[(context.j_contour as i32 - 1_i32) as usize];
         let mut z: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -701,7 +700,7 @@ pub(crate) unsafe fn callback_draw_curveto(
         z.on_curve = FALSE_0 as i8;
         vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
         vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
-        (*contour).push(z);
+        contour.push(z);
         let mut z_0: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -717,7 +716,7 @@ pub(crate) unsafe fn callback_draw_curveto(
         z_0.on_curve = FALSE_0 as i8;
         vq_copy_replace(&mut z_0.x, vq_create_still(x2 as Pos) as VQ);
         vq_copy_replace(&mut z_0.y, vq_create_still(y2 as Pos) as VQ);
-        (*contour).push(z_0);
+        contour.push(z_0);
         let mut z_1: Point = Point {
             x: VQ {
                 kernel: 0.,
@@ -733,22 +732,20 @@ pub(crate) unsafe fn callback_draw_curveto(
         z_1.on_curve = TRUE_0 as i8;
         vq_copy_replace(&mut z_1.x, vq_create_still(x3 as Pos) as VQ);
         vq_copy_replace(&mut z_1.y, vq_create_still(y3 as Pos) as VQ);
-        (*contour).push(z_1);
-        (*context).j_point =
-            ((*context).j_point as i32 + 3_i32) as ShapeId;
+        contour.push(z_1);
+        context.j_point = (context.j_point as i32 + 3_i32) as ShapeId;
     }
 }
-pub(crate) unsafe fn callback_draw_sethint(
-    mut _context: *mut ::core::ffi::c_void,
+pub(crate) fn callback_draw_sethint(
+    context: &mut OutlineBuilderContext,
     is_vertical: bool,
     position: ::core::ffi::c_double,
     width: ::core::ffi::c_double,
 ) {
-    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     let stems: &mut StemDefList = if is_vertical as i32 != 0 {
-        &mut (*(*context).g).stem_v
+        &mut context.g.stem_v
     } else {
-        &mut (*(*context).g).stem_h
+        &mut context.g.stem_h
     };
     stems.push(PostscriptStemDef {
         position: position as Pos,
@@ -756,16 +753,15 @@ pub(crate) unsafe fn callback_draw_sethint(
         map: 0,
     });
 }
-pub(crate) unsafe fn callback_draw_setmask(
-    mut _context: *mut ::core::ffi::c_void,
+pub(crate) fn callback_draw_setmask(
+    context: &mut OutlineBuilderContext,
     is_contour_mask: bool,
     mask_array: &[bool],
 ) {
-    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
     let mask_list: &mut MaskList = if is_contour_mask as i32 != 0 {
-        &mut (*(*context).g).contour_masks
+        &mut context.g.contour_masks
     } else {
-        &mut (*(*context).g).hint_masks
+        &mut context.g.hint_masks
     };
     let mut mask: PostscriptHintMask = PostscriptHintMask {
         points_before: 0,
@@ -773,15 +769,14 @@ pub(crate) unsafe fn callback_draw_setmask(
         mask_h: [false; 256],
         mask_v: [false; 256],
     };
-    if (*context).j_contour != 0 {
-        mask.contours_before =
-            ((*context).j_contour as i32 - 1_i32) as u16;
+    if context.j_contour != 0 {
+        mask.contours_before = (context.j_contour as i32 - 1_i32) as u16;
     } else {
         mask.contours_before = 0_u16;
     }
-    mask.points_before = (*context).j_point;
-    let stem_h_len = (*(*context).g).stem_h.len();
-    let stem_v_len = (*(*context).g).stem_v.len();
+    mask.points_before = context.j_point;
+    let stem_h_len = context.g.stem_h.len();
+    let stem_v_len = context.g.stem_v.len();
     let mut j: ShapeId = 0 as ShapeId;
     while (j as i32) < 0x100_i32 {
         mask.mask_h[j as usize] = if (j as usize) < stem_h_len {
@@ -812,24 +807,18 @@ pub(crate) unsafe fn callback_draw_setmask(
     } else {
         mask_list.push(mask);
         if is_contour_mask {
-            (*context).defined_contour_masks = ((*context).defined_contour_masks
-                as i32
-                + 1_i32) as u8;
+            context.defined_contour_masks = (context.defined_contour_masks as i32 + 1_i32) as u8;
         } else {
-            (*context).defined_hint_masks = ((*context).defined_hint_masks as i32
-                + 1_i32) as u8;
+            context.defined_hint_masks = (context.defined_hint_masks as i32 + 1_i32) as u8;
         }
     };
 }
-pub(crate) unsafe fn callback_draw_getrand(
-    mut _context: *mut ::core::ffi::c_void,
-) -> ::core::ffi::c_double {
-    let context: *mut OutlineBuilderContext = _context as *mut OutlineBuilderContext;
-    let mut x: u64 = (*context).randx;
+pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> ::core::ffi::c_double {
+    let mut x: u64 = context.randx;
     x ^= x >> 12_i32;
     x ^= x << 25_i32;
     x ^= x >> 27_i32;
-    (*context).randx = x;
+    context.randx = x;
     // Classic xorshift-then-bit-cast trick: pack `bits` into an f64's
     // exponent/mantissa layout to land a uniform double in [1, 2), then
     // subtract to land in [0, 1). Was a `CffDoubleBits` union (`u: u64`/
@@ -875,12 +864,7 @@ unsafe fn build_outline(
     (*stack).stem = 0;
     (*stack).transient = [CffValue::Unset; TYPE2_TRANSIENT_ARRAY];
     let f: *mut CffFile = (*context).cff_file;
-    // `g` keeps pointing at the same heap allocation for the rest of this
-    // function (via `bc.g` below) even after the `Box` that owns it is
-    // moved into the table -- moving a `Box` moves only the handle, not
-    // the allocation it points at.
-    let mut g_owner: Box<Glyph> = otfcc_new_glyf_glyph();
-    let g: *mut Glyph = &raw mut *g_owner;
+    let g_owner: Box<Glyph> = otfcc_new_glyf_glyph();
     (&mut (*(*context).glyphs))[i as usize] = Some(g_owner);
     let seed: u64 = (*context).seed;
     let mut local_subrs: CffIndex = CffIndex {
@@ -890,8 +874,16 @@ unsafe fn build_outline(
         offset: Vec::new(),
         data: Vec::new(),
     };
+    // Borrowed *after* the move above, from the slot it now lives in --
+    // the exact same heap allocation the old `g: *mut Glyph = &raw mut
+    // *g_owner` (taken *before* the move) pointed at, just as a lifetime-
+    // checked `&mut Glyph` instead. Every later use of the glyph in this
+    // function, including the closing-point cleanup loop below (which
+    // used to go through that separate raw `g`, aliasing this same
+    // allocation for the whole time `bc.g` was conceptually "borrowing"
+    // it), now goes through `bc.g` alone.
     let mut bc: OutlineBuilderContext = OutlineBuilderContext {
-        g: g,
+        g: (&mut (*(*context).glyphs))[i as usize].as_deref_mut().unwrap(),
         j_contour: 0 as ShapeId,
         j_point: 0 as ShapeId,
         default_width_x: 0.0f64,
@@ -921,7 +913,7 @@ unsafe fn build_outline(
             &mut local_subrs,
         );
     }
-    (*g).fd_select = handle_from_index(fd as GlyphId) as FdHandle;
+    bc.g.fd_select = handle_from_index(fd as GlyphId) as FdHandle;
     let ctx_fd_array: &mut Vec<Box<CffTable>> = &mut (*(*context).meta).fd_array;
     if (fd as usize) < ctx_fd_array.len() && ctx_fd_array[fd as usize].private_dict.is_some() {
         let pd = ctx_fd_array[fd as usize].private_dict.as_deref().unwrap();
@@ -932,7 +924,7 @@ unsafe fn build_outline(
         bc.nominal_width_x = pd.nominal_width_x;
     }
     vq_replace(
-        &mut (*g).advance_width,
+        &mut bc.g.advance_width,
         vq_create_still(bc.default_width_x as Pos) as VQ,
     );
     let char_strings_offset = &(*f).char_strings.offset;
@@ -958,7 +950,7 @@ unsafe fn build_outline(
         &(*f).global_subr,
         &local_subrs,
         stack,
-        &raw mut bc as *mut ::core::ffi::c_void,
+        &mut bc,
         options,
         0,
         &raw mut total_subr_calls,
@@ -966,40 +958,34 @@ unsafe fn build_outline(
     let mut cx: VQ = (vq_neutral)();
     let mut cy: VQ = (vq_neutral)();
     let mut j: ShapeId = 0 as ShapeId;
-    while (j as usize) < (*g).contours.len() {
-        let contour: *mut Contour = &raw mut (&mut (*g).contours)[j as usize];
+    while (j as usize) < bc.g.contours.len() {
+        let contour: &mut Contour = &mut bc.g.contours[j as usize];
         let mut k: ShapeId = 0 as ShapeId;
-        while (k as usize) < (*contour).len() {
-            let z: *mut Point = &raw mut (&mut (*contour))[k as usize];
-            vq_inplace_plus(&mut cx, (*z).x.clone());
-            vq_inplace_plus(&mut cy, (*z).y.clone());
-            vq_copy_replace(&mut (*z).x, cx.clone());
-            vq_copy_replace(&mut (*z).y, cy.clone());
+        while (k as usize) < contour.len() {
+            let z: &mut Point = &mut contour[k as usize];
+            vq_inplace_plus(&mut cx, z.x.clone());
+            vq_inplace_plus(&mut cy, z.y.clone());
+            vq_copy_replace(&mut z.x, cx.clone());
+            vq_copy_replace(&mut z.y, cy.clone());
             k = k.wrapping_add(1);
         }
         if vq_compare(
-            (&(*contour))[0_usize].x.clone(),
-            (&(*contour))[(*contour).len().wrapping_sub(1_usize)]
-                .x
-                .clone(),
+            contour[0_usize].x.clone(),
+            contour[contour.len().wrapping_sub(1_usize)].x.clone(),
         ) == 0
             && vq_compare(
-                (&(*contour))[0_usize].y.clone(),
-                (&(*contour))[(*contour).len().wrapping_sub(1_usize)]
-                    .y
-                    .clone(),
+                contour[0_usize].y.clone(),
+                contour[contour.len().wrapping_sub(1_usize)].y.clone(),
             ) == 0
-            && ((&(*contour))[0_usize].on_curve as i32 != 0
-                && (&(*contour))[(*contour).len().wrapping_sub(1_usize)].on_curve
-                    as i32
-                    != 0)
+            && (contour[0_usize].on_curve as i32 != 0
+                && contour[contour.len().wrapping_sub(1_usize)].on_curve as i32 != 0)
         {
-            (*contour).pop();
+            contour.pop();
         }
-        (*contour).shrink_to_fit();
+        contour.shrink_to_fit();
         j = j.wrapping_add(1);
     }
-    (*g).contours.shrink_to_fit();
+    bc.g.contours.shrink_to_fit();
     // `cx`/`cy`/`local_subrs` are plain owned locals, never moved out, so
     // they auto-drop when this function returns -- no explicit dispose
     // call is needed.
