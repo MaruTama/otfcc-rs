@@ -1,9 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use libc::{free, memcpy};
-unsafe extern "C" {
-    fn sqrt(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-    fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
-}
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::alloc::__caryll_allocate_clean;
@@ -559,16 +555,15 @@ fn reverse_stack(stack: &mut CffStack, left: u8, right: u8) {
 // that lets a loop call `f(r)` on a `&mut` binding `r` repeatedly without
 // "value moved" errors) means every one of those call sites, recursive
 // calls included, keeps working unchanged.
-pub unsafe fn cff_parse_outline(
-    data: *mut u8,
-    len: u32,
+pub fn cff_parse_outline(
+    data: &[u8],
     gsubr: &CffIndex,
     lsubr: &CffIndex,
-    stack: *mut CffStack,
+    stack: &mut CffStack,
     outline: &mut OutlineBuilderContext,
     options: &Options,
     depth: u32,
-    total_calls: *mut u32,
+    total_calls: &mut u32,
 ) {
     if depth > MAX_SUBR_CALL_DEPTH {
         logger_log_sds(
@@ -585,15 +580,11 @@ pub unsafe fn cff_parse_outline(
     }
     let gsubr_bias: u16 = compute_subr_bias(gsubr.count as u16);
     let lsubr_bias: u16 = compute_subr_bias(lsubr.count as u16);
-    // `data`/`len` reconstructed as a real slice once here rather than
-    // walked with `.offset()` at every step -- `pos` (into `data_slice`)
-    // replaces `start` (a `*mut u8` cursor), the same "cursor into a
-    // safe slice instead of raw pointer arithmetic" shape the rest of
-    // this crate's parse-boundary work already uses. `cff_decode_cs2_token`
-    // now takes `&data_slice[pos..]` directly -- it dropped its own raw
-    // pointer parameter once its `slice::from_raw_parts` reconstruction
-    // became pure residue (every call site already had a slice in hand).
-    let data_slice: &[u8] = ::core::slice::from_raw_parts(data, len as usize);
+    // `pos` (into `data`) replaces `start` (a `*mut u8` cursor), the same
+    // "cursor into a safe slice instead of raw pointer arithmetic" shape
+    // the rest of this crate's parse-boundary work already uses.
+    // `cff_decode_cs2_token` takes `&data[pos..]` directly.
+    let data_slice: &[u8] = data;
     let mut pos: usize = 0;
     let mut advance: u32;
     let mut i: u32;
@@ -1659,7 +1650,7 @@ pub unsafe fn cff_parse_outline(
                             ) + cffnum(
                                 (&mut (*stack).stack)[(9_i32 as isize) as usize],
                             );
-                            if fabs(dx) > fabs(dy) {
+                            if dx.abs() > dy.abs() {
                                 dx = cffnum(
                                     (&mut (*stack).stack)[(10_i32 as isize) as usize],
                                 );
@@ -2122,7 +2113,7 @@ pub unsafe fn cff_parse_outline(
                                 (&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize],
                             );
                             ((&mut (*stack).stack)[((*stack).index.wrapping_sub(1 as Arity) as isize) as usize]) =
-                                CffValue::Double(sqrt(num_2));
+                                CffValue::Double(num_2.sqrt());
                         }
                     }
                     3099 => {
@@ -2345,8 +2336,7 @@ pub unsafe fn cff_parse_outline(
                                     }
                                 } else {
                                     cff_parse_outline(
-                                        sub_data.as_ptr() as *mut u8,
-                                        sub_data.len() as u32,
+                                        sub_data,
                                         gsubr,
                                         lsubr,
                                         stack,
@@ -2408,8 +2398,7 @@ pub unsafe fn cff_parse_outline(
                                     }
                                 } else {
                                     cff_parse_outline(
-                                        sub_data.as_ptr() as *mut u8,
-                                        sub_data.len() as u32,
+                                        sub_data,
                                         gsubr,
                                         lsubr,
                                         stack,
@@ -2841,8 +2830,7 @@ mod cff_parse_outline_total_calls_tests {
         let gsubr = one_trivial_gsubr();
         let lsubr = empty_cff_index();
         let requested = MAX_TOTAL_SUBR_CALLS - 1;
-        let mut data = charstring_calling_gsubr_n_times(requested);
-        let len = data.len() as u32;
+        let data = charstring_calling_gsubr_n_times(requested);
         // 11_000 (not the real 0x10000/65536): still shrunk from
         // production's generous capacity down to just above `requested`'s
         // ~10,000 pushes, even though (per the ignore above) this isn't
@@ -2862,19 +2850,16 @@ mod cff_parse_outline_total_calls_tests {
         // nullable `*mut c_void`.
         let mut g = otfcc_new_glyf_glyph();
         let mut ctx = dummy_outline_context(&mut g);
-        unsafe {
-            cff_parse_outline(
-                data.as_mut_ptr(),
-                len,
-                &gsubr,
-                &lsubr,
-                &raw mut stack,
-                &mut ctx,
-                &options,
-                0,
-                &raw mut total_calls,
-            );
-        }
+        cff_parse_outline(
+            &data,
+            &gsubr,
+            &lsubr,
+            &mut stack,
+            &mut ctx,
+            &options,
+            0,
+            &mut total_calls,
+        );
         assert_eq!(total_calls, requested);
         // Every one of the `requested` calls actually recursed and ran
         // its subroutine's own push.
@@ -2896,8 +2881,7 @@ mod cff_parse_outline_total_calls_tests {
         let gsubr = one_trivial_gsubr();
         let lsubr = empty_cff_index();
         let attempted = MAX_TOTAL_SUBR_CALLS + 500;
-        let mut data = charstring_calling_gsubr_n_times(attempted);
-        let len = data.len() as u32;
+        let data = charstring_calling_gsubr_n_times(attempted);
         // Same reasoning as the sibling test above: recursion stops at
         // `MAX_TOTAL_SUBR_CALLS` regardless of `attempted`, so 11_000
         // still has headroom above every push this test can actually
@@ -2913,19 +2897,16 @@ mod cff_parse_outline_total_calls_tests {
         let mut total_calls: u32 = 0;
         let mut g = otfcc_new_glyf_glyph();
         let mut ctx = dummy_outline_context(&mut g);
-        unsafe {
-            cff_parse_outline(
-                data.as_mut_ptr(),
-                len,
-                &gsubr,
-                &lsubr,
-                &raw mut stack,
-                &mut ctx,
-                &options,
-                0,
-                &raw mut total_calls,
-            );
-        }
+        cff_parse_outline(
+            &data,
+            &gsubr,
+            &lsubr,
+            &mut stack,
+            &mut ctx,
+            &options,
+            0,
+            &mut total_calls,
+        );
         // The counter itself still climbs past the budget (every
         // `callgsubr` byte pair the outer loop walks over is one
         // attempted call, counted before the budget check decides
@@ -2977,8 +2958,7 @@ mod cff_parse_outline_hintmask_tests {
     // `data`'s 4-byte allocation, is the regression signal.
     #[test]
     fn hintmask_past_the_charstring_end_stops_cleanly_instead_of_reading_oob() {
-        let mut data: Vec<u8> = vec![139, 139, 1, 19];
-        let len = data.len() as u32;
+        let data: Vec<u8> = vec![139, 139, 1, 19];
         let gsubr = empty_cff_index();
         let lsubr = empty_cff_index();
         let mut stack = CffStack {
@@ -3002,19 +2982,16 @@ mod cff_parse_outline_hintmask_tests {
             defined_contour_masks: 0,
             randx: 0,
         };
-        unsafe {
-            cff_parse_outline(
-                data.as_mut_ptr(),
-                len,
-                &gsubr,
-                &lsubr,
-                &raw mut stack,
-                &mut ctx,
-                &options,
-                0,
-                &raw mut total_calls,
-            );
-        }
+        cff_parse_outline(
+            &data,
+            &gsubr,
+            &lsubr,
+            &mut stack,
+            &mut ctx,
+            &options,
+            0,
+            &mut total_calls,
+        );
         // The `hstem` operator ran (and only it -- `hintmask` bailed
         // before doing anything observable) -- `stem` reflects the one
         // hint pair pushed before the truncated `hintmask`.
@@ -3044,7 +3021,6 @@ mod cff_parse_outline_hintmask_tests {
         data.push(19); // hintmask
         // mask_length = (256 + 7) >> 3 = 32 bytes.
         data.extend_from_slice(&[0u8; 32]);
-        let len = data.len() as u32;
         let gsubr = empty_cff_index();
         let lsubr = empty_cff_index();
         let mut stack = CffStack {
@@ -3068,19 +3044,16 @@ mod cff_parse_outline_hintmask_tests {
             defined_contour_masks: 0,
             randx: 0,
         };
-        unsafe {
-            cff_parse_outline(
-                data.as_mut_ptr(),
-                len,
-                &gsubr,
-                &lsubr,
-                &raw mut stack,
-                &mut ctx,
-                &options,
-                0,
-                &raw mut total_calls,
-            );
-        }
+        cff_parse_outline(
+            &data,
+            &gsubr,
+            &lsubr,
+            &mut stack,
+            &mut ctx,
+            &options,
+            0,
+            &mut total_calls,
+        );
         assert_eq!(ctx.g.stem_h.len(), 256);
         assert_eq!(stack.stem, 256);
     }
@@ -3136,7 +3109,7 @@ mod cff_parse_outline_stack_operator_tests {
         }
     }
 
-    unsafe fn run(data: &mut [u8], stack: &mut CffStack) {
+    fn run(data: &[u8], stack: &mut CffStack) {
         let gsubr = empty_cff_index();
         let lsubr = empty_cff_index();
         let options = Options::default();
@@ -3157,19 +3130,16 @@ mod cff_parse_outline_stack_operator_tests {
             defined_contour_masks: 0,
             randx: 0,
         };
-        unsafe {
-            cff_parse_outline(
-                data.as_mut_ptr(),
-                data.len() as u32,
-                &gsubr,
-                &lsubr,
-                &raw mut *stack,
-                &mut ctx,
-                &options,
-                0,
-                &raw mut total_calls,
-            );
-        }
+        cff_parse_outline(
+            data,
+            &gsubr,
+            &lsubr,
+            stack,
+            &mut ctx,
+            &options,
+            0,
+            &mut total_calls,
+        );
     }
 
     #[test]
@@ -3179,11 +3149,9 @@ mod cff_parse_outline_stack_operator_tests {
         // dividend's sign (Rust's `%`), so `i_1 == -1` produced a
         // negative remainder that panicked once cast `as usize` for the
         // `transient[]` index.
-        let mut data: Vec<u8> = vec![138, 12, 21];
+        let data: Vec<u8> = vec![138, 12, 21];
         let mut stack = fresh_stack();
-        unsafe {
-            run(&mut data, &mut stack);
-        }
+        run(&data, &mut stack);
         // `-1` `rem_euclid` 32 == 31, a never-written transient slot --
         // `cffnum` reads that as 0.0. Reaching this assertion at all
         // (rather than panicking mid-parse) is the regression signal.
@@ -3195,11 +3163,9 @@ mod cff_parse_outline_stack_operator_tests {
     fn op_put_with_negative_index_operand_does_not_panic() {
         // Push a value (0), push `-1` (byte 138) as the index, then
         // `put` (escape `12 20` = OP_PUT). Same bug/fix as `get` above.
-        let mut data: Vec<u8> = vec![139, 138, 12, 20];
+        let data: Vec<u8> = vec![139, 138, 12, 20];
         let mut stack = fresh_stack();
-        unsafe {
-            run(&mut data, &mut stack);
-        }
+        run(&data, &mut stack);
         assert_eq!(stack.index, 0);
         assert!(matches!(stack.transient[31], CffValue::Double(v) if v == 0.0));
     }
@@ -3216,11 +3182,9 @@ mod cff_parse_outline_stack_operator_tests {
         // divisor -- "roll 0 elements" is a legitimate no-op (the
         // `j_2 == 0` case a few lines below already treats "nothing to
         // rotate" the same way), not a malformed-input case.
-        let mut data: Vec<u8> = vec![139, 139, 12, 30];
+        let data: Vec<u8> = vec![139, 139, 12, 30];
         let mut stack = fresh_stack();
-        unsafe {
-            run(&mut data, &mut stack);
-        }
+        run(&data, &mut stack);
         // No-op: both pushed operands (J and N) are still on the stack,
         // untouched, exactly like the pre-existing `j_2 == 0` no-op case.
         assert_eq!(stack.index, 2);
@@ -3237,9 +3201,7 @@ mod cff_parse_outline_stack_operator_tests {
         data.push(12);
         data.push(29);
         let mut stack = fresh_stack();
-        unsafe {
-            run(&mut data, &mut stack);
-        }
+        run(&data, &mut stack);
         // The operation was skipped (truncated `n == 0`), not executed
         // -- reaching this assertion at all (rather than panicking
         // mid-parse) is the regression signal. All 257 pushed operands

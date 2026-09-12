@@ -951,28 +951,26 @@ unsafe fn build_outline(
     // on elsewhere. Slicing (rather than raw pointer arithmetic) makes
     // that bound a checked one instead of an assumed one.
     let char_string_start = (char_strings_offset[i as usize] - 1_u32) as usize;
-    // `f.char_strings.data` is shared now (`f: &CffFile`); `cff_parse_outline`
-    // only ever reads through the `*mut u8` it takes (confirmed by reading
-    // its body), so casting a shared-derived pointer to `*mut` here changes
-    // no behavior -- it is simply never written through.
-    let char_string_ptr: *mut u8 = f.char_strings.data[char_string_start..].as_ptr() as *mut u8;
-    let char_string_length: u32 = (char_strings_offset
-        [(i as i32 + 1_i32) as usize])
-        .wrapping_sub(char_strings_offset[i as usize]);
+    let char_string_end = (char_strings_offset[(i as i32 + 1_i32) as usize] - 1_u32) as usize;
+    // `cff_parse_outline` now takes a checked slice directly -- this turns
+    // the bound `extract_index` already establishes (non-decreasing
+    // `offset[]`, every entry >= 1, final entry == `data.len() + 1`) from
+    // an assumed invariant backing raw pointer arithmetic into one the
+    // slicing operation itself enforces.
+    let char_string_bytes: &[u8] = &f.char_strings.data[char_string_start..char_string_end];
     bc.j_contour = 0 as ShapeId;
     bc.j_point = 0 as ShapeId;
     bc.randx = seed_val;
     let mut total_subr_calls: u32 = 0;
     cff_parse_outline(
-        char_string_ptr,
-        char_string_length,
+        char_string_bytes,
         &f.global_subr,
         &local_subrs,
-        stack,
+        &mut *stack,
         &mut bc,
         options,
         0,
-        &raw mut total_subr_calls,
+        &mut total_subr_calls,
     );
     let mut cx: VQ = (vq_neutral)();
     let mut cy: VQ = (vq_neutral)();
