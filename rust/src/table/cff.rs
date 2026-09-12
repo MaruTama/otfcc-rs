@@ -597,19 +597,9 @@ unsafe fn callback_extract_fd(
                     .get(private_offset as usize..)
                     .and_then(|s| s.get(..private_length as usize))
                 {
-                    parse_to_callback(
-                        private_bytes,
-                        context as *mut ::core::ffi::c_void,
-                        Some(
-                            callback_extract_private
-                                as unsafe fn(
-                                    CffDictOperator,
-                                    u8,
-                                    &[CffValue],
-                                    *mut ::core::ffi::c_void,
-                                ) -> (),
-                        ),
-                    );
+                    parse_to_callback(private_bytes, |op, top, stack| unsafe {
+                        callback_extract_private(op, top, stack, context as *mut ::core::ffi::c_void);
+                    });
                 }
             }
         }
@@ -1257,16 +1247,9 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                     let top_dict_data: &[u8] = &(*cff_file).top_dict.data;
                     top_dict_data.get(..top_dict_len).unwrap_or(&[])
                 },
-                &raw mut context as *mut ::core::ffi::c_void,
-                Some(
-                    callback_extract_fd
-                        as unsafe fn(
-                            CffDictOperator,
-                            u8,
-                            &[CffValue],
-                            *mut ::core::ffi::c_void,
-                        ) -> (),
-                ),
+                |op, top, stack| unsafe {
+                    callback_extract_fd(op, top, stack, &raw mut context as *mut ::core::ffi::c_void);
+                },
             );
             if (*context.meta).font_name.is_empty() {
                 (*context.meta).font_name =
@@ -1306,17 +1289,14 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                                 .and_then(|s| s.get(..len))
                                 .unwrap_or(&[])
                         },
-                        &raw mut context as *mut ::core::ffi::c_void,
-                        Some(
-                            callback_extract_fd
-                                as unsafe fn(
-                                    CffDictOperator,
-                                    u8,
-                                    &[CffValue],
-                                    *mut ::core::ffi::c_void,
-                                )
-                                    -> (),
-                        ),
+                        |op, top, stack| unsafe {
+                            callback_extract_fd(
+                                op,
+                                top,
+                                stack,
+                                &raw mut context as *mut ::core::ffi::c_void,
+                            );
+                        },
                     );
                     if (&mut (*context.meta).fd_array)[j as usize]
                         .font_name

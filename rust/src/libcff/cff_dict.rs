@@ -21,13 +21,6 @@ pub struct CffDictEntry {
 pub struct CffDict {
     pub ents: Vec<CffDictEntry>,
 }
-#[derive(Copy, Clone)]
-pub struct CffGetKeyContext {
-    pub found: bool,
-    pub res: CffValue,
-    pub op: CffDictOperator,
-    pub idx: u32,
-}
 #[inline]
 pub(crate) unsafe fn cff_dict_free(x: *mut CffDict) {
     if x.is_null() {
@@ -67,19 +60,20 @@ fn cff_dict_dispose(x: &mut CffDict) {
 // failure) while every already-safe call site (reading `top_dict.data`/
 // `fdarray.data`/`font_dict.data`, which `extract_index` already bounds-
 // checked) just drops the redundant manual pointer diff.
-// No longer `extern "C"`: this callback varies at each call site
-// (`callback_get_key`, `table/cff.rs`'s `callback_extract_private`/
-// `callback_extract_fd`), but none of the concrete functions ever cross
-// the crate's real FFI boundary (`ffi/dll.rs`) -- they're purely internal
-// Rust-to-Rust indirect calls, so nothing requires the C calling
-// convention. A plain (default-ABI) function pointer works identically
-// for this "varies per call, never touches C" case, as long as every
-// concrete function assigned to it uses the same (default) ABI too.
-pub(crate) unsafe fn parse_to_callback(
-    data: &[u8],
-    context: *mut ::core::ffi::c_void,
-    callback: Option<unsafe fn(CffDictOperator, u8, &[CffValue], *mut ::core::ffi::c_void) -> ()>,
-) {
+// Was a `*mut c_void` context pointer + `Option<unsafe fn(..., *mut
+// c_void)>` callback, type-erasing the three concrete callbacks
+// (`callback_get_key` here, `table/cff.rs`'s `callback_extract_private`/
+// `callback_extract_fd`) behind a shared shape purely so one function
+// pointer type could stand in for all three -- the same "type erasure
+// that was never actually needed" pattern Stage 9 Phase 9 found in
+// `libcff/cff_index.rs`'s `new_index_by_callback` (resolved there by
+// taking `impl Iterator` instead). Each call site already knows its own
+// concrete callback at compile time, so a generic `impl FnMut` closure
+// carries the same information with no unsafe function-pointer cast and
+// no context pointer to reinterpret -- callers whose callback body still
+// touches raw pointers (`callback_extract_private`/`callback_extract_fd`)
+// keep doing so inside their own closure, unrelated to this signature.
+pub(crate) fn parse_to_callback(data: &[u8], mut callback: impl FnMut(CffDictOperator, u8, &[CffValue])) {
     let mut index: u8 = 0_u8;
     let mut val: CffValue = CffValue::Unset;
     let mut stack: [CffValue; 256] = [CffValue::Unset; 256];
@@ -92,12 +86,7 @@ pub(crate) unsafe fn parse_to_callback(
         };
         match val {
             CffValue::Operator(op) => {
-                callback.expect("non-null function pointer")(
-                    CffDictOperator(op as u32),
-                    index,
-                    &stack[..index as usize],
-                    context,
-                );
+                callback(CffDictOperator(op as u32), index, &stack[..index as usize]);
                 index = 0_u8;
             }
             CffValue::Integer(_) | CffValue::Double(_) => {
@@ -109,57 +98,26 @@ pub(crate) unsafe fn parse_to_callback(
         pos += adv as usize;
     }
 }
-unsafe fn callback_get_key(
-    op: CffDictOperator,
-    top: u8,
-    stack: &[CffValue],
-    mut _context: *mut ::core::ffi::c_void,
-) {
-    let context: *mut CffGetKeyContext = _context as *mut CffGetKeyContext;
-    // `idx` is a 0-based operand index, so a valid read needs `idx <
-    // top` (there are exactly `top` operands, at indices `0..top`) --
-    // this was `idx <= top`, an off-by-one that let `idx == top` (no
-    // operand at all, e.g. this operator with zero pushed operands and
-    // `idx == 0`) through. Against the original's raw pointer into a
-    // fixed 256-entry array that silently read a stale/adjacent slot
-    // rather than panicking; converting `stack` to a `top`-length slice
-    // (this PR) turned that same off-by-one into a reachable
-    // `index out of bounds` panic, caught by `cargo fuzz run otf_parse`.
-    // Tightening to `idx < top` is the actual fix -- not a change in
-    // what counts as "found", just removing an already-wrong read of
-    // one index past the operator's real operand list.
-    if op == (*context).op && (*context).idx < top as u32 {
-        (*context).found = true;
-        (*context).res = stack[((*context).idx as isize) as usize];
-    }
-}
 pub(crate) fn parse_dict_key(data: &[u8], op: CffDictOperator, idx: u32) -> CffValue {
-    let mut context: CffGetKeyContext = CffGetKeyContext {
-        found: false,
-        res: CffValue::Unset,
-        op: CffDictOperator(0),
-        idx: 0,
-    };
-    context.found = false;
-    context.idx = idx;
-    context.op = op;
-    context.res = CffValue::Unset;
-    // `parse_to_callback`/`callback_get_key` are a separate, not-yet-
-    // converted type-erased-context shell (the `*mut c_void` callback
-    // family) -- out of scope here, so this is a narrow `unsafe {}` rather
-    // than the whole function, the same way `vf/vq.rs`'s `vqs_compare`
-    // bridges to `vq_compare_region`.
-    unsafe {
-        parse_to_callback(
-            data,
-            &raw mut context as *mut ::core::ffi::c_void,
-            Some(
-                callback_get_key
-                    as unsafe fn(CffDictOperator, u8, &[CffValue], *mut ::core::ffi::c_void) -> (),
-            ),
-        );
-    }
-    return context.res;
+    let mut res = CffValue::Unset;
+    // `idx` is a 0-based operand index, so a valid read needs `idx < top`
+    // (there are exactly `top` operands, at indices `0..top`) -- this was
+    // `idx <= top`, an off-by-one that let `idx == top` (no operand at
+    // all, e.g. this operator with zero pushed operands and `idx == 0`)
+    // through. Against the original's raw pointer into a fixed 256-entry
+    // array that silently read a stale/adjacent slot rather than
+    // panicking; converting `stack` to a `top`-length slice (an earlier
+    // PR) turned that same off-by-one into a reachable `index out of
+    // bounds` panic, caught by `cargo fuzz run otf_parse`. Tightening to
+    // `idx < top` is the actual fix -- not a change in what counts as
+    // "found", just removing an already-wrong read of one index past the
+    // operator's real operand list.
+    parse_to_callback(data, |cur_op, top, stack| {
+        if cur_op == op && idx < top as u32 {
+            res = stack[idx as usize];
+        }
+    });
+    return res;
 }
 /// `parse_dict_key`'s value as a plain `i32`, `-1` if the key wasn't
 /// present or wasn't a number -- the "not found" convention every one of
