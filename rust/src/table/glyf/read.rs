@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-
 use crate::support::handle::{GlyphHandle, handle_from_index};
 
 use crate::font::caryll_sfnt::Packet;
@@ -11,7 +9,7 @@ use crate::support::primitives::{F2Dot14, F16Dot16, GlyphId, Pos, Scale, ShapeId
 use crate::table::fvar::FvarTable;
 use crate::table::glyf::{
     ComponentFlags, ComponentReference, Contour, ContourList, GlyfIOContext, GlyfTable, Glyph,
-    GlyphPtr, Point, PointFlags, RefAnchorStatus,
+    Point, PointFlags, RefAnchorStatus,
 };
 
 use crate::support::primitives::{
@@ -47,38 +45,20 @@ pub struct TuplePolymorphizerCtx {
     pub allow_iup: bool,
     pub n_phantom_points: ShapeId,
 }
-// Replaces the old `CoordPartGetter`/`get_x`/`get_y` function-pointer
-// design, which called through a `*mut Point`-typed pointer that
-// `apply_polymorphism` sometimes actually pointed at a `ComponentReference`
-// (`&raw mut (*r_0).x as *mut Point`) -- relying on `Point`/
-// `ComponentReference` sharing the same `x: VQ, y: VQ` field prefix. That
-// pun was undefined behavior without `#[repr(C)]` on both structs (fixed
-// separately), but even layout-legal, a pointer that lies about which
-// concrete type it addresses is exactly the kind of translation residue
-// this migration removes when it can. `CoordRef` says which struct a
-// pointer really is; `coord_of` (below) is the single place that resolves
-// `(CoordRef, Axis)` to the right field, mirroring `libcff/subr.rs`'s
-// `SubrRef`/`resolve_subr_ref` selector pattern for a different aliasing
-// problem.
-#[derive(Copy, Clone)]
-enum CoordRef {
-    Point(*mut Point),
-    ComponentAnchor(*mut ComponentReference),
-}
-#[derive(Copy, Clone)]
-enum Axis {
-    X,
-    Y,
-}
-#[inline]
-unsafe fn coord_of<'a>(r: CoordRef, axis: Axis) -> &'a mut VQ {
-    match (r, axis) {
-        (CoordRef::Point(p), Axis::X) => &mut (*p).x,
-        (CoordRef::Point(p), Axis::Y) => &mut (*p).y,
-        (CoordRef::ComponentAnchor(c), Axis::X) => &mut (*c).x,
-        (CoordRef::ComponentAnchor(c), Axis::Y) => &mut (*c).y,
-    }
-}
+// `CoordRef` (an enum over `*mut Point`/`*mut ComponentReference`,
+// replacing the still-older `CoordPartGetter`/`get_x`/`get_y`
+// function-pointer design that punned a `*mut Point` to sometimes really
+// point at a `ComponentReference`) is gone. `coord_of`'s only job was
+// resolving `(CoordRef, Axis)` down to a `&mut VQ`, but every one of its
+// callers only ever read/wrote that `VQ`'s scalar `.kernel`/`.shift`
+// fields, never any other field of the whole `Point`/`ComponentReference`
+// -- so `apply_polymorphism` below now flattens `.contours`/`.references`
+// into plain `Vec<Pos>` kernel arrays once (immutably) for
+// `apply_coords`/`fill_the_gaps` to do their scalar math over, then makes
+// one more flattening pass (mutably, the only place in this cluster that
+// still needs `&mut Point`/`&mut ComponentReference`) to write the
+// results back -- both passes in the same `contours`-then-`references`
+// order, so point `j` in one pass is the same point as `j` in the other.
 #[derive(Copy, Clone)]
 pub struct PackedDeltaRun {
     pub length: ShapeId,
@@ -489,17 +469,10 @@ fn read_packed_delta(
     Some(r.pos())
 }
 #[inline]
-// `nudges`/`glyph_refs` are borrowed slices now, not raw pointers: this
-// function neither owns nor frees either array, only reads (`glyph_refs`)
-// or reads-then-writes (`nudges`) into them by index -- the same access
-// shape `&mut [_]`/`&[_]` already model directly.
-unsafe fn fill_the_gaps(
-    j_min: ShapeId,
-    j_max: ShapeId,
-    nudges: &mut [VqSegment],
-    glyph_refs: &[CoordRef],
-    axis: Axis,
-) {
+// `nudges`/`kernel` are borrowed slices: this function neither owns nor
+// frees either array, only reads (`kernel`) or reads-then-writes
+// (`nudges`) into them by index.
+fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kernel: &[Pos]) {
     let mut j: ShapeId = j_min;
     while (j as i32) < j_max as i32 {
         if !nudges[j as usize].is_touched() {
@@ -528,15 +501,12 @@ unsafe fn fill_the_gaps(
                 }
             }
             if nudges[j_next as usize].is_touched() && nudges[j_prev as usize].is_touched() {
-                let untouch_j: F16Dot16 = otfcc_to_fixed(
-                    coord_of(glyph_refs[j as usize], axis).kernel as ::core::ffi::c_double,
-                );
-                let untouch_prev: F16Dot16 = otfcc_to_fixed(
-                    coord_of(glyph_refs[j_prev as usize], axis).kernel as ::core::ffi::c_double,
-                );
-                let untouch_next: F16Dot16 = otfcc_to_fixed(
-                    coord_of(glyph_refs[j_next as usize], axis).kernel as ::core::ffi::c_double,
-                );
+                let untouch_j: F16Dot16 =
+                    otfcc_to_fixed(kernel[j as usize] as ::core::ffi::c_double);
+                let untouch_prev: F16Dot16 =
+                    otfcc_to_fixed(kernel[j_prev as usize] as ::core::ffi::c_double);
+                let untouch_next: F16Dot16 =
+                    otfcc_to_fixed(kernel[j_next as usize] as ::core::ffi::c_double);
                 let delta_prev: F16Dot16 = otfcc_to_fixed(
                     nudges[j_prev as usize].unwrap_delta().quantity as ::core::ffi::c_double,
                 );
@@ -569,24 +539,22 @@ unsafe fn fill_the_gaps(
         j = j.wrapping_add(1);
     }
 }
-// `nudges` is a local `Vec<VqSegment>` now, not a `__caryll_allocate_
-// clean`'d/`free`'d buffer -- built with exactly `total_points` entries
-// by construction (the fill loop below runs exactly that many times),
-// dropped automatically at the end of this function instead of needing
-// an explicit `free` to match. `glyph_refs` is a borrowed slice, read
-// but never owned or freed here (unchanged from before -- it was never
-// this function's allocation).
-//
-unsafe fn apply_coords(
+// Computes one axis' nudges (`VqSegment`s to be written back into that
+// axis' `.shift` by `apply_polymorphism`) and returns them as an owned
+// `Vec` instead of writing through a `CoordRef`/`Point`/`ComponentReference`
+// pointer itself -- this function now touches no raw pointer, and no
+// `Glyph` at all: `contour_lens` (each contour's point count, in the same
+// order `apply_polymorphism` flattened them) is all it needs to replicate
+// the original's per-contour gap-filling boundaries.
+fn apply_coords(
     total_points: ShapeId,
-    glyph: *mut Glyph,
-    glyph_refs: &[CoordRef],
+    contour_lens: &[usize],
+    kernel: &[Pos],
     n_touched_points: ShapeId,
-    tuple_delta: *const Pos,
-    points: *const ShapeId,
+    tuple_delta: &[Pos],
+    points: &[ShapeId],
     r: *const VqRegion,
-    axis: Axis,
-) {
+) -> Vec<VqSegment> {
     let mut nudges: Vec<VqSegment> = Vec::with_capacity(total_points as usize);
     let mut j: ShapeId = 0 as ShapeId;
     while (j as i32) < total_points as i32 {
@@ -599,142 +567,135 @@ unsafe fn apply_coords(
     }
     let mut j_0: ShapeId = 0 as ShapeId;
     while (j_0 as i32) < n_touched_points as i32 {
-        if !(*points.offset(j_0 as isize) as i32
-            >= total_points as i32)
-        {
-            let idx = *points.offset(j_0 as isize) as usize;
-            let d = nudges[idx].delta_mut();
+        let idx = points[j_0 as usize];
+        if (idx as i32) < total_points as i32 {
+            let d = nudges[idx as usize].delta_mut();
             d.touched = true;
-            d.quantity += *tuple_delta.offset(j_0 as isize);
+            d.quantity += tuple_delta[j_0 as usize];
         }
         j_0 = j_0.wrapping_add(1);
     }
     let mut j_first: ShapeId = 0 as ShapeId;
-    let mut __caryll_index: usize = 0_usize;
-    let mut keep: usize = 1_usize;
-    while keep != 0 && __caryll_index < (*glyph).contours.len() {
-        let c: *mut Contour = &raw mut (&mut (*glyph).contours)[__caryll_index];
-        while keep != 0 {
-            fill_the_gaps(
-                j_first,
-                (j_first as usize).wrapping_add((*c).len()) as ShapeId,
-                &mut nudges,
-                glyph_refs,
-                axis,
-            );
-            j_first = (j_first as usize).wrapping_add((*c).len()) as ShapeId as ShapeId;
-            keep = (keep == 0) as i32 as usize;
-        }
-        keep = (keep == 0) as i32 as usize;
-        __caryll_index = __caryll_index.wrapping_add(1);
+    for &len in contour_lens {
+        fill_the_gaps(
+            j_first,
+            (j_first as usize).wrapping_add(len) as ShapeId,
+            &mut nudges,
+            kernel,
+        );
+        j_first = (j_first as usize).wrapping_add(len) as ShapeId;
     }
-    let mut j_1: ShapeId = 0 as ShapeId;
-    while (j_1 as i32) < total_points as i32 {
-        if !(nudges[j_1 as usize].unwrap_delta().quantity == 0.
-            && nudges[j_1 as usize].is_touched())
-        {
-            coord_of(glyph_refs[j_1 as usize], axis)
-                .shift
-                .push(nudges[j_1 as usize]);
-        }
-        j_1 = j_1.wrapping_add(1);
-    }
+    nudges
 }
 #[inline]
-unsafe fn apply_polymorphism(
+fn apply_polymorphism(
     total_points: ShapeId,
-    glyph: GlyphPtr,
+    glyph: &mut Glyph,
     n_touched_points: ShapeId,
-    points: *const ShapeId,
-    delta_x: *const Pos,
-    delta_y: *const Pos,
+    points: &[ShapeId],
+    delta_x: &[Pos],
+    delta_y: &[Pos],
     r: *const VqRegion,
 ) {
-    // A local `Vec<CoordRef>` now, not a `__caryll_allocate_clean`'d/
-    // `free`'d array -- built with exactly `total_points` entries by
-    // construction (the two fill loops below run exactly that many times
-    // between them, matching what the array used to be pre-sized to),
-    // dropped automatically at the end of this function.
-    let mut glyph_refs: Vec<CoordRef> = Vec::with_capacity(total_points as usize);
-    // `.iter_mut()` instead of the c2rust `while keep != 0 && idx < len {
-    // let g = &raw mut (&mut *container)[idx]; ... }` idiom used elsewhere
-    // in this crate -- that idiom re-borrows the *whole* container fresh
-    // on every iteration, which invalidates every previously-derived
-    // element pointer from earlier iterations under Stacked Borrows the
-    // moment a later iteration's raw pointer is actually dereferenced
-    // (confirmed with `cargo miri test`: retagging a stale pointer from
-    // this exact loop shape is flagged as Undefined Behavior). Harmless
-    // on real hardware -- nothing here was ever miscompiled -- but a
-    // latent soundness violation the loop shape itself created, invisible
-    // until a Miri-run test actually called `apply_polymorphism` (no
-    // existing unit test did). `.iter_mut()` yields disjoint `&mut T`
-    // elements from a single reborrow of the whole container, so casting
-    // each to a raw pointer for later use is sound.
-    for c in (*glyph).contours.iter_mut() {
-        for g in c.iter_mut() {
-            glyph_refs.push(CoordRef::Point(g as *mut Point));
+    // One immutable flattening pass over `contours` then `references` --
+    // exactly the order `apply_polymorphism` used to build `glyph_refs`
+    // in, and the order the write-back pass below re-walks -- collecting
+    // each point's per-axis `.kernel` scalar and each contour's length
+    // (`fill_the_gaps`'s gap-search never crosses a contour boundary, so
+    // `apply_coords` needs these lengths to reproduce that).
+    let mut contour_lens: Vec<usize> = Vec::with_capacity(glyph.contours.len());
+    let mut kernel_x: Vec<Pos> = Vec::with_capacity(total_points as usize);
+    let mut kernel_y: Vec<Pos> = Vec::with_capacity(total_points as usize);
+    for c in &glyph.contours {
+        contour_lens.push(c.len());
+        for p in c {
+            kernel_x.push(p.x.kernel);
+            kernel_y.push(p.y.kernel);
         }
     }
-    for r_0 in (*glyph).references.iter_mut() {
-        glyph_refs.push(CoordRef::ComponentAnchor(r_0 as *mut ComponentReference));
+    for rf in &glyph.references {
+        kernel_x.push(rf.x.kernel);
+        kernel_y.push(rf.y.kernel);
     }
-    apply_coords(
+
+    let nudges_x = apply_coords(
         total_points,
-        glyph,
-        &glyph_refs,
+        &contour_lens,
+        &kernel_x,
         n_touched_points,
         delta_x,
         points,
         r,
-        Axis::X,
     );
-    apply_coords(
+    let nudges_y = apply_coords(
         total_points,
-        glyph,
-        &glyph_refs,
+        &contour_lens,
+        &kernel_y,
         n_touched_points,
         delta_y,
         points,
         r,
-        Axis::Y,
     );
-    if (total_points as i32 + 1_i32)
-        < n_touched_points as i32
-    {
+
+    // Write-back: the only place in this cluster that still needs `&mut
+    // Point`/`&mut ComponentReference` -- one more `contours`-then-
+    // `references` pass, this time mutable, in lockstep with the
+    // immutable pass above (point `j` here is the same point `j` that
+    // contributed `kernel_x[j]`/`kernel_y[j]`, so it gets `nudges_x[j]`/
+    // `nudges_y[j]` back).
+    let mut j: usize = 0;
+    for c in glyph.contours.iter_mut() {
+        for p in c.iter_mut() {
+            let dx = nudges_x[j];
+            if !(dx.unwrap_delta().quantity == 0. && dx.is_touched()) {
+                p.x.shift.push(dx);
+            }
+            let dy = nudges_y[j];
+            if !(dy.unwrap_delta().quantity == 0. && dy.is_touched()) {
+                p.y.shift.push(dy);
+            }
+            j += 1;
+        }
+    }
+    for rf in glyph.references.iter_mut() {
+        let dx = nudges_x[j];
+        if !(dx.unwrap_delta().quantity == 0. && dx.is_touched()) {
+            rf.x.shift.push(dx);
+        }
+        let dy = nudges_y[j];
+        if !(dy.unwrap_delta().quantity == 0. && dy.is_touched()) {
+            rf.y.shift.push(dy);
+        }
+        j += 1;
+    }
+
+    if (total_points as i32 + 1_i32) < n_touched_points as i32 {
         vq_add_delta(
-            &mut (*glyph).horizontal_origin,
+            &mut glyph.horizontal_origin,
             true,
             r,
-            *delta_x.offset(total_points as isize),
+            delta_x[total_points as usize],
         );
         vq_add_delta(
-            &mut (*glyph).advance_width,
+            &mut glyph.advance_width,
             true,
             r,
-            *delta_x
-                .offset((total_points as i32 + 1_i32) as isize)
-                - *delta_x.offset(total_points as isize),
+            delta_x[(total_points as i32 + 1_i32) as usize] - delta_x[total_points as usize],
         );
     }
-    if (total_points as i32 + 3_i32)
-        < n_touched_points as i32
-    {
+    if (total_points as i32 + 3_i32) < n_touched_points as i32 {
         vq_add_delta(
-            &mut (*glyph).vertical_origin,
+            &mut glyph.vertical_origin,
             true,
             r,
-            *delta_y
-                .offset((total_points as i32 + 2_i32) as isize),
+            delta_y[(total_points as i32 + 2_i32) as usize],
         );
         vq_add_delta(
-            &mut (*glyph).advance_height,
+            &mut glyph.advance_height,
             true,
             r,
-            *delta_y
-                .offset((total_points as i32 + 2_i32) as isize)
-                - *delta_y.offset(
-                    (total_points as i32 + 3_i32) as isize,
-                ),
+            delta_y[(total_points as i32 + 2_i32) as usize]
+                - delta_y[(total_points as i32 + 3_i32) as usize],
         );
     }
 }
@@ -901,21 +862,9 @@ fn polymorphize_glyph(
             let mut delta_y: Vec<Pos> = vec![0 as Pos; n_points as usize];
             let after_x = read_packed_delta(gvar, after_points, n_points, &mut delta_x)?;
             read_packed_delta(gvar, after_x, n_points, &mut delta_y)?;
-            // `apply_polymorphism` stays `unsafe fn` (its own `CoordRef`/
-            // raw-pointer parameters, a separate, larger redesign) --
-            // `glyph` reborrows here exactly as it does across every
-            // iteration of this loop.
-            unsafe {
-                apply_polymorphism(
-                    total_points,
-                    glyph,
-                    n_points,
-                    point_indeces.as_ptr(),
-                    delta_x.as_ptr(),
-                    delta_y.as_ptr(),
-                    r,
-                );
-            }
+            // `apply_polymorphism` is a safe `fn` now; `glyph` reborrows
+            // here exactly as it does across every iteration of this loop.
+            apply_polymorphism(total_points, glyph, n_points, &point_indeces, &delta_x, &delta_y, r);
         }
         tsd_start = tsd_start.wrapping_add(variation_data_size as usize);
         tvh_offset = next_tvh_offset(gvar, tvh_offset, ctx.dimensions)?;
@@ -1495,16 +1444,7 @@ mod gvar_polymorphize_tests {
             let points: [ShapeId; 2] = [0, 2];
             let delta_x: [Pos; 2] = [0.0, 100.0];
             let delta_y: [Pos; 2] = [0.0, 1000.0];
-            let glyph_ptr: *mut Glyph = &mut *glyph;
-            apply_polymorphism(
-                3,
-                glyph_ptr,
-                2,
-                points.as_ptr(),
-                delta_x.as_ptr(),
-                delta_y.as_ptr(),
-                r,
-            );
+            apply_polymorphism(3, &mut glyph, 2, &points, &delta_x, &delta_y, r);
             vq_delete_region(r);
 
             let p1 = &glyph.contours[0][1];
@@ -1518,6 +1458,57 @@ mod gvar_polymorphize_tests {
             // X's ratio.
             assert_eq!(p1.y.shift.len(), 1);
             assert_eq!(p1.y.shift[0].unwrap_delta().quantity, 750.0);
+        }
+    }
+
+    #[test]
+    // Targeted regression for the `CoordRef`-elimination redesign: the old
+    // code resolved each flattened index back to a `Point`/
+    // `ComponentReference` through a per-index `CoordRef` built once, up
+    // front. The redesign instead makes two separate `contours`-then-
+    // `references` flattening passes (one immutable, to collect
+    // `kernel_x`/`kernel_y`; one mutable, to write `nudges_x`/`nudges_y`
+    // back) that must visit points in lockstep for index `j` to mean the
+    // same point in both passes. No existing test in this file had a
+    // `ComponentReference` at all, so a flatten-order mistake (e.g. the
+    // write-back pass visiting references before contours, or skipping a
+    // point) would have gone undetected.
+    fn apply_polymorphism_writes_nudges_back_to_the_matching_point_or_reference() {
+        unsafe {
+            let mut glyph = otfcc_new_glyf_glyph();
+            // One contour with one touched point (flattened index 0) ...
+            let contour: Contour = vec![Point {
+                x: vq_create_still(0.0),
+                y: vq_create_still(0.0),
+                on_curve: 1,
+            }];
+            glyph.contours.push(contour);
+            // ... followed by one touched component reference (flattened
+            // index 1, per the same contours-then-references order the
+            // original `CoordRef`-building loop used).
+            let mut reference = glyf_component_reference_empty();
+            reference.x = vq_create_still(0.0);
+            reference.y = vq_create_still(0.0);
+            glyph.references.push(reference);
+
+            let r = vq_create_region(1);
+            let points: [ShapeId; 2] = [0, 1];
+            let delta_x: [Pos; 2] = [5.0, 100.0];
+            let delta_y: [Pos; 2] = [50.0, 200.0];
+            apply_polymorphism(2, &mut glyph, 2, &points, &delta_x, &delta_y, r);
+            vq_delete_region(r);
+
+            let p0 = &glyph.contours[0][0];
+            assert_eq!(p0.x.shift.len(), 1);
+            assert_eq!(p0.x.shift[0].unwrap_delta().quantity, 5.0);
+            assert_eq!(p0.y.shift.len(), 1);
+            assert_eq!(p0.y.shift[0].unwrap_delta().quantity, 50.0);
+
+            let c0 = &glyph.references[0];
+            assert_eq!(c0.x.shift.len(), 1);
+            assert_eq!(c0.x.shift[0].unwrap_delta().quantity, 100.0);
+            assert_eq!(c0.y.shift.len(), 1);
+            assert_eq!(c0.y.shift[0].unwrap_delta().quantity, 200.0);
         }
     }
 }
