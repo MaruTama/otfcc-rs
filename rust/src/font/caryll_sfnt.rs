@@ -180,6 +180,32 @@ fn otfcc_read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &m
             let Some(count) = otfcc_get32u(file) else {
                 return false;
             };
+            // `count` is the TTC header's own `numFonts` field, read
+            // directly out of the file with no upper bound -- a 15-byte
+            // crafted file (the 12-byte TTC header plus one more 4-byte
+            // word standing in for `numFonts`) used to reach
+            // `vec![0; count as usize]` / `(0..count).map(...).collect()`
+            // unconditionally below, both sized from a value up to
+            // `u32::MAX`: a multi-gigabyte allocation before a single
+            // per-font offset was ever actually read. Each collection
+            // member needs at least its own 4-byte offset entry in the
+            // header that follows, so `count` can't legitimately exceed
+            // however many 4-byte words remain in the file at this point
+            // -- the same "check against the real file length before
+            // allocating" shape `otfcc_read_packets` already uses for
+            // each table's `length`.
+            let Ok(current_pos) = file.stream_position() else {
+                return false;
+            };
+            let Ok(total_len) = file.seek(SeekFrom::End(0)) else {
+                return false;
+            };
+            if file.seek(SeekFrom::Start(current_pos)).is_err() {
+                return false;
+            }
+            if count as u64 > total_len.saturating_sub(current_pos) / 4 {
+                return false;
+            }
             font.count = count;
             font.offsets = vec![0; font.count as usize];
             font.packets = (0..font.count)
@@ -354,6 +380,30 @@ mod tests {
             bytes.extend_from_slice(&0u32.to_be_bytes()); // check_sum
             bytes.extend_from_slice(&table_offset.to_be_bytes()); // offset
             bytes.extend_from_slice(&(u32::MAX - 1).to_be_bytes()); // length: ~4GB
+            let path = write_temp_file(&bytes);
+            assert!(otfcc_read_sfnt(path.as_ptr()).is_null());
+            let _ = std::fs::remove_file(std::path::Path::new(
+                std::ffi::OsStr::from_bytes(path.as_bytes()),
+            ));
+        }
+    }
+
+    // The bug found by fuzzing after this file's TTC-count allocation-budget
+    // fix landed: `numFonts` from a TTC header's own bytes used to size
+    // `font.offsets`/`font.packets` before ever checking it against the
+    // file's actual size, so a 15-byte file could still make this request
+    // a multi-gigabyte allocation. This declares a `numFonts` far larger
+    // than the tiny file that follows could possibly hold; if the
+    // count-vs-file-size check regressed, this test would hang or OOM
+    // instead of failing promptly.
+    #[test]
+    #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
+    fn ttc_count_far_past_file_end_fails_without_allocating_it() {
+        unsafe {
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&crate::tag::SFNT_TTC_TAG.to_be_bytes());
+            bytes.extend_from_slice(&0x00010000u32.to_be_bytes()); // ttc version 1.0
+            bytes.extend_from_slice(&(u32::MAX - 1).to_be_bytes()); // numFonts: ~4 billion
             let path = write_temp_file(&bytes);
             assert!(otfcc_read_sfnt(path.as_ptr()).is_null());
             let _ = std::fs::remove_file(std::path::Path::new(
