@@ -162,13 +162,21 @@ pub struct CffAndGlyf {
     pub meta: *mut CffTable,
     pub glyphs: *mut GlyfTable,
 }
-#[derive(Copy, Clone)]
-pub struct CffExtractContext {
-    pub fd_array_index: i32,
-    pub meta: *mut CffTable,
-    pub glyphs: *mut GlyfTable,
-    pub cff_file: *mut CffFile,
-    pub seed: u64,
+// Scoped to the Top/Font/Private DICT extraction phase only -- `glyphs`
+// doesn't exist yet when `callback_extract_fd`/`callback_extract_private`
+// run (`otfcc_read_cff_and_glyf_tables` only builds it after this phase's
+// loop completes), so it is deliberately not a field here rather than an
+// `Option<&mut GlyfTable>` no caller would ever populate. Was a single
+// `CffExtractContext` struct with all four fields as raw pointers,
+// constructed once (all-null) and incrementally filled in -- that shape
+// only worked because raw pointers can represent "not yet populated" as
+// null; a real `&'a mut CffTable` field cannot. See
+// `otfcc_read_cff_and_glyf_tables`'s doc comment for how this phase hands
+// off to the (separate, plain-reference-parameter) glyph-outline phase.
+struct CffFdExtractContext<'a> {
+    fd_array_index: i32,
+    meta: &'a mut CffTable,
+    cff_file: &'a CffFile,
 }
 // Was `g: *mut Glyph` + `#[derive(Copy, Clone)]` (never actually exercised
 // -- `build_outline` constructs exactly one value, moves it once into
@@ -278,126 +286,125 @@ pub(crate) unsafe fn unwrap_cff_table(raw: *mut CffTable) -> Option<Box<CffTable
     }
     Some(Box::from_raw(raw))
 }
-unsafe fn callback_extract_private(
-    op: CffDictOperator,
-    top: u8,
-    stack: &[CffValue],
-    mut _context: *mut ::core::ffi::c_void,
-) {
-    let context: *mut CffExtractContext = _context as *mut CffExtractContext;
-    let mut meta: *mut CffTable = (*context).meta;
-    if (*context).fd_array_index >= 0_i32
-        && ((*context).fd_array_index as usize) < (*meta).fd_array.len()
+// Reaches zero `unsafe` -- every field access below is a plain safe
+// reborrow of `context`/`context.meta` (the `fd_array_index >= 0` arm and
+// the `else` arm are independent reborrows of the same root that NLL never
+// sees as live simultaneously), and this function never touches
+// `context.cff_file` or calls `get_cff_sid`, unlike its sibling
+// `callback_extract_fd` below.
+fn callback_extract_private(op: CffDictOperator, top: u8, stack: &[CffValue], context: &mut CffFdExtractContext) {
+    let meta: &mut CffTable = if context.fd_array_index >= 0
+        && (context.fd_array_index as usize) < context.meta.fd_array.len()
     {
-        meta =
-            (&mut (*meta).fd_array)[(*context).fd_array_index as usize].as_mut() as *mut CffTable;
-    }
-    let pd: *mut CffPrivateDict =
-        (*meta).private_dict.as_deref_mut().unwrap() as *mut CffPrivateDict;
+        context.meta.fd_array[context.fd_array_index as usize].as_mut()
+    } else {
+        &mut *context.meta
+    };
+    let pd: &mut CffPrivateDict = meta.private_dict.as_deref_mut().unwrap();
     match op.0 {
         6 => {
-            (*pd).blue_values = (0..top as Arity)
+            pd.blue_values = (0..top as Arity)
                 .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         7 => {
-            (*pd).other_blues = (0..top as Arity)
+            pd.other_blues = (0..top as Arity)
                 .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         8 => {
-            (*pd).family_blues = (0..top as Arity)
+            pd.family_blues = (0..top as Arity)
                 .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         9 => {
-            (*pd).family_other_blues = (0..top as Arity)
+            pd.family_other_blues = (0..top as Arity)
                 .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         3084 => {
-            (*pd).stem_snap_h = (0..top as Arity)
+            pd.stem_snap_h = (0..top as Arity)
                 .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         3085 => {
-            (*pd).stem_snap_v = (0..top as Arity)
+            pd.stem_snap_v = (0..top as Arity)
                 .map(|j| cffnum(stack[(j as isize) as usize]))
                 .collect();
         }
         3081 => {
             if top != 0 {
-                (*pd).blue_scale = cffnum(
+                pd.blue_scale = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3082 => {
             if top != 0 {
-                (*pd).blue_shift = cffnum(
+                pd.blue_shift = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3083 => {
             if top != 0 {
-                (*pd).blue_fuzz = cffnum(
+                pd.blue_fuzz = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         10 => {
             if top != 0 {
-                (*pd).std_hw = cffnum(
+                pd.std_hw = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         11 => {
             if top != 0 {
-                (*pd).std_vw = cffnum(
+                pd.std_vw = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3086 => {
             if top != 0 {
-                (*pd).force_bold = cffnum(
+                pd.force_bold = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 ) != 0.;
             }
         }
         3089 => {
             if top != 0 {
-                (*pd).language_group = cffnum(
+                pd.language_group = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 ) as u32;
             }
         }
         3090 => {
             if top != 0 {
-                (*pd).expansion_factor = cffnum(
+                pd.expansion_factor = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3091 => {
             if top != 0 {
-                (*pd).initial_random_seed = cffnum(
+                pd.initial_random_seed = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         20 => {
             if top != 0 {
-                (*pd).default_width_x = cffnum(
+                pd.default_width_x = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         21 => {
             if top != 0 {
-                (*pd).nominal_width_x = cffnum(
+                pd.nominal_width_x = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
@@ -405,118 +412,112 @@ unsafe fn callback_extract_private(
         _ => {}
     };
 }
-unsafe fn callback_extract_fd(
-    op: CffDictOperator,
-    top: u8,
-    stack: &[CffValue],
-    mut _context: *mut ::core::ffi::c_void,
-) {
-    let context: *mut CffExtractContext = _context as *mut CffExtractContext;
-    let file: *mut CffFile = (*context).cff_file;
-    let mut meta: *mut CffTable = (*context).meta;
-    if (*context).fd_array_index >= 0_i32
-        && ((*context).fd_array_index as usize) < (*meta).fd_array.len()
+fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context: &mut CffFdExtractContext) {
+    let file: &CffFile = context.cff_file;
+    let meta: &mut CffTable = if context.fd_array_index >= 0
+        && (context.fd_array_index as usize) < context.meta.fd_array.len()
     {
-        meta =
-            (&mut (*meta).fd_array)[(*context).fd_array_index as usize].as_mut() as *mut CffTable;
-    }
+        context.meta.fd_array[context.fd_array_index as usize].as_mut()
+    } else {
+        &mut *context.meta
+    };
     match op.0 {
         0 => {
             if top != 0 {
-                (*meta).version = get_cff_sid(
+                meta.version = get_cff_sid(
                     cffnum(
                         stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
-                    &(*file).string,
+                    &file.string,
                 )
                 .unwrap_or_default();
             }
         }
         1 => {
             if top != 0 {
-                (*meta).notice = get_cff_sid(
+                meta.notice = get_cff_sid(
                     cffnum(
                         stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
-                    &(*file).string,
+                    &file.string,
                 )
                 .unwrap_or_default();
             }
         }
         3072 => {
             if top != 0 {
-                (*meta).copyright = get_cff_sid(
+                meta.copyright = get_cff_sid(
                     cffnum(
                         stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
-                    &(*file).string,
+                    &file.string,
                 )
                 .unwrap_or_default();
             }
         }
         3110 => {
             if top != 0 {
-                (*meta).font_name = get_cff_sid(
+                meta.font_name = get_cff_sid(
                     cffnum(
                         stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
-                    &(*file).string,
+                    &file.string,
                 )
                 .unwrap_or_default();
             }
         }
         2 => {
             if top != 0 {
-                (*meta).full_name = get_cff_sid(
+                meta.full_name = get_cff_sid(
                     cffnum(
                         stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
-                    &(*file).string,
+                    &file.string,
                 )
                 .unwrap_or_default();
             }
         }
         3 => {
             if top != 0 {
-                (*meta).family_name = get_cff_sid(
+                meta.family_name = get_cff_sid(
                     cffnum(
                         stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
-                    &(*file).string,
+                    &file.string,
                 )
                 .unwrap_or_default();
             }
         }
         4 => {
             if top != 0 {
-                (*meta).weight = get_cff_sid(
+                meta.weight = get_cff_sid(
                     cffnum(
                         stack[((top as i32 - 1_i32) as isize) as usize],
                     ) as u16,
-                    &(*file).string,
+                    &file.string,
                 )
                 .unwrap_or_default();
             }
         }
         5 => {
             if top as i32 >= 4_i32 {
-                (*meta).font_b_box_left = cffnum(
+                meta.font_b_box_left = cffnum(
                     stack[((top as i32 - 4_i32) as isize) as usize],
                 );
-                (*meta).font_b_box_bottom = cffnum(
+                meta.font_b_box_bottom = cffnum(
                     stack[((top as i32 - 3_i32) as isize) as usize],
                 );
-                (*meta).font_b_box_right = cffnum(
+                meta.font_b_box_right = cffnum(
                     stack[((top as i32 - 2_i32) as isize) as usize],
                 );
-                (*meta).font_b_box_top = cffnum(
+                meta.font_b_box_top = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3079 => {
             if top as i32 >= 6_i32 {
-                (*meta).font_matrix = Some(Box::new(CffFontMatrix {
+                meta.font_matrix = Some(Box::new(CffFontMatrix {
                     a: 0.,
                     b: 0.,
                     c: 0.,
@@ -524,59 +525,58 @@ unsafe fn callback_extract_fd(
                     x: vq_neutral(),
                     y: vq_neutral(),
                 }));
-                let fm: *mut CffFontMatrix =
-                    (*meta).font_matrix.as_deref_mut().unwrap() as *mut CffFontMatrix;
-                (*fm).a = cffnum(
+                let fm: &mut CffFontMatrix = meta.font_matrix.as_deref_mut().unwrap();
+                fm.a = cffnum(
                     stack[((top as i32 - 6_i32) as isize) as usize],
                 ) as Scale;
-                (*fm).b = cffnum(
+                fm.b = cffnum(
                     stack[((top as i32 - 5_i32) as isize) as usize],
                 ) as Scale;
-                (*fm).c = cffnum(
+                fm.c = cffnum(
                     stack[((top as i32 - 4_i32) as isize) as usize],
                 ) as Scale;
-                (*fm).d = cffnum(
+                fm.d = cffnum(
                     stack[((top as i32 - 3_i32) as isize) as usize],
                 ) as Scale;
-                (*fm).x = vq_create_still(cffnum(
+                fm.x = vq_create_still(cffnum(
                     stack[((top as i32 - 2_i32) as isize) as usize],
                 ) as Pos);
-                (*fm).y = vq_create_still(cffnum(
+                fm.y = vq_create_still(cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 ) as Pos);
             }
         }
         3073 => {
             if top != 0 {
-                (*meta).is_fixed_pitch = cffnum(
+                meta.is_fixed_pitch = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 ) != 0.;
             }
         }
         3074 => {
             if top != 0 {
-                (*meta).italic_angle = cffnum(
+                meta.italic_angle = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3075 => {
             if top != 0 {
-                (*meta).underline_position = cffnum(
+                meta.underline_position = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3076 => {
             if top != 0 {
-                (*meta).underline_thickness = cffnum(
+                meta.underline_thickness = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
         }
         3080 => {
             if top != 0 {
-                (*meta).stroke_width = cffnum(
+                meta.stroke_width = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 );
             }
@@ -589,7 +589,7 @@ unsafe fn callback_extract_fd(
                 let private_offset: u32 = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 ) as u32;
-                (*meta).private_dict = Some(otfcc_new_cff_private());
+                meta.private_dict = Some(otfcc_new_cff_private());
                 // `private_offset`/`private_length` are DICT operator-18's
                 // own operands -- attacker-controlled bytes from the font's
                 // Top/Font DICT, not yet checked against the real buffer.
@@ -600,36 +600,41 @@ unsafe fn callback_extract_fd(
                 // slice and simply skip the callback (leaving the just-
                 // created, all-default `private_dict` in place) when it
                 // doesn't fit.
-                let raw_slice =
-                    ::core::slice::from_raw_parts((*file).raw_data, (*file).raw_length as usize);
+                let raw_slice = unsafe {
+                    ::core::slice::from_raw_parts(file.raw_data, file.raw_length as usize)
+                };
                 if let Some(private_bytes) = raw_slice
                     .get(private_offset as usize..)
                     .and_then(|s| s.get(..private_length as usize))
                 {
-                    parse_to_callback(private_bytes, |op, top, stack| unsafe {
-                        callback_extract_private(op, top, stack, context as *mut ::core::ffi::c_void);
+                    // `meta`'s last use was the assignment above -- its
+                    // (and thus `context.meta`'s) borrow has already ended
+                    // here, so this fresh reborrow of `context` as a whole
+                    // is sound under NLL.
+                    parse_to_callback(private_bytes, |op, top, stack| {
+                        callback_extract_private(op, top, stack, context);
                     });
                 }
             }
         }
         3102 => {
             if top as i32 >= 3_i32 {
-                (*meta).is_cid = true;
-                (*meta).cid_registry = get_cff_sid(
+                meta.is_cid = true;
+                meta.cid_registry = get_cff_sid(
                     cffnum(
                         stack[((top as i32 - 3_i32) as isize) as usize],
                     ) as u16,
-                    &(*file).string,
+                    &file.string,
                 )
                 .unwrap_or_default();
-                (*meta).cid_ordering = get_cff_sid(
+                meta.cid_ordering = get_cff_sid(
                     cffnum(
                         stack[((top as i32 - 2_i32) as isize) as usize],
                     ) as u16,
-                    &(*file).string,
+                    &file.string,
                 )
                 .unwrap_or_default();
-                (*meta).cid_supplement = cffnum(
+                meta.cid_supplement = cffnum(
                     stack[((top as i32 - 1_i32) as isize) as usize],
                 ) as u32;
             }
@@ -854,19 +859,29 @@ pub(crate) fn callback_draw_getrand(context: &mut OutlineBuilderContext) -> ::co
 // -- only `stack.stack`'s backing allocation, and its stale byte contents
 // past `index` (never read: every push/pop in the interpreter stays
 // within `[0, index)`), are what's now carried over between glyphs.
+// `meta`/`cff_file` are shared -- every access below (`fd_array`,
+// `private_dict`, header fields) only ever reads through them, the same
+// scope-of-use audit `name_glyphs_according_to_cff` already documents for
+// its own copies of these two. `glyphs` alone needs `&mut`, to seat the new
+// `Box<Glyph>` and then hand `bc.g` a lifetime-checked borrow of that same
+// slot -- see `OutlineBuilderContext.g`'s own doc comment for why a plain
+// borrow suffices there.
 unsafe fn build_outline(
     i: GlyphId,
-    context: *mut CffExtractContext,
+    meta: &CffTable,
+    glyphs: &mut GlyfTable,
+    cff_file: &CffFile,
+    seed: &mut u64,
     options: &Options,
     stack: *mut CffStack,
 ) {
     (*stack).index = 0;
     (*stack).stem = 0;
     (*stack).transient = [CffValue::Unset; TYPE2_TRANSIENT_ARRAY];
-    let f: *mut CffFile = (*context).cff_file;
+    let f: &CffFile = cff_file;
     let g_owner: Box<Glyph> = otfcc_new_glyf_glyph();
-    (&mut (*(*context).glyphs))[i as usize] = Some(g_owner);
-    let seed: u64 = (*context).seed;
+    glyphs[i as usize] = Some(g_owner);
+    let seed_val: u64 = *seed;
     let mut local_subrs: CffIndex = CffIndex {
         count_type: CffIndexCountType::U16,
         count: 0,
@@ -883,7 +898,7 @@ unsafe fn build_outline(
     // allocation for the whole time `bc.g` was conceptually "borrowing"
     // it), now goes through `bc.g` alone.
     let mut bc: OutlineBuilderContext = OutlineBuilderContext {
-        g: (&mut (*(*context).glyphs))[i as usize].as_deref_mut().unwrap(),
+        g: glyphs[i as usize].as_deref_mut().unwrap(),
         j_contour: 0 as ShapeId,
         j_point: 0 as ShapeId,
         default_width_x: 0.0f64,
@@ -895,31 +910,31 @@ unsafe fn build_outline(
         randx: 0_u64,
     };
     let fd: u8;
-    let f_raw_data = ::core::slice::from_raw_parts((*f).raw_data, (*f).raw_length as usize);
-    if !matches!((*f).fdselect, CffFdSelect::Unspecified) {
+    let f_raw_data = ::core::slice::from_raw_parts(f.raw_data, f.raw_length as usize);
+    if !matches!(f.fdselect, CffFdSelect::Unspecified) {
         fd = cff_parse_subr(
             i,
             f_raw_data,
-            &(*f).font_dict,
-            &(*f).fdselect,
+            &f.font_dict,
+            &f.fdselect,
             &mut local_subrs,
         );
     } else {
         fd = cff_parse_subr(
             i,
             f_raw_data,
-            &(*f).top_dict,
-            &(*f).fdselect,
+            &f.top_dict,
+            &f.fdselect,
             &mut local_subrs,
         );
     }
     bc.g.fd_select = handle_from_index(fd as GlyphId) as FdHandle;
-    let ctx_fd_array: &mut Vec<Box<CffTable>> = &mut (*(*context).meta).fd_array;
+    let ctx_fd_array: &Vec<Box<CffTable>> = &meta.fd_array;
     if (fd as usize) < ctx_fd_array.len() && ctx_fd_array[fd as usize].private_dict.is_some() {
         let pd = ctx_fd_array[fd as usize].private_dict.as_deref().unwrap();
         bc.default_width_x = pd.default_width_x;
         bc.nominal_width_x = pd.nominal_width_x;
-    } else if let Some(pd) = (*(*context).meta).private_dict.as_deref() {
+    } else if let Some(pd) = meta.private_dict.as_deref() {
         bc.default_width_x = pd.default_width_x;
         bc.nominal_width_x = pd.nominal_width_x;
     }
@@ -927,7 +942,7 @@ unsafe fn build_outline(
         &mut bc.g.advance_width,
         vq_create_still(bc.default_width_x as Pos) as VQ,
     );
-    let char_strings_offset = &(*f).char_strings.offset;
+    let char_strings_offset = &f.char_strings.offset;
     // CFF INDEX offsets are 1-based and `extract_index` already validated
     // this whole array (non-decreasing, every entry >= 1, and the final
     // entry exactly matches `data.len() + 1`) -- so `offset[i] - 1` is
@@ -936,18 +951,22 @@ unsafe fn build_outline(
     // on elsewhere. Slicing (rather than raw pointer arithmetic) makes
     // that bound a checked one instead of an assumed one.
     let char_string_start = (char_strings_offset[i as usize] - 1_u32) as usize;
-    let char_string_ptr: *mut u8 = (&mut (*f).char_strings.data)[char_string_start..].as_mut_ptr();
+    // `f.char_strings.data` is shared now (`f: &CffFile`); `cff_parse_outline`
+    // only ever reads through the `*mut u8` it takes (confirmed by reading
+    // its body), so casting a shared-derived pointer to `*mut` here changes
+    // no behavior -- it is simply never written through.
+    let char_string_ptr: *mut u8 = f.char_strings.data[char_string_start..].as_ptr() as *mut u8;
     let char_string_length: u32 = (char_strings_offset
         [(i as i32 + 1_i32) as usize])
         .wrapping_sub(char_strings_offset[i as usize]);
     bc.j_contour = 0 as ShapeId;
     bc.j_point = 0 as ShapeId;
-    bc.randx = seed;
+    bc.randx = seed_val;
     let mut total_subr_calls: u32 = 0;
     cff_parse_outline(
         char_string_ptr,
         char_string_length,
-        &(*f).global_subr,
+        &f.global_subr,
         &local_subrs,
         stack,
         &mut bc,
@@ -989,21 +1008,14 @@ unsafe fn build_outline(
     // `cx`/`cy`/`local_subrs` are plain owned locals, never moved out, so
     // they auto-drop when this function returns -- no explicit dispose
     // call is needed.
-    (*context).seed = bc.randx;
+    *seed = bc.randx;
 }
 fn form_cid_string(cid: CffSid) -> Vec<u8> {
     return crate::bytesbuild!(b"CID", cid as i32);
 }
-// `context`'s own fields (`meta`/`glyphs`/`cff_file`) are only read, never
-// reassigned, here -- only what `glyphs` *points to* is mutated -- so a
-// shared `&CffExtractContext` suffices; each field's raw-pointer deref
-// stays its own narrow `unsafe {}`, matching `vqs_compare`'s bridge
-// pattern, since `CffExtractContext` itself is still a raw-pointer shell.
-fn name_glyphs_according_to_cff(context: &CffExtractContext) {
-    let cff_file: &CffFile = unsafe { &*context.cff_file };
-    let glyphs: &mut GlyfTable = unsafe { &mut *context.glyphs };
+fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_file: &CffFile) {
     let charset: &CffCharset = &cff_file.charsets;
-    let is_cid = unsafe { &*context.meta }.is_cid;
+    let is_cid = meta.is_cid;
     if is_cid {
         match charset {
             CffCharset::Format0(glyph) => {
@@ -1194,13 +1206,6 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
         meta: ::core::ptr::null_mut::<CffTable>(),
         glyphs: ::core::ptr::null_mut::<GlyfTable>(),
     };
-    let mut context: CffExtractContext = CffExtractContext {
-        fd_array_index: -1_i32,
-        meta: ::core::ptr::null_mut::<CffTable>(),
-        glyphs: ::core::ptr::null_mut::<GlyfTable>(),
-        cff_file: ::core::ptr::null_mut::<CffFile>(),
-        seed: 0,
-    };
     // Only the first `CFF ` table in the packet is ever read. No longer a
     // c2rust `__fortable_*`/`__notfound`-flagged loop simulating the
     // original's `for` + `goto` out on first match -- same "find the one
@@ -1209,8 +1214,15 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
     if let Some(table) = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CFF) {
         let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
         let length: u32 = table.length;
+        // Kept as raw locals -- the source of truth for `ret.meta`/
+        // `ret.glyphs`/`cff_close` -- rather than extracted back out of a
+        // live reference at the end, exactly like `cff_file` already was.
+        // `CffFdExtractContext`/the plain reference parameters below are
+        // scoped reborrows taken *from* these for whichever phase is
+        // running; see `CffFdExtractContext`'s doc comment for why the two
+        // phases (Top/Font/Private DICT extraction, then per-glyph outline
+        // building) can't share one always-fully-populated struct.
         let cff_file: *mut CffFile = cff_open_stream(data, length, options);
-        context.cff_file = cff_file;
         // A CFF table's Top DICT INDEX with a declared `count`
         // of 0 has no entries at all -- `extract_index` only
         // populates `offset` (`count + 1` entries) when
@@ -1222,108 +1234,127 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
         // `font_dict.count != 0` a few lines down for the
         // FDArray INDEX.
         if (*cff_file).top_dict.count != 0 {
-            context.meta = (table_cff_create)();
-            parse_to_callback(
-                {
-                    let top_dict_len = {
-                        let top_dict_offset = &(*cff_file).top_dict.offset;
-                        (top_dict_offset[1_usize])
-                            .wrapping_sub(top_dict_offset[0_usize])
-                    } as usize;
-                    let top_dict_data: &[u8] = &(*cff_file).top_dict.data;
-                    top_dict_data.get(..top_dict_len).unwrap_or(&[])
-                },
-                |op, top, stack| unsafe {
-                    callback_extract_fd(op, top, stack, &raw mut context as *mut ::core::ffi::c_void);
-                },
-            );
-            if (*context.meta).font_name.is_empty() {
-                (*context.meta).font_name =
-                    get_cff_sid(391_u16, &(*cff_file).name).unwrap_or_default();
-            }
-            if (*cff_file).font_dict.count != 0 {
-                let fd_count = (*cff_file).font_dict.count as usize;
-                (*context.meta).fd_array = Vec::with_capacity(fd_count);
-                let mut j: TableId = 0 as TableId;
-                while (j as usize) < fd_count {
-                    // Pushed *before* the recursive parse below (not
-                    // after): `context.fd_array_index` makes
-                    // `callback_extract_fd`/`callback_extract_private`
-                    // re-derive `meta` as `(*meta).fd_array[j]` while
-                    // this element is still being populated, so it
-                    // must already be present in the `Vec` at that
-                    // index -- a `Box`'s heap address never moves,
-                    // even if a later `push` reallocates the `Vec`'s
-                    // own backing buffer of `Box` pointers.
-                    (*context.meta)
-                        .fd_array
-                        .push(unwrap_cff_table((table_cff_create)()).unwrap());
-                    context.fd_array_index = j as i32;
-                    parse_to_callback(
-                        {
-                            let font_dict_offset = &(*cff_file).font_dict.offset;
-                            let start =
-                                font_dict_offset[j as usize].wrapping_sub(1) as usize;
-                            let len = (font_dict_offset[(j as i32
-                                + 1_i32)
-                                as usize])
-                                .wrapping_sub(font_dict_offset[j as usize])
-                                as usize;
-                            let font_dict_data: &[u8] = &(*cff_file).font_dict.data;
-                            font_dict_data
-                                .get(start..)
-                                .and_then(|s| s.get(..len))
-                                .unwrap_or(&[])
-                        },
-                        |op, top, stack| unsafe {
-                            callback_extract_fd(
-                                op,
-                                top,
-                                stack,
-                                &raw mut context as *mut ::core::ffi::c_void,
-                            );
-                        },
-                    );
-                    if (&mut (*context.meta).fd_array)[j as usize]
-                        .font_name
-                        .is_empty()
+            let meta_ptr: *mut CffTable = (table_cff_create)();
+
+            // ---- Phase A: Top/Font DICT + Private DICT extraction ----
+            {
+                let mut context = CffFdExtractContext {
+                    fd_array_index: -1_i32,
+                    meta: &mut *meta_ptr,
+                    cff_file: &*cff_file,
+                };
+                parse_to_callback(
                     {
-                        (&mut (*context.meta).fd_array)[j as usize].font_name =
-                            crate::bytesbuild!(b"_Subfont", j as i32);
-                    }
-                    j = j.wrapping_add(1);
-                }
-            }
-            ret.meta = context.meta;
-            context.seed = 0x1234567887654321_u64;
-            if let Some(pd) = (*context.meta).private_dict.as_deref() {
-                context.seed =
-                    pd.initial_random_seed as u64 ^ 0x1234567887654321_u64;
-            }
-            let glyphs: *mut GlyfTable =
-                table_glyf_create_n((*cff_file).char_strings.count as usize);
-            context.glyphs = glyphs;
-            // Allocated once for the whole font, not once per
-            // glyph -- see `build_outline`'s doc comment.
-            let mut outline_stack: CffStack = CffStack {
-                stack: vec![CffValue::Unset; 0x10000],
-                transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
-                index: 0,
-                stem: 0,
-            };
-            let mut j_0: GlyphId = 0 as GlyphId;
-            while (j_0 as usize) < (*glyphs).len() {
-                build_outline(
-                    j_0,
-                    &raw mut context,
-                    options,
-                    &raw mut outline_stack,
+                        let top_dict_len = {
+                            let top_dict_offset = &(*cff_file).top_dict.offset;
+                            (top_dict_offset[1_usize])
+                                .wrapping_sub(top_dict_offset[0_usize])
+                        } as usize;
+                        let top_dict_data: &[u8] = &(*cff_file).top_dict.data;
+                        top_dict_data.get(..top_dict_len).unwrap_or(&[])
+                    },
+                    |op, top, stack| {
+                        callback_extract_fd(op, top, stack, &mut context);
+                    },
                 );
-                j_0 = j_0.wrapping_add(1);
+                if context.meta.font_name.is_empty() {
+                    context.meta.font_name =
+                        get_cff_sid(391_u16, &(*cff_file).name).unwrap_or_default();
+                }
+                if (*cff_file).font_dict.count != 0 {
+                    let fd_count = (*cff_file).font_dict.count as usize;
+                    context.meta.fd_array = Vec::with_capacity(fd_count);
+                    let mut j: TableId = 0 as TableId;
+                    while (j as usize) < fd_count {
+                        // Pushed *before* the recursive parse below (not
+                        // after): `context.fd_array_index` makes
+                        // `callback_extract_fd`/`callback_extract_private`
+                        // re-derive `meta` as `(*meta).fd_array[j]` while
+                        // this element is still being populated, so it
+                        // must already be present in the `Vec` at that
+                        // index -- a `Box`'s heap address never moves,
+                        // even if a later `push` reallocates the `Vec`'s
+                        // own backing buffer of `Box` pointers.
+                        context
+                            .meta
+                            .fd_array
+                            .push(unwrap_cff_table((table_cff_create)()).unwrap());
+                        context.fd_array_index = j as i32;
+                        parse_to_callback(
+                            {
+                                let font_dict_offset = &(*cff_file).font_dict.offset;
+                                let start =
+                                    font_dict_offset[j as usize].wrapping_sub(1) as usize;
+                                let len = (font_dict_offset[(j as i32
+                                    + 1_i32)
+                                    as usize])
+                                    .wrapping_sub(font_dict_offset[j as usize])
+                                    as usize;
+                                let font_dict_data: &[u8] = &(*cff_file).font_dict.data;
+                                font_dict_data
+                                    .get(start..)
+                                    .and_then(|s| s.get(..len))
+                                    .unwrap_or(&[])
+                            },
+                            |op, top, stack| {
+                                callback_extract_fd(op, top, stack, &mut context);
+                            },
+                        );
+                        if context.meta.fd_array[j as usize].font_name.is_empty() {
+                            context.meta.fd_array[j as usize].font_name =
+                                crate::bytesbuild!(b"_Subfont", j as i32);
+                        }
+                        j = j.wrapping_add(1);
+                    }
+                }
+            } // `context` (and its `&mut *meta_ptr` borrow) ends here.
+
+            let mut seed: u64 = 0x1234567887654321_u64;
+            if let Some(pd) = (*meta_ptr).private_dict.as_deref() {
+                seed = pd.initial_random_seed as u64 ^ 0x1234567887654321_u64;
             }
-            apply_cff_matrix(&*context.meta, &mut *context.glyphs, &*head);
-            name_glyphs_according_to_cff(&context);
-            ret.glyphs = context.glyphs;
+            let glyphs_ptr: *mut GlyfTable =
+                table_glyf_create_n((*cff_file).char_strings.count as usize);
+
+            // ---- Phase B: per-glyph outline building + naming ----
+            {
+                let meta_ref: &CffTable = &*meta_ptr;
+                let glyphs_ref: &mut GlyfTable = &mut *glyphs_ptr;
+                let cff_file_ref: &CffFile = &*cff_file;
+                // Allocated once for the whole font, not once per
+                // glyph -- see `build_outline`'s doc comment.
+                let mut outline_stack: CffStack = CffStack {
+                    stack: vec![CffValue::Unset; 0x10000],
+                    transient: [CffValue::Unset; TYPE2_TRANSIENT_ARRAY],
+                    index: 0,
+                    stem: 0,
+                };
+                let mut j_0: GlyphId = 0 as GlyphId;
+                while (j_0 as usize) < glyphs_ref.len() {
+                    build_outline(
+                        j_0,
+                        meta_ref,
+                        glyphs_ref,
+                        cff_file_ref,
+                        &mut seed,
+                        options,
+                        &raw mut outline_stack,
+                    );
+                    j_0 = j_0.wrapping_add(1);
+                }
+                apply_cff_matrix(meta_ref, glyphs_ref, &*head);
+                name_glyphs_according_to_cff(meta_ref, glyphs_ref, cff_file_ref);
+            } // `meta_ref`/`glyphs_ref`/`cff_file_ref` end here.
+
+            // Plain `Copy`s of the raw locals above -- no live reference
+            // to extract a pointer out of, unlike the old `ret.meta =
+            // context.meta;` (which ran mid-function, before `glyphs`
+            // even existed, purely because the raw-pointer style never
+            // forced any ordering). Both assignments now land together,
+            // after every reference into `*meta_ptr`/`*glyphs_ptr` above
+            // has gone out of scope.
+            ret.meta = meta_ptr;
+            ret.glyphs = glyphs_ptr;
         }
         cff_close(cff_file);
     }
