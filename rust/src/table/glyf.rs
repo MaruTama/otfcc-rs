@@ -367,10 +367,11 @@ fn glyf_glyph_dump_contours(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCont
         let mut m: ShapeId = 0 as ShapeId;
         while (m as usize) < c.len() {
             let mut point = BuiltValue::new_object(4);
-            // `json_new_vq` itself stays `unsafe fn`: `ctx.fvar` is a raw
-            // pointer into `FvarTable`'s own not-yet-safened shell.
-            point.push_field(b"x", unsafe { json_new_vq(c[m as usize].x.clone(), ctx.fvar) });
-            point.push_field(b"y", unsafe { json_new_vq(c[m as usize].y.clone(), ctx.fvar) });
+            // `json_new_vq` itself is safe now; `ctx.fvar` (tied to
+            // `GlyfIOContext`, out of this file's scope) is still a raw
+            // `*mut FvarTable`, so this narrow reborrow is the bridge.
+            point.push_field(b"x", json_new_vq(c[m as usize].x.clone(), unsafe { ctx.fvar.as_ref() }));
+            point.push_field(b"y", json_new_vq(c[m as usize].y.clone(), unsafe { ctx.fvar.as_ref() }));
             point.push_field(
                 b"on",
                 BuiltValue::Bool(c[m as usize].on_curve & MASK_ON_CURVE != 0),
@@ -395,8 +396,8 @@ fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCo
         ref_0.push_field(b"glyph", BuiltValue::str_truncated_at_nul(&r.glyph.name));
         // See the comment on the `json_new_vq` calls in
         // `glyf_glyph_dump_contours` above.
-        ref_0.push_field(b"x", unsafe { json_new_vq(r.x.clone(), ctx.fvar) });
-        ref_0.push_field(b"y", unsafe { json_new_vq(r.y.clone(), ctx.fvar) });
+        ref_0.push_field(b"x", json_new_vq(r.x.clone(), unsafe { ctx.fvar.as_ref() }));
+        ref_0.push_field(b"y", json_new_vq(r.y.clone(), unsafe { ctx.fvar.as_ref() }));
         ref_0.push_field(b"a", BuiltValue::position(r.a as Pos));
         ref_0.push_field(b"b", BuiltValue::position(r.b as Pos));
         ref_0.push_field(b"c", BuiltValue::position(r.c as Pos));
@@ -465,7 +466,7 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext) -> BuiltVa
     let mut glyph = BuiltValue::new_object(12);
     glyph.push_field(
         b"advanceWidth",
-        unsafe { json_new_vq(g.advance_width.clone(), ctx.fvar) },
+        json_new_vq(g.advance_width.clone(), unsafe { ctx.fvar.as_ref() }),
     );
     // `vq_is_still`/`vq_get_still` are plain safe fns; `fabs` is the crate's
     // one remaining `unsafe extern "C"` import (declared at the top of this
@@ -476,17 +477,17 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext) -> BuiltVa
     {
         glyph.push_field(
             b"horizontalOrigin",
-            unsafe { json_new_vq(g.horizontal_origin.clone(), ctx.fvar) },
+            json_new_vq(g.horizontal_origin.clone(), unsafe { ctx.fvar.as_ref() }),
         );
     }
     if ctx.has_vertical_metrics {
         glyph.push_field(
             b"advanceHeight",
-            unsafe { json_new_vq(g.advance_height.clone(), ctx.fvar) },
+            json_new_vq(g.advance_height.clone(), unsafe { ctx.fvar.as_ref() }),
         );
         glyph.push_field(
             b"verticalOrigin",
-            unsafe { json_new_vq(g.vertical_origin.clone(), ctx.fvar) },
+            json_new_vq(g.vertical_origin.clone(), unsafe { ctx.fvar.as_ref() }),
         );
     }
     glyf_glyph_dump_contours(g, &mut glyph, ctx);
@@ -588,17 +589,9 @@ fn glyf_parse_point(pointdump: &ParsedValue) -> Point {
         return point;
     };
     for (key, val) in fields {
-        // `json_vq_of` stays `unsafe fn` (its own not-yet-safened
-        // `*const ParsedValue`/`*const FvarTable` parameter pair); `val` is
-        // already a safe `&ParsedValue` reference here, so this is purely a
-        // narrow bridge, not a real pointer operation.
         match &key[..key.len() - 1] {
-            b"x" => vq_replace(&mut point.x, unsafe {
-                json_vq_of(val as *const ParsedValue, ::core::ptr::null::<FvarTable>())
-            }),
-            b"y" => vq_replace(&mut point.y, unsafe {
-                json_vq_of(val as *const ParsedValue, ::core::ptr::null::<FvarTable>())
-            }),
+            b"x" => vq_replace(&mut point.x, json_vq_of(Some(val))),
+            b"y" => vq_replace(&mut point.y, json_vq_of(Some(val))),
             b"on" => point.on_curve = val.as_bool().unwrap_or(false) as i8,
             _ => {}
         }
@@ -634,19 +627,8 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
         return ref_0;
     };
     ref_0.glyph = handle_from_name(_gname.as_str_bytes().map(|b| b.to_vec()));
-    // See the comment on `glyf_parse_point`'s `json_vq_of` calls above.
-    vq_replace(&mut ref_0.x, unsafe {
-        json_vq_of(
-            refdump.get(b"x").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-            ::core::ptr::null::<FvarTable>(),
-        )
-    });
-    vq_replace(&mut ref_0.y, unsafe {
-        json_vq_of(
-            refdump.get(b"y").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-            ::core::ptr::null::<FvarTable>(),
-        )
-    });
+    vq_replace(&mut ref_0.x, json_vq_of(refdump.get(b"x")));
+    vq_replace(&mut ref_0.y, json_vq_of(refdump.get(b"y")));
     ref_0.a = refdump.get_num_or(b"a", 1.0f64) as Scale;
     ref_0.b = refdump.get_num_or(b"b", 0.0f64) as Scale;
     ref_0.c = refdump.get_num_or(b"c", 0.0f64) as Scale;
@@ -727,33 +709,10 @@ fn otfcc_glyf_parse_glyph(
 ) -> Box<Glyph> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     g.name = order_entry.name.clone();
-    // See the comment on `glyf_parse_point`'s `json_vq_of` calls above.
-    vq_replace(&mut g.advance_width, unsafe {
-        json_vq_of(
-            glyphdump.get(b"advanceWidth").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-            ::core::ptr::null::<FvarTable>(),
-        )
-    });
-    vq_replace(&mut g.horizontal_origin, unsafe {
-        json_vq_of(
-            glyphdump
-                .get(b"horizontalOrigin")
-                .map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-            ::core::ptr::null::<FvarTable>(),
-        )
-    });
-    vq_replace(&mut g.advance_height, unsafe {
-        json_vq_of(
-            glyphdump.get(b"advanceHeight").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-            ::core::ptr::null::<FvarTable>(),
-        )
-    });
-    vq_replace(&mut g.vertical_origin, unsafe {
-        json_vq_of(
-            glyphdump.get(b"verticalOrigin").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-            ::core::ptr::null::<FvarTable>(),
-        )
-    });
+    vq_replace(&mut g.advance_width, json_vq_of(glyphdump.get(b"advanceWidth")));
+    vq_replace(&mut g.horizontal_origin, json_vq_of(glyphdump.get(b"horizontalOrigin")));
+    vq_replace(&mut g.advance_height, json_vq_of(glyphdump.get(b"advanceHeight")));
+    vq_replace(&mut g.vertical_origin, json_vq_of(glyphdump.get(b"verticalOrigin")));
     glyf_parse_contours(glyphdump.get_typed(b"contours", JsonType::Array), &mut g);
     glyf_parse_references(glyphdump.get_typed(b"references", JsonType::Array), &mut g);
     if !options.ignore_hints {

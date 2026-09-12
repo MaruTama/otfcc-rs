@@ -29,7 +29,6 @@ use crate::support::primitives::{
     Arity, CffSid, FontFilePointer, GlyphId, Pos, Scale, ShapeId, TableId,
 };
 use crate::support::{FALSE_0, TRUE_0};
-use crate::table::fvar::FvarTable;
 use crate::table::glyf::{
     Contour, GlyfTable, Glyph, MaskList, Point, PostscriptHintMask, PostscriptStemDef, StemDefList,
 };
@@ -1485,14 +1484,10 @@ fn fd_to_json(table: &CffTable) -> BuiltValue {
         _font_matrix.push_field(b"b", BuiltValue::Double(fm.b as ::core::ffi::c_double));
         _font_matrix.push_field(b"c", BuiltValue::Double(fm.c as ::core::ffi::c_double));
         _font_matrix.push_field(b"d", BuiltValue::Double(fm.d as ::core::ffi::c_double));
-        // `json_new_vq` is still its own not-yet-migrated raw-pointer shell
-        // (`FvarTable` arg) -- narrow bridge, same shape as `vqs_compare`'s.
-        _font_matrix.push_field(b"x", unsafe {
-            json_new_vq(fm.x.clone(), ::core::ptr::null::<FvarTable>())
-        });
-        _font_matrix.push_field(b"y", unsafe {
-            json_new_vq(fm.y.clone(), ::core::ptr::null::<FvarTable>())
-        });
+        // CFF fonts have no `fvar` table (no `Delta` segments can occur
+        // here -- `json_new_vq` panics if that invariant is ever wrong).
+        _font_matrix.push_field(b"x", json_new_vq(fm.x.clone(), None));
+        _font_matrix.push_field(b"y", json_new_vq(fm.y.clone(), None));
         _cff.push_field(b"fontMatrix", _font_matrix);
     }
     if let Some(pd) = table.private_dict.as_deref() {
