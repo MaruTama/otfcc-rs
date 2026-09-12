@@ -23,10 +23,23 @@ use crate::table::otl::{
     ChainLookupApplication, ChainingRule, ChainingRuleSet, ChainingSubtable, Subtable,
     subtable_from_raw,
 };
+// The first two params were `FontFilePointer, u32` (a raw pointer + length
+// pair), reconstructed via `slice::from_raw_parts` inside `format3_coverage`
+// -- purely self-inflicted residue: `general_read_contextual_rule`/
+// `general_read_chaining_rule` (this type's only two callers) already hold
+// a `slice: &[u8]` built from that exact pair before ever calling `fn_0`,
+// so passing the slice directly removes the only unsafe operation
+// `format3_coverage` had (`single_coverage`/`class_coverage` never used
+// the pair in the first place). The fn-pointer type itself stays `unsafe
+// fn` only because `class_coverage` still needs it (its `*mut c_void`
+// userdata cast is a separate, genuine unsafe operation, out of scope
+// here) -- a safe `fn` still coerces to this pointer type at each call
+// site's `as unsafe fn(...)` cast, which is how `single_coverage`/
+// `format3_coverage` below drop `unsafe fn` without changing this type's
+// declared "shape".
 pub type CoverageReaderHandler = Option<
     unsafe fn(
-        FontFilePointer,
-        u32,
+        &[u8],
         u16,
         u32,
         u16,
@@ -202,22 +215,20 @@ const MAX_APPLY_PER_RULE: usize = 50;
 /// -- using the uncapped counts there would let downstream code (e.g.
 /// `consolidate_chaining`) index past the end of `match_0`.
 const MAX_POSITIONS_PER_RULE: u16 = 50;
-pub unsafe fn single_coverage(
-    mut _data: FontFilePointer,
-    mut _table_length: u32,
+pub fn single_coverage(
+    mut _data: &[u8],
     gid: u16,
     mut _offset: u32,
     mut _kind: u16,
     _max_glyphs: GlyphId,
     mut _userdata: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
-    let cov: *mut Coverage = otl_coverage_create();
-    push_to_coverage(&mut *cov, handle_from_index(gid) as GlyphHandle);
-    return cov;
+    let mut cov = Coverage::new();
+    push_to_coverage(&mut cov, handle_from_index(gid) as GlyphHandle);
+    Box::into_raw(Box::new(cov))
 }
 pub unsafe fn class_coverage(
-    mut _data: FontFilePointer,
-    mut _table_length: u32,
+    mut _data: &[u8],
     cls: u16,
     mut _offset: u32,
     kind: u16,
@@ -334,19 +345,15 @@ pub unsafe fn class_coverage(
     }
     return cov;
 }
-pub unsafe fn format3_coverage(
-    data: FontFilePointer,
-    table_length: u32,
+pub fn format3_coverage(
+    data: &[u8],
     shift: u16,
     mut _offset: u32,
     mut _kind: u16,
     _max_glyphs: GlyphId,
     mut _userdata: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
-    return read_coverage(
-        ::core::slice::from_raw_parts(data as *const u8, table_length as usize),
-        _offset.wrapping_add(shift as u32).wrapping_sub(2_u32),
-    );
+    return read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2_u32));
 }
 // Every guard below is expressed as a `FontReader` read or `require_room`
 // call in the exact sequence the original's hand-written `table_length <
@@ -417,8 +424,7 @@ pub unsafe fn general_read_contextual_rule(
     if minus_one {
         rule.match_0
             .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+                slice,
                 start_gid,
                 offset,
                 2_u16,
@@ -434,8 +440,7 @@ pub unsafe fn general_read_contextual_rule(
             .unwrap();
         rule.match_0
             .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+                slice,
                 gid,
                 offset,
                 2_u16,
@@ -550,8 +555,7 @@ unsafe fn read_contextual_format1(
                     Some(
                         single_coverage
                             as unsafe fn(
-                                FontFilePointer,
-                                u32,
+                                &[u8],
                                 u16,
                                 u32,
                                 u16,
@@ -700,8 +704,7 @@ unsafe fn read_contextual_format2(
                     Some(
                         class_coverage
                             as unsafe fn(
-                                FontFilePointer,
-                                u32,
+                                &[u8],
                                 u16,
                                 u32,
                                 u16,
@@ -799,8 +802,7 @@ pub unsafe fn otl_read_contextual(
             Some(
                 format3_coverage
                     as unsafe fn(
-                        FontFilePointer,
-                        u32,
+                        &[u8],
                         u16,
                         u32,
                         u16,
@@ -905,8 +907,7 @@ pub unsafe fn general_read_chaining_rule(
             .unwrap();
         rule.match_0
             .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+                slice,
                 gid,
                 offset,
                 1_u16,
@@ -917,8 +918,7 @@ pub unsafe fn general_read_chaining_rule(
     if minus_one {
         rule.match_0
             .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+                slice,
                 start_gid,
                 offset,
                 2_u16,
@@ -942,8 +942,7 @@ pub unsafe fn general_read_chaining_rule(
             .unwrap();
         rule.match_0
             .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+                slice,
                 gid,
                 offset,
                 2_u16,
@@ -960,8 +959,7 @@ pub unsafe fn general_read_chaining_rule(
             .unwrap();
         rule.match_0
             .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+                slice,
                 gid,
                 offset,
                 3_u16,
@@ -1072,8 +1070,7 @@ unsafe fn read_chaining_format1(
                     Some(
                         single_coverage
                             as unsafe fn(
-                                FontFilePointer,
-                                u32,
+                                &[u8],
                                 u16,
                                 u32,
                                 u16,
@@ -1222,8 +1219,7 @@ unsafe fn read_chaining_format2(
                     Some(
                         class_coverage
                             as unsafe fn(
-                                FontFilePointer,
-                                u32,
+                                &[u8],
                                 u16,
                                 u32,
                                 u16,
@@ -1312,8 +1308,7 @@ pub unsafe fn otl_read_chaining(
             Some(
                 format3_coverage
                     as unsafe fn(
-                        FontFilePointer,
-                        u32,
+                        &[u8],
                         u16,
                         u32,
                         u16,
@@ -1613,8 +1608,7 @@ mod chaining_read_tests {
                 Some(
                     single_coverage
                         as unsafe fn(
-                            FontFilePointer,
-                            u32,
+                            &[u8],
                             u16,
                             u32,
                             u16,
