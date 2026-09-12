@@ -6,9 +6,7 @@ use crate::font::caryll_sfnt::Packet;
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
-use crate::support::primitives::{
-    F2Dot14, F16Dot16, FontFilePointer, GlyphId, Pos, Scale, ShapeId,
-};
+use crate::support::primitives::{F2Dot14, F16Dot16, GlyphId, Pos, Scale, ShapeId};
 
 use crate::table::fvar::FvarTable;
 use crate::table::glyf::{
@@ -22,7 +20,6 @@ use crate::support::primitives::{
 use crate::table::fvar::fvar_register_region;
 use crate::table::glyf::{glyf_component_reference_empty, glyf_contour_fill, otfcc_new_glyf_glyph};
 use crate::vf::region::{VqAxisSpan, VqRegion};
-use crate::vf::region::{vq_create_region, vq_delete_region};
 use crate::vf::vq::{VQ, VqSegment, VqSegmentDelta};
 use crate::vf::vq::{
     vq_add_delta, vq_copy_replace, vq_create_still, vq_inplace_plus, vq_neutral, vq_replace,
@@ -97,11 +94,7 @@ pub struct PackedPointRun {
 // file (confirmed by grep) -- two call sites even cast it to its own exact
 // function-pointer type immediately before calling it inline, a c2rust
 // artifact with no actual indirection behind it, simplified below.
-unsafe fn next_point(
-    contours: *mut ContourList,
-    cc: *mut ShapeId,
-    cp: *mut ShapeId,
-) -> *mut Point {
+fn next_point<'a>(contours: &'a mut ContourList, cc: &mut ShapeId, cp: &mut ShapeId) -> &'a mut Point {
     // A contour can be zero-length: `otfcc_read_simple_glyph`'s endpoint
     // arithmetic allows `n == 0` (a contour whose endpoint equals the
     // running total minus one), and the wire format has no rule against
@@ -111,13 +104,13 @@ unsafe fn next_point(
     // ("index out of bounds: the len is 0"), a fuzzer-found crash. `while`
     // instead skips every exhausted contour in a row, however many there
     // are, before indexing.
-    while *cp as usize >= (&(*contours))[*cc as usize].len() {
+    while *cp as usize >= contours[*cc as usize].len() {
         *cp = 0 as ShapeId;
         *cc = (*cc as i32 + 1_i32) as ShapeId;
     }
-    let point = &raw mut (&mut (*contours))[*cc as usize][*cp as usize];
+    let point = &mut contours[*cc as usize][*cp as usize];
     *cp = (*cp).wrapping_add(1);
-    return point;
+    point
 }
 // `otfcc_read_simple_glyph`/`otfcc_read_composite_glyph`/`otfcc_read_glyph`
 // used to take no length at all -- just a raw `start: FontFilePointer` --
@@ -134,9 +127,8 @@ unsafe fn next_point(
 // down as a `&[u8]`; every read here goes through `FontReader`, so running
 // past that range now fails cleanly (`None`, the glyph becomes empty)
 // instead of reading adjacent memory.
-unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Glyph>> {
+fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
-    let contours: *mut ContourList = &raw mut (*g).contours;
     let mut r = FontReader::new(body);
     r.require_room(number_of_contours as usize, 2).ok()?;
     // `u32`, not `ShapeId` (`u16`): the running total is `lastPoint + 1`,
@@ -162,12 +154,12 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
         }
         let mut contour: Contour = Vec::new();
         glyf_contour_fill(&mut contour, n as usize);
-        (*contours).push(contour);
+        g.contours.push(contour);
         points_in_glyph = last_point_in_current_contour as u32 + 1;
     }
     let instruction_length: u16 = r.u16().ok()?;
     let instruction_bytes = r.bytes(instruction_length as usize).ok()?;
-    (*g).instructions = instruction_bytes.to_vec();
+    g.instructions = instruction_bytes.to_vec();
     // A local `Vec<u8>` now, not a `__caryll_allocate_clean`'d/`free`'d
     // buffer -- dropped automatically at the end of this function.
     let mut flags: Vec<u8> = vec![0u8; points_in_glyph as usize];
@@ -178,12 +170,7 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
         let flag: PointFlags = PointFlags::from_bits_retain(r.u8().ok()?);
         flags[flags_read_sofar] = flag.bits();
         flags_read_sofar += 1;
-        (*next_point(
-            contours,
-            &raw mut current_contour,
-            &raw mut current_contour_point_index,
-        ))
-        .on_curve = flag.contains(PointFlags::ON_CURVE) as i8;
+        next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).on_curve = flag.contains(PointFlags::ON_CURVE) as i8;
         if flag.contains(PointFlags::REPEAT) {
             let repeat: u8 = r.u8().ok()?;
             // The original indexed `flags[flags_read_sofar + j_0]` (a
@@ -197,12 +184,7 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
             }
             for _ in 0..repeat {
                 flags[flags_read_sofar] = flag.bits();
-                (*next_point(
-                    contours,
-                    &raw mut current_contour,
-                    &raw mut current_contour_point_index,
-                ))
-                .on_curve = flag.contains(PointFlags::ON_CURVE) as i8;
+                next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).on_curve = flag.contains(PointFlags::ON_CURVE) as i8;
                 flags_read_sofar += 1;
             }
         }
@@ -225,12 +207,7 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
             r.i16().ok()?
         };
         vq_replace(
-            &mut (*next_point(
-                contours,
-                &raw mut current_contour,
-                &raw mut current_contour_point_index,
-            ))
-            .x,
+            &mut next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).x,
             vq_create_still(x as Pos) as VQ,
         );
         coordinates_read += 1;
@@ -253,12 +230,7 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
             r.i16().ok()?
         };
         vq_replace(
-            &mut (*next_point(
-                contours,
-                &raw mut current_contour,
-                &raw mut current_contour_point_index,
-            ))
-            .y,
+            &mut next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).y,
             vq_create_still(y as Pos) as VQ,
         );
         coordinates_read += 1;
@@ -267,24 +239,21 @@ unsafe fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> O
     let mut cy: VQ = (vq_neutral)();
     let mut j_1: ShapeId = 0 as ShapeId;
     while (j_1 as i32) < number_of_contours as i32 {
-        let mut k: ShapeId = 0 as ShapeId;
-        while (k as usize) < (&(*contours))[j_1 as usize].len() {
-            let z: *mut Point = &raw mut (&mut (*contours))[j_1 as usize][k as usize];
-            vq_inplace_plus(&mut cx, (*z).x.clone());
-            vq_inplace_plus(&mut cy, (*z).y.clone());
-            vq_copy_replace(&mut (*z).x, cx.clone());
-            vq_copy_replace(&mut (*z).y, cy.clone());
-            k = k.wrapping_add(1);
+        for z in g.contours[j_1 as usize].iter_mut() {
+            vq_inplace_plus(&mut cx, z.x.clone());
+            vq_inplace_plus(&mut cy, z.y.clone());
+            vq_copy_replace(&mut z.x, cx.clone());
+            vq_copy_replace(&mut z.y, cy.clone());
         }
-        (&mut (*contours))[j_1 as usize].shrink_to_fit();
+        g.contours[j_1 as usize].shrink_to_fit();
         j_1 = j_1.wrapping_add(1);
     }
-    (*contours).shrink_to_fit();
+    g.contours.shrink_to_fit();
     // `cx`/`cy` are plain owned locals, never moved out, so they auto-drop
     // when this function returns -- no explicit dispose call is needed.
     Some(g)
 }
-unsafe fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyph>> {
+fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyph>> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     let mut r = FontReader::new(body);
     let mut glyph_has_instruction: bool = false;
@@ -360,13 +329,8 @@ unsafe fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<B
     }
     Some(g)
 }
-unsafe fn otfcc_read_glyph(
-    data: FontFilePointer,
-    offset: u32,
-    length: u32,
-    options: &Options,
-) -> Option<Box<Glyph>> {
-    let glyph_bytes = ::core::slice::from_raw_parts(data.offset(offset as isize), length as usize);
+fn otfcc_read_glyph(body: &[u8], offset: usize, length: usize, options: &Options) -> Option<Box<Glyph>> {
+    let glyph_bytes = body.get(offset..)?.get(..length)?;
     let mut r = FontReader::new(glyph_bytes);
     let number_of_contours: i16 = r.i16().ok()?;
     let x_min = r.i16().ok()? as Pos;
@@ -400,7 +364,7 @@ pub const TUPLE_INDEX_MASK: i32 = 0xfff_i32;
 // through `FontReader`'s bounds check instead of `.offset()`ing off the
 // end of the table.
 #[inline]
-unsafe fn next_tvh_offset(gvar: &[u8], tvh_offset: usize, dimensions: u16) -> Option<usize> {
+fn next_tvh_offset(gvar: &[u8], tvh_offset: usize, dimensions: u16) -> Option<usize> {
     let tuple_index = FontReader::new(gvar).at(tvh_offset + 2).ok()?.u16().ok()?;
     let mut bump: usize = 4; // variationDataSize(2) + tupleIndex(2)
     if tuple_index & EMBEDDED_PEAK_TUPLE as u16 != 0 {
@@ -422,7 +386,7 @@ pub const POINTS_ARE_WORDS: i32 = 0x80_i32;
 /// length. `None` on any read running past `gvar`'s own length -- this
 /// used to walk a bare `FontFilePointer` with no length at all.
 #[inline]
-unsafe fn parse_point_numbers(
+fn parse_point_numbers(
     gvar: &[u8],
     offset: usize,
     total_points: ShapeId,
@@ -489,7 +453,7 @@ pub const DELTAS_ARE_ZERO: i32 = 0x80_i32;
 pub const DELTAS_ARE_WORDS: i32 = 0x40_i32;
 pub const DELTA_RUN_COUNT_MASK: i32 = 0x3f_i32;
 #[inline]
-unsafe fn read_packed_delta(
+fn read_packed_delta(
     gvar: &[u8],
     offset: usize,
     n_points: ShapeId,
@@ -778,24 +742,24 @@ unsafe fn apply_polymorphism(
 // instead of `*mut F2Dot14` -- the original read these with no bounds
 // checking at all (a peak or intermediate-region array embedded in a
 // `TupleVariationHeader`, itself found by nothing but the wire format's
-// own self-description, per `next_tvh_offset`'s comment). On any read
-// running past `gvar`'s length, the region already allocated by
-// `vq_create_region` above is freed before returning `None` -- unlike the
-// original, which never had a failure path to unwind at all.
-unsafe fn create_region_from_tuples(
+// own self-description, per `next_tvh_offset`'s comment). `spans` is built
+// as a plain local `Vec` and only boxed into a `*mut VqRegion` once, right
+// before the final `Some(...)` -- unlike the old `vq_create_region`-first
+// shape, nothing is ever allocated on a path that can still fail, so
+// there's nothing to free on the two early-return failure paths below.
+fn create_region_from_tuples(
     gvar: &[u8],
     dimensions: u16,
     peak_offset: usize,
     range_offset: Option<usize>,
 ) -> Option<*mut VqRegion> {
-    let r: *mut VqRegion = vq_create_region(dimensions as ShapeId);
+    let mut spans: Vec<VqAxisSpan> = Vec::with_capacity(dimensions as usize);
     let mut d: u16 = 0_u16;
     while (d as i32) < dimensions as i32 {
         let Ok(peak_raw) = FontReader::new(gvar)
             .at(peak_offset + d as usize * 2)
             .and_then(|mut x| x.i16())
         else {
-            vq_delete_region(r);
             return None;
         };
         let peak_val: Pos = otfcc_from_f2dot14(peak_raw as F2Dot14) as Pos;
@@ -826,15 +790,17 @@ unsafe fn create_region_from_tuples(
                     span.end = otfcc_from_f2dot14(ev as F2Dot14) as Pos;
                 }
                 _ => {
-                    vq_delete_region(r);
                     return None;
                 }
             }
         }
-        (*r).spans.push(span);
+        spans.push(span);
         d = d.wrapping_add(1);
     }
-    Some(r)
+    Some(Box::into_raw(Box::new(VqRegion {
+        dimensions: dimensions as ShapeId,
+        spans,
+    })))
 }
 // `gvd_offset` is an absolute byte offset into `gvar` instead of a `*mut
 // GlyphVariationData` -- every read below goes through `FontReader`,
@@ -849,17 +815,17 @@ unsafe fn create_region_from_tuples(
 // need to do anything with the result, matching the original always
 // "succeeding" (it never checked anything to fail on).
 #[inline]
-unsafe fn polymorphize_glyph(
-    glyph: GlyphPtr,
+fn polymorphize_glyph(
+    glyph: &mut Glyph,
     ctx: &TuplePolymorphizerCtx,
     gvar: &[u8],
     gvd_offset: usize,
 ) -> Option<()> {
     let mut total_points: ShapeId = 0 as ShapeId;
-    for c in &(*glyph).contours {
+    for c in &glyph.contours {
         total_points = (total_points as usize).wrapping_add(c.len()) as ShapeId;
     }
-    total_points = (total_points as usize).wrapping_add((*glyph).references.len()) as ShapeId;
+    total_points = (total_points as usize).wrapping_add(glyph.references.len()) as ShapeId;
     let total_delta_entries: ShapeId = (total_points as i32
         + ctx.n_phantom_points as i32)
         as ShapeId;
@@ -935,15 +901,21 @@ unsafe fn polymorphize_glyph(
             let mut delta_y: Vec<Pos> = vec![0 as Pos; n_points as usize];
             let after_x = read_packed_delta(gvar, after_points, n_points, &mut delta_x)?;
             read_packed_delta(gvar, after_x, n_points, &mut delta_y)?;
-            apply_polymorphism(
-                total_points,
-                glyph,
-                n_points,
-                point_indeces.as_ptr(),
-                delta_x.as_ptr(),
-                delta_y.as_ptr(),
-                r,
-            );
+            // `apply_polymorphism` stays `unsafe fn` (its own `CoordRef`/
+            // raw-pointer parameters, a separate, larger redesign) --
+            // `glyph` reborrows here exactly as it does across every
+            // iteration of this loop.
+            unsafe {
+                apply_polymorphism(
+                    total_points,
+                    glyph,
+                    n_points,
+                    point_indeces.as_ptr(),
+                    delta_x.as_ptr(),
+                    delta_y.as_ptr(),
+                    r,
+                );
+            }
         }
         tsd_start = tsd_start.wrapping_add(variation_data_size as usize);
         tvh_offset = next_tvh_offset(gvar, tvh_offset, ctx.dimensions)?;
@@ -962,13 +934,13 @@ unsafe fn polymorphize_glyph(
 // (`otl/subtables/chaining/read.rs`). `__fortable_*` (goto emulation) ->
 // the same `.iter().find()` idiom every other migrated table reader uses.
 #[inline]
-unsafe fn polymorphize(
-    packet: &Packet,
-    options: &Options,
-    glyf: *mut GlyfTable,
-    ctx: *const GlyfIOContext,
-) {
-    if (*ctx).fvar.is_null() || (*(*ctx).fvar).axes.is_empty() {
+fn polymorphize(packet: &Packet, options: &Options, glyf: &mut GlyfTable, ctx: &GlyfIOContext) {
+    // `ctx.fvar` is `GlyfIOContext`'s own not-yet-safened field, shared
+    // with `fvar.rs`'s region-dedup table (`fvar_register_region` needs
+    // it raw, mutated across every `polymorphize_glyph` call below) -- a
+    // separate, deliberate pointer scheme, out of this file's scope. Its
+    // two derefs here are each a single narrow `unsafe {}`.
+    if ctx.fvar.is_null() || unsafe { (*ctx.fvar).axes.is_empty() } {
         return;
     }
     let Some(table) = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_GVAR) else {
@@ -986,7 +958,7 @@ unsafe fn polymorphize(
         return;
     } // majorVersion/minorVersion: never read by the original either
     let Ok(axis_count) = header.u16() else { return };
-    if axis_count as usize != (*(*ctx).fvar).axes.len() {
+    if axis_count as usize != unsafe { (*ctx.fvar).axes.len() } {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
@@ -1013,7 +985,7 @@ unsafe fn polymorphize(
     let offsets_are_long = flags & GVAR_OFFSETS_ARE_LONG as u16 != 0;
     const OFFSET_ARRAY_BASE: usize = 20; // sizeof(GVARHeader)
 
-    for j in 0..(*glyf).len() {
+    for (j, glyph_slot) in glyf.iter_mut().enumerate() {
         let Some(glyph_variation_data_offset) = (if offsets_are_long {
             FontReader::new(gvar)
                 .at(OFFSET_ARRAY_BASE + j * 4)
@@ -1035,28 +1007,19 @@ unsafe fn polymorphize(
         };
 
         let tpctx = TuplePolymorphizerCtx {
-            fvar: (*ctx).fvar,
+            fvar: ctx.fvar,
             dimensions,
             shared_tuple_count,
             shared_tuples_offset: shared_tuples_offset as usize,
             coord_dimensions: 2_u8,
-            allow_iup: !(&(*glyf))[j].as_deref().unwrap().contours.is_empty(),
-            n_phantom_points: (*ctx).n_phantom_points,
+            allow_iup: !glyph_slot.as_deref().unwrap().contours.is_empty(),
+            n_phantom_points: ctx.n_phantom_points,
         };
-        polymorphize_glyph(
-            &raw mut **(&mut (*glyf))[j].as_mut().unwrap(),
-            &tpctx,
-            gvar,
-            gvd_offset,
-        );
+        polymorphize_glyph(glyph_slot.as_deref_mut().unwrap(), &tpctx, gvar, gvd_offset);
     }
 }
-pub unsafe fn otfcc_read_glyf(
-    packet: &Packet,
-    options: &Options,
-    ctx: *const GlyfIOContext,
-) -> Option<GlyfTable> {
-    let num_glyphs = (*ctx).num_glyphs;
+pub fn otfcc_read_glyf(packet: &Packet, options: &Options, ctx: &GlyfIOContext) -> Option<GlyfTable> {
+    let num_glyphs = ctx.num_glyphs;
     // A local `Vec<u32>` now, not a `__caryll_allocate_clean`'d/`free`'d
     // buffer -- `Vec`'s own allocator aborts rather than returning null on
     // failure, so the `!offsets.is_null()` guard this used to need at
@@ -1090,7 +1053,7 @@ pub unsafe fn otfcc_read_glyf(
     let mut loca_r = FontReader::new(&loca.data);
     let mut found_loca = true;
     for j in 0..=(num_glyphs as u32) {
-        let v = if (*ctx).loca_is_long {
+        let v = if ctx.loca_is_long {
             match loca_r.u32() {
                 Ok(v) => v,
                 Err(_) => {
@@ -1131,7 +1094,6 @@ pub unsafe fn otfcc_read_glyf(
         );
         return None;
     }
-    let data_0: FontFilePointer = glyf_piece.data.as_ptr() as FontFilePointer;
     let mut glyf_val: GlyfTable = Vec::with_capacity(num_glyphs as usize);
     for j0 in 0..num_glyphs {
         if offsets[j0 as usize] < offsets[j0 as usize + 1] {
@@ -1143,21 +1105,22 @@ pub unsafe fn otfcc_read_glyf(
             // fall back to an empty glyph for this one GID rather than
             // failing the whole table, the same degradation the
             // zero-length-range case below already used.
-            let g = otfcc_read_glyph(data_0, offsets[j0 as usize], glyph_length, options)
-                .unwrap_or_else(otfcc_new_glyf_glyph);
+            let g = otfcc_read_glyph(
+                &glyf_piece.data,
+                offsets[j0 as usize] as usize,
+                glyph_length as usize,
+                options,
+            )
+            .unwrap_or_else(otfcc_new_glyf_glyph);
             glyf_val.push(Some(g));
         } else {
             glyf_val.push(Some(otfcc_new_glyf_glyph()));
         }
     }
     let mut glyf = Some(glyf_val);
-    polymorphize(
-        packet,
-        options,
-        glyf.as_mut()
-            .map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable),
-        ctx,
-    );
+    if let Some(g) = glyf.as_mut() {
+        polymorphize(packet, options, g, ctx);
+    }
     glyf
 }
 
@@ -1170,7 +1133,7 @@ mod glyf_read_tests {
         Options::default()
     }
 
-    unsafe fn still(v: &VQ) -> Pos {
+    fn still(v: &VQ) -> Pos {
         vq_get_still(v.clone())
     }
 
@@ -1190,11 +1153,11 @@ mod glyf_read_tests {
         data[20..22].copy_from_slice(&3i16.to_be_bytes()); // y0
         data[22..24].copy_from_slice(&9i16.to_be_bytes()); // y1
         let options = zeroed_options();
-        unsafe {
+        {
             let g = otfcc_read_glyph(
-                data.as_ptr() as FontFilePointer,
+                &data,
                 0,
-                data.len() as u32,
+                data.len(),
                 &options,
             );
             let g = g.unwrap();
@@ -1222,11 +1185,11 @@ mod glyf_read_tests {
         data[14..16].copy_from_slice(&10i16.to_be_bytes());
         data[16..18].copy_from_slice(&20i16.to_be_bytes());
         let options = zeroed_options();
-        unsafe {
+        {
             let g = otfcc_read_glyph(
-                data.as_ptr() as FontFilePointer,
+                &data,
                 0,
-                data.len() as u32,
+                data.len(),
                 &options,
             );
             let g = g.unwrap();
@@ -1249,11 +1212,11 @@ mod glyf_read_tests {
         data[12..14].copy_from_slice(&0u16.to_be_bytes());
         data[14] = 0x01;
         let options = zeroed_options();
-        unsafe {
+        {
             let g = otfcc_read_glyph(
-                data.as_ptr() as FontFilePointer,
+                &data,
                 0,
-                data.len() as u32,
+                data.len(),
                 &options,
             );
             assert!(g.is_none());
@@ -1290,11 +1253,11 @@ mod glyf_read_tests {
         data[24..26].copy_from_slice(&3i16.to_be_bytes()); // y0
         data[26..28].copy_from_slice(&9i16.to_be_bytes()); // y1
         let options = zeroed_options();
-        unsafe {
+        {
             let g = otfcc_read_glyph(
-                data.as_ptr() as FontFilePointer,
+                &data,
                 0,
-                data.len() as u32,
+                data.len(),
                 &options,
             );
             let g = g.unwrap();
@@ -1322,11 +1285,11 @@ mod glyf_read_tests {
         data[14..16].copy_from_slice(&10i16.to_be_bytes());
         data[16..18].copy_from_slice(&20i16.to_be_bytes());
         let options = zeroed_options();
-        unsafe {
+        {
             let g = otfcc_read_glyph(
-                data.as_ptr() as FontFilePointer,
+                &data,
                 0,
-                data.len() as u32,
+                data.len(),
                 &options,
             );
             assert!(g.is_none());
@@ -1346,11 +1309,11 @@ mod glyf_read_tests {
         data[10..12].copy_from_slice(&5u16.to_be_bytes());
         data[12..14].copy_from_slice(&2u16.to_be_bytes());
         let options = zeroed_options();
-        unsafe {
+        {
             let g = otfcc_read_glyph(
-                data.as_ptr() as FontFilePointer,
+                &data,
                 0,
-                data.len() as u32,
+                data.len(),
                 &options,
             );
             assert!(g.is_none());
@@ -1373,11 +1336,11 @@ mod glyf_read_tests {
         data[14] = 0x09; // REPEAT | ON_CURVE
         data[15] = 5; // repeat count
         let options = zeroed_options();
-        unsafe {
+        {
             let g = otfcc_read_glyph(
-                data.as_ptr() as FontFilePointer,
+                &data,
                 0,
-                data.len() as u32,
+                data.len(),
                 &options,
             );
             assert!(g.is_none());
@@ -1388,11 +1351,11 @@ mod glyf_read_tests {
     fn header_shorter_than_ten_bytes_is_rejected_instead_of_reading_oob() {
         let data = [0u8; 5];
         let options = zeroed_options();
-        unsafe {
+        {
             let g = otfcc_read_glyph(
-                data.as_ptr() as FontFilePointer,
+                &data,
                 0,
-                data.len() as u32,
+                data.len(),
                 &options,
             );
             assert!(g.is_none());
@@ -1403,13 +1366,14 @@ mod glyf_read_tests {
 #[cfg(test)]
 mod gvar_polymorphize_tests {
     use super::*;
+    use crate::vf::region::{vq_create_region, vq_delete_region};
 
     #[test]
     fn next_tvh_offset_truncated_header_is_rejected_instead_of_reading_oob() {
         // The original walked this array with nothing but pointer
         // arithmetic and no length at all.
         let gvar: [u8; 0] = [];
-        unsafe {
+        {
             assert!(next_tvh_offset(&gvar, 0, 1).is_none());
         }
     }
@@ -1420,7 +1384,7 @@ mod gvar_polymorphize_tests {
         // bump = 4 (header) + 1 dimension * 2 bytes = 6.
         let mut data = [0u8; 4];
         data[2..4].copy_from_slice(&0x8000u16.to_be_bytes());
-        unsafe {
+        {
             assert_eq!(next_tvh_offset(&data, 0, 1), Some(6));
         }
     }
@@ -1434,7 +1398,7 @@ mod gvar_polymorphize_tests {
         // not leaked (verified by `cargo miri test`, which would flag an
         // unreachable allocation).
         let gvar: [u8; 0] = [];
-        unsafe {
+        {
             assert!(create_region_from_tuples(&gvar, 1, 0, None).is_none());
         }
     }
@@ -1455,7 +1419,7 @@ mod gvar_polymorphize_tests {
         // buffer ends before the run header that should follow -- the
         // original had no length parameter to check against at all.
         let data = [0x02u8];
-        unsafe {
+        {
             assert!(parse_point_numbers(&data, 0, 5).is_none());
         }
     }
@@ -1463,7 +1427,7 @@ mod gvar_polymorphize_tests {
     #[test]
     fn parse_point_numbers_zero_count_returns_every_point_in_order() {
         let data = [0x00u8]; // n_points=0 -> "every point", 0..total_points
-        unsafe {
+        {
             let (new_offset, indeces) = parse_point_numbers(&data, 0, 3).unwrap();
             assert_eq!(new_offset, 1);
             assert_eq!(indeces, vec![0, 1, 2]);
@@ -1474,7 +1438,7 @@ mod gvar_polymorphize_tests {
     fn read_packed_delta_truncated_run_is_rejected_instead_of_reading_oob() {
         let data: [u8; 0] = [];
         let mut deltas = [0.0; 1];
-        unsafe {
+        {
             assert!(read_packed_delta(&data, 0, 1, &mut deltas).is_none());
         }
     }
@@ -1485,7 +1449,7 @@ mod gvar_polymorphize_tests {
         // signed byte delta of 5.
         let data = [0x00u8, 5u8];
         let mut deltas = [0.0; 1];
-        unsafe {
+        {
             let new_offset = read_packed_delta(&data, 0, 1, &mut deltas).unwrap();
             assert_eq!(new_offset, 2);
             assert_eq!(deltas[0], 5.0);

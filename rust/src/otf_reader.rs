@@ -129,7 +129,7 @@ impl FontBuilder for OtfReader {
                 // both, so it is left `None` (its default) rather than
                 // guessing at either value.
                 if (*font).head.is_some() && (*font).maxp.is_some() {
-                    let mut ctx: GlyfIOContext = GlyfIOContext {
+                    let ctx: GlyfIOContext = GlyfIOContext {
                         loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
                         num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
                         n_phantom_points: 4 as ShapeId,
@@ -140,7 +140,7 @@ impl FontBuilder for OtfReader {
                         has_vertical_metrics: false,
                         export_fd_select: false,
                     };
-                    (*font).glyf = otfcc_read_glyf(packet, options, &raw mut ctx);
+                    (*font).glyf = otfcc_read_glyf(packet, options, &ctx);
                 }
             } else {
                 let cffpr: CffAndGlyf = otfcc_read_cff_and_glyf_tables(
