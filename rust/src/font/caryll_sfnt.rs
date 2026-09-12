@@ -120,15 +120,28 @@ fn otfcc_read_packets<R: Read + Seek>(font: &mut SplineFontContainer, file: &mut
                 i += 1;
             }
         }
-        // Bounded by packet 0's `num_tables`, not this packet's own -- a
-        // quirk preserved exactly from the original C (`(*(*font).packets.
-        // offset(0)).num_tables`), not "fixed" here since this is a
-        // mechanical ownership conversion, not a behavior change.
-        let packet_0_num_tables = font.packets[0].num_tables;
         {
             let packet = &mut font.packets[count as usize];
+            // Was bounded by packet 0's `num_tables` instead of this
+            // packet's own -- a quirk preserved exactly from the original
+            // C (`(*(*font).packets.offset(0)).num_tables`), silently
+            // harmless there only because C's unchecked array indexing
+            // just read stale/adjacent memory instead of crashing. A
+            // TrueType Collection's member fonts are independent and can
+            // have different table counts (nothing in the format requires
+            // otherwise), so a font whose first member has more tables
+            // than a later one used to index that later packet's
+            // `pieces` (sized from *its own* `num_tables`) past its end
+            // -- an out-of-bounds panic here, found by fuzzing shortly
+            // after this file's TTC-count allocation-budget fix started
+            // actually reaching this loop with realistic small counts.
+            // `packet.pieces.len()` is exactly this packet's own table
+            // count (one `push` per table in the loop above), so bounding
+            // by it instead fixes both: no more cross-packet indexing,
+            // and no behavior change for the common case where every
+            // member does share the same table count.
             let mut i_0: u32 = 0;
-            while i_0 < packet_0_num_tables as u32 {
+            while i_0 < packet.pieces.len() as u32 {
                 let piece = &mut packet.pieces[i_0 as usize];
                 if file.seek(SeekFrom::Start(piece.offset as u64)).is_err() {
                     return false;
@@ -396,6 +409,56 @@ mod tests {
     // than the tiny file that follows could possibly hold; if the
     // count-vs-file-size check regressed, this test would hang or OOM
     // instead of failing promptly.
+    // The bug found immediately after the fix above started actually
+    // reaching this code with realistic small TTC counts: `otfcc_read_
+    // packets`'s per-font data-read loop used to be bounded by packet 0's
+    // `num_tables`, not each packet's own -- harmless in the original C
+    // (an unchecked, silently-wrong array read), but an out-of-bounds
+    // panic in Rust for any TTC whose first member has *more* tables than
+    // a later one. Two members: the first with one table, the second with
+    // none; if the cross-packet bound regressed, reading the second
+    // member would panic instead of succeeding.
+    #[test]
+    #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
+    fn ttc_member_with_fewer_tables_than_the_first_member_reads_cleanly() {
+        unsafe {
+            let mut bytes = Vec::new();
+            bytes.extend_from_slice(&crate::tag::SFNT_TTC_TAG.to_be_bytes());
+            bytes.extend_from_slice(&0x00010000u32.to_be_bytes()); // ttc version 1.0
+            bytes.extend_from_slice(&2u32.to_be_bytes()); // numFonts
+            bytes.extend_from_slice(&20u32.to_be_bytes()); // offsets[0]
+            bytes.extend_from_slice(&48u32.to_be_bytes()); // offsets[1]
+            // Member 0 (offset 20): one table.
+            bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
+            bytes.extend_from_slice(&1u16.to_be_bytes()); // num_tables
+            bytes.extend_from_slice(&0u16.to_be_bytes()); // search_range
+            bytes.extend_from_slice(&0u16.to_be_bytes()); // entry_selector
+            bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
+            bytes.extend_from_slice(b"TEST"); // tag
+            bytes.extend_from_slice(&0u32.to_be_bytes()); // check_sum
+            bytes.extend_from_slice(&0u32.to_be_bytes()); // offset
+            bytes.extend_from_slice(&0u32.to_be_bytes()); // length
+            // Member 1 (offset 48): zero tables.
+            bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
+            bytes.extend_from_slice(&0u16.to_be_bytes()); // num_tables
+            bytes.extend_from_slice(&0u16.to_be_bytes()); // search_range
+            bytes.extend_from_slice(&0u16.to_be_bytes()); // entry_selector
+            bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
+            assert_eq!(bytes.len(), 60);
+            let path = write_temp_file(&bytes);
+            let sfnt = otfcc_read_sfnt(path.as_ptr());
+            assert!(!sfnt.is_null());
+            let font: &SplineFontContainer = &*sfnt;
+            assert_eq!(font.count, 2);
+            assert_eq!(font.packets[0].pieces.len(), 1);
+            assert_eq!(font.packets[1].pieces.len(), 0);
+            otfcc_delete_sfnt(sfnt);
+            let _ = std::fs::remove_file(std::path::Path::new(
+                std::ffi::OsStr::from_bytes(path.as_bytes()),
+            ));
+        }
+    }
+
     #[test]
     #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
     fn ttc_count_far_past_file_end_fails_without_allocating_it() {
