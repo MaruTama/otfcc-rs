@@ -668,32 +668,6 @@ fn glyf_parse_references(col: Option<&ParsedValue>, g: &mut Glyph) {
         g.references.push(glyf_parse_reference(refdump));
     }
 }
-unsafe fn make_instrs_for_glyph(mut _g: *mut ::core::ffi::c_void, instrs: Vec<u8>) {
-    let g: *mut Glyph = _g as *mut Glyph;
-    (*g).instructions = instrs;
-}
-unsafe fn wrong_instrs_for_glyph(
-    mut _g: *mut ::core::ffi::c_void,
-    reason: *mut ::core::ffi::c_char,
-    pos: i32,
-) {
-    let g: *mut Glyph = _g as *mut Glyph;
-    // `fprintf`'s `%s` needs a NUL-terminated buffer, so a NUL is appended
-    // to a byte-copy of `name` here -- this is a diagnostic-only print to
-    // stderr (never part of dumped/built output), so it doesn't need the
-    // NUL-truncation care the crate's other `Handle`/glyph-name-to-JSON
-    // sites take.
-    let mut name_cstr: Vec<u8> = (*g).name.clone();
-    name_cstr.push(0);
-    fprintf(
-        stderr,
-        b"[OTFCC] TrueType instructions parse error : %s, at %d in /%s\n\0" as *const u8
-            as *const ::core::ffi::c_char,
-        reason,
-        pos,
-        name_cstr.as_ptr() as *const ::core::ffi::c_char,
-    );
-}
 fn parse_stems(sd: Option<&ParsedValue>, stems: &mut StemDefList) {
     let Some(items) = sd.and_then(ParsedValue::as_array) else {
         return;
@@ -783,23 +757,29 @@ fn otfcc_glyf_parse_glyph(
     glyf_parse_contours(glyphdump.get_typed(b"contours", JsonType::Array), &mut g);
     glyf_parse_references(glyphdump.get_typed(b"references", JsonType::Array), &mut g);
     if !options.ignore_hints {
-        // `parse_ttinstr` stays `unsafe fn` (its `*mut c_void` context +
-        // `unsafe fn` callback-pointer pair is a genuine type-erased
-        // boundary, not c2rust marker residue -- see `make_instrs_for_glyph`/
-        // `wrong_instrs_for_glyph` above).
         unsafe {
             parse_ttinstr(
                 glyphdump.get(b"instructions").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-                (&raw mut *g) as *mut ::core::ffi::c_void,
-                Some(make_instrs_for_glyph as unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()),
-                Some(
-                    wrong_instrs_for_glyph
-                        as unsafe fn(
-                            *mut ::core::ffi::c_void,
-                            *mut ::core::ffi::c_char,
-                            i32,
-                        ) -> (),
-                ),
+                |instrs| g.instructions = instrs,
+                |reason, pos| {
+                    // `fprintf`'s `%s` needs a NUL-terminated buffer, so a
+                    // NUL is appended to a byte-copy of `name` here -- this
+                    // is a diagnostic-only print to stderr (never part of
+                    // dumped/built output), so it doesn't need the
+                    // NUL-truncation care the crate's other `Handle`/
+                    // glyph-name-to-JSON sites take.
+                    let mut name_cstr: Vec<u8> = g.name.clone();
+                    name_cstr.push(0);
+                    fprintf(
+                        stderr,
+                        b"[OTFCC] TrueType instructions parse error : %s, at %d in /%s\n\0"
+                            as *const u8
+                            as *const ::core::ffi::c_char,
+                        reason,
+                        pos,
+                        name_cstr.as_ptr() as *const ::core::ffi::c_char,
+                    );
+                },
             );
         }
         parse_stems(glyphdump.get_typed(b"stemH", JsonType::Array), &mut g.stem_h);

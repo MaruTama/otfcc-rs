@@ -336,17 +336,21 @@ unsafe fn strnmatch(
     }
     return 0_i32;
 }
+// Was a `*mut c_void` context pointer + `Option<unsafe fn(*mut c_void,
+// ...)>` callback, type-erasing this function's two callers' distinct
+// concrete error handlers (`table/fpgm_prep.rs`'s `wrong_fpgm_prep_instr`,
+// `table/glyf.rs`'s `wrong_instrs_for_glyph`) behind a shared shape purely
+// so one function pointer type could stand in for both -- the same "type
+// erasure that was never actually needed" pattern already resolved for
+// `libcff/cff_index.rs`'s `new_index_by_callback`, `libcff/cff_dict.rs`'s
+// `parse_to_callback`, and `table/otl.rs`'s `otl_*_filter_env` family.
+// `context` is never dereferenced here, only threaded through to
+// `iv_error` -- a generic `impl FnMut` closure carries the same
+// information with no context pointer to thread at all, since each
+// concrete error handler can just capture what it needs directly.
 unsafe fn parse_instrs(
     text: *mut ::core::ffi::c_char,
-    context: *mut ::core::ffi::c_void,
-    // No longer `extern "C"`: like `make` above, this callback varies at
-    // each call site (`table/fpgm_prep.rs`'s `wrong_fpgm_prep_instr`,
-    // `table/glyf.rs`'s `wrong_instrs_for_glyph`), but neither crosses the
-    // crate's real FFI boundary (`ffi/dll.rs`) -- purely internal
-    // Rust-to-Rust indirect calls.
-    iv_error: Option<
-        unsafe fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_char, i32) -> (),
-    >,
+    mut iv_error: impl FnMut(*mut ::core::ffi::c_char, i32),
 ) -> Option<Vec<u8>> {
     let mut numberstack: [::core::ffi::c_short; 256] = [0; 256];
     let mut npos: i32;
@@ -375,8 +379,7 @@ unsafe fn parse_instrs(
             }
             val = strtol(pt, &raw mut end, 0_i32) as i32;
             if !(-32768_i32..=32767_i32).contains(&val) {
-                iv_error.expect("non-null function pointer")(
-                    context,
+                iv_error(
                     b"A value must be between [-32768,32767]\0" as *const u8
                         as *const ::core::ffi::c_char
                         as *mut ::core::ffi::c_char,
@@ -399,8 +402,7 @@ unsafe fn parse_instrs(
             nread = 0_i32;
             if push_left == -1_i32 {
                 if npos == 0_i32 {
-                    iv_error.expect("non-null function pointer")(
-                        context,
+                    iv_error(
                         b"Expected a number for a push count\0" as *const u8
                             as *const ::core::ffi::c_char
                             as *mut ::core::ffi::c_char,
@@ -411,8 +413,7 @@ unsafe fn parse_instrs(
                     || numberstack[0_i32 as usize] as i32
                         <= 0_i32
                 {
-                    iv_error.expect("non-null function pointer")(
-                        context,
+                    iv_error(
                         b"The push count must be a number between 0 and 255\0" as *const u8
                             as *const ::core::ffi::c_char
                             as *mut ::core::ffi::c_char,
@@ -431,8 +432,7 @@ unsafe fn parse_instrs(
                     || *pt as i32 == '\n' as i32
                     || *pt as i32 == '\0' as i32)
             {
-                iv_error.expect("non-null function pointer")(
-                    context,
+                iv_error(
                     b"More pushes specified than needed\0" as *const u8
                         as *const ::core::ffi::c_char
                         as *mut ::core::ffi::c_char,
@@ -456,8 +456,7 @@ unsafe fn parse_instrs(
                     || (numberstack[0_i32 as usize] as i32)
                         < 0_i32
                 {
-                    iv_error.expect("non-null function pointer")(
-                        context,
+                    iv_error(
                         b"A value to be pushed by a byte push must be between 0 and 255\0"
                             as *const u8 as *const ::core::ffi::c_char
                             as *mut ::core::ffi::c_char,
@@ -476,8 +475,7 @@ unsafe fn parse_instrs(
                     || *pt as i32 == '\n' as i32
                     || *pt as i32 == '\0' as i32)
             {
-                iv_error.expect("non-null function pointer")(
-                    context,
+                iv_error(
                     b"Unexpected number\0" as *const u8 as *const ::core::ffi::c_char
                         as *mut ::core::ffi::c_char,
                     pt.offset_from(text) as ::core::ffi::c_long as i32,
@@ -489,8 +487,7 @@ unsafe fn parse_instrs(
                 || *pt as i32 == '\0' as i32)
             {
                 if push_left > 0_i32 {
-                    iv_error.expect("non-null function pointer")(
-                        context,
+                    iv_error(
                         b"Missing pushes\0" as *const u8 as *const ::core::ffi::c_char
                             as *mut ::core::ffi::c_char,
                         pt.offset_from(text) as ::core::ffi::c_long as i32,
@@ -614,8 +611,7 @@ unsafe fn parse_instrs(
                         bend = bend.offset(1);
                     }
                     if *bend as i32 != ']' as i32 {
-                        iv_error.expect("non-null function pointer")(
-                            context,
+                        iv_error(
                             b"Missing right bracket in command (or bad binary value in bracket)\0"
                                 as *const u8
                                 as *const ::core::ffi::c_char
@@ -625,8 +621,7 @@ unsafe fn parse_instrs(
                         return None;
                     }
                     if val >= 32_i32 {
-                        iv_error.expect("non-null function pointer")(
-                            context,
+                        iv_error(
                             b"Bracketted value is too large\0" as *const u8
                                 as *const ::core::ffi::c_char
                                 as *mut ::core::ffi::c_char,
@@ -857,25 +852,27 @@ pub unsafe fn dump_ttinstr(instructions: *mut u8, length: u32, options: &Options
         ret.preserialize()
     }
 }
+// Same closure-based de-type-erasure as `parse_instrs` above: `context`
+// is never dereferenced here either, only threaded through to `make`/
+// `wrong` (this function's own two callers, `table/fpgm_prep.rs`'s
+// `otfcc_parse_fpgm_prep` and `table/glyf.rs`'s `otfcc_glyf_parse_glyph`,
+// each with a different concrete target for `make` to write into).
 pub unsafe fn parse_ttinstr(
     col: *const ParsedValue,
-    context: *mut ::core::ffi::c_void,
-    make: Option<unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()>,
-    wrong: Option<
-        unsafe fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_char, i32) -> (),
-    >,
+    mut make: impl FnMut(Vec<u8>),
+    mut wrong: impl FnMut(*mut ::core::ffi::c_char, i32),
 ) {
     let Some(col_ref) = col.as_ref() else {
-        make.expect("non-null function pointer")(context, Vec::new());
+        make(Vec::new());
         return;
     };
     if let Some(bytes) = col_ref.as_str_bytes() {
         let instructions_vec = base64_decode(bytes).unwrap_or_default();
-        make.expect("non-null function pointer")(context, instructions_vec);
+        make(instructions_vec);
         return;
     }
     let Some(items) = col_ref.as_array() else {
-        make.expect("non-null function pointer")(context, Vec::new());
+        make(Vec::new());
         return;
     };
     let mut istrlen: usize = 0_usize;
@@ -885,7 +882,7 @@ pub unsafe fn parse_ttinstr(
         } else if record.as_int().is_some() {
             istrlen = istrlen.wrapping_add(1_usize + 20_usize);
         } else {
-            make.expect("non-null function pointer")(context, Vec::new());
+            make(Vec::new());
             return;
         }
     }
@@ -919,15 +916,14 @@ pub unsafe fn parse_ttinstr(
     }
     let instructions_0: Option<Vec<u8>> = parse_instrs(
         instr_string.as_mut_ptr() as *mut ::core::ffi::c_char,
-        context,
-        wrong,
+        &mut wrong,
     );
     match instructions_0 {
         Some(v) if !v.is_empty() => {
-            make.expect("non-null function pointer")(context, v);
+            make(v);
         }
         _ => {
-            make.expect("non-null function pointer")(context, Vec::new());
+            make(Vec::new());
         }
     }
 }
