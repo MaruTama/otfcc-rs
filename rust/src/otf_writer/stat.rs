@@ -1012,7 +1012,18 @@ fn stat_os_2_average_width(font: &mut Font, options: &Options) {
     }
     let glyf_len = glyf.len();
     let os_2 = font.os_2.as_deref_mut().unwrap();
-    os_2.x_avg_char_width = (total_width as usize).wrapping_div(glyf_len) as i16;
+    // `glyf_len` is attacker-controlled (a JSON `glyf` table can declare
+    // zero glyphs) and was fed straight into `wrapping_div` -- unlike
+    // `MIN / -1`, division by zero always panics regardless of which
+    // division operation is used. A font with no glyphs has no average
+    // width to compute, so this is the same "nothing to divide" guard
+    // `stat_cff_widths` a few functions down already uses for its own
+    // `nnsum.wrapping_div(nn)`.
+    os_2.x_avg_char_width = if glyf_len == 0 {
+        0
+    } else {
+        (total_width as usize).wrapping_div(glyf_len) as i16
+    };
 }
 fn stat_max_context_otl(table: &OtlTable) -> u16 {
     let mut maxc: u16 = 1_u16;
@@ -1399,3 +1410,70 @@ pub fn otfcc_unstat_font(font: &mut Font) {
 }
 pub const FLT_MAX: ::core::ffi::c_float = __FLT_MAX__;
 pub const __FLT_MAX__: ::core::ffi::c_float = 3.40282347e+38f32;
+
+#[cfg(test)]
+mod stat_os_2_average_width_tests {
+    use super::*;
+    use crate::font::caryll_font::otfcc_font_create;
+    use crate::table::os_2::Os2Table;
+
+    // A `glyf` table can legitimately be present-but-empty (a JSON font
+    // with `"glyf": {}`) -- `glyf_len` then reaches `wrapping_div` as 0,
+    // which panics (division by zero always panics, regardless of which
+    // division operation is used, unlike `wrapping_div`'s only other
+    // special case, `MIN / -1`). Found by fuzzing. A font with no glyphs
+    // has no average width to compute, so 0 is the natural result -- the
+    // same "nothing to divide" guard `stat_cff_widths` already has for
+    // its own `nnsum.wrapping_div(nn)`.
+    #[test]
+    fn empty_glyf_table_does_not_panic_and_yields_a_zero_average() {
+        let font_ptr = unsafe { otfcc_font_create() };
+        let font = unsafe { &mut *font_ptr };
+        font.glyf = Some(Vec::new());
+        font.os_2 = Some(Box::new(Os2Table {
+            version: 0,
+            x_avg_char_width: -1,
+            us_weight_class: 0,
+            us_width_class: 0,
+            fs_type: 0,
+            y_subscript_x_size: 0,
+            y_subscript_y_size: 0,
+            y_subscript_x_offset: 0,
+            y_subscript_y_offset: 0,
+            y_supscript_x_size: 0,
+            y_supscript_y_size: 0,
+            y_supscript_x_offset: 0,
+            y_supscript_y_offset: 0,
+            y_strikeout_size: 0,
+            y_strikeout_position: 0,
+            s_family_class: 0,
+            panose: [0; 10],
+            ul_unicode_range1: 0,
+            ul_unicode_range2: 0,
+            ul_unicode_range3: 0,
+            ul_unicode_range4: 0,
+            ach_vend_id: [0; 4],
+            fs_selection: 0,
+            us_first_char_index: 0,
+            us_last_char_index: 0,
+            s_typo_ascender: 0,
+            s_typo_descender: 0,
+            s_typo_line_gap: 0,
+            us_win_ascent: 0,
+            us_win_descent: 0,
+            ul_code_page_range1: 0,
+            ul_code_page_range2: 0,
+            sx_height: 0,
+            s_cap_height: 0,
+            us_default_char: 0,
+            us_break_char: 0,
+            us_max_context: 0,
+            us_lower_optical_point_size: 0,
+            us_upper_optical_point_size: 0,
+        }));
+        let options = Options::default();
+        stat_os_2_average_width(font, &options);
+        assert_eq!(font.os_2.as_deref().unwrap().x_avg_char_width, 0);
+        unsafe { crate::font::caryll_font::otfcc_font_free(font_ptr) };
+    }
+}
