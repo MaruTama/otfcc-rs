@@ -101,3 +101,5 @@ libc = "0.2.189"
 # pull in for reading compressed debug sections, which the dynamic export
 # table itself never is.
 object = { version = "0.40.0", default-features = false, features = ["read"] }
+regex = "1.13.1"
+sha2 = "0.11.0"
