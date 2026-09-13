@@ -20,13 +20,34 @@ use crate::table::otl::subtables::gsub_multi::otfcc_build_gsub_multi_subtable_sp
 use crate::table::otl::subtables::gsub_reverse::otfcc_build_gsub_reverse;
 use crate::table::otl::subtables::gsub_single::otfcc_build_gsub_single_subtable;
 use crate::table::otl::{
-    Feature, LanguageSystem, Lookup, LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE,
-    OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE,
-    OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN,
-    OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE,
-    OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN,
-    OtlTable, Subtable, subtable_at,
+    FeatureIdx, LanguageSystem, Lookup, LookupIdx, LookupType, OTL_TYPE_GPOS_CHAINING,
+    OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND, OTL_TYPE_GPOS_MARK_TO_BASE,
+    OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR,
+    OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING,
+    OTL_TYPE_GSUB_EXTEND, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE,
+    OTL_TYPE_GSUB_SINGLE, OTL_TYPE_GSUB_UNKNOWN, OtlTable, Subtable, subtable_at,
 };
+/// Maps each *storage* index into `OtlTable.lookups`/`.features`
+/// (`LookupIdx.0`/`FeatureIdx.0` as `usize`) to its *dense* position in the
+/// binary LookupList/FeatureList this module writes -- `Some(dense_pos)`
+/// for a live (`Some`) slot, `None` for a hole consolidation punched.
+/// Holes are omitted from binary output entirely (no empty placeholder
+/// slot, matching what the old `Vec::retain`-based compaction did before
+/// `OtlTable.lookups`/`.features` became hole-preserving); a *live* lookup
+/// that happens to build zero binary subtables is a different, pre-existing
+/// case (see `write_otl_lookups`'s own handling) and is not a hole.
+fn storage_to_dense<T>(list: &[Option<T>]) -> Vec<Option<u16>> {
+    let mut dense: u16 = 0;
+    list.iter()
+        .map(|slot| {
+            slot.as_ref().map(|_| {
+                let pos = dense;
+                dense += 1;
+                pos
+            })
+        })
+        .collect()
+}
 // No longer `extern "C"`: each of the 9 concrete builders passed into
 // `_declare_lookup_writer`/`_declare_lookup_writer_split` below is used in
 // exactly one fixed association with its own `LookupType` -- the
@@ -322,41 +343,53 @@ fn _build_lookup(
     }
     return written;
 }
-fn get_lookup_heuristics(table: &OtlTable, lut: &Lookup) -> BuildHeuristics {
+fn get_lookup_heuristics(table: &OtlTable, lut_idx: LookupIdx, lut: &Lookup) -> BuildHeuristics {
     let mut heu: BuildHeuristics = BuildHeuristics::empty();
     if lut.type_0 == OTL_TYPE_GSUB_SINGLE {
-        let mut j: TableId = 0 as TableId;
-        while (j as usize) < table.features.len() {
-            let fea: &Feature = &table.features[j as usize];
-            if !(feature_name_to_tag(&fea.name) != crate::tag::TAG_VERT) {
-                let mut k: TableId = 0 as TableId;
-                while (k as usize) < fea.lookups.len() {
-                    if std::ptr::eq(fea.lookups[k as usize], lut) {
-                        heu.insert(BuildHeuristics::GSUB_VERT);
-                    }
-                    k = k.wrapping_add(1);
-                }
+        // `fea.lookups[k]`/`lut_idx` are both storage-space `LookupIdx`
+        // values -- comparing them directly is exactly what the old
+        // pointer-identity comparison did, just spelled as an index
+        // instead of a `*const Lookup`. No dense remap needed here: this
+        // only asks "does this feature reference this lookup", not "at
+        // what binary position".
+        for fea in table.features.iter().flatten() {
+            if feature_name_to_tag(&fea.name) == crate::tag::TAG_VERT
+                && fea.lookups.contains(&lut_idx)
+            {
+                heu.insert(BuildHeuristics::GSUB_VERT);
             }
-            j = j.wrapping_add(1);
         }
     }
     return heu;
 }
 fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock {
+    // Storage-space `(LookupIdx, &Lookup)` pairs, holes (consolidation-
+    // punched `None` slots) skipped -- every array below is indexed by
+    // *this* sequence's dense position, matching the binary LookupList's
+    // own positions exactly (a hole is omitted entirely, never written as
+    // an empty placeholder; see `storage_to_dense`'s own doc comment for
+    // how that differs from a *live* lookup that happens to build zero
+    // binary subtables, handled unchanged a few lines down).
+    let live: Vec<(LookupIdx, &Lookup)> = table
+        .lookups
+        .iter()
+        .enumerate()
+        .filter_map(|(i, l)| l.as_deref().map(|l| (LookupIdx(i as u32), l)))
+        .collect();
     // `subtables`/`subtable_quantity`/`prefer_ext_for_this_lut` were three
     // separately `__caryll_allocate_clean`'d, index-parallel arrays, sized
     // once to `lookups.len()` and never resized after -- `Vec`s built the
-    // same way (`vec![default; lookups.len()]`) reproduce the exact same
+    // same way (`vec![default; live.len()]`) reproduce the exact same
     // shape without a matching `free()` trio to remember at every exit
     // point below.
-    let mut subtables: Vec<Vec<Buffer>> = vec![Vec::new(); table.lookups.len()];
-    let mut subtable_quantity: Vec<TableId> = vec![0 as TableId; table.lookups.len()];
-    let mut prefer_ext_for_this_lut: Vec<bool> = vec![false; table.lookups.len()];
+    let mut subtables: Vec<Vec<Buffer>> = vec![Vec::new(); live.len()];
+    let mut subtable_quantity: Vec<TableId> = vec![0 as TableId; live.len()];
+    let mut prefer_ext_for_this_lut: Vec<bool> = vec![false; live.len()];
     let mut last_offset: usize = 0_usize;
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < table.lookups.len() {
-        let lookup: &Lookup = &table.lookups[j as usize];
-        let heu: BuildHeuristics = get_lookup_heuristics(table, lookup);
+    while (j as usize) < live.len() {
+        let (lookup_idx, lookup) = live[j as usize];
+        let heu: BuildHeuristics = get_lookup_heuristics(table, lookup_idx, lookup);
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
@@ -367,7 +400,7 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
                 b" (",
                 j as i32,
                 b"/",
-                table.lookups.len() as u32,
+                live.len() as u32,
                 b")\n",
             ),
         );
@@ -380,10 +413,9 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
         );
         j = j.wrapping_add(1);
     }
-    let mut header_size: usize =
-        2_usize.wrapping_add(2_usize.wrapping_mul(table.lookups.len()));
+    let mut header_size: usize = 2_usize.wrapping_add(2_usize.wrapping_mul(live.len()));
     let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < table.lookups.len() {
+    while (j_0 as usize) < live.len() {
         if subtable_quantity[j_0 as usize] != 0 {
             header_size = header_size.wrapping_add(
                 (6_i32
@@ -395,23 +427,18 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
         j_0 = j_0.wrapping_add(1);
     }
     let use_extended: bool = last_offset >= 0xff00_usize.wrapping_sub(header_size);
-    let mut root: BkBlock =
-        bk_new_block(vec![bk_int(BkCellType::B16, (table.lookups.len()) as u32)]);
+    let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (live.len()) as u32)]);
     let mut j_1: TableId = 0 as TableId;
-    while (j_1 as usize) < table.lookups.len() {
+    while (j_1 as usize) < live.len() {
+        let (_, lookup_0) = live[j_1 as usize];
         if subtable_quantity[j_1 as usize] == 0 {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_NOTICE,
                 LoggerType::Info,
-                crate::bytesbuild!(
-                    b"Lookup ",
-                    &table.lookups[j_1 as usize].name,
-                    b" is empty.\n",
-                ),
+                crate::bytesbuild!(b"Lookup ", &lookup_0.name, b" is empty.\n",),
             );
         }
-        let lookup_0: &Lookup = &table.lookups[j_1 as usize];
         // `otfcc_chaining_lookup_is_contextual_lookup` still walks a raw
         // `*const Lookup` internally (its own `subtable_at` indexing), so
         // this stays a narrow bridge rather than a plain safe call.
@@ -502,43 +529,36 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
     }
     return root;
 }
-fn write_otl_features(table: &OtlTable) -> BkBlock {
-    let mut root: BkBlock =
-        bk_new_block(vec![bk_int(BkCellType::B16, (table.features.len()) as u32)]);
+fn write_otl_features(table: &OtlTable, lookup_dense: &[Option<u16>]) -> BkBlock {
+    // Same "storage index, holes skipped, dense position is the binary
+    // position" shape as `write_otl_lookups`'s own `live`.
+    let live: Vec<&crate::table::otl::Feature> =
+        table.features.iter().flatten().map(Box::as_ref).collect();
+    let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (live.len()) as u32)]);
     let mut j: TableId = 0 as TableId;
-    while (j as usize) < table.features.len() {
+    while (j as usize) < live.len() {
+        let feature = live[j as usize];
         let mut fea: BkBlock = bk_new_block(vec![
             bk_ptr(BkCellType::P16, None),
-            bk_int(
-                BkCellType::B16,
-                (table.features[j as usize].lookups.len()) as u32,
-            ),
+            bk_int(BkCellType::B16, (feature.lookups.len()) as u32),
         ]);
         let mut k: TableId = 0 as TableId;
-        while (k as usize) < table.features[j as usize].lookups.len() {
-            let mut l: TableId = 0 as TableId;
-            while (l as usize) < table.lookups.len() {
-                if table.features[j as usize].lookups[k as usize]
-                    == &raw const *table.lookups[l as usize]
-                {
-                    bk_push(
-                        &mut fea,
-                        vec![bk_int(BkCellType::B16, (l as i32) as u32)],
-                    );
-                    break;
-                } else {
-                    l = l.wrapping_add(1);
-                }
-            }
+        while (k as usize) < feature.lookups.len() {
+            // Every `Feature.lookups` entry was already validated to
+            // reference a *live* lookup by the fixed-point consolidation
+            // pass (see `consolidate_otl_table`'s `otl_lookup_ref_list_
+            // filter_env` call) -- resolving here through `lookup_dense`
+            // should never see a hole; `.expect` turns "it somehow did"
+            // into a loud panic rather than a silently wrong binary index.
+            let dense = lookup_dense[feature.lookups[k as usize].0 as usize]
+                .expect("Feature.lookups should only ever reference a live lookup");
+            bk_push(&mut fea, vec![bk_int(BkCellType::B16, dense as u32)]);
             k = k.wrapping_add(1);
         }
         bk_push(
             &mut root,
             vec![
-                bk_int(
-                    BkCellType::B32,
-                    (feature_name_to_tag(&table.features[j as usize].name)) as u32,
-                ),
+                bk_int(BkCellType::B32, (feature_name_to_tag(&feature.name)) as u32),
                 bk_ptr(BkCellType::P16, Some(fea)),
             ],
         );
@@ -546,28 +566,26 @@ fn write_otl_features(table: &OtlTable) -> BkBlock {
     }
     return root;
 }
-// `feature` is only ever compared for identity against `table.features`'
-// own elements, never dereferenced here -- stays a raw `*const Feature`
-// (a `FeatureRef`, the same intentional borrowed-cross-reference pointer
-// type `LanguageSystem.required_feature`/`.features` already use) rather
-// than becoming `Option<&Feature>`.
-fn feature_index(feature: *const Feature, table: &OtlTable) -> TableId {
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < table.features.len() {
-        if &raw const *table.features[j as usize] == feature {
-            return j;
-        }
-        j = j.wrapping_add(1);
-    }
-    return 0xffff as TableId;
+// Resolves a `FeatureIdx` (storage index) to its dense binary position via
+// `feature_dense` -- `0xffff` (the binary format's own "no feature" /
+// out-of-range sentinel) both when there is no reference at all (`None`)
+// and when `feature_dense` reports a hole, matching what the old raw-
+// pointer `feature_index`'s linear "not found" fallthrough already did for
+// a dangling/absent target.
+fn feature_index(idx: Option<FeatureIdx>, feature_dense: &[Option<u16>]) -> TableId {
+    idx.and_then(|i| feature_dense[i.0 as usize])
+        .map_or(0xffff as TableId, |d| d as TableId)
 }
-fn write_language(lang: Option<&LanguageSystem>, table: &OtlTable) -> Option<BkBlock> {
+fn write_language(
+    lang: Option<&LanguageSystem>,
+    feature_dense: &[Option<u16>],
+) -> Option<BkBlock> {
     let lang = lang?;
     let mut root: BkBlock = bk_new_block(vec![
         bk_ptr(BkCellType::P16, None),
         bk_int(
             BkCellType::B16,
-            (feature_index(lang.required_feature, table) as i32) as u32,
+            (feature_index(lang.required_feature, feature_dense) as i32) as u32,
         ),
         bk_int(BkCellType::B16, (lang.features.len()) as u32),
     ]);
@@ -577,16 +595,20 @@ fn write_language(lang: Option<&LanguageSystem>, table: &OtlTable) -> Option<BkB
             &mut root,
             vec![bk_int(
                 BkCellType::B16,
-                (feature_index(lang.features[k as usize], table) as i32) as u32,
+                (feature_index(Some(lang.features[k as usize]), feature_dense) as i32) as u32,
             )],
         );
         k = k.wrapping_add(1);
     }
     return Some(root);
 }
-fn write_script(dl: Option<&LanguageSystem>, ll: &[&LanguageSystem], table: &OtlTable) -> BkBlock {
+fn write_script(
+    dl: Option<&LanguageSystem>,
+    ll: &[&LanguageSystem],
+    feature_dense: &[Option<u16>],
+) -> BkBlock {
     let mut root: BkBlock = bk_new_block(vec![
-        bk_ptr(BkCellType::P16, write_language(dl, table)),
+        bk_ptr(BkCellType::P16, write_language(dl, feature_dense)),
         bk_int(BkCellType::B16, (ll.len()) as u32),
     ]);
     let mut j: TableId = 0 as TableId;
@@ -596,14 +618,17 @@ fn write_script(dl: Option<&LanguageSystem>, ll: &[&LanguageSystem], table: &Otl
             &mut root,
             vec![
                 bk_int(BkCellType::B32, (feature_name_to_tag(tag)) as u32),
-                bk_ptr(BkCellType::P16, write_language(Some(ll[j as usize]), table)),
+                bk_ptr(
+                    BkCellType::P16,
+                    write_language(Some(ll[j as usize]), feature_dense),
+                ),
             ],
         );
         j = j.wrapping_add(1);
     }
     return root;
 }
-fn write_otl_script_and_languages(table: &OtlTable) -> BkBlock {
+fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>]) -> BkBlock {
     // Groups languages by script tag (the first 4 bytes of `language.name`),
     // tracking each script's default (dflt/DFLT) language separately from
     // its other languages, in the order languages are first seen. Unlike
@@ -679,7 +704,11 @@ fn write_otl_script_and_languages(table: &OtlTable) -> BkBlock {
                 bk_int(BkCellType::B32, feature_name_to_tag(&group.tag)),
                 bk_ptr(
                     BkCellType::P16,
-                    Some(write_script(group.default_language, &group.languages, table)),
+                    Some(write_script(
+                        group.default_language,
+                        &group.languages,
+                        feature_dense,
+                    )),
                 ),
             ],
         );
@@ -692,9 +721,11 @@ pub fn otfcc_build_otl(table: Option<&OtlTable>, options: &Options, tag: &[u8]) 
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
+        let lookup_dense = storage_to_dense(&table.lookups);
+        let feature_dense = storage_to_dense(&table.features);
         let lookups: BkBlock = write_otl_lookups(table, options, tag);
-        let features: BkBlock = write_otl_features(table);
-        let languages: BkBlock = write_otl_script_and_languages(table);
+        let features: BkBlock = write_otl_features(table, &lookup_dense);
+        let languages: BkBlock = write_otl_script_and_languages(table, &feature_dense);
         let root: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B32, 0x10000_u32),
             bk_ptr(BkCellType::P16, Some(languages)),
