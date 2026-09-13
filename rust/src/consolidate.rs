@@ -20,7 +20,7 @@ use crate::support::primitives::{GlyphId, Pos, ShapeId, TableId};
 use crate::support::fmt::Hex4Upper;
 
 use crate::table::cff::CffTable;
-use crate::table::colr::{ColrLayer, ColrMapping, ColrTable};
+use crate::table::colr::{ColrMapping, ColrTable};
 
 use crate::table::_tsi::{TsiEntry, TsiEntryType, TsiTable};
 
@@ -139,80 +139,50 @@ fn consolidate_glyph_references(g: &mut Glyph, glyph_order: &GlyphOrder, options
 fn consolidate_glyph_hints(g: &mut Glyph) {
     if !g.stem_h.is_empty() {
         let stem_h: &mut Vec<PostscriptStemDef> = &mut g.stem_h;
-        let mut j: ShapeId = 0 as ShapeId;
-        while (j as usize) < stem_h.len() {
-            stem_h[j as usize].map = j as u16;
-            j = j.wrapping_add(1);
+        for (j, stem) in stem_h.iter_mut().enumerate() {
+            stem.map = j as u16;
         }
         stem_h.sort_by(|a, b| by_stem_pos(a, b).cmp(&0));
     }
     if !g.stem_v.is_empty() {
         let stem_v: &mut Vec<PostscriptStemDef> = &mut g.stem_v;
-        let mut j_0: ShapeId = 0 as ShapeId;
-        while (j_0 as usize) < stem_v.len() {
-            stem_v[j_0 as usize].map = j_0 as u16;
-            j_0 = j_0.wrapping_add(1);
+        for (j, stem) in stem_v.iter_mut().enumerate() {
+            stem.map = j as u16;
         }
         stem_v.sort_by(|a, b| by_stem_pos(a, b).cmp(&0));
     }
     let mut hmap: Vec<ShapeId> = vec![0; g.stem_h.len()];
     let mut vmap: Vec<ShapeId> = vec![0; g.stem_v.len()];
-    let stem_h: &Vec<PostscriptStemDef> = &g.stem_h;
-    let mut j_1: ShapeId = 0 as ShapeId;
-    while (j_1 as usize) < stem_h.len() {
-        hmap[stem_h[j_1 as usize].map as usize] = j_1;
-        j_1 = j_1.wrapping_add(1);
+    for (j, stem) in g.stem_h.iter().enumerate() {
+        hmap[stem.map as usize] = j as ShapeId;
     }
-    let stem_v: &Vec<PostscriptStemDef> = &g.stem_v;
-    let mut j_2: ShapeId = 0 as ShapeId;
-    while (j_2 as usize) < stem_v.len() {
-        vmap[stem_v[j_2 as usize].map as usize] = j_2;
-        j_2 = j_2.wrapping_add(1);
+    for (j, stem) in g.stem_v.iter().enumerate() {
+        vmap[stem.map as usize] = j as ShapeId;
     }
     if !g.hint_masks.is_empty() {
-        let stem_h_len = g.stem_h.len();
-        let stem_v_len = g.stem_v.len();
         let hint_masks: &mut Vec<PostscriptHintMask> = &mut g.hint_masks;
         hint_masks.sort_by(|a, b| by_mask_pointindex(a, b).cmp(&0));
-        let mut j_3: ShapeId = 0 as ShapeId;
-        while (j_3 as usize) < hint_masks.len() {
-            let oldmask: PostscriptHintMask = hint_masks[j_3 as usize];
-            let mut k: ShapeId = 0 as ShapeId;
-            while (k as usize) < stem_h_len {
-                hint_masks[j_3 as usize].mask_h[k as usize] =
-                    oldmask.mask_h[hmap[k as usize] as usize];
-                k = k.wrapping_add(1);
+        for mask in hint_masks.iter_mut() {
+            let oldmask: PostscriptHintMask = *mask;
+            for (k, &hm) in hmap.iter().enumerate() {
+                mask.mask_h[k] = oldmask.mask_h[hm as usize];
             }
-            let mut k_0: ShapeId = 0 as ShapeId;
-            while (k_0 as usize) < stem_v_len {
-                hint_masks[j_3 as usize].mask_v[k_0 as usize] =
-                    oldmask.mask_v[vmap[k_0 as usize] as usize];
-                k_0 = k_0.wrapping_add(1);
+            for (k, &vm) in vmap.iter().enumerate() {
+                mask.mask_v[k] = oldmask.mask_v[vm as usize];
             }
-            j_3 = j_3.wrapping_add(1);
         }
     }
     if !g.contour_masks.is_empty() {
-        let stem_h_len = g.stem_h.len();
-        let stem_v_len = g.stem_v.len();
         let contour_masks: &mut Vec<PostscriptHintMask> = &mut g.contour_masks;
         contour_masks.sort_by(|a, b| by_mask_pointindex(a, b).cmp(&0));
-        let mut j_4: ShapeId = 0 as ShapeId;
-        while (j_4 as usize) < contour_masks.len() {
-            let oldmask_0: PostscriptHintMask = contour_masks[j_4 as usize];
-            let mut k_1: ShapeId = 0 as ShapeId;
-            while (k_1 as usize) < stem_h_len {
-                contour_masks[j_4 as usize].mask_h[k_1 as usize] =
-                    oldmask_0.mask_h[hmap[k_1 as usize] as usize];
-                k_1 = k_1.wrapping_add(1);
+        for mask in contour_masks.iter_mut() {
+            let oldmask: PostscriptHintMask = *mask;
+            for (k, &hm) in hmap.iter().enumerate() {
+                mask.mask_h[k] = oldmask.mask_h[hm as usize];
             }
-            let mut k_2: ShapeId = 0 as ShapeId;
-            while (k_2 as usize) < stem_v_len {
-                contour_masks[j_4 as usize].mask_v[k_2 as usize] =
-                    oldmask_0.mask_v[vmap[k_2 as usize] as usize];
-                k_2 = k_2.wrapping_add(1);
+            for (k, &vm) in vmap.iter().enumerate() {
+                mask.mask_v[k] = oldmask.mask_v[vm as usize];
             }
-            j_4 = j_4.wrapping_add(1);
         }
     }
 }
@@ -235,22 +205,14 @@ fn consolidate_fd_select(h: &mut FdHandle, cff: Option<&CffTable>, options: &Opt
             name: fd_array[idx as usize].font_name.clone(),
         } as FdHandle;
     } else if !h.name.is_empty() {
-        let mut found: bool = false;
-        let mut j: TableId = 0 as TableId;
-        while (j as usize) < fd_array.len() {
-            if handle_name_eq_bytes(&h.name, &fd_array[j as usize].font_name) {
-                found = true;
-                *h = Handle {
-                    state: HandleState::Consolidated,
-                    index: j as GlyphId,
-                    name: fd_array[j as usize].font_name.clone(),
-                } as FdHandle;
-                break;
-            } else {
-                j = j.wrapping_add(1);
-            }
-        }
-        if !found {
+        let found = fd_array.iter().position(|fd| handle_name_eq_bytes(&h.name, &fd.font_name));
+        if let Some(j) = found {
+            *h = Handle {
+                state: HandleState::Consolidated,
+                index: j as GlyphId,
+                name: fd_array[j].font_name.clone(),
+            };
+        } else {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
@@ -522,14 +484,12 @@ pub fn consolidate_glyf(font: &mut Font, options: &Options) {
     let glyph_order: &GlyphOrder = font.glyph_order.as_deref().unwrap();
     let cff: Option<&CffTable> = font.cff.as_deref();
     let glyf: &mut GlyfTable = font.glyf.as_mut().unwrap();
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < glyf.len() {
-        if glyf[j as usize].is_some() {
-            consolidate_glyph(glyf[j as usize].as_mut().unwrap(), glyph_order, cff, options);
+    for slot in glyf.iter_mut() {
+        if let Some(glyph) = slot {
+            consolidate_glyph(glyph, glyph_order, cff, options);
         } else {
-            glyf[j as usize] = Some(otfcc_new_glyf_glyph());
+            *slot = Some(otfcc_new_glyf_glyph());
         }
-        j = j.wrapping_add(1);
     }
     // `consolidate_anchor_ref` is a genuinely unsafe recursive walk that
     // can revisit *any* glyph in the table (not just the one being
@@ -648,9 +608,8 @@ fn __declare_otl_consolidation(
     // up" reasoning as `chaining/read.rs`'s `CLASS_COVERAGE_CALL_BUDGET`.
     let show_important =
         options.logger.borrow().verbosity_limit as i32 >= LOG_VL_IMPORTANT as i32;
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < lookup.subtables.len() {
-        if lookup.subtables[j as usize].is_none() {
+    for (j, slot) in lookup.subtables.iter_mut().enumerate() {
+        if slot.is_none() {
             if show_important {
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
@@ -666,7 +625,7 @@ fn __declare_otl_consolidation(
                 );
             }
         } else {
-            let sub = lookup.subtables[j as usize].as_deref_mut().unwrap();
+            let sub = slot.as_deref_mut().unwrap();
             let subtable_removed = fn_0.expect("non-null function pointer")(font, table, sub, options);
             if subtable_removed {
                 // Was a `fndel: SubtableRemover` parameter, one
@@ -679,7 +638,7 @@ fn __declare_otl_consolidation(
                 // setting the slot to `None` (dropping the `Box` in
                 // place) is all that is needed -- no per-type function
                 // pointer, no separate explicit `Box::from_raw`.
-                lookup.subtables[j as usize] = None;
+                *slot = None;
                 if show_important {
                     logger_log_sds(
                         &mut *options.logger.borrow_mut(),
@@ -696,26 +655,15 @@ fn __declare_otl_consolidation(
                 }
             }
         }
-        j = j.wrapping_add(1);
     }
-    let mut k: TableId = 0 as TableId;
-    let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < lookup.subtables.len() {
-        if lookup.subtables[j_0 as usize].is_some() {
-            // `.take()` moves the `Box` out of slot `j_0`, leaving `None`
-            // behind there -- required now that elements are owned
-            // `Box`es rather than freely-aliasable raw pointers: a plain
-            // copy-assign would leave two slots owning the same `Box`,
-            // and `Vec::truncate` below (unlike the old raw-pointer
-            // `Vec`, which had nothing to drop) runs `Drop` on every
-            // truncated-away element, which would double-free it.
-            lookup.subtables[k as usize] = lookup.subtables[j_0 as usize].take();
-            k = k.wrapping_add(1);
-        }
-        j_0 = j_0.wrapping_add(1);
-    }
-    lookup.subtables.truncate(k as usize);
-    if k == 0 {
+    // `Vec::retain` drops every discarded `Box<Subtable>` in place (its
+    // `Drop` runs as part of the retain-internal shift), the same thing
+    // the old manual `.take()`-then-`truncate()` two-pass compaction did
+    // by hand -- no risk of the double-owned-`Box` hazard that reasoning
+    // used to warn about, since `retain` never leaves two slots pointing
+    // at the same allocation to begin with.
+    lookup.subtables.retain(|s| s.is_some());
+    if lookup.subtables.is_empty() {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
@@ -969,76 +917,55 @@ fn consolidate_colr(font: &mut Font, options: &Options) {
     let glyph_order: &GlyphOrder = font.glyph_order.as_deref().unwrap();
     let mut consolidated: ColrTable = Vec::new();
     let source: &mut Vec<ColrMapping> = font.colr.as_mut().unwrap();
-    let mut __caryll_index: usize = 0_usize;
-    let mut keep: usize = 1_usize;
-    while keep != 0 && __caryll_index < source.len() {
-        let mapping: &mut ColrMapping = &mut source[__caryll_index];
-        while keep != 0 {
-            if !otfcc_gord_consolidate_handle(glyph_order, &mut mapping.glyph) {
-                logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
-                    LOG_VL_IMPORTANT,
-                    LoggerType::Warning,
-                    crate::bytesbuild!(
-                        b"[Consolidate] Ignored missing glyph of /",
-                        &mapping.glyph.name,
-                    ),
-                );
-            } else {
-                let mut m: ColrMapping = ColrMapping {
-                    glyph: Handle {
-                        state: HandleState::Empty,
-                        index: 0,
-                        name: Vec::new(),
-                    },
-                    layers: Vec::new(),
-                };
-                m.glyph = mapping.glyph.clone();
-                let mut __caryll_index_0: usize = 0_usize;
-                let mut keep_0: usize = 1_usize;
-                while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
-                    let layer: &mut ColrLayer = &mut mapping.layers[__caryll_index_0];
-                    while keep_0 != 0 {
-                        if !otfcc_gord_consolidate_handle(glyph_order, &mut layer.glyph) {
-                            logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
-                                LOG_VL_IMPORTANT,
-                                LoggerType::Warning,
-                                crate::bytesbuild!(
-                                    b"[Consolidate] Ignored missing glyph of /",
-                                    &layer.glyph.name,
-                                ),
-                            );
-                        } else {
-                            m.layers.push(layer.clone());
-                        }
-                        keep_0 = (keep_0 == 0) as i32 as usize;
-                    }
-                    keep_0 = (keep_0 == 0) as i32 as usize;
-                    __caryll_index_0 = __caryll_index_0.wrapping_add(1);
-                }
-                if mapping.layers.len() != 0 {
-                    consolidated.push(m);
-                } else {
+    for mapping in source.iter_mut() {
+        if !otfcc_gord_consolidate_handle(glyph_order, &mut mapping.glyph) {
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(
+                    b"[Consolidate] Ignored missing glyph of /",
+                    &mapping.glyph.name,
+                ),
+            );
+        } else {
+            let mut m: ColrMapping = ColrMapping {
+                glyph: mapping.glyph.clone(),
+                layers: Vec::new(),
+            };
+            for layer in mapping.layers.iter_mut() {
+                if !otfcc_gord_consolidate_handle(glyph_order, &mut layer.glyph) {
                     logger_log_sds(
                         &mut *options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(
-                            b"[Consolidate] COLR decomposition for /",
-                            &mapping.glyph.name,
-                            b" is empth",
+                            b"[Consolidate] Ignored missing glyph of /",
+                            &layer.glyph.name,
                         ),
                     );
-                    // `m` is dropped here (its `Handle` and `layers: Vec<ColrLayer>`
-                    // freed by their own compiler-generated drop glue) rather than
-                    // pushed into `consolidated` -- no manual dispose call needed.
+                } else {
+                    m.layers.push(layer.clone());
                 }
             }
-            keep = (keep == 0) as i32 as usize;
+            if !mapping.layers.is_empty() {
+                consolidated.push(m);
+            } else {
+                logger_log_sds(
+                    &mut *options.logger.borrow_mut(),
+                    LOG_VL_IMPORTANT,
+                    LoggerType::Warning,
+                    crate::bytesbuild!(
+                        b"[Consolidate] COLR decomposition for /",
+                        &mapping.glyph.name,
+                        b" is empth",
+                    ),
+                );
+                // `m` is dropped here (its `Handle` and `layers: Vec<ColrLayer>`
+                // freed by their own compiler-generated drop glue) rather than
+                // pushed into `consolidated` -- no manual dispose call needed.
+            }
         }
-        keep = (keep == 0) as i32 as usize;
-        __caryll_index = __caryll_index.wrapping_add(1);
     }
     font.colr = Some(consolidated);
 }
@@ -1083,8 +1010,7 @@ fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<
             consolidated.push(tsi_entry_dup(entry));
         }
     }
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < glyf.len() {
+    for (j, entry) in gid_entries.iter_mut().enumerate() {
         let mut e_0: TsiEntry = TsiEntry {
             type_0: TsiEntryType::Glyph,
             glyph: Handle {
@@ -1095,11 +1021,10 @@ fn consolidate_tsi(glyf: &GlyfTable, glyph_order: &GlyphOrder, tsi: &mut Option<
             content: Vec::new(),
         };
         e_0.type_0 = TsiEntryType::Glyph;
-        e_0.glyph = handle_from_index(j) as GlyphHandle;
+        e_0.glyph = handle_from_index(j as GlyphId) as GlyphHandle;
         otfcc_gord_consolidate_handle(glyph_order, &mut e_0.glyph);
-        e_0.content = gid_entries[j as usize].take().unwrap_or_default();
+        e_0.content = entry.take().unwrap_or_default();
         consolidated.push(e_0);
-        j = j.wrapping_add(1);
     }
     consolidated.sort_by(|a, b| {
         (a.type_0 as u32)
@@ -1138,8 +1063,7 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
         });
         let go: &mut GlyphOrder = go_box.as_mut();
         let glyf: &mut GlyfTable = font.glyf.as_mut().unwrap();
-        let mut j: GlyphId = 0 as GlyphId;
-        while (j as usize) < glyf.len() {
+        for j in 0..glyf.len() as GlyphId {
             let name: Vec<u8>;
             let glyf_name_empty: bool = glyf[j as usize].as_deref().unwrap().name.is_empty();
             if !glyf_name_empty {
@@ -1187,7 +1111,6 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
                     }
                 }
             }
-            j = j.wrapping_add(1);
         }
         font.glyph_order = Some(go_box);
     }
