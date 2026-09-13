@@ -19,17 +19,55 @@ use crate::table::otl::subtables::gsub_multi::otl_gsub_parse_multi;
 use crate::table::otl::subtables::gsub_reverse::otl_gsub_parse_reverse;
 use crate::table::otl::subtables::gsub_single::otl_gsub_parse_single;
 use crate::table::otl::{
-    Feature, FeatureRef, FeatureRefList, LanguageSystem, Lookup, LookupRef, LookupRefList,
+    Feature, FeatureIdx, FeatureRefList, LanguageSystem, Lookup, LookupIdx, LookupRefList,
     LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_MARK_TO_BASE,
     OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR,
     OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE,
     OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE, OtlTable, Subtable,
 };
-use crate::table::otl::{
-    new_feature, new_language, new_lookup, otl_feature_ref_list_dispose,
-    otl_feature_ref_list_replace, otl_lookup_ref_list_dispose, otl_lookup_ref_list_replace,
-};
+use crate::table::otl::{new_language, new_lookup};
 use crate::vendor::json::JsonType;
+/// A transient identity minted for a not-yet-collected `Lookup`, indexing
+/// `PendingLookups.lookups` (position within `LookupEntry.lookup_id`'s own
+/// backing store, *not* the final `OtlTable.lookups` position -- `lh` gets
+/// sorted and partially drained (aliases are skipped) before that final
+/// position exists, see `otfcc_parse_otl`'s remap). Replaces the old
+/// `LookupEntry.lookup: *mut Lookup`: a `Box`'s heap address survives being
+/// moved into a `Vec` later with no extra work, which is what let the
+/// pointer-based design get away with no remap step; an index does not
+/// have that property, so the remap has to be added back explicitly.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct PendingLookupId(u32);
+/// Same shape as `PendingLookupId`, for not-yet-collected `Feature`s.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+struct PendingFeatureId(u32);
+/// The not-yet-collected `Feature` a `PendingFeatureId` points at. Not
+/// `Feature` itself: `Feature.lookups` is `LookupRefList` (`Vec<LookupIdx>`,
+/// *final* indices), but at this point `.lookups` can only hold
+/// `PendingLookupId`s -- `lh` hasn't been sorted/drained into
+/// `OtlTable.lookups` yet, so no final `LookupIdx` exists.
+struct PendingFeature {
+    name: Vec<u8>,
+    lookups: Vec<PendingLookupId>,
+}
+/// Same bundling shape as `PendingLookups`, for not-yet-collected
+/// `Feature`s.
+struct PendingFeatures {
+    entries: Vec<FeatureEntry>,
+    features: Vec<Option<PendingFeature>>,
+}
+/// The not-yet-collected `LanguageSystem` a `figure_out_languages_from_json`
+/// entry builds -- unlike `Lookup`/`Feature`, `LanguageSystem` has no
+/// alias mechanism (see the comment below) and its own list
+/// (`LangSystemList`) is never punch-holed by consolidation, so no
+/// transient identity is needed for languages themselves -- only for the
+/// `PendingFeatureId`s a language references, which still need remapping
+/// to final `FeatureIdx`es once `fh` has been sorted and drained.
+struct PendingLanguage {
+    name: Vec<u8>,
+    required_feature: Option<PendingFeatureId>,
+    features: Vec<PendingFeatureId>,
+}
 /// Replaces the uthash-based `FeatureHash`. Same shape as `LookupEntry`
 /// (see its doc comment) and for the same reason: a real feature
 /// declaration is rejected if its name already exists, but an alias
@@ -41,7 +79,7 @@ use crate::vendor::json::JsonType;
 pub struct FeatureEntry {
     pub name: Vec<u8>,
     pub alias: bool,
-    pub feature: *mut Feature,
+    feature_id: PendingFeatureId,
 }
 /// Replaces the uthash-based `LookupHash`. Not a dedup map: `name` is not
 /// unique -- real (non-alias) entries are rejected up front by
@@ -68,7 +106,7 @@ pub struct LookupEntry {
     /// the push for its alias node -- this field gives `Lookup` the same
     /// treatment, fixed in Rust only (see rust/README.md).
     pub alias: bool,
-    pub lookup: *mut Lookup,
+    lookup_id: PendingLookupId,
     pub order_type: LookupOrderType,
     pub order_val: u16,
 }
@@ -78,11 +116,20 @@ pub enum LookupOrderType {
     Force = 0,
     File = 1,
 }
+/// Bundles the not-yet-collected `Lookup`s together with the metadata
+/// (`name`/`alias`/order) used to resolve, sort, and finally collect them
+/// into `OtlTable.lookups` -- see `PendingLookupId`'s own doc comment for
+/// why the two can no longer be the single `Vec<LookupEntry>` that
+/// `LookupEntry.lookup: *mut Lookup` let them be before.
+struct PendingLookups {
+    entries: Vec<LookupEntry>,
+    lookups: Vec<Option<Box<Lookup>>>,
+}
 fn _parse_lookup(
     lookup: Option<&ParsedValue>,
     lookup_name: &[u8],
     options: &Options,
-    lh: &mut Vec<LookupEntry>,
+    lh: &mut PendingLookups,
 ) -> bool {
     let mut parsed: bool = false;
     if !parsed {
@@ -238,7 +285,7 @@ fn _declare_lookup_parser(
     _lookup: Option<&ParsedValue>,
     lookup_name: &[u8],
     options: &Options,
-    lh: &mut Vec<LookupEntry>,
+    lh: &mut PendingLookups,
 ) -> bool {
     let lv = _lookup;
     let type_0 = lv.and_then(|v| v.get_typed(b"type", JsonType::String));
@@ -261,7 +308,7 @@ fn _declare_lookup_parser(
         return false;
     }
     let name_bytes: Vec<u8> = lookup_name.to_vec();
-    if lh.iter().any(|e| e.name == name_bytes) {
+    if lh.entries.iter().any(|e| e.name == name_bytes) {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
@@ -324,22 +371,24 @@ fn _declare_lookup_parser(
         );
         return false;
     }
-    let order_val: u16 = lh.len() as u16;
+    let order_val: u16 = lh.entries.len() as u16;
     lookup.name = name_bytes.clone();
-    lh.push(LookupEntry {
+    let lookup_id = PendingLookupId(lh.lookups.len() as u32);
+    lh.lookups.push(Some(lookup));
+    lh.entries.push(LookupEntry {
         name: name_bytes,
         alias: false,
-        lookup: Box::into_raw(lookup),
+        lookup_id,
         order_type: LookupOrderType::File,
         order_val,
     });
     return true;
 }
-fn figure_out_lookups_from_json(
-    lookups: Option<&ParsedValue>,
-    options: &Options,
-) -> Vec<LookupEntry> {
-    let mut lh: Vec<LookupEntry> = Vec::new();
+fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>, options: &Options) -> PendingLookups {
+    let mut lh = PendingLookups {
+        entries: Vec::new(),
+        lookups: Vec::new(),
+    };
     let Some(fields) = lookups.and_then(ParsedValue::as_object) else {
         return lh;
     };
@@ -364,19 +413,23 @@ fn figure_out_lookups_from_json(
             // here (only the alias *target*'s name, `thatname_bytes`, is
             // looked up) -- see `LookupEntry`'s doc comment on why this
             // stays a `Vec` with a reverse (most-recent-wins) search
-            // rather than a dedup map.
+            // rather than a dedup map. The alias entry copies the
+            // target's `lookup_id` rather than minting a new one -- the
+            // same "never owns" invariant `LookupEntry.lookup`'s old
+            // pointer-sharing had, just spelled as a shared index.
             let thatname_owned = thatname_bytes.to_vec();
-            if let Some(target_lookup) = lh
+            if let Some(target_lookup_id) = lh
+                .entries
                 .iter()
                 .rev()
                 .find(|e| e.name == thatname_owned)
-                .map(|e| e.lookup)
+                .map(|e| e.lookup_id)
             {
-                let order_val: u16 = lh.len() as u16;
-                lh.push(LookupEntry {
+                let order_val: u16 = lh.entries.len() as u16;
+                lh.entries.push(LookupEntry {
                     name: lookup_name.to_vec(),
                     alias: true,
-                    lookup: target_lookup,
+                    lookup_id: target_lookup_id,
                     order_type: LookupOrderType::File,
                     order_val,
                 });
@@ -468,11 +521,14 @@ fn feature_merger_activate(d: &mut ParsedValue, sametag: bool, objtype: &[u8], o
 }
 fn figure_out_features_from_json(
     features: &mut ParsedValue,
-    lh: &Vec<LookupEntry>,
+    lh: &PendingLookups,
     tag: &[u8],
     options: &Options,
-) -> Vec<FeatureEntry> {
-    let mut fh: Vec<FeatureEntry> = Vec::new();
+) -> PendingFeatures {
+    let mut fh = PendingFeatures {
+        entries: Vec::new(),
+        features: Vec::new(),
+    };
     if options.merge_features {
         feature_merger_activate(features, true, b"feature", options);
     }
@@ -486,13 +542,13 @@ fn figure_out_features_from_json(
     for (feature_name_key, feature_val) in fields {
         let feature_name = &feature_name_key[..feature_name_key.len() - 1];
         if let Some(items) = feature_val.as_array() {
-            let mut al: LookupRefList = Vec::new();
+            let mut al: Vec<PendingLookupId> = Vec::new();
             for term in items {
                 if let Some(term_bytes) = term.as_str_bytes() {
                     let term_owned = term_bytes.to_vec();
-                    let item = lh.iter().rev().find(|e| e.name == term_owned);
+                    let item = lh.entries.iter().rev().find(|e| e.name == term_owned);
                     if let Some(item) = item {
-                        al.push(item.lookup as LookupRef);
+                        al.push(item.lookup_id);
                     } else {
                         logger_log_sds(
                             &mut *options.logger.borrow_mut(),
@@ -513,21 +569,24 @@ fn figure_out_features_from_json(
             }
             if !al.is_empty() {
                 let feature_name_bytes: Vec<u8> = feature_name.to_vec();
-                if !fh.iter().any(|e| e.name == feature_name_bytes) {
-                    // Built as a local owned value, only `Box::into_raw`'d
-                    // at the very end (same restructuring as
-                    // `_declare_lookup_parser`'s `lookup`); `FeatureEntry.
-                    // feature` itself stays `*mut Feature`, a transient
-                    // owner handed off at the one non-alias push site in
-                    // `otfcc_parse_otl` -- an alias entry's copy of the
-                    // same pointer is never freed on its own.
-                    let mut feature: Box<Feature> = new_feature();
-                    feature.name = feature_name_bytes.clone();
-                    otl_lookup_ref_list_replace(&mut feature.lookups, al);
-                    fh.push(FeatureEntry {
+                if !fh.entries.iter().any(|e| e.name == feature_name_bytes) {
+                    // Built as a local owned value, only actually
+                    // allocated into `OtlTable.features` at the very end
+                    // (`otfcc_parse_otl`'s remap, once `fh` has been
+                    // sorted and this pending feature's `PendingLookupId`s
+                    // can be rewritten into final `LookupIdx`es); an alias
+                    // entry's copy of the same `feature_id` is never
+                    // finalized on its own -- see `LookupEntry.alias`'s
+                    // doc comment for the shared reason.
+                    let feature_id = PendingFeatureId(fh.features.len() as u32);
+                    fh.features.push(Some(PendingFeature {
+                        name: feature_name_bytes.clone(),
+                        lookups: al,
+                    }));
+                    fh.entries.push(FeatureEntry {
                         name: feature_name_bytes,
                         alias: false,
-                        feature: Box::into_raw(feature),
+                        feature_id,
                     });
                 } else {
                     logger_log_sds(
@@ -542,7 +601,6 @@ fn figure_out_features_from_json(
                             b"]. This feature will be ignored.\n",
                         ),
                     );
-                    otl_lookup_ref_list_dispose(&mut al);
                 }
             } else {
                 logger_log_sds(
@@ -557,20 +615,20 @@ fn figure_out_features_from_json(
                         b"]. This feature will be ignored.\n",
                     ),
                 );
-                otl_lookup_ref_list_dispose(&mut al);
             }
         } else if let Some(target_bytes) = feature_val.as_str_bytes() {
             let target_owned = target_bytes.to_vec();
-            if let Some(target_feature) = fh
+            if let Some(target_feature_id) = fh
+                .entries
                 .iter()
                 .rev()
                 .find(|e| e.name == target_owned)
-                .map(|e| e.feature)
+                .map(|e| e.feature_id)
             {
-                fh.push(FeatureEntry {
+                fh.entries.push(FeatureEntry {
                     name: feature_name.to_vec(),
                     alias: true,
-                    feature: target_feature,
+                    feature_id: target_feature_id,
                 });
             }
         }
@@ -582,11 +640,11 @@ pub fn is_valid_language_name(name: &[u8]) -> bool {
 }
 fn figure_out_languages_from_json(
     languages: Option<&ParsedValue>,
-    fh: &Vec<FeatureEntry>,
+    fh: &PendingFeatures,
     tag: &[u8],
     options: &Options,
-) -> std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> {
-    let mut sh: std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> =
+) -> std::collections::BTreeMap<Vec<u8>, PendingLanguage> {
+    let mut sh: std::collections::BTreeMap<Vec<u8>, PendingLanguage> =
         std::collections::BTreeMap::new();
     let Some(fields) = languages.and_then(ParsedValue::as_object) else {
         return sh;
@@ -594,17 +652,17 @@ fn figure_out_languages_from_json(
     for (key, language_val) in fields {
         let language_name = &key[..key.len() - 1];
         if is_valid_language_name(language_name) && language_val.as_object().is_some() {
-            let mut required_feature: *mut Feature = ::core::ptr::null_mut::<Feature>();
+            let mut required_feature: Option<PendingFeatureId> = None;
             if let Some(rf_bytes) = language_val
                 .get_typed(b"requiredFeature", JsonType::String)
                 .and_then(ParsedValue::as_str_bytes)
             {
                 let rf_owned = rf_bytes.to_vec();
-                if let Some(rf) = fh.iter().rev().find(|e| e.name == rf_owned) {
-                    required_feature = rf.feature;
+                if let Some(rf) = fh.entries.iter().rev().find(|e| e.name == rf_owned) {
+                    required_feature = Some(rf.feature_id);
                 }
             }
-            let mut af: FeatureRefList = Vec::new();
+            let mut af: Vec<PendingFeatureId> = Vec::new();
             if let Some(items) = language_val
                 .get_typed(b"features", JsonType::Array)
                 .and_then(ParsedValue::as_array)
@@ -612,30 +670,32 @@ fn figure_out_languages_from_json(
                 for term in items {
                     if let Some(term_bytes) = term.as_str_bytes() {
                         let term_owned = term_bytes.to_vec();
-                        if let Some(item) = fh.iter().rev().find(|e| e.name == term_owned) {
-                            af.push(item.feature as FeatureRef);
+                        if let Some(item) = fh.entries.iter().rev().find(|e| e.name == term_owned)
+                        {
+                            af.push(item.feature_id);
                         }
                     }
                 }
             }
-            if !required_feature.is_null() || !af.is_empty() {
+            if required_feature.is_some() || !af.is_empty() {
                 let language_name_bytes: Vec<u8> = language_name.to_vec();
                 if !sh.contains_key(&language_name_bytes) {
-                    // Built as a local owned value, only `Box::into_raw`'d
-                    // at the very end (same restructuring as
-                    // `_declare_lookup_parser`'s `lookup`); `sh`'s values
-                    // stay `*mut LanguageSystem`, a transient owner handed
-                    // off at the one push site in `otfcc_parse_otl` --
-                    // unlike `LookupEntry`/`FeatureEntry`, `LanguageHash`
-                    // has no alias mechanism at all (no JSON string-value
-                    // case is handled for `"languages"`, confirmed by
-                    // grep before starting), so every entry here really
-                    // is unique and really does get pushed.
-                    let mut language: Box<LanguageSystem> = new_language();
-                    language.name = language_name_bytes.clone();
-                    language.required_feature = required_feature as FeatureRef;
-                    otl_feature_ref_list_replace(&mut language.features, af);
-                    sh.insert(language_name_bytes, Box::into_raw(language));
+                    // Built as a local owned value, only actually
+                    // allocated into `OtlTable.languages` at the very end
+                    // (`otfcc_parse_otl`'s remap) -- unlike
+                    // `LookupEntry`/`FeatureEntry`, `LanguageHash` has no
+                    // alias mechanism at all (no JSON string-value case is
+                    // handled for `"languages"`, confirmed by grep before
+                    // starting), so every entry here really is unique and
+                    // really does get pushed.
+                    sh.insert(
+                        language_name_bytes.clone(),
+                        PendingLanguage {
+                            name: language_name_bytes,
+                            required_feature,
+                            features: af,
+                        },
+                    );
                 } else {
                     logger_log_sds(
                         &mut *options.logger.borrow_mut(),
@@ -649,7 +709,6 @@ fn figure_out_languages_from_json(
                             b"]. This language term will be ignored.\n",
                         ),
                     );
-                    otl_feature_ref_list_dispose(&mut af);
                 }
             } else {
                 logger_log_sds(
@@ -664,7 +723,6 @@ fn figure_out_languages_from_json(
                         b"]. This language term will be ignored.\n",
                     ),
                 );
-                otl_feature_ref_list_dispose(&mut af);
             }
         }
     }
@@ -716,7 +774,7 @@ pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8])
             // + `return otl_box` immediately; on failure, `logger_dedent`
             // and fall through to the shared "log a warning, return None"
             // tail below instead.
-            let mut lh: Vec<LookupEntry> =
+            let mut lh: PendingLookups =
                 figure_out_lookups_from_json(unsafe { lookups.as_ref() }, options);
             let lookup_order: *const ParsedValue = unsafe { table.as_ref() }
                 .and_then(|t| t.get_typed(b"lookupOrder", JsonType::Array))
@@ -726,70 +784,117 @@ pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8])
                 for (j, ln) in items.iter().enumerate() {
                     if let Some(ln_bytes) = ln.as_str_bytes() {
                         let ln_owned = ln_bytes.to_vec();
-                        if let Some(item) = lh.iter_mut().rev().find(|e| e.name == ln_owned) {
+                        if let Some(item) = lh.entries.iter_mut().rev().find(|e| e.name == ln_owned)
+                        {
                             item.order_type = LookupOrderType::Force;
                             item.order_val = j as u16;
                         }
                     }
                 }
             }
-            let mut fh: Vec<FeatureEntry> =
+            let mut fh: PendingFeatures =
                 figure_out_features_from_json(unsafe { &mut *features }, &lh, tag, options);
-            let sh: std::collections::BTreeMap<Vec<u8>, *mut LanguageSystem> =
+            let sh: std::collections::BTreeMap<Vec<u8>, PendingLanguage> =
                 figure_out_languages_from_json(unsafe { languages.as_ref() }, &fh, tag, options);
-            if lh.is_empty() || fh.is_empty() || sh.is_empty() {
+            if lh.entries.is_empty() || fh.entries.is_empty() || sh.is_empty() {
                 logger_dedent(&mut *options.logger.borrow_mut());
             } else {
-                // `lh` is an owned `Vec` now, not a chain of uthash
-                // nodes reached via a raw pointer, so there is no
+                // `lh.entries` is an owned `Vec` now, not a chain of
+                // uthash nodes reached via a raw pointer, so there is no
                 // manual HASH_ITER+HASH_DEL+free walk here -- sorting
                 // by (order_type, order_val) (what `HASH_SORT` with
                 // `by_lookup_order` did, deferred from where that call
                 // used to sit, right after the lookupOrder loop above,
-                // since nothing in between needed `lh` in sorted order,
-                // only by-name lookup) and then draining it are both
-                // just `Vec` operations, and the `Vec` itself drops
+                // since nothing in between needed `lh.entries` in sorted
+                // order, only by-name lookup) and then draining it are
+                // both just `Vec` operations, and the `Vec` itself drops
                 // for free once this scope ends.
-                lh.sort_by(|a, b| {
+                lh.entries.sort_by(|a, b| {
                     a.order_type
                         .cmp(&b.order_type)
                         .then(a.order_val.cmp(&b.order_val))
                 });
-                for entry in lh.into_iter() {
+                // Every `PendingLookupId` a `Feature`/`LanguageSystem`
+                // holds was minted *before* this sort, so it no longer
+                // matches the position its owning `Lookup` will actually
+                // land at in `OtlTable.lookups` -- this remap is exactly
+                // what the old pointer-identity design got for free (a
+                // `Box`'s heap address doesn't move when the `Box` itself
+                // is later moved into a `Vec`), spelled out explicitly
+                // for indices. `entry.alias`'s doc comment's double-free
+                // history is why only a non-alias entry ever takes its
+                // `PendingLookupId`'s slot: two entries sharing an id and
+                // both trying to `.take()` it would make the second
+                // `.take()` see `None` and panic, not double-free.
+                let mut lookup_remap: Vec<Option<LookupIdx>> = vec![None; lh.lookups.len()];
+                for entry in lh.entries.into_iter() {
                     if !entry.alias {
-                        // Takes ownership back from the transient
-                        // owner (see the `Box::into_raw`/`new_lookup`
-                        // at construction); an alias entry's copy of
-                        // the same pointer is never pushed and never
-                        // freed on its own -- see `LookupEntry.alias`'s
-                        // doc comment.
-                        (*otl).lookups.push(Box::from_raw(entry.lookup));
+                        let taken = lh.lookups[entry.lookup_id.0 as usize]
+                            .take()
+                            .expect("non-alias LookupEntry's pending lookup should not have been taken yet");
+                        let idx = LookupIdx((*otl).lookups.len() as u32);
+                        (*otl).lookups.push(Some(taken));
+                        lookup_remap[entry.lookup_id.0 as usize] = Some(idx);
                     }
                 }
-                // Same shape as `lh` above: `by_feature_name` sorted
-                // by `name` (which happened to equal the would-be
-                // dedup key, unlike `lh`'s order_type/order_val), so
-                // the sort is `.name`'s byte-wise `Ord` -- matching
-                // `strcmp` on NUL-free byte sequences, the same
-                // equivalence this migration relies on for every
-                // `Vec<u8>`-keyed sort (see `ClassNameHash`).
-                fh.sort_by(|a, b| a.name.cmp(&b.name));
-                for entry in fh.into_iter() {
+                // Same shape as `lh.entries` above: `by_feature_name`
+                // sorted by `name` (which happened to equal the would-be
+                // dedup key, unlike `lh`'s order_type/order_val), so the
+                // sort is `.name`'s byte-wise `Ord` -- matching `strcmp`
+                // on NUL-free byte sequences, the same equivalence this
+                // migration relies on for every `Vec<u8>`-keyed sort (see
+                // `ClassNameHash`). Each finalized `Feature`'s `.lookups`
+                // is rewritten through `lookup_remap` in the same pass
+                // that finalizes it, since a `PendingFeature`'s
+                // `PendingLookupId`s are only meaningful before this
+                // point.
+                fh.entries.sort_by(|a, b| a.name.cmp(&b.name));
+                let mut feature_remap: Vec<Option<FeatureIdx>> = vec![None; fh.features.len()];
+                for entry in fh.entries.into_iter() {
                     if !entry.alias {
-                        // Takes ownership back from the transient
-                        // owner (see the `Box::into_raw` above); an
-                        // alias entry's copy of the same pointer is
-                        // never pushed and never freed on its own.
-                        (*otl).features.push(Box::from_raw(entry.feature));
+                        let pending = fh.features[entry.feature_id.0 as usize]
+                            .take()
+                            .expect("non-alias FeatureEntry's pending feature should not have been taken yet");
+                        let remapped_lookups: LookupRefList = pending
+                            .lookups
+                            .iter()
+                            .map(|pending_id| {
+                                lookup_remap[pending_id.0 as usize]
+                                    .expect("every PendingLookupId a feature references should have been remapped")
+                            })
+                            .collect();
+                        let idx = FeatureIdx((*otl).features.len() as u32);
+                        (*otl).features.push(Some(Box::new(Feature {
+                            name: pending.name,
+                            lookups: remapped_lookups,
+                        })));
+                        feature_remap[entry.feature_id.0 as usize] = Some(idx);
                     }
                 }
+                // `LanguageHash` has no alias mechanism at all (see
+                // `figure_out_languages_from_json`'s own comment), so
+                // every entry here really is unique and really does get
+                // pushed -- each `PendingLanguage`'s `PendingFeatureId`s
+                // are remapped through `feature_remap` the same way
+                // `Feature.lookups` was above.
                 for (_, language) in sh.into_iter() {
-                    // Takes ownership back from the transient owner
-                    // (see the `Box::into_raw` in
-                    // `figure_out_languages_from_json`); every entry
-                    // reaches this push -- `LanguageHash` has no
-                    // alias mechanism to skip.
-                    (*otl).languages.push(Box::from_raw(language));
+                    let required_feature = language.required_feature.map(|pending_id| {
+                        feature_remap[pending_id.0 as usize]
+                            .expect("every PendingFeatureId a language references should have been remapped")
+                    });
+                    let features: FeatureRefList = language
+                        .features
+                        .iter()
+                        .map(|pending_id| {
+                            feature_remap[pending_id.0 as usize]
+                                .expect("every PendingFeatureId a language references should have been remapped")
+                        })
+                        .collect();
+                    let mut language_box: Box<LanguageSystem> = new_language();
+                    language_box.name = language.name;
+                    language_box.required_feature = required_feature;
+                    language_box.features = features;
+                    (*otl).languages.push(language_box);
                 }
                 logger_finish(&mut *options.logger.borrow_mut());
                 return otl_box;
