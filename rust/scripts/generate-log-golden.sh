@@ -1,10 +1,10 @@
 #!/usr/bin/env bash
 # (Re)generates tests/golden/log/*.log from the currently built Rust crate's
-# stderr output. rust/scripts/compare-log-output.sh checks against these
-# instead of rebuilding the C toolchain and diffing against it on every run
-# -- the same "freeze C's approval, then compare against the freeze" move
-# generate-golden.sh/compare-with-golden.sh already made for dump/build
-# output. See that pair's header comments for the full rationale.
+# stderr output. rust/tests/log_output.rs checks against these instead of
+# rebuilding the C toolchain and diffing against it on every run -- the same
+# "freeze C's approval, then compare against the freeze" move generate-
+# golden.sh/rust/tests/golden.rs already made for dump/build output. See
+# that pair's header comment for the full rationale.
 #
 # Real committed text files, not hashes (unlike checksums.sha256): the
 # largest of the six is ~300KB, log text is exactly the kind of content
@@ -18,9 +18,11 @@
 # it failed. Before regenerating:
 #
 #   1. Confirm the new output is actually correct (by hand, or by building
-#      the C toolchain and running rust/scripts/compare-log-output.sh in its
-#      C-comparison form -- see that script's git history -- if the change
-#      is meant to keep matching C's behavior).
+#      the C toolchain and diffing its stderr output by hand -- see
+#      scripts/archive/README.md for restoring c/ from git history -- if the
+#      change is meant to keep matching C's behavior; the deleted
+#      compare-log-output.sh's own C-comparison mode is still in git history
+#      if you need to see exactly how it did this).
 #   2. Run this script.
 #   3. `git diff tests/golden/log/` and review which files/lines moved -- an
 #      unexpectedly large or unrelated diff is a sign something other than
@@ -44,14 +46,14 @@ GOLDEN=tests/golden/log
 SCRATCH=build/log-golden-gen
 mkdir -p "${GOLDEN}" "${SCRATCH}"
 
-# Same normalization as compare-log-output.sh: push_stopwatch's "%g"-formatted
-# elapsed time is the one piece of log output that can never be identical
-# between two separate process runs, so it's blanked out before freezing.
-# The scratch-directory path is also blanked out: this script and
-# compare-log-output.sh use differently-named scratch dirs
-# (build/log-golden-gen vs build/compare-log-output), and "From file
-# <path>"/error messages otherwise embed that path verbatim -- without this,
-# every run would show a spurious diff having nothing to do with log content.
+# Same normalization as rust/tests/log_output.rs's own normalize():
+# push_stopwatch's "%g"-formatted elapsed time is the one piece of log
+# output that can never be identical between two separate process runs, so
+# it's blanked out before freezing. The scratch-directory path is also
+# blanked out: this script and log_output.rs use differently-named scratch
+# dirs, and "From file <path>"/error messages otherwise embed that path
+# verbatim -- without this, every run would show a spurious diff having
+# nothing to do with log content.
 normalize() {
 	sed -E \
 		-e 's/Step time = [0-9.eE+-]+s\./Step time = <T>s./g' \
