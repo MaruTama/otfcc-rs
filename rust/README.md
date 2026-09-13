@@ -21,9 +21,9 @@ crate was transpiled from, and was deliberately kept side by side with
 `rust/` for exactly as long as it was needed as the byte-comparison oracle
 (`compare-with-c.sh`). Once `tests/golden/` was frozen from a confirmed-
 matching build — dump/build output via `checksums.sha256`
-(`compare-with-golden.sh`), and stderr log output via `tests/golden/log/`
-(`compare-log-output.sh`) — nothing in the build or in CI needed `c/` present,
-built, or even checked out any more, and it was deleted. It is still in git
+(`rust/tests/golden.rs`), and stderr log output via `tests/golden/log/`
+(`rust/tests/log_output.rs`) — nothing in the build or in CI needed `c/`
+present, built, or even checked out any more, and it was deleted. It is still in git
 history (tag/commit predating the deletion) for anyone who needs to diff
 against the original C source or re-run `compare-with-c.sh` by hand; see
 `rust/scripts/archive/README.md`. `tests/`, `build/`, and `bin/` stay at the
@@ -68,26 +68,32 @@ re-run c2rust, and — since `tests/golden/` was frozen (see below) and `c/`
 has been deleted — do not need it present, built, or checked out either:
 
 ```bash
-./rust/scripts/build-crate.sh          # cargo build --release + cargo test
-(cd rust && cargo clippy --release --all-targets --locked -- -D warnings)
-./rust/scripts/check-abi.sh            # the exported C ABI surface is unchanged
-./rust/scripts/compare-with-golden.sh  # compare byte-for-byte against tests/golden/
-./rust/scripts/compare-log-output.sh   # compare stderr output against tests/golden/log/
-./rust/scripts/run-cycles.sh           # dump/build cycles against the Rust binaries
-node rust/scripts/compare-roundtrips.js
+cd rust
+cargo build --release --locked
+cargo clippy --release --all-targets --locked -- -D warnings
+cargo test --release --locked -- --test-threads=1
 ```
 
-(Clippy has no dedicated wrapper script; `[lints.clippy]` in `rust/Cargo.toml`
-is the allow-list of c2rust-transpile-shaped lint categories deferred to a
-later Phase 5 stage — see "Next steps" below — so anything not on that list
-is a hard failure under `-D warnings`.)
+That single `cargo test` invocation covers everything a standalone shell/
+Python/Node script used to check separately: the library's own unit tests,
+the exported C ABI surface (`tests/abi.rs`), byte-for-byte output against
+`tests/golden/` (`tests/golden.rs`), stderr log output against
+`tests/golden/log/` (`tests/log_output.rs`), dump/build cycle stability plus
+round-trip comparison (`tests/cycles.rs`), the GSUB lookup-alias regression
+(`tests/lookup_alias.rs`), and the `otfccdll` cdylib FFI boundary
+(`tests/dll_abi.rs`, via `libloading` rather than python3/ctypes). See each
+file's own doc comment for what it replaced and why (Stage F of the
+migration plan). `--test-threads=1`: `tests/golden.rs` has two `#[test]` fns
+that share a scratch file and can race under the default multi-threaded
+runner.
 
-(`./rust/scripts/test.sh` = `build-crate.sh` + `check-abi.sh` +
-`compare-with-golden.sh` + `compare-log-output.sh` + `run-cycles.sh`, for
-convenience.) None of this needs Docker, c2rust, a C compiler, or a specific
-architecture — plain `rustup`/`cargo`.
+None of this needs Docker, c2rust, a C compiler, a specific architecture, a
+Python interpreter (except for the handful of `make-test-*.py` fixture
+generators `tests/golden.rs`/`tests/lookup_alias.rs` still shell out to —
+those tests skip gracefully, with a stated reason, when `python3` isn't on
+`PATH`), or Node — plain `rustup`/`cargo`.
 
-Two more checks exist but aren't part of `test.sh` and aren't merge gates —
+Two more checks exist but aren't merge gates —
 `rust/fuzz/` (cargo-fuzz; needs a pinned nightly, its own toolchain file, see
 `rust/fuzz/README.md`) and `cargo +nightly-2026-08-17 miri test --lib --
 --test-threads=1`. Both are wired into CI as advisory
@@ -118,8 +124,10 @@ warnings get dealt with, on purpose.
 ## The public ABI is four functions — and why that matters
 
 otfcc's real public C ABI, as far as anything outside this crate can observe,
-is exactly four symbols — the `otfccdll` API that `test-dll.py` drives through
-ctypes:
+is exactly four symbols — the `otfccdll` API that `rust/tests/dll_abi.rs`
+drives through `libloading` (and `scripts/test-dll.py` still drives through
+ctypes, kept only because `generate-golden.sh` uses it to regenerate
+`tests/golden/dll-test.otf`):
 
 ```
 otfccbuild_json_otf   otfcc_get_buf_len   otfcc_get_buf_data
@@ -145,7 +153,7 @@ And 305 of the declarations were for items the declaring file never used, dead
 text that could not fail to compile because nothing was being resolved.
 
 This is worth stating explicitly because it defines the boundary of what the
-idiomatization is allowed to change. `compare-with-golden.sh`/`test-dll.py`
+idiomatization is allowed to change. `rust/tests/golden.rs`/`dll_abi.rs`
 today (originally `archive/compare-with-c.sh`, before `tests/golden/` was
 frozen and `c/` deleted — see "CI decoupled from C" below) run the checked
 implementation as a **separate process / separate shared library** from
@@ -165,9 +173,10 @@ that the internal functions keep their `extern "C"` calling convention for now,
 even without `#[no_mangle]`: many of them are stored as `extern "C" fn` pointers
 in the vtable statics, so the convention comes off with those, not before.
 
-`check-abi.sh` keeps this honest: it fails if any of the four goes missing,
-fails if a *new* symbol appears un-recorded, and fails if a recorded symbol
-*disappears* until the snapshot is refreshed with `check-abi.sh --update`. With
+`rust/tests/abi.rs` keeps this honest: it fails if any of the four goes
+missing, fails if a *new* symbol appears un-recorded, and fails if a recorded
+symbol *disappears* until the snapshot is refreshed by re-running the test
+with `UPDATE_ABI_SNAPSHOT=1` set. With
 the snapshot down to four lines, "a new symbol" now means any accidental
 re-export whatsoever — a `#[unsafe(no_mangle)]` added out of habit, or a
 `pub extern "C"` item that escapes. The snapshot needs no per-platform exceptions:
@@ -296,27 +305,24 @@ transpile step itself needs arm64.
   `archive/` along with `compare-with-c.sh` (below) when `c/` was deleted
   from the tree, and needs it restored from git history to run; see
   `archive/README.md`.
-- `build-crate.sh` — builds the committed crate (release) and runs
-  `cargo test`. Needs only rustup + cargo (the pinned stable toolchain in
-  `rust-toolchain.toml`) — no c2rust/Docker, works on any architecture.
-- `run-cycles.sh` — runs the same dump/build cycles as `c/quick.make`'s
-  round-trip targets against an already-built crate, for every payload the C
-  test suite covers (minus two fonts that crash both C and Rust with a stack
-  overflow — see Status below), plus the `otfccdll` cdylib test if built.
-- `check-abi.sh` — verifies the cdylib's exported C ABI surface against
-  `abi-exports.txt` (see "The public ABI is four functions" above).
-  `--update` refreshes the snapshot.
-- `test.sh` — convenience wrapper: `build-crate.sh` + `check-abi.sh` +
-  `compare-with-golden.sh` + `compare-log-output.sh` + `run-cycles.sh`.
-- `compare-with-golden.sh` / `generate-golden.sh` — compare the built crate's
-  dump/build output against `tests/golden/checksums.sha256`, and refresh
-  that snapshot after a legitimate output-changing change. See "CI decoupled
-  from C" below.
-- `compare-log-output.sh` / `generate-log-golden.sh` — the same freeze-then-
-  compare move as the pair above, but for stderr log output against
-  `tests/golden/log/`. See "Next steps" below for how this one came later.
-- `compare-roundtrips.js` — runs `tests/ttf-roundtrip-test.js` over every
-  payload produced and reports a single pass/fail summary.
+- `rust/tests/{abi,golden,log_output,cycles,lookup_alias,dll_abi}.rs` — the
+  `cargo test`-native checks (Stage F of the migration plan). Between them
+  they replace what used to be seven separate shell/Python/Node scripts
+  (`build-crate.sh`, `check-abi.sh`, `compare-with-golden.sh`,
+  `compare-log-output.sh`, `run-cycles.sh`, `test-lookup-alias.sh`,
+  `compare-roundtrips.js`/`tests/ttf-roundtrip-test.js`) plus the
+  `dll-arch-check.sh`-guarded half of the `otfccdll` ctypes check — see each
+  file's own doc comment for exactly what it replaced and why. `test.sh` (the
+  old convenience wrapper bundling several of those) is gone too; the
+  replacement is just `cargo test` (see "Everyday use" above).
+- `generate-golden.sh` — regenerates `tests/golden/checksums.sha256` (and
+  `tests/golden/dll-test.otf`, via `test-dll.py`) after a legitimate
+  output-changing change; `rust/tests/golden.rs`/`dll_abi.rs` check the
+  crate against that frozen snapshot. See "CI decoupled from C" below.
+- `generate-log-golden.sh` — the same freeze-then-compare move as the pair
+  above, but for stderr log output against `tests/golden/log/`, checked by
+  `rust/tests/log_output.rs`. See "Next steps" below for how this one came
+  later.
 - `archive/compare-with-c.sh` — **moved to `archive/`, needs `c/` restored
   from git history to run** (see `archive/README.md`). Historically: builds
   the C toolchain **with clang** and compares its output against an
@@ -344,28 +350,35 @@ transpile step itself needs arm64.
   *build* the resulting JSON, identically, which is why that half is skipped.
 - `make-test-unknown-lookup.py` — generates the payload above from a committed
   one. Standard library only, unlike `make-test-variable-font.py`.
-- `dll-arch-check.sh` — sourced by `run-cycles.sh`/`compare-with-golden.sh`/
-  `archive/compare-with-c.sh` to detect when python3 cannot `dlopen` the
-  crate's cdylib at all, so the ctypes check is skipped with a stated reason
-  instead of failing. Normally the
+- `dll-arch-check.sh` — sourced by `archive/compare-with-c.sh` to detect when
+  python3 cannot `dlopen` the crate's cdylib at all, so the ctypes check is
+  skipped with a stated reason instead of failing. Normally the
   two match, since `rust-toolchain.toml`'s `channel` resolves to rustup's own
   host triple. What breaks it is a *Rosetta rustup* on an Apple Silicon Mac: an
   `x86_64-apple-darwin` rustup emits an x86_64 dylib while python3 is arm64, and
   no Rosetta python3 exists to load it. Installing the native toolchain
-  alongside it (the command is in that script's header) fixes it; the check also
-  runs for real in the arch-matched Linux container and in CI.
+  alongside it (the command is in that script's header) fixes it. Not a
+  concern for `rust/tests/dll_abi.rs` (see "The public ABI is four functions"
+  above): it loads the cdylib in the same process it was just built in, so
+  there is no second architecture to mismatch in the first place.
 - `make-test-variable-font.py` — builds a minimal, self-contained variable
   font (fvar + gvar, one `wght` axis, two masters, via fontTools APIs — no
   external download) to exercise the gvar delta-application path, which none
   of `tests/payload/*.ttf` has. Needs `fontTools` (`pip install fonttools`);
   writes `build/gvar-test.ttf`. CI generates this before every run; locally,
-  `compare-with-c.sh`/`run-cycles.sh` pick it up automatically if present and
-  skip it (with a message) otherwise.
+  `compare-with-c.sh` picks it up automatically if present and skips it (with
+  a message) otherwise. `rust/tests/golden.rs`/`cycles.rs` use the frozen
+  `tests/payload/gvar-test.ttf` fixture instead (see `golden.rs`'s own
+  comment on why: fontTools stamps wall-clock timestamps that would make a
+  freshly generated copy differ from a golden dump on every run).
 - `test-dll.py` — exercises the `otfccdll` C API (`otfccbuild_json_otf` /
   `otfcc_get_buf_len` / `otfcc_get_buf_data` / `otfccbuild_free_otfbuf`) via
   `ctypes`, against either the C `libotfccdll.{dylib,so}` or the Rust
   `cdylib`, to compare output byte-for-byte. `compare-with-c.sh` runs this
-  against both libraries on the same JSON input and diffs the result.
+  against both libraries on the same JSON input and diffs the result; kept
+  otherwise only because `generate-golden.sh` uses it to regenerate
+  `tests/golden/dll-test.otf`. `rust/tests/dll_abi.rs` is the actual CI-level
+  check now (see above).
 
 ## Status: Phase 1 complete
 

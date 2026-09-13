@@ -1,8 +1,7 @@
 name: Rust build & compatibility
 
 # Verifies the checked-in Rust port (rust/) stays green: it builds, its unit
-# tests pass, it's clippy-clean, and its output is byte-compatible with the
-# frozen "golden" fixtures under tests/golden/. See rust/README.md.
+# and integration tests pass, and it's clippy-clean. See rust/README.md.
 #
 # Runs on both Linux (amd64) and macOS (arm64, GitHub's hosted macos-latest
 # runners are native Apple Silicon) -- not just Linux. The crate is
@@ -10,11 +9,19 @@ name: Rust build & compatibility
 # (vendor/sds.rs's ctype externs differ under `#[cfg(target_os = "macos")]`),
 # and until this matrix existed the arm64/native-macOS half of "verified on
 # both OSes" (rust/README.md's own stated bar for every PR) depended on
-# someone running the pipeline by hand locally. As a side effect, the
-# otfccdll ctypes check now runs for real here instead of SKIPping: it only
-# SKIPs on an architecture mismatch between the built cdylib and the
-# runner's python3 (see dll-arch-check.sh), which a native arm64 runner with
-# a native arm64 toolchain doesn't have.
+# someone running the pipeline by hand locally.
+#
+# Stage F of the migration plan replaced what used to be a chain of
+# standalone shell/Python/Node scripts -- byte-comparison against
+# tests/golden/, stderr log comparison, dump/build cycle + round-trip
+# stability, the GSUB lookup-alias regression, the exported C ABI surface,
+# and the otfccdll cdylib FFI boundary -- with `cargo test`-native
+# equivalents under rust/tests/*.rs; see each file's own doc comment for
+# what it replaced. A plain `cargo test` now covers all of it, including the
+# otfccdll check: it loads the cdylib via `libloading` in the SAME process
+# it was just built in, so (unlike the old python3/ctypes-based check) there
+# is no separate interpreter/architecture that can mismatch, and no
+# corresponding arch-mismatch SKIP path is needed here.
 #
 # This does NOT build or compare against the C toolchain anymore -- c/ (the
 # C sources) was confirmed byte-identical to Rust across every payload
@@ -47,12 +54,15 @@ on:
 jobs:
   # No Docker, no c2rust, no C toolchain on either OS: builds the committed
   # Rust source with the pinned stable toolchain (rust-toolchain.toml; rustup
-  # on the runner installs it automatically), runs `cargo test` and
-  # `cargo clippy`, and compares its output against tests/golden/
-  # byte-for-byte — including the gvar (variable-font) payload (itself a
-  # frozen fixture, tests/payload/gvar-test.ttf), stderr log output, and the
-  # otfccdll cdylib. Finally runs the project's own round-trip stability
-  # tests against the Rust binaries.
+  # on the runner installs it automatically), then `cargo test` -- which now
+  # covers everything the old per-check steps used to run separately: unit
+  # tests, the exported C ABI surface (rust/tests/abi.rs), byte-for-byte
+  # comparison against tests/golden/ including the gvar (variable-font)
+  # payload (rust/tests/golden.rs), stderr log output (rust/tests/
+  # log_output.rs), dump/build cycle + round-trip stability (rust/tests/
+  # cycles.rs), the GSUB lookup-alias regression (rust/tests/lookup_alias.rs),
+  # and the otfccdll cdylib FFI boundary (rust/tests/dll_abi.rs). See
+  # rust/README.md's "Everyday use" section and each file's own doc comment.
   build-test-compare:
     strategy:
       fail-fast: false
@@ -62,12 +72,19 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      # Still needed: rust/tests/golden.rs and lookup_alias.rs shell out to
+      # the make-test-*.py fixture generators (kept as external Python
+      # tooling by explicit design -- see rust/README.md); those tests skip
+      # gracefully, with a stated reason, when python3 isn't found instead of
+      # failing the whole run.
       - uses: actions/setup-python@v5
         with:
           python-version: "3.12"
 
-      - name: Build the Rust crate and run cargo test
-        run: ./rust/scripts/build-crate.sh
+      - name: cargo build
+        run: |
+          cd rust
+          cargo build --release --locked
 
       # Pinned exact toolchain (rust-toolchain.toml) means a new stable/clippy
       # release can't invent a warning that breaks this build out from under
@@ -81,36 +98,16 @@ jobs:
           cd rust
           cargo clippy --release --all-targets --locked -- -D warnings
 
-      # Only four symbols are otfcc's real public C ABI (the otfccdll API);
-      # everything else the cdylib exports is an artifact of c2rust marking
-      # every non-static C function #[no_mangle]. This asserts the four are
-      # intact and that the rest of the surface matches the recorded snapshot,
-      # so neither an accidental new export nor a silently-dropped one slips
-      # through. See the header of check-abi.sh.
-      - name: Check the exported C ABI surface
-        run: ./rust/scripts/check-abi.sh
-
-      - name: Compare output against the golden fixtures
-        run: ./rust/scripts/compare-with-golden.sh
-
-      - name: Compare log output against the golden fixtures
-        run: ./rust/scripts/compare-log-output.sh
-
-      - name: Run dump/build cycles (Rust only)
-        run: ./rust/scripts/run-cycles.sh
-
-      # Regression test for the GSUB lookup-alias double-push bug (Rust-only
-      # fix; see rust/README.md). C crashes on this input, so it was never
-      # comparable against C and isn't part of the golden fixtures either.
-      - name: Lookup-alias regression test (Rust only)
-        run: ./rust/scripts/test-lookup-alias.sh
-
-      - uses: actions/setup-node@v4
-        with:
-          node-version: "20"
-
-      - name: Compare round-trip stability
-        run: node rust/scripts/compare-roundtrips.js
+      # --test-threads=1: rust/tests/golden.rs has two #[test] fns
+      # (fixed_payloads_match_golden and
+      # synthetic_dedup_and_table_payloads_match_golden) that share a
+      # scratch file (build/compare-with-golden-rs/iosevka-r.json) and can
+      # race under the default multi-threaded runner -- a known,
+      # separately-tracked issue, not fixed here.
+      - name: cargo test
+        run: |
+          cd rust
+          cargo test --release --locked -- --test-threads=1
 
   # Advisory, NOT a merge gate (continue-on-error on every step): this is new
   # dynamic-analysis tooling added specifically because the byte-comparison
