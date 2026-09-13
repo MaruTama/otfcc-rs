@@ -13,7 +13,7 @@ use crate::table::glyf::{Contour, Glyph, MaskList, StemDefList};
 use crate::libcff::cff_opmean::cff_get_standard_arity;
 use crate::table::glyf::glyf_point_dup;
 use crate::vf::vq::VQ;
-use crate::vf::vq::{vq_copy_replace, vq_get_still, vq_minus, vq_neutral, vq_replace};
+use crate::vf::vq::{vq_get_still, vq_minus, vq_neutral};
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
 pub enum CffInstructionType {
@@ -297,10 +297,10 @@ pub fn cff_compile_glyph_to_il(
         while (j_0 as usize) < newcontour.len() {
             let dx: VQ = vq_minus(newcontour[j_0 as usize].x.clone(), x.clone());
             let dy: VQ = vq_minus(newcontour[j_0 as usize].y.clone(), y.clone());
-            vq_copy_replace(&mut x, newcontour[j_0 as usize].x.clone());
-            vq_copy_replace(&mut y, newcontour[j_0 as usize].y.clone());
-            vq_replace(&mut newcontour[j_0 as usize].x, dx);
-            vq_replace(&mut newcontour[j_0 as usize].y, dy);
+            x = newcontour[j_0 as usize].x.clone();
+            y = newcontour[j_0 as usize].y.clone();
+            newcontour[j_0 as usize].x = dx;
+            newcontour[j_0 as usize].y = dy;
             j_0 = j_0.wrapping_add(1);
         }
         temp_contours.push(newcontour);

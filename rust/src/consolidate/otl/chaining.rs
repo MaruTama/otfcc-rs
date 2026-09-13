@@ -1,7 +1,5 @@
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
-use crate::support::handle::{
-    Handle, HandleState, LookupHandle, handle_name_eq_bytes, otfcc_handle_dispose,
-};
+use crate::support::handle::{Handle, HandleState, LookupHandle, handle_name_eq_bytes};
 use crate::table::otl::coverage::shrink_coverage;
 
 use crate::support::options::Options;
@@ -125,7 +123,7 @@ pub(crate) fn consolidate_chaining(
                         ),
                     );
                 }
-                otfcc_handle_dispose(&mut rule.apply[j_0 as usize].lookup);
+                rule.apply[j_0 as usize].lookup = Handle::default();
             }
         } else if rule.apply[j_0 as usize].lookup.state == HandleState::Index {
             // Invalid now covers both "out of range" (unchanged) and

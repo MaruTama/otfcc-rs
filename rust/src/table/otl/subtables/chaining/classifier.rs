@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, LookupHandle, handle_from_index, otfcc_handle_dup,
+    GlyphHandle, Handle, HandleState, handle_from_index,
 };
 use crate::table::otl::classdef::{ClassDef, push_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage};
@@ -161,7 +161,7 @@ fn build_rule(
     let mut j: TableId = 0 as TableId;
     while (j as usize) < rule.apply.len() {
         let index = rule.apply[j as usize].index;
-        let lookup = otfcc_handle_dup(rule.apply[j as usize].lookup.clone() as Handle) as LookupHandle;
+        let lookup = rule.apply[j as usize].lookup.clone();
         new_rule
             .apply
             .push(ChainLookupApplication { index, lookup });

@@ -5,8 +5,7 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, otfcc_handle_dup,
-    otfcc_handle_empty, otfcc_handle_init,
+    GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, otfcc_handle_empty,
 };
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
@@ -39,7 +38,7 @@ pub type TsiTable = Vec<TsiEntry>;
 pub(crate) fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
     TsiEntry {
         type_0: e.type_0,
-        glyph: otfcc_handle_dup(e.glyph.clone()),
+        glyph: e.glyph.clone(),
         content: e.content.clone(),
     }
 }
@@ -146,15 +145,15 @@ pub fn otfcc_read_tsi(
             match entry.gid as i32 {
                 65530 => {
                     tsi_entry.type_0 = TsiEntryType::Prep;
-                    otfcc_handle_init(&mut tsi_entry.glyph);
+                    tsi_entry.glyph = Handle::default();
                 }
                 65531 => {
                     tsi_entry.type_0 = TsiEntryType::Cvt;
-                    otfcc_handle_init(&mut tsi_entry.glyph);
+                    tsi_entry.glyph = Handle::default();
                 }
                 65533 => {
                     tsi_entry.type_0 = TsiEntryType::Fpgm;
-                    otfcc_handle_init(&mut tsi_entry.glyph);
+                    tsi_entry.glyph = Handle::default();
                 }
                 _ => {
                     tsi_entry.type_0 = TsiEntryType::Glyph;

@@ -20,7 +20,7 @@ use crate::table::glyf::{glyf_component_reference_empty, glyf_contour_fill, otfc
 use crate::vf::region::{VqAxisSpan, VqRegion};
 use crate::vf::vq::{VQ, VqSegment, VqSegmentDelta};
 use crate::vf::vq::{
-    vq_add_delta, vq_copy_replace, vq_create_still, vq_inplace_plus, vq_neutral, vq_replace,
+    vq_add_delta, vq_create_still, vq_inplace_plus, vq_neutral,
 };
 
 // `GlyphVariationData`/`TupleVariationHeader`/`GVARHeader` (`#[repr(C,
@@ -186,10 +186,8 @@ fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<B
         } else {
             r.i16().ok()?
         };
-        vq_replace(
-            &mut next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).x,
-            vq_create_still(x as Pos) as VQ,
-        );
+        next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).x =
+            vq_create_still(x as Pos);
         coordinates_read += 1;
     }
     coordinates_read = 0;
@@ -209,10 +207,8 @@ fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<B
         } else {
             r.i16().ok()?
         };
-        vq_replace(
-            &mut next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).y,
-            vq_create_still(y as Pos) as VQ,
-        );
+        next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).y =
+            vq_create_still(y as Pos);
         coordinates_read += 1;
     }
     let mut cx: VQ = (vq_neutral)();
@@ -222,8 +218,8 @@ fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<B
         for z in g.contours[j_1 as usize].iter_mut() {
             vq_inplace_plus(&mut cx, z.x.clone());
             vq_inplace_plus(&mut cy, z.y.clone());
-            vq_copy_replace(&mut z.x, cx.clone());
-            vq_copy_replace(&mut z.y, cy.clone());
+            z.x = cx.clone();
+            z.y = cy.clone();
         }
         g.contours[j_1 as usize].shrink_to_fit();
         j_1 = j_1.wrapping_add(1);

@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
+    GlyphHandle, Handle, HandleState, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
@@ -151,7 +151,7 @@ pub unsafe fn otl_read_gpos_mark_to_single(
                 }
             }
             (*subtable).base_array.push(BaseRecord {
-                glyph: otfcc_handle_dup((&(*bases))[j].clone() as Handle) as GlyphHandle,
+                glyph: (&(*bases))[j].clone(),
                 anchors: base_anchors,
             });
         }
@@ -325,8 +325,7 @@ pub fn otfcc_build_gpos_mark_to_single(
     while (j as usize) < subtable.mark_array.len() {
         push_to_coverage(
             &mut marks,
-            otfcc_handle_dup(subtable.mark_array[j as usize].glyph.clone() as Handle)
-                as GlyphHandle,
+            subtable.mark_array[j as usize].glyph.clone(),
         );
         j = j.wrapping_add(1);
     }
@@ -335,8 +334,7 @@ pub fn otfcc_build_gpos_mark_to_single(
     while (j_0 as usize) < subtable.base_array.len() {
         push_to_coverage(
             &mut bases,
-            otfcc_handle_dup(subtable.base_array[j_0 as usize].glyph.clone() as Handle)
-                as GlyphHandle,
+            subtable.base_array[j_0 as usize].glyph.clone(),
         );
         j_0 = j_0.wrapping_add(1);
     }

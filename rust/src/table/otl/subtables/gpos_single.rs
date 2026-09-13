@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::font_reader::FontReader;
-use crate::support::handle::{GlyphHandle, Handle, handle_from_name, otfcc_handle_dup};
+use crate::support::handle::{GlyphHandle, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
     Coverage, otl_coverage_free, push_to_coverage, read_coverage,
@@ -79,7 +79,7 @@ pub unsafe fn otl_read_gpos_single(
                 read_gpos_value(slice, offset.wrapping_add(6), value_format);
             for j in 0..(*targets).len() {
                 (*subtable).push(GposSingleEntry {
-                    target: otfcc_handle_dup((&(*targets))[j].clone() as Handle) as GlyphHandle,
+                    target: (&(*targets))[j].clone(),
                     value: v,
                 });
             }
@@ -99,7 +99,7 @@ pub unsafe fn otl_read_gpos_single(
             }
             for j in 0..(*targets).len() {
                 (*subtable).push(GposSingleEntry {
-                    target: otfcc_handle_dup((&(*targets))[j].clone() as Handle) as GlyphHandle,
+                    target: (&(*targets))[j].clone(),
                     value: read_gpos_value(
                         slice,
                         offset.wrapping_add(8).wrapping_add((j * stride) as u32),
@@ -181,7 +181,7 @@ pub fn otfcc_build_gpos_single(
     while (j_0 as usize) < subtable.len() {
         push_to_coverage(
             &mut cov,
-            otfcc_handle_dup(subtable[j_0 as usize].target.clone() as Handle) as GlyphHandle,
+            subtable[j_0 as usize].target.clone(),
         );
         j_0 = j_0.wrapping_add(1);
     }

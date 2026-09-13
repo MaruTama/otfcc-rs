@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::font_reader::FontReader;
-use crate::support::handle::{GlyphHandle, Handle, handle_from_name, otfcc_handle_dup};
+use crate::support::handle::{GlyphHandle, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
     Coverage, otl_coverage_free, push_to_coverage, read_coverage,
@@ -95,8 +95,7 @@ pub unsafe fn otl_read_gpos_cursive(
                 otl_anchor_absent()
             };
             (*subtable).push(GposCursiveEntry {
-                target: otfcc_handle_dup((&(*targets))[j as usize].clone() as Handle)
-                    as GlyphHandle,
+                target: (&(*targets))[j as usize].clone(),
                 enter,
                 exit,
             });
@@ -156,7 +155,7 @@ pub fn otfcc_build_gpos_cursive(
     while (j as usize) < subtable.len() {
         push_to_coverage(
             &mut cov,
-            otfcc_handle_dup(subtable[j as usize].target.clone() as Handle) as GlyphHandle,
+            subtable[j as usize].target.clone(),
         );
         j = j.wrapping_add(1);
     }

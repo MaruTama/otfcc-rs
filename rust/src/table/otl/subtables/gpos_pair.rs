@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::handle::{GlyphHandle, Handle, handle_from_index, otfcc_handle_dup};
+use crate::support::handle::{GlyphHandle, handle_from_index};
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::classdef::{
     ClassDef, classdef_from_raw, expand_class_def, otl_class_def_create, read_class_def,
@@ -448,7 +448,7 @@ fn cov_from_cd(cd: &ClassDef) -> Coverage {
     while (j as usize) < cd.glyphs.len() {
         push_to_coverage(
             &mut cov,
-            otfcc_handle_dup(cd.glyphs[j as usize].clone() as Handle) as GlyphHandle,
+            cd.glyphs[j as usize].clone(),
         );
         j = j.wrapping_add(1);
     }

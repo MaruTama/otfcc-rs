@@ -50,30 +50,6 @@ impl Default for Handle {
 pub(crate) fn otfcc_handle_empty() -> Handle {
     Handle::default()
 }
-#[inline]
-pub(crate) fn otfcc_handle_copy(dst: &mut Handle, src: &Handle) {
-    *dst = src.clone();
-}
-#[inline]
-pub(crate) fn otfcc_handle_dup(src: Handle) -> Handle {
-    src.clone()
-}
-#[inline]
-pub(crate) fn otfcc_handle_init(x: &mut Handle) {
-    *x = Handle::default();
-}
-#[inline]
-pub(crate) fn otfcc_handle_dispose(x: &mut Handle) {
-    *x = Handle::default();
-}
-#[inline]
-pub(crate) fn otfcc_handle_replace(dst: &mut Handle, src: Handle) {
-    *dst = src;
-}
-#[inline]
-pub(crate) fn otfcc_handle_move(dst: &mut Handle, src: &mut Handle) {
-    *dst = ::core::mem::take(src);
-}
 pub(crate) fn handle_from_index(id: GlyphId) -> Handle {
     let h: Handle = Handle {
         state: HandleState::Index,

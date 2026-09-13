@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::handle::{
-    GlyphHandle, Handle, handle_from_index, handle_from_name, otfcc_handle_dup,
+    GlyphHandle, handle_from_index, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
@@ -108,8 +108,8 @@ pub unsafe fn otl_read_gsub_single(
 
         for j_1 in 0..(*from).len() {
             (*subtable).push(GsubSingleEntry {
-                from: otfcc_handle_dup((&(*from))[j_1].clone() as Handle) as GlyphHandle,
-                to: otfcc_handle_dup((&(*to))[j_1].clone() as Handle) as GlyphHandle,
+                from: (&(*from))[j_1].clone(),
+                to: (&(*to))[j_1].clone(),
             });
         }
         if !from.is_null() {
@@ -192,7 +192,7 @@ pub fn otfcc_build_gsub_single_subtable(
     while (j_0 as usize) < subtable.len() {
         push_to_coverage(
             &mut cov,
-            otfcc_handle_dup(subtable[j_0 as usize].from.clone() as Handle) as GlyphHandle,
+            subtable[j_0 as usize].from.clone(),
         );
         j_0 = j_0.wrapping_add(1);
     }

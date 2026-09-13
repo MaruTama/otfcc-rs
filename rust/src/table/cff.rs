@@ -58,8 +58,8 @@ use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::json_new_vq;
 use crate::table::glyf::{glyf_point_init, otfcc_new_glyf_glyph, table_glyf_create_n};
 use crate::vf::vq::{
-    vq_compare, vq_copy_replace, vq_create_still, vq_dup, vq_get_still, vq_inplace_plus,
-    vq_neutral, vq_point_linear_tfm, vq_replace, vq_scale,
+    vq_compare, vq_create_still, vq_get_still, vq_inplace_plus, vq_neutral, vq_point_linear_tfm,
+    vq_scale,
 };
 
 #[derive(Clone)]
@@ -642,10 +642,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
     };
 }
 pub(crate) fn callback_draw_setwidth(context: &mut OutlineBuilderContext, width: ::core::ffi::c_double) {
-    vq_replace(
-        &mut context.g.advance_width,
-        vq_create_still(width as Pos + context.nominal_width_x as Pos) as VQ,
-    );
+    context.g.advance_width = vq_create_still(width as Pos + context.nominal_width_x as Pos);
 }
 pub(crate) fn callback_draw_next_contour(context: &mut OutlineBuilderContext) {
     context.g.contours.push(Vec::new());
@@ -672,8 +669,8 @@ pub(crate) fn callback_draw_lineto(
         };
         glyf_point_init(&mut z);
         z.on_curve = TRUE_0 as i8;
-        vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
-        vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
+        z.x = vq_create_still(x1 as Pos);
+        z.y = vq_create_still(y1 as Pos);
         contour.push(z);
         context.j_point = (context.j_point as i32 + 1_i32) as ShapeId;
     }
@@ -702,8 +699,8 @@ pub(crate) fn callback_draw_curveto(
         };
         glyf_point_init(&mut z);
         z.on_curve = FALSE_0 as i8;
-        vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
-        vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
+        z.x = vq_create_still(x1 as Pos);
+        z.y = vq_create_still(y1 as Pos);
         contour.push(z);
         let mut z_0: Point = Point {
             x: VQ {
@@ -718,8 +715,8 @@ pub(crate) fn callback_draw_curveto(
         };
         glyf_point_init(&mut z_0);
         z_0.on_curve = FALSE_0 as i8;
-        vq_copy_replace(&mut z_0.x, vq_create_still(x2 as Pos) as VQ);
-        vq_copy_replace(&mut z_0.y, vq_create_still(y2 as Pos) as VQ);
+        z_0.x = vq_create_still(x2 as Pos);
+        z_0.y = vq_create_still(y2 as Pos);
         contour.push(z_0);
         let mut z_1: Point = Point {
             x: VQ {
@@ -734,8 +731,8 @@ pub(crate) fn callback_draw_curveto(
         };
         glyf_point_init(&mut z_1);
         z_1.on_curve = TRUE_0 as i8;
-        vq_copy_replace(&mut z_1.x, vq_create_still(x3 as Pos) as VQ);
-        vq_copy_replace(&mut z_1.y, vq_create_still(y3 as Pos) as VQ);
+        z_1.x = vq_create_still(x3 as Pos);
+        z_1.y = vq_create_still(y3 as Pos);
         contour.push(z_1);
         context.j_point = (context.j_point as i32 + 3_i32) as ShapeId;
     }
@@ -937,10 +934,7 @@ unsafe fn build_outline(
         bc.default_width_x = pd.default_width_x;
         bc.nominal_width_x = pd.nominal_width_x;
     }
-    vq_replace(
-        &mut bc.g.advance_width,
-        vq_create_still(bc.default_width_x as Pos) as VQ,
-    );
+    bc.g.advance_width = vq_create_still(bc.default_width_x as Pos);
     let char_strings_offset = &f.char_strings.offset;
     // CFF INDEX offsets are 1-based and `extract_index` already validated
     // this whole array (non-decreasing, every entry >= 1, and the final
@@ -981,8 +975,8 @@ unsafe fn build_outline(
             let z: &mut Point = &mut contour[k as usize];
             vq_inplace_plus(&mut cx, z.x.clone());
             vq_inplace_plus(&mut cy, z.y.clone());
-            vq_copy_replace(&mut z.x, cx.clone());
-            vq_copy_replace(&mut z.y, cy.clone());
+            z.x = cx.clone();
+            z.y = cy.clone();
             k = k.wrapping_add(1);
         }
         if vq_compare(
@@ -1171,18 +1165,10 @@ fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: &HeadTable) {
             y.kernel = qround(y.kernel as ::core::ffi::c_double) as Pos;
             for contour in g.contours.iter_mut() {
                 for point in contour.iter_mut() {
-                    let zx: VQ = vq_dup(point.x.clone());
-                    let zy: VQ = vq_dup(point.y.clone());
-                    vq_replace(
-                        &mut point.x,
-                        vq_point_linear_tfm(x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone())
-                            as VQ,
-                    );
-                    vq_replace(
-                        &mut point.y,
-                        vq_point_linear_tfm(y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone())
-                            as VQ,
-                    );
+                    let zx: VQ = point.x.clone();
+                    let zy: VQ = point.y.clone();
+                    point.x = vq_point_linear_tfm(x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone());
+                    point.y = vq_point_linear_tfm(y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone());
                     // `zx`/`zy` are plain owned locals, never moved out, so
                     // they auto-drop at the end of this iteration -- no
                     // explicit dispose call is needed.

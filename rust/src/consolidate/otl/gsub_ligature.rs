@@ -1,5 +1,4 @@
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
-use crate::support::handle::{GlyphHandle, Handle, otfcc_handle_dup};
 use crate::table::otl::coverage::shrink_coverage;
 
 use crate::support::options::Options;
@@ -63,7 +62,7 @@ pub fn consolidate_gsub_ligature(
             } else {
                 nt.push(GsubLigatureEntry {
                     from: ::core::mem::take(&mut subtable[k as usize].from),
-                    to: otfcc_handle_dup(subtable[k as usize].to.clone() as Handle) as GlyphHandle,
+                    to: subtable[k as usize].to.clone(),
                 });
             }
         }

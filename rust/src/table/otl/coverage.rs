@@ -1,7 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::handle::{
-    GlyphHandle, handle_from_index, handle_from_name, otfcc_handle_dispose,
-};
+use crate::support::handle::{GlyphHandle, Handle, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
 
 use crate::support::buffer::Buffer;
@@ -301,7 +299,7 @@ pub(crate) fn shrink_coverage(coverage: &mut Coverage, dosort: bool) {
     // Two `truncate`s, not one `num_glyphs = k` at the end as the original
     // did: each `truncate` lets `Vec`'s own drop glue free every handle
     // past the new length, including ones this function's own compaction
-    // loops never got around to calling `otfcc_handle_dispose` on directly
+    // loops never got around to resetting to `Handle::default()` directly
     // (a survivor that gets superseded by a *later* compaction write, but
     // never becomes a write target itself, is exactly that case) -- the
     // original leaked that name; `truncate` doesn't.
@@ -312,7 +310,7 @@ pub(crate) fn shrink_coverage(coverage: &mut Coverage, dosort: bool) {
             coverage[k] = elem;
             k += 1;
         } else {
-            otfcc_handle_dispose(&mut coverage[j]);
+            coverage[j] = Handle::default();
         }
     }
     coverage.truncate(k);
@@ -322,7 +320,7 @@ pub(crate) fn shrink_coverage(coverage: &mut Coverage, dosort: bool) {
         let mut rear: usize = 1;
         while rear < coverage.len() {
             if coverage[rear].index == coverage[rear - skip - 1].index {
-                otfcc_handle_dispose(&mut coverage[rear]);
+                coverage[rear] = Handle::default();
                 skip += 1;
             } else {
                 let elem = coverage[rear].clone();

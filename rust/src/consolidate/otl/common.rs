@@ -1,5 +1,5 @@
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
-use crate::support::handle::otfcc_handle_dispose;
+use crate::support::handle::Handle;
 use crate::table::otl::coverage::Coverage;
 
 use crate::support::glyph_order::GlyphOrder;
@@ -33,7 +33,7 @@ pub fn fontop_consolidate_coverage(
                     b".\n",
                 ),
             );
-            otfcc_handle_dispose(&mut coverage[j as usize]);
+            coverage[j as usize] = Handle::default();
         }
         j = j.wrapping_add(1);
     }
@@ -73,7 +73,7 @@ pub fn fontop_consolidate_class_def(
                     b".\n",
                 ),
             );
-            otfcc_handle_dispose(&mut cd.glyphs[j as usize]);
+            cd.glyphs[j as usize] = Handle::default();
             cd.classes[j as usize] = 0 as GlyphClass;
         }
         j = j.wrapping_add(1);

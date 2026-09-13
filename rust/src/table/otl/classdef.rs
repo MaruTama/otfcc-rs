@@ -1,7 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::handle::{
-    GlyphHandle, handle_from_index, handle_from_name, otfcc_handle_dispose,
-};
+use crate::support::handle::{GlyphHandle, Handle, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::Coverage;
 
@@ -248,7 +246,7 @@ pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
 }
 pub(crate) fn shrink_class_def(cd: &mut ClassDef) {
     // Single `truncate` at the end lets `Vec`'s drop glue free any handle
-    // this loop's own `otfcc_handle_dispose` calls didn't reach -- same
+    // this loop's own resets to `Handle::default()` didn't reach -- same
     // reasoning as `shrink_coverage`.
     let mut k: usize = 0;
     for j in 0..cd.glyphs.len() {
@@ -259,7 +257,7 @@ pub(crate) fn shrink_class_def(cd: &mut ClassDef) {
             cd.classes[k] = c;
             k += 1;
         } else {
-            otfcc_handle_dispose(&mut cd.glyphs[j]);
+            cd.glyphs[j] = Handle::default();
         }
     }
     cd.glyphs.truncate(k);

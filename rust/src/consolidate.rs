@@ -7,7 +7,6 @@ unsafe extern "C" {
 
 use crate::support::handle::{
     FdHandle, GlyphHandle, Handle, HandleState, handle_from_index, handle_name_eq_bytes,
-    otfcc_handle_copy, otfcc_handle_dispose,
 };
 
 use crate::logger::{
@@ -21,7 +20,7 @@ use crate::support::primitives::{GlyphId, Pos, ShapeId, TableId};
 use crate::support::fmt::Hex4Upper;
 
 use crate::table::cff::CffTable;
-use crate::table::colr::{ColrLayer, ColrMapping, ColrTable, colr_layer_dup};
+use crate::table::colr::{ColrLayer, ColrMapping, ColrTable};
 
 use crate::table::_tsi::{TsiEntry, TsiEntryType, TsiTable};
 
@@ -57,7 +56,7 @@ use crate::table::otl::{
     otl_lookup_ref_list_filter_env,
 };
 use crate::vf::vq::VQ;
-use crate::vf::vq::{vq_get_still, vq_neutral, vq_point_linear_tfm, vq_replace};
+use crate::vf::vq::{vq_get_still, vq_neutral, vq_point_linear_tfm};
 
 // `table` stays a raw pointer, never a `&OtlTable`, on purpose: `lookup`
 // (the 3rd param) is `table.lookups[j]` itself, so a blanket `&OtlTable`
@@ -264,14 +263,14 @@ fn consolidate_fd_select(h: &mut FdHandle, cff: Option<&CffTable>, options: &Opt
                     b").\n",
                 ),
             );
-            otfcc_handle_dispose(h);
+            *h = Handle::default();
         }
     } else if !h.name.is_empty() {
         // Unreachable: the preceding `else if !h.name.is_empty()` already
         // covers this same condition with nothing mutating `h.name` in
         // between -- kept verbatim from the original c2rust translation
         // rather than pruned as drive-by cleanup outside this PR's scope.
-        otfcc_handle_dispose(h);
+        *h = Handle::default();
     }
 }
 pub fn consolidate_glyph(
@@ -323,25 +322,19 @@ pub unsafe fn get_point_coordinates(
         while (pj as usize) < (&(*g).contours)[c as usize].len() {
             if *stated as i32 == n as i32 {
                 let p: *mut Point = &raw mut (&mut (*g).contours)[c as usize][pj as usize];
-                vq_replace(
-                    &mut *x,
-                    vq_point_linear_tfm(
-                        (*gr).x.clone(),
-                        (*gr).a as Pos,
-                        (*p).x.clone(),
-                        (*gr).b as Pos,
-                        (*p).y.clone(),
-                    ) as VQ,
+                *x = vq_point_linear_tfm(
+                    (*gr).x.clone(),
+                    (*gr).a as Pos,
+                    (*p).x.clone(),
+                    (*gr).b as Pos,
+                    (*p).y.clone(),
                 );
-                vq_replace(
-                    &mut *y,
-                    vq_point_linear_tfm(
-                        (*gr).y.clone(),
-                        (*gr).c as Pos,
-                        (*p).x.clone(),
-                        (*gr).d as Pos,
-                        (*p).y.clone(),
-                    ) as VQ,
+                *y = vq_point_linear_tfm(
+                    (*gr).y.clone(),
+                    (*gr).c as Pos,
+                    (*p).x.clone(),
+                    (*gr).d as Pos,
+                    (*p).y.clone(),
                 );
                 return true;
             }
@@ -360,25 +353,19 @@ pub unsafe fn get_point_coordinates(
         ref_0.b = (*rr).a * (*gr).b + (*rr).b * (*gr).d;
         ref_0.c = (*gr).a * (*rr).c + (*gr).c * (*rr).d;
         ref_0.d = (*gr).b * (*rr).c + (*rr).d * (*gr).d;
-        vq_replace(
-            &mut ref_0.x,
-            vq_point_linear_tfm(
-                (*rr).x.clone(),
-                (*rr).a as Pos,
-                (*gr).x.clone(),
-                (*rr).b as Pos,
-                (*gr).y.clone(),
-            ) as VQ,
+        ref_0.x = vq_point_linear_tfm(
+            (*rr).x.clone(),
+            (*rr).a as Pos,
+            (*gr).x.clone(),
+            (*rr).b as Pos,
+            (*gr).y.clone(),
         );
-        vq_replace(
-            &mut ref_0.y,
-            vq_point_linear_tfm(
-                (*rr).y.clone(),
-                (*rr).c as Pos,
-                (*gr).x.clone(),
-                (*rr).d as Pos,
-                (*gr).y.clone(),
-            ) as VQ,
+        ref_0.y = vq_point_linear_tfm(
+            (*rr).y.clone(),
+            (*rr).c as Pos,
+            (*gr).x.clone(),
+            (*rr).d as Pos,
+            (*gr).y.clone(),
         );
         let success: bool =
             get_point_coordinates(table, &raw mut ref_0, n, stated, x, y, options, depth + 1);
@@ -496,8 +483,8 @@ pub unsafe fn consolidate_anchor_ref(
         inner_y.clone(),
     );
     if (*rr).is_anchored == RefAnchorStatus::AnchorConsolidatingAnchor {
-        vq_replace(&mut (*rr).x, rrx);
-        vq_replace(&mut (*rr).y, rry);
+        (*rr).x = rrx;
+        (*rr).y = rry;
         (*rr).is_anchored = RefAnchorStatus::AnchorConsolidated;
     } else {
         if fabs(
@@ -600,7 +587,7 @@ pub fn consolidate_cmap(font: &mut Font, options: &Options) {
                         b".\n",
                     ),
                 );
-                otfcc_handle_dispose(glyph);
+                *glyph = Handle::default();
             }
         }
     }
@@ -621,7 +608,7 @@ pub fn consolidate_cmap(font: &mut Font, options: &Options) {
                         b".\n",
                     ),
                 );
-                otfcc_handle_dispose(glyph);
+                *glyph = Handle::default();
             }
         }
     }
@@ -1006,7 +993,7 @@ fn consolidate_colr(font: &mut Font, options: &Options) {
                     },
                     layers: Vec::new(),
                 };
-                otfcc_handle_copy(&mut m.glyph, &mapping.glyph);
+                m.glyph = mapping.glyph.clone();
                 let mut __caryll_index_0: usize = 0_usize;
                 let mut keep_0: usize = 1_usize;
                 while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
@@ -1023,7 +1010,7 @@ fn consolidate_colr(font: &mut Font, options: &Options) {
                                 ),
                             );
                         } else {
-                            m.layers.push(colr_layer_dup(layer));
+                            m.layers.push(layer.clone());
                         }
                         keep_0 = (keep_0 == 0) as i32 as usize;
                     }
