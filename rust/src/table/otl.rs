@@ -495,44 +495,78 @@ pub(crate) fn subtable_at(list: &SubtableList, idx: usize) -> SubtablePtr {
         as *mut Subtable
 }
 pub type LookupPtr = *mut Lookup;
+/// A stable slot index into `OtlTable.lookups`, replacing the old borrowed
+/// `*const Lookup` cross-reference (`LookupRef`). Every construction site
+/// (both the binary-read and the JSON-parse path) already knows the exact
+/// target index at push time -- the binary path because `OtlTable.lookups`
+/// is fully built, in final order, before any `Feature`/`LanguageSystem` is
+/// parsed; the JSON path via an explicit remap step run right after its own
+/// (pre-final-order) name resolution finishes, see `table/otl/parse.rs`'s
+/// `PendingLookupId`. Resolve through `lookup_at`, never by indexing
+/// `OtlTable.lookups` directly, since consolidation can punch a hole (see
+/// `LookupList` below) at any index after construction.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct LookupIdx(pub u32);
 // Stage 6-4, third of the group -- see `LangSystemList`/`FeatureList` for
 // the shape. `Lookup`'s own `Drop` (above) now does the type-dispatched
 // `SubtableList` teardown `SubtableList` itself still can't do on its own.
-pub type LookupList = Vec<Box<Lookup>>;
-pub type LookupRef = *const Lookup;
-// 所有しない参照配列（`LookupList` の要素を指すだけ）。分類その3。
-pub type LookupRefList = Vec<LookupRef>;
-// `lookups: LookupRefList`(`Vec<LookupRef>`)を値で持つため `Copy` を落とす。
-// `Lookup` と同じく常に `*mut`/`*const` 経由。
+// `Option` (not plain `Box`) for the same reason `SubtableList` already
+// needed it: `consolidate_otl_table`'s fixed-point pruning loop removes a
+// `Lookup` whose `subtables` end up empty, but other lookups/features
+// already hold a `LookupIdx` pointing at *other*, still-live slots by
+// position -- compacting the `Vec` (the old `Vec::retain`-based
+// `otl_lookup_list_filter_env`) would silently shift every index after the
+// removed one, so removal now punches a `None` hole in place instead (see
+// `otl_lookup_list_punch_holes`).
+pub type LookupList = Vec<Option<Box<Lookup>>>;
+/// Resolve a `LookupIdx` against the `LookupList` it indexes into. Returns
+/// `None` both for an out-of-range index and for a punched hole -- callers
+/// that reach this point only after construction has already validated the
+/// index (every push site guards against an invalid target) should treat a
+/// `None` here as "this lookup was pruned by consolidation", not as a bug.
+pub(crate) fn lookup_at(list: &LookupList, idx: LookupIdx) -> Option<&Lookup> {
+    list.get(idx.0 as usize).and_then(Option::as_deref)
+}
+// 所有しない参照配列（`LookupList` の要素をインデックスで指すだけ）。分類その3。
+pub type LookupRefList = Vec<LookupIdx>;
+// `lookups: LookupRefList`(`Vec<LookupIdx>`)を値で持つため `Copy` を落とす。
 pub struct Feature {
     pub name: Vec<u8>,
     pub lookups: LookupRefList,
 }
-/// `lookups: LookupRefList` (`Vec<LookupRef>`) needs no help -- it holds
-/// only *borrowed* `*const Lookup`s into `OtlTable.lookups`, so its own drop
-/// glue is enough. `name` (a `Vec<u8>` since the `sds` sweep reached this
-/// field) now also tears down for free, so `Feature` needs no manual `Drop`
-/// impl at all anymore.
+/// `lookups: LookupRefList` (`Vec<LookupIdx>`) needs no help -- it holds
+/// only *borrowed* indices into `OtlTable.lookups`, so its own drop glue is
+/// enough. `name` (a `Vec<u8>` since the `sds` sweep reached this field) now
+/// also tears down for free, so `Feature` needs no manual `Drop` impl at all
+/// anymore.
 pub type FeaturePtr = *mut Feature;
+/// Same shape as `LookupIdx`, indexing `OtlTable.features`.
+#[derive(Clone, Copy, PartialEq, Eq, Debug)]
+pub struct FeatureIdx(pub u32);
 // Stage 6-4, second of the "owned pointer array" group -- see
-// `LangSystemList`/`new_language` for the shape and rationale.
-pub type FeatureList = Vec<Box<Feature>>;
-pub type FeatureRef = *const Feature;
-// 所有しない参照配列（`FeatureList` の要素を指すだけ）。
-pub type FeatureRefList = Vec<FeatureRef>;
-// `required_feature`はポインタなので無関係、`features: FeatureRefList`
-// (`Vec<FeatureRef>`)を値で持つため `Copy` を落とす。
+// `LangSystemList`/`new_language` for the shape and rationale. `Option`
+// wrapping added for the same reason as `LookupList` above -- `Feature`s
+// referenced by a still-live `LanguageSystem.features`/`.required_feature`
+// must keep their position when a *different* feature is pruned.
+pub type FeatureList = Vec<Option<Box<Feature>>>;
+/// Same contract as `lookup_at`.
+pub(crate) fn feature_at(list: &FeatureList, idx: FeatureIdx) -> Option<&Feature> {
+    list.get(idx.0 as usize).and_then(Option::as_deref)
+}
+// 所有しない参照配列（`FeatureList` の要素をインデックスで指すだけ）。
+pub type FeatureRefList = Vec<FeatureIdx>;
+// `required_feature`はインデックスなので無関係、`features: FeatureRefList`
+// (`Vec<FeatureIdx>`)を値で持つため `Copy` を落とす。
 pub struct LanguageSystem {
     pub name: Vec<u8>,
-    pub required_feature: FeatureRef,
+    pub required_feature: Option<FeatureIdx>,
     pub features: FeatureRefList,
 }
-/// `required_feature` and `features` both hold *borrowed* `*const
-/// Feature`s into `OtlTable`'s own `features` list, so nothing there needs
-/// freeing -- `features`'s backing `Vec` drops itself, and `name` (a
-/// `Vec<u8>` since the `sds` sweep reached this field) now also tears down
-/// for free, so `LanguageSystem` needs no manual `Drop` impl at all
-/// anymore.
+/// `required_feature` and `features` both hold *borrowed* indices into
+/// `OtlTable`'s own `features` list, so nothing there needs freeing --
+/// `features`'s backing `Vec` drops itself, and `name` (a `Vec<u8>` since
+/// the `sds` sweep reached this field) now also tears down for free, so
+/// `LanguageSystem` needs no manual `Drop` impl at all anymore.
 // Stage 6-4 pilot for the "owned pointer array" shape (plan classification
 // その3): the elements are `Box`es now, not raw `*mut`, so the `Vec`'s own
 // drop glue frees every element -- see rust/README.md.
@@ -596,46 +630,50 @@ pub(crate) fn new_lookup() -> Box<Lookup> {
 // same information with no unsafe function-pointer cast and no env
 // pointer -- every element here is a live `Box<Lookup>`, never null, so
 // there is no nullable-pointer case for the predicate to handle either.
-pub(crate) fn otl_lookup_list_filter_env(arr: &mut LookupList, mut pred: impl FnMut(&Lookup) -> bool) {
-    // Rejected elements drop themselves (`Box<Lookup>`'s own `Drop`),
-    // running the same teardown `dispose_lookup_ptr` used to do manually --
-    // no explicit call needed.
-    arr.retain(|item| pred(item));
+/// Replaces the old `Vec::retain`-based `otl_lookup_list_filter_env`:
+/// `retain` compacts, shifting every surviving element after a removed one
+/// down by one slot -- fatal now that `Feature.lookups`/other `LookupIdx`
+/// values reference `OtlTable.lookups` *by position*. This punches a `None`
+/// hole in place instead, so every index that was valid before a call
+/// (other than one pointing at a just-rejected slot) is still valid after
+/// it. Returns whether anything was actually punched, for the fixed-point
+/// loop in `consolidate.rs` that used to watch `.len()` shrink -- a
+/// hole-preserving `Vec` never shrinks, so "did this pass change anything"
+/// has to be signalled explicitly instead.
+pub(crate) fn otl_lookup_list_punch_holes(arr: &mut LookupList, mut pred: impl FnMut(&Lookup) -> bool) -> bool {
+    let mut punched = false;
+    for slot in arr.iter_mut() {
+        if let Some(lookup) = slot {
+            if !pred(lookup) {
+                *slot = None;
+                punched = true;
+            }
+        }
+    }
+    punched
 }
-// `LookupRef`単体の要素インターフェース(`otl_lookup_ref_init`/`_copy`/
+// `LookupIdx`単体の要素インターフェース(旧`otl_lookup_ref_init`/`_copy`/
 // `_dispose`)は`LookupRefList`自体の死んだ`.copy`スロットからしか呼ばれて
-// おらず削除——`.dispose`(`otl_lookup_ref_dispose`)も含め、`LookupRef`は
+// おらず削除——`.dispose`(旧`otl_lookup_ref_dispose`)・`.replace`
+// (旧`otl_lookup_ref_list_dispose`/`_replace`)も含め、`LookupIdx`は
 // 所有物を持たない（`LookupList`が指し先の`Lookup`を所有する）ため、
-// disposeは何もしない。`Vec<LookupRef>`自身の`Drop`だけで十分。
-// `LookupRefList`は所有物を持たない要素の配列。disposeはバッキング配列を
-// 解放するだけ（要素そのものへの処理は不要）。`.copy`（テーブル全体クローン）
-// は死んでいたため削除。
-pub(crate) fn otl_lookup_ref_list_dispose(arr: &mut LookupRefList) {
-    *arr = Vec::new();
-}
-// 元のスワップ&切り詰めループを`Vec::retain`に。要素のdisposeは無いので
-// 述語の結果をそのまま`retain`の判定に使うだけで済む。
-// Same closure-based de-type-erasure as `otl_lookup_list_filter_env`
-// above, but `LookupRefList`'s elements are themselves raw, nullable
-// borrowed cross-references (`LookupRef = *const Lookup`, into
-// `OtlTable.lookups`) rather than owned `Box`es -- unlike that list, an
-// element here really can be null (`table/otl/dump.rs` defensively
-// checks `is_null()` before reading one), so the predicate takes
-// `Option<&Lookup>` and the one unsafe operation this shell still needs
-// (turning a possibly-null raw pointer into that `Option`) stays a
-// narrow `unsafe {}`, the same shape as `vf/vq.rs`'s `vqs_compare`.
+// これらは元から`*arr = Vec::new()`/`*dst = src`という素のVec操作でしか
+// なかった——呼び出し元(`table/otl/parse.rs`)がこのPRで
+// `PendingLookups`/`PendingFeatures`の直接構築に置き換わったため、
+// ラッパー自体も削除。
+// Same closure-based de-type-erasure as `otl_lookup_list_punch_holes`
+// above, but `LookupRefList`'s elements are themselves non-owning
+// borrowed indices (`LookupIdx`, into `OtlTable.lookups`) rather than
+// owned `Box`es -- unlike that list, an index here really can resolve to
+// a hole (`lookup_at` returns `None` for one, same as an out-of-range
+// index), so the predicate takes `Option<&Lookup>` and this helper needs
+// the owning `LookupList` to resolve each index through.
 pub(crate) fn otl_lookup_ref_list_filter_env(
     arr: &mut LookupRefList,
+    lookups: &LookupList,
     mut pred: impl FnMut(Option<&Lookup>) -> bool,
 ) {
-    arr.retain(|&item| pred(unsafe { item.as_ref() }));
-}
-// `.replace`の唯一の呼び出し箇所(`table/otl/parse.rs`)は毎回、直前に
-// `new_feature`で作った空のdestに対して呼ばれる——単純な move-assign
-// で置き換え可能（旧`dispose`+`memcpy`と等価、Rustの代入が古い値を
-// 正しくドロップする）。
-pub(crate) fn otl_lookup_ref_list_replace(dst: &mut LookupRefList, src: LookupRefList) {
-    *dst = src;
+    arr.retain(|&idx| pred(lookup_at(lookups, idx)));
 }
 /// Same shape as `new_language`: `Box` is the allocation, the struct
 /// literal is the zero-init the old `__caryll_allocate_clean` provided.
@@ -652,32 +690,37 @@ pub(crate) fn new_feature() -> Box<Feature> {
 // （旧`table_otl_free`専用ヘルパ）も同じ理由で削除——`LookupList`と同じく
 // `FeatureList`（`Vec<Box<Feature>>`）は`OtlTable`ごと破棄されれば
 // 自動的にフルドロップされる。
-// Same closure-based de-type-erasure as `otl_lookup_list_filter_env`.
-pub(crate) fn otl_feature_list_filter_env(arr: &mut FeatureList, mut pred: impl FnMut(&Feature) -> bool) {
-    // Rejected: `retain` drops the element itself (a `Box<Feature>`),
-    // which frees `name` -- no explicit dispose call needed.
-    arr.retain(|item| pred(item));
+// Same hole-punching shape as `otl_lookup_list_punch_holes`.
+pub(crate) fn otl_feature_list_punch_holes(arr: &mut FeatureList, mut pred: impl FnMut(&Feature) -> bool) -> bool {
+    let mut punched = false;
+    for slot in arr.iter_mut() {
+        if let Some(feature) = slot {
+            if !pred(feature) {
+                *slot = None;
+                punched = true;
+            }
+        }
+    }
+    punched
 }
-// `FeatureRef`単体の要素インターフェースは`FeatureRefList`の死んだ`.copy`
-// からしか呼ばれておらず削除。`FeatureRef`は所有物を持たない
-// （`FeatureList`が指し先の`Feature`を所有する）。
-// `.replace`の唯一の呼び出し箇所(`table/otl/parse.rs`)は`new_language`
-// で作った空のdestに対して呼ばれる——move-assignで置き換え可能。
-pub(crate) fn otl_feature_ref_list_replace(dst: &mut FeatureRefList, src: FeatureRefList) {
-    *dst = src;
-}
+// `FeatureIdx`単体の要素インターフェースは`FeatureRefList`の死んだ`.copy`
+// からしか呼ばれておらず削除。`FeatureIdx`は所有物を持たない
+// （`FeatureList`が指し先の`Feature`を所有する）。`.replace`
+// (旧`otl_feature_ref_list_replace`)も`LookupRefList`と同じ理由で削除
+// ——呼び出し元が`PendingFeatures`の直接構築に置き換わった。
 // `LookupRefList`と同じく所有物を持たない要素の配列。
 pub(crate) fn otl_feature_ref_list_dispose(arr: &mut FeatureRefList) {
     *arr = Vec::new();
 }
 // Same closure-based de-type-erasure as `otl_lookup_ref_list_filter_env`
-// (`FeatureRefList`'s elements are likewise raw, nullable borrowed
-// cross-references, into `OtlTable.features`).
+// (`FeatureRefList`'s elements are likewise non-owning borrowed indices,
+// into `OtlTable.features`).
 pub(crate) fn otl_feature_ref_list_filter_env(
     arr: &mut FeatureRefList,
+    features: &FeatureList,
     mut pred: impl FnMut(Option<&Feature>) -> bool,
 ) {
-    arr.retain(|&item| pred(unsafe { item.as_ref() }));
+    arr.retain(|&idx| pred(feature_at(features, idx)));
 }
 /// Replaces the old `__caryll_allocate_clean`-into-a-`*mut`-out-parameter
 /// constructor: `Box` is the allocation, and the struct literal is the
@@ -686,7 +729,7 @@ pub(crate) fn otl_feature_ref_list_filter_env(
 pub(crate) fn new_language() -> Box<LanguageSystem> {
     Box::new(LanguageSystem {
         name: Vec::new(),
-        required_feature: ::core::ptr::null::<Feature>(),
+        required_feature: None,
         features: Vec::new(),
     })
 }

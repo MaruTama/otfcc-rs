@@ -125,7 +125,7 @@ use crate::table::otl::subtables::gsub_multi::otl_read_gsub_multi;
 use crate::table::otl::subtables::gsub_reverse::otl_read_gsub_reverse;
 use crate::table::otl::subtables::gsub_single::otl_read_gsub_single;
 use crate::table::otl::{
-    Feature, FeatureList, FeatureRef, LanguageSystem, Lookup, LookupRef, LookupType,
+    Feature, FeatureIdx, FeatureList, LanguageSystem, Lookup, LookupIdx, LookupType,
     OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CONTEXT, OTL_TYPE_GPOS_CURSIVE, OTL_TYPE_GPOS_EXTEND,
     OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK,
     OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GPOS_UNKNOWN, OTL_TYPE_GSUB_ALTERNATE,
@@ -241,10 +241,16 @@ fn parse_language(
     });
     match parsed {
         Ok((rid, feature_indices)) => {
+            // `table_box.features` (the caller's `features` here) is
+            // already fully built, in final order, before any language is
+            // parsed -- so `rid`/`feature_index` below are already the
+            // final `FeatureIdx` values, no remap needed (unlike the
+            // JSON-parse path's `figure_out_languages_from_json`, see
+            // `table/otl/parse.rs`).
             if (rid as usize) < features.len() {
-                lang.required_feature = &raw const *features[rid as usize] as FeatureRef;
+                lang.required_feature = Some(FeatureIdx(rid as u32));
             } else {
-                lang.required_feature = ::core::ptr::null::<Feature>();
+                lang.required_feature = None;
             }
             // See `MAX_TOTAL_FEATURE_REFS_PER_TABLE`'s own doc comment:
             // this budget is shared across every `parse_language` call for
@@ -255,14 +261,13 @@ fn parse_language(
                 }
                 *feature_ref_budget -= 1;
                 if (feature_index as usize) < features.len() {
-                    lang.features
-                        .push(&raw const *features[feature_index as usize] as FeatureRef);
+                    lang.features.push(FeatureIdx(feature_index as u32));
                 }
             }
         }
         Err(_) => {
             otl_feature_ref_list_dispose(&mut lang.features);
-            lang.required_feature = ::core::ptr::null::<Feature>();
+            lang.required_feature = None;
         }
     }
 }
@@ -312,7 +317,7 @@ fn parse_otl_common(
         hr.require_room(6, 1)?;
         lookup._offset = lookup_offset;
         lookup.type_0 = LookupType::from_file(lookup_type_base, hr.u16()?);
-        table_box.lookups.push(lookup);
+        table_box.lookups.push(Some(lookup));
     }
 
     // -- Feature list --
@@ -352,7 +357,11 @@ fn parse_otl_common(
         for _ in 0..lookup_count_0.min(MAX_TOTAL_LOOKUPS_PER_TABLE) {
             let lookupid = fer.u16()?;
             if (lookupid as usize) < table_box.lookups.len() {
-                let lookup_0 = &mut table_box.lookups[lookupid as usize];
+                // Every slot is `Some` at this point in construction --
+                // holes only ever appear later, via consolidation.
+                let lookup_0 = table_box.lookups[lookupid as usize]
+                    .as_mut()
+                    .expect("freshly read lookup slot should not be empty");
                 if lookup_0.name.is_empty() {
                     if !options.glyph_name_prefix.is_null() {
                         lookup_0.name = crate::bytesbuild!(
@@ -383,15 +392,15 @@ fn parse_otl_common(
                     }
                 }
                 // A borrowed cross-reference into `table_box.lookups`, not
-                // an owned pointer -- matches `LookupRef`'s established
-                // convention (see `table/otl.rs`) everywhere else in this
-                // migration. `&raw const` is a raw-borrow operator, not a
-                // dereference, so it never needs `unsafe` regardless of
-                // what it's borrowing from.
-                feature.lookups.push(&raw const **lookup_0 as LookupRef);
+                // an owned value -- `table_box.lookups` is already fully
+                // built, in final order, before any feature is parsed, so
+                // `lookupid` already *is* the final `LookupIdx`, no remap
+                // needed (unlike the JSON-parse path, see
+                // `table/otl/parse.rs`).
+                feature.lookups.push(LookupIdx(lookupid as u32));
             }
         }
-        table_box.features.push(feature);
+        table_box.features.push(Some(feature));
     }
 
     // -- Script list --
@@ -475,21 +484,23 @@ fn parse_otl_common(
         );
     }
 
-    for j_3 in 0..table_box.lookups.len() {
-        if table_box.lookups[j_3].name.is_empty() {
+    // Every slot is still `Some` here -- holes only ever appear later, via
+    // consolidation, well after this function returns.
+    for (j_3, lookup) in table_box.lookups.iter_mut().flatten().enumerate() {
+        if lookup.name.is_empty() {
             if !options.glyph_name_prefix.is_null() {
-                table_box.lookups[j_3].name = crate::bytesbuild!(
+                lookup.name = crate::bytesbuild!(
                     b"lookup_",
                     unsafe { crate::support::fmt::CCharRef::from_ptr(options.glyph_name_prefix) },
                     b"_",
-                    Hex2(table_box.lookups[j_3].type_0.raw()),
+                    Hex2(lookup.type_0.raw()),
                     b"_",
                     j_3 as i32,
                 );
             } else {
-                table_box.lookups[j_3].name = crate::bytesbuild!(
+                lookup.name = crate::bytesbuild!(
                     b"lookup_",
-                    Hex2(table_box.lookups[j_3].type_0.raw()),
+                    Hex2(lookup.type_0.raw()),
                     b"_",
                     j_3 as i32,
                 );
@@ -645,7 +656,9 @@ pub fn otfcc_read_otl(
     // total `class_coverage` cost rather than resetting fresh per subtable.
     crate::table::otl::subtables::chaining::read::reset_class_coverage_budgets();
     crate::table::otl::coverage::reset_coverage_range_expansion_budget();
-    for lookup in otl_box.lookups.iter_mut() {
+    // Every slot is still `Some` here -- this is the same freshly-built
+    // table `parse_otl_common` just returned, before any consolidation.
+    for lookup in otl_box.lookups.iter_mut().flatten() {
         otfcc_read_otl_lookup(&table.data, lookup, max_glyphs, options);
     }
     Some(otl_box)
@@ -711,8 +724,8 @@ mod parse_otl_common_tests {
         let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
         assert_eq!(otl.lookups.len(), 1);
         assert_eq!(otl.features.len(), 1);
-        assert_eq!(otl.features[0].name, b"liga_00000"); // Dec5 zero-pads the index
-        assert_eq!(otl.features[0].lookups.len(), 1);
+        assert_eq!(otl.features[0].as_ref().unwrap().name, b"liga_00000"); // Dec5 zero-pads the index
+        assert_eq!(otl.features[0].as_ref().unwrap().lookups.len(), 1);
         assert_eq!(otl.languages.len(), 1); // only the non-default langSys; defaultLangSys was 0
     }
 
@@ -745,7 +758,7 @@ mod parse_otl_common_tests {
         let otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
         assert_eq!(otl.languages.len(), 1);
         assert!(otl.languages[0].features.is_empty());
-        assert!(otl.languages[0].required_feature.is_null());
+        assert!(otl.languages[0].required_feature.is_none());
     }
 
     #[test]
@@ -829,7 +842,7 @@ mod parse_otl_common_tests {
         let data = well_formed_gsub(); // subtableCount is already 0
         let options = zeroed_options();
         let mut otl = parse_otl_common(&data, OTL_TYPE_GSUB_UNKNOWN, &options).unwrap();
-        otfcc_read_otl_lookup(&data, &mut otl.lookups[0], 0, &options);
-        assert_eq!(otl.lookups[0].type_0, OTL_TYPE_UNKNOWN);
+        otfcc_read_otl_lookup(&data, otl.lookups[0].as_mut().unwrap(), 0, &options);
+        assert_eq!(otl.lookups[0].as_ref().unwrap().type_0, OTL_TYPE_UNKNOWN);
     }
 }

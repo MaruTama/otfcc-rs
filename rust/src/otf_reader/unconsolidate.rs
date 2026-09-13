@@ -403,13 +403,16 @@ fn expand_chain(lookup: &mut Lookup) {
     };
 }
 fn expand_chaining_lookups(font: &mut Font) {
+    // Every slot is still `Some` here -- `unconsolidate_*` only ever runs
+    // on the binary-read/dump path, on a table that has never gone
+    // through `consolidate_otl_table`'s hole-punching.
     if let Some(gsub) = font.gsub.as_deref_mut() {
-        for lookup in gsub.lookups.iter_mut() {
+        for lookup in gsub.lookups.iter_mut().flatten() {
             expand_chain(lookup);
         }
     }
     if let Some(gpos) = font.gpos.as_deref_mut() {
-        for lookup in gpos.lookups.iter_mut() {
+        for lookup in gpos.lookups.iter_mut().flatten() {
             expand_chain(lookup);
         }
     }

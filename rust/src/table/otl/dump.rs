@@ -138,7 +138,14 @@ fn _dump_lookup(lookup: &Lookup) -> BuiltValue {
 }
 pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: &Options, tag: &[u8]) {
     let Some(table) = table else { return };
-    if table.languages.is_empty() || table.lookups.is_empty() || table.features.is_empty() {
+    // `table.lookups`/`.features` are hole-preserving now -- a `None`-only
+    // `Vec` (every lookup/feature punched by consolidation) is the "empty"
+    // case this guard means to catch, not merely a non-empty backing `Vec`.
+    // `table.languages` is unaffected (never hole-punched).
+    if table.languages.is_empty()
+        || table.lookups.iter().all(Option::is_none)
+        || table.features.iter().all(Option::is_none)
+    {
         return;
     }
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
@@ -156,25 +163,29 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
             while (j as usize) < table.languages.len() {
                 let mut _lang = BuiltValue::new_object(5);
                 let lang: &LanguageSystem = &table.languages[j as usize];
-                if !lang.required_feature.is_null() {
-                    // `required_feature`/`features` are FeatureRef/FeatureRefList
-                    // (`*const Feature`) -- borrowed cross-references into this
-                    // same `OtlTable`'s own `features` list (Stage 7-2-f), a
-                    // different shell than the `Subtable` dumper family this
-                    // file otherwise closes out. Narrow bridge, same pattern
-                    // `vf/vq.rs`'s `vqs_compare` established.
+                // `required_feature`/`features` are `Option<FeatureIdx>`/
+                // `FeatureRefList` (`Vec<FeatureIdx>`) -- indices into this
+                // same `OtlTable`'s own `features` list. `feature_at`
+                // resolving to `None` (an index a later consolidation pass
+                // punched into a hole, or -- not expected in practice --
+                // an out-of-range one) is treated as "no reference", the
+                // same as the old `is_null()` check treated a null
+                // pointer.
+                if let Some(rf) =
+                    lang.required_feature.and_then(|idx| crate::table::otl::feature_at(&table.features, idx))
+                {
                     _lang.push_field(
                         b"requiredFeature",
-                        BuiltValue::str_truncated_at_nul(&unsafe { &*lang.required_feature }.name),
+                        BuiltValue::str_truncated_at_nul(&rf.name),
                     );
                 }
                 let mut features = BuiltValue::new_array(lang.features.len());
                 let mut k: TableId = 0 as TableId;
                 while (k as usize) < lang.features.len() {
-                    if !lang.features[k as usize].is_null() {
-                        features.push_item(BuiltValue::str_truncated_at_nul(
-                            &unsafe { &*lang.features[k as usize] }.name,
-                        ));
+                    if let Some(f) =
+                        crate::table::otl::feature_at(&table.features, lang.features[k as usize])
+                    {
+                        features.push_item(BuiltValue::str_truncated_at_nul(&f.name));
                     }
                     k = k.wrapping_add(1);
                 }
@@ -192,25 +203,26 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
         );
         let mut ___loggedstep_v_1: bool = true;
         while ___loggedstep_v_1 {
-            let mut features_0 = BuiltValue::new_object(table.features.len());
-            let mut j_0: TableId = 0 as TableId;
-            while (j_0 as usize) < table.features.len() {
-                let feature: &Feature = &table.features[j_0 as usize];
+            // `.filter_map` skips holes -- a `None` slot consolidation
+            // punched has nothing to dump.
+            let live_features: Vec<&Feature> =
+                table.features.iter().filter_map(Option::as_deref).collect();
+            let mut features_0 = BuiltValue::new_object(live_features.len());
+            for feature in &live_features {
                 let mut _feature = BuiltValue::new_array(feature.lookups.len());
                 let mut k_0: TableId = 0 as TableId;
                 while (k_0 as usize) < feature.lookups.len() {
-                    if !feature.lookups[k_0 as usize].is_null() {
-                        // `lookups` is LookupRefList (`*const Lookup`) --
-                        // same borrowed-cross-reference shape as
-                        // `required_feature`/`features` above.
-                        _feature.push_item(BuiltValue::str_truncated_at_nul(
-                            &unsafe { &*feature.lookups[k_0 as usize] }.name,
-                        ));
+                    // `lookups` is `LookupRefList` (`Vec<LookupIdx>`) --
+                    // same borrowed-cross-reference shape as
+                    // `required_feature`/`features` above.
+                    if let Some(lookup) =
+                        crate::table::otl::lookup_at(&table.lookups, feature.lookups[k_0 as usize])
+                    {
+                        _feature.push_item(BuiltValue::str_truncated_at_nul(&lookup.name));
                     }
                     k_0 = k_0.wrapping_add(1);
                 }
                 features_0.push_field_bytes_key(&feature.name, _feature.preserialize());
-                j_0 = j_0.wrapping_add(1);
             }
             otl.push_field(b"features", features_0);
             ___loggedstep_v_1 = false;
@@ -222,15 +234,14 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
         );
         let mut ___loggedstep_v_2: bool = true;
         while ___loggedstep_v_2 {
-            let mut lookups = BuiltValue::new_object(table.lookups.len());
-            let mut lookup_order = BuiltValue::new_array(table.lookups.len());
-            let mut j_1: TableId = 0 as TableId;
-            while (j_1 as usize) < table.lookups.len() {
-                let lookup: &Lookup = &table.lookups[j_1 as usize];
+            // `.filter` skips holes, same as the features loop above.
+            let live_lookups: Vec<&Lookup> = table.lookups.iter().filter_map(Option::as_deref).collect();
+            let mut lookups = BuiltValue::new_object(live_lookups.len());
+            let mut lookup_order = BuiltValue::new_array(live_lookups.len());
+            for lookup in &live_lookups {
                 let _lookup = _dump_lookup(lookup);
                 lookups.push_field_bytes_key(&lookup.name, _lookup);
                 lookup_order.push_item(BuiltValue::str_truncated_at_nul(&lookup.name));
-                j_1 = j_1.wrapping_add(1);
             }
             otl.push_field(b"lookups", lookups);
             otl.push_field(b"lookupOrder", lookup_order);

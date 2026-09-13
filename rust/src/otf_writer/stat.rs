@@ -1027,7 +1027,11 @@ fn stat_os_2_average_width(font: &mut Font, options: &Options) {
 }
 fn stat_max_context_otl(table: &OtlTable) -> u16 {
     let mut maxc: u16 = 1_u16;
-    for lookup in &table.lookups {
+    // This runs on the post-consolidation table (part of `otf_writer.rs`'s
+    // build path), so a `None` slot here is a real, possible hole
+    // consolidation punched, not a bug -- skip it, same as everywhere else
+    // that reads `OtlTable.lookups` post-consolidation.
+    for lookup in table.lookups.iter().flatten() {
         match lookup.type_0 {
             OTL_TYPE_GPOS_PAIR
             | OTL_TYPE_GPOS_MARK_TO_BASE
