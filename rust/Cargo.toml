@@ -93,3 +93,15 @@ vec_box = "allow" # 2 -- `Vec<Box<T>>` field clippy thinks should be `Vec<T>`
 bitflags = "2.13.1"
 indexmap = "2.14.0"
 libc = "0.2.189"
+
+[dev-dependencies]
+libloading = "0.9.0"
+# `default-features = false` + `["read"]`: this crate only ever reads a
+# built cdylib's exported-symbol table (rust/tests/abi.rs) -- never writes
+# object files and never needs the compression support default features
+# pull in for reading compressed debug sections, which the dynamic export
+# table itself never is.
+object = { version = "0.40.0", default-features = false, features = ["read"] }
+regex = "1.13.1"
+serde_json = "1.0.151"
+sha2 = "0.11.0"

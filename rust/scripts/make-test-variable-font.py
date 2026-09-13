@@ -9,7 +9,7 @@
 # fvar.rs and rust/src/vf/{vv,vq}.rs) is exercised too -- without them the
 # axes-only fvar this used to produce left otfcc_read_fvar/otfcc_dump_fvar's
 # instance-parsing loop, and json_new_v_vp's coordinate dump, entirely
-# untested by compare-with-c.sh/run-cycles.sh.
+# untested by compare-with-c.sh/rust/tests/cycles.rs.
 import fontTools.fontBuilder as fb
 from fontTools.varLib import build
 import os

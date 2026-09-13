@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 # (Re)generates tests/golden/checksums.sha256 from the currently built Rust
-# crate. rust/scripts/compare-with-golden.sh checks against it instead of
-# rebuilding C from source on every run.
+# crate. rust/tests/golden.rs checks against it instead of rebuilding C from
+# source on every run.
 #
 # Stores SHA-256 checksums, not the dump JSON / build output files
 # themselves -- a hash is exactly as good at detecting "this changed" as
@@ -16,8 +16,8 @@
 # The one file kept as an actual committed fixture, not a hash, is
 # tests/golden/dll-test.otf: the otfccdll cdylib API doesn't take
 # --keep-modified-time, so its output legitimately varies by a handful of
-# timestamp bytes even between two correct builds -- compare-with-golden.sh
-# needs the real bytes to run a tolerance-based `cmp -l`, not an
+# timestamp bytes even between two correct builds -- rust/tests/dll_abi.rs
+# needs the real bytes to run a tolerance-based byte comparison, not an
 # all-or-nothing hash match.
 #
 # Only run this deliberately, when a change *legitimately* alters output
@@ -76,7 +76,7 @@ gen_pair vtt ttf tests/payload/vtt.ttf
 gen_pair Molengo-Regular ttf tests/payload/Molengo-Regular.ttf
 gen_pair KRName-Regular otf tests/payload/KRName-Regular.otf
 # tests/payload/gvar-test.ttf is itself a frozen fixture -- see the comment
-# in compare-with-golden.sh for why it is not regenerated via fontTools here.
+# in rust/tests/golden.rs for why it is not regenerated via fontTools here.
 gen_pair gvar-test ttf tests/payload/gvar-test.ttf
 
 echo "  KRName-Regular-O2 (CFF subroutinize, dump already generated above)"
