@@ -80,22 +80,24 @@ pub(crate) fn consolidate_chaining(
         if !rule.apply[j_0 as usize].lookup.name.is_empty() {
             let mut k: TableId = 0 as TableId;
             while (k as usize) < unsafe { (*table).lookups.len() } {
-                // Every element is a `Box<Lookup>` now, never null, so the
-                // old null check is gone -- everything else here is plain
-                // field access through the `Box`, unchanged.
-                let matched = unsafe {
-                    !(&(*table).lookups)[k as usize].subtables.is_empty()
-                        && handle_name_eq_bytes(
-                            &rule.apply[j_0 as usize].lookup.name,
-                            &(&(*table).lookups)[k as usize].name,
-                        )
-                };
+                // A `None` slot here is a hole an earlier iteration of the
+                // caller's own fixed-point loop already punched (see
+                // `consolidate_otl_table`) -- nothing to match against.
+                let matched = unsafe { (&(*table).lookups)[k as usize].as_deref() }.is_some_and(
+                    |lookup| {
+                        !lookup.subtables.is_empty()
+                            && handle_name_eq_bytes(&rule.apply[j_0 as usize].lookup.name, &lookup.name)
+                    },
+                );
                 if matched {
                     found_lookup = true;
                     rule.apply[j_0 as usize].lookup = Handle {
                         state: HandleState::Consolidated,
                         index: k as GlyphId,
-                        name: unsafe { (&(*table).lookups)[k as usize].name.clone() },
+                        name: unsafe { (&(*table).lookups)[k as usize].as_deref() }
+                            .unwrap()
+                            .name
+                            .clone(),
                     } as LookupHandle;
                 }
                 k = k.wrapping_add(1);
@@ -126,8 +128,15 @@ pub(crate) fn consolidate_chaining(
                 otfcc_handle_dispose(&mut rule.apply[j_0 as usize].lookup);
             }
         } else if rule.apply[j_0 as usize].lookup.state == HandleState::Index {
-            if rule.apply[j_0 as usize].lookup.index as usize >= unsafe { (*table).lookups.len() }
-            {
+            // Invalid now covers both "out of range" (unchanged) and
+            // "in range but a hole" (new -- see the `None`-slot comment
+            // above): either way there is no real `Lookup` at this index
+            // to resolve against.
+            let lookups = unsafe { &(*table).lookups };
+            let target = lookups
+                .get(rule.apply[j_0 as usize].lookup.index as usize)
+                .and_then(Option::as_deref);
+            if target.is_none() {
                 let budget = options.consolidate_warning_budget.get();
                 if budget > 0 {
                     options.consolidate_warning_budget.set(budget - 1);
@@ -145,10 +154,14 @@ pub(crate) fn consolidate_chaining(
                 rule.apply[j_0 as usize].lookup.index = 0 as GlyphId;
             }
             let idx = rule.apply[j_0 as usize].lookup.index;
+            let name = lookups
+                .get(idx as usize)
+                .and_then(Option::as_deref)
+                .map_or_else(Vec::new, |lookup| lookup.name.clone());
             rule.apply[j_0 as usize].lookup = Handle {
                 state: HandleState::Consolidated,
                 index: idx,
-                name: unsafe { (&(*table).lookups)[idx as usize].name.clone() },
+                name,
             } as LookupHandle;
         }
         j_0 = j_0.wrapping_add(1);

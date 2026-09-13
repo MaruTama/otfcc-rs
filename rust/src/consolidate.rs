@@ -31,7 +31,7 @@ use crate::table::glyf::{
 };
 
 use crate::table::otl::{
-    Feature, LanguageSystem, Lookup, LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE,
+    LanguageSystem, Lookup, LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE,
     OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK,
     OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING,
     OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE,
@@ -53,7 +53,7 @@ use crate::support::glyph_order::{otfcc_gord_consolidate_handle, otfcc_set_glyph
 use crate::table::_tsi::tsi_entry_dup;
 use crate::table::glyf::{glyf_component_reference_empty, otfcc_new_glyf_glyph};
 use crate::table::otl::{
-    otl_feature_list_filter_env, otl_feature_ref_list_filter_env, otl_lookup_list_filter_env,
+    otl_feature_list_punch_holes, otl_feature_ref_list_filter_env, otl_lookup_list_punch_holes,
     otl_lookup_ref_list_filter_env,
 };
 use crate::vf::vq::VQ;
@@ -862,59 +862,68 @@ unsafe fn consolidate_otl_table(
         return;
     }
     loop {
-        let feat_n: TableId = (*table).features.len() as TableId;
-        let lut_n: TableId = (*table).lookups.len() as TableId;
         let mut j: TableId = 0 as TableId;
         while (j as usize) < (*table).lookups.len() {
-            otfcc_consolidate_lookup(
-                &*font,
-                table,
-                &mut (&mut (*table).lookups)[j as usize],
-                options,
-            );
+            // A hole here (`None`) means a previous iteration of this
+            // same fixed-point loop already punched it -- nothing left
+            // to consolidate at this slot.
+            if let Some(lookup) = (&mut (*table).lookups)[j as usize].as_mut() {
+                otfcc_consolidate_lookup(&*font, table, lookup, options);
+            }
             j = j.wrapping_add(1);
         }
         let mut j_0: TableId = 0 as TableId;
         while (j_0 as usize) < (*table).features.len() {
-            let feature: *mut Feature = &raw mut *(&mut (*table).features)[j_0 as usize];
-            otl_lookup_ref_list_filter_env(&mut (*feature).lookups, |lut| {
-                lut.is_some_and(|l| !l.subtables.is_empty())
-            });
+            if let Some(feature) = (&mut (*table).features)[j_0 as usize].as_mut() {
+                otl_lookup_ref_list_filter_env(&mut feature.lookups, &(*table).lookups, |lut| {
+                    lut.is_some_and(|l| !l.subtables.is_empty())
+                });
+            }
             j_0 = j_0.wrapping_add(1);
         }
         let mut j_1: TableId = 0 as TableId;
         while (j_1 as usize) < (*table).languages.len() {
             let lang: *mut LanguageSystem = &raw mut *(&mut (*table).languages)[j_1 as usize];
-            // `required_feature` is a single borrowed `*const Feature`, not
-            // a list element `otl_feature_ref_list_filter_env` (below) ever
-            // touches -- it was set once at parse time and otherwise never
-            // revisited. Below, this same pass drops every `Feature` whose
-            // `.lookups` is empty from `table.features` (freeing its `Box`);
-            // a `required_feature` still pointing at one of those becomes a
-            // dangling read the very next time this language is dumped or
-            // built. `feature_ref_is_not_empty`'s check (`.lookups.is_empty()`)
-            // is applied here too, so a `required_feature` is dropped in the
-            // same pass, by the same rule, as every other reference to that
-            // feature -- closing a real fuzzer-found use-after-free
+            // `required_feature` is a single borrowed `Option<FeatureIdx>`,
+            // not a list element `otl_feature_ref_list_filter_env` (below)
+            // ever touches -- it was set once at parse time and otherwise
+            // never revisited. Below, this same pass drops every `Feature`
+            // whose `.lookups` is empty from `table.features` (punching a
+            // hole where its `Box` used to live); a `required_feature`
+            // still pointing at one of those becomes a dangling read the
+            // very next time this language is dumped or built.
+            // `feature_ref_is_not_empty`'s check (`.lookups.is_empty()`) is
+            // applied here too, so a `required_feature` is cleared in the
+            // same pass, by the same rule, as every other reference to
+            // that feature -- closing a real fuzzer-found use-after-free
             // (heap-use-after-free reading a freed `Feature`'s `name` from
-            // `otfcc_dump_otl`, ASan-confirmed).
-            if !(*lang).required_feature.is_null()
-                && (*(*lang).required_feature).lookups.is_empty()
-            {
-                (*lang).required_feature = ::core::ptr::null::<Feature>();
+            // `otfcc_dump_otl`, ASan-confirmed). `feature_at` resolving to
+            // `None` (an out-of-range index, never expected here, or a
+            // hole punched by an *earlier* iteration of this same loop)
+            // is treated the same as "empty": either way, nothing valid to
+            // require.
+            if let Some(rf) = (*lang).required_feature {
+                let target_empty = crate::table::otl::feature_at(&(*table).features, rf)
+                    .is_none_or(|f| f.lookups.is_empty());
+                if target_empty {
+                    (*lang).required_feature = None;
+                }
             }
-            otl_feature_ref_list_filter_env(&mut (*lang).features, |feat| {
+            otl_feature_ref_list_filter_env(&mut (*lang).features, &(*table).features, |feat| {
                 feat.is_some_and(|f| !f.lookups.is_empty())
             });
             j_1 = j_1.wrapping_add(1);
         }
-        otl_lookup_list_filter_env(&mut (*table).lookups, |lut| !lut.subtables.is_empty());
-        otl_feature_list_filter_env(&mut (*table).features, |feat| !feat.lookups.is_empty());
-        let feat_n1: TableId = (*table).features.len() as TableId;
-        let lut_n1: TableId = (*table).lookups.len() as TableId;
-        if feat_n1 as i32 >= feat_n as i32
-            && lut_n1 as i32 >= lut_n as i32
-        {
+        // A hole-preserving `Vec` never shrinks, unlike the old
+        // `Vec::retain`-based compaction this replaces -- `punched_lookups`/
+        // `punched_features` are the explicit "did this pass change
+        // anything" signal the fixed-point loop below now watches instead
+        // of `.len()`.
+        let punched_lookups =
+            otl_lookup_list_punch_holes(&mut (*table).lookups, |lut| !lut.subtables.is_empty());
+        let punched_features =
+            otl_feature_list_punch_holes(&mut (*table).features, |feat| !feat.lookups.is_empty());
+        if !punched_lookups && !punched_features {
             break;
         }
     }
@@ -1262,7 +1271,7 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
 #[cfg(test)]
 mod consolidate_otl_table_tests {
     use super::*;
-    use crate::table::otl::{LookupRef, new_feature, new_language, new_lookup};
+    use crate::table::otl::{FeatureIdx, LookupIdx, new_feature, new_language, new_lookup};
 
     fn empty_font_with_glyph_order() -> Box<Font> {
         Box::new(Font {
@@ -1322,35 +1331,30 @@ mod consolidate_otl_table_tests {
     // pass; `required_feature` (the lone one) was not.
     #[test]
     fn required_feature_pointing_at_a_lookup_with_no_valid_subtables_is_cleared_not_left_dangling() {
-        // Pointers are taken purely via `&raw const *(...)[idx]`, the same
-        // idiom every real call site uses, and only once each `Box` is
-        // already resting in its final `table.lookups`/`table.features`
-        // slot. Both departures from that -- moving a `Box` into a `Vec`
-        // after already taking a pointer to it, or going through a safe
-        // `.as_ref()` reference instead of staying in raw-pointer land --
-        // are test-fixture-ordering hazards Miri's Stacked Borrows model
-        // (rightly) rejects; neither is a bug in the fix under test.
+        // `LookupIdx(0)`/`FeatureIdx(0)` reference the one lookup/feature
+        // slot below directly -- no raw pointers or `unsafe` needed to
+        // build this fixture anymore, now that the cross-references are
+        // plain indices rather than borrows into a `Box` this test would
+        // otherwise have to keep pinned in place.
         let mut table = Box::new(OtlTable {
-            lookups: vec![new_lookup()], // subtables empty -- "no valid subtables"
+            lookups: vec![Some(new_lookup())], // subtables empty -- "no valid subtables"
             features: Vec::new(),
             languages: Vec::new(),
         });
+
+        let mut feature = new_feature();
+        feature.lookups.push(LookupIdx(0));
+        table.features.push(Some(feature));
+
+        let mut lang = new_language();
+        lang.required_feature = Some(FeatureIdx(0));
+        lang.features.push(FeatureIdx(0));
+        table.languages.push(lang);
+
         let mut font = empty_font_with_glyph_order();
         let options = Options::default();
 
         unsafe {
-            let lookup_ptr: *const Lookup = &raw const *table.lookups[0];
-
-            let mut feature = new_feature();
-            feature.lookups.push(lookup_ptr as LookupRef);
-            table.features.push(feature);
-            let feature_ptr: *const Feature = &raw const *table.features[0];
-
-            let mut lang = new_language();
-            lang.required_feature = feature_ptr;
-            lang.features.push(feature_ptr);
-            table.languages.push(lang);
-
             consolidate_otl_table(
                 font.as_mut() as *mut Font,
                 table.as_mut() as *mut OtlTable,
@@ -1358,9 +1362,12 @@ mod consolidate_otl_table_tests {
             );
         }
 
-        assert!(table.languages[0].required_feature.is_null());
-        assert!(table.features.is_empty());
-        assert!(table.lookups.is_empty());
+        assert!(table.languages[0].required_feature.is_none());
+        // Consolidation now punches holes instead of compacting -- an
+        // emptied-out `table.features`/`.lookups` still has one slot each,
+        // just `None` rather than removed outright.
+        assert!(table.features.iter().all(Option::is_none));
+        assert!(table.lookups.iter().all(Option::is_none));
     }
 }
 
