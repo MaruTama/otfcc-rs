@@ -460,7 +460,7 @@ mod regression_tests {
                     "features.len() = {} exceeds MAX_TOTAL_FEATURES_PER_TABLE",
                     otl.features.len()
                 );
-                for feature in &otl.features {
+                for feature in otl.features.iter().flatten() {
                     assert!(
                         feature.lookups.len()
                             <= crate::table::otl::read::MAX_TOTAL_LOOKUPS_PER_TABLE as usize,
