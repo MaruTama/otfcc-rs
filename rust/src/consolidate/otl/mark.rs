@@ -41,34 +41,26 @@ fn consolidate_mark_array(
     class_count: GlyphClass,
 ) {
     let mut h: BTreeMap<GlyphId, MarkHashValue> = BTreeMap::new();
-    let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < mark_array.len() {
+    for rec in mark_array.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(
-            font.glyph_order.as_deref().unwrap(),
-            &mut mark_array[k as usize].glyph,
-        ) {
+        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut rec.glyph) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored unknown glyph name ",
-                    &mark_array[k as usize].glyph.name,
-                    b".",
-                ),
+                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ", &rec.glyph.name, b".",),
             );
         } else {
-            let gid: GlyphId = mark_array[k as usize].glyph.index;
-            let anchor: Anchor = mark_array[k as usize].anchor;
-            let mark_class: GlyphClass = mark_array[k as usize].mark_class;
+            let gid: GlyphId = rec.glyph.index;
+            let anchor: Anchor = rec.anchor;
+            let mark_class: GlyphClass = rec.mark_class;
             match h.entry(gid) {
                 Entry::Vacant(v) if anchor.present && mark_class < class_count => {
                     v.insert(MarkHashValue {
-                        name: mark_array[k as usize].glyph.name.clone(),
+                        name: rec.glyph.name.clone(),
                         mark_class,
                         anchor,
                     });
@@ -79,14 +71,13 @@ fn consolidate_mark_array(
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored invalid or double-mapping mark definition for /",
-                            &mark_array[k as usize].glyph.name,
+                            &rec.glyph.name,
                             b".",
                         ),
                     );
                 }
             }
         }
-        k = k.wrapping_add(1);
     }
     dispose_mark_array(mark_array);
     // `handle_from_consolidated` (which used to take `entry.name` as an
@@ -114,33 +105,24 @@ fn consolidate_base_array(
     base_array: &mut BaseArray,
 ) {
     let mut h: BTreeMap<GlyphId, BaseHashValue> = BTreeMap::new();
-    let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < base_array.len() {
+    for rec in base_array.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(
-            font.glyph_order.as_deref().unwrap(),
-            &mut base_array[k as usize].glyph,
-        ) {
+        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut rec.glyph) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored unknown glyph name ",
-                    &base_array[k as usize].glyph.name,
-                    b".",
-                ),
+                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ", &rec.glyph.name, b".",),
             );
         } else {
-            let gid: GlyphId = base_array[k as usize].glyph.index;
+            let gid: GlyphId = rec.glyph.index;
             match h.entry(gid) {
                 Entry::Vacant(v) => {
-                    let name: Vec<u8> = base_array[k as usize].glyph.name.clone();
-                    let anchors: Vec<Anchor> =
-                        ::core::mem::take(&mut base_array[k as usize].anchors);
+                    let name: Vec<u8> = rec.glyph.name.clone();
+                    let anchors: Vec<Anchor> = ::core::mem::take(&mut rec.anchors);
                     v.insert(BaseHashValue { name, anchors });
                 }
                 Entry::Occupied(_) => {
@@ -150,14 +132,13 @@ fn consolidate_base_array(
                         LoggerType::Warning,
                         crate::bytesbuild!(
                             b"[Consolidate] Ignored anchor double-definition for /",
-                            &base_array[k as usize].glyph.name,
+                            &rec.glyph.name,
                             b".",
                         ),
                     );
                 }
             }
         }
-        k = k.wrapping_add(1);
     }
     dispose_base_array(base_array);
     for (gid, entry) in h.into_iter() {
@@ -178,34 +159,25 @@ fn consolidate_lig_array(
     lig_array: &mut LigatureArray,
 ) {
     let mut h: BTreeMap<GlyphId, LigHashValue> = BTreeMap::new();
-    let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < lig_array.len() {
+    for rec in lig_array.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(
-            font.glyph_order.as_deref().unwrap(),
-            &mut lig_array[k as usize].glyph,
-        ) {
+        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut rec.glyph) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored unknown glyph name ",
-                    &lig_array[k as usize].glyph.name,
-                    b".",
-                ),
+                crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ", &rec.glyph.name, b".",),
             );
         } else {
-            let gid: GlyphId = lig_array[k as usize].glyph.index;
+            let gid: GlyphId = rec.glyph.index;
             match h.entry(gid) {
                 Entry::Vacant(v) => {
-                    let name: Vec<u8> = lig_array[k as usize].glyph.name.clone();
-                    let component_count: GlyphId = lig_array[k as usize].component_count;
-                    let anchors: Vec<Vec<Anchor>> =
-                        ::core::mem::take(&mut lig_array[k as usize].anchors);
+                    let name: Vec<u8> = rec.glyph.name.clone();
+                    let component_count: GlyphId = rec.component_count;
+                    let anchors: Vec<Vec<Anchor>> = ::core::mem::take(&mut rec.anchors);
                     v.insert(LigHashValue {
                         name,
                         component_count,
@@ -219,14 +191,13 @@ fn consolidate_lig_array(
                         LoggerType::Warning,
                         crate::bytesbuild!(
                             b"[Consolidate] Ignored anchor double-definition for /",
-                            &lig_array[k as usize].glyph.name,
+                            &rec.glyph.name,
                             b".",
                         ),
                     );
                 }
             }
         }
-        k = k.wrapping_add(1);
     }
     dispose_lig_array(lig_array);
     for (gid, entry) in h.into_iter() {

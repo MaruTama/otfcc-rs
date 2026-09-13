@@ -31,28 +31,20 @@ pub fn consolidate_gpos_cursive(
     // that one's single `PositionValue`.
     let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, Anchor, Anchor)> =
         std::collections::BTreeMap::new();
-    let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < subtable.len() {
+    for entry in subtable.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(
-            font.glyph_order.as_deref().unwrap(),
-            &mut subtable[k as usize].target,
-        ) {
+        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut entry.target) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored missing glyph /",
-                    &subtable[k as usize].target.name,
-                    b".\n",
-                ),
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.target.name, b".\n",),
             );
         } else {
-            let fromid: i32 = subtable[k as usize].target.index as i32;
+            let fromid: i32 = entry.target.index as i32;
             if seen.contains_key(&fromid) {
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
@@ -60,18 +52,17 @@ pub fn consolidate_gpos_cursive(
                     LoggerType::Warning,
                     crate::bytesbuild!(
                         b"[Consolidate] Double-mapping a glyph in a cursive positioning /",
-                        &subtable[k as usize].target.name,
+                        &entry.target.name,
                         b".\n",
                     ),
                 );
             } else {
-                let fromname: Vec<u8> = subtable[k as usize].target.name.clone();
-                let enter: Anchor = subtable[k as usize].enter;
-                let exit: Anchor = subtable[k as usize].exit;
+                let fromname: Vec<u8> = entry.target.name.clone();
+                let enter: Anchor = entry.enter;
+                let exit: Anchor = entry.exit;
                 seen.insert(fromid, (fromname, enter, exit));
             }
         }
-        k = k.wrapping_add(1);
     }
     dispose_gpos_cursive_subtable(subtable);
     for (fromid, (fromname, enter, exit)) in seen {

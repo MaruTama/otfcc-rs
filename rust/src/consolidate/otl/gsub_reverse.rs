@@ -24,10 +24,9 @@ pub fn consolidate_gsub_reverse(
     // `otfcc_consolidate_font` always populates `glyph_order` before
     // that, whenever `glyf` is present.
     let glyph_order = font.glyph_order.as_deref().unwrap();
-    let mut j: TableId = 0 as TableId;
-    while (j as i32) < subtable.match_count as i32 {
-        fontop_consolidate_coverage(glyph_order, &mut subtable.match_0[j as usize], options);
-        j = j.wrapping_add(1);
+    let match_count = subtable.match_count as usize;
+    for cov in subtable.match_0.iter_mut().take(match_count) {
+        fontop_consolidate_coverage(glyph_order, cov, options);
     }
     fontop_consolidate_coverage(glyph_order, &mut subtable.to, options);
     if subtable.input_index as i32 >= subtable.match_count as i32 {
@@ -57,10 +56,10 @@ pub fn consolidate_gsub_reverse(
     // entirely instead of preserving it.
     let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, i32, Vec<u8>)> =
         std::collections::BTreeMap::new();
-    let n: usize = subtable.match_0[input_index].len().min(subtable.to.len());
-    let mut k: usize = 0;
-    while k < n {
-        let fromid: i32 = subtable.match_0[input_index][k].index as i32;
+    // `.zip()` stops at the shorter side on its own, the same bound `n =
+    // min(...)` computed by hand.
+    for (from, to) in subtable.match_0[input_index].iter().zip(subtable.to.iter()) {
+        let fromid: i32 = from.index as i32;
         if seen.contains_key(&fromid) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
@@ -68,17 +67,16 @@ pub fn consolidate_gsub_reverse(
                 LoggerType::Warning,
                 crate::bytesbuild!(
                     b"[Consolidate] Double-mapping a glyph in a reverse substitution /",
-                    &subtable.match_0[input_index][k].name,
+                    &from.name,
                     b".\n",
                 ),
             );
         } else {
-            let toid: i32 = subtable.to[k].index as i32;
-            let fromname: Vec<u8> = subtable.match_0[input_index][k].name.clone();
-            let toname: Vec<u8> = subtable.to[k].name.clone();
+            let toid: i32 = to.index as i32;
+            let fromname: Vec<u8> = from.name.clone();
+            let toname: Vec<u8> = to.name.clone();
             seen.insert(fromid, (fromname, toid, toname));
         }
-        k = k.wrapping_add(1);
     }
     let count: usize = seen.len();
     if count != subtable.match_0[input_index].len() || count != subtable.to.len() {

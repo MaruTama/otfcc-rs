@@ -33,53 +33,40 @@ pub fn consolidate_gsub_multi(
     // order already is that, for free.
     let mut seen: std::collections::BTreeMap<i32, (Vec<u8>, Coverage)> =
         std::collections::BTreeMap::new();
-    let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < subtable.len() {
+    for entry in subtable.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(
-            font.glyph_order.as_deref().unwrap(),
-            &mut subtable[k as usize].from,
-        ) {
+        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut entry.from) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored missing glyph /",
-                    &subtable[k as usize].from.name,
-                    b".\n",
-                ),
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.from.name, b".\n",),
             );
         } else {
-            fontop_consolidate_coverage(
-                font.glyph_order.as_deref().unwrap(),
-                &mut subtable[k as usize].to,
-                options,
-            );
-            shrink_coverage(&mut subtable[k as usize].to, false);
-            if subtable[k as usize].to.is_empty() {
+            fontop_consolidate_coverage(font.glyph_order.as_deref().unwrap(), &mut entry.to, options);
+            shrink_coverage(&mut entry.to, false);
+            if entry.to.is_empty() {
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /",
-                        &subtable[k as usize].from.name,
+                        &entry.from.name,
                         b".\n",
                     ),
                 );
             } else {
-                let fromid: i32 = subtable[k as usize].from.index as i32;
+                let fromid: i32 = entry.from.index as i32;
                 if !seen.contains_key(&fromid) {
-                    let fromname: Vec<u8> = subtable[k as usize].from.name.clone();
-                    let to: Coverage = ::core::mem::take(&mut subtable[k as usize].to);
+                    let fromname: Vec<u8> = entry.from.name.clone();
+                    let to: Coverage = ::core::mem::take(&mut entry.to);
                     seen.insert(fromid, (fromname, to));
                 }
             }
         }
-        k = k.wrapping_add(1);
     }
     dispose_gsub_multi_subtable(subtable);
     for (fromid, (fromname, to)) in seen {
