@@ -481,7 +481,14 @@ pub type SubtableList = Vec<Option<Box<Subtable>>>;
 /// check) -- before `Box` made a hole `None` instead of a dangling
 /// `*mut Subtable`, that assumption being wrong meant a silent
 /// out-of-bounds-shaped dereference. Now it is a clean panic.
-pub(crate) unsafe fn subtable_at(list: &SubtableList, idx: usize) -> SubtablePtr {
+///
+/// This function itself never dereferences the pointer it returns -- it
+/// only indexes the `Vec`, unwraps the `Option`, and casts `*const` to
+/// `*mut` (a pointer-to-pointer cast, which is safe on its own; only the
+/// eventual deref at each call site is unsafe). So it needs no `unsafe fn`
+/// marker itself, even though every caller still wraps its own use of the
+/// returned pointer in `unsafe {}`.
+pub(crate) fn subtable_at(list: &SubtableList, idx: usize) -> SubtablePtr {
     list[idx]
         .as_deref()
         .expect("subtable slot should not be empty at this point") as *const Subtable
