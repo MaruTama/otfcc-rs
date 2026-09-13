@@ -214,14 +214,10 @@ pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
     let mut n_ranges: GlyphId = 0 as GlyphId;
     let mut last_gid: GlyphId = start_gid;
     let mut ranges = Buffer::new();
-    let mut j_0: GlyphId = 1 as GlyphId;
-    while (j_0 as i32) < jj as i32 {
-        let current: GlyphId = r[j_0 as usize].gid;
+    for rec in r.iter().skip(1) {
+        let current: GlyphId = rec.gid;
         if !(current as i32 <= last_gid as i32) {
-            if current as i32
-                == end_gid as i32 + 1_i32
-                && r[j_0 as usize].cid as i32 == last_class as i32
-            {
+            if current as i32 == end_gid as i32 + 1_i32 && rec.cid as i32 == last_class as i32 {
                 end_gid = current;
             } else {
                 ranges.write_u16be(start_gid as u16);
@@ -230,11 +226,10 @@ pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
                 n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
-                last_class = r[j_0 as usize].cid;
+                last_class = rec.cid;
             }
             last_gid = current;
         }
-        j_0 = j_0.wrapping_add(1);
     }
     ranges.write_u16be(start_gid as u16);
     ranges.write_u16be(end_gid as u16);

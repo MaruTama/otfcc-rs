@@ -233,10 +233,8 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     let mut format1 = Buffer::new();
     format1.write_u16be(1_u16);
     format1.write_u16be(jj as u16);
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as i32) < jj as i32 {
-        format1.write_u16be(r[j_0 as usize] as u16);
-        j_0 = j_0.wrapping_add(1);
+    for &gid in &r {
+        format1.write_u16be(gid);
     }
     if (jj as i32) < 2_i32 {
         return format1;
@@ -248,29 +246,20 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     let mut end_gid: GlyphId = start_gid;
     let mut last_gid: GlyphId = start_gid;
     let mut n_ranges: GlyphId = 0 as GlyphId;
-    let mut j_1: GlyphId = 1 as GlyphId;
-    while (j_1 as i32) < jj as i32 {
-        let current: GlyphId = r[j_1 as usize];
+    for (j_1, &current) in r.iter().enumerate().skip(1) {
         if !(current as i32 <= last_gid as i32) {
-            if current as i32
-                == end_gid as i32 + 1_i32
-            {
+            if current as i32 == end_gid as i32 + 1_i32 {
                 end_gid = current;
             } else {
                 ranges.write_u16be(start_gid as u16);
                 ranges.write_u16be(end_gid as u16);
-                ranges.write_u16be(
-                    (j_1 as i32 + start_gid as i32
-                        - end_gid as i32
-                        - 1_i32) as u16,
-                );
+                ranges.write_u16be((j_1 as i32 + start_gid as i32 - end_gid as i32 - 1_i32) as u16);
                 n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
             }
             last_gid = current;
         }
-        j_1 = j_1.wrapping_add(1);
     }
     ranges.write_u16be(start_gid as u16);
     ranges.write_u16be(end_gid as u16);

@@ -1,7 +1,6 @@
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
-use crate::support::primitives::TableId;
 use crate::table::otl::constants::LOOKUP_FLAGS_LABELS;
 use crate::table::otl::subtables::chaining::dump::otl_dump_chaining;
 use crate::table::otl::subtables::gpos_cursive::otl_gpos_dump_cursive;
@@ -14,7 +13,7 @@ use crate::table::otl::subtables::gsub_multi::otl_gsub_dump_multi;
 use crate::table::otl::subtables::gsub_reverse::otl_gsub_dump_reverse;
 use crate::table::otl::subtables::gsub_single::otl_gsub_dump_single;
 use crate::table::otl::{
-    Feature, LanguageSystem, Lookup, LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE,
+    Feature, Lookup, LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE,
     OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK,
     OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING,
     OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE,
@@ -44,12 +43,8 @@ fn _declare_lookup_dumper(
             );
         }
         let mut subtables = BuiltValue::new_array(lookup.subtables.len());
-        let mut j: TableId = 0 as TableId;
-        while (j as usize) < lookup.subtables.len() {
-            if let Some(sub) = &lookup.subtables[j as usize] {
-                subtables.push_item(dumper.expect("non-null function pointer")(sub.as_ref()));
-            }
-            j = j.wrapping_add(1);
+        for sub in lookup.subtables.iter().flatten() {
+            subtables.push_item(dumper.expect("non-null function pointer")(sub.as_ref()));
         }
         dump.push_field(b"subtables", subtables);
     }
@@ -159,10 +154,8 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
         let mut ___loggedstep_v_0: bool = true;
         while ___loggedstep_v_0 {
             let mut languages = BuiltValue::new_object(table.languages.len());
-            let mut j: TableId = 0 as TableId;
-            while (j as usize) < table.languages.len() {
+            for lang in table.languages.iter() {
                 let mut _lang = BuiltValue::new_object(5);
-                let lang: &LanguageSystem = &table.languages[j as usize];
                 // `required_feature`/`features` are `Option<FeatureIdx>`/
                 // `FeatureRefList` (`Vec<FeatureIdx>`) -- indices into this
                 // same `OtlTable`'s own `features` list. `feature_at`
@@ -180,18 +173,13 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
                     );
                 }
                 let mut features = BuiltValue::new_array(lang.features.len());
-                let mut k: TableId = 0 as TableId;
-                while (k as usize) < lang.features.len() {
-                    if let Some(f) =
-                        crate::table::otl::feature_at(&table.features, lang.features[k as usize])
-                    {
+                for &feat_idx in &lang.features {
+                    if let Some(f) = crate::table::otl::feature_at(&table.features, feat_idx) {
                         features.push_item(BuiltValue::str_truncated_at_nul(&f.name));
                     }
-                    k = k.wrapping_add(1);
                 }
                 _lang.push_field(b"features", features.preserialize());
                 languages.push_field_bytes_key(&lang.name, _lang);
-                j = j.wrapping_add(1);
             }
             otl.push_field(b"languages", languages);
             ___loggedstep_v_0 = false;
@@ -210,17 +198,13 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
             let mut features_0 = BuiltValue::new_object(live_features.len());
             for feature in &live_features {
                 let mut _feature = BuiltValue::new_array(feature.lookups.len());
-                let mut k_0: TableId = 0 as TableId;
-                while (k_0 as usize) < feature.lookups.len() {
+                for &lookup_idx in &feature.lookups {
                     // `lookups` is `LookupRefList` (`Vec<LookupIdx>`) --
                     // same borrowed-cross-reference shape as
                     // `required_feature`/`features` above.
-                    if let Some(lookup) =
-                        crate::table::otl::lookup_at(&table.lookups, feature.lookups[k_0 as usize])
-                    {
+                    if let Some(lookup) = crate::table::otl::lookup_at(&table.lookups, lookup_idx) {
                         _feature.push_item(BuiltValue::str_truncated_at_nul(&lookup.name));
                     }
-                    k_0 = k_0.wrapping_add(1);
                 }
                 features_0.push_field_bytes_key(&feature.name, _feature.preserialize());
             }

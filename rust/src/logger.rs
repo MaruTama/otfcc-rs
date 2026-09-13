@@ -137,29 +137,25 @@ pub fn logger_log_sds(
     data: Vec<u8>,
 ) {
     let mut demand: Vec<u8> = Vec::new();
-    let mut level: u16 = 0_u16;
-    while (level as i32) < self_0.level as i32 {
-        if (level as i32)
-            < self_0.last_logged_level as i32 - 1_i32
-        {
-            let seg_len = (&self_0.indents)[level as usize].len();
-            let mut j: usize = 0_usize;
-            while j < seg_len {
-                demand.extend_from_slice(b" ");
-                j = j.wrapping_add(1);
-            }
-            if (level as i32)
-                < self_0.last_logged_level as i32 - 2_i32
-            {
+    // `self_0.level` is kept exactly equal to `self_0.indents.len()` by
+    // every mutator (`logger_indent`/`logger_dedent`), so walking
+    // `indents` itself reproduces the same bound as the old `level <
+    // self_0.level` counter, with `level` (needed below for its own
+    // value, not just as an index) coming along for free via `enumerate`.
+    for (level, indent) in self_0.indents.iter().enumerate() {
+        if (level as i32) < self_0.last_logged_level as i32 - 1_i32 {
+            // Same number of ASCII spaces the old inner `while j < seg_len`
+            // loop pushed one at a time.
+            demand.resize(demand.len() + indent.len(), b' ');
+            if (level as i32) < self_0.last_logged_level as i32 - 2_i32 {
                 demand.extend_from_slice(b" | ");
             } else {
                 demand.extend_from_slice(b" |-");
             }
         } else {
-            demand.extend_from_slice(&(&self_0.indents)[level as usize]);
+            demand.extend_from_slice(indent);
             demand.extend_from_slice(b" : ");
         }
-        level = level.wrapping_add(1);
     }
     if (type_0 as ::core::ffi::c_uint) < 3 as ::core::ffi::c_uint {
         demand.extend_from_slice(OTFCC_LOGGER_TYPE_NAMES[type_0 as usize].to_bytes());

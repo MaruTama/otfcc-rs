@@ -67,10 +67,8 @@ pub fn otfcc_build_ltsh(ltsh: Option<&LtshTable>) -> Option<Buffer> {
     let mut buf = Buffer::new();
     buf.write_u16be(0_u16);
     buf.write_u16be(ltsh.num_glyphs);
-    let mut j: u16 = 0_u16;
-    while (j as i32) < ltsh.num_glyphs as i32 {
-        buf.write_u8(ltsh.y_pels[j as usize]);
-        j = j.wrapping_add(1);
+    for &pel in ltsh.y_pels.iter().take(ltsh.num_glyphs as usize) {
+        buf.write_u8(pel);
     }
     Some(buf)
 }

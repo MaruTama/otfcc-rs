@@ -79,16 +79,12 @@ pub fn otfcc_build_hmtx(hmtx: Option<&HmtxTable>, count_a: GlyphId, count_k: Gly
         Some(h) => h,
         None => return buf,
     };
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as i32) < count_a as i32 {
-        buf.write_u16be(hmtx.metrics[j as usize].advance_width as u16);
-        buf.write_u16be(pos_to_u16(hmtx.metrics[j as usize].lsb));
-        j = j.wrapping_add(1);
+    for m in hmtx.metrics.iter().take(count_a as usize) {
+        buf.write_u16be(m.advance_width as u16);
+        buf.write_u16be(pos_to_u16(m.lsb));
     }
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as i32) < count_k as i32 {
-        buf.write_u16be(pos_to_u16(hmtx.left_side_bearing[j_0 as usize]));
-        j_0 = j_0.wrapping_add(1);
+    for &lsb in hmtx.left_side_bearing.iter().take(count_k as usize) {
+        buf.write_u16be(pos_to_u16(lsb));
     }
     buf
 }
