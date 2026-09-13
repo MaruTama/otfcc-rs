@@ -27,7 +27,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         &mut *(*options).logger.borrow_mut(),
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    otfcc_options_optimize_to(options, olevel);
+    otfcc_options_optimize_to(&mut *options, olevel);
     if for_webfont {
         (*options).ignore_glyph_order = true;
         (*options).force_cid = true;

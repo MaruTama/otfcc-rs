@@ -13,20 +13,14 @@ pub unsafe fn time_now(tv: *mut timespec) {
     unsafe { clock_gettime(CLOCK_REALTIME, tv) };
 }
 pub const BILLION: i32 = 1000000000_i32;
-unsafe fn timespec_diff(
-    start: *mut timespec,
-    stop: *mut timespec,
-    result: *mut timespec,
-) {
-    unsafe {
-        if (*stop).tv_nsec - (*start).tv_nsec < 0 as ::core::ffi::c_long {
-            (*result).tv_sec = (*stop).tv_sec - (*start).tv_sec - 1 as time_t;
-            (*result).tv_nsec = (*stop).tv_nsec - (*start).tv_nsec + BILLION as ::core::ffi::c_long;
-        } else {
-            (*result).tv_sec = (*stop).tv_sec - (*start).tv_sec;
-            (*result).tv_nsec = (*stop).tv_nsec - (*start).tv_nsec;
-        };
-    }
+fn timespec_diff(start: &timespec, stop: &timespec, result: &mut timespec) {
+    if stop.tv_nsec - start.tv_nsec < 0 as ::core::ffi::c_long {
+        result.tv_sec = stop.tv_sec - start.tv_sec - 1 as time_t;
+        result.tv_nsec = stop.tv_nsec - start.tv_nsec + BILLION as ::core::ffi::c_long;
+    } else {
+        result.tv_sec = stop.tv_sec - start.tv_sec;
+        result.tv_nsec = stop.tv_nsec - start.tv_nsec;
+    };
 }
 pub unsafe fn push_stopwatch(sofar: *mut timespec) -> Vec<u8> {
     let mut ends: timespec = timespec {
@@ -38,7 +32,7 @@ pub unsafe fn push_stopwatch(sofar: *mut timespec) -> Vec<u8> {
         tv_sec: 0,
         tv_nsec: 0,
     };
-    unsafe { timespec_diff(sofar, &raw mut ends, &raw mut diff) };
+    timespec_diff(unsafe { &*sofar }, &ends, &mut diff);
     unsafe { *sofar = ends };
     // The one `%g` that ever reached `sdscatprintf`, and the only reason libc's
     // formatting is still called here: Rust has no `%g`, and this crate does not

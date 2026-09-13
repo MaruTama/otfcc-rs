@@ -288,23 +288,18 @@ pub fn otfcc_parse_gdef(root: &ParsedValue, options: &Options) -> Option<Box<Gde
     Some(gdef)
 }
 // `bk_new_block`/`bk_push`/`bk_new_block_from_buffer`/`bk_build_block`
-// (this function and the two below) stay `unsafe fn`: the `BkBlock` graph
-// API is a separate, not-yet-safened shell (Stage C in the migration plan)
-// whose whole body is choreography through it, not a stray call buried in
-// an otherwise-safe function -- narrow bridging doesn't fit here the way
-// it does for `classdef_from_raw`/`coverage_from_raw` above. Parameters
-// that don't touch `bk_*` are still converted to references where
-// possible, dropping the pointless `*const`-to-`*mut` casts that used to
-// exist purely to satisfy an unnecessarily-`*mut` parameter type.
-unsafe fn write_lig_caret_rec(cr: &CaretValueRecord) -> *mut BkBlock {
+// are all safe fn as of Stage D (2026-09) -- this function and the two
+// below no longer have any unsafe operation left at all, now that the
+// `BkBlock` graph API itself has been safened.
+fn write_lig_caret_rec(cr: &CaretValueRecord) -> BkBlock {
     let carets = &cr.carets;
-    let bcr: *mut BkBlock = bk_new_block(&[bk_int(BkCellType::B16, (carets.len()) as u32)]);
+    let mut bcr: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (carets.len()) as u32)]);
     for caret in carets {
         bk_push(
-            bcr,
-            &[bk_ptr(
+            &mut bcr,
+            vec![bk_ptr(
                 BkCellType::P16,
-                bk_new_block(&[
+                Some(bk_new_block(vec![
                     bk_int(BkCellType::B16, (caret.format as i32) as u32),
                     bk_int(
                         BkCellType::B16,
@@ -314,13 +309,13 @@ unsafe fn write_lig_caret_rec(cr: &CaretValueRecord) -> *mut BkBlock {
                             caret.coordiante as i16 as i32
                         }) as u32,
                     ),
-                ]),
+                ])),
             )],
         );
     }
     bcr
 }
-unsafe fn write_lig_carets(records: &LigCaretTable) -> *mut BkBlock {
+fn write_lig_carets(records: &LigCaretTable) -> BkBlock {
     // `otl_coverage_create()`/`otl_coverage_free` were only ever a
     // `Box::into_raw`/`Box::from_raw` shell around a plain `Coverage`
     // (`Vec<GlyphHandle>`) -- building it as a local owned value instead
@@ -330,7 +325,7 @@ unsafe fn write_lig_carets(records: &LigCaretTable) -> *mut BkBlock {
     for record in records {
         push_to_coverage(&mut cov, otfcc_handle_dup(record.glyph.clone()));
     }
-    let lct: *mut BkBlock = bk_new_block(&[
+    let mut lct: BkBlock = bk_new_block(vec![
         bk_ptr(
             BkCellType::P16,
             bk_new_block_from_buffer(Some(build_coverage(&cov))),
@@ -339,28 +334,28 @@ unsafe fn write_lig_carets(records: &LigCaretTable) -> *mut BkBlock {
     ]);
     for record in records {
         bk_push(
-            lct,
-            &[bk_ptr(BkCellType::P16, write_lig_caret_rec(record))],
+            &mut lct,
+            vec![bk_ptr(BkCellType::P16, Some(write_lig_caret_rec(record)))],
         );
     }
     lct
 }
-pub unsafe fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
+pub fn otfcc_build_gdef(gdef: Option<&GdefTable>) -> Option<Buffer> {
     let gdef = gdef?;
-    let mut b_glyph_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
-    let b_attach_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
-    let mut b_lig_caret_list: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
-    let mut b_mark_attach_class_def: *mut BkBlock = ::core::ptr::null_mut::<BkBlock>();
+    let mut b_glyph_class_def: Option<BkBlock> = None;
+    let b_attach_list: Option<BkBlock> = None;
+    let mut b_lig_caret_list: Option<BkBlock> = None;
+    let mut b_mark_attach_class_def: Option<BkBlock> = None;
     if let Some(cd) = gdef.glyph_class_def.as_deref() {
         b_glyph_class_def = bk_new_block_from_buffer(Some(build_class_def(cd)));
     }
     if !gdef.lig_carets.is_empty() {
-        b_lig_caret_list = write_lig_carets(&gdef.lig_carets);
+        b_lig_caret_list = Some(write_lig_carets(&gdef.lig_carets));
     }
     if let Some(cd) = gdef.mark_attach_class_def.as_deref() {
         b_mark_attach_class_def = bk_new_block_from_buffer(Some(build_class_def(cd)));
     }
-    let root: *mut BkBlock = bk_new_block(&[
+    let root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B32, 0x10000_u32),
         bk_ptr(BkCellType::P16, b_glyph_class_def),
         bk_ptr(BkCellType::P16, b_attach_list),

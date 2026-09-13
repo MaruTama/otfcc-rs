@@ -1,6 +1,6 @@
 use libc::fprintf;
 
-use crate::bk::bkblock::{BkBlock, BkCellType, BkCellValue, BkCellVisitState};
+use crate::bk::bkblock::{BkBlock, BkCellType, BkCellValue};
 use crate::support::buffer::Buffer;
 use crate::support::stdio::stderr;
 
@@ -12,37 +12,37 @@ use crate::support::stdio::stderr;
 // minimization, many `Ptr` cells across the structure deliberately alias
 // the same `BkBlock` (that's the entire point of minimizing), while
 // `entries: Vec<BkGraphNode>` was *already* the graph's one true owner of
-// every surviving block (`bk_delete_graph` frees by walking `entries`
-// directly, never by walking cell pointers) -- a flat arena wearing raw
-// pointers as if they were indices.
+// every surviving block -- a flat arena wearing raw pointers as if they
+// were indices.
 //
 // This file makes that arena explicit. `BlockId` is a stable identity
-// assigned once, in post-order, by `dfs_convert` (the one remaining
-// genuinely unsafe walk in this module, and the only place that still
-// receives a raw `*mut BkBlock` from `bkblock.rs`'s untouched
-// construction API). `blocks: Vec<ArenaBlock>` is that identity space:
-// push-only, insertion-order-stable, indexed directly by `BlockId.0`,
-// and NEVER physically reordered -- unlike `entries`, which this file's
-// own algorithms sort (by height, then repeatedly by traversal order
-// inside `bk_untangle_graph`'s retry loop) exactly as `entries` always
-// has. Splitting "stable identity" (`blocks`) from "current traversal
-// position" (`entries`, `ArenaBlock.index`) preserves the same
-// separation the raw-pointer design already had implicitly (pointer =
-// stable identity; the old `_index` field = current position, rewritten
-// after every sort) -- the design task here was to preserve that
-// separation, not invent it.
-//
-// Every public function below keeps its original `*mut BkGraph`/
-// `*mut BkBlock`-shaped signature (the ~20 files across this crate that
-// call into this module do so only through this opaque API, confirmed
-// by grep, so none of them need to change), but each is now a thin
-// `unsafe fn` wrapper around one narrow `unsafe { &mut *f }`/
-// `unsafe { &*f }` reborrow, delegating to a fully safe function that
-// does the actual work against `&BkGraph`/`&mut BkGraph` -- the same
-// "safe fn, narrow unsafe bridge" shape used throughout this migration
-// (e.g. `vf/vq.rs`'s `vqs_compare`).
+// assigned once, in post-order, by `dfs_convert` -- as of Stage D
+// (2026-09), `bkblock.rs`'s construction API is *itself* an owned `Box`
+// tree now (see that file's module comment for why that's sound), so
+// `dfs_convert` receives and consumes an owned `BkBlock` by value rather
+// than an unsafely-walked raw pointer, and needs no `unsafe` at all: a
+// `Box` tree cannot alias or cycle, so the old Gray/Black
+// revisit-in-progress guard (dead code even before Stage D -- see the
+// removed comment on it) simply isn't needed here either. `blocks:
+// Vec<ArenaBlock>` is the identity space `dfs_convert` populates:
+// push-only, insertion-order-stable, indexed directly by `BlockId.0`, and
+// NEVER physically reordered -- unlike `entries`, which this file's own
+// algorithms sort (by height, then repeatedly by traversal order inside
+// `bk_untangle_graph`'s retry loop). Splitting "stable identity" (`blocks`)
+// from "current traversal position" (`entries`, `ArenaBlock.index`)
+// preserves the same separation the raw-pointer design already had
+// implicitly (pointer = stable identity; the old `_index` field = current
+// position, rewritten after every sort).
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 struct BlockId(u32);
+
+#[derive(Copy, Clone, PartialEq, Eq, Debug)]
+#[repr(u32)]
+enum BkCellVisitState {
+    White = 0,
+    Gray = 1,
+    Black = 2,
+}
 
 #[derive(Copy, Clone)]
 enum ArenaCellValue {
@@ -72,16 +72,11 @@ fn arena_cell_is_pointer(cell: &ArenaCell) -> bool {
     cell.t >= BkCellType::P16
 }
 
-// `BkBlock`'s own `_visitstate`/`_depth`/`_index` scratch fields (in
-// `bkblock.rs`, untouched by this conversion) still drive `dfs_convert`'s
-// walk over the still-raw tree below, exactly as `dfs_insert_cells` used
-// to. This struct is their arena-resident counterpart, addressable by
-// `BlockId` once a block has been converted, with one deliberate
-// omission: `_height` on the raw `BkBlock` was write-only even in the
-// original code (every height *read* anywhere in this file, before or
-// after this conversion, goes through the `BkGraphNode`/`entries` copy
-// of it, never through the block itself) -- dropped here rather than
-// carried forward as genuinely dead state.
+// The arena-resident counterpart of a converted `BkBlock`, addressable by
+// `BlockId`. `visitstate`/`depth` are scratch state for this file's own
+// `attract_bkgraph`/`dfs_attract_cells` untangling pass (unrelated to
+// `dfs_convert`'s walk over the raw tree, which no longer needs any
+// scratch fields on `BkBlock` itself now that it's an owned `Box` tree).
 struct ArenaBlock {
     visitstate: BkCellVisitState,
     index: u32,
@@ -101,90 +96,55 @@ pub struct BkGraph {
     blocks: Vec<ArenaBlock>,
     entries: Vec<BkGraphNode>,
 }
+// `blocks`/`entries` are plain `Vec`s of `Copy`/owned data -- no cell holds
+// a raw pointer needing a manual walk-and-free, so the derived `Drop` (just
+// dropping both `Vec`s) is the whole teardown. `bk_delete_graph` is gone;
+// callers just let a `BkGraph` go out of scope.
 
-// The one remaining genuinely unsafe walk in this module: it receives a
-// raw `*mut BkBlock` tree from `bkblock.rs`'s construction API and
-// converts it, post-order, into the arena above. `b`'s own
-// `_visitstate`/`_index` fields drive the walk (`_index` is repurposed,
-// once a block turns Black, to remember the `BlockId` just assigned to
-// it -- see the Black arm below); every raw block is freed exactly once,
-// from `to_free`, only after the whole tree has been walked, so a block
-// revisited before its first conversion finishes (the Black-memoization
-// path) is never read after being freed. `to_free` accumulates in the
-// same post-order sequence as `blocks` itself; freeing it in one pass at
-// the end (rather than freeing each block the moment its `ArenaBlock` is
-// pushed) is what makes memoized revisits safe even for a
-// hypothetically-shared raw tree -- confirmed absent from every one of
-// this crate's ~20 consumer files today (a full audit, not a sample),
-// but this module doesn't get to assume that stays true forever.
-//
-// A genuine *cycle* in the raw tree (a cell pointing back at a Gray
-// ancestor still being converted) is a different case from ordinary
-// sharing: that ancestor has no `BlockId` yet (post-order assignment
-// hasn't reached it), so there is no value this function could honestly
-// return for that one cell. Unlike ordinary sharing, no evidence of this
-// ever having been exercised exists anywhere in this crate's history
-// (the original `dfs_insert_cells`'s own Gray guard is annotated, in
-// `bkblock.rs`, as "unverified circumstantial evidence" the authors
-// themselves were never sure applied at construction time) -- so this
-// conversion treats a Gray revisit as if the cell were simply null
-// (`None`, no height contribution), the same fallback this migration has
-// used elsewhere for pathological-and-unreached shapes, rather than
-// inventing forward-reference plumbing for a path nothing has ever hit.
-unsafe fn dfs_convert(
-    b: *mut BkBlock,
+/// Consumes `b`, converting it (and everything it owns) into `blocks`/
+/// `entries`, post-order. Fully safe: `b` is an owned `Box` tree (see
+/// `bkblock.rs`'s module comment), so it cannot alias or cycle, and this
+/// function simply recurses and lets each drained `BkBlock` shell drop
+/// normally once its cells have been moved into a fresh `ArenaBlock`.
+fn dfs_convert(
+    b: BkBlock,
     blocks: &mut Vec<ArenaBlock>,
     entries: &mut Vec<BkGraphNode>,
-    to_free: &mut Vec<*mut BkBlock>,
     order: &mut u32,
-) -> Option<BlockId> {
-    unsafe {
-        if b.is_null() || (*b)._visitstate == BkCellVisitState::Gray {
-            return None;
-        }
-        if (*b)._visitstate == BkCellVisitState::Black {
-            return Some(BlockId((*b)._index));
-        }
-        (*b)._visitstate = BkCellVisitState::Gray;
-        let mut height: u32 = 0;
-        let mut new_cells: Vec<ArenaCell> = Vec::with_capacity((*b).cells.len());
-        for cell in (*b).cells.iter() {
-            let value = match cell.value {
-                BkCellValue::Int(z) => ArenaCellValue::Int(z),
-                BkCellValue::Ptr(p) if !p.is_null() => {
-                    let child = dfs_convert(p, blocks, entries, to_free, order);
-                    if let Some(id) = child {
-                        let child_height = entries[id.0 as usize].height;
-                        if child_height.wrapping_add(1) > height {
-                            height = child_height.wrapping_add(1);
-                        }
-                    }
-                    ArenaCellValue::Ptr(child)
+) -> BlockId {
+    let mut height: u32 = 0;
+    let mut new_cells: Vec<ArenaCell> = Vec::with_capacity(b.cells.len());
+    for cell in b.cells {
+        let value = match cell.value {
+            BkCellValue::Int(z) => ArenaCellValue::Int(z),
+            BkCellValue::Ptr(Some(child)) => {
+                let child_id = dfs_convert(*child, blocks, entries, order);
+                let child_height = entries[child_id.0 as usize].height;
+                if child_height.wrapping_add(1) > height {
+                    height = child_height.wrapping_add(1);
                 }
-                BkCellValue::Ptr(_) => ArenaCellValue::Ptr(None),
-            };
-            new_cells.push(ArenaCell { t: cell.t, value });
-        }
-        *order = (*order).wrapping_add(1);
-        let id = BlockId(blocks.len() as u32);
-        blocks.push(ArenaBlock {
-            visitstate: BkCellVisitState::Black,
-            index: 0,
-            depth: 0,
-            cells: new_cells,
-        });
-        entries.push(BkGraphNode {
-            alias: 0,
-            order: *order,
-            height,
-            hash: 0,
-            block: id,
-        });
-        (*b)._index = id.0;
-        (*b)._visitstate = BkCellVisitState::Black;
-        to_free.push(b);
-        Some(id)
+                ArenaCellValue::Ptr(Some(child_id))
+            }
+            BkCellValue::Ptr(None) => ArenaCellValue::Ptr(None),
+        };
+        new_cells.push(ArenaCell { t: cell.t, value });
     }
+    *order = (*order).wrapping_add(1);
+    let id = BlockId(blocks.len() as u32);
+    blocks.push(ArenaBlock {
+        visitstate: BkCellVisitState::Black,
+        index: 0,
+        depth: 0,
+        cells: new_cells,
+    });
+    entries.push(BkGraphNode {
+        alias: 0,
+        order: *order,
+        height,
+        hash: 0,
+        block: id,
+    });
+    id
 }
 fn by_height_cmp(a: &BkGraphNode, b: &BkGraphNode) -> ::core::cmp::Ordering {
     b.height.cmp(&a.height).then(a.order.cmp(&b.order))
@@ -200,17 +160,11 @@ fn by_order_cmp(blocks: &[ArenaBlock], a: &BkGraphNode, b: &BkGraphNode) -> ::co
         b.order.cmp(&a.order)
     }
 }
-pub unsafe fn bk_new_graph_from_root_block(b: *mut BkBlock) -> *mut BkGraph {
+pub fn bk_new_graph_from_root_block(b: BkBlock) -> BkGraph {
     let mut blocks: Vec<ArenaBlock> = Vec::new();
     let mut entries: Vec<BkGraphNode> = Vec::new();
-    let mut to_free: Vec<*mut BkBlock> = Vec::new();
     let mut ts_order: u32 = 0;
-    unsafe {
-        dfs_convert(b, &mut blocks, &mut entries, &mut to_free, &mut ts_order);
-        for raw in to_free {
-            drop(Box::from_raw(raw));
-        }
-    }
+    dfs_convert(b, &mut blocks, &mut entries, &mut ts_order);
     // `qsort` isn't guaranteed stable; `sort_by` is, matching the
     // conservative choice already made for `Coverage`/`ClassDef`/
     // `gpos_pair.rs`'s own qsort-scratch-buffer conversions.
@@ -219,19 +173,7 @@ pub unsafe fn bk_new_graph_from_root_block(b: *mut BkBlock) -> *mut BkGraph {
         blocks[entry.block.0 as usize].index = j as u32;
         entry.alias = j as u32;
     }
-    Box::into_raw(Box::new(BkGraph { blocks, entries }))
-}
-pub unsafe fn bk_delete_graph(f: *mut BkGraph) {
-    if f.is_null() {
-        return;
-    }
-    // `blocks`/`entries` are plain `Vec`s of `Copy`/owned data now -- no
-    // cell holds a raw pointer needing a manual walk-and-free, so
-    // dropping the boxed `BkGraph` (which drops both `Vec`s) is the
-    // whole teardown.
-    unsafe {
-        drop(Box::from_raw(f));
-    }
+    BkGraph { blocks, entries }
 }
 fn gethash(blocks: &[ArenaBlock], block: &ArenaBlock) -> u32 {
     let mut h: u32 = 5381;
@@ -343,8 +285,8 @@ fn minimize_graph(graph: &mut BkGraph) {
         rear = front.wrapping_sub(1);
     }
 }
-pub unsafe fn bk_minimize_graph(f: *mut BkGraph) {
-    minimize_graph(unsafe { &mut *f });
+pub fn bk_minimize_graph(f: &mut BkGraph) {
+    minimize_graph(f);
 }
 fn otfcc_bkblock_size(block: &ArenaBlock) -> usize {
     let mut size: usize = 0;
@@ -597,15 +539,15 @@ fn build_graph(graph: &BkGraph) -> Buffer {
     }
     buf
 }
-pub unsafe fn bk_build_graph(f: *mut BkGraph) -> Buffer {
-    build_graph(unsafe { &*f })
+pub fn bk_build_graph(f: &BkGraph) -> Buffer {
+    build_graph(f)
 }
 fn estimate_size_of_graph(graph: &BkGraph) -> usize {
     let offsets: Vec<usize> = compute_block_offsets(&graph.blocks, &graph.entries);
     offsets[graph.entries.len()]
 }
-pub unsafe fn bk_estimate_size_of_graph(f: *mut BkGraph) -> usize {
-    estimate_size_of_graph(unsafe { &*f })
+pub fn bk_estimate_size_of_graph(f: &BkGraph) -> usize {
+    estimate_size_of_graph(f)
 }
 fn untangle_graph(graph: &mut BkGraph) {
     let mut passes: u16 = 0;
@@ -621,25 +563,17 @@ fn untangle_graph(graph: &mut BkGraph) {
         }
     }
 }
-pub unsafe fn bk_untangle_graph(f: *mut BkGraph) {
-    untangle_graph(unsafe { &mut *f });
+pub fn bk_untangle_graph(f: &mut BkGraph) {
+    untangle_graph(f);
 }
-pub unsafe fn bk_build_block(root: *mut BkBlock) -> Buffer {
-    unsafe {
-        let f: *mut BkGraph = bk_new_graph_from_root_block(root);
-        bk_minimize_graph(f);
-        bk_untangle_graph(f);
-        let buf = bk_build_graph(f);
-        bk_delete_graph(f);
-        buf
-    }
+pub fn bk_build_block(root: BkBlock) -> Buffer {
+    let mut f = bk_new_graph_from_root_block(root);
+    bk_minimize_graph(&mut f);
+    bk_untangle_graph(&mut f);
+    bk_build_graph(&f)
 }
-pub unsafe fn bk_build_block_no_minimize(root: *mut BkBlock) -> Buffer {
-    unsafe {
-        let f: *mut BkGraph = bk_new_graph_from_root_block(root);
-        bk_untangle_graph(f);
-        let buf = bk_build_graph(f);
-        bk_delete_graph(f);
-        buf
-    }
+pub fn bk_build_block_no_minimize(root: BkBlock) -> Buffer {
+    let mut f = bk_new_graph_from_root_block(root);
+    bk_untangle_graph(&mut f);
+    bk_build_graph(&f)
 }

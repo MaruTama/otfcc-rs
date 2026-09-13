@@ -20,13 +20,13 @@ static K_DP_SIGNIFICAND_MASK: u64 = (0xfffff_i32 as u64)
 static K_DP_HIDDEN_BIT: u64 = (0x100000_i32 as u64) << 32_i32
     | 0_i32 as u64;
 #[inline]
-unsafe fn diy_fp_from_parts(f: u64, e: i32) -> DiyFp {
+fn diy_fp_from_parts(f: u64, e: i32) -> DiyFp {
     let mut fp: DiyFp = DiyFp { f: 0, e: 0 };
     fp.f = f;
     fp.e = e;
     return fp;
 }
-pub unsafe fn diy_fp_from_double(d: ::core::ffi::c_double) -> DiyFp {
+pub fn diy_fp_from_double(d: ::core::ffi::c_double) -> DiyFp {
     // Was a `DoubleBits` union (`d: f64`/`u64_0: u64`, written via `.d`
     // then read via `.u64_0`); `f64::to_bits` is the same bit-for-bit
     // reinterpretation without a union.
@@ -45,11 +45,11 @@ pub unsafe fn diy_fp_from_double(d: ::core::ffi::c_double) -> DiyFp {
     return res;
 }
 #[inline]
-unsafe fn diy_fp_subtract(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
+fn diy_fp_subtract(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
     return diy_fp_from_parts(lhs.f.wrapping_sub(rhs.f), lhs.e);
 }
 #[inline]
-unsafe fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
+fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
     let m32: u64 = 0xffffffff_u64;
     let a: u64 = lhs.f >> 32_i32;
     let b: u64 = lhs.f & m32;
@@ -71,12 +71,12 @@ unsafe fn diy_fp_multiply(lhs: DiyFp, rhs: DiyFp) -> DiyFp {
     );
 }
 #[inline]
-unsafe fn normalize(lhs: DiyFp) -> DiyFp {
+fn normalize(lhs: DiyFp) -> DiyFp {
     let s: i32 = (lhs.f as ::core::ffi::c_ulonglong).leading_zeros() as i32;
     return diy_fp_from_parts(lhs.f << s, lhs.e - s);
 }
 #[inline]
-unsafe fn normalize_boundary(lhs: DiyFp) -> DiyFp {
+fn normalize_boundary(lhs: DiyFp) -> DiyFp {
     let mut res: DiyFp = lhs;
     while res.f & K_DP_HIDDEN_BIT << 1_i32 == 0 {
         res.f <<= 1_i32;
@@ -87,7 +87,7 @@ unsafe fn normalize_boundary(lhs: DiyFp) -> DiyFp {
     return res;
 }
 #[inline]
-unsafe fn normalized_boundaries(lhs: DiyFp, minus: *mut DiyFp, plus: *mut DiyFp) {
+fn normalized_boundaries(lhs: DiyFp, minus: &mut DiyFp, plus: &mut DiyFp) {
     let pl: DiyFp = normalize_boundary(diy_fp_from_parts(
         (lhs.f << 1_i32).wrapping_add(1_u64),
         lhs.e - 1_i32,
@@ -109,7 +109,7 @@ unsafe fn normalized_boundaries(lhs: DiyFp, minus: *mut DiyFp, plus: *mut DiyFp)
     *minus = mi;
 }
 #[inline]
-unsafe fn get_cached_power(e: i32, k_out: *mut i32) -> DiyFp {
+fn get_cached_power(e: i32, k_out: &mut i32) -> DiyFp {
     static K_CACHED_POWERS_F: [u64; 87] = [
         (0xfa8fd5a0 as ::core::ffi::c_uint as u64) << 32_i32
             | 0x81c0288_i32 as u64,
@@ -410,7 +410,7 @@ unsafe fn grisu_round(
     }
 }
 #[inline]
-unsafe fn count_decimal_digit32(n: u32) -> ::core::ffi::c_uint {
+fn count_decimal_digit32(n: u32) -> ::core::ffi::c_uint {
     if n < 10_u32 {
         return 1 as ::core::ffi::c_uint;
     }
@@ -571,8 +571,8 @@ unsafe fn grisu2(
     let v: DiyFp = diy_fp_from_double(value) as DiyFp;
     let mut w_m: DiyFp = DiyFp { f: 0, e: 0 };
     let mut w_p: DiyFp = DiyFp { f: 0, e: 0 };
-    normalized_boundaries(v, &raw mut w_m, &raw mut w_p);
-    let c_mk: DiyFp = get_cached_power(w_p.e, k_out) as DiyFp;
+    normalized_boundaries(v, &mut w_m, &mut w_p);
+    let c_mk: DiyFp = get_cached_power(w_p.e, unsafe { &mut *k_out }) as DiyFp;
     let w: DiyFp = diy_fp_multiply(normalize(v), c_mk) as DiyFp;
     let mut wp: DiyFp = diy_fp_multiply(w_p, c_mk);
     let mut wm: DiyFp = diy_fp_multiply(w_m, c_mk);

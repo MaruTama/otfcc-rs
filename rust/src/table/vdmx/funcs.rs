@@ -162,13 +162,13 @@ pub fn otfcc_parse_vdmx(root: &ParsedValue, options: &Options) -> Option<Box<Vdm
     Some(vdmx)
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
+pub fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
     let vdmx = vdmx?;
     let ratios: &Vec<VdmxRatioRange> = &vdmx.ratios;
     if ratios.is_empty() {
         return None;
     }
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, (vdmx.version as i32) as u32),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
         bk_int(BkCellType::B16, (ratios.len()) as u32),
@@ -179,8 +179,8 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
         let rr: &VdmxRatioRange = &ratios[__caryll_index];
         while keep != 0 {
             bk_push(
-                root,
-                &[
+                &mut root,
+                vec![
                     bk_int(BkCellType::B8, (rr.b_charset as i32) as u32),
                     bk_int(BkCellType::B8, (rr.x_ratio as i32) as u32),
                     bk_int(
@@ -221,7 +221,7 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
                 keep_1 = (keep_1 == 0) as i32 as usize;
                 __caryll_index_1 = __caryll_index_1.wrapping_add(1);
             }
-            let group: *mut BkBlock = bk_new_block(&[
+            let mut group: BkBlock = bk_new_block(vec![
                 bk_int(BkCellType::B16, (rr_0.records.len()) as u32),
                 bk_int(BkCellType::B8, (startsz as i32) as u32),
                 bk_int(BkCellType::B8, (endsz as i32) as u32),
@@ -232,8 +232,8 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
                 let r_0: &VdmxRecord = &rr_0.records[__caryll_index_2];
                 while keep_2 != 0 {
                     bk_push(
-                        group,
-                        &[
+                        &mut group,
+                        vec![
                             bk_int(
                                 BkCellType::B16,
                                 (r_0.y_pel_height as i32) as u32,
@@ -247,7 +247,7 @@ pub unsafe fn otfcc_build_vdmx(vdmx: Option<&VdmxTable>) -> Option<Buffer> {
                 keep_2 = (keep_2 == 0) as i32 as usize;
                 __caryll_index_2 = __caryll_index_2.wrapping_add(1);
             }
-            bk_push(root, &[bk_ptr(BkCellType::P16, group)]);
+            bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(group))]);
             keep_0 = (keep_0 == 0) as i32 as usize;
         }
         keep_0 = (keep_0 == 0) as i32 as usize;

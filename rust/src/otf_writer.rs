@@ -29,7 +29,7 @@ use crate::table::fpgm_prep::otfcc_build_fpgm_prep;
 use crate::table::gasp::otfcc_build_gasp;
 use crate::table::gdef::otfcc_build_gdef;
 use crate::table::glyf::build::otfcc_build_glyf;
-use crate::table::head::{HeadTable, otfcc_build_head};
+use crate::table::head::otfcc_build_head;
 use crate::table::hhea::otfcc_build_hhea;
 use crate::table::hmtx::otfcc_build_hmtx;
 use crate::table::ltsh::otfcc_build_ltsh;
@@ -74,13 +74,8 @@ impl FontSerializer for OtfSerializer {
             options,
         );
         if (*font).subtype == FontSubtype::Ttf {
-            let pair: GlyfAndLocaBuffers = otfcc_build_glyf(
-                (*font).glyf.as_ref(),
-                (*font)
-                    .head
-                    .as_deref_mut()
-                    .map_or(::core::ptr::null_mut(), |h| h as *mut HeadTable),
-            );
+            let pair: GlyfAndLocaBuffers =
+                otfcc_build_glyf((*font).glyf.as_ref(), (*font).head.as_deref_mut());
             otfcc_sfnt_builder_push_table(&mut *builder, crate::tag::TAG_GLYF, Some(pair.glyf));
             otfcc_sfnt_builder_push_table(&mut *builder, crate::tag::TAG_LOCA, Some(pair.loca));
         } else {

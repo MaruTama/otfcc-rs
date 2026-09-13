@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-
 use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
@@ -36,55 +34,39 @@ pub struct FvarMaster {
 // A `VqRegion` used to be a fixed header (`dimensions: ShapeId`) followed
 // by a C "flexible array member" trailing `spans: [VqAxisSpan; 0]`,
 // allocated as one contiguous block, so the original uthash table's
-// `memcmp`-based key could walk it as a single byte range. Since
-// `vf/region.rs`'s `Vec`-ification, `dimensions` and `spans` are no longer
-// contiguous in memory, so `RegionKey` instead views them as two separate
-// byte slices, hashed/compared in sequence -- `dimensions` then `spans`'
-// backing bytes. Wraps a `*const VqRegion` so it can be used as an
-// `IndexMap` key, comparing/hashing by content, not by pointer identity.
-// (Incidentally more correct than the old single-range view, which also
-// swept in a few bytes of zeroed alignment padding between `dimensions`
-// and `spans` -- not something this conversion set out to fix, just a
-// side effect of the two-piece view being the natural shape now.)
-//
-// Stays a raw pointer rather than an arena index (Stage 7-2-f): the only
-// keys ever actually stored in `masters` are the canonical, `masters`-owned
-// region a successful `fvar_register_region` insert holds -- the transient
-// `RegionKey` built at the top of that function to probe an incoming,
-// not-yet-registered region is used for one `masters.get(&key)` lookup and
-// then dropped, never inserted, so it never outlives the region it points
-// at even when that region turns out to be a duplicate and gets freed
-// immediately after. See `vf/vq.rs`'s `VqSegmentDelta` comment for the
-// matching argument on the other Stage 7-2-f pointer this stage's plan
-// named.
-#[derive(Clone, Copy)]
-pub struct RegionKey(*const VqRegion);
+// `memcmp`-based key could walk it as a single byte range. `dimensions`/
+// `spans` are no longer contiguous (`vf/region.rs`'s `Vec`-ification), and
+// `VqAxisSpan`'s fields (`Pos` = `f64`) don't implement `Eq`/`Hash` on
+// their own -- so `RegionKey` owns a byte-pattern copy of both, cloned
+// once at construction (`f64::to_ne_bytes()` per field, `VqAxisSpan` being
+// three `f64`s with no interior padding reproduces the same comparison the
+// original's single memcmp'd range did, minus the few bytes of zeroed
+// alignment padding that range also swept in between `dimensions` and
+// `spans` -- not something this conversion set out to fix, just a side
+// effect of comparing the two pieces separately). This never needed to be
+// a `*const VqRegion` wrapper at all: the raw pointer it used to hold was
+// about working around the `Eq`/`Hash` gap, not about sharing ownership
+// with `masters`' canonical region.
+#[derive(Clone, PartialEq, Eq, Hash)]
+pub struct RegionKey {
+    dimensions: crate::support::primitives::ShapeId,
+    spans: Vec<[u8; 24]>,
+}
 impl RegionKey {
-    unsafe fn dimensions_bytes(&self) -> [u8; 2] {
-        (*self.0).dimensions.to_ne_bytes()
-    }
-    unsafe fn spans_bytes(&self) -> &[u8] {
-        let spans = &(*self.0).spans;
-        ::core::slice::from_raw_parts(
-            spans.as_ptr() as *const u8,
-            spans.len() * ::core::mem::size_of::<VqAxisSpan>(),
-        )
-    }
-}
-impl PartialEq for RegionKey {
-    fn eq(&self, other: &Self) -> bool {
-        unsafe {
-            self.dimensions_bytes() == other.dimensions_bytes()
-                && self.spans_bytes() == other.spans_bytes()
-        }
-    }
-}
-impl Eq for RegionKey {}
-impl ::core::hash::Hash for RegionKey {
-    fn hash<H: ::core::hash::Hasher>(&self, state: &mut H) {
-        unsafe {
-            self.dimensions_bytes().hash(state);
-            self.spans_bytes().hash(state);
+    fn from_region(region: &VqRegion) -> Self {
+        RegionKey {
+            dimensions: region.dimensions,
+            spans: region
+                .spans
+                .iter()
+                .map(|s| {
+                    let mut bytes = [0u8; 24];
+                    bytes[0..8].copy_from_slice(&s.start.to_ne_bytes());
+                    bytes[8..16].copy_from_slice(&s.peak.to_ne_bytes());
+                    bytes[16..24].copy_from_slice(&s.end.to_ne_bytes());
+                    bytes
+                })
+                .collect(),
         }
     }
 }
@@ -128,16 +110,14 @@ pub struct FvarTable {
 // regardless of whether `dispose_font`'s hand-written list covered it.
 impl Drop for FvarTable {
     fn drop(&mut self) {
-        unsafe {
-            for (_, master) in ::core::mem::take(&mut self.masters) {
-                dispose_fvar_master(&master);
-            }
+        for (_, master) in ::core::mem::take(&mut self.masters) {
+            dispose_fvar_master(&master);
         }
     }
 }
 #[inline]
-unsafe fn dispose_fvar_master(m: &FvarMaster) {
-    vq_delete_region(m.region);
+fn dispose_fvar_master(m: &FvarMaster) {
+    unsafe { vq_delete_region(m.region) };
 }
 // Deduplicates by `region`'s content (`RegionKey`), not identity: a
 // `region` that content-matches an already-registered master is freed
@@ -148,28 +128,21 @@ unsafe fn dispose_fvar_master(m: &FvarMaster) {
 // share the same region. First registration wins the name "m1", "m2", ...
 // in registration order (`(*fvar).masters.len() + 1` at insert time,
 // exactly reproducing the original's `HASH_COUNT`-at-insert-time scheme).
-pub unsafe fn fvar_register_region(
-    fvar: *mut FvarTable,
-    region: *mut VqRegion,
-) -> *const VqRegion {
-    let key = RegionKey(region as *const VqRegion);
-    if let Some(existing) = (*fvar).masters.get(&key) {
+pub(crate) fn fvar_register_region(fvar: *mut FvarTable, region: *mut VqRegion) -> *const VqRegion {
+    let fvar = unsafe { &mut *fvar };
+    let key = RegionKey::from_region(unsafe { &*region });
+    if let Some(existing) = fvar.masters.get(&key) {
         let canonical = existing.region;
-        vq_delete_region(region);
+        unsafe { vq_delete_region(region) };
         return canonical;
     }
-    let name: Vec<u8> = format!("m{}", (*fvar).masters.len() + 1).into_bytes();
-    (*fvar).masters.insert(key, FvarMaster { name, region });
+    let name: Vec<u8> = format!("m{}", fvar.masters.len() + 1).into_bytes();
+    fvar.masters.insert(key, FvarMaster { name, region });
     region as *const VqRegion
 }
-unsafe fn fvar_find_master_by_region(
-    fvar: *const FvarTable,
-    region: *const VqRegion,
-) -> *const FvarMaster {
-    match (*fvar).masters.get(&RegionKey(region)) {
-        Some(m) => m as *const FvarMaster,
-        None => ::core::ptr::null::<FvarMaster>(),
-    }
+fn fvar_find_master_by_region(fvar: &FvarTable, region: *const VqRegion) -> Option<&FvarMaster> {
+    let key = RegionKey::from_region(unsafe { &*region });
+    fvar.masters.get(&key)
 }
 /// `axisSize`/`AXIS_RECORD_SIZE`(20 bytes): `axis_tag`(4) + `min`/`default`/
 /// `max_value`(4 each) + `flags`(2) + `axis_name_id`(2).
@@ -192,7 +165,7 @@ const AXIS_RECORD_SIZE: usize = 20;
 /// `checked_add` (via `Option`'s own overflow-is-`None` propagation, `?`),
 /// so an overflow anywhere in the chain rejects the table outright instead
 /// of wrapping either width.
-unsafe fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
+fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
     let mut h = FontReader::new(data);
     let major_version = h.u16().ok()?;
     if major_version != 1 {
@@ -289,7 +262,7 @@ unsafe fn parse_fvar(data: &[u8]) -> Option<FvarTable> {
 }
 pub fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTable>> {
     let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_FVAR)?;
-    match unsafe { parse_fvar(&table.data) } {
+    match parse_fvar(&table.data) {
         Some(fvar) => Some(Box::new(fvar)),
         None => {
             logger_log_sds(
@@ -302,70 +275,59 @@ pub fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTab
         }
     }
 }
-pub unsafe fn otfcc_dump_fvar(
-    table: Option<&FvarTable>,
-    root: &mut BuiltValue,
-    options: &Options,
-) {
-    let table = match table {
-        Some(t) => t as *const FvarTable,
-        None => return,
-    };
+pub fn otfcc_dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(table) = table else { return };
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"fvar"),
     );
-    let axes: &Vec<VfAxis> = &(*table).axes;
-    let instances: &Vec<FvarInstance> = &(*table).instances;
-    let mut ___loggedstep_v: bool = true;
-    while ___loggedstep_v {
-        let mut t = BuiltValue::new_object(2);
-        let mut _axes = BuiltValue::new_object(axes.len());
-        for axis in axes.iter() {
-            let mut _axis = BuiltValue::new_object(5);
-            _axis.push_field(b"minValue", BuiltValue::Double(axis.min_value));
-            _axis.push_field(b"defaultValue", BuiltValue::Double(axis.default_value));
-            _axis.push_field(b"maxValue", BuiltValue::Double(axis.max_value));
-            _axis.push_field(b"flags", BuiltValue::Int(axis.flags as i64));
-            _axis.push_field(b"axisNameID", BuiltValue::Int(axis.axis_name_id as i64));
-            _axes.push_tag(axis.tag, _axis);
-        }
-        t.push_field(b"axes", _axes);
-        let mut _instances = BuiltValue::new_array(instances.len());
-        for instance in instances.iter() {
-            let mut _instance = BuiltValue::new_object(4);
-            _instance.push_field(
-                b"subfamilyNameID",
-                BuiltValue::Int(instance.subfamily_name_id as i64),
-            );
-            if instance.post_script_name_id != 0 {
-                _instance.push_field(
-                    b"postScriptNameID",
-                    BuiltValue::Int(instance.post_script_name_id as i64),
-                );
-            }
-            _instance.push_field(b"flags", BuiltValue::Int(instance.flags as i64));
-            _instance.push_field(
-                b"coordinates",
-                json_new_v_vp(&raw const instance.coordinates, table),
-            );
-            _instances.push_item(_instance);
-        }
-        t.push_field(b"instances", _instances);
-        let mut _masters = BuiltValue::new_object((*table).masters.len());
-        for master in (*table).masters.values() {
-            _masters.push_field_bytes_key(
-                &master.name,
-                json_new_vq_region_explicit(master.region, table).preserialize(),
-            );
-        }
-        t.push_field(b"masters", _masters);
-        root.push_field(b"fvar", t);
-        ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+    let axes: &Vec<VfAxis> = &table.axes;
+    let instances: &Vec<FvarInstance> = &table.instances;
+    let mut t = BuiltValue::new_object(2);
+    let mut _axes = BuiltValue::new_object(axes.len());
+    for axis in axes.iter() {
+        let mut _axis = BuiltValue::new_object(5);
+        _axis.push_field(b"minValue", BuiltValue::Double(axis.min_value));
+        _axis.push_field(b"defaultValue", BuiltValue::Double(axis.default_value));
+        _axis.push_field(b"maxValue", BuiltValue::Double(axis.max_value));
+        _axis.push_field(b"flags", BuiltValue::Int(axis.flags as i64));
+        _axis.push_field(b"axisNameID", BuiltValue::Int(axis.axis_name_id as i64));
+        _axes.push_tag(axis.tag, _axis);
     }
+    t.push_field(b"axes", _axes);
+    let mut _instances = BuiltValue::new_array(instances.len());
+    for instance in instances.iter() {
+        let mut _instance = BuiltValue::new_object(4);
+        _instance.push_field(
+            b"subfamilyNameID",
+            BuiltValue::Int(instance.subfamily_name_id as i64),
+        );
+        if instance.post_script_name_id != 0 {
+            _instance.push_field(
+                b"postScriptNameID",
+                BuiltValue::Int(instance.post_script_name_id as i64),
+            );
+        }
+        _instance.push_field(b"flags", BuiltValue::Int(instance.flags as i64));
+        _instance.push_field(
+            b"coordinates",
+            json_new_v_vp(&instance.coordinates, table),
+        );
+        _instances.push_item(_instance);
+    }
+    t.push_field(b"instances", _instances);
+    let mut _masters = BuiltValue::new_object(table.masters.len());
+    for master in table.masters.values() {
+        _masters.push_field_bytes_key(
+            &master.name,
+            json_new_vq_region_explicit(master.region, table).preserialize(),
+        );
+    }
+    t.push_field(b"masters", _masters);
+    root.push_field(b"fvar", t);
+    logger_finish(&mut *options.logger.borrow_mut());
 }
-pub unsafe fn json_new_vq_segment(s: *const VqSegment, fvar: *const FvarTable) -> BuiltValue {
+pub fn json_new_vq_segment(s: &VqSegment, fvar: Option<&FvarTable>) -> BuiltValue {
     match *s {
         VqSegment::Still(still) => BuiltValue::position(still),
         VqSegment::Delta(delta) => {
@@ -374,21 +336,26 @@ pub unsafe fn json_new_vq_segment(s: *const VqSegment, fvar: *const FvarTable) -
             if !delta.touched {
                 d.push_field(b"implicit", BuiltValue::Bool(!delta.touched));
             }
-            d.push_field(b"on", unsafe { json_new_vq_region(delta.region, fvar) });
+            // A `Delta` segment only ever exists on a variable font's
+            // glyphs, i.e. only when a real `fvar` table (the one that
+            // registered `delta.region`) is present -- the same
+            // precondition the old raw-pointer code silently assumed
+            // (and would have dereferenced null under, UB, had it ever
+            // been violated) is now a checked `expect`.
+            let fvar = fvar.expect("a VQ delta segment implies a variable font's fvar table");
+            d.push_field(b"on", json_new_vq_region(delta.region, fvar));
             d
         }
     }
 }
-pub unsafe fn json_new_vq(mut z: VQ, fvar: *const FvarTable) -> BuiltValue {
+pub fn json_new_vq(z: VQ, fvar: Option<&FvarTable>) -> BuiltValue {
     if z.shift.is_empty() {
         BuiltValue::position(vq_get_still(z)).preserialize()
     } else {
         let mut a = BuiltValue::new_array(z.shift.len() + 1);
         a.push_item(BuiltValue::position(z.kernel));
-        let mut j: usize = 0_usize;
-        while j < z.shift.len() {
-            a.push_item(unsafe { json_new_vq_segment(&raw mut z.shift[j], fvar) });
-            j = j.wrapping_add(1);
+        for seg in &z.shift {
+            a.push_item(json_new_vq_segment(seg, fvar));
         }
         a.preserialize()
     }
@@ -398,76 +365,60 @@ pub unsafe fn json_new_vq(mut z: VQ, fvar: *const FvarTable) -> BuiltValue {
 // prior target's dead vtable-adjacent duplicate -- and deleted outright
 // rather than ported (it would need `x: VV` to become `x: Vec<Pos>`, moving
 // or cloning the caller's coordinates for no live caller).
-pub unsafe fn json_new_v_vp(x: *const VV, fvar: *const FvarTable) -> BuiltValue {
-    let axes: &Vec<VfAxis> = &(*fvar).axes;
-    let coords: &Vec<Pos> = &*x;
+pub fn json_new_v_vp(x: &VV, fvar: &FvarTable) -> BuiltValue {
+    let axes: &Vec<VfAxis> = &fvar.axes;
+    let coords: &Vec<Pos> = x;
     if axes.len() == coords.len() {
         let mut coord = BuiltValue::new_object(axes.len());
-        let mut m: usize = 0_usize;
-        while m < coords.len() {
-            let axis: &VfAxis = &axes[m];
+        for (m, axis) in axes.iter().enumerate() {
             coord.push_tag(axis.tag, BuiltValue::position(coords[m]));
-            m = m.wrapping_add(1);
         }
         coord.preserialize()
     } else {
         let mut coord = BuiltValue::new_array(coords.len());
-        let mut m_0: usize = 0_usize;
-        while m_0 < coords.len() {
-            coord.push_item(BuiltValue::position(coords[m_0]));
-            m_0 = m_0.wrapping_add(1);
+        for &c in coords.iter() {
+            coord.push_item(BuiltValue::position(c));
         }
         coord.preserialize()
     }
 }
-pub unsafe fn json_vq_of(cv: *const ParsedValue, mut _fvar: *const FvarTable) -> VQ {
-    let n = unsafe { cv.as_ref() }
-        .and_then(ParsedValue::as_num)
-        .unwrap_or(0.0);
+pub fn json_vq_of(cv: Option<&ParsedValue>) -> VQ {
+    let n = cv.and_then(ParsedValue::as_num).unwrap_or(0.0);
     vq_create_still(n as Pos)
 }
-pub unsafe fn json_new_vq_axis_span(s: *const VqAxisSpan) -> BuiltValue {
-    if vq_axis_span_is_one(&*s) {
+pub fn json_new_vq_axis_span(s: &VqAxisSpan) -> BuiltValue {
+    if vq_axis_span_is_one(s) {
         BuiltValue::Str(b"*".to_vec())
     } else {
         let mut a = BuiltValue::new_object(3);
-        a.push_field(b"start", BuiltValue::position((*s).start));
-        a.push_field(b"peak", BuiltValue::position((*s).peak));
-        a.push_field(b"end", BuiltValue::position((*s).end));
+        a.push_field(b"start", BuiltValue::position(s.start));
+        a.push_field(b"peak", BuiltValue::position(s.peak));
+        a.push_field(b"end", BuiltValue::position(s.end));
         a
     }
 }
-pub unsafe fn json_new_vq_region_explicit(rs: *const VqRegion, fvar: *const FvarTable) -> BuiltValue {
-    let axes: &Vec<VfAxis> = &(*fvar).axes;
-    if axes.len() == (*rs).dimensions as usize {
-        let mut r = BuiltValue::new_object((*rs).dimensions as usize);
-        let mut j: usize = 0_usize;
-        while j < (*rs).dimensions as usize {
-            r.push_tag(
-                axes[j].tag,
-                unsafe { json_new_vq_axis_span(&(&(*rs).spans)[j] as *const VqAxisSpan) },
-            );
-            j = j.wrapping_add(1);
+fn json_new_vq_region_explicit(rs: *const VqRegion, fvar: &FvarTable) -> BuiltValue {
+    let region = unsafe { &*rs };
+    let axes: &Vec<VfAxis> = &fvar.axes;
+    let dimensions = region.dimensions as usize;
+    if axes.len() == dimensions {
+        let mut r = BuiltValue::new_object(dimensions);
+        for (axis, span) in axes.iter().zip(region.spans.iter()).take(dimensions) {
+            r.push_tag(axis.tag, json_new_vq_axis_span(span));
         }
         r
     } else {
-        let mut r_0 = BuiltValue::new_array((*rs).dimensions as usize);
-        let mut j_0: usize = 0_usize;
-        while j_0 < (*rs).dimensions as usize {
-            r_0.push_item(unsafe {
-                json_new_vq_axis_span(&(&(*rs).spans)[j_0] as *const VqAxisSpan)
-            });
-            j_0 = j_0.wrapping_add(1);
+        let mut r_0 = BuiltValue::new_array(dimensions);
+        for span in region.spans.iter().take(dimensions) {
+            r_0.push_item(json_new_vq_axis_span(span));
         }
         r_0
     }
 }
-pub unsafe fn json_new_vq_region(rs: *const VqRegion, fvar: *const FvarTable) -> BuiltValue {
-    let m: *const FvarMaster = fvar_find_master_by_region(fvar, rs);
-    if !m.is_null() && !(*m).name.is_empty() {
-        BuiltValue::str_truncated_at_nul(&(*m).name)
-    } else {
-        unsafe { json_new_vq_region_explicit(rs, fvar) }
+pub fn json_new_vq_region(rs: *const VqRegion, fvar: &FvarTable) -> BuiltValue {
+    match fvar_find_master_by_region(fvar, rs) {
+        Some(m) if !m.name.is_empty() => BuiltValue::str_truncated_at_nul(&m.name),
+        _ => json_new_vq_region_explicit(rs, fvar),
     }
 }
 
@@ -503,7 +454,7 @@ mod parse_fvar_tests {
     #[test]
     fn well_formed_table_reads_the_axis_and_instance() {
         let data = well_formed_fvar_table();
-        let fvar = unsafe { parse_fvar(&data).unwrap() };
+        let fvar = parse_fvar(&data).unwrap();
         assert_eq!(fvar.axes.len(), 1);
         assert_eq!(fvar.axes[0].tag, u32::from_be_bytes(*b"wght"));
         assert_eq!(fvar.axes[0].min_value, 50.0);
@@ -521,35 +472,35 @@ mod parse_fvar_tests {
         let mut b = well_formed_fvar_table();
         b[14..16].copy_from_slice(&10u16.to_be_bytes()); // instanceSize = 8 + 2
         b.extend_from_slice(&300u16.to_be_bytes()); // postScriptNameID
-        let fvar = unsafe { parse_fvar(&b).unwrap() };
+        let fvar = parse_fvar(&b).unwrap();
         assert_eq!(fvar.instances[0].post_script_name_id, 300);
     }
 
     #[test]
     fn truncated_header_is_rejected() {
         let data = &well_formed_fvar_table()[..10];
-        assert!(unsafe { parse_fvar(data) }.is_none());
+        assert!(parse_fvar(data).is_none());
     }
 
     #[test]
     fn wrong_axis_size_is_rejected() {
         let mut data = well_formed_fvar_table();
         data[10..12].copy_from_slice(&18u16.to_be_bytes()); // axisSize != 20
-        assert!(unsafe { parse_fvar(&data) }.is_none());
+        assert!(parse_fvar(&data).is_none());
     }
 
     #[test]
     fn instance_size_matching_neither_shape_is_rejected() {
         let mut data = well_formed_fvar_table();
         data[14..16].copy_from_slice(&9u16.to_be_bytes()); // neither 8 nor 10
-        assert!(unsafe { parse_fvar(&data) }.is_none());
+        assert!(parse_fvar(&data).is_none());
     }
 
     #[test]
     fn instance_array_shorter_than_declared_is_rejected_not_read_oob() {
         let mut data = well_formed_fvar_table();
         data[12..14].copy_from_slice(&2u16.to_be_bytes()); // instanceCount = 2, only 1 present
-        assert!(unsafe { parse_fvar(&data) }.is_none());
+        assert!(parse_fvar(&data).is_none());
     }
 
     #[test]
@@ -569,13 +520,66 @@ mod parse_fvar_tests {
         data[8..10].copy_from_slice(&16382u16.to_be_bytes()); // axisCount
         data[12..14].copy_from_slice(&0xFFFFu16.to_be_bytes()); // instanceCount
         data[14..16].copy_from_slice(&65532u16.to_be_bytes()); // instanceSize
-        assert!(unsafe { parse_fvar(&data) }.is_none());
+        assert!(parse_fvar(&data).is_none());
     }
 
     #[test]
     fn zero_axes_array_offset_is_rejected() {
         let mut data = well_formed_fvar_table();
         data[4..6].copy_from_slice(&0u16.to_be_bytes());
-        assert!(unsafe { parse_fvar(&data) }.is_none());
+        assert!(parse_fvar(&data).is_none());
+    }
+}
+
+#[cfg(test)]
+mod fvar_register_region_tests {
+    use super::*;
+
+    fn region_with_spans(spans: Vec<VqAxisSpan>) -> *mut VqRegion {
+        let dimensions = spans.len() as crate::support::primitives::ShapeId;
+        Box::into_raw(Box::new(VqRegion { dimensions, spans }))
+    }
+
+    fn empty_fvar_table() -> FvarTable {
+        FvarTable {
+            major_version: 1,
+            minor_version: 0,
+            axes: Vec::new(),
+            instances: Vec::new(),
+            masters: indexmap::IndexMap::new(),
+        }
+    }
+
+    // Pins `RegionKey`'s content-based dedup, the behavior the whole
+    // `RegionKey`-owns-its-data rewrite (replacing a `*const VqRegion`-
+    // wrapping key that compared by viewing the pointee's bytes) is meant
+    // to preserve exactly: two independently-allocated `VqRegion`s with
+    // identical content must register as the same master, with the
+    // second's allocation freed rather than kept as a duplicate entry.
+    #[test]
+    fn two_content_identical_regions_coalesce_into_one_master() {
+        let mut fvar = empty_fvar_table();
+        let span = VqAxisSpan { start: -1.0, peak: 0.0, end: 1.0 };
+        let region_a = region_with_spans(vec![span]);
+        let region_b = region_with_spans(vec![span]);
+        let canonical_a = fvar_register_region(&mut fvar, region_a);
+        let canonical_b = fvar_register_region(&mut fvar, region_b);
+        assert_eq!(canonical_a, canonical_b);
+        assert_eq!(fvar.masters.len(), 1);
+    }
+
+    // The mirror case: distinct content must NOT be coalesced, and each
+    // gets its own "m1"/"m2" name in registration order.
+    #[test]
+    fn content_distinct_regions_register_separately() {
+        let mut fvar = empty_fvar_table();
+        let region_a = region_with_spans(vec![VqAxisSpan { start: -1.0, peak: 0.0, end: 1.0 }]);
+        let region_b = region_with_spans(vec![VqAxisSpan { start: 0.0, peak: 1.0, end: 1.0 }]);
+        let canonical_a = fvar_register_region(&mut fvar, region_a);
+        let canonical_b = fvar_register_region(&mut fvar, region_b);
+        assert_ne!(canonical_a, canonical_b);
+        assert_eq!(fvar.masters.len(), 2);
+        let names: Vec<&[u8]> = fvar.masters.values().map(|m| m.name.as_slice()).collect();
+        assert_eq!(names, vec![b"m1".as_slice(), b"m2".as_slice()]);
     }
 }

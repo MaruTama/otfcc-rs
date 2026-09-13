@@ -1,5 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{free, strlen, strtol};
+use libc::{strlen, strtol};
 
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
@@ -12,7 +12,6 @@ use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
 use crate::support::NULL;
-use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
@@ -956,30 +955,22 @@ fn write_default_range(dflt: &mut Buffer, n_ranges: &mut u32, mut start: Unicode
     dflt.write_u8(end.wrapping_sub(start) as u8);
     *n_ranges = n_ranges.wrapping_add(1_u32);
 }
-unsafe fn build_format14_for_selector(
+fn build_format14_for_selector(
     cmap: &CmapTable,
     selector: Unicode,
     dflt: &mut Buffer,
     nondflt: &mut Buffer,
 ) -> u8 {
-    let defaults: *mut GlyphId;
-    let non_defaults: *mut GlyphId;
-    defaults = __caryll_allocate_clean(
-        (::core::mem::size_of::<GlyphId>() as usize)
-            .wrapping_mul(0x110001_i32 as usize),
-        626 as ::core::ffi::c_ulong,
-    ) as *mut GlyphId;
-    non_defaults = __caryll_allocate_clean(
-        (::core::mem::size_of::<GlyphId>() as usize)
-            .wrapping_mul(0x110001_i32 as usize),
-        627 as ::core::ffi::c_ulong,
-    ) as *mut GlyphId;
-    let mut s: Unicode = 0 as Unicode;
-    while s < MAX_UNICODE as Unicode {
-        *defaults.offset(s as isize) = 0xffff as GlyphId;
-        *non_defaults.offset(s as isize) = 0xffff as GlyphId;
-        s = s.wrapping_add(1);
-    }
+    // Was two `__caryll_allocate_clean` (calloc) scratch arrays, walked
+    // with `.offset()` and manually `free()`'d at the end -- `GlyphId` is
+    // `Copy` (a plain `u16`), so a `Vec` sized and zero-filled up front
+    // (here, filled with the `0xffff` "unset" sentinel instead of zero,
+    // matching the fill loop below that used to run over the raw
+    // allocation) gives the exact same shape with no manual free to
+    // remember, the same conversion `PR #277` applied to this file's
+    // hintmask/cntrmask scratch arrays.
+    let mut defaults: Vec<GlyphId> = vec![0xffff; MAX_UNICODE as usize];
+    let mut non_defaults: Vec<GlyphId> = vec![0xffff; MAX_UNICODE as usize];
     for (key, glyph) in cmap.uvs.iter() {
         let u: Unicode = key.unicode as Unicode;
         if !(key.selector != selector || u >= MAX_UNICODE as Unicode) {
@@ -987,22 +978,22 @@ unsafe fn build_format14_for_selector(
                 let uvs_gid: GlyphId = glyph.index;
                 match otfcc_cmap_lookup(cmap, u as i32) {
                     None => {
-                        *non_defaults.offset(u as isize) = uvs_gid;
+                        non_defaults[u as usize] = uvs_gid;
                     }
                     Some(g) if uvs_gid as i32 == g.index as i32 => {
-                        *defaults.offset(u as isize) = uvs_gid;
+                        defaults[u as usize] = uvs_gid;
                     }
                     Some(_) => {
-                        *non_defaults.offset(u as isize) = uvs_gid;
+                        non_defaults[u as usize] = uvs_gid;
                     }
                 }
             }
         }
     }
-    *non_defaults.offset(0_i32 as isize) = 0xffff as GlyphId;
-    *defaults.offset(0_i32 as isize) = 0xffff as GlyphId;
-    *non_defaults.offset((MAX_UNICODE - 1_i32) as isize) = 0xffff as GlyphId;
-    *defaults.offset((MAX_UNICODE - 1_i32) as isize) = 0xffff as GlyphId;
+    non_defaults[0] = 0xffff;
+    defaults[0] = 0xffff;
+    non_defaults[(MAX_UNICODE - 1_i32) as usize] = 0xffff;
+    defaults[(MAX_UNICODE - 1_i32) as usize] = 0xffff;
     let mut num_unicode_value_ranges: u32 = 0_u32;
     let mut start_unicode_value: Unicode = 0 as Unicode;
     let mut num_uvs_mappings: u32 = 0_u32;
@@ -1010,15 +1001,13 @@ unsafe fn build_format14_for_selector(
     nondflt.write_u32be(0_u32);
     let mut u_0: Unicode = 1 as Unicode;
     while u_0 < MAX_UNICODE as Unicode {
-        if *defaults.offset(u_0 as isize) as i32 != 0xffff_i32
-            && *defaults.offset(u_0.wrapping_sub(1 as Unicode) as isize) as i32
-                == 0xffff_i32
+        if defaults[u_0 as usize] as i32 != 0xffff_i32
+            && defaults[u_0.wrapping_sub(1 as Unicode) as usize] as i32 == 0xffff_i32
         {
             start_unicode_value = u_0;
         }
-        if *defaults.offset(u_0 as isize) as i32 == 0xffff_i32
-            && *defaults.offset(u_0.wrapping_sub(1 as Unicode) as isize) as i32
-                != 0xffff_i32
+        if defaults[u_0 as usize] as i32 == 0xffff_i32
+            && defaults[u_0.wrapping_sub(1 as Unicode) as usize] as i32 != 0xffff_i32
         {
             write_default_range(
                 dflt,
@@ -1027,10 +1016,9 @@ unsafe fn build_format14_for_selector(
                 u_0.wrapping_sub(1 as Unicode),
             );
         }
-        if *non_defaults.offset(u_0 as isize) as i32 != 0xffff_i32
-        {
+        if non_defaults[u_0 as usize] as i32 != 0xffff_i32 {
             nondflt.write_u24be(u_0);
-            nondflt.write_u16be(*non_defaults.offset(u_0 as isize) as u16);
+            nondflt.write_u16be(non_defaults[u_0 as usize] as u16);
             num_uvs_mappings = num_uvs_mappings.wrapping_add(1);
         }
         u_0 = u_0.wrapping_add(1);
@@ -1039,8 +1027,6 @@ unsafe fn build_format14_for_selector(
     dflt.write_u32be(num_unicode_value_ranges);
     nondflt.seek(0_usize);
     nondflt.write_u32be(num_uvs_mappings);
-    free(defaults as *mut ::core::ffi::c_void);
-    free(non_defaults as *mut ::core::ffi::c_void);
     return ((if num_unicode_value_ranges != 0 {
         HAS_DEFAULT
     } else {
@@ -1066,7 +1052,7 @@ unsafe fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
         }
         selector = selector.wrapping_add(1);
     }
-    let st: *mut BkBlock = bk_new_block(&[
+    let mut st: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 14_u32),
         bk_int(BkCellType::B32, 0_u32),
         bk_int(BkCellType::B32, n_selectors),
@@ -1088,8 +1074,8 @@ unsafe fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
                 Some(nondflt)
             };
             bk_push(
-                st,
-                &[
+                &mut st,
+                vec![
                     bk_int(
                         BkCellType::B8,
                         (selector_0 >> 16_i32 & 0xff as Unicode) as u32,
@@ -1163,13 +1149,13 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> O
         stub
     });
     let format12 = otfcc_build_cmap_format12(cmap);
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 0_u32),
         bk_int(BkCellType::B16, (n_tables as i32) as u32),
     ]);
     bk_push(
-        root,
-        &[
+        &mut root,
+        vec![
             bk_int(BkCellType::B16, 0_u32),
             bk_int(BkCellType::B16, 3_u32),
             bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format4))),
@@ -1177,8 +1163,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> O
     );
     if requires_format12 {
         bk_push(
-            root,
-            &[
+            &mut root,
+            vec![
                 bk_int(BkCellType::B16, 0_u32),
                 bk_int(BkCellType::B16, 4_u32),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format12))),
@@ -1188,8 +1174,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> O
     if has_uvs {
         let format14 = otfcc_build_cmap_format14(cmap);
         bk_push(
-            root,
-            &[
+            &mut root,
+            vec![
                 bk_int(BkCellType::B16, 0_u32),
                 bk_int(BkCellType::B16, 5_u32),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer(Some(format14))),
@@ -1197,8 +1183,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> O
         );
     }
     bk_push(
-        root,
-        &[
+        &mut root,
+        vec![
             bk_int(BkCellType::B16, 3_u32),
             bk_int(BkCellType::B16, 1_u32),
             bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format4))),
@@ -1206,8 +1192,8 @@ pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> O
     );
     if requires_format12 {
         bk_push(
-            root,
-            &[
+            &mut root,
+            vec![
                 bk_int(BkCellType::B16, 3_u32),
                 bk_int(BkCellType::B16, 10_u32),
                 bk_ptr(BkCellType::P32, bk_new_block_from_buffer_copy(Some(&format12))),

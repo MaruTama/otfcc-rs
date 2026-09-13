@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-
 use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
@@ -11,43 +9,35 @@ use crate::font::caryll_font::Font;
 
 use crate::table::gdef::{CaretValueList, CaretValueRecord, GdefTable, clear_lig_carets};
 
-use crate::table::otl::classdef::ClassDef;
-
 use crate::consolidate::otl::common::fontop_consolidate_class_def;
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::classdef::shrink_class_def;
 
-pub unsafe fn consolidate_gdef(
-    font: *mut Font,
-    gdef: *mut GdefTable,
-    options: &Options,
-) {
-    if font.is_null() || (*font).glyph_order.is_none() || gdef.is_null() {
+pub fn consolidate_gdef(font: &Font, gdef: Option<&mut GdefTable>, options: &Options) {
+    let (Some(gdef), Some(glyph_order)) = (gdef, font.glyph_order.as_deref()) else {
         return;
-    }
-    // Guaranteed `Some` by the early return above.
-    let glyph_order = (*font).glyph_order.as_deref().unwrap();
-    if let Some(cd) = (*gdef).glyph_class_def.as_deref_mut() {
-        let cd: *mut ClassDef = cd;
-        fontop_consolidate_class_def(font, cd, options);
-        shrink_class_def(&mut *cd);
-        if (*cd).glyphs.is_empty() {
+    };
+    if let Some(cd) = gdef.glyph_class_def.as_deref_mut() {
+        fontop_consolidate_class_def(Some(glyph_order), Some(cd), options);
+        let cd = gdef.glyph_class_def.as_deref_mut().unwrap();
+        shrink_class_def(cd);
+        if cd.glyphs.is_empty() {
             // Dropping the `Box` here does exactly what
             // `otl_class_def_free` used to (see `table/gdef.rs`'s
             // `GdefTable` comment) -- no leak, no behavior change.
-            (*gdef).glyph_class_def = None;
+            gdef.glyph_class_def = None;
         }
     }
-    if let Some(cd) = (*gdef).mark_attach_class_def.as_deref_mut() {
-        let cd: *mut ClassDef = cd;
-        fontop_consolidate_class_def(font, cd, options);
-        shrink_class_def(&mut *cd);
-        if (*cd).glyphs.is_empty() {
-            (*gdef).mark_attach_class_def = None;
+    if let Some(cd) = gdef.mark_attach_class_def.as_deref_mut() {
+        fontop_consolidate_class_def(Some(glyph_order), Some(cd), options);
+        let cd = gdef.mark_attach_class_def.as_deref_mut().unwrap();
+        shrink_class_def(cd);
+        if cd.glyphs.is_empty() {
+            gdef.mark_attach_class_def = None;
         }
     }
-    if !(*gdef).lig_carets.is_empty() {
-        let lig_carets: &mut Vec<CaretValueRecord> = &mut (*gdef).lig_carets;
+    if !gdef.lig_carets.is_empty() {
+        let lig_carets: &mut Vec<CaretValueRecord> = &mut gdef.lig_carets;
         // Deduplicates by glyph id, first occurrence wins -- a later
         // duplicate is logged as a warning and dropped (its own caret list
         // simply stays behind in `lig_carets` and gets freed when that
@@ -98,9 +88,9 @@ pub unsafe fn consolidate_gdef(
             }
             j = j.wrapping_add(1);
         }
-        clear_lig_carets(&mut (*gdef).lig_carets);
+        clear_lig_carets(&mut gdef.lig_carets);
         for (gid, (gname, carets)) in seen {
-            (*gdef).lig_carets.push(CaretValueRecord {
+            gdef.lig_carets.push(CaretValueRecord {
                 glyph: Handle {
                     state: HandleState::Consolidated,
                     index: gid as GlyphId,

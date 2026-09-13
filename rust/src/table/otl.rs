@@ -481,7 +481,14 @@ pub type SubtableList = Vec<Option<Box<Subtable>>>;
 /// check) -- before `Box` made a hole `None` instead of a dangling
 /// `*mut Subtable`, that assumption being wrong meant a silent
 /// out-of-bounds-shaped dereference. Now it is a clean panic.
-pub(crate) unsafe fn subtable_at(list: &SubtableList, idx: usize) -> SubtablePtr {
+///
+/// This function itself never dereferences the pointer it returns -- it
+/// only indexes the `Vec`, unwraps the `Option`, and casts `*const` to
+/// `*mut` (a pointer-to-pointer cast, which is safe on its own; only the
+/// eventual deref at each call site is unsafe). So it needs no `unsafe fn`
+/// marker itself, even though every caller still wraps its own use of the
+/// returned pointer in `unsafe {}`.
+pub(crate) fn subtable_at(list: &SubtableList, idx: usize) -> SubtablePtr {
     list[idx]
         .as_deref()
         .expect("subtable slot should not be empty at this point") as *const Subtable
@@ -578,21 +585,22 @@ pub(crate) fn new_lookup() -> Box<Lookup> {
 // 自動的にフルドロップされる——`Lookup::drop`がtype-dispatchedな
 // `SubtableList`の破棄と`name`の解放をやる。
 // 元の「スワップして末尾を切り詰め」ループを`Vec::retain`に素直に置き換え。
-pub(crate) unsafe fn otl_lookup_list_filter_env(
-    arr: *mut LookupList,
-    fn_0: Option<unsafe fn(*const Lookup, *mut ::core::ffi::c_void) -> bool>,
-    env: *mut ::core::ffi::c_void,
-) {
-    (*arr).retain(|item| {
-        if fn_0.expect("non-null function pointer")(&raw const **item, env) {
-            true
-        } else {
-            // Rejected: `retain` drops `*item` (a `Box<Lookup>`) itself,
-            // running the same teardown `dispose_lookup_ptr` used to do
-            // manually -- no explicit call needed.
-            false
-        }
-    });
+// Was a `*mut c_void` context pointer + `Option<unsafe fn(...)>` predicate,
+// type-erasing the two callers' concrete predicates behind a shared shape
+// purely so one function pointer type could stand in for both -- the same
+// "type erasure that was never actually needed" pattern Stage 9 Phase 9
+// found in `libcff/cff_index.rs`'s `new_index_by_callback` (resolved there
+// via `impl Iterator`) and `libcff/cff_dict.rs`'s `parse_to_callback`
+// (resolved via `impl FnMut`). The sole caller already knows its predicate
+// at compile time, so a generic `impl FnMut(&Lookup) -> bool` carries the
+// same information with no unsafe function-pointer cast and no env
+// pointer -- every element here is a live `Box<Lookup>`, never null, so
+// there is no nullable-pointer case for the predicate to handle either.
+pub(crate) fn otl_lookup_list_filter_env(arr: &mut LookupList, mut pred: impl FnMut(&Lookup) -> bool) {
+    // Rejected elements drop themselves (`Box<Lookup>`'s own `Drop`),
+    // running the same teardown `dispose_lookup_ptr` used to do manually --
+    // no explicit call needed.
+    arr.retain(|item| pred(item));
 }
 // `LookupRef`単体の要素インターフェース(`otl_lookup_ref_init`/`_copy`/
 // `_dispose`)は`LookupRefList`自体の死んだ`.copy`スロットからしか呼ばれて
@@ -607,12 +615,20 @@ pub(crate) fn otl_lookup_ref_list_dispose(arr: &mut LookupRefList) {
 }
 // 元のスワップ&切り詰めループを`Vec::retain`に。要素のdisposeは無いので
 // 述語の結果をそのまま`retain`の判定に使うだけで済む。
-pub(crate) unsafe fn otl_lookup_ref_list_filter_env(
-    arr: *mut LookupRefList,
-    fn_0: Option<unsafe fn(*const LookupRef, *mut ::core::ffi::c_void) -> bool>,
-    env: *mut ::core::ffi::c_void,
+// Same closure-based de-type-erasure as `otl_lookup_list_filter_env`
+// above, but `LookupRefList`'s elements are themselves raw, nullable
+// borrowed cross-references (`LookupRef = *const Lookup`, into
+// `OtlTable.lookups`) rather than owned `Box`es -- unlike that list, an
+// element here really can be null (`table/otl/dump.rs` defensively
+// checks `is_null()` before reading one), so the predicate takes
+// `Option<&Lookup>` and the one unsafe operation this shell still needs
+// (turning a possibly-null raw pointer into that `Option`) stays a
+// narrow `unsafe {}`, the same shape as `vf/vq.rs`'s `vqs_compare`.
+pub(crate) fn otl_lookup_ref_list_filter_env(
+    arr: &mut LookupRefList,
+    mut pred: impl FnMut(Option<&Lookup>) -> bool,
 ) {
-    (*arr).retain(|&item| fn_0.expect("non-null function pointer")(&item as *const LookupRef, env));
+    arr.retain(|&item| pred(unsafe { item.as_ref() }));
 }
 // `.replace`の唯一の呼び出し箇所(`table/otl/parse.rs`)は毎回、直前に
 // `new_feature`で作った空のdestに対して呼ばれる——単純な move-assign
@@ -636,20 +652,11 @@ pub(crate) fn new_feature() -> Box<Feature> {
 // （旧`table_otl_free`専用ヘルパ）も同じ理由で削除——`LookupList`と同じく
 // `FeatureList`（`Vec<Box<Feature>>`）は`OtlTable`ごと破棄されれば
 // 自動的にフルドロップされる。
-pub(crate) unsafe fn otl_feature_list_filter_env(
-    arr: *mut FeatureList,
-    fn_0: Option<unsafe fn(*const Feature, *mut ::core::ffi::c_void) -> bool>,
-    env: *mut ::core::ffi::c_void,
-) {
-    (*arr).retain(|item| {
-        if fn_0.expect("non-null function pointer")(&raw const **item, env) {
-            true
-        } else {
-            // Rejected: `retain` drops `*item` itself (a `Box<Feature>`),
-            // which frees `name` -- no explicit dispose call needed.
-            false
-        }
-    });
+// Same closure-based de-type-erasure as `otl_lookup_list_filter_env`.
+pub(crate) fn otl_feature_list_filter_env(arr: &mut FeatureList, mut pred: impl FnMut(&Feature) -> bool) {
+    // Rejected: `retain` drops the element itself (a `Box<Feature>`),
+    // which frees `name` -- no explicit dispose call needed.
+    arr.retain(|item| pred(item));
 }
 // `FeatureRef`単体の要素インターフェースは`FeatureRefList`の死んだ`.copy`
 // からしか呼ばれておらず削除。`FeatureRef`は所有物を持たない
@@ -663,13 +670,14 @@ pub(crate) fn otl_feature_ref_list_replace(dst: &mut FeatureRefList, src: Featur
 pub(crate) fn otl_feature_ref_list_dispose(arr: &mut FeatureRefList) {
     *arr = Vec::new();
 }
-pub(crate) unsafe fn otl_feature_ref_list_filter_env(
-    arr: *mut FeatureRefList,
-    fn_0: Option<unsafe fn(*const FeatureRef, *mut ::core::ffi::c_void) -> bool>,
-    env: *mut ::core::ffi::c_void,
+// Same closure-based de-type-erasure as `otl_lookup_ref_list_filter_env`
+// (`FeatureRefList`'s elements are likewise raw, nullable borrowed
+// cross-references, into `OtlTable.features`).
+pub(crate) fn otl_feature_ref_list_filter_env(
+    arr: &mut FeatureRefList,
+    mut pred: impl FnMut(Option<&Feature>) -> bool,
 ) {
-    (*arr)
-        .retain(|&item| fn_0.expect("non-null function pointer")(&item as *const FeatureRef, env));
+    arr.retain(|&item| pred(unsafe { item.as_ref() }));
 }
 /// Replaces the old `__caryll_allocate_clean`-into-a-`*mut`-out-parameter
 /// constructor: `Box` is the allocation, and the struct literal is the

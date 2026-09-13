@@ -5,7 +5,7 @@ use crate::support::handle::{
 };
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
-    Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
+    Coverage, otl_coverage_free, push_to_coverage, read_coverage,
 };
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
@@ -340,93 +340,92 @@ pub fn otl_gpos_parse_mark_to_ligature(
         lig_array,
     }))
 }
-pub unsafe fn otfcc_build_gpos_mark_to_ligature(
-    mut _subtable: *const Subtable,
+pub fn otfcc_build_gpos_mark_to_ligature(
+    _subtable: &Subtable,
     mut _heuristics: BuildHeuristics,
 ) -> Buffer {
-    let Subtable::GposMarkToLigature(mut_subtable) = &*_subtable else {
+    let Subtable::GposMarkToLigature(subtable) = _subtable else {
         unreachable!()
     };
-    let subtable: *const GposMarkToLigatureSubtable = mut_subtable;
-    let marks: *mut Coverage = otl_coverage_create();
+    let mut marks: Coverage = Vec::new();
     let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < (*subtable).mark_array.len() {
+    while (j as usize) < subtable.mark_array.len() {
         push_to_coverage(
-            &mut *marks,
-            otfcc_handle_dup((&(*subtable).mark_array)[j as usize].glyph.clone() as Handle)
+            &mut marks,
+            otfcc_handle_dup(subtable.mark_array[j as usize].glyph.clone() as Handle)
                 as GlyphHandle,
         );
         j = j.wrapping_add(1);
     }
-    let bases: *mut Coverage = otl_coverage_create();
+    let mut bases: Coverage = Vec::new();
     let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < (*subtable).lig_array.len() {
+    while (j_0 as usize) < subtable.lig_array.len() {
         push_to_coverage(
-            &mut *bases,
-            otfcc_handle_dup((&(*subtable).lig_array)[j_0 as usize].glyph.clone() as Handle)
+            &mut bases,
+            otfcc_handle_dup(subtable.lig_array[j_0 as usize].glyph.clone() as Handle)
                 as GlyphHandle,
         );
         j_0 = j_0.wrapping_add(1);
     }
-    let root: *mut BkBlock = bk_new_block(&[
+    let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(&*marks))),
+            bk_new_block_from_buffer(Some(build_coverage(&marks))),
         ),
         bk_ptr(
             BkCellType::P16,
-            bk_new_block_from_buffer(Some(build_coverage(&*bases))),
+            bk_new_block_from_buffer(Some(build_coverage(&bases))),
         ),
         bk_int(
             BkCellType::B16,
-            ((*subtable).class_count as i32) as u32,
+            (subtable.class_count as i32) as u32,
         ),
     ]);
-    let mark_array: *mut BkBlock = bk_new_block(&[bk_int(
+    let mut mark_array: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
-        ((*subtable).mark_array.len()) as u32,
+        (subtable.mark_array.len()) as u32,
     )]);
     let mut j_1: GlyphId = 0 as GlyphId;
-    while (j_1 as usize) < (*subtable).mark_array.len() {
+    while (j_1 as usize) < subtable.mark_array.len() {
         bk_push(
-            mark_array,
-            &[
+            &mut mark_array,
+            vec![
                 bk_int(
                     BkCellType::B16,
-                    ((&(*subtable).mark_array)[j_1 as usize].mark_class as i32)
+                    (subtable.mark_array[j_1 as usize].mark_class as i32)
                         as u32,
                 ),
                 bk_ptr(
                     BkCellType::P16,
-                    bk_from_anchor((&(*subtable).mark_array)[j_1 as usize].anchor),
+                    bk_from_anchor(subtable.mark_array[j_1 as usize].anchor),
                 ),
             ],
         );
         j_1 = j_1.wrapping_add(1);
     }
-    let ligature_array: *mut BkBlock = bk_new_block(&[bk_int(
+    let mut ligature_array: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
-        ((*subtable).lig_array.len()) as u32,
+        (subtable.lig_array.len()) as u32,
     )]);
     let mut j_2: GlyphId = 0 as GlyphId;
-    while (j_2 as usize) < (*subtable).lig_array.len() {
-        let attach: *mut BkBlock = bk_new_block(&[bk_int(
+    while (j_2 as usize) < subtable.lig_array.len() {
+        let mut attach: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
-            ((&(*subtable).lig_array)[j_2 as usize].component_count as i32) as u32,
+            (subtable.lig_array[j_2 as usize].component_count as i32) as u32,
         )]);
         let mut k: GlyphId = 0 as GlyphId;
         while (k as i32)
-            < (&(*subtable).lig_array)[j_2 as usize].component_count as i32
+            < subtable.lig_array[j_2 as usize].component_count as i32
         {
             let mut m: GlyphClass = 0 as GlyphClass;
-            while (m as i32) < (*subtable).class_count as i32 {
+            while (m as i32) < subtable.class_count as i32 {
                 bk_push(
-                    attach,
-                    &[bk_ptr(
+                    &mut attach,
+                    vec![bk_ptr(
                         BkCellType::P16,
                         bk_from_anchor(
-                            (&(*subtable).lig_array)[j_2 as usize].anchors[k as usize][m as usize],
+                            subtable.lig_array[j_2 as usize].anchors[k as usize][m as usize],
                         ),
                     )],
                 );
@@ -434,18 +433,16 @@ pub unsafe fn otfcc_build_gpos_mark_to_ligature(
             }
             k = k.wrapping_add(1);
         }
-        bk_push(ligature_array, &[bk_ptr(BkCellType::P16, attach)]);
+        bk_push(&mut ligature_array, vec![bk_ptr(BkCellType::P16, Some(attach))]);
         j_2 = j_2.wrapping_add(1);
     }
     bk_push(
-        root,
-        &[
-            bk_ptr(BkCellType::P16, mark_array),
-            bk_ptr(BkCellType::P16, ligature_array),
+        &mut root,
+        vec![
+            bk_ptr(BkCellType::P16, Some(mark_array)),
+            bk_ptr(BkCellType::P16, Some(ligature_array)),
         ],
     );
-    otl_coverage_free(marks);
-    otl_coverage_free(bases);
     return bk_build_block(root);
 }
 

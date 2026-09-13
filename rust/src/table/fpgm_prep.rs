@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
@@ -61,16 +59,6 @@ pub fn table_dump_table_fpgm_prep(
     root.push_field(tag, dumped);
     logger_finish(&mut *options.logger.borrow_mut());
 }
-pub unsafe fn make_fpgm_prep_instr(mut _t: *mut ::core::ffi::c_void, instrs: Vec<u8>) {
-    let t: *mut FpgmPrepTable = _t as *mut FpgmPrepTable;
-    (*t).bytes = instrs;
-}
-pub unsafe fn wrong_fpgm_prep_instr(
-    mut _t: *mut ::core::ffi::c_void,
-    mut _reason: *mut ::core::ffi::c_char,
-    mut _pos: i32,
-) {
-}
 pub fn otfcc_parse_fpgm_prep(
     root: &ParsedValue,
     options: &Options,
@@ -82,19 +70,11 @@ pub fn otfcc_parse_fpgm_prep(
         tag: tag.to_vec(),
         bytes: Vec::new(),
     });
-    // `parse_ttinstr` stays `unsafe fn` (its `*mut c_void` context +
-    // `unsafe fn` callback-pointer pair is a genuine type-erased boundary,
-    // not c2rust marker residue -- see `make_fpgm_prep_instr`/
-    // `wrong_fpgm_prep_instr` above).
     unsafe {
         parse_ttinstr(
             table as *const ParsedValue,
-            boxed.as_mut() as *mut FpgmPrepTable as *mut ::core::ffi::c_void,
-            Some(make_fpgm_prep_instr as unsafe fn(*mut ::core::ffi::c_void, Vec<u8>) -> ()),
-            Some(
-                wrong_fpgm_prep_instr
-                    as unsafe fn(*mut ::core::ffi::c_void, *mut ::core::ffi::c_char, i32) -> (),
-            ),
+            |instrs| boxed.bytes = instrs,
+            |_reason, _pos| {},
         );
     }
     logger_finish(&mut *options.logger.borrow_mut());

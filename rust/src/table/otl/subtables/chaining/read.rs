@@ -15,7 +15,6 @@ use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
 use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
 
-use crate::support::NULL;
 use crate::table::otl::subtables::chaining::common::{
     chaining_ruleset_mut, subtable_chaining_create,
 };
@@ -23,17 +22,21 @@ use crate::table::otl::{
     ChainLookupApplication, ChainingRule, ChainingRuleSet, ChainingSubtable, Subtable,
     subtable_from_raw,
 };
-pub type CoverageReaderHandler = Option<
-    unsafe fn(
-        FontFilePointer,
-        u32,
-        u16,
-        u32,
-        u16,
-        GlyphId,
-        *mut ::core::ffi::c_void,
-    ) -> *mut Coverage,
->;
+// Was `CoverageReaderHandler`, a `*mut c_void` userdata pointer threaded
+// alongside a fn-pointer typedef shared by all three concrete readers
+// below (`single_coverage`/`class_coverage`/`format3_coverage`) -- the
+// `*mut c_void` existed purely so `class_coverage`'s `ClassDefs` borrow
+// could travel through a shape the other two readers (which never needed
+// any userdata at all) were also forced to accept. `general_read_
+// contextual_rule`/`general_read_chaining_rule` (the only two callers)
+// now take the reader as a generic `impl FnMut(&[u8], u16, u32, u16,
+// GlyphId) -> *mut Coverage` instead: `single_coverage`/`format3_coverage`
+// (already plain safe `fn`s with this exact signature) are passed
+// directly as function items, and `class_coverage`'s call sites capture
+// `&ClassDefs` in a closure instead of casting a raw pointer to it --
+// which in turn lets `class_coverage` itself take `&ClassDefs` and drop
+// `unsafe fn` too (its only unsafe operations were the userdata cast and
+// the raw-pointer derefs of `defs`/`cov` that cast enabled).
 // Stage 7-2-c "inner Box化": `bc`/`ic`/`fc` become `Option<Box<ClassDef>>`,
 // the same shape `table/otl.rs`'s `ChainingRuleSet.bc`/`.ic`/`.fc` (a
 // *different* struct, despite the identical field shape -- that one is the
@@ -202,29 +205,25 @@ const MAX_APPLY_PER_RULE: usize = 50;
 /// -- using the uncapped counts there would let downstream code (e.g.
 /// `consolidate_chaining`) index past the end of `match_0`.
 const MAX_POSITIONS_PER_RULE: u16 = 50;
-pub unsafe fn single_coverage(
-    mut _data: FontFilePointer,
-    mut _table_length: u32,
+pub fn single_coverage(
+    mut _data: &[u8],
     gid: u16,
     mut _offset: u32,
     mut _kind: u16,
     _max_glyphs: GlyphId,
-    mut _userdata: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
-    let cov: *mut Coverage = otl_coverage_create();
-    push_to_coverage(&mut *cov, handle_from_index(gid) as GlyphHandle);
-    return cov;
+    let mut cov = Coverage::new();
+    push_to_coverage(&mut cov, handle_from_index(gid) as GlyphHandle);
+    Box::into_raw(Box::new(cov))
 }
-pub unsafe fn class_coverage(
-    mut _data: FontFilePointer,
-    mut _table_length: u32,
+pub fn class_coverage(
+    mut _data: &[u8],
     cls: u16,
     mut _offset: u32,
     kind: u16,
     max_glyphs: GlyphId,
-    mut _classdefs: *mut ::core::ffi::c_void,
+    defs: &ClassDefs,
 ) -> *mut Coverage {
-    let defs: *mut ClassDefs = _classdefs as *mut ClassDefs;
     // `.expect()`, not a null-pointer deref: every caller that reaches here
     // (`general_read_contextual_rule`/`general_read_chaining_rule` via
     // `class_coverage`'s `fn_0` slot) only ever asks for a `kind` whose
@@ -234,12 +233,12 @@ pub unsafe fn class_coverage(
     // would-be null deref matches this migration's general "UB becomes a
     // panic" idiom (see e.g. `general_read_contextual_rule`'s own
     // `.expect()` calls above).
-    let cd: *const ClassDef = if kind as i32 == 1_i32 {
-        (*defs).bc.as_deref()
+    let cd: &ClassDef = if kind as i32 == 1_i32 {
+        defs.bc.as_deref()
     } else if kind as i32 == 2_i32 {
-        (*defs).ic.as_deref()
+        defs.ic.as_deref()
     } else {
-        (*defs).fc.as_deref()
+        defs.fc.as_deref()
     }
     .expect("class_coverage: ClassDefs field for this `kind` was not populated");
     // Charged unconditionally, before doing anything else: a rule set
@@ -262,7 +261,7 @@ pub unsafe fn class_coverage(
     {
         return otl_coverage_create();
     }
-    let cov: *mut Coverage = otl_coverage_create();
+    let mut cov = Coverage::new();
     // `general_read_contextual_rule`/`general_read_chaining_rule` call
     // this once per input/backtrack/lookahead position in a rule, and a
     // subtable can hold a huge number of tiny rules -- so *every* loop
@@ -300,9 +299,9 @@ pub unsafe fn class_coverage(
     if cls as i32 == 0_i32 {
         let mut classified = vec![false; max_glyphs as usize];
         let mut j: usize = 0;
-        while j < (*cd).glyphs.len() && zero_budget_left() {
-            if (&(*cd).classes)[j] as i32 > 0_i32 {
-                let idx = (&(*cd).glyphs)[j].index as usize;
+        while j < cd.glyphs.len() && zero_budget_left() {
+            if cd.classes[j] as i32 > 0_i32 {
+                let idx = cd.glyphs[j].index as usize;
                 if idx < classified.len() {
                     classified[idx] = true;
                 }
@@ -313,40 +312,34 @@ pub unsafe fn class_coverage(
         let mut k: GlyphId = 0 as GlyphId;
         while (k as i32) < max_glyphs as i32 && zero_budget_left() {
             if !classified[k as usize] {
-                push_to_coverage(&mut *cov, handle_from_index(k) as GlyphHandle);
+                push_to_coverage(&mut cov, handle_from_index(k) as GlyphHandle);
             }
             charge_zero_budget();
             k = k.wrapping_add(1);
         }
     } else {
         let mut j_2: GlyphId = 0 as GlyphId;
-        while (j_2 as usize) < (*cd).glyphs.len() && zero_budget_left() {
-            if (&(*cd).classes)[j_2 as usize] as i32 == cls as i32 {
+        while (j_2 as usize) < cd.glyphs.len() && zero_budget_left() {
+            if cd.classes[j_2 as usize] as i32 == cls as i32 {
                 push_to_coverage(
-                    &mut *cov,
-                    otfcc_handle_dup((&(*cd).glyphs)[j_2 as usize].clone() as Handle)
-                        as GlyphHandle,
+                    &mut cov,
+                    otfcc_handle_dup(cd.glyphs[j_2 as usize].clone() as Handle) as GlyphHandle,
                 );
             }
             charge_zero_budget();
             j_2 = j_2.wrapping_add(1);
         }
     }
-    return cov;
+    Box::into_raw(Box::new(cov))
 }
-pub unsafe fn format3_coverage(
-    data: FontFilePointer,
-    table_length: u32,
+pub fn format3_coverage(
+    data: &[u8],
     shift: u16,
     mut _offset: u32,
     mut _kind: u16,
     _max_glyphs: GlyphId,
-    mut _userdata: *mut ::core::ffi::c_void,
 ) -> *mut Coverage {
-    return read_coverage(
-        ::core::slice::from_raw_parts(data as *const u8, table_length as usize),
-        _offset.wrapping_add(shift as u32).wrapping_sub(2_u32),
-    );
+    return read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2_u32));
 }
 // Every guard below is expressed as a `FontReader` read or `require_room`
 // call in the exact sequence the original's hand-written `table_length <
@@ -366,9 +359,8 @@ pub unsafe fn general_read_contextual_rule(
     offset: u32,
     start_gid: u16,
     minus_one: bool,
-    fn_0: CoverageReaderHandler,
+    mut fn_0: impl FnMut(&[u8], u16, u32, u16, GlyphId) -> *mut Coverage,
     max_glyphs: GlyphId,
-    userdata: *mut ::core::ffi::c_void,
 ) -> Option<Box<ChainingRule>> {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let minus_one_q: u16 = minus_one as u16;
@@ -416,14 +408,12 @@ pub unsafe fn general_read_contextual_rule(
     rule.match_0 = Vec::with_capacity(rule.match_count as usize);
     if minus_one {
         rule.match_0
-            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+            .push(coverage_from_raw(fn_0(
+                slice,
                 start_gid,
                 offset,
                 2_u16,
                 max_glyphs,
-                userdata,
             )));
     }
     for j in 0..n_input_built {
@@ -433,14 +423,12 @@ pub unsafe fn general_read_contextual_rule(
             .u16()
             .unwrap();
         rule.match_0
-            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+            .push(coverage_from_raw(fn_0(
+                slice,
                 gid,
                 offset,
                 2_u16,
                 max_glyphs,
-                userdata,
             )));
     }
 
@@ -547,20 +535,8 @@ unsafe fn read_contextual_format1(
                     sr_offset,
                     (&(*first_coverage))[j as usize].index as u16,
                     true,
-                    Some(
-                        single_coverage
-                            as unsafe fn(
-                                FontFilePointer,
-                                u32,
-                                u16,
-                                u32,
-                                u16,
-                                GlyphId,
-                                *mut ::core::ffi::c_void,
-                            ) -> *mut Coverage,
-                    ),
+                    single_coverage,
                     max_glyphs,
-                    NULL,
                 );
                 // A `None` here means this one rule's own offset/header was
                 // malformed (`general_read_contextual_rule`/`_chaining_rule`
@@ -605,7 +581,7 @@ unsafe fn read_contextual_format2(
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-    let mut cds: *mut ClassDefs = ::core::ptr::null_mut::<ClassDefs>();
+    let cds: Option<ClassDefs>;
 
     let result: Option<()> = 'parse: {
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 4) else {
@@ -628,11 +604,11 @@ unsafe fn read_contextual_format2(
             break 'parse None;
         }
 
-        cds = Box::into_raw(Box::new(ClassDefs {
+        cds = Some(ClassDefs {
             bc: None,
             ic: classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))),
             fc: None,
-        }));
+        });
 
         // First pass: validate every non-empty ClassSet's own header +
         // rule-offset array. The original had NO guard at all here -- every
@@ -697,20 +673,10 @@ unsafe fn read_contextual_format2(
                     sr_offset,
                     j,
                     true,
-                    Some(
-                        class_coverage
-                            as unsafe fn(
-                                FontFilePointer,
-                                u32,
-                                u16,
-                                u32,
-                                u16,
-                                GlyphId,
-                                *mut ::core::ffi::c_void,
-                            ) -> *mut Coverage,
-                    ),
+                    |slice, cls, offset, kind, max_glyphs| {
+                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().unwrap())
+                    },
                     max_glyphs,
-                    cds as *mut ::core::ffi::c_void,
                 );
                 // A `None` here means this one rule's own offset/header was
                 // malformed (`general_read_contextual_rule`/`_chaining_rule`
@@ -733,20 +699,11 @@ unsafe fn read_contextual_format2(
         break 'parse Some(());
     };
 
-    // `cds` cleanup, run exactly once regardless of outcome -- this is the
-    // fallthrough-leak fix that was already present (as a second, duplicated
-    // copy of this same block) before this conversion; consolidated into
-    // one unconditional cleanup rather than newly discovered here. Dropping
-    // the reclaimed `Box<ClassDefs>` drops `bc`/`ic`/`fc` first (each an
-    // `Option<Box<ClassDef>>`, self-dropping), then deallocates the shell --
-    // exactly what the manual `otl_class_def_free` * 3 + `free` sequence
-    // used to do by hand. `class_coverage` only ever *reads* through `cds`
-    // during the loop above (via the raw pointer handed to it as `fn_0`'s
-    // userdata); it never takes ownership away, so there is exactly one
-    // owner to drop here, not two -- no double free.
-    if !cds.is_null() {
-        drop(Box::from_raw(cds));
-    }
+    // `cds` (now a plain `Option<ClassDefs>` local) auto-drops when this
+    // function returns -- `class_coverage` only ever borrowed it via
+    // `&ClassDefs` during the loop above, never took ownership, so no
+    // manual cleanup is needed the way the old `Box<ClassDefs>` round trip
+    // required.
     if result.is_some() {
         return subtable;
     }
@@ -796,20 +753,8 @@ pub unsafe fn otl_read_contextual(
             offset.wrapping_add(2_u32),
             0_u16,
             false,
-            Some(
-                format3_coverage
-                    as unsafe fn(
-                        FontFilePointer,
-                        u32,
-                        u16,
-                        u32,
-                        u16,
-                        GlyphId,
-                        *mut ::core::ffi::c_void,
-                    ) -> *mut Coverage,
-            ),
+            format3_coverage,
             max_glyphs,
-            NULL,
         );
         // Same "malformed individual rule, not the whole subtable" case as
         // the format1/format2 loops above -- see their comment.
@@ -836,9 +781,8 @@ pub unsafe fn general_read_chaining_rule(
     offset: u32,
     start_gid: u16,
     minus_one: bool,
-    fn_0: CoverageReaderHandler,
+    mut fn_0: impl FnMut(&[u8], u16, u32, u16, GlyphId) -> *mut Coverage,
     max_glyphs: GlyphId,
-    userdata: *mut ::core::ffi::c_void,
 ) -> Option<Box<ChainingRule>> {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let minus_one_q: u16 = minus_one as u16;
@@ -904,26 +848,22 @@ pub unsafe fn general_read_chaining_rule(
             .u16()
             .unwrap();
         rule.match_0
-            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+            .push(coverage_from_raw(fn_0(
+                slice,
                 gid,
                 offset,
                 1_u16,
                 max_glyphs,
-                userdata,
             )));
     }
     if minus_one {
         rule.match_0
-            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+            .push(coverage_from_raw(fn_0(
+                slice,
                 start_gid,
                 offset,
                 2_u16,
                 max_glyphs,
-                userdata,
             )));
     }
     // Array positions derived the same way `header`'s cursor validated
@@ -941,14 +881,12 @@ pub unsafe fn general_read_chaining_rule(
             .u16()
             .unwrap();
         rule.match_0
-            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+            .push(coverage_from_raw(fn_0(
+                slice,
                 gid,
                 offset,
                 2_u16,
                 max_glyphs,
-                userdata,
             )));
     }
     let lookaround_base = input_base + 2 * n_input_read as usize + 2;
@@ -959,14 +897,12 @@ pub unsafe fn general_read_chaining_rule(
             .u16()
             .unwrap();
         rule.match_0
-            .push(coverage_from_raw(fn_0.expect("non-null function pointer")(
-                data,
-                table_length,
+            .push(coverage_from_raw(fn_0(
+                slice,
                 gid,
                 offset,
                 3_u16,
                 max_glyphs,
-                userdata,
             )));
     }
 
@@ -1069,20 +1005,8 @@ unsafe fn read_chaining_format1(
                     sr_offset,
                     (&(*first_coverage))[j as usize].index as u16,
                     true,
-                    Some(
-                        single_coverage
-                            as unsafe fn(
-                                FontFilePointer,
-                                u32,
-                                u16,
-                                u32,
-                                u16,
-                                GlyphId,
-                                *mut ::core::ffi::c_void,
-                            ) -> *mut Coverage,
-                    ),
+                    single_coverage,
                     max_glyphs,
-                    NULL,
                 );
                 // A `None` here means this one rule's own offset/header was
                 // malformed (`general_read_contextual_rule`/`_chaining_rule`
@@ -1126,7 +1050,7 @@ unsafe fn read_chaining_format2(
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-    let mut cds: *mut ClassDefs = ::core::ptr::null_mut::<ClassDefs>();
+    let cds: Option<ClassDefs>;
 
     let result: Option<()> = 'parse: {
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 4) else {
@@ -1151,11 +1075,11 @@ unsafe fn read_chaining_format2(
             break 'parse None;
         }
 
-        cds = Box::into_raw(Box::new(ClassDefs {
+        cds = Some(ClassDefs {
             bc: classdef_from_raw(read_class_def(slice, offset.wrapping_add(bc_rel as u32))),
             ic: classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))),
             fc: classdef_from_raw(read_class_def(slice, offset.wrapping_add(fc_rel as u32))),
-        }));
+        });
 
         // First pass: validate every non-empty ClassSet's own header +
         // rule-offset array. The original had NO guard at all here (same
@@ -1219,20 +1143,10 @@ unsafe fn read_chaining_format2(
                     sr_offset,
                     j,
                     true,
-                    Some(
-                        class_coverage
-                            as unsafe fn(
-                                FontFilePointer,
-                                u32,
-                                u16,
-                                u32,
-                                u16,
-                                GlyphId,
-                                *mut ::core::ffi::c_void,
-                            ) -> *mut Coverage,
-                    ),
+                    |slice, cls, offset, kind, max_glyphs| {
+                        class_coverage(slice, cls, offset, kind, max_glyphs, cds.as_ref().unwrap())
+                    },
                     max_glyphs,
-                    cds as *mut ::core::ffi::c_void,
                 );
                 // A `None` here means this one rule's own offset/header was
                 // malformed (`general_read_contextual_rule`/`_chaining_rule`
@@ -1255,15 +1169,9 @@ unsafe fn read_chaining_format2(
         break 'parse Some(());
     };
 
-    // `cds` cleanup, run exactly once regardless of outcome -- same
-    // consolidation as `read_contextual_format2` (the fallthrough-leak fix
-    // was already present as a duplicated block before this conversion).
-    // See that function's comment for why a single `Box` drop is the exact
-    // replacement for the old manual `otl_class_def_free` * 3 + `free`
-    // sequence, with no double-free risk.
-    if !cds.is_null() {
-        drop(Box::from_raw(cds));
-    }
+    // `cds` (a plain `Option<ClassDefs>` local, same as `read_contextual_
+    // format2`) auto-drops when this function returns -- no manual
+    // cleanup needed.
     if result.is_some() {
         return subtable;
     }
@@ -1309,20 +1217,8 @@ pub unsafe fn otl_read_chaining(
             offset.wrapping_add(2_u32),
             0_u16,
             false,
-            Some(
-                format3_coverage
-                    as unsafe fn(
-                        FontFilePointer,
-                        u32,
-                        u16,
-                        u32,
-                        u16,
-                        GlyphId,
-                        *mut ::core::ffi::c_void,
-                    ) -> *mut Coverage,
-            ),
+            format3_coverage,
             max_glyphs,
-            NULL,
         );
         // Same "malformed individual rule, not the whole subtable" case as
         // the format1/format2 loops above -- see their comment.
@@ -1610,20 +1506,8 @@ mod chaining_read_tests {
                 0,
                 7,
                 true,
-                Some(
-                    single_coverage
-                        as unsafe fn(
-                            FontFilePointer,
-                            u32,
-                            u16,
-                            u32,
-                            u16,
-                            GlyphId,
-                            *mut ::core::ffi::c_void,
-                        ) -> *mut Coverage,
-                ),
+                single_coverage,
                 100,
-                NULL,
             );
             let rule = rule.unwrap();
             // Only the `minus_one` slot (glyph 7, from `start_gid`) is
