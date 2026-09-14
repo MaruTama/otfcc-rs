@@ -342,27 +342,19 @@ fn glyf_glyph_dump_contours(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCont
         return;
     }
     let mut contours = BuiltValue::new_array(g.contours.len());
-    let mut k: ShapeId = 0 as ShapeId;
-    while (k as usize) < g.contours.len() {
-        let c: &Contour = &g.contours[k as usize];
+    for c in g.contours.iter() {
         let mut contour = BuiltValue::new_array(c.len());
-        let mut m: ShapeId = 0 as ShapeId;
-        while (m as usize) < c.len() {
+        for p in c.iter() {
             let mut point = BuiltValue::new_object(4);
             // `json_new_vq` itself is safe now; `ctx.fvar` (tied to
             // `GlyfIOContext`, out of this file's scope) is still a raw
             // `*mut FvarTable`, so this narrow reborrow is the bridge.
-            point.push_field(b"x", json_new_vq(c[m as usize].x.clone(), unsafe { ctx.fvar.as_ref() }));
-            point.push_field(b"y", json_new_vq(c[m as usize].y.clone(), unsafe { ctx.fvar.as_ref() }));
-            point.push_field(
-                b"on",
-                BuiltValue::Bool(c[m as usize].on_curve & MASK_ON_CURVE != 0),
-            );
+            point.push_field(b"x", json_new_vq(p.x.clone(), unsafe { ctx.fvar.as_ref() }));
+            point.push_field(b"y", json_new_vq(p.y.clone(), unsafe { ctx.fvar.as_ref() }));
+            point.push_field(b"on", BuiltValue::Bool(p.on_curve & MASK_ON_CURVE != 0));
             contour.push_item(point);
-            m = m.wrapping_add(1);
         }
         contours.push_item(contour.preserialize());
-        k = k.wrapping_add(1);
     }
     target.push_field(b"contours", contours);
 }
@@ -371,9 +363,7 @@ fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCo
         return;
     }
     let mut references = BuiltValue::new_array(g.references.len());
-    let mut k: ShapeId = 0 as ShapeId;
-    while (k as usize) < g.references.len() {
-        let r: &ComponentReference = &g.references[k as usize];
+    for r in g.references.iter() {
         let mut ref_0 = BuiltValue::new_object(9);
         ref_0.push_field(b"glyph", BuiltValue::str_truncated_at_nul(&r.glyph.name));
         // See the comment on the `json_new_vq` calls in
@@ -396,51 +386,42 @@ fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCo
             ref_0.push_field(b"useMyMetrics", BuiltValue::Bool(true));
         }
         references.push_item(ref_0.preserialize());
-        k = k.wrapping_add(1);
     }
     target.push_field(b"references", references);
 }
 fn glyf_glyph_dump_stemdefs(stems: &StemDefList) -> BuiltValue {
     let mut a = BuiltValue::new_array(stems.len());
-    let mut j: ShapeId = 0 as ShapeId;
-    while (j as usize) < stems.len() {
+    for stem_def in stems.iter() {
         let mut stem = BuiltValue::new_object(3);
-        stem.push_field(b"position", BuiltValue::position(stems[j as usize].position));
-        stem.push_field(b"width", BuiltValue::position(stems[j as usize].width));
+        stem.push_field(b"position", BuiltValue::position(stem_def.position));
+        stem.push_field(b"width", BuiltValue::position(stem_def.width));
         a.push_item(stem);
-        j = j.wrapping_add(1);
     }
     a
 }
 fn glyf_glyph_dump_maskdefs(masks: &MaskList, hh: &StemDefList, vv: &StemDefList) -> BuiltValue {
     let mut a = BuiltValue::new_array(masks.len());
-    let mut j: ShapeId = 0 as ShapeId;
-    while (j as usize) < masks.len() {
+    for entry in masks.iter() {
         let mut mask = BuiltValue::new_object(3);
         mask.push_field(
             b"contoursBefore",
-            BuiltValue::Int(masks[j as usize].contours_before as i64),
+            BuiltValue::Int(entry.contours_before as i64),
         );
-        mask.push_field(
-            b"pointsBefore",
-            BuiltValue::Int(masks[j as usize].points_before as i64),
-        );
+        mask.push_field(b"pointsBefore", BuiltValue::Int(entry.points_before as i64));
+        // Bounded by `hh`/`vv`'s own length, not `mask_h`/`mask_v`'s
+        // fixed 256-entry size -- `.take()` reproduces the original's
+        // explicit bound exactly.
         let mut h = BuiltValue::new_array(hh.len());
-        let mut k: ShapeId = 0 as ShapeId;
-        while (k as usize) < hh.len() {
-            h.push_item(BuiltValue::Bool(masks[j as usize].mask_h[k as usize]));
-            k = k.wrapping_add(1);
+        for &bit in entry.mask_h.iter().take(hh.len()) {
+            h.push_item(BuiltValue::Bool(bit));
         }
         mask.push_field(b"maskH", h);
         let mut v = BuiltValue::new_array(vv.len());
-        let mut k_0: ShapeId = 0 as ShapeId;
-        while (k_0 as usize) < vv.len() {
-            v.push_item(BuiltValue::Bool(masks[j as usize].mask_v[k_0 as usize]));
-            k_0 = k_0.wrapping_add(1);
+        for &bit in entry.mask_v.iter().take(vv.len()) {
+            v.push_item(BuiltValue::Bool(bit));
         }
         mask.push_field(b"maskV", v);
         a.push_item(mask);
-        j = j.wrapping_add(1);
     }
     a
 }
