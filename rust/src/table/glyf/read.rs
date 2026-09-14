@@ -169,11 +169,10 @@ fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<B
             }
         }
     }
-    let mut coordinates_read: usize = 0;
     current_contour = 0 as ShapeId;
     current_contour_point_index = 0 as ShapeId;
-    while coordinates_read < points_in_glyph as usize {
-        let flag_0: PointFlags = PointFlags::from_bits_retain(flags[coordinates_read]);
+    for &f in flags.iter() {
+        let flag_0: PointFlags = PointFlags::from_bits_retain(f);
         let x: i16 = if flag_0.contains(PointFlags::X_SHORT) {
             let mag = r.u8().ok()? as i16;
             if flag_0.contains(PointFlags::POSITIVE_X) {
@@ -188,13 +187,11 @@ fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<B
         };
         next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).x =
             vq_create_still(x as Pos);
-        coordinates_read += 1;
     }
-    coordinates_read = 0;
     current_contour = 0 as ShapeId;
     current_contour_point_index = 0 as ShapeId;
-    while coordinates_read < points_in_glyph as usize {
-        let flag_1: PointFlags = PointFlags::from_bits_retain(flags[coordinates_read]);
+    for &f in flags.iter() {
+        let flag_1: PointFlags = PointFlags::from_bits_retain(f);
         let y: i16 = if flag_1.contains(PointFlags::Y_SHORT) {
             let mag = r.u8().ok()? as i16;
             if flag_1.contains(PointFlags::POSITIVE_Y) {
@@ -209,20 +206,17 @@ fn otfcc_read_simple_glyph(body: &[u8], number_of_contours: ShapeId) -> Option<B
         };
         next_point(&mut g.contours, &mut current_contour, &mut current_contour_point_index).y =
             vq_create_still(y as Pos);
-        coordinates_read += 1;
     }
     let mut cx: VQ = (vq_neutral)();
     let mut cy: VQ = (vq_neutral)();
-    let mut j_1: ShapeId = 0 as ShapeId;
-    while (j_1 as i32) < number_of_contours as i32 {
-        for z in g.contours[j_1 as usize].iter_mut() {
+    for contour in g.contours.iter_mut() {
+        for z in contour.iter_mut() {
             vq_inplace_plus(&mut cx, z.x.clone());
             vq_inplace_plus(&mut cy, z.y.clone());
             z.x = cx.clone();
             z.y = cy.clone();
         }
-        g.contours[j_1 as usize].shrink_to_fit();
-        j_1 = j_1.wrapping_add(1);
+        contour.shrink_to_fit();
     }
     g.contours.shrink_to_fit();
     // `cx`/`cy` are plain owned locals, never moved out, so they auto-drop
@@ -416,12 +410,7 @@ fn parse_point_numbers(
             run.length = run.length.wrapping_sub(1);
         }
     } else {
-        point_indeces = Vec::with_capacity(total_points as usize);
-        let mut j: ShapeId = 0 as ShapeId;
-        while (j as i32) < total_points as i32 {
-            point_indeces.push(j);
-            j = j.wrapping_add(1);
-        }
+        point_indeces = (0..total_points).collect();
     }
     Some((r.pos(), point_indeces))
 }
@@ -469,8 +458,7 @@ fn read_packed_delta(
 // frees either array, only reads (`kernel`) or reads-then-writes
 // (`nudges`) into them by index.
 fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kernel: &[Pos]) {
-    let mut j: ShapeId = j_min;
-    while (j as i32) < j_max as i32 {
+    for j in j_min..j_max {
         if !nudges[j as usize].is_touched() {
             let mut j_next: ShapeId = j;
             while !nudges[j_next as usize].is_touched() {
@@ -532,7 +520,6 @@ fn fill_the_gaps(j_min: ShapeId, j_max: ShapeId, nudges: &mut [VqSegment], kerne
                 }
             }
         }
-        j = j.wrapping_add(1);
     }
 }
 // Computes one axis' nudges (`VqSegment`s to be written back into that
@@ -552,24 +539,26 @@ fn apply_coords(
     r: *const VqRegion,
 ) -> Vec<VqSegment> {
     let mut nudges: Vec<VqSegment> = Vec::with_capacity(total_points as usize);
-    let mut j: ShapeId = 0 as ShapeId;
-    while (j as i32) < total_points as i32 {
+    for _ in 0..total_points {
         nudges.push(VqSegment::Delta(VqSegmentDelta {
             quantity: 0_i32 as Pos,
             touched: false,
             region: r,
         }));
-        j = j.wrapping_add(1);
     }
-    let mut j_0: ShapeId = 0 as ShapeId;
-    while (j_0 as i32) < n_touched_points as i32 {
-        let idx = points[j_0 as usize];
+    // Bounded by `n_touched_points`, not assumed equal to `points`/
+    // `tuple_delta`'s own length (same count-vs-length caution
+    // established since PR #422) -- `.take()` on the zip.
+    for (&idx, &delta) in points
+        .iter()
+        .zip(tuple_delta.iter())
+        .take(n_touched_points as usize)
+    {
         if (idx as i32) < total_points as i32 {
             let d = nudges[idx as usize].delta_mut();
             d.touched = true;
-            d.quantity += tuple_delta[j_0 as usize];
+            d.quantity += delta;
         }
-        j_0 = j_0.wrapping_add(1);
     }
     let mut j_first: ShapeId = 0 as ShapeId;
     for &len in contour_lens {
@@ -711,8 +700,7 @@ fn create_region_from_tuples(
     range_offset: Option<usize>,
 ) -> Option<*mut VqRegion> {
     let mut spans: Vec<VqAxisSpan> = Vec::with_capacity(dimensions as usize);
-    let mut d: u16 = 0_u16;
-    while (d as i32) < dimensions as i32 {
+    for d in 0..dimensions {
         let Ok(peak_raw) = FontReader::new(gvar)
             .at(peak_offset + d as usize * 2)
             .and_then(|mut x| x.i16())
@@ -752,7 +740,6 @@ fn create_region_from_tuples(
             }
         }
         spans.push(span);
-        d = d.wrapping_add(1);
     }
     Some(Box::into_raw(Box::new(VqRegion {
         dimensions: dimensions as ShapeId,
