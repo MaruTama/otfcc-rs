@@ -68,7 +68,6 @@ pub fn otfcc_build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
     let n_backtrack: TableId = rule.input_begins;
     let n_input: TableId = (rule.input_ends as i32 - rule.input_begins as i32) as TableId;
     let n_lookahead: TableId = (rule.match_count as i32 - rule.input_ends as i32) as TableId;
-    let n_subst: TableId = rule.apply.len() as TableId;
     // The backtrack portion (indices [0, input_begins)) needs to be read in
     // wire order, the reverse of `match_0`'s storage order. Clone just that
     // slice and reverse the clone rather than sorting `match_0` in place
@@ -85,16 +84,11 @@ pub fn otfcc_build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
             (n_backtrack as i32) as u32,
         )],
     );
-    let mut j: TableId = 0 as TableId;
-    while (j as i32) < rule.input_begins as i32 {
+    for cov in backtrack.iter() {
         bk_push(
             &mut root,
-            vec![bk_ptr(
-                BkCellType::P16,
-                bk_new_block_from_buffer(Some(build_coverage(&backtrack[j as usize]))),
-            )],
+            vec![bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(build_coverage(cov))))],
         );
-        j = j.wrapping_add(1);
     }
     bk_push(
         &mut root,
@@ -103,18 +97,11 @@ pub fn otfcc_build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
             (n_input as i32) as u32,
         )],
     );
-    let mut j_0: TableId = rule.input_begins;
-    while (j_0 as i32) < rule.input_ends as i32 {
+    for cov in &rule.match_0[rule.input_begins as usize..rule.input_ends as usize] {
         bk_push(
             &mut root,
-            vec![bk_ptr(
-                BkCellType::P16,
-                bk_new_block_from_buffer(Some(build_coverage(
-                    &rule.match_0[j_0 as usize],
-                ))),
-            )],
+            vec![bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(build_coverage(cov))))],
         );
-        j_0 = j_0.wrapping_add(1);
     }
     bk_push(
         &mut root,
@@ -123,18 +110,11 @@ pub fn otfcc_build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
             (n_lookahead as i32) as u32,
         )],
     );
-    let mut j_1: TableId = rule.input_ends;
-    while (j_1 as i32) < rule.match_count as i32 {
+    for cov in &rule.match_0[rule.input_ends as usize..rule.match_count as usize] {
         bk_push(
             &mut root,
-            vec![bk_ptr(
-                BkCellType::P16,
-                bk_new_block_from_buffer(Some(build_coverage(
-                    &rule.match_0[j_1 as usize],
-                ))),
-            )],
+            vec![bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(build_coverage(cov))))],
         );
-        j_1 = j_1.wrapping_add(1);
     }
     bk_push(
         &mut root,
@@ -143,23 +123,14 @@ pub fn otfcc_build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
             (rule.apply.len() as i32) as u32,
         )],
     );
-    let mut j_2: TableId = 0 as TableId;
-    while (j_2 as i32) < n_subst as i32 {
+    for app in rule.apply.iter() {
         bk_push(
             &mut root,
             vec![
-                bk_int(
-                    BkCellType::B16,
-                    (rule.apply[j_2 as usize].index as i32
-                        - n_backtrack as i32) as u32,
-                ),
-                bk_int(
-                    BkCellType::B16,
-                    (rule.apply[j_2 as usize].lookup.index as i32) as u32,
-                ),
+                bk_int(BkCellType::B16, (app.index as i32 - n_backtrack as i32) as u32),
+                bk_int(BkCellType::B16, app.lookup.index as u32),
             ],
         );
-        j_2 = j_2.wrapping_add(1);
     }
     return bk_build_block(root);
 }
@@ -194,33 +165,24 @@ pub fn otfcc_build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
     ]);
     let mut rcpg: Vec<GlyphClass> =
         vec![0; (ic.maxclass as i32 + 1_i32) as usize];
-    let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < ruleset.rules.len() {
-        let rule_j0: &ChainingRule = ruleset.rules[j_0 as usize]
-            .as_deref()
-            .expect("chaining rule slot should never be None at build time");
+    for slot in ruleset.rules.iter() {
+        let rule_j0: &ChainingRule =
+            slot.as_deref().expect("chaining rule slot should never be None at build time");
         let ib: TableId = rule_j0.input_begins;
         let start_class: TableId = rule_j0.match_0[ib as usize][0].index as TableId;
         if start_class as i32 <= ic.maxclass as i32 {
             rcpg[start_class as usize] = rcpg[start_class as usize].wrapping_add(1);
         }
-        j_0 = j_0.wrapping_add(1);
     }
-    let mut j_1: GlyphClass = 0 as GlyphClass;
-    while j_1 as i32 <= ic.maxclass as i32 {
-        if rcpg[j_1 as usize] != 0 {
-            let mut cset: BkBlock = bk_new_block(vec![bk_int(
-                BkCellType::B16,
-                (rcpg[j_1 as usize] as i32) as u32,
-            )]);
-            let mut k: TableId = 0 as TableId;
-            while (k as usize) < ruleset.rules.len() {
-                let rule: &ChainingRule = ruleset.rules[k as usize]
-                    .as_deref()
-                    .expect("chaining rule slot should never be None at build time");
+    for (j_1, &count) in rcpg.iter().enumerate() {
+        if count != 0 {
+            let mut cset: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, count as u32)]);
+            for slot in ruleset.rules.iter() {
+                let rule: &ChainingRule =
+                    slot.as_deref().expect("chaining rule slot should never be None at build time");
                 let start_class_0: GlyphClass =
                     rule.match_0[rule.input_begins as usize][0].index as GlyphClass;
-                if !(start_class_0 as i32 != j_1 as i32) {
+                if start_class_0 as usize == j_1 {
                     // Same clone-then-reverse-locally treatment as
                     // `otfcc_build_chaining_coverage` above.
                     let mut backtrack: Vec<Coverage> =
@@ -233,7 +195,6 @@ pub fn otfcc_build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
                     let n_lookahead: TableId = (rule.match_count as i32
                         - rule.input_ends as i32)
                         as TableId;
-                    let n_subst: TableId = rule.apply.len() as TableId;
                     let mut r: BkBlock = bk_new_block(Vec::new());
                     bk_push(
                         &mut r,
@@ -242,17 +203,8 @@ pub fn otfcc_build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
                             (n_backtrack as i32) as u32,
                         )],
                     );
-                    let mut m: TableId = 0 as TableId;
-                    while (m as i32) < rule.input_begins as i32 {
-                        bk_push(
-                            &mut r,
-                            vec![bk_int(
-                                BkCellType::B16,
-                                (backtrack[m as usize][0].index as i32)
-                                    as u32,
-                            )],
-                        );
-                        m = m.wrapping_add(1);
+                    for cov in backtrack.iter() {
+                        bk_push(&mut r, vec![bk_int(BkCellType::B16, cov[0].index as u32)]);
                     }
                     bk_push(
                         &mut r,
@@ -261,19 +213,9 @@ pub fn otfcc_build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
                             (n_input as i32) as u32,
                         )],
                     );
-                    let mut m_0: TableId = (rule.input_begins as i32
-                        + 1_i32)
-                        as TableId;
-                    while (m_0 as i32) < rule.input_ends as i32 {
-                        bk_push(
-                            &mut r,
-                            vec![bk_int(
-                                BkCellType::B16,
-                                (rule.match_0[m_0 as usize][0].index as i32)
-                                    as u32,
-                            )],
-                        );
-                        m_0 = m_0.wrapping_add(1);
+                    let m_0_start = (rule.input_begins as i32 + 1_i32) as usize;
+                    for cov in &rule.match_0[m_0_start..rule.input_ends as usize] {
+                        bk_push(&mut r, vec![bk_int(BkCellType::B16, cov[0].index as u32)]);
                     }
                     bk_push(
                         &mut r,
@@ -282,55 +224,32 @@ pub fn otfcc_build_chaining_classes(_subtable: &ChainingSubtable) -> Buffer {
                             (n_lookahead as i32) as u32,
                         )],
                     );
-                    let mut m_1: TableId = rule.input_ends;
-                    while (m_1 as i32) < rule.match_count as i32 {
-                        bk_push(
-                            &mut r,
-                            vec![bk_int(
-                                BkCellType::B16,
-                                (rule.match_0[m_1 as usize][0].index as i32)
-                                    as u32,
-                            )],
-                        );
-                        m_1 = m_1.wrapping_add(1);
+                    for cov in &rule.match_0[rule.input_ends as usize..rule.match_count as usize] {
+                        bk_push(&mut r, vec![bk_int(BkCellType::B16, cov[0].index as u32)]);
                     }
                     bk_push(
                         &mut r,
                         vec![bk_int(
                             BkCellType::B16,
-                            (n_subst as i32) as u32,
+                            (rule.apply.len() as i32) as u32,
                         )],
                     );
-                    let mut m_2: TableId = 0 as TableId;
-                    while (m_2 as i32) < n_subst as i32 {
+                    for app in rule.apply.iter() {
                         bk_push(
                             &mut r,
                             vec![
-                                bk_int(
-                                    BkCellType::B16,
-                                    (rule.apply[m_2 as usize].index as i32
-                                        - n_backtrack as i32)
-                                        as u32,
-                                ),
-                                bk_int(
-                                    BkCellType::B16,
-                                    (rule.apply[m_2 as usize].lookup.index
-                                        as i32)
-                                        as u32,
-                                ),
+                                bk_int(BkCellType::B16, (app.index as i32 - n_backtrack as i32) as u32),
+                                bk_int(BkCellType::B16, app.lookup.index as u32),
                             ],
                         );
-                        m_2 = m_2.wrapping_add(1);
                     }
                     bk_push(&mut cset, vec![bk_ptr(BkCellType::P16, Some(r))]);
                 }
-                k = k.wrapping_add(1);
             }
             bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(cset))]);
         } else {
             bk_push(&mut root, vec![bk_ptr(BkCellType::P16, None)]);
         }
-        j_1 = j_1.wrapping_add(1);
     }
     return bk_build_block(root);
 }
@@ -368,35 +287,20 @@ pub fn otfcc_build_contextual_coverage(_subtable: &ChainingSubtable) -> Buffer {
             (n_subst as i32) as u32,
         )],
     );
-    let mut j: TableId = rule.input_begins;
-    while (j as i32) < rule.input_ends as i32 {
+    for cov in &rule.match_0[rule.input_begins as usize..rule.input_ends as usize] {
         bk_push(
             &mut root,
-            vec![bk_ptr(
-                BkCellType::P16,
-                bk_new_block_from_buffer(Some(build_coverage(
-                    &rule.match_0[j as usize],
-                ))),
-            )],
+            vec![bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(build_coverage(cov))))],
         );
-        j = j.wrapping_add(1);
     }
-    let mut j_0: TableId = 0 as TableId;
-    while (j_0 as i32) < n_subst as i32 {
+    for app in rule.apply.iter() {
         bk_push(
             &mut root,
             vec![
-                bk_int(
-                    BkCellType::B16,
-                    (rule.apply[j_0 as usize].index as i32) as u32,
-                ),
-                bk_int(
-                    BkCellType::B16,
-                    (rule.apply[j_0 as usize].lookup.index as i32) as u32,
-                ),
+                bk_int(BkCellType::B16, app.index as u32),
+                bk_int(BkCellType::B16, app.lookup.index as u32),
             ],
         );
-        j_0 = j_0.wrapping_add(1);
     }
     return bk_build_block(root);
 }
@@ -423,42 +327,32 @@ pub fn otfcc_build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
     ]);
     let mut rcpg: Vec<GlyphClass> =
         vec![0; (ic.maxclass as i32 + 1_i32) as usize];
-    let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < ruleset.rules.len() {
-        let rule_j0: &ChainingRule = ruleset.rules[j_0 as usize]
-            .as_deref()
-            .expect("chaining rule slot should never be None at build time");
+    for slot in ruleset.rules.iter() {
+        let rule_j0: &ChainingRule =
+            slot.as_deref().expect("chaining rule slot should never be None at build time");
         let ib: TableId = rule_j0.input_begins;
         let start_class: TableId = rule_j0.match_0[ib as usize][0].index as TableId;
         if start_class as i32 <= ic.maxclass as i32 {
             rcpg[start_class as usize] = rcpg[start_class as usize].wrapping_add(1);
         }
-        j_0 = j_0.wrapping_add(1);
     }
-    let mut j_1: GlyphClass = 0 as GlyphClass;
-    while j_1 as i32 <= ic.maxclass as i32 {
-        if rcpg[j_1 as usize] != 0 {
-            let mut cset: BkBlock = bk_new_block(vec![bk_int(
-                BkCellType::B16,
-                (rcpg[j_1 as usize] as i32) as u32,
-            )]);
-            let mut k: TableId = 0 as TableId;
-            while (k as usize) < ruleset.rules.len() {
-                let rule: &ChainingRule = ruleset.rules[k as usize]
-                    .as_deref()
-                    .expect("chaining rule slot should never be None at build time");
+    for (j_1, &count) in rcpg.iter().enumerate() {
+        if count != 0 {
+            let mut cset: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, count as u32)]);
+            for slot in ruleset.rules.iter() {
+                let rule: &ChainingRule =
+                    slot.as_deref().expect("chaining rule slot should never be None at build time");
                 let start_class_0: GlyphClass =
                     rule.match_0[rule.input_begins as usize][0].index as GlyphClass;
-                if !(start_class_0 as i32 != j_1 as i32) {
+                if start_class_0 as usize == j_1 {
                     // Same "no observable effect" reasoning as
-                    // `otfcc_build_contextual_coverage` -- the `m` loop
-                    // below starts at `input_begins + 1`, never reading a
+                    // `otfcc_build_contextual_coverage` -- the loop below
+                    // starts at `input_begins + 1`, never reading a
                     // backtrack-region index, so the reversal this rule
                     // used to get is dropped rather than reproduced.
                     let n_input: TableId = (rule.input_ends as i32
                         - rule.input_begins as i32)
                         as TableId;
-                    let n_subst: TableId = rule.apply.len() as TableId;
                     let mut r: BkBlock = bk_new_block(Vec::new());
                     bk_push(
                         &mut r,
@@ -471,52 +365,29 @@ pub fn otfcc_build_contextual_classes(_subtable: &ChainingSubtable) -> Buffer {
                         &mut r,
                         vec![bk_int(
                             BkCellType::B16,
-                            (n_subst as i32) as u32,
+                            (rule.apply.len() as i32) as u32,
                         )],
                     );
-                    let mut m: TableId = (rule.input_begins as i32
-                        + 1_i32)
-                        as TableId;
-                    while (m as i32) < rule.input_ends as i32 {
-                        bk_push(
-                            &mut r,
-                            vec![bk_int(
-                                BkCellType::B16,
-                                (rule.match_0[m as usize][0].index as i32)
-                                    as u32,
-                            )],
-                        );
-                        m = m.wrapping_add(1);
+                    let m_start = (rule.input_begins as i32 + 1_i32) as usize;
+                    for cov in &rule.match_0[m_start..rule.input_ends as usize] {
+                        bk_push(&mut r, vec![bk_int(BkCellType::B16, cov[0].index as u32)]);
                     }
-                    let mut m_0: TableId = 0 as TableId;
-                    while (m_0 as i32) < n_subst as i32 {
+                    for app in rule.apply.iter() {
                         bk_push(
                             &mut r,
                             vec![
-                                bk_int(
-                                    BkCellType::B16,
-                                    (rule.apply[m_0 as usize].index as i32)
-                                        as u32,
-                                ),
-                                bk_int(
-                                    BkCellType::B16,
-                                    (rule.apply[m_0 as usize].lookup.index
-                                        as i32)
-                                        as u32,
-                                ),
+                                bk_int(BkCellType::B16, app.index as u32),
+                                bk_int(BkCellType::B16, app.lookup.index as u32),
                             ],
                         );
-                        m_0 = m_0.wrapping_add(1);
                     }
                     bk_push(&mut cset, vec![bk_ptr(BkCellType::P16, Some(r))]);
                 }
-                k = k.wrapping_add(1);
             }
             bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(cset))]);
         } else {
             bk_push(&mut root, vec![bk_ptr(BkCellType::P16, None)]);
         }
-        j_1 = j_1.wrapping_add(1);
     }
     return bk_build_block(root);
 }
