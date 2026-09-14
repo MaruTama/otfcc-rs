@@ -36,14 +36,11 @@ fn class_compatible(
     let gid: GlyphId = (&(*cov))[0].index;
     match h.get(&gid).map(|v| v.cls) {
         Some(cls) => {
-            let mut j: GlyphId = 1 as GlyphId;
-            while (j as usize) < (*cov).len() {
-                let gid_0: GlyphId = (&(*cov))[j as usize].index;
-                match h.get(&gid_0) {
+            for entry in cov.iter().skip(1) {
+                match h.get(&entry.index) {
                     Some(ss) if ss.cls == cls => {}
                     _ => return 0_i32,
                 }
-                j = j.wrapping_add(1);
             }
             // Original built a throwaway `revh` -- a hash of `cov`'s own
             // (deduped) glyph ids, values unused (only ever a presence
@@ -52,10 +49,8 @@ fn class_compatible(
             // `PairClassifierHash`, so a bare `HashSet<GlyphId>` replaces
             // it, with no `gname`/`cls` payload to carry at all.
             let mut revset: std::collections::HashSet<GlyphId> = std::collections::HashSet::new();
-            let mut j_0: GlyphId = 0 as GlyphId;
-            while (j_0 as usize) < (*cov).len() {
-                revset.insert((&(*cov))[j_0 as usize].index);
-                j_0 = j_0.wrapping_add(1);
+            for entry in cov.iter() {
+                revset.insert(entry.index);
             }
             // `allcheck`: every glyph already classified under `cls` in
             // `h` (not just the ones from this `cov`) must also be a
@@ -74,24 +69,17 @@ fn class_compatible(
             };
         }
         None => {
-            let mut j_1: GlyphId = 1 as GlyphId;
-            while (j_1 as usize) < (*cov).len() {
-                let gid_3: GlyphId = (&(*cov))[j_1 as usize].index;
-                if h.contains_key(&gid_3) {
+            for entry in cov.iter().skip(1) {
+                if h.contains_key(&entry.index) {
                     return 0_i32;
                 }
-                j_1 = j_1.wrapping_add(1);
             }
             let new_cls: i32 = *past + 1_i32;
-            let mut j_2: GlyphId = 0 as GlyphId;
-            while (j_2 as usize) < (*cov).len() {
-                let gid_4: GlyphId = (&(*cov))[j_2 as usize].index;
-                let gname: Vec<u8> = (&(*cov))[j_2 as usize].name.clone();
-                h.entry(gid_4).or_insert(ClassifierValue {
-                    gname,
+            for entry in cov.iter() {
+                h.entry(entry.index).or_insert(ClassifierValue {
+                    gname: entry.name.clone(),
                     cls: new_cls,
                 });
-                j_2 = j_2.wrapping_add(1);
             }
             *past += 1_i32;
             return 1_i32;
@@ -116,15 +104,24 @@ fn build_rule(
         match_0: Vec::with_capacity(rule.match_count as usize),
         apply: Vec::new(),
     });
-    let mut m: TableId = 0 as TableId;
-    while (m as i32) < rule.match_count as i32 {
+    // Bounded by `rule.match_count`, not assumed equal to
+    // `rule.match_0.len()` (it is `Vec::with_capacity`d to that count by
+    // callers, but this function itself has no reason to rely on the
+    // two agreeing) -- `.take(rule.match_count as usize)` preserves the
+    // original's own bound exactly.
+    for (m, match_entry) in rule
+        .match_0
+        .iter()
+        .enumerate()
+        .take(rule.match_count as usize)
+    {
         // Built as a plain local `Vec` and pushed directly -- no need for
         // the `otl_coverage_create()`/`coverage_from_raw()` raw-pointer
         // round trip other constructors use, since `Coverage` is just
         // `Vec<GlyphHandle>` and this function never hands the pointer to
         // anyone else in between.
         let mut cov: Coverage = Coverage::new();
-        if rule.match_0[m as usize].len() > 0_usize {
+        if match_entry.len() > 0_usize {
             let h: &std::collections::BTreeMap<GlyphId, ClassifierValue> =
                 if (m as i32) < rule.input_begins as i32 {
                     hb
@@ -133,7 +130,7 @@ fn build_rule(
                 } else {
                     hf
                 };
-            let gid: GlyphId = rule.match_0[m as usize][0].index;
+            let gid: GlyphId = match_entry[0].index;
             // `h.get(&gid)` is unreachable-as-`None` in practice: every
             // glyph reaching this point already passed `class_compatible`
             // for this same `h`, which never returns success without
@@ -152,20 +149,16 @@ fn build_rule(
             push_to_coverage(&mut cov, handle_from_index(0 as GlyphId) as GlyphHandle);
         }
         new_rule.match_0.push(cov);
-        m = m.wrapping_add(1);
     }
     // Plain assignment is fine here (unlike the calloc'd-memory case
     // elsewhere in this crate): `Box::new` above already gave `.apply` a
     // valid empty `Vec`, so there's a real (if empty) value to drop first.
     new_rule.apply = Vec::with_capacity(rule.apply.len());
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < rule.apply.len() {
-        let index = rule.apply[j as usize].index;
-        let lookup = rule.apply[j as usize].lookup.clone();
-        new_rule
-            .apply
-            .push(ChainLookupApplication { index, lookup });
-        j = j.wrapping_add(1);
+    for entry in rule.apply.iter() {
+        new_rule.apply.push(ChainLookupApplication {
+            index: entry.index,
+            lookup: entry.lookup.clone(),
+        });
     }
     return new_rule;
 }
