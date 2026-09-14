@@ -353,11 +353,9 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     st.push_field(b"first", dump_class_def(first_cd));
     st.push_field(b"second", dump_class_def(second_cd));
     let mut mat = BuiltValue::new_array((first_cd.maxclass as i32 + 1_i32) as usize);
-    let mut j: GlyphClass = 0 as GlyphClass;
-    while j as i32 <= first_cd.maxclass as i32 {
+    for j in 0..=first_cd.maxclass {
         let mut row = BuiltValue::new_array((second_cd.maxclass as i32 + 1_i32) as usize);
-        let mut k: GlyphClass = 0 as GlyphClass;
-        while k as i32 <= second_cd.maxclass as i32 {
+        for k in 0..=second_cd.maxclass {
             let f1: u8 = required_position_format(subtable.first_values[j as usize][k as usize]);
             let f2: u8 = required_position_format(subtable.second_values[j as usize][k as usize]);
             if f1 as i32 | f2 as i32 != 0 {
@@ -384,10 +382,8 @@ pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
             } else {
                 row.push_item(BuiltValue::position(0_i32 as Pos));
             }
-            k = k.wrapping_add(1);
         }
         mat.push_item(row.preserialize());
-        j = j.wrapping_add(1);
     }
     st.push_field(b"matrix", mat);
     st
@@ -444,13 +440,8 @@ pub fn otl_gpos_parse_pair(
 }
 fn cov_from_cd(cd: &ClassDef) -> Coverage {
     let mut cov: Coverage = Vec::new();
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < cd.glyphs.len() {
-        push_to_coverage(
-            &mut cov,
-            cd.glyphs[j as usize].clone(),
-        );
-        j = j.wrapping_add(1);
+    for glyph in cd.glyphs.iter() {
+        push_to_coverage(&mut cov, glyph.clone());
     }
     return cov;
 }
@@ -466,42 +457,32 @@ pub fn otfcc_build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
         (first_cd.maxclass as i32 + 1_i32) as GlyphClass;
     let class2_count: GlyphClass =
         (second_cd.maxclass as i32 + 1_i32) as GlyphClass;
-    let mut j: GlyphClass = 0 as GlyphClass;
-    while (j as i32) < class1_count as i32 {
-        let mut k: GlyphClass = 0 as GlyphClass;
-        while (k as i32) < class2_count as i32 {
+    for j in 0..class1_count {
+        for k in 0..class2_count {
             format1 = (format1 as i32
                 | required_position_format(subtable.first_values[j as usize][k as usize])
                     as i32) as u16;
             format2 = (format2 as i32
                 | required_position_format(subtable.second_values[j as usize][k as usize])
                     as i32) as u16;
-            k = k.wrapping_add(1);
         }
-        j = j.wrapping_add(1);
     }
     // A local `Vec`, not a `__caryll_allocate_clean`/`free` pair -- the
     // zero-fill this function relied on from `__caryll_allocate_clean` is
     // just `vec![0; ...]`, and the `Vec` drops itself at the end instead of
     // needing an explicit `free` to match.
     let mut pair_counts: Vec<GlyphId> = vec![0 as GlyphId; first_cd.glyphs.len()];
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < first_cd.glyphs.len() {
-        let mut k_0: GlyphId = 0 as GlyphId;
-        while (k_0 as usize) < second_cd.glyphs.len() {
-            let c1: GlyphClass = first_cd.classes[j_0 as usize];
-            let c2: GlyphClass = second_cd.classes[k_0 as usize];
+    for (count, &c1) in pair_counts.iter_mut().zip(first_cd.classes.iter()) {
+        for &c2 in second_cd.classes.iter() {
             if required_position_format(subtable.first_values[c1 as usize][c2 as usize])
                 as i32
                 | required_position_format(subtable.second_values[c1 as usize][c2 as usize])
                     as i32
                 != 0
             {
-                pair_counts[j_0 as usize] = pair_counts[j_0 as usize].wrapping_add(1);
+                *count = count.wrapping_add(1);
             }
-            k_0 = k_0.wrapping_add(1);
         }
-        j_0 = j_0.wrapping_add(1);
     }
     let mut cov: Coverage = cov_from_cd(first_cd);
     shrink_coverage(&mut cov, true);
@@ -518,19 +499,14 @@ pub fn otfcc_build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
             (first_cd.glyphs.len() as i32) as u32,
         ),
     ]);
-    let mut j_1: GlyphId = 0 as GlyphId;
-    while (j_1 as usize) < cov.len() {
+    for cov_entry in cov.iter() {
         let mut current_pair_count: TableId = 0 as TableId;
         let mut c1_0: GlyphClass = 0 as GlyphClass;
-        let mut k_1: GlyphId = 0 as GlyphId;
-        while (k_1 as usize) < first_cd.glyphs.len() {
-            if first_cd.glyphs[k_1 as usize].index as i32
-                == cov[j_1 as usize].index as i32
-            {
-                c1_0 = first_cd.classes[k_1 as usize];
-                current_pair_count = pair_counts[k_1 as usize] as TableId;
+        for ((glyph, &c1), &count) in first_cd.glyphs.iter().zip(first_cd.classes.iter()).zip(pair_counts.iter()) {
+            if glyph.index as i32 == cov_entry.index as i32 {
+                c1_0 = c1;
+                current_pair_count = count as TableId;
             }
-            k_1 = k_1.wrapping_add(1);
         }
         let mut pair_set: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
@@ -545,9 +521,8 @@ pub fn otfcc_build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
         // at the end of this loop iteration instead of needing an explicit
         // `free` to match the explicit allocation.
         let mut pairs: Vec<IndividualGposPair> = Vec::with_capacity(current_pair_count as usize);
-        let mut k_2: GlyphId = 0 as GlyphId;
-        while (k_2 as usize) < second_cd.glyphs.len() {
-            let c2_0: GlyphClass = second_cd.classes[k_2 as usize];
+        for k_2 in 0..second_cd.glyphs.len() {
+            let c2_0: GlyphClass = second_cd.classes[k_2];
             if required_position_format(subtable.first_values[c1_0 as usize][c2_0 as usize])
                 as i32
                 | required_position_format(
@@ -556,12 +531,11 @@ pub fn otfcc_build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
                 != 0
             {
                 pairs.push(IndividualGposPair {
-                    gid: second_cd.glyphs[k_2 as usize].index,
+                    gid: second_cd.glyphs[k_2].index,
                     fv: subtable.first_values[c1_0 as usize][c2_0 as usize],
                     sv: subtable.second_values[c1_0 as usize][c2_0 as usize],
                 });
             }
-            k_2 = k_2.wrapping_add(1);
         }
         pairs.sort_by_key(|p| p.gid);
         for pair in &pairs {
@@ -575,7 +549,6 @@ pub fn otfcc_build_gpos_pair_individual(_subtable: &Subtable) -> BkBlock {
             );
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(pair_set))]);
-        j_1 = j_1.wrapping_add(1);
     }
     return root;
 }
@@ -591,19 +564,15 @@ pub fn otfcc_build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
         (first_cd.maxclass as i32 + 1_i32) as GlyphClass;
     let class2_count: GlyphClass =
         (second_cd.maxclass as i32 + 1_i32) as GlyphClass;
-    let mut j: GlyphClass = 0 as GlyphClass;
-    while (j as i32) < class1_count as i32 {
-        let mut k: GlyphClass = 0 as GlyphClass;
-        while (k as i32) < class2_count as i32 {
+    for j in 0..class1_count {
+        for k in 0..class2_count {
             format1 = (format1 as i32
                 | required_position_format(subtable.first_values[j as usize][k as usize])
                     as i32) as u16;
             format2 = (format2 as i32
                 | required_position_format(subtable.second_values[j as usize][k as usize])
                     as i32) as u16;
-            k = k.wrapping_add(1);
         }
-        j = j.wrapping_add(1);
     }
     let cov: Coverage = cov_from_cd(first_cd);
     let mut root: BkBlock = bk_new_block(vec![
@@ -625,10 +594,8 @@ pub fn otfcc_build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
         bk_int(BkCellType::B16, (class1_count as i32) as u32),
         bk_int(BkCellType::B16, (class2_count as i32) as u32),
     ]);
-    let mut j_0: GlyphClass = 0 as GlyphClass;
-    while (j_0 as i32) < class1_count as i32 {
-        let mut k_0: GlyphClass = 0 as GlyphClass;
-        while (k_0 as i32) < class2_count as i32 {
+    for j_0 in 0..class1_count {
+        for k_0 in 0..class2_count {
             bk_push(
                 &mut root,
                 vec![
@@ -648,9 +615,7 @@ pub fn otfcc_build_gpos_pair_classes(_subtable: &Subtable) -> BkBlock {
                     ),
                 ],
             );
-            k_0 = k_0.wrapping_add(1);
         }
-        j_0 = j_0.wrapping_add(1);
     }
     return root;
 }
