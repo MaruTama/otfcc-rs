@@ -160,16 +160,11 @@ pub fn otl_gsub_dump_ligature(_subtable: &Subtable) -> BuiltValue {
         unreachable!()
     };
     let mut st = BuiltValue::new_array(subtable.len());
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < subtable.len() {
+    for rule in subtable.iter() {
         let mut entry = BuiltValue::new_object(2);
-        entry.push_field(b"from", dump_coverage(&subtable[j as usize].from));
-        entry.push_field(
-            b"to",
-            BuiltValue::str_truncated_at_nul(&subtable[j as usize].to.name),
-        );
+        entry.push_field(b"from", dump_coverage(&rule.from));
+        entry.push_field(b"to", BuiltValue::str_truncated_at_nul(&rule.to.name));
         st.push_item(entry.preserialize());
-        j = j.wrapping_add(1);
     }
     let mut ret = BuiltValue::new_object(1);
     ret.push_field(b"substitutions", st);
@@ -228,15 +223,10 @@ pub fn otfcc_build_gsub_ligature_subtable(
     let Subtable::GsubLigature(subtable) = _subtable else {
         unreachable!()
     };
-    let n_ligatures: GlyphId = subtable.len() as GlyphId;
     let mut start_gids: std::collections::BTreeSet<i32> =
         std::collections::BTreeSet::new();
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as i32) < n_ligatures as i32 {
-        let sgid: i32 =
-            subtable[j as usize].from[0].index as i32;
-        start_gids.insert(sgid);
-        j = j.wrapping_add(1);
+    for rule in subtable.iter() {
+        start_gids.insert(rule.from[0].index as i32);
     }
     let mut startcov: Coverage = Vec::new();
     for &gid in start_gids.iter() {
@@ -254,48 +244,26 @@ pub fn otfcc_build_gsub_ligature_subtable(
         ),
     ]);
     for &gid in start_gids.iter() {
-        let mut n_ligs_here: GlyphId = 0 as GlyphId;
-        let mut j_0: GlyphId = 0 as GlyphId;
-        while (j_0 as i32) < n_ligatures as i32 {
-            if subtable[j_0 as usize].from[0].index as i32 == gid {
-                n_ligs_here = n_ligs_here.wrapping_add(1);
-            }
-            j_0 = j_0.wrapping_add(1);
-        }
+        let n_ligs_here = subtable
+            .iter()
+            .filter(|rule| rule.from[0].index as i32 == gid)
+            .count();
         let mut ligset: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
             (n_ligs_here as i32) as u32,
         )]);
-        let mut j_1: GlyphId = 0 as GlyphId;
-        while (j_1 as i32) < n_ligatures as i32 {
-            if subtable[j_1 as usize].from[0].index as i32 == gid {
-                let mut ligdef: BkBlock = bk_new_block(vec![
-                    bk_int(
-                        BkCellType::B16,
-                        (subtable[j_1 as usize].to.index as i32) as u32,
-                    ),
-                    bk_int(
-                        BkCellType::B16,
-                        (subtable[j_1 as usize].from.len() as i32) as u32,
-                    ),
-                ]);
-                let mut m: GlyphId = 1 as GlyphId;
-                while (m as i32)
-                    < subtable[j_1 as usize].from.len() as i32
-                {
-                    bk_push(
-                        &mut ligdef,
-                        vec![bk_int(
-                            BkCellType::B16,
-                            (subtable[j_1 as usize].from[m as usize].index
-                                as i32) as u32,
-                        )],
-                    );
-                    m = m.wrapping_add(1);
-                }
-                bk_push(&mut ligset, vec![bk_ptr(BkCellType::P16, Some(ligdef))]);
+        for rule in subtable.iter().filter(|rule| rule.from[0].index as i32 == gid) {
+            let mut ligdef: BkBlock = bk_new_block(vec![
+                bk_int(BkCellType::B16, (rule.to.index as i32) as u32),
+                bk_int(BkCellType::B16, (rule.from.len() as i32) as u32),
+            ]);
+            for component in rule.from.iter().skip(1) {
+                bk_push(
+                    &mut ligdef,
+                    vec![bk_int(BkCellType::B16, (component.index as i32) as u32)],
+                );
             }
-            j_1 = j_1.wrapping_add(1);
+            bk_push(&mut ligset, vec![bk_ptr(BkCellType::P16, Some(ligdef))]);
         }
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(ligset))]);
     }

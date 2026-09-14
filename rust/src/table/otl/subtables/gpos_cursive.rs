@@ -115,13 +115,11 @@ pub fn otl_gpos_dump_cursive(_subtable: &Subtable) -> BuiltValue {
         unreachable!()
     };
     let mut st = BuiltValue::new_object(subtable.len());
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < subtable.len() {
+    for entry in subtable.iter() {
         let mut rec = BuiltValue::new_object(2);
-        rec.push_field(b"enter", otl_dump_anchor(subtable[j as usize].enter));
-        rec.push_field(b"exit", otl_dump_anchor(subtable[j as usize].exit));
-        st.push_field_bytes_key(&subtable[j as usize].target.name, rec.preserialize());
-        j = j.wrapping_add(1);
+        rec.push_field(b"enter", otl_dump_anchor(entry.enter));
+        rec.push_field(b"exit", otl_dump_anchor(entry.exit));
+        st.push_field_bytes_key(&entry.target.name, rec.preserialize());
     }
     st
 }
@@ -151,13 +149,8 @@ pub fn otfcc_build_gpos_cursive(
         unreachable!()
     };
     let mut cov: Coverage = Vec::new();
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < subtable.len() {
-        push_to_coverage(
-            &mut cov,
-            subtable[j as usize].target.clone(),
-        );
-        j = j.wrapping_add(1);
+    for entry in subtable.iter() {
+        push_to_coverage(&mut cov, entry.target.clone());
     }
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
@@ -167,22 +160,14 @@ pub fn otfcc_build_gpos_cursive(
         ),
         bk_int(BkCellType::B16, (subtable.len()) as u32),
     ]);
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < subtable.len() {
+    for entry in subtable.iter() {
         bk_push(
             &mut root,
             vec![
-                bk_ptr(
-                    BkCellType::P16,
-                    bk_from_anchor(subtable[j_0 as usize].enter),
-                ),
-                bk_ptr(
-                    BkCellType::P16,
-                    bk_from_anchor(subtable[j_0 as usize].exit),
-                ),
+                bk_ptr(BkCellType::P16, bk_from_anchor(entry.enter)),
+                bk_ptr(BkCellType::P16, bk_from_anchor(entry.exit)),
             ],
         );
-        j_0 = j_0.wrapping_add(1);
     }
     return bk_build_block(root);
 }

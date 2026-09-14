@@ -563,27 +563,29 @@ fn otfcc_read_otl_lookup(data: &[u8], lookup: &mut Lookup, max_glyphs: GlyphId, 
     }
     if lookup.type_0 == OTL_TYPE_GSUB_EXTEND || lookup.type_0 == OTL_TYPE_GPOS_EXTEND {
         lookup.type_0 = OTL_TYPE_UNKNOWN;
-        let mut j_0: TableId = 0 as TableId;
-        while (j_0 as usize) < lookup.subtables.len() {
-            if let Some(elem) = &lookup.subtables[j_0 as usize] {
+        // First `Some` slot (holes only appear via later consolidation,
+        // but this dispatch runs right after the read above, so a linear
+        // search rather than assuming slot 0 is still correct) decides
+        // the lookup's real type; every slot is a known `Extend`
+        // placeholder here.
+        if let Some(ext_type) = lookup.subtables.iter().find_map(|slot| {
+            slot.as_ref().map(|elem| {
                 let Subtable::Extend(ext) = elem.as_ref() else {
                     unreachable!()
                 };
-                lookup.type_0 = ext.type_0;
-                break;
-            } else {
-                j_0 = j_0.wrapping_add(1);
-            }
+                ext.type_0
+            })
+        }) {
+            lookup.type_0 = ext_type;
         }
         if lookup.type_0 != OTL_TYPE_UNKNOWN {
-            let mut j_1: TableId = 0 as TableId;
-            while (j_1 as usize) < lookup.subtables.len() {
+            for slot in lookup.subtables.iter_mut() {
                 // `.take()` both reads this slot's element (if any) and
                 // leaves `None` behind -- the direct replacement for the old
                 // "copy the raw pointer out, then separately null the slot"
                 // two-step, and the only correct one: a `Box` can't be
                 // copied, only moved.
-                if let Some(elem) = lookup.subtables[j_1 as usize].take() {
+                if let Some(elem) = slot.take() {
                     // Every element in this list is known to be an `Extend`
                     // placeholder -- that is what `OTL_TYPE_GSUB_EXTEND`/
                     // `OTL_TYPE_GPOS_EXTEND` means -- so unwrapping it is
@@ -596,8 +598,7 @@ fn otfcc_read_otl_lookup(data: &[u8], lookup: &mut Lookup, max_glyphs: GlyphId, 
                     if ext.type_0 == lookup.type_0 {
                         // `.subtable`'s ownership transfers to become the new
                         // list element. Same narrow bridge as above.
-                        lookup.subtables[j_1 as usize] =
-                            unsafe { subtable_list_slot(ext.subtable) };
+                        *slot = unsafe { subtable_list_slot(ext.subtable) };
                     } else {
                         // A scratch `Lookup` purely to reuse its (now `Drop`-driven)
                         // type-dispatched subtable teardown on this one subtable --
@@ -611,7 +612,6 @@ fn otfcc_read_otl_lookup(data: &[u8], lookup: &mut Lookup, max_glyphs: GlyphId, 
                         // Slot already `None` from `.take()` above.
                     }
                 }
-                j_1 = j_1.wrapping_add(1);
             }
         } else {
             // Was `otl_subtable_list_dispose_dependent(..); return;` -- with
