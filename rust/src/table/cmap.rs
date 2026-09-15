@@ -1,5 +1,4 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use libc::{strlen, strtol};
 
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
@@ -11,7 +10,6 @@ use crate::font::caryll_sfnt::Packet;
 use crate::logger::{
     LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
 };
-use crate::support::NULL;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
@@ -68,13 +66,34 @@ pub struct CmapTable {
     pub uvs: std::collections::BTreeMap<CmapUvsKey, GlyphHandle>,
 }
 pub const UINT16_MAX: i32 = 65535_i32;
-#[inline]
-unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> i32 {
-    return strtol(
-        __nptr,
-        NULL as *mut *mut ::core::ffi::c_char,
-        10_i32,
-    ) as i32;
+// Was `libc::strtol(s, NULL, 10)` over a raw C string -- every caller now
+// passes a plain byte slice sourced from a `ParsedValue` object key
+// (already an owned, NUL-free `Vec<u8>` slice by the time it reaches here;
+// see `parse_unicode`'s own comment), so this reproduces `strtol`'s base-10
+// parsing (optional leading whitespace/sign, first run of decimal digits,
+// `0` for "no digits found") directly over `&[u8]` instead.
+fn atoi(s: &[u8]) -> i32 {
+    let mut i = 0;
+    while i < s.len() && s[i].is_ascii_whitespace() {
+        i += 1;
+    }
+    let negative = match s.get(i) {
+        Some(b'-') => {
+            i += 1;
+            true
+        }
+        Some(b'+') => {
+            i += 1;
+            false
+        }
+        _ => false,
+    };
+    let mut val: i64 = 0;
+    while let Some(d) = s.get(i).and_then(|&b| (b as char).to_digit(10)) {
+        val = val * 10 + d as i64;
+        i += 1;
+    }
+    if negative { -val as i32 } else { val as i32 }
 }
 pub fn otfcc_encode_cmap_by_index(
     cmap: &mut CmapTable,
@@ -618,36 +637,48 @@ pub fn otfcc_dump_cmap(
     }
     logger_finish(&mut *options.logger.borrow_mut());
 }
-// `unicode_str` borrows the object key's own storage directly (`key.as_ptr()`
-// at the call site) rather than going through an owned `sds` copy: every
-// JSON object key is already NUL-terminated in `ParsedValue`'s own storage
-// (see `ParsedValue`'s doc comment), so `strlen` here sees exactly the same
-// length `sdslen` used to on the `sdsnewlen`-copied version -- no
-// allocation or free needed at either call site any more.
-#[inline]
-unsafe fn parse_unicode(unicode_str: *const ::core::ffi::c_char) -> Unicode {
-    if strlen(unicode_str) > 2_usize
-        && *unicode_str.offset(0_i32 as isize) as i32 == 'U' as i32
-        && *unicode_str.offset(1_i32 as isize) as i32 == '+' as i32
-    {
-        return strtol(
-            unicode_str.offset(2_i32 as isize) as *const ::core::ffi::c_char,
-            ::core::ptr::null_mut::<*mut ::core::ffi::c_char>(),
-            16_i32,
-        ) as Unicode;
+// `unicode_str` borrows the object key's own storage directly (the trailing
+// storage NUL stripped by the caller, same as every other `ParsedValue`
+// object-key consumer in this crate) instead of going through an owned
+// C-string copy -- no allocation or `unsafe` `libc` call needed any more.
+fn parse_unicode(unicode_str: &[u8]) -> Unicode {
+    if unicode_str.len() > 2 && unicode_str[0] == b'U' && unicode_str[1] == b'+' {
+        parse_hex(&unicode_str[2..]) as Unicode
     } else {
-        return atoi(unicode_str as *const ::core::ffi::c_char) as Unicode;
+        atoi(unicode_str) as Unicode
+    }
+}
+// Was `libc::strtol(s, NULL, 16)` -- same `strtol` semantics as `atoi`
+// above, base 16 instead of base 10.
+fn parse_hex(s: &[u8]) -> i32 {
+    let mut i = 0;
+    while i < s.len() && s[i].is_ascii_whitespace() {
+        i += 1;
+    }
+    let negative = match s.get(i) {
+        Some(b'-') => {
+            i += 1;
+            true
+        }
+        Some(b'+') => {
+            i += 1;
+            false
+        }
+        _ => false,
     };
+    let mut val: i64 = 0;
+    while let Some(d) = s.get(i).and_then(|&b| (b as char).to_digit(16)) {
+        val = val * 16 + d as i64;
+        i += 1;
+    }
+    if negative { -val as i32 } else { val as i32 }
 }
 fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &Options) {
     let Some(fields) = table.and_then(ParsedValue::as_object) else {
         return;
     };
     for (key, item) in fields {
-        // `parse_unicode` is a separate raw-C-string shell (`libc::strtol`/
-        // `atoi` on the key's own NUL-terminated storage), out of scope here.
-        let unicode: Unicode =
-            unsafe { parse_unicode(key.as_ptr() as *const ::core::ffi::c_char) };
+        let unicode: Unicode = parse_unicode(&key[..key.len() - 1]);
         let Some(bytes) = item.as_str_bytes() else {
             continue;
         };
@@ -675,33 +706,29 @@ fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>, option
         }
     }
 }
-// Same borrow-the-key-directly reasoning as `parse_unicode`.
-#[inline]
-unsafe fn parse_uvs_key(uvs_str: *const ::core::ffi::c_char) -> CmapUvsKey {
-    let len: usize = strlen(uvs_str);
-    let mut k: CmapUvsKey = CmapUvsKey {
+// Same borrow-the-key-directly reasoning as `parse_unicode`. The original
+// scanned byte-by-byte for the first space, splitting the string there;
+// `.iter().position()` is the direct linear-search-with-break replacement
+// (same pattern established for this shape throughout the while-loop-to-
+// iterator conversion), and no space at all means "not a UVS key" -- the
+// default zero-valued `k`, unchanged.
+fn parse_uvs_key(uvs_str: &[u8]) -> CmapUvsKey {
+    let mut k = CmapUvsKey {
         unicode: 0_u32,
         selector: 0_u32,
     };
-    let mut scan: *const ::core::ffi::c_char = uvs_str;
-    while scan < uvs_str.offset(len as isize) {
-        if *scan as i32 == ' ' as i32 {
-            k.unicode = parse_unicode(uvs_str) as u32;
-            k.selector = parse_unicode(scan.offset(1_i32 as isize)) as u32;
-            return k;
-        }
-        scan = scan.offset(1);
+    if let Some(pos) = uvs_str.iter().position(|&b| b == b' ') {
+        k.unicode = parse_unicode(&uvs_str[..pos]) as u32;
+        k.selector = parse_unicode(&uvs_str[pos + 1..]) as u32;
     }
-    return k;
+    k
 }
 fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &Options) {
     let Some(fields) = table.and_then(ParsedValue::as_object) else {
         return;
     };
     for (key, item) in fields {
-        // `parse_uvs_key` is the same raw-C-string shell as `parse_unicode`,
-        // out of scope here.
-        let k: CmapUvsKey = unsafe { parse_uvs_key(key.as_ptr() as *const ::core::ffi::c_char) };
+        let k: CmapUvsKey = parse_uvs_key(&key[..key.len() - 1]);
         let Some(bytes) = item.as_str_bytes() else {
             continue;
         };
