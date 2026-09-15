@@ -1,0 +1,599 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::bk::bkgraph::bk_build_block;
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::buffer::Buffer;
+use crate::support::built_json::BuiltValue;
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::support::options::Options;
+use crate::support::parsed_json::ParsedValue;
+use crate::support::primitives::{Pos, TableId};
+use crate::vendor::json::JsonType;
+
+#[derive(Copy, Clone)]
+pub struct BaseValue {
+    pub tag: u32,
+    pub coordinate: Pos,
+}
+/// `base_values_count` is gone -- `base_values.len()` is always the same
+/// number now that the array is a `Vec` instead of a `__caryll_allocate_
+/// clean`'d buffer sized separately from what actually got filled.
+pub struct BaseScriptEntry {
+    pub tag: u32,
+    pub default_baseline_tag: u32,
+    pub base_values: Vec<BaseValue>,
+}
+/// `script_count` is gone the same way `base_values_count` is: `entries.
+/// len()`. `axis_from_json` used to allocate at the JSON object's full
+/// length, fill only the entries that passed a type check, then shrink
+/// `script_count` down to how many actually landed -- a `Vec` built with
+/// `.push()` only for entries that pass the check arrives at the same
+/// final content directly, with no separate count to keep in sync.
+pub struct BaseAxis {
+    pub entries: Vec<BaseScriptEntry>,
+}
+pub struct BaseTable {
+    pub horizontal: Option<Box<BaseAxis>>,
+    pub vertical: Option<Box<BaseAxis>>,
+}
+// Stage 6-4 "Box化" finished: `horizontal`/`vertical` are `Option<Box<
+// BaseAxis>>`, and `BaseAxis`'s own `entries: Vec<BaseScriptEntry>` (each
+// entry's `base_values: Vec<BaseValue>`) means the whole tree is now
+// ordinary owned Rust data -- no manual dispose function, no `Drop` impl
+// on `BaseTable` at all, `Option`/`Box`/`Vec`'s own drop glue reaches
+// every allocation on their own.
+//
+// This closes a documented pre-existing leak by construction, not by an
+// explicit fix: the previous Box化 pass on this file (converting only
+// `horizontal`/`vertical` themselves) left a comment recording that
+// `delete_base_axis` never freed `axis` itself, only its `entries` --
+// true in the original C too. A raw `*mut BaseAxis` freed via a hand-
+// written dispose function can leak that way; a `Box<BaseAxis>` cannot
+// -- there is no code path left where a `BaseAxis` allocation exists
+// without something owning it. Same shape as the `otfccbuild.rs` binary
+// entry point's use-after-free earlier in this migration: converting the
+// ownership model made a bug stop being expressible, without this PR
+// needing to hunt it down and patch it as a separate step.
+// `items` was `__caryll_reallocate`'d one tag at a time by a hand-written
+// "search, then grow-by-one-and-append" loop in `axis_to_bk` -- exactly
+// `Vec::contains`/`Vec::push`. `size` duplicated `.len()` and is dropped.
+pub struct BaseTagList {
+    pub items: Vec<u32>,
+}
+fn read_base_value(data: &[u8], offset: usize) -> i16 {
+    FontReader::new(data)
+        .at(offset)
+        .and_then(|mut r| {
+            r.skip(2)?;
+            r.i16()
+        })
+        .unwrap_or(0)
+}
+/// Returns `(default_baseline_tag, base_values)` instead of writing
+/// through a `*mut BaseScriptEntry` out-param: every failure branch in
+/// the original reset the entry's fields back to `(0, empty)` regardless
+/// of what had been partially written along the way (`default_baseline_
+/// tag`/`base_values_count` could be set non-zero by an intermediate
+/// step before a later check failed and reset them), so the two
+/// representations agree on every observable outcome -- this version
+/// just never writes the intermediate values that were always going to
+/// be thrown away.
+///
+/// `offset` is a plain `usize` (not the `u16` the on-disk `BaseValuesOffset`
+/// field is), and every offset this function derives from it stays `usize`
+/// too: the original computed `(base_values_offset as c_int + offset as
+/// c_int) as u16`, adding in 32-bit `c_int` (safe -- both operands are
+/// ≤ 65535) but then *truncating the sum back down to `u16`*, silently
+/// wrapping whenever the real combined offset exceeded 65535. That's the
+/// same "offset arithmetic wraps and defeats the length guard that follows
+/// it" bug shape `otl/coverage.rs`'s `read_coverage` docs and
+/// `table/cmap.rs`'s plan writeup both describe, just reached through a
+/// narrowing cast instead of `wrapping_add`. Keeping every derived offset
+/// as `usize` (max here: two `u16`s summed, nowhere near `usize::MAX`)
+/// removes the wraparound outright instead of just moving where it hides.
+fn read_base_script(
+    data: &[u8],
+    offset: usize,
+    base_tag_list: &[u32],
+    n_base_tags: u16,
+) -> (u32, Vec<BaseValue>) {
+    let Ok(mut r) = FontReader::new(data).at(offset) else {
+        return (0, Vec::new());
+    };
+    let Ok(base_values_rel) = r.u16() else {
+        return (0, Vec::new());
+    };
+    if base_values_rel == 0 {
+        return (0, Vec::new());
+    }
+    let base_values_offset = offset + base_values_rel as usize;
+    let Ok(mut r2) = FontReader::new(data).at(base_values_offset) else {
+        return (0, Vec::new());
+    };
+    let Ok(default_index_raw) = r2.u16() else {
+        return (0, Vec::new());
+    };
+    let default_index = (default_index_raw % n_base_tags) as usize;
+    let default_baseline_tag: u32 = base_tag_list[default_index];
+    let Ok(base_values_count) = r2.u16() else {
+        return (0, Vec::new());
+    };
+    if base_values_count != n_base_tags {
+        return (0, Vec::new());
+    }
+    if r2.require_room(base_values_count as usize, 2).is_err() {
+        return (0, Vec::new());
+    }
+    let mut base_values: Vec<BaseValue> = Vec::with_capacity(base_values_count as usize);
+    for j in 0..base_values_count {
+        let tag = base_tag_list[j as usize];
+        let val_offset = r2.u16().unwrap();
+        let coordinate = if val_offset != 0 {
+            read_base_value(data, base_values_offset + val_offset as usize) as Pos
+        } else {
+            0_i32 as Pos
+        };
+        base_values.push(BaseValue { tag, coordinate });
+    }
+    (default_baseline_tag, base_values)
+}
+/// Returns `None` on any of the format checks failing, `Some` otherwise
+/// -- the original's fallthrough cleanup (`free(base_tag_list)` then
+/// `delete_base_axis(axis)`) only ever ran with `axis` still null: every
+/// path that allocates `axis` also fills it completely and returns
+/// immediately, so `delete_base_axis(axis)` at the bottom was always a
+/// no-op by the time it could run. `base_tag_list` is a local `Vec<u32>`
+/// now, so it needs no explicit free on any exit path either.
+///
+/// `offset` and every offset derived from it stay `usize` for the same
+/// reason `read_base_script` does -- the original's `(x as c_int + offset
+/// as c_int) as u16` truncation could wrap a real out-of-range offset back
+/// into range.
+fn read_axis(data: &[u8], offset: usize) -> Option<Box<BaseAxis>> {
+    let mut r = FontReader::new(data).at(offset).ok()?;
+    let base_tag_list_rel = r.u16().ok()?;
+    let base_script_list_rel = r.u16().ok()?;
+    if base_tag_list_rel == 0 || base_script_list_rel == 0 {
+        return None;
+    }
+    let base_tag_list_offset = offset + base_tag_list_rel as usize;
+    let mut tl = FontReader::new(data).at(base_tag_list_offset).ok()?;
+    let n_base_tags = tl.u16().ok()?;
+    if n_base_tags == 0 {
+        return None;
+    }
+    tl.require_room(n_base_tags as usize, 4).ok()?;
+    let mut base_tag_list: Vec<u32> = Vec::with_capacity(n_base_tags as usize);
+    for _ in 0..n_base_tags {
+        base_tag_list.push(tl.u32().unwrap());
+    }
+    let base_script_list_offset = offset + base_script_list_rel as usize;
+    let mut sl = FontReader::new(data).at(base_script_list_offset).ok()?;
+    let n_base_scripts = sl.u16().ok()?;
+    sl.require_room(n_base_scripts as usize, 6).ok()?;
+    let mut entries: Vec<BaseScriptEntry> = Vec::with_capacity(n_base_scripts as usize);
+    for _ in 0..n_base_scripts {
+        let tag = sl.u32().unwrap();
+        let base_script_rel = sl.u16().unwrap();
+        if base_script_rel != 0 {
+            let (default_baseline_tag, base_values) = read_base_script(
+                data,
+                base_script_list_offset + base_script_rel as usize,
+                &base_tag_list,
+                n_base_tags,
+            );
+            entries.push(BaseScriptEntry {
+                tag,
+                default_baseline_tag,
+                base_values,
+            });
+        } else {
+            entries.push(BaseScriptEntry {
+                tag,
+                default_baseline_tag: 0,
+                base_values: Vec::new(),
+            });
+        }
+    }
+    Some(Box::new(BaseAxis { entries }))
+}
+fn parse_base(data: &[u8]) -> Result<(Option<Box<BaseAxis>>, Option<Box<BaseAxis>>), ReadError> {
+    let mut r = FontReader::new(data);
+    r.skip(4)?; // majorVersion(2) + minorVersion(2), unused
+    let offset_h = r.u16()?;
+    let offset_v = r.u16()?;
+    let horizontal = (offset_h != 0)
+        .then(|| read_axis(data, offset_h as usize))
+        .flatten();
+    let vertical = (offset_v != 0)
+        .then(|| read_axis(data, offset_v as usize))
+        .flatten();
+    Ok((horizontal, vertical))
+}
+pub fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<BaseTable>> {
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_BASE)?;
+    let (horizontal, vertical) = match parse_base(&table.data) {
+        Ok(parsed) => parsed,
+        Err(_) => {
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"Table 'BASE' Corrupted"),
+            );
+            return None;
+        }
+    };
+    Some(Box::new(BaseTable {
+        horizontal,
+        vertical,
+    }))
+}
+fn axis_to_json(axis: &BaseAxis) -> BuiltValue {
+    let mut _axis = BuiltValue::new_object(axis.entries.len());
+    for entry in axis.entries.iter() {
+        if entry.tag != 0 {
+            let mut _entry = BuiltValue::new_object(3);
+            if entry.default_baseline_tag != 0 {
+                let tag_bytes: [u8; 4] = [
+                    ((entry.default_baseline_tag & 0xff000000u32) >> 24) as u8,
+                    ((entry.default_baseline_tag & 0xff0000u32) >> 16) as u8,
+                    ((entry.default_baseline_tag & 0xff00u32) >> 8) as u8,
+                    (entry.default_baseline_tag & 0xffu32) as u8,
+                ];
+                _entry.push_field(b"defaultBaseline", BuiltValue::Str(tag_bytes.to_vec()));
+            }
+            let mut _values = BuiltValue::new_object(entry.base_values.len());
+            for bv in entry.base_values.iter() {
+                if bv.tag != 0 {
+                    _values.push_tag(bv.tag, BuiltValue::position(bv.coordinate));
+                }
+            }
+            _entry.push_field(b"baselines", _values);
+            _axis.push_tag(entry.tag, _entry);
+        }
+    }
+    _axis
+}
+pub fn otfcc_dump_base(base: Option<&BaseTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(base) = base else { return };
+    logger_start_sds(
+        &mut *options.logger.borrow_mut(),
+        crate::bytesbuild!(b"BASE"),
+    );
+    let mut ___loggedstep_v: bool = true;
+    while ___loggedstep_v {
+        let mut _base = BuiltValue::new_object(2);
+        if let Some(horizontal) = base.horizontal.as_deref() {
+            _base.push_field(b"horizontal", axis_to_json(horizontal));
+        }
+        if let Some(vertical) = base.vertical.as_deref() {
+            _base.push_field(b"vertical", axis_to_json(vertical));
+        }
+        root.push_field(b"BASE", _base);
+        ___loggedstep_v = false;
+        logger_finish(&mut *options.logger.borrow_mut());
+    }
+}
+/// Returns `(default_baseline_tag, base_values)`, the JSON-side twin of
+/// `read_base_script`.
+fn base_script_from_json(sr: Option<&ParsedValue>) -> (u32, Vec<BaseValue>) {
+    let default_baseline_tag = str2tag(sr.and_then(|v| v.get_bytes(b"defaultBaseline")));
+    let Some(basevalues) = sr.and_then(|v| v.get_typed(b"baselines", JsonType::Object)) else {
+        return (default_baseline_tag, Vec::new());
+    };
+    let fields = basevalues.as_object().unwrap();
+    let mut base_values: Vec<BaseValue> = Vec::with_capacity(fields.len());
+    for (key, val) in fields {
+        base_values.push(BaseValue {
+            tag: str2tag(Some(&key[..key.len() - 1])),
+            coordinate: val.as_num().unwrap_or(0.0) as Pos,
+        });
+    }
+    (default_baseline_tag, base_values)
+}
+/// `axis_from_json` builds `entries` with `.push()` only for the object-
+/// typed values (matching the original's allocate-then-shrink-count
+/// dance, but arriving at the same final content directly), then sorts
+/// by tag -- stable, not `sort_unstable_by_key`, the same deliberately
+/// conservative choice made for `Coverage`/`ClassDef`/`gpos_pair.rs`
+/// since `qsort` itself gives no stability guarantee.
+fn axis_from_json(axis: Option<&ParsedValue>) -> Option<Box<BaseAxis>> {
+    let axis = axis?;
+    let mut entries: Vec<BaseScriptEntry> = Vec::new();
+    if let Some(fields) = axis.as_object() {
+        for (key, val) in fields {
+            if val.as_object().is_some() {
+                let tag = str2tag(Some(&key[..key.len() - 1]));
+                let (default_baseline_tag, base_values) = base_script_from_json(Some(val));
+                entries.push(BaseScriptEntry {
+                    tag,
+                    default_baseline_tag,
+                    base_values,
+                });
+            }
+        }
+    }
+    entries.sort_by_key(|e| e.tag);
+    Some(Box::new(BaseAxis { entries }))
+}
+pub fn otfcc_parse_base(root: &ParsedValue, options: &Options) -> Option<Box<BaseTable>> {
+    let mut base: Option<Box<BaseTable>> = None;
+    let table = root.get_typed(b"BASE", JsonType::Object);
+    if let Some(table) = table {
+        logger_start_sds(
+            &mut *options.logger.borrow_mut(),
+            crate::bytesbuild!(b"BASE"),
+        );
+        let mut ___loggedstep_v: bool = true;
+        while ___loggedstep_v {
+            let horizontal = axis_from_json(table.get_typed(b"horizontal", JsonType::Object));
+            let vertical = axis_from_json(table.get_typed(b"vertical", JsonType::Object));
+            base = Some(Box::new(BaseTable {
+                horizontal,
+                vertical,
+            }));
+            ___loggedstep_v = false;
+            logger_finish(&mut *options.logger.borrow_mut());
+        }
+    }
+    return base;
+}
+pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
+    let mut taglist: BaseTagList = BaseTagList { items: Vec::new() };
+    for entry in axis.entries.iter() {
+        if entry.default_baseline_tag != 0 && !taglist.items.contains(&entry.default_baseline_tag) {
+            taglist.items.push(entry.default_baseline_tag);
+        }
+        for bv in entry.base_values.iter() {
+            if !taglist.items.contains(&bv.tag) {
+                taglist.items.push(bv.tag);
+            }
+        }
+    }
+    taglist.items.sort();
+    let mut base_tag_list: BkBlock = bk_new_block(vec![bk_int(
+        BkCellType::B16,
+        (taglist.items.len() as i32) as u32,
+    )]);
+    for &tag in taglist.items.iter() {
+        bk_push(&mut base_tag_list, vec![bk_int(BkCellType::B32, tag)]);
+    }
+    let mut base_script_list: BkBlock = bk_new_block(vec![bk_int(
+        BkCellType::B16,
+        (axis.entries.len() as i32) as u32,
+    )]);
+    for entry_0 in axis.entries.iter() {
+        let mut base_values: BkBlock = bk_new_block(Vec::new());
+        // A `taglist.items` entry the default baseline tag never matches
+        // (not expected in practice, since every default tag was itself
+        // inserted into `taglist` above) falls back to index 0, matching
+        // the original: `default_index` stayed at its initial `0` whenever
+        // the search loop ran to completion without ever breaking.
+        let default_index = taglist
+            .items
+            .iter()
+            .position(|&t| t == entry_0.default_baseline_tag)
+            .unwrap_or(0) as TableId;
+        bk_push(
+            &mut base_values,
+            vec![bk_int(
+                BkCellType::B16,
+                (default_index as i32) as u32,
+            )],
+        );
+        bk_push(
+            &mut base_values,
+            vec![bk_int(
+                BkCellType::B16,
+                (taglist.items.len() as i32) as u32,
+            )],
+        );
+        for &tag in taglist.items.iter() {
+            let found_index = entry_0.base_values.iter().position(|bv| bv.tag == tag);
+            if let Some(found_index) = found_index {
+                bk_push(
+                    &mut base_values,
+                    vec![bk_ptr(
+                        BkCellType::P16,
+                        Some(bk_new_block(vec![
+                            bk_int(BkCellType::B16, 1_u32),
+                            bk_int(
+                                BkCellType::B16,
+                                (entry_0.base_values[found_index].coordinate as i16 as i32) as u32,
+                            ),
+                        ])),
+                    )],
+                );
+            } else {
+                bk_push(
+                    &mut base_values,
+                    vec![bk_ptr(
+                        BkCellType::P16,
+                        Some(bk_new_block(vec![
+                            bk_int(BkCellType::B16, 1_u32),
+                            bk_int(BkCellType::B16, 0_u32),
+                        ])),
+                    )],
+                );
+            }
+        }
+        let script_record: BkBlock = bk_new_block(vec![
+            bk_ptr(BkCellType::P16, Some(base_values)),
+            bk_ptr(BkCellType::P16, None),
+            bk_int(BkCellType::B16, 0_u32),
+        ]);
+        bk_push(
+            &mut base_script_list,
+            vec![
+                bk_int(BkCellType::B32, entry_0.tag),
+                bk_ptr(BkCellType::P16, Some(script_record)),
+            ],
+        );
+    }
+    return bk_new_block(vec![
+        bk_ptr(BkCellType::P16, Some(base_tag_list)),
+        bk_ptr(BkCellType::P16, Some(base_script_list)),
+    ]);
+}
+pub fn otfcc_build_base(base: Option<&BaseTable>) -> Option<Buffer> {
+    let base = base?;
+    let horizontal_bk = base.horizontal.as_deref().map(axis_to_bk);
+    let vertical_bk = base.vertical.as_deref().map(axis_to_bk);
+    let root: BkBlock = bk_new_block(vec![
+        bk_int(BkCellType::B32, 0x10000_u32),
+        bk_ptr(BkCellType::P16, horizontal_bk),
+        bk_ptr(BkCellType::P16, vertical_bk),
+    ]);
+    Some(bk_build_block(root))
+}
+#[inline]
+fn str2tag(tags: Option<&[u8]>) -> u32 {
+    let Some(tags) = tags else {
+        return 0_u32;
+    };
+    let mut tag: u32 = 0_u32;
+    let mut len: u8 = 0_u8;
+    for &b in tags.iter().take(4) {
+        tag = tag << 8_i32 | b as u32;
+        len = len.wrapping_add(1);
+    }
+    while (len as i32) < 4_i32 {
+        tag = tag << 8_i32 | ' ' as i32 as u32;
+        len = len.wrapping_add(1);
+    }
+    tag
+}
+
+#[cfg(test)]
+mod parse_base_tests {
+    use super::*;
+
+    const HANG: u32 = 0x68616e67; // "hang"
+
+    // header(8) + axis(4) + tag list(6, one tag) + script list(8, one
+    // record) + script table(2) + base values(6, one coord) + coord(4)
+    fn well_formed_base_table() -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&0u16.to_be_bytes()); // majorVersion
+        b.extend_from_slice(&1u16.to_be_bytes()); // minorVersion
+        b.extend_from_slice(&8u16.to_be_bytes()); // HorizAxisOffset
+        b.extend_from_slice(&0u16.to_be_bytes()); // VertAxisOffset (none)
+        // Axis table @8
+        b.extend_from_slice(&4u16.to_be_bytes()); // BaseTagListOffset (rel to 8)
+        b.extend_from_slice(&10u16.to_be_bytes()); // BaseScriptListOffset (rel to 8)
+        // BaseTagList @12
+        b.extend_from_slice(&1u16.to_be_bytes()); // BaseTagCount
+        b.extend_from_slice(&HANG.to_be_bytes());
+        // BaseScriptList @18
+        b.extend_from_slice(&1u16.to_be_bytes()); // BaseScriptCount
+        b.extend_from_slice(&HANG.to_be_bytes()); // BaseScriptTag
+        b.extend_from_slice(&8u16.to_be_bytes()); // BaseScriptOffset (rel to 18)
+        // BaseScript table @26
+        b.extend_from_slice(&2u16.to_be_bytes()); // BaseValuesOffset (rel to 26)
+        // BaseValues table @28
+        b.extend_from_slice(&0u16.to_be_bytes()); // DefaultIndex
+        b.extend_from_slice(&1u16.to_be_bytes()); // BaseCoordCount
+        b.extend_from_slice(&6u16.to_be_bytes()); // BaseCoordOffset[0] (rel to 28)
+        // BaseCoord @34
+        b.extend_from_slice(&1u16.to_be_bytes()); // format (unread, format-agnostic)
+        b.extend_from_slice(&500i16.to_be_bytes()); // Coordinate
+        b
+    }
+
+    #[test]
+    fn well_formed_table_reads_the_horizontal_axis() {
+        let data = well_formed_base_table();
+        let (horizontal, vertical) = parse_base(&data).unwrap();
+        assert!(vertical.is_none());
+        let axis = horizontal.unwrap();
+        assert_eq!(axis.entries.len(), 1);
+        assert_eq!(axis.entries[0].tag, HANG);
+        assert_eq!(axis.entries[0].default_baseline_tag, HANG);
+        assert_eq!(axis.entries[0].base_values.len(), 1);
+        assert_eq!(axis.entries[0].base_values[0].tag, HANG);
+        assert_eq!(axis.entries[0].base_values[0].coordinate, 500.0);
+    }
+
+    #[test]
+    fn truncated_header_errs_instead_of_reading_oob() {
+        assert!(parse_base(&well_formed_base_table()[..6]).is_err());
+    }
+
+    #[test]
+    fn zero_axis_offset_is_absent_not_an_error() {
+        let mut data = well_formed_base_table();
+        data[4..6].copy_from_slice(&0u16.to_be_bytes()); // HorizAxisOffset = 0
+        let (horizontal, vertical) = parse_base(&data).unwrap();
+        assert!(horizontal.is_none());
+        assert!(vertical.is_none());
+    }
+
+    #[test]
+    fn zero_base_tag_count_makes_the_axis_absent() {
+        let mut data = well_formed_base_table();
+        data[12..14].copy_from_slice(&0u16.to_be_bytes()); // BaseTagCount = 0
+        let (horizontal, _) = parse_base(&data).unwrap();
+        assert!(horizontal.is_none());
+    }
+
+    #[test]
+    fn base_coord_count_mismatched_with_tag_count_is_rejected() {
+        // BaseCoordCount (absolute offset 30) is 1 in the fixture, but
+        // n_base_tags here is 2 -- must be rejected, not read with the
+        // wrong count.
+        let base_tag_list = vec![HANG, HANG];
+        let data = well_formed_base_table();
+        let (tag, values) = read_base_script(&data, 26, &base_tag_list, 2);
+        assert_eq!(tag, 0);
+        assert!(values.is_empty());
+    }
+
+    #[test]
+    fn base_script_offset_sum_near_u16_boundary_does_not_wrap() {
+        // The original computed `(base_values_offset as c_int + offset as
+        // c_int) as u16` -- truncating the sum back into u16 range. With
+        // `offset` = 60000 and a BaseValuesOffset field of 10000, the true
+        // combined offset is 70000, but the old cast wrapped it down to
+        // 70000 - 65536 = 4464. A well-formed BaseValues structure placed
+        // only at the true offset (70000, left as zeros at the wrapped
+        // address) must be read from there, not from the wrapped address.
+        let base_tag_list = vec![HANG];
+        let mut data = vec![0u8; 70010];
+        data[60000..60002].copy_from_slice(&10000u16.to_be_bytes());
+        data[70000..70002].copy_from_slice(&0u16.to_be_bytes()); // DefaultIndex
+        data[70002..70004].copy_from_slice(&1u16.to_be_bytes()); // BaseCoordCount
+        data[70004..70006].copy_from_slice(&6u16.to_be_bytes()); // BaseCoordOffset[0]
+        data[70006..70008].copy_from_slice(&1u16.to_be_bytes()); // format
+        data[70008..70010].copy_from_slice(&500i16.to_be_bytes()); // Coordinate
+        let (default_baseline_tag, base_values) = read_base_script(&data, 60000, &base_tag_list, 1);
+        assert_eq!(default_baseline_tag, HANG);
+        assert_eq!(base_values.len(), 1);
+        assert_eq!(base_values[0].coordinate, 500.0);
+    }
+
+    #[test]
+    fn axis_tag_list_offset_sum_near_u16_boundary_does_not_wrap() {
+        // Same wraparound shape as the BaseScript test above, but for
+        // `read_axis`'s own `BaseTagListOffset`/`BaseScriptListOffset`
+        // fields.
+        let mut data = vec![0u8; 70020];
+        data[60000..60002].copy_from_slice(&10000u16.to_be_bytes()); // BaseTagListOffset (rel)
+        data[60002..60004].copy_from_slice(&10010u16.to_be_bytes()); // BaseScriptListOffset (rel)
+        // BaseTagList @70000
+        data[70000..70002].copy_from_slice(&1u16.to_be_bytes());
+        data[70002..70006].copy_from_slice(&HANG.to_be_bytes());
+        // BaseScriptList @70010
+        data[70010..70012].copy_from_slice(&1u16.to_be_bytes());
+        data[70012..70016].copy_from_slice(&HANG.to_be_bytes());
+        data[70016..70018].copy_from_slice(&0u16.to_be_bytes()); // BaseScriptOffset = 0 (absent)
+        let axis = read_axis(&data, 60000).unwrap();
+        assert_eq!(axis.entries.len(), 1);
+        assert_eq!(axis.entries[0].tag, HANG);
+        assert_eq!(axis.entries[0].default_baseline_tag, 0);
+        assert!(axis.entries[0].base_values.is_empty());
+    }
+}

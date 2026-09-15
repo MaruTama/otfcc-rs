@@ -1,0 +1,324 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
+
+use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name};
+use crate::support::parsed_json::ParsedValue;
+
+use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
+use crate::font::caryll_sfnt::Packet;
+use crate::logger::{
+    LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds,
+};
+use crate::support::buffer::Buffer;
+use crate::support::font_reader::{FontReader, ReadError};
+use crate::support::options::Options;
+use crate::support::primitives::{ColorId, GlyphId};
+use crate::vendor::json::JsonType;
+
+use crate::bk::bkgraph::bk_build_block;
+use crate::support::built_json::BuiltValue;
+#[derive(Clone)]
+pub struct ColrLayer {
+    pub glyph: GlyphHandle,
+    pub palette_index: ColorId,
+}
+#[derive(Clone)]
+pub struct ColrMapping {
+    pub glyph: GlyphHandle,
+    pub layers: Vec<ColrLayer>,
+}
+pub type ColrTable = Vec<ColrMapping>;
+// Stage 6-4 "Box化": `Font.colr` becomes `Option<Vec<ColrMapping>>` (not
+// `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
+// `ColrMapping`/`ColrLayer` own only a `GlyphHandle`, which already has a
+// real `Drop` (Stage 6-4's `Handle` pilot), so a plain `Vec<ColrMapping>`'s
+// own `Drop` already frees everything recursively.
+
+// `ColrLayer`/`ColrMapping` embed `GlyphHandle`, which owns its `sds` name
+// for real (`Handle`'s `Drop`/`Clone`, Stage 6-4's `Handle` pilot) -- a
+// `#[derive(Clone)]` on both structs above already deep-copies that name
+// correctly, field by field, the same way the two manual dup functions this
+// comment used to describe did (each was exactly a `.clone()`, sometimes
+// wrapped through a now-removed `otfcc_handle_dup` that also just cloned).
+static BASE_GLYPH_REC_LENGTH: usize = 6_usize;
+static LAYER_REC_LENGTH: usize = 4_usize;
+/// `offset_base_glyph_record`/`offset_layer_record` are each a raw `u32`
+/// read straight from the file (full attacker control); unlike
+/// `table/cpal.rs`'s equivalent fields, the original's own guards here
+/// already cast to `usize` *before* `wrapping_add`, so on this crate's
+/// actual 64-bit CI targets neither guard can wrap the way `cpal.rs`'s
+/// 32-bit `u32::wrapping_add` did -- `FontReader`'s `checked_add`/
+/// `checked_mul` still replace them, for the same "true on every pointer
+/// width, not just the ones this crate happens to test on" reason
+/// `require_room` exists at all.
+fn parse_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
+    if data.len() < 14 {
+        return Err(ReadError { needed: 14, available: data.len() });
+    }
+    let num_base_glyph_records = FontReader::new(data).at(2)?.u16()?;
+    let num_layer_records = FontReader::new(data).at(12)?.u16()?;
+    let offset_base_glyph_record = FontReader::new(data).at(4)?.u32()? as usize;
+    let offset_layer_record = FontReader::new(data).at(8)?.u32()? as usize;
+
+    let mut br = FontReader::new(data).at(offset_base_glyph_record)?;
+    br.require_room(num_base_glyph_records as usize, BASE_GLYPH_REC_LENGTH)?;
+    let mut lr = FontReader::new(data).at(offset_layer_record)?;
+    lr.require_room(num_layer_records as usize, LAYER_REC_LENGTH)?;
+
+    let mut gids: Vec<GlyphId> = Vec::with_capacity(num_layer_records as usize);
+    let mut colors: Vec<ColorId> = Vec::with_capacity(num_layer_records as usize);
+    for _ in 0..num_layer_records {
+        gids.push(lr.u16()? as GlyphId);
+        colors.push(lr.u16()? as ColorId);
+    }
+
+    let mut colr: ColrTable = Vec::new();
+    for _ in 0..num_base_glyph_records {
+        let gid = br.u16()?;
+        let first_layer_index = br.u16()?;
+        let num_layers = br.u16()?;
+        let mut mapping: ColrMapping = ColrMapping {
+            glyph: Handle {
+                state: HandleState::Empty,
+                index: 0,
+                name: Vec::new(),
+            },
+            layers: Vec::new(),
+        };
+        mapping.glyph = handle_from_index(gid as GlyphId);
+        for k in 0..num_layers {
+            let idx = k as usize + first_layer_index as usize;
+            if idx < num_layer_records as usize {
+                mapping.layers.push(ColrLayer {
+                    glyph: handle_from_index(gids[idx]) as GlyphHandle,
+                    palette_index: colors[idx],
+                });
+            }
+        }
+        colr.push(mapping);
+    }
+    Ok(colr)
+}
+#[allow(improper_ctypes_definitions)]
+pub fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<ColrTable> {
+    let table = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_COLR)?;
+    match parse_colr(&table.data) {
+        Ok(colr) => Some(colr),
+        Err(_) => {
+            logger_log_sds(
+                &mut *options.logger.borrow_mut(),
+                LOG_VL_IMPORTANT,
+                LoggerType::Warning,
+                crate::bytesbuild!(b"Table 'COLR' corrupted.\n"),
+            );
+            None
+        }
+    }
+}
+pub fn otfcc_dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue, options: &Options) {
+    let Some(mappings) = colr else {
+        return;
+    };
+    logger_start_sds(
+        &mut *options.logger.borrow_mut(),
+        crate::bytesbuild!(b"COLR"),
+    );
+    let mut _colr = BuiltValue::new_array(mappings.len());
+    for mapping in mappings.iter() {
+        let mut _map = BuiltValue::new_object(2);
+        _map.push_field(b"from", BuiltValue::str_truncated_at_nul(&mapping.glyph.name));
+        let mut _layers = BuiltValue::new_array(mapping.layers.len());
+        for layer in mapping.layers.iter() {
+            let mut _layer = BuiltValue::new_object(2);
+            _layer.push_field(b"layer", BuiltValue::str_truncated_at_nul(&layer.glyph.name));
+            _layer.push_field(b"paletteIndex", BuiltValue::Int(layer.palette_index as i64));
+            _layers.push_item(_layer);
+        }
+        _map.push_field(b"to", _layers.preserialize());
+        _colr.push_item(_map);
+    }
+    root.push_field(b"COLR", _colr);
+    logger_finish(&mut *options.logger.borrow_mut());
+}
+pub fn otfcc_parse_colr(root: &ParsedValue, options: &Options) -> Option<ColrTable> {
+    let colr_val = root.get_typed(b"COLR", JsonType::Array)?;
+    let mut colr: ColrTable = Vec::new();
+    logger_start_sds(
+        &mut *options.logger.borrow_mut(),
+        crate::bytesbuild!(b"COLR"),
+    );
+    if let Some(mappings) = colr_val.as_array() {
+        for mapping in mappings {
+            if mapping.as_object().is_none() {
+                continue;
+            }
+            let baseglyph = mapping.get_typed(b"from", JsonType::String);
+            let layers_val = mapping.get_typed(b"to", JsonType::Array);
+            if let (Some(baseglyph), Some(layers_val)) = (baseglyph, layers_val) {
+                let mut m: ColrMapping = ColrMapping {
+                    glyph: Handle {
+                        state: HandleState::Empty,
+                        index: 0,
+                        name: Vec::new(),
+                    },
+                    layers: Vec::new(),
+                };
+                m.glyph = handle_from_name(baseglyph.as_str_bytes().map(|b| b.to_vec()));
+                if let Some(layer_items) = layers_val.as_array() {
+                    for layer in layer_items {
+                        if layer.as_object().is_none() {
+                            continue;
+                        }
+                        if let Some(layerglyph) = layer.get_typed(b"layer", JsonType::String) {
+                            m.layers.push(ColrLayer {
+                                glyph: handle_from_name(
+                                    layerglyph.as_str_bytes().map(|b| b.to_vec()),
+                                ),
+                                palette_index: layer.get_int_or(b"paletteIndex", 0xffff_i32)
+                                    as ColorId,
+                            });
+                        }
+                    }
+                }
+                colr.push(m);
+            }
+        }
+    }
+    logger_finish(&mut *options.logger.borrow_mut());
+    Some(colr)
+}
+#[allow(improper_ctypes_definitions)]
+pub fn otfcc_build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
+    let src = match _colr {
+        Some(c) if !c.is_empty() => c,
+        _ => return None,
+    };
+    let mut colr: ColrTable = src.clone();
+    colr.sort_by(|a, b| a.glyph.index.cmp(&b.glyph.index));
+    let mut current_layer_index: GlyphId = 0 as GlyphId;
+    let mut layer_records: BkBlock = bk_new_block(Vec::new());
+    let mut base_records: BkBlock = bk_new_block(Vec::new());
+    let mut __caryll_index: usize = 0_usize;
+    let mut keep: usize = 1_usize;
+    while keep != 0 && __caryll_index < colr.len() {
+        let mapping: &ColrMapping = &colr[__caryll_index];
+        while keep != 0 {
+            bk_push(
+                &mut base_records,
+                vec![
+                    bk_int(
+                        BkCellType::B16,
+                        (mapping.glyph.index as i32) as u32,
+                    ),
+                    bk_int(
+                        BkCellType::B16,
+                        (current_layer_index as i32) as u32,
+                    ),
+                    bk_int(BkCellType::B16, (mapping.layers.len()) as u32),
+                ],
+            );
+            let mut __caryll_index_0: usize = 0_usize;
+            let mut keep_0: usize = 1_usize;
+            while keep_0 != 0 && __caryll_index_0 < mapping.layers.len() {
+                let layer: &ColrLayer = &mapping.layers[__caryll_index_0];
+                while keep_0 != 0 {
+                    bk_push(
+                        &mut layer_records,
+                        vec![
+                            bk_int(
+                                BkCellType::B16,
+                                (layer.glyph.index as i32) as u32,
+                            ),
+                            bk_int(
+                                BkCellType::B16,
+                                (layer.palette_index as i32) as u32,
+                            ),
+                        ],
+                    );
+                    current_layer_index = (current_layer_index as i32
+                        + 1_i32)
+                        as GlyphId;
+                    keep_0 = (keep_0 == 0) as i32 as usize;
+                }
+                keep_0 = (keep_0 == 0) as i32 as usize;
+                __caryll_index_0 = __caryll_index_0.wrapping_add(1);
+            }
+            keep = (keep == 0) as i32 as usize;
+        }
+        keep = (keep == 0) as i32 as usize;
+        __caryll_index = __caryll_index.wrapping_add(1);
+    }
+    let root: BkBlock = bk_new_block(vec![
+        bk_int(BkCellType::B16, 0_u32),
+        bk_int(BkCellType::B16, (colr.len()) as u32),
+        bk_ptr(BkCellType::P32, Some(base_records)),
+        bk_ptr(BkCellType::P32, Some(layer_records)),
+        bk_int(
+            BkCellType::B16,
+            (current_layer_index as i32) as u32,
+        ),
+    ]);
+    // `colr` drops naturally at the end of this scope -- no explicit
+    // dispose call needed (`ColrMapping`'s `Handle` fields already free
+    // themselves via their own `Drop`).
+    Some(bk_build_block(root))
+}
+
+#[cfg(test)]
+mod parse_colr_tests {
+    use super::*;
+
+    // header(14) + one base glyph record(6) + one layer record(4)
+    fn well_formed_colr_table() -> Vec<u8> {
+        let mut b = Vec::new();
+        b.extend_from_slice(&0u16.to_be_bytes()); // version
+        b.extend_from_slice(&1u16.to_be_bytes()); // numBaseGlyphRecords
+        b.extend_from_slice(&14u32.to_be_bytes()); // offsetBaseGlyphRecord
+        b.extend_from_slice(&20u32.to_be_bytes()); // offsetLayerRecord
+        b.extend_from_slice(&1u16.to_be_bytes()); // numLayerRecords
+        // BaseGlyphRecord @14
+        b.extend_from_slice(&5u16.to_be_bytes()); // gid
+        b.extend_from_slice(&0u16.to_be_bytes()); // firstLayerIndex
+        b.extend_from_slice(&1u16.to_be_bytes()); // numLayers
+        // LayerRecord @20
+        b.extend_from_slice(&9u16.to_be_bytes()); // gid
+        b.extend_from_slice(&3u16.to_be_bytes()); // paletteIndex
+        b
+    }
+
+    #[test]
+    fn well_formed_table_reads_one_base_glyph_and_its_layer() {
+        let data = well_formed_colr_table();
+        let colr = parse_colr(&data).unwrap();
+        assert_eq!(colr.len(), 1);
+        assert_eq!(colr[0].glyph.index, 5);
+        assert_eq!(colr[0].layers.len(), 1);
+        assert_eq!(colr[0].layers[0].glyph.index, 9);
+        assert_eq!(colr[0].layers[0].palette_index, 3);
+    }
+
+    #[test]
+    fn truncated_header_errs_instead_of_reading_oob() {
+        let data = well_formed_colr_table();
+        assert!(parse_colr(&data[..10]).is_err());
+    }
+
+    #[test]
+    fn base_glyph_record_offset_past_the_table_end_errs_instead_of_reading_oob() {
+        let mut data = well_formed_colr_table();
+        data[4..8].copy_from_slice(&1000u32.to_be_bytes());
+        assert!(parse_colr(&data).is_err());
+    }
+
+    #[test]
+    fn layer_index_past_num_layer_records_is_skipped_not_read_oob() {
+        // numLayers/firstLayerIndex say this base glyph covers layer index
+        // 5, but only one layer record actually exists -- the original
+        // silently dropped layers that failed this bound, and this
+        // preserves that (the base glyph still appears, just with no
+        // layers), rather than reading past `gids`/`colors`.
+        let mut data = well_formed_colr_table();
+        data[16..18].copy_from_slice(&5u16.to_be_bytes()); // firstLayerIndex = 5
+        let colr = parse_colr(&data).unwrap();
+        assert_eq!(colr[0].layers.len(), 0);
+    }
+}
