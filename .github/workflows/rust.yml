@@ -1,14 +1,16 @@
 name: Rust build & compatibility
 
-# Verifies the checked-in Rust port (rust/) stays green: it builds, its unit
-# and integration tests pass, and it's clippy-clean. See rust/README.md.
+# Verifies the checked-in Rust port (repo root -- the crate was hoisted out
+# of rust/ once the C implementation was fully retired; see
+# RUST_MIGRATION.md) stays green: it builds, its unit and integration tests
+# pass, and it's clippy-clean. See RUST_MIGRATION.md.
 #
 # Runs on both Linux (amd64) and macOS (arm64, GitHub's hosted macos-latest
 # runners are native Apple Silicon) -- not just Linux. The crate is
 # hand-maintained cross-platform code with a real platform-conditional split
 # (vendor/sds.rs's ctype externs differ under `#[cfg(target_os = "macos")]`),
 # and until this matrix existed the arm64/native-macOS half of "verified on
-# both OSes" (rust/README.md's own stated bar for every PR) depended on
+# both OSes" (RUST_MIGRATION.md's own stated bar for every PR) depended on
 # someone running the pipeline by hand locally.
 #
 # Stage F of the migration plan replaced what used to be a chain of
@@ -16,7 +18,7 @@ name: Rust build & compatibility
 # tests/golden/, stderr log comparison, dump/build cycle + round-trip
 # stability, the GSUB lookup-alias regression, the exported C ABI surface,
 # and the otfccdll cdylib FFI boundary -- with `cargo test`-native
-# equivalents under rust/tests/*.rs; see each file's own doc comment for
+# equivalents under tests/*.rs; see each file's own doc comment for
 # what it replaced. A plain `cargo test` now covers all of it, including the
 # otfccdll check: it loads the cdylib via `libloading` in the SAME process
 # it was just built in, so (unlike the old python3/ctypes-based check) there
@@ -28,26 +30,38 @@ name: Rust build & compatibility
 # (dump/build output through PR #78, stderr log output afterward) and then
 # deleted from the tree entirely; tests/golden/ is that confirmed-good output
 # frozen in place, so CI never needs C present, built, or even checked out.
-# rust/scripts/archive/compare-with-c.sh still exists for a manual,
+# scripts/archive/compare-with-c.sh still exists for a manual,
 # on-demand re-check against C (e.g. before regenerating tests/golden/ after
 # a legitimate output-changing fix), but needs c/ restored from git history
-# to run -- see rust/scripts/archive/README.md.
+# to run -- see scripts/archive/README.md.
 #
 # This does NOT re-run c2rust (the C -> Rust transpile). The Rust source is
 # committed to the repo and hand-maintained; the transpile pipeline is retired
-# (rust/scripts/archive/), so a C-side change is ported to Rust by hand. See
-# "Regenerating the Rust source" in rust/README.md.
+# (scripts/archive/), so a C-side change is ported to Rust by hand. See
+# "Regenerating the Rust source" in RUST_MIGRATION.md.
 on:
   push:
     branches: [master]
     paths:
       - "tests/**"
-      - "rust/**"
+      - "src/**"
+      - "fuzz/**"
+      - "scripts/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "build.rs"
+      - "rust-toolchain.toml"
       - ".github/workflows/rust.yml"
   pull_request:
     paths:
       - "tests/**"
-      - "rust/**"
+      - "src/**"
+      - "fuzz/**"
+      - "scripts/**"
+      - "Cargo.toml"
+      - "Cargo.lock"
+      - "build.rs"
+      - "rust-toolchain.toml"
       - ".github/workflows/rust.yml"
   workflow_dispatch: {}
 
@@ -56,13 +70,13 @@ jobs:
   # Rust source with the pinned stable toolchain (rust-toolchain.toml; rustup
   # on the runner installs it automatically), then `cargo test` -- which now
   # covers everything the old per-check steps used to run separately: unit
-  # tests, the exported C ABI surface (rust/tests/abi.rs), byte-for-byte
+  # tests, the exported C ABI surface (tests/abi.rs), byte-for-byte
   # comparison against tests/golden/ including the gvar (variable-font)
-  # payload (rust/tests/golden.rs), stderr log output (rust/tests/
-  # log_output.rs), dump/build cycle + round-trip stability (rust/tests/
-  # cycles.rs), the GSUB lookup-alias regression (rust/tests/lookup_alias.rs),
-  # and the otfccdll cdylib FFI boundary (rust/tests/dll_abi.rs). See
-  # rust/README.md's "Everyday use" section and each file's own doc comment.
+  # payload (tests/golden.rs), stderr log output (tests/
+  # log_output.rs), dump/build cycle + round-trip stability (tests/
+  # cycles.rs), the GSUB lookup-alias regression (tests/lookup_alias.rs),
+  # and the otfccdll cdylib FFI boundary (tests/dll_abi.rs). See
+  # RUST_MIGRATION.md's "Everyday use" section and each file's own doc comment.
   build-test-compare:
     strategy:
       fail-fast: false
@@ -72,9 +86,9 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # Still needed: rust/tests/golden.rs and lookup_alias.rs shell out to
+      # Still needed: tests/golden.rs and lookup_alias.rs shell out to
       # the make-test-*.py fixture generators (kept as external Python
-      # tooling by explicit design -- see rust/README.md); those tests skip
+      # tooling by explicit design -- see RUST_MIGRATION.md); those tests skip
       # gracefully, with a stated reason, when python3 isn't found instead of
       # failing the whole run.
       - uses: actions/setup-python@v5
@@ -82,9 +96,7 @@ jobs:
           python-version: "3.12"
 
       - name: cargo build
-        run: |
-          cd rust
-          cargo build --release --locked
+        run: cargo build --release --locked
 
       # Pinned exact toolchain (rust-toolchain.toml) means a new stable/clippy
       # release can't invent a warning that breaks this build out from under
@@ -94,25 +106,21 @@ jobs:
       # stage rather than fixed here; anything not on that list is a hard
       # failure.
       - name: Clippy
-        run: |
-          cd rust
-          cargo clippy --release --all-targets --locked -- -D warnings
+        run: cargo clippy --release --all-targets --locked -- -D warnings
 
-      # --test-threads=1: rust/tests/golden.rs has two #[test] fns
+      # --test-threads=1: tests/golden.rs has two #[test] fns
       # (fixed_payloads_match_golden and
       # synthetic_dedup_and_table_payloads_match_golden) that share a
       # scratch file (build/compare-with-golden-rs/iosevka-r.json) and can
       # race under the default multi-threaded runner -- a known,
       # separately-tracked issue, not fixed here.
       - name: cargo test
-        run: |
-          cd rust
-          cargo test --release --locked -- --test-threads=1
+        run: cargo test --release --locked -- --test-threads=1
 
   # Advisory, NOT a merge gate (continue-on-error on every step): this is new
   # dynamic-analysis tooling added specifically because the byte-comparison
   # checks above only ever exercise *valid* payloads, never malformed input --
-  # see rust/fuzz/README.md for the concrete bugs it found within seconds of
+  # see fuzz/README.md for the concrete bugs it found within seconds of
   # being wired up (a subtract-overflow panic, a null-pointer dereference that
   # only panics instead of being outright UB because of debug-assertions, and
   # a library-internal exit() call that blocks long fuzzing campaigns), none
@@ -127,7 +135,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
-      # rust/fuzz/ pins its own nightly (rust/fuzz/rust-toolchain.toml) --
+      # fuzz/ pins its own nightly (fuzz/rust-toolchain.toml) --
       # rustup picks it up automatically once cwd is inside that directory,
       # same as the main crate's stable pin does for the other job.
       - name: Install cargo-fuzz
@@ -135,12 +143,12 @@ jobs:
 
       - name: Seed the corpora from tests/payload/
         run: |
-          cd rust/fuzz
+          cd fuzz
           mkdir -p corpus/otf_parse corpus/otf_dump corpus/json_build
-          cp ../../tests/payload/*.ttf ../../tests/payload/*.otf corpus/otf_parse/
-          cp ../../tests/payload/*.ttf ../../tests/payload/*.otf corpus/otf_dump/
+          cp ../tests/payload/*.ttf ../tests/payload/*.otf corpus/otf_parse/
+          cp ../tests/payload/*.ttf ../tests/payload/*.otf corpus/otf_dump/
           echo '{}' > corpus/json_build/empty.json
-          cp ../../tests/payload/*.json corpus/json_build/ 2>/dev/null || true
+          cp ../tests/payload/*.json corpus/json_build/ 2>/dev/null || true
 
       # Short, fixed time budget per target -- not exhaustive fuzzing (that
       # would need a much longer-running, separately-scheduled job). The
@@ -148,26 +156,26 @@ jobs:
       # crash quickly, not to explore the full state space.
       - name: Fuzz otf_parse
         run: |
-          cd rust/fuzz
+          cd fuzz
           cargo fuzz run otf_parse -- -max_total_time=60
 
       # `otf_parse` stops after read_otf; this drives the same input through
       # otfcc_consolidate_font + serialize_to_json too, so bugs that only
-      # manifest in consolidate/dump (see rust/fuzz/README.md's
+      # manifest in consolidate/dump (see fuzz/README.md's
       # required_feature use-after-free) have a fuzz target that can find
       # them.
       - name: Fuzz otf_dump
         run: |
-          cd rust/fuzz
+          cd fuzz
           cargo fuzz run otf_dump -- -max_total_time=60
 
       - name: Fuzz json_build
         run: |
-          cd rust/fuzz
+          cd fuzz
           cargo fuzz run json_build -- -max_total_time=60
 
       # Both crash inputs below are now *fixed* bugs (see
-      # rust/fuzz/README.md's "Known findings" -- the null-glyf and
+      # fuzz/README.md's "Known findings" -- the null-glyf and
       # advance-width-overflow entries), so this step now expects both
       # commands to exit 0: a plain regression test pinning "these two
       # specific inputs must not start crashing again," not (as its name
@@ -175,19 +183,19 @@ jobs:
       # they still do.
       - name: Regression-test the fixed findings
         run: |
-          cd rust/fuzz
-          cargo fuzz run json_build ../../tests/fuzz-corpus/known-issues/json-build-cff-charset-null-glyf.bin
-          cargo fuzz run json_build ../../tests/fuzz-corpus/known-issues/json-build-advance-width-subtract-overflow.bin
-          cargo fuzz run otf_dump ../../tests/fuzz-corpus/known-issues/otf-dump-required-feature-use-after-free.bin
-          cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-glyf-consecutive-zero-length-contours-panic.bin
-          cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-cff-hintmask-oob-read.bin
-          cargo fuzz run otf_dump ../../tests/fuzz-corpus/known-issues/otf-dump-ttinstr-npushb-oob-write.bin
-          cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-otl-contextual-amplification-hang.bin
-          cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-otl-feature-ref-amplification-oom.bin
-          cargo fuzz run otf_dump ../../tests/fuzz-corpus/known-issues/otf-dump-glyf-context-missing-maxp-panic.bin
-          cargo fuzz run otf_dump ../../tests/fuzz-corpus/known-issues/otf-dump-ttinstr-pushw-orphaned-wordhi-oob-read.bin
-          cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-otl-feature-list-amplification-hang.bin
-          cargo fuzz run otf_parse ../../tests/fuzz-corpus/known-issues/otf-parse-cff-dict-key-zero-operand-panic.bin
+          cd fuzz
+          cargo fuzz run json_build ../tests/fuzz-corpus/known-issues/json-build-cff-charset-null-glyf.bin
+          cargo fuzz run json_build ../tests/fuzz-corpus/known-issues/json-build-advance-width-subtract-overflow.bin
+          cargo fuzz run otf_dump ../tests/fuzz-corpus/known-issues/otf-dump-required-feature-use-after-free.bin
+          cargo fuzz run otf_parse ../tests/fuzz-corpus/known-issues/otf-parse-glyf-consecutive-zero-length-contours-panic.bin
+          cargo fuzz run otf_parse ../tests/fuzz-corpus/known-issues/otf-parse-cff-hintmask-oob-read.bin
+          cargo fuzz run otf_dump ../tests/fuzz-corpus/known-issues/otf-dump-ttinstr-npushb-oob-write.bin
+          cargo fuzz run otf_parse ../tests/fuzz-corpus/known-issues/otf-parse-otl-contextual-amplification-hang.bin
+          cargo fuzz run otf_parse ../tests/fuzz-corpus/known-issues/otf-parse-otl-feature-ref-amplification-oom.bin
+          cargo fuzz run otf_dump ../tests/fuzz-corpus/known-issues/otf-dump-glyf-context-missing-maxp-panic.bin
+          cargo fuzz run otf_dump ../tests/fuzz-corpus/known-issues/otf-dump-ttinstr-pushw-orphaned-wordhi-oob-read.bin
+          cargo fuzz run otf_parse ../tests/fuzz-corpus/known-issues/otf-parse-otl-feature-list-amplification-hang.bin
+          cargo fuzz run otf_parse ../tests/fuzz-corpus/known-issues/otf-parse-cff-dict-key-zero-operand-panic.bin
 
   # Also advisory (continue-on-error): Miri found a real, crate-wide bug the
   # very first time it ran against this crate's own existing test suite (a
@@ -197,7 +205,7 @@ jobs:
   # just if the drop glue would go on to actually free something). One
   # instance is fixed (logger.rs); the rest -- essentially every
   # `otfcc_*_create`/`init_*` pair across the crate -- is not, and is tracked
-  # in rust/README.md's "Next steps" rather than chased down in the PR that
+  # in RUST_MIGRATION.md's "Next steps" rather than chased down in the PR that
   # added this job. `#[cfg_attr(miri, ignore = "...")]` marks both the tests
   # that hit that known, tracked issue and the ones that hit genuine Miri
   # *limitations* (unsupported libc FFI calls, filesystem access under
@@ -216,6 +224,4 @@ jobs:
         run: rustup toolchain install nightly-2026-08-17 --component miri
 
       - name: cargo miri test
-        run: |
-          cd rust
-          cargo +nightly-2026-08-17 miri test --lib -- --test-threads=1
+        run: cargo +nightly-2026-08-17 miri test --lib -- --test-threads=1
