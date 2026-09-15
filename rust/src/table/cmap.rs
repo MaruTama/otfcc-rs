@@ -73,26 +73,21 @@ pub const UINT16_MAX: i32 = 65535_i32;
 // parsing (optional leading whitespace/sign, first run of decimal digits,
 // `0` for "no digits found") directly over `&[u8]` instead.
 fn atoi(s: &[u8]) -> i32 {
-    let mut i = 0;
-    while i < s.len() && s[i].is_ascii_whitespace() {
-        i += 1;
-    }
-    let negative = match s.get(i) {
-        Some(b'-') => {
-            i += 1;
+    let mut it = s.iter().skip_while(|b| b.is_ascii_whitespace()).peekable();
+    let negative = match it.peek() {
+        Some(&&b'-') => {
+            it.next();
             true
         }
-        Some(b'+') => {
-            i += 1;
+        Some(&&b'+') => {
+            it.next();
             false
         }
         _ => false,
     };
-    let mut val: i64 = 0;
-    while let Some(d) = s.get(i).and_then(|&b| (b as char).to_digit(10)) {
-        val = val * 10 + d as i64;
-        i += 1;
-    }
+    let val: i64 = it
+        .take_while(|b| b.is_ascii_digit())
+        .fold(0i64, |acc, &b| acc * 10 + (b - b'0') as i64);
     if negative { -val as i32 } else { val as i32 }
 }
 pub fn otfcc_encode_cmap_by_index(
@@ -651,26 +646,21 @@ fn parse_unicode(unicode_str: &[u8]) -> Unicode {
 // Was `libc::strtol(s, NULL, 16)` -- same `strtol` semantics as `atoi`
 // above, base 16 instead of base 10.
 fn parse_hex(s: &[u8]) -> i32 {
-    let mut i = 0;
-    while i < s.len() && s[i].is_ascii_whitespace() {
-        i += 1;
-    }
-    let negative = match s.get(i) {
-        Some(b'-') => {
-            i += 1;
+    let mut it = s.iter().skip_while(|b| b.is_ascii_whitespace()).peekable();
+    let negative = match it.peek() {
+        Some(&&b'-') => {
+            it.next();
             true
         }
-        Some(b'+') => {
-            i += 1;
+        Some(&&b'+') => {
+            it.next();
             false
         }
         _ => false,
     };
-    let mut val: i64 = 0;
-    while let Some(d) = s.get(i).and_then(|&b| (b as char).to_digit(16)) {
-        val = val * 16 + d as i64;
-        i += 1;
-    }
+    let val: i64 = it
+        .take_while(|b| b.is_ascii_hexdigit())
+        .fold(0i64, |acc, &b| acc * 16 + (b as char).to_digit(16).unwrap() as i64);
     if negative { -val as i32 } else { val as i32 }
 }
 fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &Options) {
