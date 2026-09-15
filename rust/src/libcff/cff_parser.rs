@@ -408,15 +408,10 @@ pub fn cff_parse_subr(
             fd = fds[idx as usize];
         }
         CffFdSelect::Format3 { range3, sentinel } => {
-            let mut i: i32 = 0_i32;
-            while i < range3.len() as i32 - 1_i32 {
-                if idx as i32 >= range3[i as usize].first as i32
-                    && (idx as i32)
-                        < range3[(i + 1_i32) as usize].first as i32
-                {
-                    fd = range3[i as usize].fd;
+            for pair in range3.windows(2) {
+                if idx as i32 >= pair[0].first as i32 && (idx as i32) < pair[1].first as i32 {
+                    fd = pair[0].fd;
                 }
-                i += 1;
             }
             if idx as i32
                 >= range3[range3.len() - 1_usize].first as i32
@@ -587,7 +582,6 @@ pub fn cff_parse_outline(
     let data_slice: &[u8] = data;
     let mut pos: usize = 0;
     let mut advance: u32;
-    let mut i: u32;
     let mut cnt_bezier: u32;
     let mut val: CffValue = CffValue::Unset;
     while pos < data_slice.len() {
@@ -623,8 +617,8 @@ pub fn cff_parse_outline(
                         // growing -- see the `stem` field's doc comment.
                         (*stack).stem = (*stack).stem.saturating_add((*stack).index >> 1_i32);
                         hint_base = 0_i32 as ::core::ffi::c_double;
-                        let mut j: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
-                        while (j as Arity) < (*stack).index {
+                        let j_start: Arity = (*stack).index.wrapping_rem(2 as Arity);
+                        for j in (j_start..(*stack).index).step_by(2) {
                             let pos: ::core::ffi::c_double =
                                 cffnum((&mut (*stack).stack)[(j as isize) as usize]);
                             let width: ::core::ffi::c_double =
@@ -637,7 +631,6 @@ pub fn cff_parse_outline(
                                 width,
                             );
                             hint_base += pos + width;
-                            j = (j as i32 + 2_i32) as u16;
                         }
                         (*stack).index = 0 as Arity;
                     }
@@ -660,8 +653,8 @@ pub fn cff_parse_outline(
                         (*stack).stem = (*stack).stem.saturating_add((*stack).index >> 1_i32);
                         let mut hint_base_0: ::core::ffi::c_double =
                             0_i32 as ::core::ffi::c_double;
-                        let mut j_0: u16 = (*stack).index.wrapping_rem(2 as Arity) as u16;
-                        while (j_0 as Arity) < (*stack).index {
+                        let j_0_start: Arity = (*stack).index.wrapping_rem(2 as Arity);
+                        for j_0 in (j_0_start..(*stack).index).step_by(2) {
                             let pos_0: ::core::ffi::c_double =
                                 cffnum((&mut (*stack).stack)[(j_0 as isize) as usize]);
                             let width_0: ::core::ffi::c_double =
@@ -674,7 +667,6 @@ pub fn cff_parse_outline(
                                 width_0,
                             );
                             hint_base_0 += pos_0 + width_0;
-                            j_0 = (j_0 as i32 + 2_i32) as u16;
                         }
                         let mask_length: u32 =
                             ((*stack).stem as i32 + 7_i32
@@ -709,8 +701,7 @@ pub fn cff_parse_outline(
                         // itself a multiple of 8.
                         let mut mask: Vec<bool> =
                             vec![false; ((*stack).stem as i32 + 7_i32) as usize];
-                        let mut byte: u32 = 0_u32;
-                        while byte < mask_length {
+                        for byte in 0..mask_length {
                             let mask_byte: u8 =
                                 data_slice[pos + advance.wrapping_add(byte) as usize];
                             mask[(byte << 3_i32).wrapping_add(0_u32) as usize] =
@@ -729,7 +720,6 @@ pub fn cff_parse_outline(
                                 mask_byte as i32 >> 1_i32 & 1_i32 != 0;
                             mask[(byte << 3_i32).wrapping_add(7_u32) as usize] =
                                 (mask_byte as i32) & 1_i32 != 0;
-                            byte = byte.wrapping_add(1);
                         }
                         callback_draw_setmask(outline, op == OP_CNTRMASK.0, &mask);
                         advance = advance.wrapping_add(mask_length);
@@ -853,8 +843,7 @@ pub fn cff_parse_outline(
                         }
                     }
                     5 => {
-                        i = 0_u32;
-                        while i < (*stack).index {
+                        for i in (0..(*stack).index).step_by(2) {
                             callback_draw_lineto(
                                 outline,
                                 cffnum((&mut (*stack).stack)[(i as isize) as usize]),
@@ -862,7 +851,6 @@ pub fn cff_parse_outline(
                                     (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                 ),
                             );
-                            i = i.wrapping_add(2_u32);
                         }
                         (*stack).index = 0 as Arity;
                     }
@@ -875,8 +863,7 @@ pub fn cff_parse_outline(
                                     (&mut (*stack).stack)[(0_i32 as isize) as usize],
                                 ),
                             );
-                            i = 1_u32;
-                            while i < (*stack).index {
+                            for i in (1..(*stack).index).step_by(2) {
                                 callback_draw_lineto(
                                     outline,
                                     cffnum((&mut (*stack).stack)[(i as isize) as usize]),
@@ -889,11 +876,9 @@ pub fn cff_parse_outline(
                                         (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                 );
-                                i = i.wrapping_add(2_u32);
                             }
                         } else {
-                            i = 0_u32;
-                            while i < (*stack).index {
+                            for i in (0..(*stack).index).step_by(2) {
                                 callback_draw_lineto(
                                     outline,
                                     0.0f64,
@@ -906,7 +891,6 @@ pub fn cff_parse_outline(
                                     ),
                                     0.0f64,
                                 );
-                                i = i.wrapping_add(2_u32);
                             }
                         }
                         (*stack).index = 0 as Arity;
@@ -920,8 +904,7 @@ pub fn cff_parse_outline(
                                 ),
                                 0.0f64,
                             );
-                            i = 1_u32;
-                            while i < (*stack).index {
+                            for i in (1..(*stack).index).step_by(2) {
                                 callback_draw_lineto(
                                     outline,
                                     0.0f64,
@@ -934,11 +917,9 @@ pub fn cff_parse_outline(
                                     ),
                                     0.0f64,
                                 );
-                                i = i.wrapping_add(2_u32);
                             }
                         } else {
-                            i = 0_u32;
-                            while i < (*stack).index {
+                            for i in (0..(*stack).index).step_by(2) {
                                 callback_draw_lineto(
                                     outline,
                                     cffnum((&mut (*stack).stack)[(i as isize) as usize]),
@@ -951,14 +932,12 @@ pub fn cff_parse_outline(
                                         (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                 );
-                                i = i.wrapping_add(2_u32);
                             }
                         }
                         (*stack).index = 0 as Arity;
                     }
                     8 => {
-                        i = 0_u32;
-                        while i < (*stack).index {
+                        for i in (0..(*stack).index).step_by(6) {
                             callback_draw_curveto(
                                 outline,
                                 cffnum((&mut (*stack).stack)[(i as isize) as usize]),
@@ -978,7 +957,6 @@ pub fn cff_parse_outline(
                                     (&mut (*stack).stack)[(i.wrapping_add(5_u32) as isize) as usize],
                                 ),
                             );
-                            i = i.wrapping_add(6_u32);
                         }
                         (*stack).index = 0 as Arity;
                     }
@@ -994,8 +972,7 @@ pub fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            i = 0_u32;
-                            while i < (*stack).index.wrapping_sub(2 as Arity) {
+                            for i in (0..(*stack).index.wrapping_sub(2 as Arity)).step_by(6) {
                                 callback_draw_curveto(
                                     outline,
                                     cffnum((&mut (*stack).stack)[(i as isize) as usize]),
@@ -1015,7 +992,6 @@ pub fn cff_parse_outline(
                                         (&mut (*stack).stack)[(i.wrapping_add(5_u32) as isize) as usize],
                                     ),
                                 );
-                                i = i.wrapping_add(6_u32);
                             }
                             callback_draw_lineto(
                                 outline,
@@ -1041,8 +1017,7 @@ pub fn cff_parse_outline(
                                 ),
                             );
                         } else {
-                            i = 0_u32;
-                            while i < (*stack).index.wrapping_sub(6 as Arity) {
+                            for i in (0..(*stack).index.wrapping_sub(6 as Arity)).step_by(2) {
                                 callback_draw_lineto(
                                     outline,
                                     cffnum((&mut (*stack).stack)[(i as isize) as usize]),
@@ -1050,7 +1025,6 @@ pub fn cff_parse_outline(
                                         (&mut (*stack).stack)[(i.wrapping_add(1_u32) as isize) as usize],
                                     ),
                                 );
-                                i = i.wrapping_add(2_u32);
                             }
                             callback_draw_curveto(
                                 outline,
@@ -1097,8 +1071,7 @@ pub fn cff_parse_outline(
                                     (&mut (*stack).stack)[(4_i32 as isize) as usize],
                                 ),
                             );
-                            i = 5_u32;
-                            while i < (*stack).index {
+                            for i in (5..(*stack).index).step_by(4) {
                                 callback_draw_curveto(
                                     outline,
                                     0.0f64,
@@ -1114,11 +1087,9 @@ pub fn cff_parse_outline(
                                         (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                     ),
                                 );
-                                i = i.wrapping_add(4_u32);
                             }
                         } else {
-                            i = 0_u32;
-                            while i < (*stack).index {
+                            for i in (0..(*stack).index).step_by(4) {
                                 callback_draw_curveto(
                                     outline,
                                     0.0f64,
@@ -1134,7 +1105,6 @@ pub fn cff_parse_outline(
                                         (&mut (*stack).stack)[(i.wrapping_add(3_u32) as isize) as usize],
                                     ),
                                 );
-                                i = i.wrapping_add(4_u32);
                             }
                         }
                         (*stack).index = 0 as Arity;
@@ -1160,8 +1130,7 @@ pub fn cff_parse_outline(
                                 ),
                                 0.0f64,
                             );
-                            i = 5_u32;
-                            while i < (*stack).index {
+                            for i in (5..(*stack).index).step_by(4) {
                                 callback_draw_curveto(
                                     outline,
                                     cffnum((&mut (*stack).stack)[(i as isize) as usize]),
@@ -1177,11 +1146,9 @@ pub fn cff_parse_outline(
                                     ),
                                     0.0f64,
                                 );
-                                i = i.wrapping_add(4_u32);
                             }
                         } else {
-                            i = 0_u32;
-                            while i < (*stack).index {
+                            for i in (0..(*stack).index).step_by(4) {
                                 callback_draw_curveto(
                                     outline,
                                     cffnum((&mut (*stack).stack)[(i as isize) as usize]),
@@ -1197,7 +1164,6 @@ pub fn cff_parse_outline(
                                     ),
                                     0.0f64,
                                 );
-                                i = i.wrapping_add(4_u32);
                             }
                         }
                         (*stack).index = 0 as Arity;
@@ -1232,8 +1198,7 @@ pub fn cff_parse_outline(
                             } else {
                                 cnt_bezier = (*stack).index.wrapping_div(4 as Arity);
                             }
-                            i = 0_u32;
-                            while i < 4_u32.wrapping_mul(cnt_bezier) {
+                            for i in (0..4_u32.wrapping_mul(cnt_bezier)).step_by(4) {
                                 if i.wrapping_div(4_u32).wrapping_rem(2_u32) == 0_u32 {
                                     callback_draw_curveto(
                                         outline,
@@ -1267,7 +1232,6 @@ pub fn cff_parse_outline(
                                         ),
                                     );
                                 }
-                                i = i.wrapping_add(4_u32);
                             }
                             if (*stack).index.wrapping_rem(8 as Arity) == 5 as Arity {
                                 callback_draw_curveto(
@@ -1349,8 +1313,7 @@ pub fn cff_parse_outline(
                             } else {
                                 cnt_bezier = (*stack).index.wrapping_div(4 as Arity);
                             }
-                            i = 0_u32;
-                            while i < 4_u32.wrapping_mul(cnt_bezier) {
+                            for i in (0..4_u32.wrapping_mul(cnt_bezier)).step_by(4) {
                                 if i.wrapping_div(4_u32).wrapping_rem(2_u32) == 0_u32 {
                                     callback_draw_curveto(
                                         outline,
@@ -1384,7 +1347,6 @@ pub fn cff_parse_outline(
                                         0.0f64,
                                     );
                                 }
-                                i = i.wrapping_add(4_u32);
                             }
                             if (*stack).index.wrapping_rem(8 as Arity) == 5 as Arity {
                                 callback_draw_curveto(
