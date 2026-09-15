@@ -1,10 +1,10 @@
 use crate::support::binio::pos_to_u16;
 
 use crate::support::buffer::Buffer;
-use crate::support::primitives::{GlyphId, ShapeId};
+use crate::support::primitives::ShapeId;
 
 use crate::table::glyf::{
-    ComponentFlags, ComponentReference, GlyfAndLocaBuffers, GlyfTable, Glyph, MASK_ON_CURVE, Point,
+    ComponentFlags, GlyfAndLocaBuffers, GlyfTable, Glyph, MASK_ON_CURVE,
     PointFlags, RefAnchorStatus,
 };
 use crate::table::head::HeadTable;
@@ -19,11 +19,9 @@ pub fn shrink_flags(flags: Buffer) -> Buffer {
     let flags_data: &Vec<u8> = &flags.data;
     shrunk.write_u8(flags_data[0]);
     let mut repeating: i32 = 0_i32;
-    let mut j: usize = 1_usize;
-    while j < flags.len() {
-        if flags_data[j] as i32
-            == flags_data[j.wrapping_sub(1_usize)] as i32
-        {
+    for pair in flags_data.windows(2) {
+        let (prev, cur) = (pair[0], pair[1]);
+        if cur as i32 == prev as i32 {
             if repeating != 0 && repeating < 0xfe_i32 {
                 let idx = shrunk.cursor.wrapping_sub(1_usize);
                 shrunk.data[idx] = shrunk.data[idx].wrapping_add(1);
@@ -35,13 +33,12 @@ pub fn shrink_flags(flags: Buffer) -> Buffer {
                 repeating += 1_i32;
             } else {
                 repeating = 0_i32;
-                shrunk.write_u8(flags_data[j]);
+                shrunk.write_u8(cur);
             }
         } else {
             repeating = 0_i32;
-            shrunk.write_u8(flags_data[j]);
+            shrunk.write_u8(cur);
         }
-        j = j.wrapping_add(1);
     }
     shrunk
 }
@@ -56,11 +53,9 @@ fn glyf_build_simple(g: &Glyph, gbuf: &mut Buffer) {
     gbuf.write_u16be(pos_to_u16(g.stat.x_max));
     gbuf.write_u16be(pos_to_u16(g.stat.y_max));
     let mut ptid: ShapeId = 0 as ShapeId;
-    let mut j: ShapeId = 0 as ShapeId;
-    while (j as usize) < g.contours.len() {
-        ptid = (ptid as usize).wrapping_add(g.contours[j as usize].len()) as ShapeId as ShapeId;
+    for contour in g.contours.iter() {
+        ptid = (ptid as usize).wrapping_add(contour.len()) as ShapeId;
         gbuf.write_u16be((ptid as i32 - 1_i32) as u16);
-        j = j.wrapping_add(1);
     }
     gbuf.write_u16be(g.instructions.len() as u16);
     if !g.instructions.is_empty() {
@@ -68,11 +63,8 @@ fn glyf_build_simple(g: &Glyph, gbuf: &mut Buffer) {
     }
     let mut cx: i32 = 0_i32;
     let mut cy: i32 = 0_i32;
-    let mut cj: ShapeId = 0 as ShapeId;
-    while (cj as usize) < g.contours.len() {
-        let mut k: ShapeId = 0 as ShapeId;
-        while (k as usize) < g.contours[cj as usize].len() {
-            let p: &Point = &g.contours[cj as usize][k as usize];
+    for contour in g.contours.iter() {
+        for p in contour.iter() {
             let mut flag: PointFlags = if p.on_curve & MASK_ON_CURVE != 0 {
                 PointFlags::ON_CURVE
             } else {
@@ -115,9 +107,7 @@ fn glyf_build_simple(g: &Glyph, gbuf: &mut Buffer) {
             flags.write_u8(flag.bits());
             cx = px;
             cy = py;
-            k = k.wrapping_add(1);
         }
-        cj = cj.wrapping_add(1);
     }
     let flags = shrink_flags(flags);
     gbuf.write_buffer(&flags);
@@ -130,11 +120,9 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
     gbuf.write_u16be(pos_to_u16(g.stat.y_min));
     gbuf.write_u16be(pos_to_u16(g.stat.x_max));
     gbuf.write_u16be(pos_to_u16(g.stat.y_max));
-    let mut rj: ShapeId = 0 as ShapeId;
-    while (rj as usize) < g.references.len() {
-        let r: &ComponentReference = &g.references[rj as usize];
-        let mut flags: ComponentFlags = if (rj as usize) < g.references.len().wrapping_sub(1_usize)
-        {
+    let num_references = g.references.len();
+    for (rj, r) in g.references.iter().enumerate() {
+        let mut flags: ComponentFlags = if rj < num_references.wrapping_sub(1_usize) {
             ComponentFlags::MORE_COMPONENTS
         } else if !g.instructions.is_empty() {
             ComponentFlags::WE_HAVE_INSTRUCTIONS
@@ -150,8 +138,8 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
         // Plain `as u16` casts on the same-width integers do the identical
         // bit-preserving reinterpretation without a union.
         let (arg1, arg2): (u16, u16) = if output_anchor {
-            let a1 = r.outer as u16;
-            let a2 = r.inner as u16;
+            let a1 = r.outer;
+            let a2 = r.inner;
             if !((a1 as i32) < 0x100_i32 && (a2 as i32) < 0x100_i32) {
                 flags.insert(ComponentFlags::ARG_1_AND_2_ARE_WORDS);
             }
@@ -188,7 +176,7 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
         }
         flags.insert(ComponentFlags::UNSCALED_COMPONENT_OFFSET);
         gbuf.write_u16be(flags.bits());
-        gbuf.write_u16be(r.glyph.index as u16);
+        gbuf.write_u16be(r.glyph.index);
         if flags.contains(ComponentFlags::ARG_1_AND_2_ARE_WORDS) {
             gbuf.write_u16be(arg1);
             gbuf.write_u16be(arg2);
@@ -207,7 +195,6 @@ fn glyf_build_composite(g: &Glyph, gbuf: &mut Buffer) {
             gbuf.write_u16be(otfcc_to_f2dot14(r.c) as u16);
             gbuf.write_u16be(otfcc_to_f2dot14(r.d) as u16);
         }
-        rj = rj.wrapping_add(1);
     }
     if !g.instructions.is_empty() {
         gbuf.write_u16be(g.instructions.len() as u16);
@@ -220,10 +207,9 @@ pub fn otfcc_build_glyf(table: Option<&GlyfTable>, head: Option<&mut HeadTable>)
     if let (Some(table), Some(head)) = (table, head) {
         let mut gbuf = Buffer::new();
         let mut loca: Vec<u32> = vec![0; table.len().wrapping_add(1_usize)];
-        let mut j: GlyphId = 0 as GlyphId;
-        while (j as usize) < table.len() {
-            loca[j as usize] = bufglyf.pos() as u32;
-            let g: &Glyph = table[j as usize].as_deref().unwrap();
+        for (j, slot) in table.iter().enumerate() {
+            loca[j] = bufglyf.pos() as u32;
+            let g: &Glyph = slot.as_deref().unwrap();
             gbuf.clear();
             if !g.contours.is_empty() {
                 glyf_build_simple(g, &mut gbuf);
@@ -232,7 +218,6 @@ pub fn otfcc_build_glyf(table: Option<&GlyfTable>, head: Option<&mut HeadTable>)
             }
             gbuf.long_align();
             bufglyf.write_buffer(&gbuf);
-            j = j.wrapping_add(1);
         }
         loca[table.len()] = bufglyf.pos() as u32;
         if bufglyf.pos() >= 0x20000_i32 as usize {
@@ -240,14 +225,12 @@ pub fn otfcc_build_glyf(table: Option<&GlyfTable>, head: Option<&mut HeadTable>)
         } else {
             head.index_to_loc_format = 0_i16;
         }
-        let mut j_0: u32 = 0_u32;
-        while j_0 as usize <= table.len() {
+        for &l in loca.iter() {
             if head.index_to_loc_format != 0 {
-                bufloca.write_u32be(loca[j_0 as usize]);
+                bufloca.write_u32be(l);
             } else {
-                bufloca.write_u16be((loca[j_0 as usize] >> 1_i32) as u16);
+                bufloca.write_u16be((l >> 1_i32) as u16);
             }
-            j_0 = j_0.wrapping_add(1);
         }
     }
     GlyfAndLocaBuffers {

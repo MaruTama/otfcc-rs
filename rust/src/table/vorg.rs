@@ -75,11 +75,9 @@ pub fn otfcc_build_vorg(table: Option<&VorgTable>) -> Option<Buffer> {
     buf.write_u16be(0_u16);
     buf.write_u16be(pos_to_u16(table.default_vertical_origin));
     buf.write_u16be(table.num_vert_origin_y_metrics);
-    let mut j: u16 = 0_u16;
-    while (j as i32) < table.num_vert_origin_y_metrics as i32 {
-        buf.write_u16be(table.entries[j as usize].gid);
-        buf.write_u16be(table.entries[j as usize].vertical_origin as u16);
-        j = j.wrapping_add(1);
+    for entry in table.entries.iter().take(table.num_vert_origin_y_metrics as usize) {
+        buf.write_u16be(entry.gid);
+        buf.write_u16be(entry.vertical_origin as u16);
     }
     Some(buf)
 }

@@ -73,7 +73,7 @@ pub struct VqSegmentDelta {
     pub touched: bool,
     pub region: *const VqRegion,
 }
-#[derive(Clone)]
+#[derive(Clone, Default)]
 pub struct VQ {
     pub kernel: Pos,
     pub shift: Vec<VqSegment>,
@@ -159,40 +159,6 @@ fn vqs_compare(a: VqSegment, b: VqSegment) -> i32 {
         }
     }
 }
-#[inline]
-pub(crate) fn vq_init(x: &mut VQ) {
-    x.kernel = 0_i32 as Pos;
-    x.shift = Vec::new();
-}
-#[inline]
-pub(crate) fn vq_copy(dst: &mut VQ, src: &VQ) {
-    dst.kernel = src.kernel;
-    dst.shift = src.shift.clone();
-}
-#[inline]
-pub(crate) fn vq_dispose(x: &mut VQ) {
-    x.kernel = 0_i32 as Pos;
-    x.shift = Vec::new();
-}
-#[inline]
-pub(crate) fn vq_dup(src: VQ) -> VQ {
-    let mut dst: VQ = VQ {
-        kernel: 0.,
-        shift: Vec::new(),
-    };
-    vq_copy(&mut dst, &src);
-    return dst;
-}
-#[inline]
-pub(crate) fn vq_copy_replace(dst: &mut VQ, src: VQ) {
-    vq_dispose(dst);
-    vq_copy(dst, &src);
-}
-#[inline]
-pub(crate) fn vq_replace(dst: &mut VQ, src: VQ) {
-    vq_dispose(dst);
-    *dst = src;
-}
 pub(crate) fn vq_neutral() -> VQ {
     return vq_create_still(0_i32 as Pos);
 }
@@ -274,11 +240,7 @@ fn vq_inplace_negate(a: &mut VQ) {
     vq_inplace_scale(a, -1_i32 as Pos);
 }
 fn vq_negate(a: VQ) -> VQ {
-    let mut result: VQ = VQ {
-        kernel: 0.,
-        shift: Vec::new(),
-    };
-    vq_copy(&mut result, &a);
+    let mut result: VQ = a;
     vq_inplace_negate(&mut result);
     return result;
 }
@@ -291,23 +253,17 @@ pub(crate) fn vq_minus(a: VQ, b: VQ) -> VQ {
 }
 #[inline]
 fn vq_inplace_minus(a: &mut VQ, b: VQ) {
-    let mut tb: VQ = vq_negate(b);
-    vq_inplace_plus(a, tb.clone());
-    vq_dispose(&mut tb);
+    let tb: VQ = vq_negate(b);
+    vq_inplace_plus(a, tb);
 }
 #[inline]
 pub(crate) fn vq_inplace_plus_scale(a: &mut VQ, b: Pos, c: VQ) {
-    let mut x: VQ = vq_scale(c, b);
-    vq_inplace_plus(a, x.clone());
-    vq_dispose(&mut x);
+    let x: VQ = vq_scale(c, b);
+    vq_inplace_plus(a, x);
 }
 #[inline]
 pub(crate) fn vq_scale(a: VQ, b: Pos) -> VQ {
-    let mut result: VQ = VQ {
-        kernel: 0.,
-        shift: Vec::new(),
-    };
-    vq_copy(&mut result, &a);
+    let mut result: VQ = a;
     vq_inplace_scale(&mut result, b);
     return result;
 }
@@ -340,13 +296,10 @@ pub(crate) fn vq_get_still(v: VQ) -> Pos {
     return result;
 }
 pub(crate) fn vq_create_still(x: Pos) -> VQ {
-    let mut vq: VQ = VQ {
-        kernel: 0.,
+    VQ {
+        kernel: x,
         shift: Vec::new(),
-    };
-    vq_init(&mut vq);
-    vq.kernel = x;
-    return vq;
+    }
 }
 pub(crate) fn vq_is_still(v: VQ) -> bool {
     let mut j: usize = 0_usize;
@@ -374,7 +327,7 @@ pub(crate) fn vq_add_delta(v: &mut VQ, touched: bool, r: *const VqRegion, quanti
     v.shift.push(nudge);
 }
 pub(crate) fn vq_point_linear_tfm(ax: VQ, a: Pos, x: VQ, b: Pos, y: VQ) -> VQ {
-    let mut target_x: VQ = vq_dup(ax);
+    let mut target_x: VQ = ax;
     vq_inplace_plus_scale(&mut target_x, a as Scale, x);
     vq_inplace_plus_scale(&mut target_x, b as Scale, y);
     return target_x;

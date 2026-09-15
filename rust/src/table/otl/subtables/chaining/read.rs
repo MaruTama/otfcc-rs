@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::handle::{
-    GlyphHandle, Handle, LookupHandle, handle_from_index, otfcc_handle_dup,
+    GlyphHandle, LookupHandle, handle_from_index,
 };
 use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
 use crate::table::otl::coverage::{
@@ -323,7 +323,7 @@ pub fn class_coverage(
             if cd.classes[j_2 as usize] as i32 == cls as i32 {
                 push_to_coverage(
                     &mut cov,
-                    otfcc_handle_dup(cd.glyphs[j_2 as usize].clone() as Handle) as GlyphHandle,
+                    cd.glyphs[j_2 as usize].clone(),
                 );
             }
             charge_zero_budget();

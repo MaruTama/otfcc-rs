@@ -107,19 +107,17 @@ fn _declare_lookup_writer(
         subtables.reserve(lookup.subtables.len());
         let mut total_buf_size_short: usize = 0_usize;
         let mut total_buf_size_ext: usize = 0_usize;
-        let mut j: TableId = 0 as TableId;
-        while (j as usize) < lookup.subtables.len() {
+        for j in 0..lookup.subtables.len() {
             // `subtable_at` is this file's own not-yet-migrated raw-pointer
             // shell (`SubtablePtr`) -- narrow bridge, same shape as
             // `vqs_compare`'s. `fn_0` itself is a safe fn as of Stage D.
             let buf: Buffer = fn_0.expect("non-null function pointer")(
-                unsafe { &*subtable_at(&lookup.subtables, j as usize) },
+                unsafe { &*subtable_at(&lookup.subtables, j) },
                 heuristics,
             );
             total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
             subtables.push(buf);
             total_buf_size_ext = total_buf_size_ext.wrapping_add(8_usize);
-            j = j.wrapping_add(1);
         }
         if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
             *last_offset = (*last_offset).wrapping_add(total_buf_size_ext);
@@ -144,18 +142,16 @@ fn _declare_lookup_writer_split(
     if lookup.type_0 == type_0 {
         subtables.clear();
         let mut total_buf_size_short: usize = 0_usize;
-        let mut j: TableId = 0 as TableId;
-        while (j as usize) < lookup.subtables.len() {
+        for j in 0..lookup.subtables.len() {
             // Same narrow bridge as `_declare_lookup_writer` above.
             let part: Vec<Buffer> = fn_0.expect("non-null function pointer")(
-                unsafe { &*subtable_at(&lookup.subtables, j as usize) },
+                unsafe { &*subtable_at(&lookup.subtables, j) },
                 heuristics,
             );
             for buf in part {
                 total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
                 subtables.push(buf);
             }
-            j = j.wrapping_add(1);
         }
         let total = subtables.len() as TableId;
         if total_buf_size_short > LARGE_SUBTABLE_LIMIT as usize {
@@ -386,9 +382,8 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
     let mut subtable_quantity: Vec<TableId> = vec![0 as TableId; live.len()];
     let mut prefer_ext_for_this_lut: Vec<bool> = vec![false; live.len()];
     let mut last_offset: usize = 0_usize;
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < live.len() {
-        let (lookup_idx, lookup) = live[j as usize];
+    for j in 0..live.len() {
+        let (lookup_idx, lookup) = live[j];
         let heu: BuildHeuristics = get_lookup_heuristics(table, lookup_idx, lookup);
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
@@ -404,34 +399,26 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
                 b")\n",
             ),
         );
-        subtable_quantity[j as usize] = _build_lookup(
+        subtable_quantity[j] = _build_lookup(
             lookup,
-            &mut subtables[j as usize],
+            &mut subtables[j],
             &mut last_offset,
-            &mut prefer_ext_for_this_lut[j as usize],
+            &mut prefer_ext_for_this_lut[j],
             heu,
         );
-        j = j.wrapping_add(1);
     }
     let mut header_size: usize = 2_usize.wrapping_add(2_usize.wrapping_mul(live.len()));
-    let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < live.len() {
-        if subtable_quantity[j_0 as usize] != 0 {
-            header_size = header_size.wrapping_add(
-                (6_i32
-                    + 2_i32
-                        * subtable_quantity[j_0 as usize] as i32)
-                    as usize,
-            );
+    for &quantity in subtable_quantity.iter() {
+        if quantity != 0 {
+            header_size =
+                header_size.wrapping_add((6_i32 + 2_i32 * quantity as i32) as usize);
         }
-        j_0 = j_0.wrapping_add(1);
     }
     let use_extended: bool = last_offset >= 0xff00_usize.wrapping_sub(header_size);
     let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (live.len()) as u32)]);
-    let mut j_1: TableId = 0 as TableId;
-    while (j_1 as usize) < live.len() {
-        let (_, lookup_0) = live[j_1 as usize];
-        if subtable_quantity[j_1 as usize] == 0 {
+    for j_1 in 0..live.len() {
+        let (_, lookup_0) = live[j_1];
+        if subtable_quantity[j_1] == 0 {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_NOTICE,
@@ -444,8 +431,8 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
         // this stays a narrow bridge rather than a plain safe call.
         let can_be_contextual: bool =
             unsafe { otfcc_chaining_lookup_is_contextual_lookup(lookup_0 as *const Lookup) };
-        let use_extended_for_it: bool = use_extended as i32 != 0
-            || prefer_ext_for_this_lut[j_1 as usize] as i32 != 0;
+        let use_extended_for_it: bool =
+            use_extended as i32 != 0 || prefer_ext_for_this_lut[j_1] as i32 != 0;
         if use_extended_for_it {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
@@ -479,17 +466,19 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
         }) as u16;
         let mut blk: BkBlock = bk_new_block(vec![
             bk_int(BkCellType::B16, (lookup_type as i32) as u32),
+            bk_int(BkCellType::B16, (lookup_0.flags as i32) as u32),
             bk_int(
                 BkCellType::B16,
-                (lookup_0.flags as i32) as u32,
-            ),
-            bk_int(
-                BkCellType::B16,
-                (subtable_quantity[j_1 as usize] as i32) as u32,
+                (subtable_quantity[j_1] as i32) as u32,
             ),
         ]);
-        let mut k: TableId = 0 as TableId;
-        while (k as i32) < subtable_quantity[j_1 as usize] as i32 {
+        // Bounded by `subtable_quantity[j_1]`, not assumed equal to
+        // `subtables[j_1].len()` (same count-vs-length caution
+        // established in PR #422/#423/#426-428, even though the two are
+        // always equal by construction here -- `_build_lookup` returns
+        // exactly the count it pushed).
+        let quantity = subtable_quantity[j_1] as usize;
+        for buf in subtables[j_1].iter_mut().take(quantity) {
             if use_extended_for_it {
                 let extension_lookup_type: u16 = lookup_0
                     .type_0
@@ -498,15 +487,10 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
                     as u16;
                 let stub: BkBlock = bk_new_block(vec![
                     bk_int(BkCellType::B16, 1_u32),
-                    bk_int(
-                        BkCellType::B16,
-                        (extension_lookup_type as i32) as u32,
-                    ),
+                    bk_int(BkCellType::B16, (extension_lookup_type as i32) as u32),
                     bk_ptr(
                         BkCellType::P32,
-                        bk_new_block_from_buffer(Some(::core::mem::take(
-                            &mut subtables[j_1 as usize][k as usize],
-                        ))),
+                        bk_new_block_from_buffer(Some(::core::mem::take(buf))),
                     ),
                 ]);
                 bk_push(&mut blk, vec![bk_ptr(BkCellType::P16, Some(stub))]);
@@ -515,17 +499,13 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
                     &mut blk,
                     vec![bk_ptr(
                         BkCellType::P16,
-                        bk_new_block_from_buffer(Some(::core::mem::take(
-                            &mut subtables[j_1 as usize][k as usize],
-                        ))),
+                        bk_new_block_from_buffer(Some(::core::mem::take(buf))),
                     )],
                 );
             }
-            k = k.wrapping_add(1);
         }
         bk_push(&mut blk, vec![bk_int(BkCellType::B16, 0_u32)]);
         bk_push(&mut root, vec![bk_ptr(BkCellType::P16, Some(blk))]);
-        j_1 = j_1.wrapping_add(1);
     }
     return root;
 }
@@ -535,34 +515,29 @@ fn write_otl_features(table: &OtlTable, lookup_dense: &[Option<u16>]) -> BkBlock
     let live: Vec<&crate::table::otl::Feature> =
         table.features.iter().flatten().map(Box::as_ref).collect();
     let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (live.len()) as u32)]);
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < live.len() {
-        let feature = live[j as usize];
+    for &feature in live.iter() {
         let mut fea: BkBlock = bk_new_block(vec![
             bk_ptr(BkCellType::P16, None),
             bk_int(BkCellType::B16, (feature.lookups.len()) as u32),
         ]);
-        let mut k: TableId = 0 as TableId;
-        while (k as usize) < feature.lookups.len() {
+        for lookup_ref in feature.lookups.iter() {
             // Every `Feature.lookups` entry was already validated to
             // reference a *live* lookup by the fixed-point consolidation
             // pass (see `consolidate_otl_table`'s `otl_lookup_ref_list_
             // filter_env` call) -- resolving here through `lookup_dense`
             // should never see a hole; `.expect` turns "it somehow did"
             // into a loud panic rather than a silently wrong binary index.
-            let dense = lookup_dense[feature.lookups[k as usize].0 as usize]
+            let dense = lookup_dense[lookup_ref.0 as usize]
                 .expect("Feature.lookups should only ever reference a live lookup");
             bk_push(&mut fea, vec![bk_int(BkCellType::B16, dense as u32)]);
-            k = k.wrapping_add(1);
         }
         bk_push(
             &mut root,
             vec![
-                bk_int(BkCellType::B32, (feature_name_to_tag(&feature.name)) as u32),
+                bk_int(BkCellType::B32, feature_name_to_tag(&feature.name)),
                 bk_ptr(BkCellType::P16, Some(fea)),
             ],
         );
-        j = j.wrapping_add(1);
     }
     return root;
 }
@@ -589,16 +564,14 @@ fn write_language(
         ),
         bk_int(BkCellType::B16, (lang.features.len()) as u32),
     ]);
-    let mut k: TableId = 0 as TableId;
-    while (k as usize) < lang.features.len() {
+    for &feature in lang.features.iter() {
         bk_push(
             &mut root,
             vec![bk_int(
                 BkCellType::B16,
-                (feature_index(Some(lang.features[k as usize]), feature_dense) as i32) as u32,
+                (feature_index(Some(feature), feature_dense) as i32) as u32,
             )],
         );
-        k = k.wrapping_add(1);
     }
     return Some(root);
 }
@@ -611,20 +584,15 @@ fn write_script(
         bk_ptr(BkCellType::P16, write_language(dl, feature_dense)),
         bk_int(BkCellType::B16, (ll.len()) as u32),
     ]);
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < ll.len() {
-        let tag: &[u8] = &ll[j as usize].name[5..9];
+    for &lang_sys in ll.iter() {
+        let tag: &[u8] = &lang_sys.name[5..9];
         bk_push(
             &mut root,
             vec![
-                bk_int(BkCellType::B32, (feature_name_to_tag(tag)) as u32),
-                bk_ptr(
-                    BkCellType::P16,
-                    write_language(Some(ll[j as usize]), feature_dense),
-                ),
+                bk_int(BkCellType::B32, feature_name_to_tag(tag)),
+                bk_ptr(BkCellType::P16, write_language(Some(lang_sys), feature_dense)),
             ],
         );
-        j = j.wrapping_add(1);
     }
     return root;
 }
@@ -653,9 +621,7 @@ fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>
         languages: Vec<&'a LanguageSystem>,
     }
     let mut scripts: Vec<ScriptGroup> = Vec::new();
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < table.languages.len() {
-        let language: &LanguageSystem = &table.languages[j as usize];
+    for language in table.languages.iter() {
         let script_tag: Vec<u8> = language.name[..4].to_vec();
         // Behaviorally identical to the original `strncmp(..., 4)` early-NUL
         // comparison: the compared window never contains an embedded NUL, so
@@ -694,7 +660,6 @@ fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>
                 }
             }
         }
-        j = j.wrapping_add(1);
     }
     let mut root: BkBlock = bk_new_block(vec![bk_int(BkCellType::B16, (scripts.len()) as u32)]);
     for group in &scripts {

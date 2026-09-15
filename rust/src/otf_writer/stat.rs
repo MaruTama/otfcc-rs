@@ -3,7 +3,7 @@ unsafe extern "C" {
     fn round(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::support::handle::{Handle, HandleState, handle_from_index, otfcc_handle_replace};
+use crate::support::handle::{Handle, HandleState, handle_from_index};
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
@@ -36,7 +36,7 @@ use crate::table::vmtx::{VerticalMetric, VmtxTable};
 use crate::font::caryll_font::delete_font_table;
 use crate::table::glyf::glyf_component_reference_init;
 use crate::vf::vq::VQ;
-use crate::vf::vq::{vq_create_still, vq_get_still, vq_is_zero, vq_neutral, vq_replace};
+use crate::vf::vq::{vq_create_still, vq_get_still, vq_is_zero, vq_neutral};
 
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 #[repr(u32)]
@@ -164,26 +164,20 @@ pub fn stat_single_glyph(
         };
         glyf_component_reference_init(&mut ref_0);
         let rr: &ComponentReference = &g.references[r as usize];
-        otfcc_handle_replace(&mut ref_0.glyph, handle_from_index(rr.glyph.index));
+        ref_0.glyph = handle_from_index(rr.glyph.index);
         ref_0.a = gr.a * rr.a + rr.b * gr.c;
         ref_0.b = rr.a * gr.b + rr.b * gr.d;
         ref_0.c = gr.a * rr.c + gr.c * rr.d;
         ref_0.d = gr.b * rr.c + rr.d * gr.d;
-        vq_replace(
-            &mut ref_0.x,
-            vq_create_still(
-                vq_get_still(rr.x.clone())
-                    + rr.a as Pos * vq_get_still(gr.x.clone())
-                    + rr.b as Pos * vq_get_still(gr.y.clone()),
-            ),
+        ref_0.x = vq_create_still(
+            vq_get_still(rr.x.clone())
+                + rr.a as Pos * vq_get_still(gr.x.clone())
+                + rr.b as Pos * vq_get_still(gr.y.clone()),
         );
-        vq_replace(
-            &mut ref_0.y,
-            vq_create_still(
-                vq_get_still(rr.y.clone())
-                    + rr.c as Pos * vq_get_still(gr.x.clone())
-                    + rr.d as Pos * vq_get_still(gr.y.clone()),
-            ),
+        ref_0.y = vq_create_still(
+            vq_get_still(rr.y.clone())
+                + rr.c as Pos * vq_get_still(gr.x.clone())
+                + rr.d as Pos * vq_get_still(gr.y.clone()),
         );
         let thatstat: GlyphStat = stat_single_glyph(
             table,
@@ -392,7 +386,7 @@ fn stat_hmtx(font: &mut Font) {
     for j in 0..glyf.len() as GlyphId {
         let g = glyf[j as usize].as_mut().unwrap();
         if vq_is_zero(g.horizontal_origin.clone(), 1.0f64 / 1000.0f64) {
-            vq_replace(&mut g.horizontal_origin, vq_neutral());
+            g.horizontal_origin = vq_neutral();
         } else {
             lsb_at_x_0 = false;
         }

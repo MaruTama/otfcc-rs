@@ -25,7 +25,7 @@ use crate::support::parsed_json::ParsedValue;
 use crate::support::ttinstr::{dump_ttinstr, parse_ttinstr};
 use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::vf::vq::VQ;
-use crate::vf::vq::{vq_copy, vq_create_still, vq_get_still, vq_is_still, vq_replace};
+use crate::vf::vq::{vq_create_still, vq_get_still, vq_is_still};
 
 #[derive(Clone)]
 pub struct Point {
@@ -122,16 +122,16 @@ pub struct Glyph {
 /// (`stat`, `cid`, ...) or is already a real Rust owner that auto-drops
 /// correctly on its own: `horizontal_origin`/`advance_width`/
 /// `vertical_origin`/`advance_height` (`VQ`, a plain `struct { kernel: Pos,
-/// shift: Vec<VqSegment> }` with no `Drop` impl of its own -- `vq_dispose`
-/// is just `shift = Vec::new()`, which is exactly what happens for free
-/// when a `VQ` field is dropped), `contours`/`references`/`stem_h`/
-/// `stem_v`/`hint_masks`/`contour_masks` (plain `Vec`s per the comments on
-/// [`Contour`]/[`ReferenceList`] above), and `fd_select` (a `Handle`, which
-/// has owned its `name` and had a real `Drop` impl since the crate-wide
-/// `Handle` conversion -- calling `otfcc_handle_dispose` on it here too,
-/// the way the old manual `otfcc_delete_glyf_glyph` did, would be
-/// redundant with that, not wrong). No field needs manual teardown any
-/// more, so the `Drop` impl that used to free `instructions` by hand is
+/// shift: Vec<VqSegment> }` with no `Drop` impl of its own -- resetting one
+/// to `VQ::default()` is exactly what happens for free when a `VQ` field is
+/// dropped), `contours`/`references`/`stem_h`/`stem_v`/`hint_masks`/
+/// `contour_masks` (plain `Vec`s per the comments on [`Contour`]/
+/// [`ReferenceList`] above), and `fd_select` (a `Handle`, which has owned
+/// its `name` and had a real `Drop` impl since the crate-wide `Handle`
+/// conversion -- resetting it to `Handle::default()` here too, the way the
+/// old manual `otfcc_delete_glyf_glyph` did, would be redundant with that,
+/// not wrong). No field needs manual teardown any more, so the `Drop` impl
+/// that used to free `instructions` by hand is
 /// gone -- `#[derive(Clone)]` above is also sound now: every field
 /// (`instructions` included) is a real deep-copying Rust owner, so cloning
 /// a `Glyph` wholesale no longer aliases a raw pointer between the
@@ -168,8 +168,8 @@ fn create_point(p: &mut Point) {
     p.on_curve = TRUE_0 as i8;
 }
 fn copy_point(dst: &mut Point, src: &Point) {
-    vq_copy(&mut dst.x, &src.x);
-    vq_copy(&mut dst.y, &src.y);
+    dst.x = src.x.clone();
+    dst.y = src.y.clone();
     dst.on_curve = src.on_curve;
 }
 #[inline]
@@ -342,27 +342,19 @@ fn glyf_glyph_dump_contours(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCont
         return;
     }
     let mut contours = BuiltValue::new_array(g.contours.len());
-    let mut k: ShapeId = 0 as ShapeId;
-    while (k as usize) < g.contours.len() {
-        let c: &Contour = &g.contours[k as usize];
+    for c in g.contours.iter() {
         let mut contour = BuiltValue::new_array(c.len());
-        let mut m: ShapeId = 0 as ShapeId;
-        while (m as usize) < c.len() {
+        for p in c.iter() {
             let mut point = BuiltValue::new_object(4);
             // `json_new_vq` itself is safe now; `ctx.fvar` (tied to
             // `GlyfIOContext`, out of this file's scope) is still a raw
             // `*mut FvarTable`, so this narrow reborrow is the bridge.
-            point.push_field(b"x", json_new_vq(c[m as usize].x.clone(), unsafe { ctx.fvar.as_ref() }));
-            point.push_field(b"y", json_new_vq(c[m as usize].y.clone(), unsafe { ctx.fvar.as_ref() }));
-            point.push_field(
-                b"on",
-                BuiltValue::Bool(c[m as usize].on_curve & MASK_ON_CURVE != 0),
-            );
+            point.push_field(b"x", json_new_vq(p.x.clone(), unsafe { ctx.fvar.as_ref() }));
+            point.push_field(b"y", json_new_vq(p.y.clone(), unsafe { ctx.fvar.as_ref() }));
+            point.push_field(b"on", BuiltValue::Bool(p.on_curve & MASK_ON_CURVE != 0));
             contour.push_item(point);
-            m = m.wrapping_add(1);
         }
         contours.push_item(contour.preserialize());
-        k = k.wrapping_add(1);
     }
     target.push_field(b"contours", contours);
 }
@@ -371,9 +363,7 @@ fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCo
         return;
     }
     let mut references = BuiltValue::new_array(g.references.len());
-    let mut k: ShapeId = 0 as ShapeId;
-    while (k as usize) < g.references.len() {
-        let r: &ComponentReference = &g.references[k as usize];
+    for r in g.references.iter() {
         let mut ref_0 = BuiltValue::new_object(9);
         ref_0.push_field(b"glyph", BuiltValue::str_truncated_at_nul(&r.glyph.name));
         // See the comment on the `json_new_vq` calls in
@@ -396,51 +386,42 @@ fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCo
             ref_0.push_field(b"useMyMetrics", BuiltValue::Bool(true));
         }
         references.push_item(ref_0.preserialize());
-        k = k.wrapping_add(1);
     }
     target.push_field(b"references", references);
 }
 fn glyf_glyph_dump_stemdefs(stems: &StemDefList) -> BuiltValue {
     let mut a = BuiltValue::new_array(stems.len());
-    let mut j: ShapeId = 0 as ShapeId;
-    while (j as usize) < stems.len() {
+    for stem_def in stems.iter() {
         let mut stem = BuiltValue::new_object(3);
-        stem.push_field(b"position", BuiltValue::position(stems[j as usize].position));
-        stem.push_field(b"width", BuiltValue::position(stems[j as usize].width));
+        stem.push_field(b"position", BuiltValue::position(stem_def.position));
+        stem.push_field(b"width", BuiltValue::position(stem_def.width));
         a.push_item(stem);
-        j = j.wrapping_add(1);
     }
     a
 }
 fn glyf_glyph_dump_maskdefs(masks: &MaskList, hh: &StemDefList, vv: &StemDefList) -> BuiltValue {
     let mut a = BuiltValue::new_array(masks.len());
-    let mut j: ShapeId = 0 as ShapeId;
-    while (j as usize) < masks.len() {
+    for entry in masks.iter() {
         let mut mask = BuiltValue::new_object(3);
         mask.push_field(
             b"contoursBefore",
-            BuiltValue::Int(masks[j as usize].contours_before as i64),
+            BuiltValue::Int(entry.contours_before as i64),
         );
-        mask.push_field(
-            b"pointsBefore",
-            BuiltValue::Int(masks[j as usize].points_before as i64),
-        );
+        mask.push_field(b"pointsBefore", BuiltValue::Int(entry.points_before as i64));
+        // Bounded by `hh`/`vv`'s own length, not `mask_h`/`mask_v`'s
+        // fixed 256-entry size -- `.take()` reproduces the original's
+        // explicit bound exactly.
         let mut h = BuiltValue::new_array(hh.len());
-        let mut k: ShapeId = 0 as ShapeId;
-        while (k as usize) < hh.len() {
-            h.push_item(BuiltValue::Bool(masks[j as usize].mask_h[k as usize]));
-            k = k.wrapping_add(1);
+        for &bit in entry.mask_h.iter().take(hh.len()) {
+            h.push_item(BuiltValue::Bool(bit));
         }
         mask.push_field(b"maskH", h);
         let mut v = BuiltValue::new_array(vv.len());
-        let mut k_0: ShapeId = 0 as ShapeId;
-        while (k_0 as usize) < vv.len() {
-            v.push_item(BuiltValue::Bool(masks[j as usize].mask_v[k_0 as usize]));
-            k_0 = k_0.wrapping_add(1);
+        for &bit in entry.mask_v.iter().take(vv.len()) {
+            v.push_item(BuiltValue::Bool(bit));
         }
         mask.push_field(b"maskV", v);
         a.push_item(mask);
-        j = j.wrapping_add(1);
     }
     a
 }
@@ -572,8 +553,8 @@ fn glyf_parse_point(pointdump: &ParsedValue) -> Point {
     };
     for (key, val) in fields {
         match &key[..key.len() - 1] {
-            b"x" => vq_replace(&mut point.x, json_vq_of(Some(val))),
-            b"y" => vq_replace(&mut point.y, json_vq_of(Some(val))),
+            b"x" => point.x = json_vq_of(Some(val)),
+            b"y" => point.y = json_vq_of(Some(val)),
             b"on" => point.on_curve = val.as_bool().unwrap_or(false) as i8,
             _ => {}
         }
@@ -598,8 +579,8 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
     let mut ref_0: ComponentReference = glyf_component_reference_empty();
     let Some(_gname) = refdump.get_typed(b"glyph", JsonType::String) else {
         ref_0.glyph.name = Vec::new();
-        vq_replace(&mut ref_0.x, vq_create_still(0_i32 as Pos));
-        vq_replace(&mut ref_0.y, vq_create_still(0_i32 as Pos));
+        ref_0.x = vq_create_still(0_i32 as Pos);
+        ref_0.y = vq_create_still(0_i32 as Pos);
         ref_0.a = 1.0f64 as Scale;
         ref_0.b = 0.0f64 as Scale;
         ref_0.c = 0.0f64 as Scale;
@@ -609,8 +590,8 @@ fn glyf_parse_reference(refdump: &ParsedValue) -> ComponentReference {
         return ref_0;
     };
     ref_0.glyph = handle_from_name(_gname.as_str_bytes().map(|b| b.to_vec()));
-    vq_replace(&mut ref_0.x, json_vq_of(refdump.get(b"x")));
-    vq_replace(&mut ref_0.y, json_vq_of(refdump.get(b"y")));
+    ref_0.x = json_vq_of(refdump.get(b"x"));
+    ref_0.y = json_vq_of(refdump.get(b"y"));
     ref_0.a = refdump.get_num_or(b"a", 1.0f64) as Scale;
     ref_0.b = refdump.get_num_or(b"b", 0.0f64) as Scale;
     ref_0.c = refdump.get_num_or(b"c", 0.0f64) as Scale;
@@ -691,10 +672,10 @@ fn otfcc_glyf_parse_glyph(
 ) -> Box<Glyph> {
     let mut g: Box<Glyph> = otfcc_new_glyf_glyph();
     g.name = order_entry.name.clone();
-    vq_replace(&mut g.advance_width, json_vq_of(glyphdump.get(b"advanceWidth")));
-    vq_replace(&mut g.horizontal_origin, json_vq_of(glyphdump.get(b"horizontalOrigin")));
-    vq_replace(&mut g.advance_height, json_vq_of(glyphdump.get(b"advanceHeight")));
-    vq_replace(&mut g.vertical_origin, json_vq_of(glyphdump.get(b"verticalOrigin")));
+    g.advance_width = json_vq_of(glyphdump.get(b"advanceWidth"));
+    g.horizontal_origin = json_vq_of(glyphdump.get(b"horizontalOrigin"));
+    g.advance_height = json_vq_of(glyphdump.get(b"advanceHeight"));
+    g.vertical_origin = json_vq_of(glyphdump.get(b"verticalOrigin"));
     glyf_parse_contours(glyphdump.get_typed(b"contours", JsonType::Array), &mut g);
     glyf_parse_references(glyphdump.get_typed(b"references", JsonType::Array), &mut g);
     if !options.ignore_hints {

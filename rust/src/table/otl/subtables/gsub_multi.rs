@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::handle::{
-    GlyphHandle, Handle, handle_from_index, handle_from_name, otfcc_handle_dup,
+    GlyphHandle, handle_from_index, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
@@ -123,7 +123,7 @@ pub unsafe fn otl_read_gsub_multi(
                 );
             }
             (*subtable).push(GsubMultiEntry {
-                from: otfcc_handle_dup((&(*from))[j as usize].clone() as Handle) as GlyphHandle,
+                from: (&(*from))[j as usize].clone(),
                 to: coverage_from_raw(cov),
             });
         }
@@ -178,7 +178,7 @@ fn build_gsub_multi_subtable_range(
     for j in start..end {
         push_to_coverage(
             &mut cov,
-            otfcc_handle_dup(subtable[j as usize].from.clone() as Handle) as GlyphHandle,
+            subtable[j as usize].from.clone(),
         );
     }
     let mut root: BkBlock = bk_new_block(vec![

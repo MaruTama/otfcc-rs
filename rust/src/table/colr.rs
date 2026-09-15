@@ -1,9 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
-use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name, otfcc_handle_dup,
-    otfcc_handle_move,
-};
+use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
@@ -24,6 +21,7 @@ pub struct ColrLayer {
     pub glyph: GlyphHandle,
     pub palette_index: ColorId,
 }
+#[derive(Clone)]
 pub struct ColrMapping {
     pub glyph: GlyphHandle,
     pub layers: Vec<ColrLayer>,
@@ -36,22 +34,11 @@ pub type ColrTable = Vec<ColrMapping>;
 // own `Drop` already frees everything recursively.
 
 // `ColrLayer`/`ColrMapping` embed `GlyphHandle`, which owns its `sds` name
-// for real (`Handle`'s `Drop`/`Clone`, Stage 6-4's `Handle` pilot), so a
-// bitwise `Clone`/`Copy` of either would still only alias it -- a REAL
-// duplicate always goes through an explicit dup/copy function here, never an
-// implicit derive, so these two are written the same way, not derived.
-pub(crate) fn colr_layer_dup(l: &ColrLayer) -> ColrLayer {
-    ColrLayer {
-        glyph: otfcc_handle_dup(l.glyph.clone()),
-        palette_index: l.palette_index,
-    }
-}
-fn colr_mapping_dup(m: &ColrMapping) -> ColrMapping {
-    ColrMapping {
-        glyph: otfcc_handle_dup(m.glyph.clone()),
-        layers: m.layers.iter().map(colr_layer_dup).collect(),
-    }
-}
+// for real (`Handle`'s `Drop`/`Clone`, Stage 6-4's `Handle` pilot) -- a
+// `#[derive(Clone)]` on both structs above already deep-copies that name
+// correctly, field by field, the same way the two manual dup functions this
+// comment used to describe did (each was exactly a `.clone()`, sometimes
+// wrapped through a now-removed `otfcc_handle_dup` that also just cloned).
 static BASE_GLYPH_REC_LENGTH: usize = 6_usize;
 static LAYER_REC_LENGTH: usize = 4_usize;
 /// `offset_base_glyph_record`/`offset_layer_record` are each a raw `u32`
@@ -97,8 +84,7 @@ fn parse_colr(data: &[u8]) -> Result<ColrTable, ReadError> {
             },
             layers: Vec::new(),
         };
-        let mut base_glyph: GlyphHandle = handle_from_index(gid as GlyphId) as GlyphHandle;
-        otfcc_handle_move(&mut mapping.glyph, &mut base_glyph);
+        mapping.glyph = handle_from_index(gid as GlyphId);
         for k in 0..num_layers {
             let idx = k as usize + first_layer_index as usize;
             if idx < num_layer_records as usize {
@@ -206,7 +192,7 @@ pub fn otfcc_build_colr(_colr: Option<&ColrTable>) -> Option<Buffer> {
         Some(c) if !c.is_empty() => c,
         _ => return None,
     };
-    let mut colr: ColrTable = src.iter().map(colr_mapping_dup).collect();
+    let mut colr: ColrTable = src.clone();
     colr.sort_by(|a, b| a.glyph.index.cmp(&b.glyph.index));
     let mut current_layer_index: GlyphId = 0 as GlyphId;
     let mut layer_records: BkBlock = bk_new_block(Vec::new());

@@ -1,7 +1,5 @@
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
-use crate::support::handle::{
-    Handle, HandleState, LookupHandle, handle_name_eq_bytes, otfcc_handle_dispose,
-};
+use crate::support::handle::{Handle, HandleState, LookupHandle, handle_name_eq_bytes};
 use crate::table::otl::coverage::shrink_coverage;
 
 use crate::support::options::Options;
@@ -61,12 +59,11 @@ pub(crate) fn consolidate_chaining(
     // that, whenever `glyf` is present.
     let glyph_order = font.glyph_order.as_deref().unwrap();
     let mut possible: bool = true;
-    let mut j: TableId = 0 as TableId;
-    while (j as i32) < rule.match_count as i32 {
-        fontop_consolidate_coverage(glyph_order, &mut rule.match_0[j as usize], options);
-        shrink_coverage(&mut rule.match_0[j as usize], true);
-        possible = possible as i32 != 0 && rule.match_0[j as usize].len() as i32 > 0_i32;
-        j = j.wrapping_add(1);
+    let match_count = rule.match_count as usize;
+    for cov in rule.match_0.iter_mut().take(match_count) {
+        fontop_consolidate_coverage(glyph_order, cov, options);
+        shrink_coverage(cov, true);
+        possible = possible && !cov.is_empty();
     }
     if rule.input_begins as i32 > rule.match_count as i32 {
         rule.input_begins = rule.match_count;
@@ -74,24 +71,20 @@ pub(crate) fn consolidate_chaining(
     if rule.input_ends as i32 > rule.match_count as i32 {
         rule.input_ends = rule.match_count;
     }
-    let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < rule.apply.len() {
+    for app in rule.apply.iter_mut() {
         let mut found_lookup: bool = false;
-        if !rule.apply[j_0 as usize].lookup.name.is_empty() {
+        if !app.lookup.name.is_empty() {
             let mut k: TableId = 0 as TableId;
             while (k as usize) < unsafe { (*table).lookups.len() } {
                 // A `None` slot here is a hole an earlier iteration of the
                 // caller's own fixed-point loop already punched (see
                 // `consolidate_otl_table`) -- nothing to match against.
                 let matched = unsafe { (&(*table).lookups)[k as usize].as_deref() }.is_some_and(
-                    |lookup| {
-                        !lookup.subtables.is_empty()
-                            && handle_name_eq_bytes(&rule.apply[j_0 as usize].lookup.name, &lookup.name)
-                    },
+                    |lookup| !lookup.subtables.is_empty() && handle_name_eq_bytes(&app.lookup.name, &lookup.name),
                 );
                 if matched {
                     found_lookup = true;
-                    rule.apply[j_0 as usize].lookup = Handle {
+                    app.lookup = Handle {
                         state: HandleState::Consolidated,
                         index: k as GlyphId,
                         name: unsafe { (&(*table).lookups)[k as usize].as_deref() }
@@ -102,7 +95,7 @@ pub(crate) fn consolidate_chaining(
                 }
                 k = k.wrapping_add(1);
             }
-            if !found_lookup && !rule.apply[j_0 as usize].lookup.name.is_empty() {
+            if !found_lookup && !app.lookup.name.is_empty() {
                 // See `CONSOLIDATE_WARNING_BUDGET`'s doc comment: a font
                 // whose rules apply thousands of unresolvable lookups can
                 // still reach this point despite the per-rule/per-subtable/
@@ -120,22 +113,20 @@ pub(crate) fn consolidate_chaining(
                         LoggerType::Warning,
                         crate::bytesbuild!(
                             b"[Consolidate] Quoting an invalid lookup ",
-                            &rule.apply[j_0 as usize].lookup.name,
+                            &app.lookup.name,
                             b". This lookup application is ignored.",
                         ),
                     );
                 }
-                otfcc_handle_dispose(&mut rule.apply[j_0 as usize].lookup);
+                app.lookup = Handle::default();
             }
-        } else if rule.apply[j_0 as usize].lookup.state == HandleState::Index {
+        } else if app.lookup.state == HandleState::Index {
             // Invalid now covers both "out of range" (unchanged) and
             // "in range but a hole" (new -- see the `None`-slot comment
             // above): either way there is no real `Lookup` at this index
             // to resolve against.
             let lookups = unsafe { &(*table).lookups };
-            let target = lookups
-                .get(rule.apply[j_0 as usize].lookup.index as usize)
-                .and_then(Option::as_deref);
+            let target = lookups.get(app.lookup.index as usize).and_then(Option::as_deref);
             if target.is_none() {
                 let budget = options.consolidate_warning_budget.get();
                 if budget > 0 {
@@ -146,25 +137,24 @@ pub(crate) fn consolidate_chaining(
                         LoggerType::Warning,
                         crate::bytesbuild!(
                             b"[Consolidate] Quoting an invalid lookup #",
-                            rule.apply[j_0 as usize].lookup.index as i32,
+                            app.lookup.index as i32,
                             b".",
                         ),
                     );
                 }
-                rule.apply[j_0 as usize].lookup.index = 0 as GlyphId;
+                app.lookup.index = 0 as GlyphId;
             }
-            let idx = rule.apply[j_0 as usize].lookup.index;
+            let idx = app.lookup.index;
             let name = lookups
                 .get(idx as usize)
                 .and_then(Option::as_deref)
                 .map_or_else(Vec::new, |lookup| lookup.name.clone());
-            rule.apply[j_0 as usize].lookup = Handle {
+            app.lookup = Handle {
                 state: HandleState::Consolidated,
                 index: idx,
                 name,
             } as LookupHandle;
         }
-        j_0 = j_0.wrapping_add(1);
     }
     if !rule.apply.is_empty() {
         // Was a manual compact-in-place loop over `apply_count` before

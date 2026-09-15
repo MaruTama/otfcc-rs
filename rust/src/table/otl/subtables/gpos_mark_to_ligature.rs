@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
+    GlyphHandle, Handle, HandleState, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
@@ -146,7 +146,7 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
                 break 'parse;
             }
             let mut lig = LigatureBaseRecord {
-                glyph: otfcc_handle_dup((&(*bases))[j].clone() as Handle) as GlyphHandle,
+                glyph: (&(*bases))[j].clone(),
                 component_count,
                 anchors: Vec::with_capacity(component_count as usize),
             };
@@ -192,56 +192,41 @@ pub fn otl_gpos_dump_mark_to_ligature(st: &Subtable) -> BuiltValue {
     let mut _subtable = BuiltValue::new_object(3);
     let mut _marks = BuiltValue::new_object(subtable.mark_array.len());
     let mut _bases = BuiltValue::new_object(subtable.lig_array.len());
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < subtable.mark_array.len() {
+    for mark in subtable.mark_array.iter() {
         let mut _mark = BuiltValue::new_object(3);
-        let mark_class_name: Vec<u8> =
-            crate::bytesbuild!(b"ac_", subtable.mark_array[j as usize].mark_class as i32,);
+        let mark_class_name: Vec<u8> = crate::bytesbuild!(b"ac_", mark.mark_class as i32,);
         _mark.push_field(b"class", BuiltValue::str_truncated_at_nul(&mark_class_name));
-        _mark.push_field(
-            b"x",
-            BuiltValue::Int(subtable.mark_array[j as usize].anchor.x as i64),
-        );
-        _mark.push_field(
-            b"y",
-            BuiltValue::Int(subtable.mark_array[j as usize].anchor.y as i64),
-        );
-        _marks.push_field_bytes_key(
-            &subtable.mark_array[j as usize].glyph.name,
-            _mark.preserialize(),
-        );
-        j = j.wrapping_add(1);
+        _mark.push_field(b"x", BuiltValue::Int(mark.anchor.x as i64));
+        _mark.push_field(b"y", BuiltValue::Int(mark.anchor.y as i64));
+        _marks.push_field_bytes_key(&mark.glyph.name, _mark.preserialize());
     }
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < subtable.lig_array.len() {
-        let base: &LigatureBaseRecord = &subtable.lig_array[j_0 as usize];
+    for base in subtable.lig_array.iter() {
         let base_anchors: &Vec<Vec<Anchor>> = &base.anchors;
         let mut _base = BuiltValue::new_array(base.component_count as usize);
-        let mut k: GlyphId = 0 as GlyphId;
-        while (k as i32) < base.component_count as i32 {
+        // Bounded by `base.component_count`, not assumed equal to
+        // `base_anchors.len()` (both the read and JSON-parse paths always
+        // build exactly `component_count` entries, but this function has
+        // no reason to rely on that instead of the field itself).
+        for component_anchors in base_anchors.iter().take(base.component_count as usize) {
             let mut _bk = BuiltValue::new_object(subtable.class_count as usize);
-            let mut m: GlyphClass = 0 as GlyphClass;
-            while (m as i32) < subtable.class_count as i32 {
-                if base_anchors[k as usize][m as usize].present {
+            // `m`'s own value feeds the output key (`ac_<class id>`), so
+            // this needs `.enumerate()`, not a bare `.iter()`.
+            for (m, anchor) in component_anchors
+                .iter()
+                .enumerate()
+                .take(subtable.class_count as usize)
+            {
+                if anchor.present {
                     let mut _anchor = BuiltValue::new_object(2);
-                    _anchor.push_field(
-                        b"x",
-                        BuiltValue::Int(base_anchors[k as usize][m as usize].x as i64),
-                    );
-                    _anchor.push_field(
-                        b"y",
-                        BuiltValue::Int(base_anchors[k as usize][m as usize].y as i64),
-                    );
+                    _anchor.push_field(b"x", BuiltValue::Int(anchor.x as i64));
+                    _anchor.push_field(b"y", BuiltValue::Int(anchor.y as i64));
                     let mark_class_name_0: Vec<u8> = crate::bytesbuild!(b"ac_", m as i32);
                     _bk.push_field_bytes_key(&mark_class_name_0, _anchor);
                 }
-                m = m.wrapping_add(1);
             }
             _base.push_item(_bk);
-            k = k.wrapping_add(1);
         }
         _bases.push_field_bytes_key(&base.glyph.name, _base.preserialize());
-        j_0 = j_0.wrapping_add(1);
     }
     _subtable.push_field(b"classCount", BuiltValue::Int(subtable.class_count as i64));
     _subtable.push_field(b"marks", _marks);
@@ -348,24 +333,12 @@ pub fn otfcc_build_gpos_mark_to_ligature(
         unreachable!()
     };
     let mut marks: Coverage = Vec::new();
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < subtable.mark_array.len() {
-        push_to_coverage(
-            &mut marks,
-            otfcc_handle_dup(subtable.mark_array[j as usize].glyph.clone() as Handle)
-                as GlyphHandle,
-        );
-        j = j.wrapping_add(1);
+    for mark in subtable.mark_array.iter() {
+        push_to_coverage(&mut marks, mark.glyph.clone());
     }
     let mut bases: Coverage = Vec::new();
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < subtable.lig_array.len() {
-        push_to_coverage(
-            &mut bases,
-            otfcc_handle_dup(subtable.lig_array[j_0 as usize].glyph.clone() as Handle)
-                as GlyphHandle,
-        );
-        j_0 = j_0.wrapping_add(1);
+    for lig in subtable.lig_array.iter() {
+        push_to_coverage(&mut bases, lig.glyph.clone());
     }
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(BkCellType::B16, 1_u32),
@@ -386,55 +359,35 @@ pub fn otfcc_build_gpos_mark_to_ligature(
         BkCellType::B16,
         (subtable.mark_array.len()) as u32,
     )]);
-    let mut j_1: GlyphId = 0 as GlyphId;
-    while (j_1 as usize) < subtable.mark_array.len() {
+    for mark in subtable.mark_array.iter() {
         bk_push(
             &mut mark_array,
             vec![
-                bk_int(
-                    BkCellType::B16,
-                    (subtable.mark_array[j_1 as usize].mark_class as i32)
-                        as u32,
-                ),
-                bk_ptr(
-                    BkCellType::P16,
-                    bk_from_anchor(subtable.mark_array[j_1 as usize].anchor),
-                ),
+                bk_int(BkCellType::B16, (mark.mark_class as i32) as u32),
+                bk_ptr(BkCellType::P16, bk_from_anchor(mark.anchor)),
             ],
         );
-        j_1 = j_1.wrapping_add(1);
     }
     let mut ligature_array: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
         (subtable.lig_array.len()) as u32,
     )]);
-    let mut j_2: GlyphId = 0 as GlyphId;
-    while (j_2 as usize) < subtable.lig_array.len() {
+    for lig in subtable.lig_array.iter() {
         let mut attach: BkBlock = bk_new_block(vec![bk_int(
             BkCellType::B16,
-            (subtable.lig_array[j_2 as usize].component_count as i32) as u32,
+            (lig.component_count as i32) as u32,
         )]);
-        let mut k: GlyphId = 0 as GlyphId;
-        while (k as i32)
-            < subtable.lig_array[j_2 as usize].component_count as i32
-        {
-            let mut m: GlyphClass = 0 as GlyphClass;
-            while (m as i32) < subtable.class_count as i32 {
+        // Same count-vs-length caution as the dump side above:
+        // `.take()` on the field, not an assumption about `.len()`.
+        for component_anchors in lig.anchors.iter().take(lig.component_count as usize) {
+            for anchor in component_anchors.iter().take(subtable.class_count as usize) {
                 bk_push(
                     &mut attach,
-                    vec![bk_ptr(
-                        BkCellType::P16,
-                        bk_from_anchor(
-                            subtable.lig_array[j_2 as usize].anchors[k as usize][m as usize],
-                        ),
-                    )],
+                    vec![bk_ptr(BkCellType::P16, bk_from_anchor(*anchor))],
                 );
-                m = m.wrapping_add(1);
             }
-            k = k.wrapping_add(1);
         }
         bk_push(&mut ligature_array, vec![bk_ptr(BkCellType::P16, Some(attach))]);
-        j_2 = j_2.wrapping_add(1);
     }
     bk_push(
         &mut root,

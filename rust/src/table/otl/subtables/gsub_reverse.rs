@@ -170,10 +170,12 @@ pub fn otl_gsub_dump_reverse(_subtable: &Subtable) -> BuiltValue {
     };
     let mut _st = BuiltValue::new_object(3);
     let mut _match = BuiltValue::new_array(subtable.match_count as usize);
-    let mut j: TableId = 0 as TableId;
-    while (j as i32) < subtable.match_count as i32 {
-        _match.push_item(dump_coverage(&subtable.match_0[j as usize]));
-        j = j.wrapping_add(1);
+    // Bounded by `subtable.match_count`, not assumed equal to
+    // `match_0.len()` (both the read and JSON-parse paths always build
+    // exactly `match_count` entries, but this function has no reason to
+    // rely on that instead of the field itself).
+    for cov in subtable.match_0.iter().take(subtable.match_count as usize) {
+        _match.push_item(dump_coverage(cov));
     }
     _st.push_field(b"match", _match);
     _st.push_field(b"to", dump_coverage(&subtable.to));
@@ -236,18 +238,14 @@ pub fn otfcc_build_gsub_reverse(
             (subtable.input_index as i32) as u32,
         )],
     );
-    let mut j: TableId = 0 as TableId;
-    while (j as i32) < subtable.input_index as i32 {
+    for cov in backtrack.iter() {
         bk_push(
             &mut root,
             vec![bk_ptr(
                 BkCellType::P16,
-                bk_new_block_from_buffer(Some(build_coverage(
-                    &backtrack[j as usize],
-                ))),
+                bk_new_block_from_buffer(Some(build_coverage(cov))),
             )],
         );
-        j = j.wrapping_add(1);
     }
     bk_push(
         &mut root,
@@ -258,19 +256,18 @@ pub fn otfcc_build_gsub_reverse(
                 - 1_i32) as u32,
         )],
     );
-    let mut j_0: TableId =
-        (subtable.input_index as i32 + 1_i32) as TableId;
-    while (j_0 as i32) < subtable.match_count as i32 {
+    // Forward-region slice: [input_index + 1, match_count), same explicit
+    // bound the original indexed by, not the full `match_0` container.
+    let forward_start = subtable.input_index as usize + 1;
+    let forward_end = subtable.match_count as usize;
+    for cov in subtable.match_0[forward_start..forward_end].iter() {
         bk_push(
             &mut root,
             vec![bk_ptr(
                 BkCellType::P16,
-                bk_new_block_from_buffer(Some(build_coverage(
-                    &subtable.match_0[j_0 as usize],
-                ))),
+                bk_new_block_from_buffer(Some(build_coverage(cov))),
             )],
         );
-        j_0 = j_0.wrapping_add(1);
     }
     bk_push(
         &mut root,
@@ -279,16 +276,11 @@ pub fn otfcc_build_gsub_reverse(
             (subtable.to.len() as i32) as u32,
         )],
     );
-    let mut j_1: TableId = 0 as TableId;
-    while (j_1 as usize) < subtable.to.len() {
+    for entry in subtable.to.iter() {
         bk_push(
             &mut root,
-            vec![bk_int(
-                BkCellType::B16,
-                (subtable.to[j_1 as usize].index as i32) as u32,
-            )],
+            vec![bk_int(BkCellType::B16, (entry.index as i32) as u32)],
         );
-        j_1 = j_1.wrapping_add(1);
     }
     return bk_build_block(root);
 }

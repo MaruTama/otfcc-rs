@@ -1,7 +1,7 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 
 use crate::support::handle::{
-    GlyphHandle, Handle, handle_from_index, handle_from_name, otfcc_handle_dup,
+    GlyphHandle, handle_from_index, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{
@@ -108,8 +108,8 @@ pub unsafe fn otl_read_gsub_single(
 
         for j_1 in 0..(*from).len() {
             (*subtable).push(GsubSingleEntry {
-                from: otfcc_handle_dup((&(*from))[j_1].clone() as Handle) as GlyphHandle,
-                to: otfcc_handle_dup((&(*to))[j_1].clone() as Handle) as GlyphHandle,
+                from: (&(*from))[j_1].clone(),
+                to: (&(*to))[j_1].clone(),
             });
         }
         if !from.is_null() {
@@ -135,13 +135,11 @@ pub fn otl_gsub_dump_single(_subtable: &Subtable) -> BuiltValue {
         unreachable!()
     };
     let mut st = BuiltValue::new_object(subtable.len());
-    let mut j: usize = 0_usize;
-    while j < subtable.len() {
+    for entry in subtable.iter() {
         st.push_field_bytes_key(
-            &subtable[j].from.name,
-            BuiltValue::str_truncated_at_nul(&subtable[j].to.name),
+            &entry.from.name,
+            BuiltValue::str_truncated_at_nul(&entry.to.name),
         );
-        j = j.wrapping_add(1);
     }
     st
 }
@@ -176,25 +174,17 @@ pub fn otfcc_build_gsub_single_subtable(
         is_constant_difference = is_constant_difference as i32 != 0
             && difference < 0x8000_i32
             && difference > -0x8000_i32;
-        let mut j: GlyphId = 1 as GlyphId;
-        while (j as usize) < subtable.len() {
-            let diff_j: i32 = subtable[j as usize].to.index as i32
-                - subtable[j as usize].from.index as i32;
-            is_constant_difference = is_constant_difference as i32 != 0
+        for entry in subtable.iter().skip(1) {
+            let diff_j: i32 = entry.to.index as i32 - entry.from.index as i32;
+            is_constant_difference = is_constant_difference
                 && diff_j == difference
                 && diff_j < 0x8000_i32
                 && diff_j > -0x8000_i32;
-            j = j.wrapping_add(1);
         }
     }
     let mut cov: Coverage = Vec::new();
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as usize) < subtable.len() {
-        push_to_coverage(
-            &mut cov,
-            otfcc_handle_dup(subtable[j_0 as usize].from.clone() as Handle) as GlyphHandle,
-        );
-        j_0 = j_0.wrapping_add(1);
+    for entry in subtable.iter() {
+        push_to_coverage(&mut cov, entry.from.clone());
     }
     let coverage_buf: Buffer =
         build_coverage_format(&cov, heuristics.contains(BuildHeuristics::GSUB_VERT) as u16);
@@ -217,16 +207,11 @@ pub fn otfcc_build_gsub_single_subtable(
             bk_ptr(BkCellType::P16, bk_new_block_from_buffer(Some(coverage_buf))),
             bk_int(BkCellType::B16, (subtable.len()) as u32),
         ]);
-        let mut k: GlyphId = 0 as GlyphId;
-        while (k as usize) < subtable.len() {
+        for entry in subtable.iter() {
             bk_push(
                 &mut b_0,
-                vec![bk_int(
-                    BkCellType::B16,
-                    (subtable[k as usize].to.index as i32) as u32,
-                )],
+                vec![bk_int(BkCellType::B16, (entry.to.index as i32) as u32)],
             );
-            k = k.wrapping_add(1);
         }
         return bk_build_block(b_0);
     };

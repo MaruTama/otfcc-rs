@@ -1,7 +1,5 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
-use crate::support::handle::{
-    GlyphHandle, handle_from_index, handle_from_name, otfcc_handle_dispose,
-};
+use crate::support::handle::{GlyphHandle, Handle, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
 
 use crate::support::buffer::Buffer;
@@ -235,10 +233,8 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     let mut format1 = Buffer::new();
     format1.write_u16be(1_u16);
     format1.write_u16be(jj as u16);
-    let mut j_0: GlyphId = 0 as GlyphId;
-    while (j_0 as i32) < jj as i32 {
-        format1.write_u16be(r[j_0 as usize] as u16);
-        j_0 = j_0.wrapping_add(1);
+    for &gid in &r {
+        format1.write_u16be(gid);
     }
     if (jj as i32) < 2_i32 {
         return format1;
@@ -250,29 +246,20 @@ pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer 
     let mut end_gid: GlyphId = start_gid;
     let mut last_gid: GlyphId = start_gid;
     let mut n_ranges: GlyphId = 0 as GlyphId;
-    let mut j_1: GlyphId = 1 as GlyphId;
-    while (j_1 as i32) < jj as i32 {
-        let current: GlyphId = r[j_1 as usize];
+    for (j_1, &current) in r.iter().enumerate().skip(1) {
         if !(current as i32 <= last_gid as i32) {
-            if current as i32
-                == end_gid as i32 + 1_i32
-            {
+            if current as i32 == end_gid as i32 + 1_i32 {
                 end_gid = current;
             } else {
                 ranges.write_u16be(start_gid as u16);
                 ranges.write_u16be(end_gid as u16);
-                ranges.write_u16be(
-                    (j_1 as i32 + start_gid as i32
-                        - end_gid as i32
-                        - 1_i32) as u16,
-                );
+                ranges.write_u16be((j_1 as i32 + start_gid as i32 - end_gid as i32 - 1_i32) as u16);
                 n_ranges = (n_ranges as i32 + 1_i32) as GlyphId;
                 end_gid = current;
                 start_gid = end_gid;
             }
             last_gid = current;
         }
-        j_1 = j_1.wrapping_add(1);
     }
     ranges.write_u16be(start_gid as u16);
     ranges.write_u16be(end_gid as u16);
@@ -301,7 +288,7 @@ pub(crate) fn shrink_coverage(coverage: &mut Coverage, dosort: bool) {
     // Two `truncate`s, not one `num_glyphs = k` at the end as the original
     // did: each `truncate` lets `Vec`'s own drop glue free every handle
     // past the new length, including ones this function's own compaction
-    // loops never got around to calling `otfcc_handle_dispose` on directly
+    // loops never got around to resetting to `Handle::default()` directly
     // (a survivor that gets superseded by a *later* compaction write, but
     // never becomes a write target itself, is exactly that case) -- the
     // original leaked that name; `truncate` doesn't.
@@ -312,7 +299,7 @@ pub(crate) fn shrink_coverage(coverage: &mut Coverage, dosort: bool) {
             coverage[k] = elem;
             k += 1;
         } else {
-            otfcc_handle_dispose(&mut coverage[j]);
+            coverage[j] = Handle::default();
         }
     }
     coverage.truncate(k);
@@ -322,7 +309,7 @@ pub(crate) fn shrink_coverage(coverage: &mut Coverage, dosort: bool) {
         let mut rear: usize = 1;
         while rear < coverage.len() {
             if coverage[rear].index == coverage[rear - skip - 1].index {
-                otfcc_handle_dispose(&mut coverage[rear]);
+                coverage[rear] = Handle::default();
                 skip += 1;
             } else {
                 let elem = coverage[rear].clone();

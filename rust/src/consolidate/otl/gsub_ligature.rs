@@ -1,9 +1,7 @@
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
-use crate::support::handle::{GlyphHandle, Handle, otfcc_handle_dup};
 use crate::table::otl::coverage::shrink_coverage;
 
 use crate::support::options::Options;
-use crate::support::primitives::GlyphId;
 
 use crate::font::caryll_font::Font;
 
@@ -22,52 +20,39 @@ pub fn consolidate_gsub_ligature(
         unreachable!()
     };
     let mut nt: GsubLigatureSubtable = Vec::new();
-    let mut k: GlyphId = 0 as GlyphId;
-    while (k as usize) < subtable.len() {
+    for entry in subtable.iter_mut() {
         // Guaranteed `Some`: `consolidate_otl` (and hence this function)
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(
-            font.glyph_order.as_deref().unwrap(),
-            &mut subtable[k as usize].to,
-        ) {
+        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut entry.to) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored missing glyph /",
-                    &subtable[k as usize].to.name,
-                    b".\n",
-                ),
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.to.name, b".\n",),
             );
         } else {
-            fontop_consolidate_coverage(
-                font.glyph_order.as_deref().unwrap(),
-                &mut subtable[k as usize].from,
-                options,
-            );
-            shrink_coverage(&mut subtable[k as usize].from, false);
-            if subtable[k as usize].from.is_empty() {
+            fontop_consolidate_coverage(font.glyph_order.as_deref().unwrap(), &mut entry.from, options);
+            shrink_coverage(&mut entry.from, false);
+            if entry.from.is_empty() {
                 logger_log_sds(
                     &mut *options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(
                         b"[Consolidate] Ignoring empty ligature substitution to glyph /",
-                        &subtable[k as usize].to.name,
+                        &entry.to.name,
                         b".\n",
                     ),
                 );
             } else {
                 nt.push(GsubLigatureEntry {
-                    from: ::core::mem::take(&mut subtable[k as usize].from),
-                    to: otfcc_handle_dup(subtable[k as usize].to.clone() as Handle) as GlyphHandle,
+                    from: ::core::mem::take(&mut entry.from),
+                    to: entry.to.clone(),
                 });
             }
         }
-        k = k.wrapping_add(1);
     }
     subtable_gsub_ligature_replace(subtable, nt);
     subtable.len() == 0_usize

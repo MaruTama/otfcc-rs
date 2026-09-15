@@ -1,6 +1,6 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see rust/README.md
 use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
+    GlyphHandle, Handle, HandleState, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::Coverage;
@@ -51,7 +51,7 @@ pub fn otl_read_mark_array(array: &mut MarkArray, cov: &Coverage, data: &[u8], o
             otl_anchor_absent()
         };
         array.push(MarkRecord {
-            glyph: otfcc_handle_dup(glyph.clone() as Handle) as GlyphHandle,
+            glyph: glyph.clone(),
             mark_class,
             anchor,
         });

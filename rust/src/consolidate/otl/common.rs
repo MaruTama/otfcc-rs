@@ -1,10 +1,10 @@
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
-use crate::support::handle::otfcc_handle_dispose;
+use crate::support::handle::Handle;
 use crate::table::otl::coverage::Coverage;
 
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
-use crate::support::primitives::{GlyphClass, GlyphId};
+use crate::support::primitives::GlyphClass;
 
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::classdef::ClassDef;
@@ -20,22 +20,16 @@ pub fn fontop_consolidate_coverage(
     coverage: &mut Coverage,
     options: &Options,
 ) {
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < coverage.len() {
-        if !otfcc_gord_consolidate_handle(glyph_order, &mut coverage[j as usize]) {
+    for glyph in coverage.iter_mut() {
+        if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored missing glyph /",
-                    &coverage[j as usize].name,
-                    b".\n",
-                ),
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &glyph.name, b".\n",),
             );
-            otfcc_handle_dispose(&mut coverage[j as usize]);
+            *glyph = Handle::default();
         }
-        j = j.wrapping_add(1);
     }
 }
 pub fn fontop_consolidate_class_def(
@@ -60,22 +54,16 @@ pub fn fontop_consolidate_class_def(
     let Some(glyph_order) = glyph_order else {
         return;
     };
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < cd.glyphs.len() {
-        if !otfcc_gord_consolidate_handle(glyph_order, &mut cd.glyphs[j as usize]) {
+    for (glyph, class) in cd.glyphs.iter_mut().zip(cd.classes.iter_mut()) {
+        if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
-                crate::bytesbuild!(
-                    b"[Consolidate] Ignored missing glyph /",
-                    &cd.glyphs[j as usize].name,
-                    b".\n",
-                ),
+                crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &glyph.name, b".\n",),
             );
-            otfcc_handle_dispose(&mut cd.glyphs[j as usize]);
-            cd.classes[j as usize] = 0 as GlyphClass;
+            *glyph = Handle::default();
+            *class = 0 as GlyphClass;
         }
-        j = j.wrapping_add(1);
     }
 }

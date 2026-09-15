@@ -4,9 +4,7 @@ use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::FontReader;
-use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_name, otfcc_handle_dup,
-};
+use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name};
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::Pos;
@@ -148,7 +146,7 @@ fn read_lig_carets(data: &[u8], lig_caret_offset: usize) -> Option<LigCaretTable
     for glyph in &cov {
         let lig_glyph_rel = off_reader.u16().ok()?;
         let mut v = read_lig_caret_record(data, lig_caret_offset + lig_glyph_rel as usize);
-        v.glyph = otfcc_handle_dup(glyph.clone());
+        v.glyph = glyph.clone();
         result.push(v);
     }
     Some(result)
@@ -323,7 +321,7 @@ fn write_lig_carets(records: &LigCaretTable) -> BkBlock {
     // genuine `bk_*` calls below as this function's unsafe surface.
     let mut cov: Coverage = Vec::new();
     for record in records {
-        push_to_coverage(&mut cov, otfcc_handle_dup(record.glyph.clone()));
+        push_to_coverage(&mut cov, record.glyph.clone());
     }
     let mut lct: BkBlock = bk_new_block(vec![
         bk_ptr(

@@ -140,9 +140,7 @@ pub fn otfcc_dump_name(name: Option<&NameTable>, root: &mut BuiltValue, options:
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut _name = BuiltValue::new_array(records.len());
-        let mut j: u16 = 0_u16;
-        while (j as usize) < records.len() {
-            let r: &NameRecord = &records[j as usize];
+        for r in records.iter() {
             let mut record = BuiltValue::new_object(5);
             record.push_field(b"platformID", BuiltValue::Int(r.platform_id as i64));
             record.push_field(b"encodingID", BuiltValue::Int(r.encoding_id as i64));
@@ -150,7 +148,6 @@ pub fn otfcc_dump_name(name: Option<&NameTable>, root: &mut BuiltValue, options:
             record.push_field(b"nameID", BuiltValue::Int(r.name_id as i64));
             record.push_field(b"nameString", BuiltValue::Str(r.name_string.clone()));
             _name.push_item(record);
-            j = j.wrapping_add(1);
         }
         root.push_field(b"name", _name);
         ___loggedstep_v = false;

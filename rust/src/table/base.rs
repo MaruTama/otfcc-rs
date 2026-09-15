@@ -234,9 +234,7 @@ pub fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<BaseTab
 }
 fn axis_to_json(axis: &BaseAxis) -> BuiltValue {
     let mut _axis = BuiltValue::new_object(axis.entries.len());
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < axis.entries.len() {
-        let entry = &axis.entries[j as usize];
+    for entry in axis.entries.iter() {
         if entry.tag != 0 {
             let mut _entry = BuiltValue::new_object(3);
             if entry.default_baseline_tag != 0 {
@@ -249,18 +247,14 @@ fn axis_to_json(axis: &BaseAxis) -> BuiltValue {
                 _entry.push_field(b"defaultBaseline", BuiltValue::Str(tag_bytes.to_vec()));
             }
             let mut _values = BuiltValue::new_object(entry.base_values.len());
-            let mut k: TableId = 0 as TableId;
-            while (k as usize) < entry.base_values.len() {
-                let bv = &(&entry.base_values)[k as usize];
+            for bv in entry.base_values.iter() {
                 if bv.tag != 0 {
                     _values.push_tag(bv.tag, BuiltValue::position(bv.coordinate));
                 }
-                k = k.wrapping_add(1);
             }
             _entry.push_field(b"baselines", _values);
             _axis.push_tag(entry.tag, _entry);
         }
-        j = j.wrapping_add(1);
     }
     _axis
 }
@@ -350,55 +344,40 @@ pub fn otfcc_parse_base(root: &ParsedValue, options: &Options) -> Option<Box<Bas
 }
 pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
     let mut taglist: BaseTagList = BaseTagList { items: Vec::new() };
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < axis.entries.len() {
-        let entry: &BaseScriptEntry = &axis.entries[j as usize];
-        if entry.default_baseline_tag != 0 {
-            if !taglist.items.contains(&entry.default_baseline_tag) {
-                taglist.items.push(entry.default_baseline_tag);
+    for entry in axis.entries.iter() {
+        if entry.default_baseline_tag != 0 && !taglist.items.contains(&entry.default_baseline_tag) {
+            taglist.items.push(entry.default_baseline_tag);
+        }
+        for bv in entry.base_values.iter() {
+            if !taglist.items.contains(&bv.tag) {
+                taglist.items.push(bv.tag);
             }
         }
-        let mut k: TableId = 0 as TableId;
-        while (k as usize) < entry.base_values.len() {
-            let tag: u32 = (&entry.base_values)[k as usize].tag;
-            if !taglist.items.contains(&tag) {
-                taglist.items.push(tag);
-            }
-            k = k.wrapping_add(1);
-        }
-        j = j.wrapping_add(1);
     }
     taglist.items.sort();
     let mut base_tag_list: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
         (taglist.items.len() as i32) as u32,
     )]);
-    let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < taglist.items.len() {
-        bk_push(
-            &mut base_tag_list,
-            vec![bk_int(BkCellType::B32, taglist.items[j_0 as usize] as u32)],
-        );
-        j_0 = j_0.wrapping_add(1);
+    for &tag in taglist.items.iter() {
+        bk_push(&mut base_tag_list, vec![bk_int(BkCellType::B32, tag)]);
     }
     let mut base_script_list: BkBlock = bk_new_block(vec![bk_int(
         BkCellType::B16,
         (axis.entries.len() as i32) as u32,
     )]);
-    let mut j_1: TableId = 0 as TableId;
-    while (j_1 as usize) < axis.entries.len() {
-        let entry_0: &BaseScriptEntry = &axis.entries[j_1 as usize];
+    for entry_0 in axis.entries.iter() {
         let mut base_values: BkBlock = bk_new_block(Vec::new());
-        let mut default_index: TableId = 0 as TableId;
-        let mut m: TableId = 0 as TableId;
-        while (m as usize) < taglist.items.len() {
-            if taglist.items[m as usize] == entry_0.default_baseline_tag {
-                default_index = m;
-                break;
-            } else {
-                m = m.wrapping_add(1);
-            }
-        }
+        // A `taglist.items` entry the default baseline tag never matches
+        // (not expected in practice, since every default tag was itself
+        // inserted into `taglist` above) falls back to index 0, matching
+        // the original: `default_index` stayed at its initial `0` whenever
+        // the search loop ran to completion without ever breaking.
+        let default_index = taglist
+            .items
+            .iter()
+            .position(|&t| t == entry_0.default_baseline_tag)
+            .unwrap_or(0) as TableId;
         bk_push(
             &mut base_values,
             vec![bk_int(
@@ -413,21 +392,9 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
                 (taglist.items.len() as i32) as u32,
             )],
         );
-        let mut m_0: usize = 0_usize;
-        while m_0 < taglist.items.len() {
-            let mut found_1: bool = false;
-            let mut found_index: TableId = 0 as TableId;
-            let mut k_0: TableId = 0 as TableId;
-            while (k_0 as usize) < entry_0.base_values.len() {
-                if (&entry_0.base_values)[k_0 as usize].tag == taglist.items[m_0] {
-                    found_1 = true;
-                    found_index = k_0;
-                    break;
-                } else {
-                    k_0 = k_0.wrapping_add(1);
-                }
-            }
-            if found_1 {
+        for &tag in taglist.items.iter() {
+            let found_index = entry_0.base_values.iter().position(|bv| bv.tag == tag);
+            if let Some(found_index) = found_index {
                 bk_push(
                     &mut base_values,
                     vec![bk_ptr(
@@ -436,8 +403,7 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
                             bk_int(BkCellType::B16, 1_u32),
                             bk_int(
                                 BkCellType::B16,
-                                ((&entry_0.base_values)[found_index as usize].coordinate as i16
-                                    as i32) as u32,
+                                (entry_0.base_values[found_index].coordinate as i16 as i32) as u32,
                             ),
                         ])),
                     )],
@@ -454,7 +420,6 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
                     )],
                 );
             }
-            m_0 = m_0.wrapping_add(1);
         }
         let script_record: BkBlock = bk_new_block(vec![
             bk_ptr(BkCellType::P16, Some(base_values)),
@@ -464,11 +429,10 @@ pub fn axis_to_bk(axis: &BaseAxis) -> BkBlock {
         bk_push(
             &mut base_script_list,
             vec![
-                bk_int(BkCellType::B32, (entry_0.tag) as u32),
+                bk_int(BkCellType::B32, entry_0.tag),
                 bk_ptr(BkCellType::P16, Some(script_record)),
             ],
         );
-        j_1 = j_1.wrapping_add(1);
     }
     return bk_new_block(vec![
         bk_ptr(BkCellType::P16, Some(base_tag_list)),

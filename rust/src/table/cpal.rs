@@ -6,7 +6,7 @@ use crate::support::buffer::Buffer;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
-use crate::support::primitives::{ColorId, TableId};
+use crate::support::primitives::ColorId;
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkgraph::bk_build_block;
@@ -212,10 +212,8 @@ fn dump_palette(palette: &CpalPalette) -> BuiltValue {
     }
     let colorset: &Vec<CpalColor> = &palette.colorset;
     let mut a = BuiltValue::new_array(colorset.len());
-    let mut j: ColorId = 0 as ColorId;
-    while (j as usize) < colorset.len() {
-        a.push_item(dump_color(&colorset[j as usize]));
-        j = j.wrapping_add(1);
+    for color in colorset.iter() {
+        a.push_item(dump_color(color));
     }
     _palette.push_field(b"colors", a);
     _palette
@@ -235,10 +233,8 @@ pub fn otfcc_dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue, options
         let mut _t = BuiltValue::new_object(2);
         _t.push_field(b"version", BuiltValue::Int(table.version as i64));
         let mut _a = BuiltValue::new_array(palettes.len());
-        let mut j: TableId = 0 as TableId;
-        while (j as usize) < palettes.len() {
-            _a.push_item(dump_palette(&palettes[j as usize]));
-            j = j.wrapping_add(1);
+        for p in palettes.iter() {
+            _a.push_item(dump_palette(p));
         }
         _t.push_field(b"palettes", _a);
         root.push_field(b"CPAL", _t);
@@ -305,86 +301,37 @@ pub fn otfcc_parse_cpal(root: &ParsedValue, options: &Options) -> Option<Box<Cpa
 #[inline]
 fn build_palette_type(cpal: &CpalTable) -> Option<BkBlock> {
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
-    let mut needs_palette_type: bool = false;
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < palettes.len() {
-        if palettes[j as usize].type_0 != 0 {
-            needs_palette_type = true;
-        }
-        j = j.wrapping_add(1);
-    }
-    if !needs_palette_type {
+    if !palettes.iter().any(|p| p.type_0 != 0) {
         return None;
     }
     let mut block: BkBlock = bk_new_block(Vec::new());
-    let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < palettes.len() {
-        bk_push(
-            &mut block,
-            vec![bk_int(
-                BkCellType::B32,
-                (palettes[j_0 as usize].type_0) as u32,
-            )],
-        );
-        j_0 = j_0.wrapping_add(1);
+    for p in palettes.iter() {
+        bk_push(&mut block, vec![bk_int(BkCellType::B32, p.type_0)]);
     }
     return Some(block);
 }
 #[inline]
 fn build_palette_label(cpal: &CpalTable) -> Option<BkBlock> {
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
-    let mut needs_palette_label: bool = false;
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < palettes.len() {
-        if palettes[j as usize].label != 0xffff_u32 {
-            needs_palette_label = true;
-        }
-        j = j.wrapping_add(1);
-    }
-    if !needs_palette_label {
+    if !palettes.iter().any(|p| p.label != 0xffff_u32) {
         return None;
     }
     let mut block: BkBlock = bk_new_block(Vec::new());
-    let mut j_0: TableId = 0 as TableId;
-    while (j_0 as usize) < palettes.len() {
-        bk_push(
-            &mut block,
-            vec![bk_int(
-                BkCellType::B16,
-                (palettes[j_0 as usize].label) as u32,
-            )],
-        );
-        j_0 = j_0.wrapping_add(1);
+    for p in palettes.iter() {
+        bk_push(&mut block, vec![bk_int(BkCellType::B16, p.label)]);
     }
     return Some(block);
 }
 #[inline]
 fn build_palette_entry_label(cpal: &CpalTable) -> Option<BkBlock> {
     let palettes: &Vec<CpalPalette> = &cpal.palettes;
-    let mut needs_palette_entry_label: bool = false;
     let palette: &CpalPalette = &palettes[0_usize];
-    let mut j: ColorId = 0 as ColorId;
-    while (j as usize) < palette.colorset.len() {
-        if palette.colorset[j as usize].label as i32 != 0xffff_i32
-        {
-            needs_palette_entry_label = true;
-        }
-        j = j.wrapping_add(1);
-    }
-    if !needs_palette_entry_label {
+    if !palette.colorset.iter().any(|c| c.label as i32 != 0xffff_i32) {
         return None;
     }
     let mut block: BkBlock = bk_new_block(Vec::new());
-    let mut j_0: ColorId = 0 as ColorId;
-    while (j_0 as usize) < palette.colorset.len() {
-        bk_push(
-            &mut block,
-            vec![bk_int(
-                BkCellType::B16,
-                (palette.colorset[j_0 as usize].label as i32) as u32,
-            )],
-        );
-        j_0 = j_0.wrapping_add(1);
+    for c in palette.colorset.iter() {
+        bk_push(&mut block, vec![bk_int(BkCellType::B16, (c.label as i32) as u32)]);
     }
     return Some(block);
 }
@@ -399,12 +346,9 @@ pub fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
     let num_color_records: u16 =
         (num_palettes as i32 * num_palettes_entries as i32) as u16;
     let mut color_records: BkBlock = bk_new_block(Vec::new());
-    let mut j: TableId = 0 as TableId;
-    while (j as i32) < num_palettes as i32 {
-        let palette: &CpalPalette = &palettes[j as usize];
+    for palette in palettes.iter().take(num_palettes as usize) {
         let total_colors: ColorId = palette.colorset.len() as ColorId;
-        let mut k: ColorId = 0 as ColorId;
-        while (k as i32) < num_palettes_entries as i32 {
+        for k in 0..num_palettes_entries {
             let color: &CpalColor = if (k as i32) < total_colors as i32 {
                 &palette.colorset[k as usize]
             } else {
@@ -425,9 +369,7 @@ pub fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
                     ),
                 ],
             );
-            k = k.wrapping_add(1);
         }
-        j = j.wrapping_add(1);
     }
     let mut root: BkBlock = bk_new_block(vec![
         bk_int(
@@ -445,8 +387,7 @@ pub fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
         ),
         bk_ptr(BkCellType::P32, Some(color_records)),
     ]);
-    let mut j_0: TableId = 0 as TableId;
-    while (j_0 as i32) < num_palettes as i32 {
+    for j_0 in 0..num_palettes {
         bk_push(
             &mut root,
             vec![bk_int(
@@ -454,7 +395,6 @@ pub fn otfcc_build_cpal(cpal: Option<&CpalTable>) -> Option<Buffer> {
                 (num_palettes_entries as i32 * j_0 as i32) as u32,
             )],
         );
-        j_0 = j_0.wrapping_add(1);
     }
     if cpal.version as i32 > 0_i32 {
         bk_push(

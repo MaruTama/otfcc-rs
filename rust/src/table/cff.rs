@@ -58,8 +58,8 @@ use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::table::fvar::json_new_vq;
 use crate::table::glyf::{glyf_point_init, otfcc_new_glyf_glyph, table_glyf_create_n};
 use crate::vf::vq::{
-    vq_compare, vq_copy_replace, vq_create_still, vq_dup, vq_get_still, vq_inplace_plus,
-    vq_neutral, vq_point_linear_tfm, vq_replace, vq_scale,
+    vq_compare, vq_create_still, vq_get_still, vq_inplace_plus, vq_neutral, vq_point_linear_tfm,
+    vq_scale,
 };
 
 #[derive(Clone)]
@@ -642,10 +642,7 @@ fn callback_extract_fd(op: CffDictOperator, top: u8, stack: &[CffValue], context
     };
 }
 pub(crate) fn callback_draw_setwidth(context: &mut OutlineBuilderContext, width: ::core::ffi::c_double) {
-    vq_replace(
-        &mut context.g.advance_width,
-        vq_create_still(width as Pos + context.nominal_width_x as Pos) as VQ,
-    );
+    context.g.advance_width = vq_create_still(width as Pos + context.nominal_width_x as Pos);
 }
 pub(crate) fn callback_draw_next_contour(context: &mut OutlineBuilderContext) {
     context.g.contours.push(Vec::new());
@@ -672,8 +669,8 @@ pub(crate) fn callback_draw_lineto(
         };
         glyf_point_init(&mut z);
         z.on_curve = TRUE_0 as i8;
-        vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
-        vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
+        z.x = vq_create_still(x1 as Pos);
+        z.y = vq_create_still(y1 as Pos);
         contour.push(z);
         context.j_point = (context.j_point as i32 + 1_i32) as ShapeId;
     }
@@ -702,8 +699,8 @@ pub(crate) fn callback_draw_curveto(
         };
         glyf_point_init(&mut z);
         z.on_curve = FALSE_0 as i8;
-        vq_copy_replace(&mut z.x, vq_create_still(x1 as Pos) as VQ);
-        vq_copy_replace(&mut z.y, vq_create_still(y1 as Pos) as VQ);
+        z.x = vq_create_still(x1 as Pos);
+        z.y = vq_create_still(y1 as Pos);
         contour.push(z);
         let mut z_0: Point = Point {
             x: VQ {
@@ -718,8 +715,8 @@ pub(crate) fn callback_draw_curveto(
         };
         glyf_point_init(&mut z_0);
         z_0.on_curve = FALSE_0 as i8;
-        vq_copy_replace(&mut z_0.x, vq_create_still(x2 as Pos) as VQ);
-        vq_copy_replace(&mut z_0.y, vq_create_still(y2 as Pos) as VQ);
+        z_0.x = vq_create_still(x2 as Pos);
+        z_0.y = vq_create_still(y2 as Pos);
         contour.push(z_0);
         let mut z_1: Point = Point {
             x: VQ {
@@ -734,8 +731,8 @@ pub(crate) fn callback_draw_curveto(
         };
         glyf_point_init(&mut z_1);
         z_1.on_curve = TRUE_0 as i8;
-        vq_copy_replace(&mut z_1.x, vq_create_still(x3 as Pos) as VQ);
-        vq_copy_replace(&mut z_1.y, vq_create_still(y3 as Pos) as VQ);
+        z_1.x = vq_create_still(x3 as Pos);
+        z_1.y = vq_create_still(y3 as Pos);
         contour.push(z_1);
         context.j_point = (context.j_point as i32 + 3_i32) as ShapeId;
     }
@@ -781,19 +778,13 @@ pub(crate) fn callback_draw_setmask(
     mask.points_before = context.j_point;
     let stem_h_len = context.g.stem_h.len();
     let stem_v_len = context.g.stem_v.len();
-    let mut j: ShapeId = 0 as ShapeId;
-    while (j as i32) < 0x100_i32 {
-        mask.mask_h[j as usize] = if (j as usize) < stem_h_len {
-            mask_array[j as usize] as i32
-        } else {
-            0_i32
-        } != 0;
-        mask.mask_v[j as usize] = if (j as usize) < stem_v_len {
-            mask_array[(j as usize).wrapping_add(stem_h_len)] as i32
-        } else {
-            0_i32
-        } != 0;
-        j = j.wrapping_add(1);
+    // Fills both fixed-size 256-entry arrays in lockstep, each entry's
+    // own index feeding both the write target and (conditionally, via
+    // `&&`'s short-circuit -- same as the original's separate `if`
+    // guards) the `mask_array` read.
+    for (j, (h, v)) in mask.mask_h.iter_mut().zip(mask.mask_v.iter_mut()).enumerate() {
+        *h = j < stem_h_len && mask_array[j];
+        *v = j < stem_v_len && mask_array[j + stem_h_len];
     }
     if !mask_list.is_empty()
         && mask_list[mask_list.len() - 1].contours_before as i32
@@ -802,12 +793,10 @@ pub(crate) fn callback_draw_setmask(
             == mask.points_before as i32
     {
         let last = mask_list.len() - 1;
-        let mut j_0: ShapeId = 0 as ShapeId;
-        while (j_0 as i32) < 0x100_i32 {
-            mask_list[last].mask_h[j_0 as usize] = mask.mask_h[j_0 as usize];
-            mask_list[last].mask_v[j_0 as usize] = mask.mask_v[j_0 as usize];
-            j_0 = j_0.wrapping_add(1);
-        }
+        // `[bool; 256]` is `Copy` -- a whole-array assignment replaces
+        // the old element-by-element copy loop exactly.
+        mask_list[last].mask_h = mask.mask_h;
+        mask_list[last].mask_v = mask.mask_v;
     } else {
         mask_list.push(mask);
         if is_contour_mask {
@@ -937,10 +926,7 @@ unsafe fn build_outline(
         bc.default_width_x = pd.default_width_x;
         bc.nominal_width_x = pd.nominal_width_x;
     }
-    vq_replace(
-        &mut bc.g.advance_width,
-        vq_create_still(bc.default_width_x as Pos) as VQ,
-    );
+    bc.g.advance_width = vq_create_still(bc.default_width_x as Pos);
     let char_strings_offset = &f.char_strings.offset;
     // CFF INDEX offsets are 1-based and `extract_index` already validated
     // this whole array (non-decreasing, every entry >= 1, and the final
@@ -973,17 +959,12 @@ unsafe fn build_outline(
     );
     let mut cx: VQ = (vq_neutral)();
     let mut cy: VQ = (vq_neutral)();
-    let mut j: ShapeId = 0 as ShapeId;
-    while (j as usize) < bc.g.contours.len() {
-        let contour: &mut Contour = &mut bc.g.contours[j as usize];
-        let mut k: ShapeId = 0 as ShapeId;
-        while (k as usize) < contour.len() {
-            let z: &mut Point = &mut contour[k as usize];
+    for contour in bc.g.contours.iter_mut() {
+        for z in contour.iter_mut() {
             vq_inplace_plus(&mut cx, z.x.clone());
             vq_inplace_plus(&mut cy, z.y.clone());
-            vq_copy_replace(&mut z.x, cx.clone());
-            vq_copy_replace(&mut z.y, cy.clone());
-            k = k.wrapping_add(1);
+            z.x = cx.clone();
+            z.y = cy.clone();
         }
         if vq_compare(
             contour[0_usize].x.clone(),
@@ -999,7 +980,6 @@ unsafe fn build_outline(
             contour.pop();
         }
         contour.shrink_to_fit();
-        j = j.wrapping_add(1);
     }
     bc.g.contours.shrink_to_fit();
     // `cx`/`cy`/`local_subrs` are plain owned locals, never moved out, so
@@ -1030,10 +1010,8 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
                 let mut glyphs_named_sofar: u32 = 1_u32;
                 for r in range1 {
                     let first: CffSid = r.first as CffSid;
-                    let mut k: GlyphId = 0 as GlyphId;
-                    while k as i32 <= r.nleft as i32 {
-                        let sid_0: CffSid =
-                            (first as i32 + k as i32) as CffSid;
+                    for k in 0..=r.nleft {
+                        let sid_0: CffSid = (first as i32 + k as i32) as CffSid;
                         let glyphname_0: Vec<u8> = form_cid_string(sid_0);
                         if (glyphs_named_sofar as usize) < glyphs.len() {
                             glyphs[glyphs_named_sofar as usize]
@@ -1046,7 +1024,6 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
                                 .cid = sid_0 as GlyphId;
                         }
                         glyphs_named_sofar = glyphs_named_sofar.wrapping_add(1);
-                        k = k.wrapping_add(1);
                     }
                 }
             }
@@ -1054,10 +1031,8 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
                 let mut glyphs_named_sofar_0: u32 = 1_u32;
                 for r in range2 {
                     let first_0: CffSid = r.first as CffSid;
-                    let mut k_0: GlyphId = 0 as GlyphId;
-                    while k_0 as i32 <= r.nleft as i32 {
-                        let sid_1: CffSid =
-                            (first_0 as i32 + k_0 as i32) as CffSid;
+                    for k_0 in 0..=r.nleft {
+                        let sid_1: CffSid = (first_0 as i32 + k_0 as i32) as CffSid;
                         let glyphname_1: Vec<u8> = form_cid_string(sid_1);
                         if (glyphs_named_sofar_0 as usize) < glyphs.len() {
                             glyphs[glyphs_named_sofar_0 as usize]
@@ -1070,7 +1045,6 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
                                 .cid = sid_1 as GlyphId;
                         }
                         glyphs_named_sofar_0 = glyphs_named_sofar_0.wrapping_add(1);
-                        k_0 = k_0.wrapping_add(1);
                     }
                 }
             }
@@ -1092,10 +1066,8 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
                 let mut glyphs_named_sofar_1: u32 = 1_u32;
                 for r in range1 {
                     let first_1: GlyphId = r.first as GlyphId;
-                    let mut k_1: GlyphId = 0 as GlyphId;
-                    while k_1 as i32 <= r.nleft as i32 {
-                        let sid_3: CffSid =
-                            (first_1 as i32 + k_1 as i32) as CffSid;
+                    for k_1 in 0..=r.nleft {
+                        let sid_3: CffSid = (first_1 as i32 + k_1 as i32) as CffSid;
                         let glyphname_3: Option<Vec<u8>> =
                             get_cff_sid(sid_3 as u16, &cff_file.string);
                         if (glyphs_named_sofar_1 as usize) < glyphs.len() {
@@ -1107,7 +1079,6 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
                             }
                         }
                         glyphs_named_sofar_1 = glyphs_named_sofar_1.wrapping_add(1);
-                        k_1 = k_1.wrapping_add(1);
                     }
                 }
             }
@@ -1115,10 +1086,8 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
                 let mut glyphs_named_sofar_2: u32 = 1_u32;
                 for r in range2 {
                     let first_2: GlyphId = r.first as GlyphId;
-                    let mut k_2: GlyphId = 0 as GlyphId;
-                    while k_2 as i32 <= r.nleft as i32 {
-                        let sid_4: CffSid =
-                            (first_2 as i32 + k_2 as i32) as CffSid;
+                    for k_2 in 0..=r.nleft {
+                        let sid_4: CffSid = (first_2 as i32 + k_2 as i32) as CffSid;
                         let glyphname_4: Option<Vec<u8>> =
                             get_cff_sid(sid_4 as u16, &cff_file.string);
                         if (glyphs_named_sofar_2 as usize) < glyphs.len() {
@@ -1130,7 +1099,6 @@ fn name_glyphs_according_to_cff(meta: &CffTable, glyphs: &mut GlyfTable, cff_fil
                             }
                         }
                         glyphs_named_sofar_2 = glyphs_named_sofar_2.wrapping_add(1);
-                        k_2 = k_2.wrapping_add(1);
                     }
                 }
             }
@@ -1171,18 +1139,10 @@ fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: &HeadTable) {
             y.kernel = qround(y.kernel as ::core::ffi::c_double) as Pos;
             for contour in g.contours.iter_mut() {
                 for point in contour.iter_mut() {
-                    let zx: VQ = vq_dup(point.x.clone());
-                    let zy: VQ = vq_dup(point.y.clone());
-                    vq_replace(
-                        &mut point.x,
-                        vq_point_linear_tfm(x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone())
-                            as VQ,
-                    );
-                    vq_replace(
-                        &mut point.y,
-                        vq_point_linear_tfm(y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone())
-                            as VQ,
-                    );
+                    let zx: VQ = point.x.clone();
+                    let zy: VQ = point.y.clone();
+                    point.x = vq_point_linear_tfm(x.clone(), a as Pos, zx.clone(), b as Pos, zy.clone());
+                    point.y = vq_point_linear_tfm(y.clone(), c as Pos, zx.clone(), d as Pos, zy.clone());
                     // `zx`/`zy` are plain owned locals, never moved out, so
                     // they auto-drop at the end of this iteration -- no
                     // explicit dispose call is needed.
@@ -1326,10 +1286,9 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                     index: 0,
                     stem: 0,
                 };
-                let mut j_0: GlyphId = 0 as GlyphId;
-                while (j_0 as usize) < glyphs_ref.len() {
+                for j_0 in 0..glyphs_ref.len() {
                     build_outline(
-                        j_0,
+                        j_0 as GlyphId,
                         meta_ref,
                         glyphs_ref,
                         cff_file_ref,
@@ -1337,7 +1296,6 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                         options,
                         &raw mut outline_stack,
                     );
-                    j_0 = j_0.wrapping_add(1);
                 }
                 apply_cff_matrix(meta_ref, glyphs_ref, &*head);
                 name_glyphs_according_to_cff(meta_ref, glyphs_ref, cff_file_ref);
@@ -1656,16 +1614,14 @@ fn cff_make_charstrings(context: &mut CffCharstringBuilderContext) -> (Buffer, B
         return (Buffer::new(), Buffer::new(), Buffer::new());
     }
     let options: &Options = unsafe { &*context.options };
-    let mut j: GlyphId = 0 as GlyphId;
-    while (j as usize) < glyf.len() {
+    for entry in glyf.iter() {
         let mut il: CffCharstringIl = cff_compile_glyph_to_il(
-            glyf[j as usize].as_deref().unwrap(),
+            entry.as_deref().unwrap(),
             context.default_width,
             context.nominal_width_x,
         );
         cff_optimize_il(&mut il, options);
         cff_insert_il_to_graph(&mut context.graph, &il);
-        j = j.wrapping_add(1);
     }
     cff_il_graph_to_buffers(&mut context.graph, options)
 }
@@ -1922,10 +1878,8 @@ fn cff_make_charset(
         let (first, nleft) = if cff.is_cid {
             (1_u16, glyf.len().wrapping_sub(2_usize) as u16)
         } else {
-            let mut j: GlyphId = 1 as GlyphId;
-            while (j as usize) < glyf.len() {
-                sidof(string_hash, &glyf[j as usize].as_deref().unwrap().name);
-                j = j.wrapping_add(1);
+            for entry in glyf.iter().skip(1) {
+                sidof(string_hash, &entry.as_deref().unwrap().name);
             }
             (
                 sidof(string_hash, &glyf[1_usize].as_deref().unwrap().name) as u16,
@@ -1957,9 +1911,8 @@ fn cff_make_fdselect(cff: &CffTable, glyf: &GlyfTable) -> Buffer {
             first: 0_u16,
             fd: current,
         }];
-        let mut j: GlyphId = 1 as GlyphId;
-        while (j as usize) < glyf.len() {
-            let mut fdi: u8 = glyf[j as usize].as_deref().unwrap().fd_select.index as u8;
+        for (j, entry) in glyf.iter().enumerate().skip(1) {
+            let mut fdi: u8 = entry.as_deref().unwrap().fd_select.index as u8;
             if fdi as usize > cff.fd_array.len() {
                 fdi = 0_u8;
             }
@@ -1970,7 +1923,6 @@ fn cff_make_fdselect(cff: &CffTable, glyf: &GlyfTable) -> Buffer {
                     fd: current,
                 });
             }
-            j = j.wrapping_add(1);
         }
         CffFdSelect::Format3 {
             range3,
@@ -2192,18 +2144,19 @@ unsafe fn writecff_cid_keyed(
     }
     let position_of_local_subroutines: usize = blob.pos();
     blob.write_buffer_owned(ls);
-    let mut j_1: TableId = 0 as TableId;
-    while (j_1 as i32)
-        < (*cff).fd_array.len() as i32 + 1_i32
+    // Both Vecs were built to the same length (`1 + (*cff).fd_array.len()`)
+    // above and never resized since -- zipping them needs no further
+    // dereference of `cff` for a bound, unlike the loop this replaces.
+    for (&start, &end) in starting_position_of_privates
+        .iter()
+        .zip(ending_position_of_privates.iter())
     {
-        let ls_offset: usize =
-            position_of_local_subroutines.wrapping_sub(starting_position_of_privates[j_1 as usize]);
-        let ptr_off: usize = (ending_position_of_privates[j_1 as usize]).wrapping_sub(5_usize);
+        let ls_offset: usize = position_of_local_subroutines.wrapping_sub(start);
+        let ptr_off: usize = end.wrapping_sub(5_usize);
         blob.data[ptr_off] = (ls_offset >> 24_i32 & 0xff_usize) as u8;
         blob.data[ptr_off + 1] = (ls_offset >> 16_i32 & 0xff_usize) as u8;
         blob.data[ptr_off + 2] = (ls_offset >> 8_i32 & 0xff_usize) as u8;
         blob.data[ptr_off + 3] = (ls_offset & 0xff_usize) as u8;
-        j_1 = j_1.wrapping_add(1);
     }
     return blob;
 }
