@@ -283,14 +283,14 @@ impl ParsedValue {
     /// read it as a raw number directly. Callers with an `Option<&Self>`
     /// (a missing JSON key) fold that into 0 via `.map_or(0, |v| v.flags(..))`
     /// themselves, same as every other `Option<&ParsedValue>` accessor here.
-    pub fn flags(&self, labels: &[&::core::ffi::CStr]) -> u32 {
+    pub fn flags(&self, labels: &[&str]) -> u32 {
         match self {
             ParsedValue::Int(i) => *i as u32,
             ParsedValue::Double(d) => *d as u32,
             ParsedValue::Object(_) => {
                 let mut flags: u32 = 0;
                 for (j, label) in labels.iter().enumerate() {
-                    if self.get_bool(label.to_bytes()) {
+                    if self.get_bool(label.as_bytes()) {
                         flags |= 1u32 << j;
                     }
                 }
@@ -1080,7 +1080,7 @@ mod tests {
         assert_eq!(ParsedValue::Int(0b101).flags(&[]), 0b101);
         assert_eq!(ParsedValue::Double(3.0).flags(&[]), 3);
 
-        let labels: &[&::core::ffi::CStr] = &[c"bold", c"italic", c"underline"];
+        let labels: &[&str] = &["bold", "italic", "underline"];
         let obj = ParsedValue::Object(vec![
             (b"bold\0".to_vec(), ParsedValue::Bool(true)),
             (b"underline\0".to_vec(), ParsedValue::Bool(true)),

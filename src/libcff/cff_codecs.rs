@@ -293,8 +293,8 @@ fn cff_dec_i(slice: &[u8], val: &mut CffValue) -> Option<u32> {
     *val = CffValue::Integer(i);
     Some(len)
 }
-static NIBBLE_SYMB: [&::core::ffi::CStr; 15] = [
-    c"0", c"1", c"2", c"3", c"4", c"5", c"6", c"7", c"8", c"9", c".", c"E", c"E-", c"", c"-",
+static NIBBLE_SYMB: [&str; 15] = [
+    "0", "1", "2", "3", "4", "5", "6", "7", "8", "9", ".", "E", "E-", "", "-",
 ];
 // The original scanned the nibble string with no bound at all beyond
 // finding a `0xF` terminator nibble -- a malformed DICT real number that
@@ -317,11 +317,11 @@ fn cff_dec_r(slice: &[u8], val: &mut CffValue) -> Option<u32> {
         if a == 0xf {
             break;
         }
-        text.extend_from_slice(NIBBLE_SYMB[a as usize].to_bytes());
+        text.extend_from_slice(NIBBLE_SYMB[a as usize].as_bytes());
         if b == 0xf {
             break;
         }
-        text.extend_from_slice(NIBBLE_SYMB[b as usize].to_bytes());
+        text.extend_from_slice(NIBBLE_SYMB[b as usize].as_bytes());
         nibst += 1;
     }
     let len = (nibst + 1) as u32;

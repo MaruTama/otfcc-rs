@@ -31,7 +31,7 @@ fn _declare_lookup_dumper(
     dump: &mut BuiltValue,
 ) {
     if lookup.type_0 == llt {
-        dump.push_field(b"type", BuiltValue::str_truncated_at_nul(llt.name().to_bytes()));
+        dump.push_field(b"type", BuiltValue::str_truncated_at_nul(llt.name().as_bytes()));
         dump.push_field(
             b"flags",
             BuiltValue::dump_flags(lookup.flags as i32, &LOOKUP_FLAGS_LABELS),

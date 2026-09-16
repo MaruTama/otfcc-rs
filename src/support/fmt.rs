@@ -34,6 +34,17 @@ impl<const N: usize> SdsPart for &[u8; N] {
     }
 }
 
+/// A plain Rust string literal/slice -- for static labels (operator names,
+/// etc.) that are always valid UTF-8, as an alternative to a `&[u8]`/`b"..."`
+/// byte-string literal when the text is genuinely text. Caller-controlled
+/// bytes that might not be valid UTF-8 still go through `&[u8]`/`&Vec<u8>`
+/// directly, per this module's own doc comment above.
+impl SdsPart for &str {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
+        self.as_bytes().append_to_vec(v);
+    }
+}
+
 /// A `Handle`'s `name` (a `Vec<u8>`): appends up to the first embedded NUL,
 /// matching a C `%s`/`strlen` conversion's truncation, since every existing
 /// call site passing a `Handle.name` into [`bytesbuild!`] relied on that.
@@ -82,17 +93,6 @@ impl<'a> CCharRef<'a> {
 impl SdsPart for CCharRef<'_> {
     fn append_to_vec(self, v: &mut Vec<u8>) {
         v.extend_from_slice(self.0);
-    }
-}
-
-/// A static C string (`%s`), for the label tables that reach the log and
-/// the JSON output. Identical to `CCharRef` above, minus the `strlen` and
-/// the null check: a `CStr` carries its own length and cannot be null --
-/// and unlike a raw pointer, a `&CStr` can't be dangling either, so this
-/// impl needs no `unsafe` construction step at all.
-impl SdsPart for &::core::ffi::CStr {
-    fn append_to_vec(self, v: &mut Vec<u8>) {
-        self.to_bytes().append_to_vec(v);
     }
 }
 
@@ -330,12 +330,18 @@ mod tests {
     fn pieces_are_appended_in_order() {
         let got = bytesbuild!(
             b"lookup_",
-            c"ccmp",
+            "ccmp",
             b"_",
             Hex2(0x1f),
             b"_",
             7_i32,
         );
         assert_eq!(got, b"lookup_ccmp_1f_7");
+    }
+
+    #[test]
+    fn str_piece_appends_as_utf8_bytes() {
+        let got = bytesbuild!(b"op_", "vmoveto");
+        assert_eq!(got, b"op_vmoveto");
     }
 }

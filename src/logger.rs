@@ -91,7 +91,7 @@ impl Default for Logger {
         Logger::new(LoggerTarget::Empty)
     }
 }
-pub static OTFCC_LOGGER_TYPE_NAMES: [&::core::ffi::CStr; 3] = [c"[ERROR]", c"[WARNING]", c"[NOTE]"];
+pub static OTFCC_LOGGER_TYPE_NAMES: [&str; 3] = ["[ERROR]", "[WARNING]", "[NOTE]"];
 pub unsafe fn logger_indent(_self: &mut Logger, segment: *const ::core::ffi::c_char) {
     logger_indent_sds(
         _self,
@@ -158,7 +158,7 @@ pub fn logger_log_sds(
         }
     }
     if (type_0 as ::core::ffi::c_uint) < 3 as ::core::ffi::c_uint {
-        demand.extend_from_slice(OTFCC_LOGGER_TYPE_NAMES[type_0 as usize].to_bytes());
+        demand.extend_from_slice(OTFCC_LOGGER_TYPE_NAMES[type_0 as usize].as_bytes());
         demand.extend_from_slice(b" ");
         demand.extend_from_slice(&data);
     } else {

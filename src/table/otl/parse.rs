@@ -291,7 +291,7 @@ fn _declare_lookup_parser(
     let type_0 = lv.and_then(|v| v.get_typed(b"type", JsonType::String));
     let matches_type = type_0
         .and_then(ParsedValue::as_str_bytes)
-        .is_some_and(|b| b == llt.name().to_bytes());
+        .is_some_and(|b| b == llt.name().as_bytes());
     if !matches_type {
         if type_0.is_none() {
             logger_log_sds(

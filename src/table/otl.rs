@@ -111,28 +111,28 @@ impl LookupType {
     /// indexed it with a constant, so nothing was ever at risk of reading a
     /// hole; the fallback here is index 0's own text, which keeps the function
     /// total without inventing a name.
-    pub const fn name(self) -> &'static ::core::ffi::CStr {
+    pub const fn name(self) -> &'static str {
         match self.0 {
-            17 => c"gsub_single",
-            18 => c"gsub_multiple",
-            19 => c"gsub_alternate",
-            20 => c"gsub_ligature",
-            21 => c"gsub_context",
-            22 => c"gsub_chaining",
-            23 => c"gsub_extend",
-            24 => c"gsub_reverse",
-            16 => c"gsub_unknown",
-            33 => c"gpos_single",
-            34 => c"gpos_pair",
-            35 => c"gpos_cursive",
-            36 => c"gpos_mark_to_base",
-            37 => c"gpos_mark_to_ligature",
-            38 => c"gpos_mark_to_mark",
-            39 => c"gpos_context",
-            40 => c"gpos_chaining",
-            41 => c"gpos_extend",
-            32 => c"gpos_unknown",
-            _ => c"unknown",
+            17 => "gsub_single",
+            18 => "gsub_multiple",
+            19 => "gsub_alternate",
+            20 => "gsub_ligature",
+            21 => "gsub_context",
+            22 => "gsub_chaining",
+            23 => "gsub_extend",
+            24 => "gsub_reverse",
+            16 => "gsub_unknown",
+            33 => "gpos_single",
+            34 => "gpos_pair",
+            35 => "gpos_cursive",
+            36 => "gpos_mark_to_base",
+            37 => "gpos_mark_to_ligature",
+            38 => "gpos_mark_to_mark",
+            39 => "gpos_context",
+            40 => "gpos_chaining",
+            41 => "gpos_extend",
+            32 => "gpos_unknown",
+            _ => "unknown",
         }
     }
 }
@@ -764,26 +764,26 @@ mod tests {
     #[test]
     fn lookup_type_names_are_the_json_strings() {
         for (t, name) in [
-            (OTL_TYPE_UNKNOWN, c"unknown"),
-            (OTL_TYPE_GSUB_UNKNOWN, c"gsub_unknown"),
-            (OTL_TYPE_GSUB_SINGLE, c"gsub_single"),
-            (OTL_TYPE_GSUB_MULTIPLE, c"gsub_multiple"),
-            (OTL_TYPE_GSUB_ALTERNATE, c"gsub_alternate"),
-            (OTL_TYPE_GSUB_LIGATURE, c"gsub_ligature"),
-            (OTL_TYPE_GSUB_CONTEXT, c"gsub_context"),
-            (OTL_TYPE_GSUB_CHAINING, c"gsub_chaining"),
-            (OTL_TYPE_GSUB_EXTEND, c"gsub_extend"),
-            (OTL_TYPE_GSUB_REVERSE, c"gsub_reverse"),
-            (OTL_TYPE_GPOS_UNKNOWN, c"gpos_unknown"),
-            (OTL_TYPE_GPOS_SINGLE, c"gpos_single"),
-            (OTL_TYPE_GPOS_PAIR, c"gpos_pair"),
-            (OTL_TYPE_GPOS_CURSIVE, c"gpos_cursive"),
-            (OTL_TYPE_GPOS_MARK_TO_BASE, c"gpos_mark_to_base"),
-            (OTL_TYPE_GPOS_MARK_TO_LIGATURE, c"gpos_mark_to_ligature"),
-            (OTL_TYPE_GPOS_MARK_TO_MARK, c"gpos_mark_to_mark"),
-            (OTL_TYPE_GPOS_CONTEXT, c"gpos_context"),
-            (OTL_TYPE_GPOS_CHAINING, c"gpos_chaining"),
-            (OTL_TYPE_GPOS_EXTEND, c"gpos_extend"),
+            (OTL_TYPE_UNKNOWN, "unknown"),
+            (OTL_TYPE_GSUB_UNKNOWN, "gsub_unknown"),
+            (OTL_TYPE_GSUB_SINGLE, "gsub_single"),
+            (OTL_TYPE_GSUB_MULTIPLE, "gsub_multiple"),
+            (OTL_TYPE_GSUB_ALTERNATE, "gsub_alternate"),
+            (OTL_TYPE_GSUB_LIGATURE, "gsub_ligature"),
+            (OTL_TYPE_GSUB_CONTEXT, "gsub_context"),
+            (OTL_TYPE_GSUB_CHAINING, "gsub_chaining"),
+            (OTL_TYPE_GSUB_EXTEND, "gsub_extend"),
+            (OTL_TYPE_GSUB_REVERSE, "gsub_reverse"),
+            (OTL_TYPE_GPOS_UNKNOWN, "gpos_unknown"),
+            (OTL_TYPE_GPOS_SINGLE, "gpos_single"),
+            (OTL_TYPE_GPOS_PAIR, "gpos_pair"),
+            (OTL_TYPE_GPOS_CURSIVE, "gpos_cursive"),
+            (OTL_TYPE_GPOS_MARK_TO_BASE, "gpos_mark_to_base"),
+            (OTL_TYPE_GPOS_MARK_TO_LIGATURE, "gpos_mark_to_ligature"),
+            (OTL_TYPE_GPOS_MARK_TO_MARK, "gpos_mark_to_mark"),
+            (OTL_TYPE_GPOS_CONTEXT, "gpos_context"),
+            (OTL_TYPE_GPOS_CHAINING, "gpos_chaining"),
+            (OTL_TYPE_GPOS_EXTEND, "gpos_extend"),
         ] {
             assert_eq!(t.name(), name, "name for {t:?}");
         }
@@ -830,7 +830,7 @@ mod tests {
         // 25, gets no subtable, and reaches the output as `lookup_0019_…`.
         let unnamed = LookupType::from_file(OTL_TYPE_GSUB_UNKNOWN, 9);
         assert_eq!(unnamed.raw(), 25);
-        assert_eq!(unnamed.name(), c"unknown");
+        assert_eq!(unnamed.name(), "unknown");
         assert_eq!(
             LookupType::from_file(OTL_TYPE_GSUB_UNKNOWN, 0xffff).raw(),
             65551
