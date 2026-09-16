@@ -77,31 +77,31 @@ pub fn otfcc_read_head(packet: &Packet, options: &Options) -> Option<Box<HeadTab
         }
     }
 }
-static HEAD_FLAGS_LABELS: [&::core::ffi::CStr; 15] = [
-    c"baselineAtY_0",
-    c"lsbAtX_0",
-    c"instrMayDependOnPointSize",
-    c"alwaysUseIntegerSize",
-    c"instrMayAlterAdvanceWidth",
-    c"designedForVertical",
-    c"_reserved1",
-    c"designedForComplexScript",
-    c"hasMetamorphosisEffects",
-    c"containsStrongRTL",
-    c"containsIndicRearrangement",
-    c"fontIsLossless",
-    c"fontIsConverted",
-    c"optimizedForCleartype",
-    c"lastResortFont",
+static HEAD_FLAGS_LABELS: [&str; 15] = [
+    "baselineAtY_0",
+    "lsbAtX_0",
+    "instrMayDependOnPointSize",
+    "alwaysUseIntegerSize",
+    "instrMayAlterAdvanceWidth",
+    "designedForVertical",
+    "_reserved1",
+    "designedForComplexScript",
+    "hasMetamorphosisEffects",
+    "containsStrongRTL",
+    "containsIndicRearrangement",
+    "fontIsLossless",
+    "fontIsConverted",
+    "optimizedForCleartype",
+    "lastResortFont",
 ];
-static MAC_STYLE_LABELS: [&::core::ffi::CStr; 7] = [
-    c"bold",
-    c"italic",
-    c"underline",
-    c"outline",
-    c"shadow",
-    c"condensed",
-    c"extended",
+static MAC_STYLE_LABELS: [&str; 7] = [
+    "bold",
+    "italic",
+    "underline",
+    "outline",
+    "shadow",
+    "condensed",
+    "extended",
 ];
 #[allow(improper_ctypes_definitions)]
 pub fn otfcc_dump_head(table: Option<&HeadTable>, root: &mut BuiltValue, options: &Options) {

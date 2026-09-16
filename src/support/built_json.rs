@@ -180,11 +180,11 @@ impl BuiltValue {
 
     /// Serialize a bitfield as a JSON object of `label: true` pairs, one
     /// per set bit -- matches the old `otfcc_dump_flags` exactly.
-    pub fn dump_flags(flags: c_int, labels: &[&::core::ffi::CStr]) -> BuiltValue {
+    pub fn dump_flags(flags: c_int, labels: &[&str]) -> BuiltValue {
         let mut v = BuiltValue::new_object(0);
         for (j, label) in labels.iter().enumerate() {
             if flags & (1 as c_int) << j != 0 {
-                v.push_field(label.to_bytes(), BuiltValue::Bool(true));
+                v.push_field(label.as_bytes(), BuiltValue::Bool(true));
             }
         }
         v
@@ -590,7 +590,7 @@ mod tests {
 
     #[test]
     fn safe_api_dump_flags_emits_only_set_bits() {
-        let labels: &[&::core::ffi::CStr] = &[c"bold", c"italic", c"underline"];
+        let labels: &[&str] = &["bold", "italic", "underline"];
         // bit 0 (bold) and bit 2 (underline) set, bit 1 (italic) clear.
         let v = BuiltValue::dump_flags(0b101, labels);
         assert_eq!(
