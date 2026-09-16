@@ -17,8 +17,9 @@
 # frozen fixtures under tests/golden/ instead, which never requires c/ to be
 # present or buildable. Kept as a manual, on-demand way to re-confirm Rust
 # matches what C used to do -- most usefully right before running
-# scripts/generate-golden.sh to refresh those fixtures after a
-# legitimate, intentionally-C-matching output change.
+# `UPDATE_GOLDEN=1 cargo test --release --locked -- --test-threads=1` to
+# refresh those fixtures after a legitimate, intentionally-C-matching
+# output change.
 #
 # Must run AFTER the Rust crate has been built (cargo build --release) and
 # on the SAME architecture as that build, so both binaries' outputs are
@@ -350,46 +351,13 @@ else
 	echo "  (skipping base-test: python3 not found)"
 fi
 
-echo "==> Comparing C vs Rust otfccdll (cdylib) output, byte-for-byte"
-DLL_C="${C_BIN}/libotfccdll.so"
-[ "$(uname)" = "Darwin" ] && DLL_C="${C_BIN}/libotfccdll.dylib"
-RUST_SO_EXT="so"
-[ "$(uname)" = "Darwin" ] && RUST_SO_EXT="dylib"
-DLL_RUST="${RUST_BIN}/libotfcc_rust.${RUST_SO_EXT}"
-
-# Skip with an explicit reason (rather than dying on an unrelated ctypes
-# OSError) when python3 can't load the cdylib at all — see dll-arch-check.sh.
-# Any *other* test-dll.py failure stays fatal.
-. "$(dirname "$0")/../dll-arch-check.sh"
-DLL_ARCH_SKIP="$(dll_arch_skip_reason "${DLL_RUST}")"
-
-if [ -n "${DLL_ARCH_SKIP}" ]; then
-	echo "  (SKIP otfccdll comparison: ${DLL_ARCH_SKIP};"
-	echo "   this check runs for real in the Linux container and in CI)"
-elif [ -f "${DLL_C}" ] && [ -f "${DLL_RUST}" ]; then
-	DLL_JSON="${BUILD}/Molengo-Regular.json"
-	python3 "$(dirname "$0")/../test-dll.py" "${DLL_C}" "${DLL_JSON}" "${BUILD}/dll-c.otf"
-	python3 "$(dirname "$0")/../test-dll.py" "${DLL_RUST}" "${DLL_JSON}" "${BUILD}/dll-rust.otf"
-	# The DLL API doesn't take --keep-modified-time, so head.created/modified/
-	# checkSumAdjustment legitimately vary run to run (see README) — even two
-	# C-only invocations differ at those bytes. Diff byte count against that
-	# same-library baseline instead of expecting a plain cmp to pass.
-	python3 "$(dirname "$0")/../test-dll.py" "${DLL_C}" "${DLL_JSON}" "${BUILD}/dll-c-2.otf"
-	# cmp -l exits non-zero whenever the files differ, which they legitimately
-	# do here (see comment above) — under `set -e`, that would abort the whole
-	# script at the very assignment meant to *measure* that expected diff, so
-	# tolerate cmp's exit status explicitly with `|| true`.
-	baseline_diff=$( (cmp -l "${BUILD}/dll-c.otf" "${BUILD}/dll-c-2.otf" 2>/dev/null || true) | wc -l | tr -d ' ')
-	cross_diff=$( (cmp -l "${BUILD}/dll-c.otf" "${BUILD}/dll-rust.otf" 2>/dev/null || true) | wc -l | tr -d ' ')
-	if [ "${cross_diff}" -le "${baseline_diff}" ]; then
-		echo "PASS  otfccdll: Rust matches C (differs in ${cross_diff} bytes, same as the ${baseline_diff}-byte run-to-run timestamp variance)"
-	else
-		echo "FAIL  otfccdll: Rust differs from C in ${cross_diff} bytes (run-to-run baseline is only ${baseline_diff})"
-		fail=1
-	fi
-else
-	echo "  (skipping otfccdll comparison: ${DLL_C} or ${DLL_RUST} not built)"
-fi
+# No otfccdll (cdylib) comparison here any more: it depended on
+# dll-arch-check.sh/test-dll.py, both retired once tests/dll_abi.rs's
+# UPDATE_GOLDEN=1 mode (see RUST_MIGRATION.md's "Next steps") took over
+# regenerating tests/golden/dll-test.otf, their only other caller. That
+# Rust-native test doesn't do a live C-vs-Rust comparison the way this loop
+# did -- if that's ever needed again, `test-dll.py`/`dll-arch-check.sh` are
+# still in git history (see the commit that removed them).
 
 if [ "${fail}" -ne 0 ]; then
 	echo "==> FAILED: at least one payload's Rust output differs from C" >&2

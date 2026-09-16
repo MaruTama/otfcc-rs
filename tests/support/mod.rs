@@ -72,18 +72,59 @@ pub fn golden_checksums() -> HashMap<String, String> {
         .collect()
 }
 
+/// `true` if `UPDATE_GOLDEN=1` is set -- the update-in-place mode every
+/// golden-comparison test in this crate supports (`golden.rs`,
+/// `log_output.rs`, `dll_abi.rs`), the Rust-native replacement for the
+/// retired `scripts/generate-golden.sh`/`generate-log-golden.sh` (see
+/// RUST_MIGRATION.md's "Next steps"), following the same
+/// `UPDATE_ABI_SNAPSHOT=1` precedent `abi.rs` already established. Run
+/// with `--test-threads=1` (already this crate's standing convention for
+/// the whole integration suite, see `.github/workflows/rust.yml`) so
+/// concurrent test fns within one binary don't race writing the same
+/// fixture file.
+pub fn update_golden() -> bool {
+    std::env::var_os("UPDATE_GOLDEN").is_some()
+}
+
+/// Upserts `label` -> `hash` into `tests/golden/checksums.sha256`,
+/// re-reading the file fresh on every call (rather than reusing a map
+/// captured before the run started) so several calls within one
+/// `UPDATE_GOLDEN=1` run -- one per payload/label -- accumulate instead of
+/// clobbering each other. Sorted by label, matching the committed file's
+/// own `sort -k2` convention (the original shell script's), so `git diff`
+/// shows only the labels that actually changed.
+fn write_golden_checksum(label: &str, hash: &str) {
+    let path = repo_root().join("tests/golden/checksums.sha256");
+    let mut checksums = golden_checksums();
+    checksums.insert(label.to_string(), hash.to_string());
+    let mut entries: Vec<(&String, &String)> = checksums.iter().collect();
+    entries.sort_by_key(|(label, _)| label.as_str());
+    let mut text = String::new();
+    for (label, hash) in entries {
+        text.push_str(&format!("{hash}  {label}\n"));
+    }
+    std::fs::write(&path, text).unwrap_or_else(|e| panic!("failed to write {}: {e}", path.display()));
+}
+
 /// Hashes `file` and compares against the golden checksum recorded for
 /// `label`, returning an `Err` description instead of panicking so callers
 /// that check many payloads in one test function can accumulate every
 /// failure (matching `compare-with-golden.sh`'s own `fail=1`-and-continue
-/// shape) rather than stopping at the first one.
+/// shape) rather than stopping at the first one -- or, under
+/// `UPDATE_GOLDEN=1`, writes the freshly computed hash as the new golden
+/// value instead of comparing, always returning `Ok`.
 pub fn check_against_golden(file: &Path, label: &str, checksums: &HashMap<String, String>) -> Result<(), String> {
+    let got = sha256_of(file);
+    if update_golden() {
+        write_golden_checksum(label, &got);
+        eprintln!("  updated {label}");
+        return Ok(());
+    }
     let Some(want) = checksums.get(label) else {
         return Err(format!(
-            "no golden checksum recorded for '{label}' -- run scripts/generate-golden.sh"
+            "no golden checksum recorded for '{label}' -- re-run with UPDATE_GOLDEN=1 set to create it"
         ));
     };
-    let got = sha256_of(file);
     if &got == want {
         Ok(())
     } else {

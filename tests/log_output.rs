@@ -54,6 +54,12 @@ fn captured_normalized_stderr(program: &std::path::Path, args: &[&std::ffi::OsSt
 
 fn compare_log(label: &str, got_normalized: &str, errors: &mut Vec<String>) {
     let golden_path = golden_log_dir().join(format!("{label}.log"));
+    if support::update_golden() {
+        std::fs::write(&golden_path, got_normalized)
+            .unwrap_or_else(|e| panic!("failed to write {}: {e}", golden_path.display()));
+        eprintln!("  updated {label}");
+        return;
+    }
     let Ok(want) = std::fs::read_to_string(&golden_path) else {
         errors.push(format!("{label}: no golden fixture at {}", golden_path.display()));
         return;

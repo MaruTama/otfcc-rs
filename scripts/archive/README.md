@@ -35,10 +35,12 @@ out any more.
 These three scripts still work, but only after restoring `c/` from git
 history first — e.g. `git show <pre-deletion-commit>:c` (checked out to the
 repo root as `c/`) or checking out a tag/commit that predates the deletion.
-`compare-with-c.sh` needs `dll-arch-check.sh` and `test-dll.py` too, which
-did **not** move: both stayed in `scripts/` because
-`compare-with-golden.sh` and `run-cycles.sh` still use them for the
-Rust-only cdylib arch check, independent of C.
+`compare-with-c.sh` no longer has an `otfccdll` (cdylib) comparison section:
+it used to need `dll-arch-check.sh`/`test-dll.py`, both retired once
+`tests/dll_abi.rs`'s `UPDATE_GOLDEN=1` mode took over regenerating
+`tests/golden/dll-test.otf`, their only other caller — see
+`RUST_MIGRATION.md`'s "Next steps". Both are still in git history if a
+live C-vs-Rust `otfccdll` comparison is ever needed again.
 
 ## Why keep it
 

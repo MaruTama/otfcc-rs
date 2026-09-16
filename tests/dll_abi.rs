@@ -104,6 +104,13 @@ fn otfccdll_build_matches_golden_within_timestamp_tolerance() {
     let out_path = build.join("dll-rust.otf");
     std::fs::write(&out_path, &output).unwrap_or_else(|e| panic!("failed to write {}: {e}", out_path.display()));
 
+    let golden_path = repo_root().join("tests/golden/dll-test.otf");
+    if support::update_golden() {
+        std::fs::write(&golden_path, &output).unwrap_or_else(|e| panic!("failed to write {}: {e}", golden_path.display()));
+        eprintln!("  updated tests/golden/dll-test.otf");
+        return;
+    }
+
     // The DLL API doesn't take --keep-modified-time, so
     // head.created/modified/checkSumAdjustment legitimately vary run to
     // run -- see compare-with-golden.sh's own comment on this same check.
@@ -111,7 +118,6 @@ fn otfccdll_build_matches_golden_within_timestamp_tolerance() {
     // the format to differ, far too small for any real structural
     // difference.
     const TOLERANCE: usize = 32;
-    let golden_path = repo_root().join("tests/golden/dll-test.otf");
     let golden = std::fs::read(&golden_path).unwrap_or_else(|e| panic!("failed to read {}: {e}", golden_path.display()));
 
     let diff = byte_diff_count(&golden, &output);
