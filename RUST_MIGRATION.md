@@ -112,11 +112,12 @@ explicitly permitted from Phase 5 onward, see the plan linked from the
 issue), `scripts/archive/compare-with-c.sh` still exists for that, but needs
 `c/` restored from git history to run (`git show <pre-deletion-commit>:c` or
 checking out a tag before the deletion) — see `scripts/archive/README.md`.
-Confirm with it, then run `generate-golden.sh`/`generate-log-golden.sh` to
-refresh `tests/golden/` and commit the result alongside the change that
-motivated it. See "CI decoupled from C" further down for the full story of
-how the dump/build half of this moved; the log-output half moved the same
-way, later (see "Next steps").
+Confirm with it, then re-run the golden-comparison tests with
+`UPDATE_GOLDEN=1` set (`UPDATE_GOLDEN=1 cargo test --release --locked --
+--test-threads=1`) to refresh `tests/golden/` and commit the result
+alongside the change that motivated it. See "CI decoupled from C" further
+down for the full story of how the dump/build half of this moved; the
+log-output half moved the same way, later (see "Next steps").
 
 The toolchain is **stable Rust, pinned** (`rust-toolchain.toml`: 1.97.1,
 edition 2024); rustup installs it on first build. The pin is deliberate, for the
@@ -131,9 +132,9 @@ warnings get dealt with, on purpose.
 
 otfcc's real public C ABI, as far as anything outside this crate can observe,
 is exactly four symbols — the `otfccdll` API that `tests/dll_abi.rs`
-drives through `libloading` (and `scripts/test-dll.py` still drives through
-ctypes, kept only because `generate-golden.sh` uses it to regenerate
-`tests/golden/dll-test.otf`):
+drives through `libloading` (also the only way left to regenerate
+`tests/golden/dll-test.otf`, via its own `UPDATE_GOLDEN=1` mode; see "Next
+steps"):
 
 ```
 otfccbuild_json_otf   otfcc_get_buf_len   otfcc_get_buf_data
@@ -320,15 +321,13 @@ transpile step itself needs arm64.
   `dll-arch-check.sh`-guarded half of the `otfccdll` ctypes check — see each
   file's own doc comment for exactly what it replaced and why. `test.sh` (the
   old convenience wrapper bundling several of those) is gone too; the
-  replacement is just `cargo test` (see "Everyday use" above).
-- `generate-golden.sh` — regenerates `tests/golden/checksums.sha256` (and
-  `tests/golden/dll-test.otf`, via `test-dll.py`) after a legitimate
-  output-changing change; `tests/golden.rs`/`dll_abi.rs` check the
-  crate against that frozen snapshot. See "CI decoupled from C" below.
-- `generate-log-golden.sh` — the same freeze-then-compare move as the pair
-  above, but for stderr log output against `tests/golden/log/`, checked by
-  `tests/log_output.rs`. See "Next steps" below for how this one came
-  later.
+  replacement is just `cargo test` (see "Everyday use" above). `golden.rs`,
+  `log_output.rs`, and `dll_abi.rs` each also support an `UPDATE_GOLDEN=1`
+  mode (same `UPDATE_ABI_SNAPSHOT=1` shape `abi.rs` already used) that
+  writes the freshly computed output as the new golden fixture instead of
+  comparing against it -- the Rust-native replacement for the retired
+  `generate-golden.sh`/`generate-log-golden.sh`/`sha256-of.sh`/`test-dll.py`
+  scripts; see "Next steps" for when this replaced them.
 - `archive/compare-with-c.sh` — **moved to `archive/`, needs `c/` restored
   from git history to run** (see `archive/README.md`). Historically: builds
   the C toolchain **with clang** and compares its output against an
@@ -354,19 +353,11 @@ transpile step itself needs arm64.
   because no real payload has one and the unknown-type path is otherwise
   unchecked (see `otl_LookupType` below). Both toolchains then refuse to
   *build* the resulting JSON, identically, which is why that half is skipped.
+  No longer has an `otfccdll` (cdylib) comparison section -- see "Next
+  steps" for why that was dropped along with `dll-arch-check.sh`/
+  `test-dll.py`.
 - `make-test-unknown-lookup.py` — generates the payload above from a committed
   one. Standard library only, unlike `make-test-variable-font.py`.
-- `dll-arch-check.sh` — sourced by `archive/compare-with-c.sh` to detect when
-  python3 cannot `dlopen` the crate's cdylib at all, so the ctypes check is
-  skipped with a stated reason instead of failing. Normally the
-  two match, since `rust-toolchain.toml`'s `channel` resolves to rustup's own
-  host triple. What breaks it is a *Rosetta rustup* on an Apple Silicon Mac: an
-  `x86_64-apple-darwin` rustup emits an x86_64 dylib while python3 is arm64, and
-  no Rosetta python3 exists to load it. Installing the native toolchain
-  alongside it (the command is in that script's header) fixes it. Not a
-  concern for `tests/dll_abi.rs` (see "The public ABI is four functions"
-  above): it loads the cdylib in the same process it was just built in, so
-  there is no second architecture to mismatch in the first place.
 - `make-test-variable-font.py` — builds a minimal, self-contained variable
   font (fvar + gvar, one `wght` axis, two masters, via fontTools APIs — no
   external download) to exercise the gvar delta-application path, which none
@@ -377,14 +368,6 @@ transpile step itself needs arm64.
   `tests/payload/gvar-test.ttf` fixture instead (see `golden.rs`'s own
   comment on why: fontTools stamps wall-clock timestamps that would make a
   freshly generated copy differ from a golden dump on every run).
-- `test-dll.py` — exercises the `otfccdll` C API (`otfccbuild_json_otf` /
-  `otfcc_get_buf_len` / `otfcc_get_buf_data` / `otfccbuild_free_otfbuf`) via
-  `ctypes`, against either the C `libotfccdll.{dylib,so}` or the Rust
-  `cdylib`, to compare output byte-for-byte. `compare-with-c.sh` runs this
-  against both libraries on the same JSON input and diffs the result; kept
-  otherwise only because `generate-golden.sh` uses it to regenerate
-  `tests/golden/dll-test.otf`. `tests/dll_abi.rs` is the actual CI-level
-  check now (see above).
 
 ## Status: Phase 1 complete
 
@@ -13707,3 +13690,61 @@ on the other platform before a commit is trusted.
     UB, extended fuzz (`otf_dump`/`otf_parse`/`json_build`) clean, and
     `scripts/survey-unsafe.sh`'s counters unchanged from the
     pre-hoist master baseline (a pure move, no code changes).
+- **Golden-regeneration scripts retired in favor of an `UPDATE_GOLDEN=1`
+  test mode (2026-09-16).** `scripts/generate-golden.sh`,
+  `generate-log-golden.sh`, `sha256-of.sh`, `test-dll.py`, and
+  `dll-arch-check.sh` — the "human runs this by hand after an intentional
+  output change" category left over from Stage F (see that stage's own
+  "明示的に対象外・保留" reasoning for why they weren't migrated at the
+  time) — are deleted. In their place, `tests/golden.rs`,
+  `tests/log_output.rs`, and `tests/dll_abi.rs` each check for an
+  `UPDATE_GOLDEN=1` environment variable and, when set, write the freshly
+  computed output as the new golden fixture instead of comparing against
+  it — the same shape `tests/abi.rs`'s pre-existing `UPDATE_ABI_SNAPSHOT=1`
+  already established, just extended to the other three golden-comparison
+  files. Refreshing `tests/golden/` after a legitimate output change is now
+  `UPDATE_GOLDEN=1 cargo test --release --locked -- --test-threads=1`
+  (`--test-threads=1` because multiple `#[test]` fns within `golden.rs`
+  write the same shared `checksums.sha256` file — see below).
+  - **`tests/support/mod.rs`'s `check_against_golden`** grew an
+    update-mode branch: under `UPDATE_GOLDEN=1` it upserts `label -> hash`
+    into `tests/golden/checksums.sha256` via a new `write_golden_checksum`,
+    which *re-reads the file fresh on every call* (rather than reusing the
+    `HashMap` snapshot each test captured before the run started) so the
+    three separate `#[test]` fns in `golden.rs` that all touch this one
+    file accumulate their writes instead of clobbering each other's —
+    `--test-threads=1` (already this crate's standing convention, see
+    `.github/workflows/rust.yml`) is what makes even that safe, since nothing
+    otherwise serializes the read-modify-write across threads. Entries are
+    sorted by label before writing, matching the committed file's own
+    `sort -k2` convention the old shell script used, so a real update shows
+    up as a small, reviewable `git diff` rather than a full-file reshuffle.
+  - **`tests/log_output.rs`'s `compare_log`** and **`tests/dll_abi.rs`'s**
+    single test each grew the same shape: an early-return branch that
+    writes the fixture (`tests/golden/log/<label>.log`,
+    `tests/golden/dll-test.otf`) and skips the comparison when
+    `UPDATE_GOLDEN=1` is set.
+  - **Verified as an actual round trip, not just "compiles and doesn't
+    panic"**: ran `UPDATE_GOLDEN=1` end to end first with nothing changed
+    (confirmed `checksums.sha256` came back byte-identical via `git diff`,
+    and `dll-test.otf` differed in exactly 9 bytes — within the
+    documented 32-byte timestamp tolerance, i.e. the expected legitimate
+    run-to-run variance, not a bug), then separately corrupted one line of
+    `tests/golden/log/dump-verbose.log` and one hash in
+    `checksums.sha256`, confirmed the normal (non-update) test run
+    actually fails on each, ran `UPDATE_GOLDEN=1` again, and confirmed via
+    `diff` against a pre-corruption backup that both fixtures came back
+    byte-for-byte identical to their original committed content (not just
+    "a value that happens to pass") before re-running the normal test to
+    confirm it passes again.
+  - **`scripts/archive/compare-with-c.sh`** lost its `otfccdll` (cdylib)
+    comparison section (the only other caller of `test-dll.py`/
+    `dll-arch-check.sh` besides the now-deleted `generate-golden.sh`) —
+    replaced with a comment pointing at this entry; the C-vs-Rust dump/build
+    byte comparison and the forged-unknown-lookup dump-only check are
+    unaffected. `scripts/archive/README.md` updated to match (it had
+    also gone stale independently, still describing `compare-with-golden.sh`/
+    `run-cycles.sh` as live callers of `dll-arch-check.sh`/`test-dll.py`
+    years after Stage F actually deleted both of those).
+  - `src/ffi.rs`'s doc comment (`see scripts/test-dll.py`) repointed at
+    `tests/dll_abi.rs`.
