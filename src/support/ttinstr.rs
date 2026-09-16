@@ -572,14 +572,18 @@ unsafe fn parse_instrs(
                 }
                 i = 0_i32;
                 while i < 256_i32 {
-                    if strnmatch(
-                        pt,
-                        FF_TTF_INSTRNAMES[i as usize].as_ptr() as *const ::core::ffi::c_char,
-                        end.offset_from(pt) as ::core::ffi::c_long as i32,
-                    ) == 0_i32
-                        && ::core::mem::size_of::<::core::ffi::c_char>()
-                            .wrapping_mul(end.offset_from(pt) as ::core::ffi::c_long as usize)
-                            == FF_TTF_INSTRNAMES[i as usize].len()
+                    let name_len = ::core::mem::size_of::<::core::ffi::c_char>()
+                        .wrapping_mul(end.offset_from(pt) as ::core::ffi::c_long as usize);
+                    // Check the length match before calling strnmatch: strnmatch
+                    // never looks at str2's own end, so a full-length compare here
+                    // (n == FF_TTF_INSTRNAMES[i].len()) is what keeps it from
+                    // reading past that entry's actual bytes.
+                    if name_len == FF_TTF_INSTRNAMES[i as usize].len()
+                        && strnmatch(
+                            pt,
+                            FF_TTF_INSTRNAMES[i as usize].as_ptr() as *const ::core::ffi::c_char,
+                            end.offset_from(pt) as ::core::ffi::c_long as i32,
+                        ) == 0_i32
                     {
                         break;
                     }
@@ -588,13 +592,19 @@ unsafe fn parse_instrs(
                 if i == 256_i32 && !brack.is_null() {
                     i = 0_i32;
                     while i < 256_i32 {
-                        if strnmatch(
-                            pt,
-                            FF_TTF_INSTRNAMES[i as usize].as_ptr() as *const ::core::ffi::c_char,
-                            (brack.offset_from(pt) as ::core::ffi::c_long
-                                + 1 as ::core::ffi::c_long)
-                                as i32,
-                        ) == 0_i32
+                        let n = (brack.offset_from(pt) as ::core::ffi::c_long
+                            + 1 as ::core::ffi::c_long) as usize;
+                        // Same guard as above: n comes only from the user input
+                        // token's bracket position, so it can exceed a short
+                        // table entry's length -- skip those rather than let
+                        // strnmatch read past the entry.
+                        if n <= FF_TTF_INSTRNAMES[i as usize].len()
+                            && strnmatch(
+                                pt,
+                                FF_TTF_INSTRNAMES[i as usize].as_ptr()
+                                    as *const ::core::ffi::c_char,
+                                n as i32,
+                            ) == 0_i32
                         {
                             break;
                         }
@@ -1028,5 +1038,70 @@ mod tests {
         }
         // Must never be `WordHi` with nothing following it in `instrs`.
         assert_eq!(id.bts[1], ByteType::Byte);
+    }
+
+    /// A pre-existing latent bug, flagged (but not fixed, per "one PR one
+    /// theme") when `FF_TTF_INSTRNAMES` became `&[u8]`: the exact-match
+    /// lookup sized `strnmatch`'s comparison length only from the user
+    /// input token's own length, never clamped to (or checked against)
+    /// the candidate table entry's actual length. `strnmatch` never
+    /// looks at its `str2` argument's own end, so a token that starts
+    /// with a short entry's exact bytes but keeps going -- `"GPV"`, 3
+    /// bytes, index 12 -- made it walk `FF_TTF_INSTRNAMES[12]`'s pointer
+    /// past that entry's 3-byte static allocation. Undetectable at
+    /// runtime (it's a read of otherwise-valid rodata) but Miri
+    /// (`cargo +nightly miri test --lib`) flags it as out-of-bounds
+    /// pointer arithmetic. No bracket needed for this one -- it hits the
+    /// first lookup loop, so it stays runnable under Miri (the bracketed
+    /// second loop's identical bug is covered by the test below, but
+    /// finishing that path needs `libc::strtol`, unsupported there).
+    #[test]
+    fn exact_match_lookup_does_not_read_past_a_short_table_entry() {
+        assert_eq!(FF_TTF_INSTRNAMES[12], b"GPV");
+        let mut text: Vec<u8> = b"GPVXXXX\0".to_vec();
+        let result =
+            unsafe { parse_instrs(text.as_mut_ptr() as *mut ::core::ffi::c_char, |_, _| {}) };
+        // Not a real opcode, so it falls through to the "unknown" byte
+        // (256 truncated to 0) rather than erroring -- the regression
+        // signal is reaching this point at all (under Miri, with no
+        // out-of-bounds diagnostic along the way), not this value.
+        assert_eq!(result, Some(vec![0u8]));
+    }
+
+    /// Same bug, same table entry, but through the *bracketed*-operand
+    /// lookup (e.g. matching `"MIRP[rp0,white]"`) a few lines below the
+    /// test above -- see that test's doc comment for the mechanism. This
+    /// one needs a `[` in the token to reach that second loop, which
+    /// means the code always goes on to parse the bracket's contents
+    /// with `libc::strtol` afterwards (regardless of whether the loop
+    /// found a match) -- ignored under Miri for the same reason
+    /// `cff_codecs.rs`'s `atof`/`strtod` test and `parsed_json.rs`'s
+    /// `strcmp` test are: unsupported libc FFI call, not a bug. Run
+    /// manually with `cargo +nightly-2026-08-17 miri test --lib
+    /// bracket_lookup -- --test-threads=1` on a checkout *without* the
+    /// fix to confirm it still catches the out-of-bounds read.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "reaches libc::strtol to parse the bracket's binary value after the fix stops the OOB read, unsupported under Miri"
+    )]
+    fn bracket_lookup_does_not_read_past_a_short_table_entry() {
+        assert_eq!(FF_TTF_INSTRNAMES[12], b"GPV");
+        let mut text: Vec<u8> = b"GPVXXXX[ab]\0".to_vec();
+        let mut saw_error = false;
+        let result = unsafe {
+            parse_instrs(
+                text.as_mut_ptr() as *mut ::core::ffi::c_char,
+                |_msg, _pos| {
+                    saw_error = true;
+                },
+            )
+        };
+        // Not a real opcode past the bracket, so `iv_error` fires and
+        // parsing fails -- the regression signal is reaching this point
+        // at all (under Miri, with no out-of-bounds diagnostic along the
+        // way), not this particular error path.
+        assert!(result.is_none());
+        assert!(saw_error);
     }
 }
