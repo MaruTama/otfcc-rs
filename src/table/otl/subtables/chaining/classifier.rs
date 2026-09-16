@@ -1,0 +1,397 @@
+#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
+
+use crate::support::handle::{
+    GlyphHandle, Handle, HandleState, handle_from_index,
+};
+use crate::table::otl::classdef::{ClassDef, push_class_def};
+use crate::table::otl::coverage::{Coverage, push_to_coverage};
+
+use crate::support::alloc::__caryll_allocate_clean;
+use crate::support::buffer::Buffer;
+use crate::support::primitives::{GlyphClass, GlyphId, TableId};
+
+use crate::table::otl::subtables::chaining::build::{
+    otfcc_build_chaining, otfcc_build_contextual, otfcc_chaining_lookup_is_contextual_lookup,
+};
+use crate::table::otl::subtables::chaining::common::{
+    chaining_is_canonical, chaining_rule_mut, chaining_ruleset_mut, subtable_chaining_free,
+};
+use crate::table::otl::{
+    ChainLookupApplication, ChainingRule, ChainingRuleSet, ChainingSubtable, Lookup, Subtable,
+    SubtablePtr, subtable_at,
+};
+#[derive(Clone)]
+pub struct ClassifierValue {
+    pub gname: Vec<u8>,
+    pub cls: i32,
+}
+fn class_compatible(
+    h: &mut std::collections::BTreeMap<GlyphId, ClassifierValue>,
+    cov: &mut Coverage,
+    past: &mut i32,
+) -> i32 {
+    if (*cov).len() == 0_usize {
+        return 1_i32;
+    }
+    let gid: GlyphId = (&(*cov))[0].index;
+    match h.get(&gid).map(|v| v.cls) {
+        Some(cls) => {
+            for entry in cov.iter().skip(1) {
+                match h.get(&entry.index) {
+                    Some(ss) if ss.cls == cls => {}
+                    _ => return 0_i32,
+                }
+            }
+            // Original built a throwaway `revh` -- a hash of `cov`'s own
+            // (deduped) glyph ids, values unused (only ever a presence
+            // check) -- to answer the *reverse* question below. Only
+            // presence and position matter, same finding as
+            // `PairClassifierHash`, so a bare `HashSet<GlyphId>` replaces
+            // it, with no `gname`/`cls` payload to carry at all.
+            let mut revset: std::collections::HashSet<GlyphId> = std::collections::HashSet::new();
+            for entry in cov.iter() {
+                revset.insert(entry.index);
+            }
+            // `allcheck`: every glyph already classified under `cls` in
+            // `h` (not just the ones from this `cov`) must also be a
+            // member of `cov`'s own glyph set -- i.e. `cov` must be
+            // *exactly* the class's existing membership, not a subset,
+            // even though every one of `cov`'s own glyphs already
+            // shares `cls`.
+            let allcheck: bool = h
+                .iter()
+                .filter(|&(_, v)| v.cls == cls)
+                .all(|(gid_2, _)| revset.contains(gid_2));
+            return if allcheck {
+                cls
+            } else {
+                0_i32
+            };
+        }
+        None => {
+            for entry in cov.iter().skip(1) {
+                if h.contains_key(&entry.index) {
+                    return 0_i32;
+                }
+            }
+            let new_cls: i32 = *past + 1_i32;
+            for entry in cov.iter() {
+                h.entry(entry.index).or_insert(ClassifierValue {
+                    gname: entry.name.clone(),
+                    cls: new_cls,
+                });
+            }
+            *past += 1_i32;
+            return 1_i32;
+        }
+    }
+}
+fn build_rule(
+    rule: &ChainingRule,
+    hb: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
+    hi: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
+    hf: &std::collections::BTreeMap<GlyphId, ClassifierValue>,
+) -> Box<ChainingRule> {
+    // `Box` is the allocation, the struct literal is the zero-init the old
+    // `__caryll_allocate_clean` provided -- see `read.rs`'s
+    // `general_read_contextual_rule`. This never fails (building from
+    // already-valid in-memory data, not parsing untrusted bytes), so
+    // unlike the `read.rs` constructors this returns `Box`, not `Option<Box>`.
+    let mut new_rule: Box<ChainingRule> = Box::new(ChainingRule {
+        match_count: rule.match_count,
+        input_begins: rule.input_begins,
+        input_ends: rule.input_ends,
+        match_0: Vec::with_capacity(rule.match_count as usize),
+        apply: Vec::new(),
+    });
+    // Bounded by `rule.match_count`, not assumed equal to
+    // `rule.match_0.len()` (it is `Vec::with_capacity`d to that count by
+    // callers, but this function itself has no reason to rely on the
+    // two agreeing) -- `.take(rule.match_count as usize)` preserves the
+    // original's own bound exactly.
+    for (m, match_entry) in rule
+        .match_0
+        .iter()
+        .enumerate()
+        .take(rule.match_count as usize)
+    {
+        // Built as a plain local `Vec` and pushed directly -- no need for
+        // the `otl_coverage_create()`/`coverage_from_raw()` raw-pointer
+        // round trip other constructors use, since `Coverage` is just
+        // `Vec<GlyphHandle>` and this function never hands the pointer to
+        // anyone else in between.
+        let mut cov: Coverage = Coverage::new();
+        if match_entry.len() > 0_usize {
+            let h: &std::collections::BTreeMap<GlyphId, ClassifierValue> =
+                if (m as i32) < rule.input_begins as i32 {
+                    hb
+                } else if (m as i32) < rule.input_ends as i32 {
+                    hi
+                } else {
+                    hf
+                };
+            let gid: GlyphId = match_entry[0].index;
+            // `h.get(&gid)` is unreachable-as-`None` in practice: every
+            // glyph reaching this point already passed `class_compatible`
+            // for this same `h`, which never returns success without
+            // having inserted (or already found) that glyph. The
+            // fallback to class 0 mirrors the empty-coverage `else`
+            // branch below rather than asserting, matching this
+            // migration's established handling of `None` arms that the
+            // algorithm's own invariants rule out (see `ClassNameHash`
+            // in RUST_MIGRATION.md).
+            let cls: GlyphClass = match h.get(&gid) {
+                Some(v) => v.cls as GlyphClass,
+                None => 0 as GlyphClass,
+            };
+            push_to_coverage(&mut cov, handle_from_index(cls) as GlyphHandle);
+        } else {
+            push_to_coverage(&mut cov, handle_from_index(0 as GlyphId) as GlyphHandle);
+        }
+        new_rule.match_0.push(cov);
+    }
+    // Plain assignment is fine here (unlike the calloc'd-memory case
+    // elsewhere in this crate): `Box::new` above already gave `.apply` a
+    // valid empty `Vec`, so there's a real (if empty) value to drop first.
+    new_rule.apply = Vec::with_capacity(rule.apply.len());
+    for entry in rule.apply.iter() {
+        new_rule.apply.push(ChainLookupApplication {
+            index: entry.index,
+            lookup: entry.lookup.clone(),
+        });
+    }
+    return new_rule;
+}
+fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> Box<ClassDef> {
+    // The dedup key (gid) and the original's `HASH_SORT` key (also gid,
+    // via `by_gid_clsh`) are the same, so `BTreeMap`'s natural `Ord`
+    // reproduces the sorted walk with no separate sort step -- the
+    // `by_gid_clsh` comparator itself is gone, subsumed entirely by the
+    // container. Borrowing rather than consuming `h` matches the
+    // original, where `to_class` sorts and reads but never frees --
+    // disposal was always the caller's job, and here that's simply
+    // `try_classify_around` letting its `BTreeMap`s drop at scope exit.
+    //
+    // Built as a plain local `Box` (matching `otl_class_def_create`'s own
+    // zero-init literal) rather than routing through that raw-pointer
+    // constructor -- returning `Box<ClassDef>` directly lets the caller
+    // assign straight into `Option<Box<ClassDef>>` with `Some(...)`,
+    // no `classdef_from_raw` bridge needed.
+    let mut cd = Box::new(ClassDef {
+        maxclass: 0,
+        glyphs: Vec::new(),
+        classes: Vec::new(),
+    });
+    for (&gid, v) in h.iter() {
+        push_class_def(
+            &mut cd,
+            Handle {
+                state: HandleState::Consolidated,
+                index: gid,
+                name: v.gname.clone(),
+            } as GlyphHandle,
+            v.cls as GlyphClass,
+        );
+    }
+    cd
+}
+pub unsafe fn try_classify_around(
+    lookup: *const Lookup,
+    j: TableId,
+    classified_st: *mut *mut ChainingSubtable,
+) -> TableId {
+    let mut compatible_count: TableId = 0 as TableId;
+    let mut hb: std::collections::BTreeMap<GlyphId, ClassifierValue> =
+        std::collections::BTreeMap::new();
+    let mut hi: std::collections::BTreeMap<GlyphId, ClassifierValue> =
+        std::collections::BTreeMap::new();
+    let mut hf: std::collections::BTreeMap<GlyphId, ClassifierValue> =
+        std::collections::BTreeMap::new();
+    let subtable0_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, j as usize);
+    let Subtable::Chaining(mut_subtable0) = &mut *subtable0_ptr else {
+        unreachable!()
+    };
+    let mut subtable0: *mut ChainingSubtable = mut_subtable0;
+    let mut classno_b: i32 = 0_i32;
+    let mut classno_i: i32 = 0_i32;
+    let mut classno_f: i32 = 0_i32;
+    let rule0: *mut ChainingRule = chaining_rule_mut(&mut *subtable0);
+    let mut m: TableId = 0 as TableId;
+    // Was a `current_block`-flagged `loop`: this `while` runs to
+    // completion (every one of `rule0`'s own matches is class-compatible)
+    // or breaks early on the first incompatible one -- `rule0_is_compatible`
+    // records which, replacing the two `current_block` magic-number values
+    // the `match` below used to dispatch on.
+    let mut rule0_is_compatible = true;
+    while (m as i32) < (*rule0).match_count as i32 {
+        let check: i32;
+        if (m as i32) < (*rule0).input_begins as i32 {
+            check = class_compatible(
+                &mut hb,
+                &mut (&mut (*rule0).match_0)[m as usize],
+                &mut classno_b,
+            );
+        } else if (m as i32) < (*rule0).input_ends as i32 {
+            check = class_compatible(
+                &mut hi,
+                &mut (&mut (*rule0).match_0)[m as usize],
+                &mut classno_i,
+            );
+        } else {
+            check = class_compatible(
+                &mut hf,
+                &mut (&mut (*rule0).match_0)[m as usize],
+                &mut classno_f,
+            );
+        }
+        if check == 0 {
+            rule0_is_compatible = false;
+            break;
+        }
+        m = m.wrapping_add(1);
+    }
+    if rule0_is_compatible {
+        let mut k: TableId = (j as i32 + 1_i32) as TableId;
+        's_74: while (k as usize) < (*lookup).subtables.len() {
+            let k_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k as usize);
+            let Subtable::Chaining(mut_subtable_k) = &mut *k_ptr else {
+                unreachable!()
+            };
+            let subtable_k: *mut ChainingSubtable = mut_subtable_k;
+            let rule: *mut ChainingRule = chaining_rule_mut(&mut *subtable_k);
+            let allcheck: bool = true;
+            let mut m_0: TableId = 0 as TableId;
+            while (m_0 as i32) < (*rule).match_count as i32 {
+                let check_0: i32;
+                if (m_0 as i32) < (*rule).input_begins as i32 {
+                    check_0 = class_compatible(
+                        &mut hb,
+                        &mut (&mut (*rule).match_0)[m_0 as usize],
+                        &mut classno_b,
+                    );
+                } else if (m_0 as i32) < (*rule).input_ends as i32
+                {
+                    check_0 = class_compatible(
+                        &mut hi,
+                        &mut (&mut (*rule).match_0)[m_0 as usize],
+                        &mut classno_i,
+                    );
+                } else {
+                    check_0 = class_compatible(
+                        &mut hf,
+                        &mut (&mut (*rule).match_0)[m_0 as usize],
+                        &mut classno_f,
+                    );
+                }
+                if check_0 == 0 {
+                    break 's_74;
+                } else {
+                    m_0 = m_0.wrapping_add(1);
+                }
+            }
+            if allcheck {
+                compatible_count = (compatible_count as i32
+                    + 1_i32)
+                    as TableId;
+            }
+            k = k.wrapping_add(1);
+        }
+        if compatible_count as i32 > 1_i32 {
+            subtable0 = __caryll_allocate_clean(
+                ::core::mem::size_of::<ChainingSubtable>() as usize,
+                170 as ::core::ffi::c_ulong,
+            ) as *mut ChainingSubtable;
+            // Place a valid `Classified` value directly -- the zeroed
+            // memory `__caryll_allocate_clean` hands back is not a
+            // valid `ChainingSubtable` bit pattern (it owns `Vec`/
+            // `Option<Box<_>>` fields), so there is nothing to drop
+            // first, same reasoning as `otl_init_chaining`. `bc`/`ic`/
+            // `fc` start `None` and are filled in below, after `to_class`
+            // (unavailable yet, still needs `hb`/`hi`/`hf` built first).
+            ::core::ptr::write(
+                subtable0,
+                ChainingSubtable::Classified(ChainingRuleSet {
+                    rules: Vec::with_capacity(
+                        (compatible_count as i32 + 1_i32)
+                            as usize,
+                    ),
+                    ..Default::default()
+                }),
+            );
+            let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable0);
+            (*ruleset)
+                .rules
+                .push(Some(build_rule(&*rule0, &hb, &hi, &hf)));
+            let mut kk: TableId = 1 as TableId;
+            let mut k_0: TableId =
+                (j as i32 + 1_i32) as TableId;
+            while (k_0 as usize) < (*lookup).subtables.len()
+                && (kk as i32)
+                    < compatible_count as i32 + 1_i32
+            {
+                let k_0_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k_0 as usize);
+                let Subtable::Chaining(mut_subtable_k_0) = &mut *k_0_ptr else {
+                    unreachable!()
+                };
+                let subtable_k_0: *mut ChainingSubtable = mut_subtable_k_0;
+                let rule_0: *mut ChainingRule = chaining_rule_mut(&mut *subtable_k_0);
+                (*ruleset)
+                    .rules
+                    .push(Some(build_rule(&*rule_0, &hb, &hi, &hf)));
+                kk = kk.wrapping_add(1);
+                k_0 = k_0.wrapping_add(1);
+            }
+            (*ruleset).bc = Some(to_class(&hb));
+            (*ruleset).ic = Some(to_class(&hi));
+            (*ruleset).fc = Some(to_class(&hf));
+            *classified_st = subtable0;
+        }
+    }
+    // hb/hi/hf are owned BTreeMaps now (not uthash nodes reached via
+    // a raw *mut), so they need no manual HASH_ITER+HASH_DEL+free walk
+    // here -- they simply drop when this function returns, whether or
+    // not to_class borrowed them above.
+    if compatible_count as i32 > 1_i32 {
+        return compatible_count;
+    } else {
+        return 0 as TableId;
+    };
+}
+pub unsafe fn otfcc_classified_build_chaining(
+    lookup: *const Lookup,
+    subtable_buffers: &mut Vec<Buffer>,
+    last_offset: *mut usize,
+) -> TableId {
+    let is_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup);
+    let mut subtables_written: TableId = 0 as TableId;
+    subtable_buffers.clear();
+    subtable_buffers.reserve((*lookup).subtables.len());
+    let mut j: TableId = 0 as TableId;
+    while (j as usize) < (*lookup).subtables.len() {
+        let j_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, j as usize);
+        let Subtable::Chaining(mut_st0) = &mut *j_ptr else {
+            unreachable!()
+        };
+        let st0: *mut ChainingSubtable = mut_st0;
+        if chaining_is_canonical(&*st0) {
+            let mut st: *mut ChainingSubtable = st0;
+            j = (j as i32
+                + try_classify_around(lookup, j, &raw mut st) as i32)
+                as TableId;
+            let buf: Buffer = if is_contextual as i32 != 0 {
+                otfcc_build_contextual(&*st)
+            } else {
+                otfcc_build_chaining(&*st)
+            };
+            if st != st0 {
+                subtable_chaining_free(st);
+            }
+            *last_offset = (*last_offset).wrapping_add(buf.data.len());
+            subtable_buffers.push(buf);
+            subtables_written =
+                (subtables_written as i32 + 1_i32) as TableId;
+        }
+        j = j.wrapping_add(1);
+    }
+    return subtables_written;
+}
