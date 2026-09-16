@@ -88,9 +88,15 @@ CFF_PAYLOADS="KRName-Regular"
 # otfccdump stack-overflow on them (a pre-existing bug in the C CFF
 # interpreter — see RUST_MIGRATION.md), unrelated to this comparison.
 
-# A frozen fixture (tests/payload/gvar-test.ttf, originally produced by
-# make-test-variable-font.py); see the comment in compare-with-golden.sh
-# for why it is committed rather than regenerated via fontTools here.
+# A frozen fixture (tests/payload/gvar-test.ttf); see golden.rs's own
+# comment on why it is committed rather than regenerated via fontTools
+# here -- fontTools stamps head.created/modified with the current
+# wall-clock time, which would make a freshly generated copy differ from
+# the golden dump on every run for no real reason. The generator that
+# originally produced it, make-test-variable-font.py, is retired (it had
+# no other caller left once golden.rs/cycles.rs moved to this frozen
+# fixture); it's still in git history if a different axis/master
+# configuration is ever needed.
 GVAR_PAYLOAD="tests/payload/gvar-test.ttf"
 
 fail=0
@@ -155,7 +161,7 @@ done
 if [ -f "${GVAR_PAYLOAD}" ]; then
 	compare_payload "gvar-test" ttf "${GVAR_PAYLOAD}"
 else
-	echo "  (skipping gvar-test.ttf: not found; run scripts/make-test-variable-font.py first)"
+	echo "  (skipping gvar-test.ttf: not found -- it's a committed fixture, so this shouldn't happen in a normal checkout)"
 fi
 
 # CFF subroutinization (-O2) was, until this comparison existed, never
