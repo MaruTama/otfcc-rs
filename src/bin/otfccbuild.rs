@@ -368,7 +368,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(
                     b"Cannot parse JSON file \"",
-                    inPath.as_deref().unwrap_or(c""),
+                    inPath.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b""),
                     b"\". Exit.\n",
                 ),
             );
@@ -392,7 +392,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(
                     b"Cannot parse JSON file \"",
-                    inPath.as_deref().unwrap_or(c""),
+                    inPath.as_deref().map(::std::ffi::CStr::to_bytes).unwrap_or(b""),
                     b"\" as a font. Exit.\n",
                 ),
             );

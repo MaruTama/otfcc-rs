@@ -96,17 +96,6 @@ impl SdsPart for CCharRef<'_> {
     }
 }
 
-/// A static C string (`%s`), for the label tables that reach the log and
-/// the JSON output. Identical to `CCharRef` above, minus the `strlen` and
-/// the null check: a `CStr` carries its own length and cannot be null --
-/// and unlike a raw pointer, a `&CStr` can't be dangling either, so this
-/// impl needs no `unsafe` construction step at all.
-impl SdsPart for &::core::ffi::CStr {
-    fn append_to_vec(self, v: &mut Vec<u8>) {
-        self.to_bytes().append_to_vec(v);
-    }
-}
-
 /// A single byte (`%c`).
 ///
 /// C converts the argument to `unsigned char`, so this is one raw byte and
@@ -341,7 +330,7 @@ mod tests {
     fn pieces_are_appended_in_order() {
         let got = bytesbuild!(
             b"lookup_",
-            c"ccmp",
+            "ccmp",
             b"_",
             Hex2(0x1f),
             b"_",
