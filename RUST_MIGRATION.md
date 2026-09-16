@@ -357,17 +357,7 @@ transpile step itself needs arm64.
   steps" for why that was dropped along with `dll-arch-check.sh`/
   `test-dll.py`.
 - `make-test-unknown-lookup.py` — generates the payload above from a committed
-  one. Standard library only, unlike `make-test-variable-font.py`.
-- `make-test-variable-font.py` — builds a minimal, self-contained variable
-  font (fvar + gvar, one `wght` axis, two masters, via fontTools APIs — no
-  external download) to exercise the gvar delta-application path, which none
-  of `tests/payload/*.ttf` has. Needs `fontTools` (`pip install fonttools`);
-  writes `build/gvar-test.ttf`. CI generates this before every run; locally,
-  `compare-with-c.sh` picks it up automatically if present and skips it (with
-  a message) otherwise. `tests/golden.rs`/`cycles.rs` use the frozen
-  `tests/payload/gvar-test.ttf` fixture instead (see `golden.rs`'s own
-  comment on why: fontTools stamps wall-clock timestamps that would make a
-  freshly generated copy differ from a golden dump on every run).
+  one. Standard library only (no `fontTools` dependency).
 
 ## Status: Phase 1 complete
 
@@ -13748,3 +13738,20 @@ on the other platform before a commit is trusted.
     years after Stage F actually deleted both of those).
   - `src/ffi.rs`'s doc comment (`see scripts/test-dll.py`) repointed at
     `tests/dll_abi.rs`.
+- **`make-test-variable-font.py` deleted as genuinely orphaned (2026-09-16).**
+  Found while auditing whether the remaining `scripts/` files are still
+  needed: `tests/golden.rs`/`cycles.rs` moved to the frozen
+  `tests/payload/gvar-test.ttf` fixture back in Phase 2 (see that entry
+  above), and `.github/workflows/rust.yml` doesn't call this script either
+  -- its only remaining caller was `scripts/archive/compare-with-c.sh`
+  (itself a manual, on-demand tool that needs `c/` restored from git
+  history to run). This file's own "Pipeline pieces" entry still claimed
+  "CI generates this before every run", which had been stale since that
+  Phase 2 move -- the same kind of independent doc drift `archive/README.md`
+  turned out to have above. `compare-with-c.sh`'s comment referencing
+  `compare-with-golden.sh` (deleted in Stage F) for the rationale, and its
+  skip message pointing at this now-deleted script, are both fixed to
+  point at `golden.rs`'s own comment and to note the fixture is committed
+  (so the skip path shouldn't ever trigger in a normal checkout). The
+  script is still in git history if a different `wght` axis/master
+  configuration is ever needed for `gvar-test.ttf`.
