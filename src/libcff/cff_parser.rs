@@ -733,7 +733,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_vmoveto",
+                                    "op_vmoveto",
                                     b" (",
                                     Hex4(OP_VMOVETO.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -768,7 +768,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_rmoveto",
+                                    "op_rmoveto",
                                     b" (",
                                     Hex4(OP_RMOVETO.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -805,7 +805,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_hmoveto",
+                                    "op_hmoveto",
                                     b" (",
                                     Hex4(OP_HMOVETO.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1411,7 +1411,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_hflex",
+                                    "op_hflex",
                                     b" (",
                                     Hex4(OP_HFLEX.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1463,7 +1463,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_flex",
+                                    "op_flex",
                                     b" (",
                                     Hex4(OP_FLEX.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1523,7 +1523,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_hflex1",
+                                    "op_hflex1",
                                     b" (",
                                     Hex4(OP_HFLEX1.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1583,7 +1583,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_flex1",
+                                    "op_flex1",
                                     b" (",
                                     Hex4(OP_FLEX1.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1672,7 +1672,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_and",
+                                    "op_and",
                                     b" (",
                                     Hex4(OP_AND.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1702,7 +1702,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_or",
+                                    "op_or",
                                     b" (",
                                     Hex4(OP_OR.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1732,7 +1732,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_not",
+                                    "op_not",
                                     b" (",
                                     Hex4(OP_NOT.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1754,7 +1754,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_abs",
+                                    "op_abs",
                                     b" (",
                                     Hex4(OP_ABS.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1776,7 +1776,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_add",
+                                    "op_add",
                                     b" (",
                                     Hex4(OP_ADD.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1802,7 +1802,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_sub",
+                                    "op_sub",
                                     b" (",
                                     Hex4(OP_SUB.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1828,7 +1828,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_div",
+                                    "op_div",
                                     b" (",
                                     Hex4(OP_DIV.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1854,7 +1854,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_neg",
+                                    "op_neg",
                                     b" (",
                                     Hex4(OP_NEG.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1876,7 +1876,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_eq",
+                                    "op_eq",
                                     b" (",
                                     Hex4(OP_EQ.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1902,7 +1902,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_drop",
+                                    "op_drop",
                                     b" (",
                                     Hex4(OP_DROP.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1920,7 +1920,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_put",
+                                    "op_put",
                                     b" (",
                                     Hex4(OP_PUT.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1959,7 +1959,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_get",
+                                    "op_get",
                                     b" (",
                                     Hex4(OP_GET.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -1988,7 +1988,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_ifelse",
+                                    "op_ifelse",
                                     b" (",
                                     Hex4(OP_IFELSE.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -2038,7 +2038,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_mul",
+                                    "op_mul",
                                     b" (",
                                     Hex4(OP_MUL.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -2064,7 +2064,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_sqrt",
+                                    "op_sqrt",
                                     b" (",
                                     Hex4(OP_SQRT.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -2086,7 +2086,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_dup",
+                                    "op_dup",
                                     b" (",
                                     Hex4(OP_DUP.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -2117,7 +2117,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_exch",
+                                    "op_exch",
                                     b" (",
                                     Hex4(OP_EXCH.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -2144,7 +2144,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_index",
+                                    "op_index",
                                     b" (",
                                     Hex4(OP_INDEX.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -2198,7 +2198,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_roll",
+                                    "op_roll",
                                     b" (",
                                     Hex4(OP_ROLL.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -2218,7 +2218,7 @@ pub fn cff_parse_outline(
                                     LoggerType::Warning,
                                     crate::bytesbuild!(
                                         b"[libcff] Stack cannot provide enough parameters for ",
-                                        c"op_roll",
+                                        "op_roll",
                                         b" (",
                                         Hex4(OP_ROLL.0 as u32),
                                         b"). This operation is ignored.\n",
@@ -2270,7 +2270,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_callsubr",
+                                    "op_callsubr",
                                     b" (",
                                     Hex4(OP_CALLSUBR.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -2315,7 +2315,7 @@ pub fn cff_parse_outline(
                                     LoggerType::Warning,
                                     crate::bytesbuild!(
                                         b"[libcff] Invalid local subroutine index for ",
-                                        c"op_callsubr",
+                                        "op_callsubr",
                                         b" (",
                                         Hex4(OP_CALLSUBR.0 as u32),
                                         b"). This call is ignored.\n",
@@ -2332,7 +2332,7 @@ pub fn cff_parse_outline(
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
                                     b"[libcff] Stack cannot provide enough parameters for ",
-                                    c"op_callgsubr",
+                                    "op_callgsubr",
                                     b" (",
                                     Hex4(OP_CALLGSUBR.0 as u32),
                                     b"). This operation is ignored.\n",
@@ -2377,7 +2377,7 @@ pub fn cff_parse_outline(
                                     LoggerType::Warning,
                                     crate::bytesbuild!(
                                         b"[libcff] Invalid global subroutine index for ",
-                                        c"op_callgsubr",
+                                        "op_callgsubr",
                                         b" (",
                                         Hex4(OP_CALLGSUBR.0 as u32),
                                         b"). This call is ignored.\n",

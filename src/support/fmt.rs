@@ -34,6 +34,17 @@ impl<const N: usize> SdsPart for &[u8; N] {
     }
 }
 
+/// A plain Rust string literal/slice -- for static labels (operator names,
+/// etc.) that are always valid UTF-8, as an alternative to a `&[u8]`/`b"..."`
+/// byte-string literal when the text is genuinely text. Caller-controlled
+/// bytes that might not be valid UTF-8 still go through `&[u8]`/`&Vec<u8>`
+/// directly, per this module's own doc comment above.
+impl SdsPart for &str {
+    fn append_to_vec(self, v: &mut Vec<u8>) {
+        self.as_bytes().append_to_vec(v);
+    }
+}
+
 /// A `Handle`'s `name` (a `Vec<u8>`): appends up to the first embedded NUL,
 /// matching a C `%s`/`strlen` conversion's truncation, since every existing
 /// call site passing a `Handle.name` into [`bytesbuild!`] relied on that.
@@ -337,5 +348,11 @@ mod tests {
             7_i32,
         );
         assert_eq!(got, b"lookup_ccmp_1f_7");
+    }
+
+    #[test]
+    fn str_piece_appends_as_utf8_bytes() {
+        let got = bytesbuild!(b"op_", "vmoveto");
+        assert_eq!(got, b"op_vmoveto");
     }
 }
