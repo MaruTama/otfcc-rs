@@ -17,6 +17,7 @@ pub enum CffIndexCountType {
 // this struct's own accessor functions, so no `Copy`/`Clone` derive
 // survives (matches every other malloc-array-to-Vec conversion this crate
 // has made).
+#[derive(Debug)]
 pub struct CffIndex {
     pub count_type: CffIndexCountType,
     pub count: Arity,

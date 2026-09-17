@@ -15,7 +15,7 @@
 // `libcff/subr.rs`'s `vec![zero_buffer; n]` scratch arrays, keeps working
 // unchanged under `Clone` instead -- `vec![x; n]` only ever required
 // `Clone`, and cloning an empty `Vec::new()` is cheap.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Buffer {
     pub cursor: usize,
     pub data: Vec<u8>,

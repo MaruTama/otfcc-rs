@@ -1,7 +1,7 @@
 #![forbid(unsafe_code)]
 pub type BYTE = ::core::ffi::c_uchar;
 pub type WORD = ::core::ffi::c_uint;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Sha1Ctx {
     pub data: [BYTE; 64],
     pub datalen: WORD,

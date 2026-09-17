@@ -3,7 +3,7 @@
 use crate::support::primitives::{Pos, ShapeId};
 
 use crate::vf::vv::VV;
-#[derive(Copy, Clone, PartialEq, PartialOrd)]
+#[derive(Copy, Clone, PartialEq, PartialOrd, Debug)]
 pub struct VqAxisSpan {
     pub start: Pos,
     pub peak: Pos,
@@ -17,7 +17,7 @@ pub struct VqAxisSpan {
 // reinterprets the whole struct as a contiguous byte blob any more; see
 // `RegionKey` in `table/fvar.rs`, which now hashes/compares `dimensions`
 // and `spans` as two separate byte views instead of one).
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VqRegion {
     pub dimensions: ShapeId,
     pub spans: Vec<VqAxisSpan>,

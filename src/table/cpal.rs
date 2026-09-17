@@ -11,7 +11,7 @@ use crate::vendor::json::JsonType;
 
 use crate::bk::bkgraph::bk_build_block;
 use crate::support::built_json::BuiltValue;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct CpalColor {
     pub red: u8,
     pub green: u8,
@@ -19,7 +19,7 @@ pub struct CpalColor {
     pub alpha: u8,
     pub label: u16,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CpalPalette {
     pub colorset: Vec<CpalColor>,
     pub type_0: u32,
@@ -33,7 +33,7 @@ pub struct CpalPalette {
 // self-referentially), and `table_cpal_free` was the only one of these
 // ever called from outside this file (from `caryll_font.rs`'s table
 // disposal).
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CpalTable {
     pub version: u16,
     pub palettes: Vec<CpalPalette>,

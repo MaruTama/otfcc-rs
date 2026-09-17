@@ -40,6 +40,7 @@ pub enum GlyphOrderPass {
     Glyf = 4,
 }
 
+#[derive(Debug)]
 pub struct GlyphOrderEntry {
     pub gid: GlyphId,
     pub name: Vec<u8>,
@@ -77,6 +78,7 @@ pub struct GlyphOrderEntry {
 /// alphabetically -- already does its own explicit sort at the point of
 /// use, the same "sort key != dedup key, defer the sort to drain time"
 /// shape as `LookupHash`/`FeatureHash` earlier in this migration.
+#[derive(Debug)]
 pub struct GlyphOrder {
     pub entries: Vec<GlyphOrderEntry>,
     pub by_gid: std::collections::BTreeMap<GlyphId, usize>,

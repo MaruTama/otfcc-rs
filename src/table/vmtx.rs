@@ -8,7 +8,7 @@ use crate::support::primitives::{GlyphId, Length, Pos};
 
 use crate::table::maxp::MaxpTable;
 use crate::table::vhea::VheaTable;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VerticalMetric {
     pub advance_height: Length,
     pub tsb: Pos,
@@ -17,6 +17,7 @@ pub struct VerticalMetric {
 // own comment explains why there's no JSON-side fallout: this table is a
 // pure `vmtx`-binary-serialization intermediate, never touched by dump/
 // parse.
+#[derive(Debug)]
 pub struct VmtxTable {
     pub metrics: Vec<VerticalMetric>,
     pub top_side_bearing: Vec<Pos>,

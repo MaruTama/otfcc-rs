@@ -158,6 +158,7 @@ impl LookupType {
 // both `LookupType`-keyed free-function tables, and no variant needs
 // `ManuallyDrop` any more (that was purely a union restriction: a union
 // can't auto-drop a field because it doesn't know which one is live).
+#[derive(Debug)]
 pub enum Subtable {
     GsubSingle(GsubSingleSubtable),
     GsubMulti(GsubMultiSubtable),
@@ -264,13 +265,14 @@ pub(crate) unsafe fn subtable_list_slot(raw: SubtablePtr) -> Option<Box<Subtable
         Some(Box::from_raw(raw))
     }
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct ExtendSubtable {
     pub type_0: LookupType,
     pub subtable: *mut Subtable,
 }
 // Embedded by value in `Subtable::GposMarkToLigature` -- no `Copy`/`Clone`
 // needed once `mark_array`/`lig_array` own `Vec`s.
+#[derive(Debug)]
 pub struct GposMarkToLigatureSubtable {
     pub class_count: GlyphClass,
     pub mark_array: MarkArray,
@@ -279,13 +281,13 @@ pub struct GposMarkToLigatureSubtable {
 /// Embedded by value in both `GposMarkToSingleSubtable` and
 /// `GposMarkToLigatureSubtable`, not a `Subtable` union field itself.
 pub type LigatureArray = Vec<LigatureBaseRecord>;
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct LigatureBaseRecord {
     pub glyph: GlyphHandle,
     pub component_count: GlyphId,
     pub anchors: Vec<Vec<Anchor>>,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Anchor {
     pub present: bool,
     pub x: Pos,
@@ -294,7 +296,7 @@ pub struct Anchor {
 /// Embedded by value in both `GposMarkToSingleSubtable` and
 /// `GposMarkToLigatureSubtable`, not a `Subtable` union field itself.
 pub type MarkArray = Vec<MarkRecord>;
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct MarkRecord {
     pub glyph: GlyphHandle,
     pub mark_class: GlyphClass,
@@ -302,6 +304,7 @@ pub struct MarkRecord {
 }
 // Embedded by value in `Subtable::GposMarkToSingle` -- no `Copy`/`Clone`
 // needed once `mark_array`/`base_array` own `Vec`s.
+#[derive(Debug)]
 pub struct GposMarkToSingleSubtable {
     pub class_count: GlyphClass,
     pub mark_array: MarkArray,
@@ -310,13 +313,13 @@ pub struct GposMarkToSingleSubtable {
 /// Embedded by value in `GposMarkToSingleSubtable`, not a `Subtable` union
 /// field itself.
 pub type BaseArray = Vec<BaseRecord>;
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct BaseRecord {
     pub glyph: GlyphHandle,
     pub anchors: Vec<Anchor>,
 }
 pub type GposCursiveSubtable = Vec<GposCursiveEntry>;
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GposCursiveEntry {
     pub target: GlyphHandle,
     pub enter: Anchor,
@@ -324,14 +327,14 @@ pub struct GposCursiveEntry {
 }
 // `Copy` dropped: `first`/`second`/`first_values`/`second_values` all own
 // heap allocations now.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GposPairSubtable {
     pub first: Option<Box<ClassDef>>,
     pub second: Option<Box<ClassDef>>,
     pub first_values: Vec<Vec<PositionValue>>,
     pub second_values: Vec<Vec<PositionValue>>,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct PositionValue {
     pub dx: Pos,
     pub dy: Pos,
@@ -339,13 +342,13 @@ pub struct PositionValue {
     pub d_height: Pos,
 }
 pub type GposSingleSubtable = Vec<GposSingleEntry>;
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GposSingleEntry {
     pub target: GlyphHandle,
     pub value: PositionValue,
 }
 // `Copy` dropped: `match_0`/`to` own `Vec`s now.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GsubReverseSubtable {
     pub match_count: TableId,
     pub input_index: TableId,
@@ -372,6 +375,7 @@ pub struct GsubReverseSubtable {
 // `.copy` slot (`subtable_chaining_copy`) is confirmed dead (never called
 // outside its own static initializer) and is now a loud `unreachable!()`
 // instead of a `memcpy` that would be unsound over owned `Vec`/`Box` data.
+#[derive(Debug)]
 pub enum ChainingSubtable {
     Canonical(ChainingRule),
     Poly(ChainingRuleSet),
@@ -396,7 +400,7 @@ pub enum ChainingSubtable {
 /// consumed the same way (`.as_deref()`/`.as_deref_mut()` at the `OTL_I_
 /// CLASS_DEF.build`/`.parse` call sites), and now self-drop with the rest
 /// of the struct.
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ChainingRuleSet {
     pub rules: Vec<Option<Box<ChainingRule>>>,
     pub bc: Option<Box<ClassDef>>,
@@ -415,7 +419,7 @@ pub struct ChainingRuleSet {
 /// Box<ChainingRule>>>` or via the `ChainingSubtable::Canonical` variant
 /// directly (an ordinary enum payload, no longer a `ManuallyDrop` union
 /// field needing a separate explicit drop step).
-#[derive(Default)]
+#[derive(Default, Debug)]
 pub struct ChainingRule {
     pub match_count: TableId,
     pub input_begins: TableId,
@@ -426,25 +430,25 @@ pub struct ChainingRule {
 /// `lookup: LookupHandle` (= `Handle`) already has a real `Drop`/`Clone`
 /// impl (the Handle pilot), so `Vec<ChainLookupApplication>`'s own drop
 /// glue disposes every element correctly with no extra `Drop` impl here.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ChainLookupApplication {
     pub index: TableId,
     pub lookup: LookupHandle,
 }
 pub type GsubLigatureSubtable = Vec<GsubLigatureEntry>;
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GsubLigatureEntry {
     pub from: Coverage,
     pub to: GlyphHandle,
 }
 pub type GsubMultiSubtable = Vec<GsubMultiEntry>;
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GsubMultiEntry {
     pub from: GlyphHandle,
     pub to: Coverage,
 }
 pub type GsubSingleSubtable = Vec<GsubSingleEntry>;
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GsubSingleEntry {
     pub from: GlyphHandle,
     pub to: GlyphHandle,
@@ -452,6 +456,7 @@ pub struct GsubSingleEntry {
 // `subtables: SubtableList`(`Vec<Option<Box<Subtable>>>`)を値で持つため
 // `Copy` を落とす。常に `*mut`/`*const` 経由でしか触られない（値渡し・値
 // コピーの箇所は無い）。
+#[derive(Debug)]
 pub struct Lookup {
     pub name: Vec<u8>,
     pub type_0: LookupType,
@@ -530,6 +535,7 @@ pub(crate) fn lookup_at(list: &LookupList, idx: LookupIdx) -> Option<&Lookup> {
 // 所有しない参照配列（`LookupList` の要素をインデックスで指すだけ）。分類その3。
 pub type LookupRefList = Vec<LookupIdx>;
 // `lookups: LookupRefList`(`Vec<LookupIdx>`)を値で持つため `Copy` を落とす。
+#[derive(Debug)]
 pub struct Feature {
     pub name: Vec<u8>,
     pub lookups: LookupRefList,
@@ -557,6 +563,7 @@ pub(crate) fn feature_at(list: &FeatureList, idx: FeatureIdx) -> Option<&Feature
 pub type FeatureRefList = Vec<FeatureIdx>;
 // `required_feature`はインデックスなので無関係、`features: FeatureRefList`
 // (`Vec<FeatureIdx>`)を値で持つため `Copy` を落とす。
+#[derive(Debug)]
 pub struct LanguageSystem {
     pub name: Vec<u8>,
     pub required_feature: Option<FeatureIdx>,
@@ -573,6 +580,7 @@ pub struct LanguageSystem {
 pub type LangSystemList = Vec<Box<LanguageSystem>>;
 // 3つとも値でVecを持つため `Copy` を落とす。`Font.gsub`/`Font.gpos` は
 // `*mut OtlTable` フィールドで、crate全体を通じて常にポインタ経由。
+#[derive(Debug)]
 pub struct OtlTable {
     pub lookups: LookupList,
     pub features: FeatureList,

@@ -1,10 +1,10 @@
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VdmxRecord {
     pub y_pel_height: u16,
     pub y_max: i16,
     pub y_min: i16,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VdmxRatioRange {
     pub b_charset: u8,
     pub x_ratio: u8,
@@ -20,7 +20,7 @@ pub struct VdmxRatioRange {
 // `vdmx/funcs.rs`), and `.free`'s job (`table_vdmx_free`/`_dispose`) reduces
 // to nothing once there's no raw pointer left to release -- `Box`'s own
 // drop already runs `Vec`'s drop glue.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct VdmxTable {
     pub version: u16,
     pub ratios: Vec<VdmxRatioRange>,

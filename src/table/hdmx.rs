@@ -11,11 +11,13 @@ use crate::table::maxp::MaxpTable;
 // fixed; `HdmxTable`/`DeviceRecord` are confirmed dead code (see below) so
 // this was inert, but converted for consistency rather than left as the
 // one remaining instance of the pattern.
+#[derive(Debug)]
 pub struct DeviceRecord {
     pub pixel_size: u8,
     pub max_width: u8,
     pub widths: Vec<u8>,
 }
+#[derive(Debug)]
 pub struct HdmxTable {
     pub version: u16,
     pub num_records: u16,

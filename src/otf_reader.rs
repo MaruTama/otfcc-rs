@@ -70,6 +70,7 @@ pub(crate) trait FontBuilder {
         options: *const ::core::ffi::c_void,
     ) -> *mut ::core::ffi::c_void;
 }
+#[derive(Debug)]
 struct OtfReader;
 impl FontBuilder for OtfReader {
     unsafe fn read(

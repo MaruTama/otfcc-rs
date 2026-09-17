@@ -17,13 +17,14 @@ use crate::bk::bkgraph::bk_build_block;
 use crate::support::built_json::BuiltValue;
 use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
 use crate::table::otl::coverage::build_coverage;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct CaretValue {
     pub format: i8,
     pub coordiante: Pos,
     pub point_index: i16,
 }
 pub type CaretValueList = Vec<CaretValue>;
+#[derive(Debug)]
 pub struct CaretValueRecord {
     pub glyph: GlyphHandle,
     pub carets: CaretValueList,
@@ -43,6 +44,7 @@ pub type LigCaretTable = Vec<CaretValueRecord>;
 pub(crate) fn clear_lig_carets(lc: &mut LigCaretTable) {
     lc.clear();
 }
+#[derive(Debug)]
 pub struct GdefTable {
     pub glyph_class_def: Option<Box<ClassDef>>,
     pub mark_attach_class_def: Option<Box<ClassDef>>,

@@ -13,6 +13,7 @@ use crate::support::primitives::{F16Dot16, GlyphId};
 use crate::support::primitives::{otfcc_from_fixed, otfcc_to_fixed};
 use crate::vendor::json::JsonType;
 
+#[derive(Debug)]
 pub struct PostTable {
     pub version: F16Dot16,
     pub italic_angle: F16Dot16,
@@ -304,11 +305,13 @@ static STANDARD_MAC_NAMES: [&str; 258] = [
 // into plain owned Rust values first, and only builds the `GlyphOrder`
 // (a plain `Box::new`, see below) once every read has already succeeded --
 // so an `Err` here never leaves a partially-built `GlyphOrder` to clean up.
+#[derive(Debug)]
 struct ParsedPost {
     fixed: PostFixedHeader,
     // `None` unless `fixed.version == 0x20000`.
     names: Option<Vec<(GlyphId, Vec<u8>)>>,
 }
+#[derive(Debug)]
 struct PostFixedHeader {
     version: F16Dot16,
     italic_angle: F16Dot16,

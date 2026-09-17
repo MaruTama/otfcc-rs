@@ -19,15 +19,18 @@ use crate::table::otl::subtables::gpos_common::dispose_mark_array;
 use crate::table::otl::subtables::gpos_mark_to_ligature::dispose_lig_array;
 use crate::table::otl::subtables::gpos_mark_to_single::dispose_base_array;
 
+#[derive(Debug)]
 struct MarkHashValue {
     name: Vec<u8>,
     mark_class: GlyphClass,
     anchor: Anchor,
 }
+#[derive(Debug)]
 struct BaseHashValue {
     name: Vec<u8>,
     anchors: Vec<Anchor>,
 }
+#[derive(Debug)]
 struct LigHashValue {
     name: Vec<u8>,
     component_count: GlyphId,

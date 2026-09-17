@@ -27,7 +27,7 @@ use crate::table::fvar::{json_new_vq, json_vq_of};
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_create_still, vq_get_still, vq_is_still};
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Point {
     pub x: VQ,
     pub y: VQ,
@@ -40,14 +40,14 @@ pub struct Point {
 /// loop before a container of these is torn down.
 pub type Contour = Vec<Point>;
 pub type ContourList = Vec<Contour>;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct PostscriptStemDef {
     pub position: Pos,
     pub width: Pos,
     pub map: u16,
 }
 pub type StemDefList = Vec<PostscriptStemDef>;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct PostscriptHintMask {
     pub points_before: u16,
     pub contours_before: u16,
@@ -65,7 +65,7 @@ pub enum RefAnchorStatus {
     AnchorConsolidatingAnchor = 4,
     AnchorConsolidatingXy = 5,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ComponentReference {
     pub x: VQ,
     pub y: VQ,
@@ -85,7 +85,7 @@ pub struct ComponentReference {
 /// real and auto-drop, so -- like [`Contour`] -- dropping/clearing this
 /// container needs no explicit per-element dispose pass.
 pub type ReferenceList = Vec<ComponentReference>;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct GlyphStat {
     pub x_min: Pos,
     pub x_max: Pos,
@@ -97,7 +97,7 @@ pub struct GlyphStat {
     pub n_composite_points: u16,
     pub n_composite_contours: u16,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Glyph {
     pub name: Vec<u8>,
     pub horizontal_origin: VQ,
@@ -146,7 +146,7 @@ pub type GlyphPtr = *mut Glyph;
 /// fresh empty glyph. `Box<Glyph>` cannot represent "no glyph here" (a
 /// `Box` is never null), so the element type stays `Option<Box<Glyph>>`.
 pub type GlyfTable = Vec<Option<Box<Glyph>>>;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct GlyfIOContext {
     pub loca_is_long: bool,
     pub num_glyphs: GlyphId,
@@ -788,6 +788,7 @@ pub unsafe fn otfcc_parse_glyf(
     Some(glyf_val)
 }
 
+#[derive(Debug)]
 pub struct GlyfAndLocaBuffers {
     pub glyf: Buffer,
     pub loca: Buffer,

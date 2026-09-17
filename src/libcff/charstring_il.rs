@@ -33,13 +33,13 @@ pub enum CffInstructionType {
 // their non-phantom counterparts, both invisible to `CffCharstringArgument`
 // alone). Both arms are `Copy` (no owned heap data), so this enum stays
 // `Copy` too.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct CffCharstringInstruction {
     pub type_0: CffInstructionType,
     pub arity: Arity,
     pub arg: CffCharstringArgument,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum CffCharstringArgument {
     D(::core::ffi::c_double),
     I(i32),
@@ -76,7 +76,7 @@ impl CffCharstringInstruction {
 // exactly what `Vec` already provides, so both counters are dropped
 // entirely (`length` duplicated `.len()`; `free` duplicated spare
 // capacity) and the three push helpers below become plain `.push()`.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CffCharstringIl {
     pub instr: Vec<CffCharstringInstruction>,
 }

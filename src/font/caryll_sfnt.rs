@@ -7,6 +7,7 @@ use std::os::unix::ffi::OsStrExt;
 // The same risk class `CffIndex`/`CffDict` closed: a counting mistake in
 // `otfcc_read_packets` below would have been an immediate OOB write: `Vec`
 // removes that structurally.
+#[derive(Debug)]
 pub struct PacketPiece {
     pub tag: u32,
     pub check_sum: u32,
@@ -21,6 +22,7 @@ pub struct PacketPiece {
 // value without borrow-checker friction -- none of those sites ever needed
 // ownership, only read access, so every one of them now takes `&Packet`
 // instead. `Copy` is dropped along with the raw pointer it was papering over.
+#[derive(Debug)]
 pub struct Packet {
     pub sfnt_version: u32,
     pub num_tables: u16,
@@ -31,6 +33,7 @@ pub struct Packet {
 }
 // `offsets`/`packets` were `__caryll_allocate_clean`'d/`free`'d, sized from
 // `count` (either `1`, or read from a TTC header -- also untrusted).
+#[derive(Debug)]
 pub struct SplineFontContainer {
     pub type_0: u32,
     pub count: u32,

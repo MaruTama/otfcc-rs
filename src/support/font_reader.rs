@@ -32,7 +32,7 @@ pub struct ReadError {
     pub available: usize,
 }
 
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 pub struct FontReader<'a> {
     data: &'a [u8],
     pos: usize,

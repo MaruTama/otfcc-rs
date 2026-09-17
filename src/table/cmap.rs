@@ -17,7 +17,7 @@ use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId, Unicode};
 use crate::vendor::json::JsonType;
 use crate::support::fmt::Hex4Upper;
-#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord)]
+#[derive(Copy, Clone, PartialEq, Eq, PartialOrd, Ord, Debug)]
 pub struct CmapUvsKey {
     pub unicode: u32,
     pub selector: u32,
@@ -61,6 +61,7 @@ pub struct CmapUvsKey {
 // `.encode_by_name`/`.encode_uvs_by_name` were dead in vtable form (kept
 // as ordinary exported functions, since deleting live-looking public API
 // during a type-only conversion would be scope creep).
+#[derive(Debug)]
 pub struct CmapTable {
     pub unicodes: std::collections::BTreeMap<i32, GlyphHandle>,
     pub uvs: std::collections::BTreeMap<CmapUvsKey, GlyphHandle>,

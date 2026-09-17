@@ -30,6 +30,7 @@ use libc::fprintf;
 // sharing is real, but it happens one level up, entirely inside `bkgraph.rs`'s
 // already-arena-based `BkGraph` -- this file's raw tree is consumed, not
 // retained, by the time that sharing occurs.
+#[derive(Debug)]
 pub struct BkBlock {
     pub cells: Vec<BkCell>,
 }
@@ -46,10 +47,12 @@ pub struct BkBlock {
 // No longer `Copy`, and no longer `Clone` either: `Ptr` now owns a
 // `Box<BkBlock>`, and every construction-time consumer moves cells (built
 // fresh as `vec![...]` literals) exactly once -- nothing needs a second copy.
+#[derive(Debug)]
 pub struct BkCell {
     pub t: BkCellType,
     pub value: BkCellValue,
 }
+#[derive(Debug)]
 pub enum BkCellValue {
     Int(u32),
     Ptr(Option<Box<BkBlock>>),

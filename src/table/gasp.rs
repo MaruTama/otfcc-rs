@@ -10,7 +10,7 @@ use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::GlyphSize;
 use crate::vendor::json::JsonType;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct GaspRecord {
     pub range_max_ppem: GlyphSize,
     pub dogray: bool,
@@ -23,7 +23,7 @@ pub struct GaspRecord {
 // plus the standard drop glue is sufficient. The entire
 // `GaspTableElementInterface` vtable is deleted: grepping confirmed only
 // `.create`/`.free` were ever called from outside this file.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct GaspTable {
     pub version: u16,
     pub records: Vec<GaspRecord>,

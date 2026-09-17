@@ -62,7 +62,7 @@ use crate::vf::vq::{
     vq_scale,
 };
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct CffFontMatrix {
     pub a: Scale,
     pub b: Scale,
@@ -71,6 +71,7 @@ pub struct CffFontMatrix {
     pub x: VQ,
     pub y: VQ,
 }
+#[derive(Debug)]
 pub struct CffPrivateDict {
     pub blue_values: Vec<::core::ffi::c_double>,
     pub other_blues: Vec<::core::ffi::c_double>,
@@ -109,6 +110,7 @@ pub struct CffPrivateDict {
 // site and is deleted below rather than left as a would-be-unsound
 // landmine, matching this migration's established pattern for confirmed
 // -dead vtable slots.
+#[derive(Debug)]
 pub struct CffTable {
     pub font_name: Vec<u8>,
     pub is_cid: bool,
@@ -156,7 +158,7 @@ pub struct CffTable {
 // `Vec<Box<CffTable>>`, so every `table_cff_create` result is immediately
 // adopted as an opaque `*mut CffTable` regardless of allocator, same as the
 // OTL subtable `_create()`s converted earlier in this migration.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct CffAndGlyf {
     pub meta: *mut CffTable,
     pub glyphs: *mut GlyfTable,
@@ -172,6 +174,7 @@ pub struct CffAndGlyf {
 // null; a real `&'a mut CffTable` field cannot. See
 // `otfcc_read_cff_and_glyf_tables`'s doc comment for how this phase hands
 // off to the (separate, plain-reference-parameter) glyph-outline phase.
+#[derive(Debug)]
 struct CffFdExtractContext<'a> {
     fd_array_index: i32,
     meta: &'a mut CffTable,
@@ -187,6 +190,7 @@ struct CffFdExtractContext<'a> {
 // `&mut` from `context.glyphs[i]` *after* that move, instead of `&raw mut
 // *g_owner` *before* it, points at the exact same allocation the old raw
 // pointer did, just as a lifetime-checked reference instead.
+#[derive(Debug)]
 pub struct OutlineBuilderContext<'a> {
     pub g: &'a mut Glyph,
     pub j_contour: ShapeId,
@@ -199,6 +203,7 @@ pub struct OutlineBuilderContext<'a> {
     pub defined_contour_masks: u8,
     pub randx: u64,
 }
+#[derive(Debug)]
 pub struct CffCharstringBuilderContext {
     pub glyf: *mut GlyfTable,
     pub default_width: u16,

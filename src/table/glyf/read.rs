@@ -31,7 +31,7 @@ use crate::vf::vq::{
 // `be32` (the manual byte-swaps those native-endian pointer reads needed)
 // are gone with them -- `FontReader`'s reads are big-endian by
 // construction.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct TuplePolymorphizerCtx {
     pub fvar: *mut FvarTable,
     pub dimensions: u16,
@@ -59,13 +59,13 @@ pub struct TuplePolymorphizerCtx {
 // still needs `&mut Point`/`&mut ComponentReference`) to write the
 // results back -- both passes in the same `contours`-then-`references`
 // order, so point `j` in one pass is the same point as `j` in the other.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct PackedDeltaRun {
     pub length: ShapeId,
     pub wide: bool,
     pub zero: bool,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct PackedPointRun {
     pub length: ShapeId,
     pub wide: bool,

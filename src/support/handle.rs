@@ -29,7 +29,7 @@ pub enum HandleState {
 /// correctly on its own -- the manual `Clone`/`Drop` impls this struct
 /// used to need (wrapping `sdsdup`/`sdsfree`) are gone; `Vec<u8>` already
 /// has both.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct Handle {
     pub state: HandleState,
     pub index: GlyphId,
