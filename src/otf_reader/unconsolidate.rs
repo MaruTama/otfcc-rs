@@ -3,7 +3,6 @@ use crate::support::buffer::Buffer;
 use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos};
-use crate::support::sha1::Sha1Ctx;
 use crate::support::fmt::{Hex2Upper, Hex4Upper, SdsPart};
 
 use crate::table::glyf::{GlyfTable, Glyph};
@@ -18,9 +17,9 @@ use crate::support::glyph_order::{
     gord_lookup_name, otfcc_gord_name_a_field_shared, otfcc_set_glyph_order_by_gid,
 };
 use crate::support::primitives::{otfcc_to_f2dot14, otfcc_to_fixed};
-use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
 use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vq::{vq_create_still, vq_inplace_plus};
+use sha1::{Digest, Sha1};
 
 #[derive(Copy, Clone, Debug)]
 pub struct GlyphHash {
@@ -138,22 +137,8 @@ pub fn name_glyph_by_hash(g: &Glyph, glyf: &GlyfTable) -> GlyphHash {
     buf.write_u8('I' as i32 as u8);
     buf.write_u32be(g.instructions.len() as u32);
     buf.write_bytes(&g.instructions);
-    let mut ctx: Sha1Ctx = Sha1Ctx {
-        data: [0; 64],
-        datalen: 0,
-        bitlen: 0,
-        state: [0; 5],
-        k: [0; 4],
-    };
-    let mut hash: [u8; 20] = [0; 20];
-    sha1_init(&mut ctx);
-    sha1_update(&mut ctx, &buf.data);
-    sha1_final(&mut ctx, &mut hash);
-    let mut h_0: GlyphHash = GlyphHash { hash: [0; 20] };
-    for j in 0..SHA1_BLOCK_SIZE as usize {
-        h_0.hash[j] = hash[j];
-    }
-    return h_0;
+    let digest = Sha1::digest(&buf.data);
+    GlyphHash { hash: digest.into() }
 }
 fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
     // Built as a plain local value rather than via `otfcc_glyph_order_create`
@@ -508,3 +493,27 @@ pub fn otfcc_unconsolidate_font(font: &mut Font, options: &Options) {
     }
 }
 pub const SHA1_BLOCK_SIZE: i32 = 20_i32;
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    /// NIST FIPS 180-1's own test vector (`SHA1("abc")`), pinning that the
+    /// `sha1` crate this module depends on for glyph-hash naming
+    /// (`--name-by-hash`) still computes real SHA-1 -- nothing else in this
+    /// crate's test suite exercises `sha1::Sha1` directly (no golden fixture
+    /// currently uses `--name-by-hash`; `tests/golden.rs`'s byte-exact
+    /// comparisons are what actually prove any *specific font's* hash-named
+    /// output is correct, once one does).
+    #[test]
+    fn sha1_matches_known_test_vector() {
+        let digest = Sha1::digest(b"abc");
+        assert_eq!(
+            digest.as_slice(),
+            [
+                0xa9, 0x99, 0x3e, 0x36, 0x47, 0x06, 0x81, 0x6a, 0xba, 0x3e, 0x25, 0x71, 0x78, 0x50,
+                0xc2, 0x6c, 0x9c, 0xd0, 0xd8, 0x9d,
+            ]
+        );
+    }
+}
