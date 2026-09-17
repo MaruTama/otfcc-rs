@@ -189,22 +189,42 @@ pub fn otfcc_cmap_lookup_uvs(cmap: &CmapTable, c: CmapUvsKey) -> Option<&GlyphHa
 // `meta.rs`: `FontReader::require_room`'s `checked_mul`/`checked_add`.
 // Global across the whole cmap table, threaded through every codepoint-
 // mapping loop below (format4/format12's main mappings, format14's UVS
-// default ranges): each individual group/segment/range is already clamped
-// to its own bounded space (`read_format12`'s `clamped_end` caps a group to
-// the Unicode ceiling, `read_format4` caps a segment to 0xffff), but
-// nothing ties the SUM across many such groups/segments to any real limit.
-// A subtable well within any real byte-size limit can pack thousands of
-// groups, each individually clamped, that still multiply out to billions
-// of loop iterations -- the same "individually bounded, unbounded in
-// aggregate" amplification shape as `table/otl/read.rs`'s
-// `MAX_TOTAL_LANGUAGES` (found here by `cargo fuzz run otf_dump`: a single
-// crafted format12 subtable pushed a parse past several minutes and toward
-// the fuzzer's rss_limit_mb). No legitimate cmap needs anywhere near this
-// many total codepoint mappings even summed across every subtable --
+// default *and* non-default ranges): each individual group/segment/range
+// is already clamped to its own bounded space (`read_format12`'s
+// `clamped_end` caps a group to the Unicode ceiling, `read_format4` caps a
+// segment to 0xffff), but nothing ties the SUM across many such
+// groups/segments to any real limit. A subtable well within any real
+// byte-size limit can pack thousands of groups, each individually
+// clamped, that still multiply out to billions of loop iterations -- the
+// same "individually bounded, unbounded in aggregate" amplification shape
+// as `table/otl/read.rs`'s `MAX_TOTAL_LANGUAGES` (found here by `cargo
+// fuzz run otf_dump`: a single crafted format12 subtable pushed a parse
+// past several minutes and toward the fuzzer's rss_limit_mb).
+// `read_uvs_non_default` didn't get this budget threaded to it when the
+// rest of this scheme was built out -- its own per-call guard
+// (`require_room(num_mappings, 5)`) only bounds one call's own mapping
+// count against its subtable's own bytes, not how many *times*
+// `read_format14` calls it: many `VarSelectorRecord`s (up to
+// `n_groups`, each with a distinct `varSelector`) can all alias the
+// same small non-default-UVS subtable, and since `CmapUvsKey` includes
+// `selector`, every alias inserts a genuinely new, distinct set of
+// `cmap.uvs` entries rather than repeating idempotent work the way the
+// directory-level offset dedup above handles aliased format4/12/14
+// *table* offsets -- a real, unbounded multiplication a fuzz-found
+// ~70KB input rode to a 2.1GB-vs-2048MB OOM (`tests/fuzz-corpus/
+// known-issues/otf-dump-cmap-uvs-non-default-aliasing-oom.bin`). Fixed
+// by threading the same shared budget into `read_uvs_non_default` that
+// `read_uvs_default` already had. No legitimate cmap needs anywhere near
+// this many total codepoint mappings even summed across every subtable --
 // several subtables each covering the full Unicode range would still only
 // total a few million -- so this budget is generous for real fonts and a
 // hard stop for crafted ones.
-const MAX_TOTAL_CMAP_MAPPINGS: u32 = 4_000_000;
+//
+// `pub(crate)`, not private: `otf_reader.rs`'s regression test for the
+// non-default-UVS aliasing bug above asserts `cmap.uvs.len()` never
+// exceeds this, the same way `otl/read.rs`'s own budgets are
+// `pub(crate)` for the equivalent OTL regression tests.
+pub(crate) const MAX_TOTAL_CMAP_MAPPINGS: u32 = 4_000_000;
 fn read_format12(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut u32) {
     let mut r = match FontReader::new(data).at(offset) {
         Ok(r) => r,
@@ -371,6 +391,7 @@ fn read_uvs_non_default(
     offset: usize,
     selector: Unicode,
     cmap: &mut CmapTable,
+    budget: &mut u32,
 ) {
     let mut r = match FontReader::new(data).at(offset) {
         Ok(r) => r,
@@ -381,6 +402,10 @@ fn read_uvs_non_default(
         return;
     }
     for _ in 0..num_mappings {
+        if *budget == 0 {
+            break;
+        }
+        *budget -= 1;
         let unicode_value = r.u24().unwrap();
         let glyph_id = r.u16().unwrap();
         otfcc_encode_cmap_uvs_by_index(
@@ -442,7 +467,7 @@ fn read_format14(data: &[u8], offset: usize, cmap: &mut CmapTable, budget: &mut 
         }
         if non_default_uvs_offset != 0 {
             if let Some(sub_offset) = offset.checked_add(non_default_uvs_offset as usize) {
-                read_uvs_non_default(data, sub_offset, selector, cmap);
+                read_uvs_non_default(data, sub_offset, selector, cmap, budget);
             }
         }
     }
@@ -1415,7 +1440,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 4);
 
         let mut cmap = empty_cmap();
-        read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut());
+        read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
         assert!(cmap.uvs.is_empty());
     }
 
@@ -1428,7 +1453,7 @@ mod cmap_read_tests {
         assert_eq!(data.len(), 9);
 
         let mut cmap = empty_cmap();
-        read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut());
+        read_uvs_non_default(&data, 0, 0xFE00, cmap.as_mut(), &mut { MAX_TOTAL_CMAP_MAPPINGS });
         let g = cmap
             .uvs
             .get(&CmapUvsKey {
@@ -1437,6 +1462,54 @@ mod cmap_read_tests {
             })
             .unwrap();
         assert_eq!(g.index, 9);
+    }
+
+    #[test]
+    fn format14_non_default_uvs_offset_aliasing_respects_shared_budget() {
+        // `tests/fuzz-corpus/known-issues/otf-dump-cmap-uvs-non-default-
+        // aliasing-oom.bin`: `read_uvs_non_default`'s own guard
+        // (`require_room(num_mappings, 5)`) only bounds one call's own
+        // mapping count against its subtable's own bytes -- it says
+        // nothing about how many *times* `read_format14` calls it. Many
+        // `VarSelectorRecord`s, each with a distinct `varSelector` but
+        // all sharing the same `nonDefaultUVSOffset`, each alias the same
+        // small subtable -- and because `CmapUvsKey` includes `selector`,
+        // every alias inserts a genuinely new, distinct set of `cmap.uvs`
+        // entries (unlike the directory-level offset dedup in
+        // `parse_cmap`, which is safe *because* re-parsing the same bytes
+        // at the same offset is idempotent there). Three records here,
+        // each individually able to add 10 more mappings than the budget
+        // allows, must still total no more than the budget handed in --
+        // the same shape `format12_budget_caps_the_total_across_many_
+        // groups_not_just_one` already pins for format12's own group
+        // aliasing.
+        let mut data = Vec::new();
+        data.extend_from_slice(&14u16.to_be_bytes()); // format
+        data.extend_from_slice(&0u32.to_be_bytes()); // length (informational)
+        data.extend_from_slice(&3u32.to_be_bytes()); // numVarSelectorRecords
+        let shared_offset: u32 = 10 + 11 * 3; // right after the VarSelectorRecord array
+        for i in 0..3u32 {
+            data.extend_from_slice(&(i + 1).to_be_bytes()[1..]); // varSelector (24-bit), distinct per record
+            data.extend_from_slice(&0u32.to_be_bytes()); // defaultUVSOffset: absent
+            data.extend_from_slice(&shared_offset.to_be_bytes()); // nonDefaultUVSOffset: aliased
+        }
+        assert_eq!(data.len(), shared_offset as usize);
+        data.extend_from_slice(&10u32.to_be_bytes()); // numUVSMappings
+        for i in 0..10u32 {
+            data.extend_from_slice(&(i + 1).to_be_bytes()[1..]); // unicodeValue (24-bit)
+            data.extend_from_slice(&0u16.to_be_bytes()); // glyphID
+        }
+
+        let mut cmap = empty_cmap();
+        let mut budget: u32 = 5;
+        read_format14(&data, 0, cmap.as_mut(), &mut budget);
+
+        assert_eq!(budget, 0, "the shared budget must be fully consumed, not per-record");
+        assert_eq!(
+            cmap.uvs.len(),
+            5,
+            "no more mappings than the budget allows, even though each aliased record alone claims far more"
+        );
     }
 
     #[test]

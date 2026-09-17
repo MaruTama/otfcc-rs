@@ -654,4 +654,73 @@ mod regression_tests {
             );
         }
     }
+
+    /// `cargo fuzz run otf_dump` CI (run 35233787763) found `tests/
+    /// fuzz-corpus/known-issues/otf-dump-cmap-uvs-non-default-aliasing-
+    /// oom.bin`: `table/cmap.rs`'s `read_format14` threads its shared
+    /// `MAX_TOTAL_CMAP_MAPPINGS` budget into `read_uvs_default`, but not
+    /// into its sibling `read_uvs_non_default` -- an oversight from when
+    /// the budget scheme was built out (its own doc comment only ever
+    /// named "format14's UVS default ranges"). `read_uvs_non_default`'s
+    /// own guard only bounds one call's mapping count against its own
+    /// subtable's bytes, not how many times `read_format14` calls it: many
+    /// `VarSelectorRecord`s, each with a distinct `varSelector` but all
+    /// aliasing the same small non-default-UVS subtable, each insert a
+    /// genuinely new, distinct set of `cmap.uvs` entries (its key includes
+    /// `selector`), unbounded by anything. A ~70KB crafted file rode this
+    /// to a 2.1GB-vs-2048MB OOM under `cargo fuzz`'s ASan-instrumented
+    /// build (94% of live allocations in one call stack, all through
+    /// `otfcc_encode_cmap_uvs_by_index`); CI's own finding was a ~18.6KB
+    /// mutation of `KRName-Regular.otf`; that exact input wasn't saved
+    /// (no artifact upload configured), so this reproducer was
+    /// reconstructed directly from the root cause instead. Fixed by
+    /// threading the same shared budget into `read_uvs_non_default` that
+    /// `read_uvs_default` already had. Same rationale as `otl_feature_ref_
+    /// amplification_font_parses_promptly` above for asserting the actual
+    /// invariant rather than only wall-clock time: this file's blowup
+    /// happens fast enough on native, uninstrumented hardware that even
+    /// the fully-uncapped version might parse in well under the time
+    /// budget here.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "reads a fixture from disk, needs -Zmiri-disable-isolation; also far too slow to run meaningfully under Miri's interpreter"
+    )]
+    fn cmap_uvs_non_default_aliasing_font_parses_promptly() {
+        let bytes = std::fs::read(
+            "tests/fuzz-corpus/known-issues/otf-dump-cmap-uvs-non-default-aliasing-oom.bin",
+        )
+        .unwrap();
+        unsafe {
+            let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
+            assert!(!sfnt.is_null());
+
+            let options = otfcc_new_options();
+            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+
+            let start = Instant::now();
+            let font = super::read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+            let elapsed = start.elapsed();
+
+            assert!(!font.is_null());
+            if let Some(cmap) = (*font).cmap.as_deref() {
+                assert!(
+                    cmap.uvs.len() <= crate::table::cmap::MAX_TOTAL_CMAP_MAPPINGS as usize,
+                    "cmap.uvs.len() = {} exceeds MAX_TOTAL_CMAP_MAPPINGS",
+                    cmap.uvs.len()
+                );
+            }
+
+            otfcc_delete_sfnt(sfnt);
+            if !font.is_null() {
+                otfcc_font_free(font);
+            }
+            otfcc_delete_options(options);
+
+            assert!(
+                elapsed < Duration::from_secs(10),
+                "read_otf took {elapsed:?}, expected well under 10s"
+            );
+        }
+    }
 }
