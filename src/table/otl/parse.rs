@@ -46,12 +46,14 @@ struct PendingFeatureId(u32);
 /// *final* indices), but at this point `.lookups` can only hold
 /// `PendingLookupId`s -- `lh` hasn't been sorted/drained into
 /// `OtlTable.lookups` yet, so no final `LookupIdx` exists.
+#[derive(Debug)]
 struct PendingFeature {
     name: Vec<u8>,
     lookups: Vec<PendingLookupId>,
 }
 /// Same bundling shape as `PendingLookups`, for not-yet-collected
 /// `Feature`s.
+#[derive(Debug)]
 struct PendingFeatures {
     entries: Vec<FeatureEntry>,
     features: Vec<Option<PendingFeature>>,
@@ -63,6 +65,7 @@ struct PendingFeatures {
 /// transient identity is needed for languages themselves -- only for the
 /// `PendingFeatureId`s a language references, which still need remapping
 /// to final `FeatureIdx`es once `fh` has been sorted and drained.
+#[derive(Debug)]
 struct PendingLanguage {
     name: Vec<u8>,
     required_feature: Option<PendingFeatureId>,
@@ -76,6 +79,7 @@ struct PendingLanguage {
 /// with reverse (most-recent-wins) search rather than a dedup map,
 /// even though the eventual sort key (`by_feature_name`, byte-wise on
 /// `name`) happens to equal the would-be dedup key.
+#[derive(Debug)]
 pub struct FeatureEntry {
     pub name: Vec<u8>,
     pub alias: bool,
@@ -92,6 +96,7 @@ pub struct FeatureEntry {
 /// reproduces that "most recent wins" lookup exactly, which is why this
 /// stays a plain `Vec` (preserving insertion order for that purpose)
 /// rather than a `HashMap`/`BTreeMap` keyed by name.
+#[derive(Debug)]
 pub struct LookupEntry {
     pub name: Vec<u8>,
     /// Rust-only field, not present in `c/`'s `lookup_hash` -- the C
@@ -121,6 +126,7 @@ pub enum LookupOrderType {
 /// into `OtlTable.lookups` -- see `PendingLookupId`'s own doc comment for
 /// why the two can no longer be the single `Vec<LookupEntry>` that
 /// `LookupEntry.lookup: *mut Lookup` let them be before.
+#[derive(Debug)]
 struct PendingLookups {
     entries: Vec<LookupEntry>,
     lookups: Vec<Option<Box<Lookup>>>,

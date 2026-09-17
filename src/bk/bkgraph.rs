@@ -44,12 +44,12 @@ enum BkCellVisitState {
     Black = 2,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 enum ArenaCellValue {
     Int(u32),
     Ptr(Option<BlockId>),
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct ArenaCell {
     t: BkCellType,
     value: ArenaCellValue,
@@ -77,6 +77,7 @@ fn arena_cell_is_pointer(cell: &ArenaCell) -> bool {
 // `attract_bkgraph`/`dfs_attract_cells` untangling pass (unrelated to
 // `dfs_convert`'s walk over the raw tree, which no longer needs any
 // scratch fields on `BkBlock` itself now that it's an owned `Box` tree).
+#[derive(Debug)]
 struct ArenaBlock {
     visitstate: BkCellVisitState,
     index: u32,
@@ -84,7 +85,7 @@ struct ArenaBlock {
     cells: Vec<ArenaCell>,
 }
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct BkGraphNode {
     alias: u32,
     order: u32,
@@ -92,6 +93,7 @@ struct BkGraphNode {
     hash: u32,
     block: BlockId,
 }
+#[derive(Debug)]
 pub struct BkGraph {
     blocks: Vec<ArenaBlock>,
     entries: Vec<BkGraphNode>,

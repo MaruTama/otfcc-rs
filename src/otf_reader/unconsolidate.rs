@@ -22,7 +22,7 @@ use crate::support::sha1::{sha1_final, sha1_init, sha1_update};
 use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vq::{vq_create_still, vq_inplace_plus};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct GlyphHash {
     pub hash: [u8; 20],
 }

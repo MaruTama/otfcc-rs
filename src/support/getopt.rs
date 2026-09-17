@@ -23,6 +23,7 @@
 /// resolve to the same [`GetoptItem::Opt`] `val`, matching how the original
 /// `longopts` arrays in `bin/otfccbuild.rs`/`bin/otfccdump.rs` reused a
 /// short option's own char as that entry's `val` instead of `0`.
+#[derive(Debug)]
 pub struct LongOpt {
     pub name: &'static str,
     pub has_arg: bool,
@@ -37,6 +38,7 @@ pub struct LongOpt {
 /// handful of error shapes -- each already carrying the exact message text
 /// `bin/otfccbuild.rs`/`bin/otfccdump.rs` print for it, matching what real
 /// `getopt_long` itself would have written to stderr for the same input.
+#[derive(Debug)]
 pub enum GetoptItem {
     Opt { val: i32, arg: Option<String> },
     UnknownLong(String),

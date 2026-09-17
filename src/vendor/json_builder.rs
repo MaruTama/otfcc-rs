@@ -11,7 +11,7 @@
 // builder's own `JsonValue`-based representation, and
 // `support::built_json` still re-exports them for real use by
 // `bin/otfccdump.rs` and its own `preserialize`.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct JsonSerializeOpts {
     pub mode: i32,
     pub opts: i32,

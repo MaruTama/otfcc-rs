@@ -1,6 +1,6 @@
 use crate::support::primitives::Pos;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VfAxis {
     pub tag: u32,
     pub min_value: Pos,

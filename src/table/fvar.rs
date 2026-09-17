@@ -15,6 +15,7 @@ use crate::vf::region::{vq_axis_span_is_one, vq_delete_region};
 use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vq::{vq_create_still, vq_get_still};
 use crate::vf::vv::VV;
+#[derive(Debug)]
 pub struct FvarInstance {
     pub subfamily_name_id: u16,
     pub flags: u16,
@@ -27,6 +28,7 @@ pub struct FvarInstance {
 // 専用の要素dispose関数が不要（詳細は下の `dispose_fvar`）。テーブル全体の
 // `.copy`（`FVAR_I_INSTANCE_LIST.copy`）は一度も呼ばれておらず削除。
 pub type FvarInstanceList = Vec<FvarInstance>;
+#[derive(Debug)]
 pub struct FvarMaster {
     pub name: Vec<u8>,
     pub region: *mut VqRegion,
@@ -47,7 +49,7 @@ pub struct FvarMaster {
 // a `*const VqRegion` wrapper at all: the raw pointer it used to hold was
 // about working around the `Eq`/`Hash` gap, not about sharing ownership
 // with `masters`' canonical region.
-#[derive(Clone, PartialEq, Eq, Hash)]
+#[derive(Clone, PartialEq, Eq, Hash, Debug)]
 pub struct RegionKey {
     dimensions: crate::support::primitives::ShapeId,
     spans: Vec<[u8; 24]>,
@@ -88,6 +90,7 @@ impl RegionKey {
 // 件数が実質的に無制限 —— 線形走査は実アルゴリズム的退行になり得るので
 // `IndexMap`（挿入順を保ちつつO(1)平均ルックアップ）を使う。このcrateで
 // 初めて`indexmap`に依存する箇所。
+#[derive(Debug)]
 pub struct FvarTable {
     pub major_version: u16,
     pub minor_version: u16,

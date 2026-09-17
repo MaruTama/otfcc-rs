@@ -8,7 +8,7 @@ use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::vendor::json::JsonType;
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct Os2Table {
     pub version: u16,
     pub x_avg_char_width: i16,

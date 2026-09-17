@@ -6,12 +6,14 @@ use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 use crate::support::fmt::Byte;
+#[derive(Debug)]
 pub struct SfntTableEntry {
     pub tag: i32,
     pub length: u32,
     pub checksum: u32,
     pub buffer: Buffer,
 }
+#[derive(Debug)]
 pub struct SfntBuilder {
     pub count: u32,
     pub header: u32,

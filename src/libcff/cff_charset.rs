@@ -13,12 +13,12 @@ const CFF_CHARSET_OFFSET_ISO_ADOBE: i32 = 0;
 const CFF_CHARSET_OFFSET_EXPERT: i32 = 1;
 const CFF_CHARSET_OFFSET_EXPERT_SUBSET: i32 = 2;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct CffCharsetRangeFormat1 {
     pub first: u16,
     pub nleft: u8,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct CffCharsetRangeFormat2 {
     pub first: u16,
     pub nleft: u16,
@@ -29,7 +29,7 @@ pub struct CffCharsetRangeFormat2 {
 /// discriminant and payload together. `s` (the entry count) is gone too --
 /// it was write-only (set once while parsing or building, never read again
 /// anywhere in the crate) and exactly duplicated each `Vec`'s own `.len()`.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum CffCharset {
     IsoAdobe,
     Expert,

@@ -44,7 +44,7 @@ struct NodeId(usize);
 #[derive(Copy, Clone, PartialEq, Eq, Debug)]
 struct RuleId(usize);
 
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 struct CffSubrNode {
     prev: Option<NodeId>,
     rule: Option<RuleId>,
@@ -63,7 +63,7 @@ struct CffSubrNode {
     /// already-cleared fields.
     dead: bool,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct CffSubrRule {
     pub printed: bool,
     pub numbered: bool,
@@ -82,7 +82,7 @@ pub struct CffSubrRule {
 /// insertion/disposal (grepped: never read for anything but the hash
 /// itself), so it needs no home in the value at all -- the two fields
 /// that were actually read back (`arity`, `start`) are all that remain.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 struct CffSubrDiagramIndexEntry {
     arity: u8,
     start: NodeId,
@@ -93,6 +93,7 @@ struct CffSubrDiagramIndexEntry {
 /// ('1' vs '2') keeps the two arities from ever colliding -- order never
 /// matters (no `HASH_SORT`, and the only whole-table walk is disposal),
 /// so `HashMap` applies directly.
+#[derive(Debug)]
 pub struct CffSubrGraph {
     nodes: Vec<CffSubrNode>,
     rules: Vec<CffSubrRule>,
@@ -723,7 +724,7 @@ fn ends_with_end_char(g: &CffSubrGraph, rule: RuleId) -> bool {
 // the aliasing the borrow checker rejects; a `Copy` selector plus deferred
 // resolution sidesteps it -- each `resolve_subr_ref(...)` call's borrow
 // ends at the end of its own statement, so nothing overlaps the recursion.
-#[derive(Clone, Copy)]
+#[derive(Clone, Copy, Debug)]
 enum SubrRef {
     Top,
     LSubr(usize),

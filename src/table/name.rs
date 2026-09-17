@@ -17,7 +17,7 @@ use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 // `Vec<NameRecord>: Clone` doing a deep copy (the whole-table `.copy` slot
 // was already dead before this conversion, per the earlier note this
 // replaces).
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct NameRecord {
     pub platform_id: u16,
     pub encoding_id: u16,

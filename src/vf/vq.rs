@@ -13,7 +13,7 @@ use crate::vf::region::vq_compare_region;
 // owned heap data -- `region: *const VqRegion` is a borrowed pointer), so
 // the new enum stays `Copy` too, with none of the `Drop`/ownership
 // bookkeeping those other conversions needed.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub enum VqSegment {
     Still(Pos),
     Delta(VqSegmentDelta),
@@ -67,13 +67,13 @@ impl VqSegment {
 // turns out to be a content-duplicate during registration is freed
 // immediately, before its pointer is ever handed to a `VqSegmentDelta` --
 // see `fvar_register_region`'s own comment.
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VqSegmentDelta {
     pub quantity: Pos,
     pub touched: bool,
     pub region: *const VqRegion,
 }
-#[derive(Clone, Default)]
+#[derive(Clone, Default, Debug)]
 pub struct VQ {
     pub kernel: Pos,
     pub shift: Vec<VqSegment>,

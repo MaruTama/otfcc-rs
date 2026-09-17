@@ -13,6 +13,7 @@ use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::GlyphId;
 use crate::vendor::json::JsonType;
 
+#[derive(Debug)]
 pub struct SvgAssignment {
     pub start: GlyphId,
     pub end: GlyphId,

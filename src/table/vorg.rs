@@ -8,11 +8,12 @@ use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos};
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct VorgEntry {
     pub gid: GlyphId,
     pub vertical_origin: i16,
 }
+#[derive(Debug)]
 pub struct VorgTable {
     pub num_vert_origin_y_metrics: GlyphId,
     pub default_vertical_origin: Pos,

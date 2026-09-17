@@ -50,6 +50,7 @@ use crate::table::otl::{
 // value in the first place -- every access already went through a raw
 // pointer (`cds: *mut ClassDefs` / `defs: *mut ClassDefs`), so dropping the
 // derive changes no call site's shape, only what `bc`/`ic`/`fc` own.
+#[derive(Debug)]
 pub struct ClassDefs {
     pub bc: Option<Box<ClassDef>>,
     pub ic: Option<Box<ClassDef>>,

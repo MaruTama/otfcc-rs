@@ -49,6 +49,7 @@ pub const LOG_VL_IMPORTANT: u8 = 1;
 pub const LOG_VL_NOTICE: u8 = 2;
 pub const LOG_VL_INFO: u8 = 5;
 pub const LOG_VL_PROGRESS: u8 = 10;
+#[derive(Debug)]
 pub struct Logger {
     pub target: LoggerTarget,
     pub level: u16,

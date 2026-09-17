@@ -339,6 +339,7 @@ pub fn parse_json(input: &[u8]) -> Option<ParsedValue> {
 // sibling values too, with no bookkeeping to get wrong.
 const MAX_JSON_NESTING_DEPTH: u32 = 512;
 
+#[derive(Debug)]
 struct Parser<'a> {
     input: &'a [u8],
     pos: usize,

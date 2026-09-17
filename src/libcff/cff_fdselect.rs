@@ -3,7 +3,7 @@
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::FontReader;
 
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct CffFdSelectRangeFormat3 {
     pub first: u16,
     pub fd: u8,
@@ -17,7 +17,7 @@ pub struct CffFdSelectRangeFormat3 {
 /// `.len()`. `sentinel` is kept: unlike the counts, it is a genuine data
 /// value (the one-past-the-last glyph index Format3's final range extends
 /// to), not derivable from the `Vec` itself.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub enum CffFdSelect {
     Unspecified,
     Format0(Vec<u8>),

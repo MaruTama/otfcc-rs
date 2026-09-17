@@ -21,7 +21,7 @@ pub enum TsiEntryType {
     Cvt = 3,
     ReservedFffc = 4,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct TsiEntry {
     pub type_0: TsiEntryType,
     pub glyph: GlyphHandle,
@@ -42,6 +42,7 @@ pub(crate) fn tsi_entry_dup(e: &TsiEntry) -> TsiEntry {
         content: e.content.clone(),
     }
 }
+#[derive(Debug)]
 pub struct TsiBuildTarget {
     pub index_part: Option<Buffer>,
     pub text_part: Option<Buffer>,
@@ -66,6 +67,7 @@ fn is_valid_gid(gid: u16, tag_index: u32) -> bool {
 // index_part.length` loop guard, which admits a final *partial* record
 // whenever `index_part.length` isn't a multiple of 8 (the same off-by-one
 // class `table/tsi5.rs::otfcc_read_tsi5` had, fixed two PRs ago).
+#[derive(Debug)]
 struct TsiIndexEntry {
     gid: u16,
     text_length: u32,

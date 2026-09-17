@@ -18,6 +18,7 @@ use crate::support::primitives::GlyphId;
 // sizing `y_pels`, it is independently compared against `Glyf`'s glyph
 // count at `otf_reader/unconsolidate.rs`'s `merge_ltsh` (a `.min()` clamp),
 // so it carries information beyond a plain redundant length.
+#[derive(Debug)]
 pub struct LtshTable {
     pub version: u16,
     pub num_glyphs: GlyphId,

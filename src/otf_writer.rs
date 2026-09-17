@@ -56,6 +56,7 @@ pub(crate) trait FontSerializer {
         options: *const ::core::ffi::c_void,
     ) -> *mut ::core::ffi::c_void;
 }
+#[derive(Debug)]
 struct OtfSerializer;
 impl FontSerializer for OtfSerializer {
     unsafe fn serialize(

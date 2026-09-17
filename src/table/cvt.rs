@@ -16,6 +16,7 @@ use crate::vendor::json::JsonType;
 // `words.len()` at every construction site (the allocation size and the
 // read/write loop bound were always derived from the same count), so every
 // former read of `(*table).length` below now reads `.words.len()` instead.
+#[derive(Debug)]
 pub struct CvtTable {
     pub words: Vec<u16>,
 }

@@ -16,12 +16,12 @@ use crate::vendor::json::JsonType;
 
 use crate::bk::bkgraph::bk_build_block;
 use crate::support::built_json::BuiltValue;
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ColrLayer {
     pub glyph: GlyphHandle,
     pub palette_index: ColorId,
 }
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ColrMapping {
     pub glyph: GlyphHandle,
     pub layers: Vec<ColrLayer>,

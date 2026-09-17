@@ -30,6 +30,7 @@ pub const TTF_PUSHW: u8 = 184;
 // `bts`, in contrast, is allocated, filled, and freed entirely within this
 // file (`instr_typify` builds it, `dump_ttinstr` reads it and drops it), so
 // it converts cleanly to `Vec` with no boundary to preserve.
+#[derive(Debug)]
 pub struct InstrData {
     pub instrs: *mut u8,
     pub instr_cnt: u32,

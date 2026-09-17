@@ -222,6 +222,7 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
     order_glyphs(go);
     return Some(go_box);
 }
+#[derive(Debug)]
 struct JsonReader;
 impl FontBuilder for JsonReader {
     unsafe fn read(

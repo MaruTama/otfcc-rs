@@ -13,13 +13,13 @@ use crate::support::primitives::{GlyphClass, GlyphId};
 /// `Vec<GlyphClass>`. `maxclass` is a running maximum scalar, not part of
 /// either array, so `ClassDef` stays a real (if now `Vec`-holding) struct
 /// rather than collapsing to a bare `pub type` the way `Coverage` did.
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ClassDef {
     pub maxclass: GlyphClass,
     pub glyphs: Vec<GlyphHandle>,
     pub classes: Vec<GlyphClass>,
 }
-#[derive(Copy, Clone)]
+#[derive(Copy, Clone, Debug)]
 pub struct ClassDefSortRecord {
     pub gid: GlyphId,
     pub cid: GlyphClass,

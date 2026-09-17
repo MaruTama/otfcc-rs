@@ -35,6 +35,7 @@ use crate::table::tsi5::otfcc_dump_tsi5;
 use crate::table::vdmx::funcs::otfcc_dump_vdmx;
 use crate::table::vhea::otfcc_dump_vhea;
 
+#[derive(Debug)]
 struct JsonSerializer;
 impl FontSerializer for JsonSerializer {
     unsafe fn serialize(

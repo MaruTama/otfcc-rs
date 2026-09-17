@@ -20,7 +20,7 @@ use crate::table::otl::{
     ChainLookupApplication, ChainingRule, ChainingRuleSet, ChainingSubtable, Lookup, Subtable,
     SubtablePtr, subtable_at,
 };
-#[derive(Clone)]
+#[derive(Clone, Debug)]
 pub struct ClassifierValue {
     pub gname: Vec<u8>,
     pub cls: i32,
