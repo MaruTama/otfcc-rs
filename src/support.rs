@@ -13,7 +13,6 @@ pub mod handle;
 pub mod options;
 pub mod parsed_json;
 pub mod primitives;
-pub mod sha1;
 pub mod stdio;
 pub mod stopwatch;
 pub mod ttinstr;
