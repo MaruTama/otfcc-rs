@@ -524,6 +524,14 @@ unsafe fn digit_gen(
         let tmp: u64 = ((p1 as u64) << -one.e).wrapping_add(p2);
         if tmp <= delta {
             *k_out += kappa;
+            // `kappa`/`-kappa` can reach 12 for a high-precision double,
+            // past `K_POW10`'s own 10 entries. C indexes past the array
+            // and reads adjacent memory there -- a value large enough to
+            // make `grisu_round`'s rounding step a no-op -- while Rust
+            // bounds-checks and panics. `.min(9)` clamps to the last
+            // entry instead, reproducing that same no-op-rounding
+            // outcome directly rather than the OOB read that happens to
+            // cause it in C. Same reasoning at the mirrored call below.
             grisu_round(
                 buffer,
                 *len,

@@ -30,15 +30,16 @@ name: Rust build & compatibility
 # (dump/build output through PR #78, stderr log output afterward) and then
 # deleted from the tree entirely; tests/golden/ is that confirmed-good output
 # frozen in place, so CI never needs C present, built, or even checked out.
-# scripts/archive/compare-with-c.sh still exists for a manual,
-# on-demand re-check against C (e.g. before regenerating tests/golden/ after
-# a legitimate output-changing fix), but needs c/ restored from git history
-# to run -- see scripts/archive/README.md.
+# The manual, on-demand re-check against C this used to describe
+# (scripts/archive/compare-with-c.sh) is gone too -- see RUST_MIGRATION.md's
+# "Next steps" for when and why; UPDATE_GOLDEN=1 (see tests/golden.rs) is
+# how tests/golden/ gets refreshed after a legitimate output-changing fix
+# now.
 #
-# This does NOT re-run c2rust (the C -> Rust transpile). The Rust source is
-# committed to the repo and hand-maintained; the transpile pipeline is retired
-# (scripts/archive/), so a C-side change is ported to Rust by hand. See
-# "Regenerating the Rust source" in RUST_MIGRATION.md.
+# This does NOT re-run c2rust (the C -> Rust transpile) either. The Rust
+# source is committed to the repo and hand-maintained; the transpile
+# pipeline that originally produced it is retired (see RUST_MIGRATION.md's
+# "Next steps"), so a C-side change is ported to Rust by hand.
 on:
   push:
     branches: [master]

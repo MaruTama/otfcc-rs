@@ -24,8 +24,8 @@
 /// `0xffd7` (which the reader decodes back to -41). Going through `i16` is
 /// what reproduces that.
 ///
-/// c2rust got this wrong; `scripts/archive/fix-float-narrowing.py`
-/// records the original call-site list and the full diagnosis.
+/// c2rust got this wrong originally; this doc comment (and the regression
+/// test below) is the full diagnosis, since fixed.
 #[inline]
 pub(crate) fn pos_to_u16(x: f64) -> u16 {
     x as i16 as u16

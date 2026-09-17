@@ -32,8 +32,10 @@ confirmed-matching build — dump/build output via `checksums.sha256`
 (`tests/log_output.rs`) — nothing in the build or in CI needed `c/`
 present, built, or even checked out any more, and it was deleted. It is still in git
 history (tag/commit predating the deletion) for anyone who needs to diff
-against the original C source or re-run `compare-with-c.sh` by hand; see
-`scripts/archive/README.md`. `tests/`, `build/`, and `bin/` stay at the
+against the original C source by hand -- `compare-with-c.sh` itself (the
+tool that used to automate that diff) is also gone now, along with the
+rest of `scripts/archive/`; see "Next steps" for when and why. `tests/`,
+`build/`, and `bin/` stay at the
 repo root — the Rust binaries build against and are verified against those
 same fixtures/outputs. The crate directory itself is flattened: the crate
 root (`Cargo.toml`, `src/`) and the migration tooling (`scripts/`, this
@@ -109,10 +111,11 @@ they've already found.
 If you're changing behavior in a way that's meant to keep matching what C
 used to do (as opposed to a deliberate, intentional divergence — which is
 explicitly permitted from Phase 5 onward, see the plan linked from the
-issue), `scripts/archive/compare-with-c.sh` still exists for that, but needs
-`c/` restored from git history to run (`git show <pre-deletion-commit>:c` or
-checking out a tag before the deletion) — see `scripts/archive/README.md`.
-Confirm with it, then re-run the golden-comparison tests with
+issue), the manual, on-demand comparison tool this used to point at
+(`compare-with-c.sh`) is retired -- see "Next steps" for when and why. A
+by-hand diff against `c/` restored from git history (`git show
+<pre-deletion-commit>:c` or a tag before the deletion) is the fallback if
+one is ever needed again. Otherwise, re-run the golden-comparison tests with
 `UPDATE_GOLDEN=1` set (`UPDATE_GOLDEN=1 cargo test --release --locked --
 --test-threads=1`) to refresh `tests/golden/` and commit the result
 alongside the change that motivated it. See "CI decoupled from C" further
@@ -201,47 +204,38 @@ against the platform's own libc rather than trusting the reading.
 
 ## Regenerating the Rust source — retired, kept for the audit trail
 
-**The transpile pipeline now lives in `scripts/archive/` and must not be
-run.** It was already destructive when Phase 2 began (`transpile.sh` does
-`rm -rf rust/src` and copies fresh c2rust output over it, discarding every
-hand-idiomatized file); the standard cargo layout adopted in Phase 3 means its
-output no longer even maps onto this crate's directory structure. A C-side
-change is ported to Rust by hand from here on, mirroring whatever the
-equivalent C diff does.
+**The transpile pipeline (`scripts/archive/`) has been deleted from the
+tree (see "Next steps" for when and why) and must never be run again even
+if resurrected from git history.** It was already destructive when Phase 2
+began (`transpile.sh` did `rm -rf rust/src` and copied fresh c2rust output
+over it, discarding every hand-idiomatized file); the standard cargo layout
+adopted in Phase 3 means its output no longer even maps onto this crate's
+directory structure. A C-side change is ported to Rust by hand from here
+on, mirroring whatever the equivalent C diff does.
 
-It stays in the repository rather than being deleted because it documents
-*why* parts of this crate look the way they do — in particular
-`fix-float-narrowing.py`'s call-site list, which is the reason for the
+What follows is kept as prose, not as scripts to run, because it documents
+*why* parts of this crate look the way they do — in particular the
+`fix-float-narrowing.py` call-site list below, which is the reason for the
 deliberate `EXPR as int16_t as uint16_t` double casts that must never be
-"simplified" away.
+"simplified" away (see `support::binio::pos_to_u16`'s own doc comment,
+which carries this same diagnosis today). The scripts themselves are still
+in git history (`git log --all --full-history -- scripts/archive/`) if
+anyone ever needs the literal commands again.
 
 <details>
-<summary>The original procedure (do not run)</summary>
+<summary>The original procedure (historical -- the scripts it named no longer exist in the tree)</summary>
 
 1. Restore `c/` from git history (e.g. `git show <pre-deletion-commit>:c`),
    then generate the compilation database (macOS shown; `OS=linux` on
-   Linux):
-
-   ```bash
-   ./scripts/archive/gen-compile-commands.sh
-   ```
+   Linux) with what was `scripts/archive/gen-compile-commands.sh`.
 
 2. Build the transpiler image once (native arm64; slow — it compiles c2rust
-   from source):
+   from source) with what was `scripts/archive/Dockerfile`.
 
-   ```bash
-   docker build -t otfcc-c2rust -f scripts/archive/Dockerfile scripts/archive/
-   ```
-
-3. Transpile. The repo is mounted at its **host path** so the absolute paths
-   in `c/compile_commands.json` resolve unchanged. This overwrites the crate
-   files under `rust/` (not its hand-maintained scripts) — review the diff
-   before committing.
-
-   ```bash
-   docker run --rm -v "$PWD":"$PWD" -w "$PWD" \
-       --entrypoint bash otfcc-c2rust scripts/archive/transpile.sh
-   ```
+3. Transpile. The repo was mounted at its **host path** so the absolute paths
+   in `c/compile_commands.json` resolved unchanged. This overwrote the crate
+   files under `rust/` (not its hand-maintained scripts) — the diff needed
+   review before committing. This step was what ran `transpile.sh`.
 
 4. Verify it still builds and matches C (see "Everyday use" above), then
    commit the diff.
@@ -298,7 +292,8 @@ transpile step itself needs arm64.
   `otfccdll.c` a `SharedLib`; c2rust's default `staticlib`+`rlib` alone can't
   be linked against as a shared library) and clamps the vendored dtoa's
   `kPow10` index (a latent OOB in the C source that Rust's bounds checks
-  catch — see the comment in `transpile.sh` for the full mechanism).
+  catch — see `vendor/emyg_dtoa.rs`'s own comment at the two `.min(9)`
+  call sites for the full mechanism, carried over from this section).
 
 </details>
 
@@ -13755,3 +13750,52 @@ on the other platform before a commit is trusted.
   (so the skip path shouldn't ever trigger in a normal checkout). The
   script is still in git history if a different `wght` axis/master
   configuration is ever needed for `gvar-test.ttf`.
+- **`scripts/archive/` deleted entirely (2026-09-18).** The retired c2rust
+  transpile pipeline (`Dockerfile`/`transpile.sh`/`fix-transmute-abi.py`/
+  `fix-float-narrowing.py`) and the C-comparison tooling that needed `c/`
+  restored from git history to run at all (`compare-with-c.sh`/
+  `gen-compile-commands.sh`/`filter-compdb.js`) -- eight files, none
+  runnable in the current tree without extraordinary manual setup (restore
+  `c/` from a pre-deletion commit, or accept that running the transpile
+  pipeline again would overwrite eleven-plus stages of hand-idiomatized
+  work with fresh, unmapped c2rust output). Checked, before deleting,
+  whether any of the technical knowledge these files' own comments carried
+  was undocumented anywhere else:
+  - `fix-float-narrowing.py`'s exact diagnosis (why `pos_to_u16` needs an
+    `as i16 as u16` double cast, not a direct `as u16`) was already fully
+    duplicated in `support::binio::pos_to_u16`'s own doc comment and
+    regression test -- nothing lost. Reworded that doc comment's own
+    pointer at the now-deleted script into a plain "this comment is the
+    diagnosis" statement.
+  - The `kPow10` OOB-clamp rationale (why `vendor/emyg_dtoa.rs`'s two
+    `.min(9)` calls exist) was **not** duplicated anywhere outside
+    `transpile.sh`'s own comment and this file's "Regenerating the Rust
+    source" section -- added an inline comment at both `emyg_dtoa.rs`
+    call sites carrying the same explanation, so it survives at the
+    actual code it explains, not only in this file's prose.
+  - `fix-transmute-abi.py`'s bug (c2rust dropping `unsafe extern "C"`
+    through a `transmute` on some struct-returning function-pointer
+    calls) has zero remaining occurrences in `src/` (confirmed by grep) --
+    already fully fixed and merged; this file's "Regenerating the Rust
+    source" section's own "Post-transpile fixups" list already carries
+    the full diagnosis as prose, unchanged by the deletion.
+  - `Dockerfile`'s toolchain-version pins (native arm64, Ubuntu 24.04/
+    clang-17, c2rust 0.22.1) and the reasons for each are already fully
+    recorded as prose in this file's "Why native arm64, and this base
+    image" section -- nothing beyond the literal, no-longer-runnable
+    Dockerfile itself was lost.
+  - `.github/workflows/rust.yml`'s own comment describing
+    `compare-with-c.sh` as a still-available manual tool, and this file's
+    two "living" mentions of it (the opening section, and the "if you're
+    changing behavior to match C" paragraph), all reworded to past tense
+    -- pointing at `UPDATE_GOLDEN=1`/a by-hand `c/` diff as the current
+    equivalents instead of a script that no longer exists.
+  - `scripts/make-test-base.py`/`-lookup-alias.py`/`-meta.py`/`-vdmx.py`'s
+    own doc comments mention `compare-with-c.sh` too, but only as
+    historical motivation ("this fixture covers a gap `compare-with-c.sh`'s
+    comparison had") -- left unchanged, same append-only reasoning as this
+    file's own historical journal entries.
+  - This file's own historical journal entries mentioning `scripts/
+    archive/*` (the ones describing *past* PRs that moved files there, or
+    fixed things about it) are deliberately unchanged, per the established
+    convention.
