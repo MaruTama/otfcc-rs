@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-use libc::memmove;
 #[derive(Copy, Clone, Debug)]
 pub struct DiyFp {
     pub f: u64,
@@ -392,20 +390,13 @@ fn get_cached_power(e: i32, k_out: &mut i32) -> DiyFp {
     );
 }
 #[inline]
-unsafe fn grisu_round(
-    buffer: *mut ::core::ffi::c_char,
-    len: i32,
-    delta: u64,
-    mut rest: u64,
-    ten_kappa: u64,
-    wp_w: u64,
-) {
+fn grisu_round(buffer: &mut [u8], len: i32, delta: u64, mut rest: u64, ten_kappa: u64, wp_w: u64) {
     while rest < wp_w
         && delta.wrapping_sub(rest) >= ten_kappa
         && (rest.wrapping_add(ten_kappa) < wp_w
             || wp_w.wrapping_sub(rest) > rest.wrapping_add(ten_kappa).wrapping_sub(wp_w))
     {
-        *buffer.offset((len - 1_i32) as isize) -= 1;
+        buffer[(len - 1_i32) as usize] -= 1;
         rest = rest.wrapping_add(ten_kappa);
     }
 }
@@ -441,14 +432,7 @@ fn count_decimal_digit32(n: u32) -> ::core::ffi::c_uint {
     return 10 as ::core::ffi::c_uint;
 }
 #[inline]
-unsafe fn digit_gen(
-    w: DiyFp,
-    mp: DiyFp,
-    mut delta: u64,
-    buffer: *mut ::core::ffi::c_char,
-    len: *mut i32,
-    k_out: *mut i32,
-) {
+fn digit_gen(w: DiyFp, mp: DiyFp, mut delta: u64, buffer: &mut [u8], len: &mut i32, k_out: &mut i32) {
     static K_POW10: [u32; 10] = [
         1_i32 as u32,
         10_i32 as u32,
@@ -515,9 +499,7 @@ unsafe fn digit_gen(
             }
         }
         if d != 0 || *len != 0 {
-            *buffer.offset(*len as isize) = ('0' as i32
-                + d as ::core::ffi::c_char as i32)
-                as ::core::ffi::c_char;
+            buffer[*len as usize] = b'0'.wrapping_add(d as u8);
             *len = *len + 1;
         }
         kappa -= 1;
@@ -546,10 +528,9 @@ unsafe fn digit_gen(
     loop {
         p2 = p2.wrapping_mul(10_u64);
         delta = delta.wrapping_mul(10_u64);
-        let d_0: ::core::ffi::c_char = (p2 >> -one.e) as ::core::ffi::c_char;
-        if d_0 as i32 != 0 || *len != 0 {
-            *buffer.offset(*len as isize) =
-                ('0' as i32 + d_0 as i32) as ::core::ffi::c_char;
+        let d_0: u8 = (p2 >> -one.e) as u8;
+        if d_0 != 0 || *len != 0 {
+            buffer[*len as usize] = b'0'.wrapping_add(d_0);
             *len = *len + 1;
         }
         p2 &= one.f.wrapping_sub(1_u64);
@@ -570,17 +551,12 @@ unsafe fn digit_gen(
     }
 }
 #[inline]
-unsafe fn grisu2(
-    value: ::core::ffi::c_double,
-    buffer: *mut ::core::ffi::c_char,
-    length: *mut i32,
-    k_out: *mut i32,
-) {
+fn grisu2(value: ::core::ffi::c_double, buffer: &mut [u8], length: &mut i32, k_out: &mut i32) {
     let v: DiyFp = diy_fp_from_double(value) as DiyFp;
     let mut w_m: DiyFp = DiyFp { f: 0, e: 0 };
     let mut w_p: DiyFp = DiyFp { f: 0, e: 0 };
     normalized_boundaries(v, &mut w_m, &mut w_p);
-    let c_mk: DiyFp = get_cached_power(w_p.e, unsafe { &mut *k_out }) as DiyFp;
+    let c_mk: DiyFp = get_cached_power(w_p.e, k_out) as DiyFp;
     let w: DiyFp = diy_fp_multiply(normalize(v), c_mk) as DiyFp;
     let mut wp: DiyFp = diy_fp_multiply(w_p, c_mk);
     let mut wm: DiyFp = diy_fp_multiply(w_m, c_mk);
@@ -589,326 +565,194 @@ unsafe fn grisu2(
     digit_gen(w, wp, wp.f.wrapping_sub(wm.f), buffer, length, k_out);
 }
 #[inline]
-unsafe fn get_digits_lut() -> *const ::core::ffi::c_char {
-    static C_DIGITS_LUT: [::core::ffi::c_char; 200] = [
-        '0' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '0' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '1' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '2' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '3' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '4' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '5' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '6' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '7' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '8' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-        '9' as i32 as ::core::ffi::c_char,
-    ];
-    return &raw const C_DIGITS_LUT as *const ::core::ffi::c_char;
+fn get_digits_lut() -> &'static [u8; 200] {
+    static C_DIGITS_LUT: [u8; 200] =
+        *b"00010203040506070809101112131415161718192021222324252627282930313233343536373839404142434445464748495051525354555657585960616263646566676869707172737475767778798081828384858687888990919293949596979899";
+    &C_DIGITS_LUT
 }
 #[inline]
-unsafe fn write_exponent(mut k_out: i32, mut buffer: *mut ::core::ffi::c_char) {
+fn write_exponent(mut k_out: i32, buffer: &mut [u8]) {
+    let mut buffer = buffer;
     if k_out < 0_i32 {
-        *buffer = '-' as i32 as ::core::ffi::c_char;
-        buffer = buffer.offset(1);
+        buffer[0] = b'-';
+        buffer = &mut buffer[1..];
         k_out = -k_out;
     }
     if k_out >= 100_i32 {
-        *buffer = ('0' as i32
-            + (k_out / 100_i32) as ::core::ffi::c_char as i32)
-            as ::core::ffi::c_char;
-        buffer = buffer.offset(1);
+        buffer[0] = b'0'.wrapping_add((k_out / 100_i32) as u8);
+        buffer = &mut buffer[1..];
         k_out %= 100_i32;
-        let d: *const ::core::ffi::c_char =
-            get_digits_lut().offset((k_out * 2_i32) as isize);
-        *buffer = *d.offset(0_i32 as isize);
-        buffer = buffer.offset(1);
-        *buffer = *d.offset(1_i32 as isize);
-        buffer = buffer.offset(1);
+        let d = &get_digits_lut()[(k_out * 2_i32) as usize..];
+        buffer[0] = d[0];
+        buffer[1] = d[1];
+        buffer = &mut buffer[2..];
     } else if k_out >= 10_i32 {
-        let d_0: *const ::core::ffi::c_char =
-            get_digits_lut().offset((k_out * 2_i32) as isize);
-        *buffer = *d_0.offset(0_i32 as isize);
-        buffer = buffer.offset(1);
-        *buffer = *d_0.offset(1_i32 as isize);
-        buffer = buffer.offset(1);
+        let d = &get_digits_lut()[(k_out * 2_i32) as usize..];
+        buffer[0] = d[0];
+        buffer[1] = d[1];
+        buffer = &mut buffer[2..];
     } else {
-        *buffer = ('0' as i32 + k_out as ::core::ffi::c_char as i32)
-            as ::core::ffi::c_char;
-        buffer = buffer.offset(1);
+        buffer[0] = b'0'.wrapping_add(k_out as u8);
+        buffer = &mut buffer[1..];
     }
-    *buffer = '\0' as i32 as ::core::ffi::c_char;
+    buffer[0] = 0;
 }
 #[inline]
-unsafe fn prettify(
-    buffer: *mut ::core::ffi::c_char,
-    length: i32,
-    k: i32,
-) {
+fn prettify(buffer: &mut [u8], length: i32, k: i32) {
     let kk: i32 = length + k;
     if length <= kk && kk <= 21_i32 {
         let mut i: i32 = length;
         while i < kk {
-            *buffer.offset(i as isize) = '0' as i32 as ::core::ffi::c_char;
+            buffer[i as usize] = b'0';
             i += 1;
         }
-        *buffer.offset(kk as isize) = '.' as i32 as ::core::ffi::c_char;
-        *buffer.offset((kk + 1_i32) as isize) = '0' as i32 as ::core::ffi::c_char;
-        *buffer.offset((kk + 2_i32) as isize) =
-            '\0' as i32 as ::core::ffi::c_char;
+        buffer[kk as usize] = b'.';
+        buffer[(kk + 1_i32) as usize] = b'0';
+        buffer[(kk + 2_i32) as usize] = 0;
     } else if 0_i32 < kk && kk <= 21_i32 {
-        memmove(
-            buffer.offset((kk + 1_i32) as isize) as *mut ::core::ffi::c_char
-                as *mut ::core::ffi::c_void,
-            buffer.offset(kk as isize) as *mut ::core::ffi::c_char as *const ::core::ffi::c_void,
-            (length - kk) as usize,
-        );
-        *buffer.offset(kk as isize) = '.' as i32 as ::core::ffi::c_char;
-        *buffer.offset((length + 1_i32) as isize) =
-            '\0' as i32 as ::core::ffi::c_char;
+        buffer.copy_within(kk as usize..length as usize, (kk + 1_i32) as usize);
+        buffer[kk as usize] = b'.';
+        buffer[(length + 1_i32) as usize] = 0;
     } else if -6_i32 < kk && kk <= 0_i32 {
         let offset: i32 = 2_i32 - kk;
-        memmove(
-            buffer.offset(offset as isize) as *mut ::core::ffi::c_char as *mut ::core::ffi::c_void,
-            buffer.offset(0_i32 as isize) as *mut ::core::ffi::c_char
-                as *const ::core::ffi::c_void,
-            length as usize,
-        );
-        *buffer.offset(0_i32 as isize) = '0' as i32 as ::core::ffi::c_char;
-        *buffer.offset(1_i32 as isize) = '.' as i32 as ::core::ffi::c_char;
+        buffer.copy_within(0..length as usize, offset as usize);
+        buffer[0] = b'0';
+        buffer[1] = b'.';
         let mut i_0: i32 = 2_i32;
         while i_0 < offset {
-            *buffer.offset(i_0 as isize) = '0' as i32 as ::core::ffi::c_char;
+            buffer[i_0 as usize] = b'0';
             i_0 += 1;
         }
-        *buffer.offset((length + offset) as isize) = '\0' as i32 as ::core::ffi::c_char;
+        buffer[(length + offset) as usize] = 0;
     } else if length == 1_i32 {
-        *buffer.offset(1_i32 as isize) = 'e' as i32 as ::core::ffi::c_char;
-        write_exponent(
-            kk - 1_i32,
-            buffer.offset(2_i32 as isize) as *mut ::core::ffi::c_char,
-        );
+        buffer[1] = b'e';
+        write_exponent(kk - 1_i32, &mut buffer[2..]);
     } else {
-        memmove(
-            buffer.offset(2_i32 as isize) as *mut ::core::ffi::c_char
-                as *mut ::core::ffi::c_void,
-            buffer.offset(1_i32 as isize) as *mut ::core::ffi::c_char
-                as *const ::core::ffi::c_void,
-            (length - 1_i32) as usize,
-        );
-        *buffer.offset(1_i32 as isize) = '.' as i32 as ::core::ffi::c_char;
-        *buffer.offset((length + 1_i32) as isize) =
-            'e' as i32 as ::core::ffi::c_char;
-        write_exponent(
-            kk - 1_i32,
-            buffer.offset((length + 2_i32) as isize)
-                as *mut ::core::ffi::c_char,
-        );
+        buffer.copy_within(1..length as usize, 2);
+        buffer[1] = b'.';
+        buffer[(length + 1_i32) as usize] = b'e';
+        write_exponent(kk - 1_i32, &mut buffer[(length + 2_i32) as usize..]);
     };
 }
-pub unsafe fn emyg_dtoa(mut value: ::core::ffi::c_double, mut buffer: *mut ::core::ffi::c_char) {
+/// Writes `value`'s shortest round-tripping decimal representation into
+/// `buffer`, NUL-terminated, matching the original C `%g`-compatible
+/// formatting byte for byte -- callers still slice up to the first NUL
+/// (e.g. `CStr::from_bytes_until_nul`) rather than reading a returned
+/// length, unchanged from the original C-shaped contract.
+pub fn emyg_dtoa(mut value: ::core::ffi::c_double, buffer: &mut [u8]) {
+    let mut buffer = buffer;
     if value == 0_i32 as ::core::ffi::c_double {
-        *buffer.offset(0_i32 as isize) = '0' as i32 as ::core::ffi::c_char;
-        *buffer.offset(1_i32 as isize) = '.' as i32 as ::core::ffi::c_char;
-        *buffer.offset(2_i32 as isize) = '0' as i32 as ::core::ffi::c_char;
-        *buffer.offset(3_i32 as isize) = '\0' as i32 as ::core::ffi::c_char;
+        buffer[0] = b'0';
+        buffer[1] = b'.';
+        buffer[2] = b'0';
+        buffer[3] = 0;
     } else {
         if value < 0_i32 as ::core::ffi::c_double {
-            *buffer = '-' as i32 as ::core::ffi::c_char;
-            buffer = buffer.offset(1);
+            buffer[0] = b'-';
+            buffer = &mut buffer[1..];
             value = -value;
         }
         let mut length: i32 = 0;
         let mut k_out: i32 = 0;
-        grisu2(value, buffer, &raw mut length, &raw mut k_out);
+        grisu2(value, buffer, &mut length, &mut k_out);
         prettify(buffer, length, k_out);
     };
+}
+
+#[cfg(test)]
+mod tests {
+    use super::emyg_dtoa;
+
+    /// Runs `emyg_dtoa` and returns the NUL-terminated text it wrote, as a
+    /// `String` (always plain ASCII: digits, `-`, `.`, `e`).
+    fn format(value: f64) -> String {
+        let mut buffer = [0u8; 64];
+        emyg_dtoa(value, &mut buffer);
+        let nul = buffer.iter().position(|&b| b == 0).expect("emyg_dtoa always writes a NUL terminator");
+        String::from_utf8(buffer[..nul].to_vec()).expect("emyg_dtoa only ever writes ASCII")
+    }
+
+    /// This crate's whole reason to keep a from-scratch Grisu2 port
+    /// (rather than reaching for `{}`/`ryu`/any other formatter) is that
+    /// its output must round-trip: parsing the text back must recover
+    /// `value`'s exact bit pattern, not just "a close decimal". No
+    /// existing test pinned this property directly before this file's
+    /// raw-pointer-to-safe-slice rewrite -- every previous check of this
+    /// file's correctness was indirect, via `tests/golden.rs`'s byte
+    /// comparison of real fonts' `Double` fields.
+    fn assert_round_trips(value: f64) {
+        let text = format(value);
+        let parsed: f64 = text.parse().unwrap_or_else(|e| panic!("{text:?} (from {value}) failed to parse: {e}"));
+        assert_eq!(
+            parsed.to_bits(),
+            value.to_bits(),
+            "{value} -> {text:?} -> {parsed}, expected the exact original bit pattern back"
+        );
+    }
+
+    #[test]
+    fn round_trips_representative_values() {
+        for &v in &[
+            0.0,
+            1.0,
+            -1.0,
+            0.5,
+            -0.5,
+            100.0,
+            0.001,
+            1234.5678,
+            -1234.5678,
+            f64::MIN_POSITIVE,
+            f64::MAX,
+            -f64::MAX,
+            1e300,
+            1e-300,
+            1.0 / 3.0,
+            std::f64::consts::PI,
+            9007199254740993.0, // 2^53 + 1, right at f64's exact-integer boundary
+        ] {
+            assert_round_trips(v);
+        }
+    }
+
+    /// `emyg_dtoa`'s own zero-length fast path (`prettify`/`digit_gen`
+    /// never run) and negative-zero, which compares equal to positive
+    /// zero via `==` but has a distinct bit pattern `assert_round_trips`
+    /// would wrongly flag as a mismatch on the *sign*, since C's `%g`
+    /// (and this port) print bare `0.0` for negative zero too --
+    /// asserted directly against the formatted text instead.
+    #[test]
+    fn zero_formats_without_a_sign() {
+        assert_eq!(format(0.0), "0.0");
+        assert_eq!(format(-0.0), "0.0");
+    }
+
+    /// A pseudo-random sweep across a wide range of bit patterns (not a
+    /// property-testing crate -- this file's own conventions elsewhere in
+    /// this crate prefer a plain seeded LCG for this kind of sweep over a
+    /// new dependency), reinterpreting each as `f64` and skipping NaN/inf
+    /// (which `%g` -- and this port -- never receives from this crate's
+    /// real call sites: JSON numbers are always finite). Round-trip
+    /// fidelity across thousands of arbitrary bit patterns is a much
+    /// stronger guarantee than the handful of representative values above
+    /// could give alone.
+    #[test]
+    fn round_trips_many_pseudo_random_bit_patterns() {
+        // 20,000 iterations on native hardware; far fewer under Miri's
+        // interpreter, where this test alone otherwise dominates the
+        // whole suite's Miri run time (measured: ~340s at 20,000 instead
+        // of the usual ~65s for everything else combined) for a property
+        // Miri itself isn't what would catch anyway (this checks decimal
+        // round-trip correctness, not memory safety) -- 500 still
+        // exercises a wide range of bit patterns.
+        let iterations: u64 = if cfg!(miri) { 500 } else { 20_000 };
+        let mut state: u64 = 0x2545F4914F6CDD1D;
+        for _ in 0..iterations {
+            state = state.wrapping_mul(6364136223846793005).wrapping_add(1442695040888963407);
+            let value = f64::from_bits(state);
+            if value.is_finite() {
+                assert_round_trips(value);
+            }
+        }
+    }
 }

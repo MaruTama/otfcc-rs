@@ -57,7 +57,7 @@
 //!   is still ported in full below (it was cheap and already written), so
 //!   nothing was lost by not narrowing further here.
 
-use ::core::ffi::{c_char, c_int};
+use ::core::ffi::c_int;
 
 use crate::vendor::emyg_dtoa::emyg_dtoa;
 pub use crate::vendor::json_builder::{
@@ -359,9 +359,10 @@ fn write_value(
             out.extend_from_slice(n.to_string().as_bytes());
         }
         BuiltValue::Double(d) => {
-            let mut buffer = [0 as c_char; 256];
-            unsafe { emyg_dtoa(*d, buffer.as_mut_ptr()) };
-            let text = unsafe { ::core::ffi::CStr::from_ptr(buffer.as_ptr()) };
+            let mut buffer = [0u8; 256];
+            emyg_dtoa(*d, &mut buffer);
+            let text = ::core::ffi::CStr::from_bytes_until_nul(&buffer)
+                .expect("emyg_dtoa always writes a NUL terminator");
             out.extend_from_slice(text.to_bytes());
         }
         BuiltValue::Bool(b) => out.extend_from_slice(if *b { b"true" } else { b"false" }),
