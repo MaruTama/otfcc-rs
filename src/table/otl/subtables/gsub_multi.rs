@@ -1,46 +1,27 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::handle::{
     GlyphHandle, handle_from_index, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::{
-    Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage,
-    read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::support::font_reader::FontReader;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphId};
+use crate::support::primitives::GlyphId;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
 use crate::support::built_json::BuiltValue;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
-use crate::table::otl::{GsubMultiEntry, GsubMultiSubtable, Subtable, subtable_from_raw};
+use crate::table::otl::{GsubMultiEntry, GsubMultiSubtable, Subtable};
 // `to: Coverage` and `from: GlyphHandle` both self-drop now, so a
 // `GsubMultiSubtable` (`Vec<GsubMultiEntry>`) fully self-drops -- no
 // per-element dtor needed anymore.
 pub(crate) fn dispose_gsub_multi_subtable(arr: &mut GsubMultiSubtable) {
     *arr = Vec::new();
-}
-pub(crate) unsafe fn subtable_gsub_multi_free(x: *mut GsubMultiSubtable) {
-    if x.is_null() {
-        return;
-    }
-    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
-    // and runs the `Vec`'s own drop glue -- no separate dispose-then-`free`
-    // needed (Stage 7-2-d; `dispose_gsub_multi_subtable` stays, it is still
-    // used by `table/otl.rs`'s `Drop for Subtable` and `consolidate/otl/
-    // gsub_multi.rs`, just no longer from here).
-    drop(Box::from_raw(x));
-}
-fn subtable_gsub_multi_create() -> *mut GsubMultiSubtable {
-    Box::into_raw(Box::new(Vec::new()))
 }
 // Each Sequence subtable (`seq_offset`, resolved from the per-entry
 // `sequenceOffsets[]` array) had *no* length guard at all before this
@@ -68,18 +49,11 @@ fn subtable_gsub_multi_create() -> *mut GsubMultiSubtable {
 // mapping every one of 65,535 glyphs to 4 outputs each is only 262,140)
 // while keeping worst-case adversarial cost to a fraction of a second.
 const MAX_TOTAL_GSUB_MULTI_OUTPUTS: u32 = 1_000_000;
-pub unsafe fn otl_read_gsub_multi(
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u32,
-    _max_glyphs: GlyphId,
-) -> *mut Subtable {
-    let subtable: *mut GsubMultiSubtable = subtable_gsub_multi_create();
-    let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+pub fn otl_read_gsub_multi(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+    let mut subtable: GsubMultiSubtable = Vec::new();
 
     'parse: {
-        let mut header = match FontReader::new(slice).at(offset as usize) {
+        let mut header = match FontReader::new(data).at(offset as usize) {
             Ok(r) => r,
             Err(_) => break 'parse,
         };
@@ -93,8 +67,8 @@ pub unsafe fn otl_read_gsub_multi(
             break 'parse;
         };
 
-        from = read_coverage(slice, offset.wrapping_add(from_rel as u32));
-        if seq_count as usize != (*from).len() {
+        let from: Coverage = read_coverage(data, offset.wrapping_add(from_rel as u32));
+        if seq_count as usize != from.len() {
             break 'parse;
         }
         if header.require_room(seq_count as usize, 2).is_err() {
@@ -104,7 +78,7 @@ pub unsafe fn otl_read_gsub_multi(
         let mut total_outputs: u32 = 0;
         for j in 0..seq_count {
             let seq_offset = offset.wrapping_add(header.u16().unwrap() as u32);
-            let Ok(mut sr) = FontReader::new(slice).at(seq_offset as usize) else {
+            let Ok(mut sr) = FontReader::new(data).at(seq_offset as usize) else {
                 break 'parse;
             };
             let Ok(n) = sr.u16() else { break 'parse };
@@ -115,27 +89,22 @@ pub unsafe fn otl_read_gsub_multi(
             if total_outputs > MAX_TOTAL_GSUB_MULTI_OUTPUTS {
                 break 'parse;
             }
-            let cov: *mut Coverage = otl_coverage_create();
+            let mut cov: Coverage = Vec::new();
             for _ in 0..n {
                 push_to_coverage(
-                    &mut *cov,
+                    &mut cov,
                     handle_from_index(sr.u16().unwrap() as GlyphId) as GlyphHandle,
                 );
             }
-            (*subtable).push(GsubMultiEntry {
-                from: (&(*from))[j as usize].clone(),
-                to: coverage_from_raw(cov),
+            subtable.push(GsubMultiEntry {
+                from: from[j as usize].clone(),
+                to: cov,
             });
         }
-        otl_coverage_free(from);
-        return subtable_from_raw(subtable, Subtable::GsubMulti);
+        return Some(Subtable::GsubMulti(subtable));
     }
 
-    if !from.is_null() {
-        otl_coverage_free(from);
-    }
-    subtable_gsub_multi_free(subtable);
-    ::core::ptr::null_mut::<Subtable>()
+    None
 }
 pub fn otl_gsub_dump_multi(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GsubMulti(subtable) = _subtable else {
@@ -158,11 +127,7 @@ pub fn otl_gsub_parse_multi(
             if to.as_array().is_some() {
                 st.push(GsubMultiEntry {
                     from: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
-                    // `parse_coverage` is a safe fn; `coverage_from_raw` is
-                    // the one still-unsafe `Box::from_raw` boundary it
-                    // hands off to (same `vqs_compare`-style narrow bridge
-                    // used throughout this migration).
-                    to: unsafe { coverage_from_raw(parse_coverage(Some(to))) },
+                    to: parse_coverage(Some(to)),
                 });
             }
         }
@@ -270,19 +235,14 @@ mod otl_read_gsub_multi_tests {
     #[test]
     fn well_formed_table_reads_the_sequence() {
         let data = well_formed_data();
-        unsafe {
-            let raw =
-                otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GsubMulti(entries) = &*boxed else {
-                unreachable!()
-            };
-            assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].from.index, 5);
-            let to: Vec<GlyphId> = entries[0].to.iter().map(|h| h.index).collect();
-            assert_eq!(to, vec![10, 11]);
-        }
+        let result = otl_read_gsub_multi(&data, 0, 0);
+        let Some(Subtable::GsubMulti(ref entries)) = result else {
+            unreachable!()
+        };
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].from.index, 5);
+        let to: Vec<GlyphId> = entries[0].to.iter().map(|h| h.index).collect();
+        assert_eq!(to, vec![10, 11]);
     }
 
     #[test]
@@ -293,22 +253,16 @@ mod otl_read_gsub_multi_tests {
         // many glyph IDs.
         let mut data = well_formed_data();
         data[14..16].copy_from_slice(&100u16.to_be_bytes()); // glyphCount claims 100, far more than fits
-        unsafe {
-            let raw =
-                otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(raw.is_null());
-        }
+        let result = otl_read_gsub_multi(&data, 0, 0);
+        assert!(result.is_none());
     }
 
     #[test]
     fn sequence_offset_past_the_table_end_is_rejected_instead_of_reading_oob() {
         let mut data = well_formed_data();
         data[6..8].copy_from_slice(&9000u16.to_be_bytes()); // sequenceOffsets[0]: far past the table
-        unsafe {
-            let raw =
-                otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(raw.is_null());
-        }
+        let result = otl_read_gsub_multi(&data, 0, 0);
+        assert!(result.is_none());
     }
 
     #[test]
@@ -369,10 +323,7 @@ mod otl_read_gsub_multi_tests {
             data[pos..pos + 2].copy_from_slice(&seq_table_offset.to_be_bytes());
         }
 
-        unsafe {
-            let raw =
-                otl_read_gsub_multi(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(raw.is_null());
-        }
+        let result = otl_read_gsub_multi(&data, 0, 0);
+        assert!(result.is_none());
     }
 }

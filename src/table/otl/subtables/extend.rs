@@ -13,10 +13,12 @@ use crate::table::otl::{
 // is an enum with its own discriminant, there is no "the block" to allocate
 // ahead of knowing which variant it will hold; build the `ExtendSubtable`
 // value locally instead and hand it to `Box::new(Subtable::Extend(..))` the
-// same way every other subtable's read function now does via
-// `subtable_from_raw`. `type_0` is still computed before `subtable` (the
-// recursive read needs it as the nested lookup's type), so the dependency
-// order is unchanged.
+// same way every other subtable's read function builds its own `Subtable`
+// value directly now (the shared `subtable_from_raw` adapter this comment
+// used to name was deleted in Stage L-5, once the last of its callers --
+// `chaining/read.rs`'s own readers -- stopped needing it). `type_0` is
+// still computed before `subtable` (the recursive read needs it as the
+// nested lookup's type), so the dependency order is unchanged.
 ///
 /// `extensionOffset` (the field this reads at `subtable_offset + 4`) is the
 /// whole reason the Extension mechanism exists: it lets GSUB/GPOS carry a
@@ -53,14 +55,11 @@ unsafe fn _caryll_read_otl_extend(
             return ::core::ptr::null_mut::<Subtable>();
         };
         let type_0 = LookupType::from_file(basis, extension_lookup_type);
-        let subtable = otfcc_read_otl_subtable(
-            data,
-            table_length,
-            real_subtable_offset,
-            type_0,
-            max_glyphs,
-            options,
-        );
+        // `otfcc_read_otl_subtable` returns `Option<Box<Subtable>>`, the
+        // same type `ExtendSubtable.subtable` holds now -- no conversion
+        // needed at this boundary any more.
+        let subtable: Option<Box<Subtable>> =
+            otfcc_read_otl_subtable(slice, real_subtable_offset, type_0, max_glyphs, options);
         Box::into_raw(Box::new(Subtable::Extend(ExtendSubtable {
             type_0,
             subtable,

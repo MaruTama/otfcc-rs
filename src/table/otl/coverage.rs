@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 use crate::support::handle::{GlyphHandle, Handle, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
 
@@ -57,36 +56,6 @@ pub(crate) fn reset_coverage_entry_build_budget() {
         ::core::sync::atomic::Ordering::Relaxed,
     );
 }
-pub(crate) fn otl_coverage_create() -> *mut Coverage {
-    // A real Rust allocation now, not a `malloc`'d shell: `Box::into_raw`
-    // gives back a pointer with the same shape (`*mut Coverage`) every
-    // caller already expects, but it must from here on only ever be
-    // reclaimed with `Box::from_raw` (`otl_coverage_free`/
-    // `coverage_from_raw` below), never a bare `free` -- mixing the two
-    // is exactly the hazard this conversion removes.
-    Box::into_raw(Box::new(Vec::new()))
-}
-pub(crate) unsafe fn otl_coverage_free(x: *mut Coverage) {
-    if x.is_null() {
-        return;
-    }
-    // Dropping the reclaimed `Box` drops the `Vec` first (running every
-    // element's `Handle::drop`, freeing each glyph name -- the explicit
-    // per-element `otfcc_handle_dispose` loop this used to need is
-    // redundant, same finding as the `Handle` Drop/Clone PR), then
-    // deallocates the shell. One step where there used to be two.
-    drop(Box::from_raw(x));
-}
-/// Adopt a `otl_coverage_create()`/vtable-`.parse()`-style raw `*mut
-/// Coverage` into an owned `Coverage` (`Vec<GlyphHandle>`) value -- the
-/// "unwrap_X_table" idiom used throughout Stage 6-4, for the many
-/// `XxxSubtable`/`XxxEntry` fields that hold a coverage table by value now
-/// instead of by raw pointer. `Box::from_raw` reclaims the allocation
-/// `otl_coverage_create` made; dereferencing it moves the `Vec` out and
-/// drops the now-empty shell in the same step.
-pub(crate) unsafe fn coverage_from_raw(raw: *mut Coverage) -> Coverage {
-    *Box::from_raw(raw)
-}
 pub(crate) fn push_to_coverage(coverage: &mut Coverage, h: GlyphHandle) {
     coverage.push(h);
 }
@@ -106,21 +75,21 @@ pub(crate) fn push_to_coverage(coverage: &mut Coverage, h: GlyphHandle) {
 // defeats-guard shape as `cmap.rs`'s bugs, just via addition instead of
 // multiplication. `FontReader::at`/`require_room` use `checked_add`/
 // `checked_mul` throughout, closing this.
-pub(crate) fn read_coverage(data: &[u8], offset: u32) -> *mut Coverage {
+pub(crate) fn read_coverage(data: &[u8], offset: u32) -> Coverage {
     let mut coverage: Coverage = Vec::new();
     let Ok(mut r) = FontReader::new(data).at(offset as usize) else {
-        return Box::into_raw(Box::new(coverage));
+        return coverage;
     };
     let Ok(format) = r.u16() else {
-        return Box::into_raw(Box::new(coverage));
+        return coverage;
     };
     match format {
         1 => {
             let Ok(glyph_count) = r.u16() else {
-                return Box::into_raw(Box::new(coverage));
+                return coverage;
             };
             if r.require_room(glyph_count as usize, 2).is_err() {
-                return Box::into_raw(Box::new(coverage));
+                return coverage;
             }
             // `HASH_SORT`-by-`covIndex` is a no-op here: `covIndex` was
             // assigned `j` (this loop's own position) at insert time, and
@@ -151,10 +120,10 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32) -> *mut Coverage {
         }
         2 => {
             let Ok(range_count) = r.u16() else {
-                return Box::into_raw(Box::new(coverage));
+                return coverage;
             };
             if r.require_room(range_count as usize, 6).is_err() {
-                return Box::into_raw(Box::new(coverage));
+                return coverage;
             }
             // Unlike format 1, `covIndex` here is `startCoverageIndex + k`
             // (`k` the absolute gid, per the original C -- see
@@ -221,7 +190,7 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32) -> *mut Coverage {
         }
         _ => {}
     }
-    Box::into_raw(Box::new(coverage))
+    coverage
 }
 // No longer `extern "C"`: every call site (`gsub_multi.rs`, `gsub_ligature.rs`,
 // `gsub_reverse.rs`, `chaining/dump.rs`) calls this directly by name, never
@@ -234,17 +203,17 @@ pub(crate) fn dump_coverage(coverage: &Coverage) -> BuiltValue {
     }
     a.preserialize()
 }
-pub(crate) fn parse_coverage(cov: Option<&ParsedValue>) -> *mut Coverage {
+pub(crate) fn parse_coverage(cov: Option<&ParsedValue>) -> Coverage {
     let mut c: Coverage = Vec::new();
     let Some(items) = cov.and_then(ParsedValue::as_array) else {
-        return Box::into_raw(Box::new(c));
+        return c;
     };
     for item in items {
         if let Some(name) = item.as_str_bytes() {
             push_to_coverage(&mut c, handle_from_name(Some(name.to_vec())) as GlyphHandle);
         }
     }
-    Box::into_raw(Box::new(c))
+    c
 }
 pub(crate) fn build_coverage_format(coverage: &Coverage, format: u16) -> Buffer {
     if coverage.is_empty() {
@@ -365,11 +334,8 @@ mod read_coverage_tests {
         data.extend_from_slice(&5u16.to_be_bytes());
         data.extend_from_slice(&9u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes()); // duplicate, deduped
-        unsafe {
-            let raw = read_coverage(&data, 0);
-            let cov = coverage_from_raw(raw);
-            assert_eq!(cov.iter().map(|h| h.index).collect::<Vec<_>>(), vec![5, 9]);
-        }
+        let cov = read_coverage(&data, 0);
+        assert_eq!(cov.iter().map(|h| h.index).collect::<Vec<_>>(), vec![5, 9]);
     }
 
     #[test]
@@ -380,14 +346,11 @@ mod read_coverage_tests {
         data.extend_from_slice(&10u16.to_be_bytes()); // startGlyphID
         data.extend_from_slice(&12u16.to_be_bytes()); // endGlyphID
         data.extend_from_slice(&0u16.to_be_bytes()); // startCoverageIndex
-        unsafe {
-            let raw = read_coverage(&data, 0);
-            let cov = coverage_from_raw(raw);
-            assert_eq!(
-                cov.iter().map(|h| h.index).collect::<Vec<_>>(),
-                vec![10, 11, 12]
-            );
-        }
+        let cov = read_coverage(&data, 0);
+        assert_eq!(
+            cov.iter().map(|h| h.index).collect::<Vec<_>>(),
+            vec![10, 11, 12]
+        );
     }
 
     #[test]
@@ -397,20 +360,14 @@ mod read_coverage_tests {
         // number, which could pass the `table_length < ...` guard even
         // though `offset` itself points nowhere near the table.
         let data = [0u8; 8];
-        unsafe {
-            let raw = read_coverage(&data, 0xFFFF_FFF0);
-            let cov = coverage_from_raw(raw);
-            assert!(cov.is_empty());
-        }
+        let cov = read_coverage(&data, 0xFFFF_FFF0);
+        assert!(cov.is_empty());
     }
 
     #[test]
     fn truncated_header_is_empty_not_oob() {
         let data = [0u8; 1];
-        unsafe {
-            let raw = read_coverage(&data, 0);
-            let cov = coverage_from_raw(raw);
-            assert!(cov.is_empty());
-        }
+        let cov = read_coverage(&data, 0);
+        assert!(cov.is_empty());
     }
 }

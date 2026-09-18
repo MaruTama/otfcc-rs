@@ -1,65 +1,37 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::handle::{
     GlyphHandle, handle_from_index, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::{
-    Coverage, otl_coverage_create, otl_coverage_free, push_to_coverage, read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::support::font_reader::FontReader;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphId};
+use crate::support::primitives::GlyphId;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
 use crate::support::built_json::BuiltValue;
 use crate::table::otl::coverage::build_coverage_format;
 use crate::table::otl::subtables::BuildHeuristics;
-use crate::table::otl::{GsubSingleEntry, GsubSingleSubtable, Subtable, subtable_from_raw};
+use crate::table::otl::{GsubSingleEntry, GsubSingleSubtable, Subtable};
 // `GsubSingleEntry` holds only two `GlyphHandle`s, so dropping the `Vec`
 // runs `Handle`'s own `Drop` for every entry -- no per-element dtor needed
 // anymore.
 pub(crate) fn dispose_gsub_single_subtable(arr: &mut GsubSingleSubtable) {
     *arr = Vec::new();
 }
-pub(crate) unsafe fn subtable_gsub_single_free(x: *mut GsubSingleSubtable) {
-    if x.is_null() {
-        return;
-    }
-    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
-    // and runs the `Vec`'s own drop glue -- no separate dispose-then-`free`
-    // needed (Stage 7-2-d; `dispose_gsub_single_subtable` stays, it is still
-    // used by `table/otl.rs`'s `Drop for Subtable` and `consolidate/otl/
-    // gsub_single.rs`, just no longer from here).
-    drop(Box::from_raw(x));
-}
-fn subtable_gsub_single_create() -> *mut GsubSingleSubtable {
-    Box::into_raw(Box::new(Vec::new()))
-}
-// `Coverage`/`otl_coverage_create`/`read_coverage` are still raw-pointer-
-// shaped (unconverted, out of this PR's scope), so this keeps interleaving
-// them with `FontReader`-checked header reads rather than fully
-// restructuring into a `Result`-returning helper -- the labeled block
-// below is the same "any failure bails to shared cleanup" shape the
-// original's `current_block` goto-emulation had, without the goto.
-pub unsafe fn otl_read_gsub_single(
-    data: FontFilePointer,
-    table_length: u32,
+pub fn otl_read_gsub_single(
+    data: &[u8],
     subtable_offset: u32,
     _max_glyphs: GlyphId,
-) -> *mut Subtable {
-    let subtable: *mut GsubSingleSubtable = subtable_gsub_single_create();
-    let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    let mut to: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+) -> Option<Subtable> {
+    let mut subtable: GsubSingleSubtable = Vec::new();
 
     'parse: {
-        let mut header = match FontReader::new(slice).at(subtable_offset as usize) {
+        let mut header = match FontReader::new(data).at(subtable_offset as usize) {
             Ok(r) => r,
             Err(_) => break 'parse,
         };
@@ -70,65 +42,44 @@ pub unsafe fn otl_read_gsub_single(
             break 'parse;
         };
 
-        from = read_coverage(
-            slice,
-            subtable_offset.wrapping_add(from_rel as u32),
-        );
-        if from.is_null() || (*from).is_empty() {
+        let from: Coverage = read_coverage(data, subtable_offset.wrapping_add(from_rel as u32));
+        if from.is_empty() {
             break 'parse;
         }
 
-        if subtable_format == 1 {
+        let to: Coverage = if subtable_format == 1 {
             // `header`'s cursor is already at `subtable_offset + 4` here.
             let Ok(delta) = header.u16() else {
                 break 'parse;
             };
-            to = otl_coverage_create();
-            for j in 0..(*from).len() {
-                (*to).push(
-                    handle_from_index(((&(*from))[j].index as i32 + delta as i32) as GlyphId)
-                        as GlyphHandle,
-                );
-            }
+            from.iter()
+                .map(|h| handle_from_index((h.index as i32 + delta as i32) as GlyphId) as GlyphHandle)
+                .collect()
         } else {
             let Ok(toglyphs) = header.u16() else {
                 break 'parse;
             };
-            if toglyphs as usize != (*from).len() {
+            if toglyphs as usize != from.len() {
                 break 'parse;
             }
             if header.require_room(toglyphs as usize, 2).is_err() {
                 break 'parse;
             }
-            to = otl_coverage_create();
-            for _ in 0..toglyphs {
-                (*to).push(handle_from_index(header.u16().unwrap() as GlyphId) as GlyphHandle);
-            }
-        }
+            (0..toglyphs)
+                .map(|_| handle_from_index(header.u16().unwrap() as GlyphId) as GlyphHandle)
+                .collect()
+        };
 
-        for j_1 in 0..(*from).len() {
-            (*subtable).push(GsubSingleEntry {
-                from: (&(*from))[j_1].clone(),
-                to: (&(*to))[j_1].clone(),
+        for j_1 in 0..from.len() {
+            subtable.push(GsubSingleEntry {
+                from: from[j_1].clone(),
+                to: to[j_1].clone(),
             });
         }
-        if !from.is_null() {
-            otl_coverage_free(from);
-        }
-        if !to.is_null() {
-            otl_coverage_free(to);
-        }
-        return subtable_from_raw(subtable, Subtable::GsubSingle);
+        return Some(Subtable::GsubSingle(subtable));
     }
 
-    subtable_gsub_single_free(subtable);
-    if !from.is_null() {
-        otl_coverage_free(from);
-    }
-    if !to.is_null() {
-        otl_coverage_free(to);
-    }
-    ::core::ptr::null_mut::<Subtable>()
+    None
 }
 pub fn otl_gsub_dump_single(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GsubSingle(subtable) = _subtable else {
@@ -231,18 +182,13 @@ mod otl_read_gsub_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        unsafe {
-            let raw =
-                otl_read_gsub_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GsubSingle(entries) = &*boxed else {
-                unreachable!()
-            };
-            assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].from.index, 5);
-            assert_eq!(entries[0].to.index, 105);
-        }
+        let result = otl_read_gsub_single(&data, 0, 0);
+        let Some(Subtable::GsubSingle(ref entries)) = result else {
+            unreachable!()
+        };
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].from.index, 5);
+        assert_eq!(entries[0].to.index, 105);
     }
 
     #[test]
@@ -256,18 +202,13 @@ mod otl_read_gsub_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        unsafe {
-            let raw =
-                otl_read_gsub_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GsubSingle(entries) = &*boxed else {
-                unreachable!()
-            };
-            assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].from.index, 5);
-            assert_eq!(entries[0].to.index, 42);
-        }
+        let result = otl_read_gsub_single(&data, 0, 0);
+        let Some(Subtable::GsubSingle(ref entries)) = result else {
+            unreachable!()
+        };
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].from.index, 5);
+        assert_eq!(entries[0].to.index, 42);
     }
 
     #[test]
@@ -282,10 +223,7 @@ mod otl_read_gsub_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        unsafe {
-            let raw =
-                otl_read_gsub_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(raw.is_null());
-        }
+        let result = otl_read_gsub_single(&data, 0, 0);
+        assert!(result.is_none());
     }
 }

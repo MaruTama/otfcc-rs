@@ -1,8 +1,5 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::handle::{LookupHandle, handle_from_name, otfcc_handle_empty};
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::coverage_from_raw;
 
 use crate::support::options::Options;
 use crate::support::primitives::TableId;
@@ -28,12 +25,7 @@ pub fn otl_parse_chaining(_subtable: Option<&ParsedValue>, _options: &Options) -
     rule.input_begins = sv.get_num_or(b"inputBegins", 0.0) as TableId;
     rule.input_ends = sv.get_num_or(b"inputEnds", rule.match_count as f64) as TableId;
     for item in match_items {
-        // `parse_coverage` is a safe fn; `coverage_from_raw` is the one
-        // still-unsafe `Box::from_raw` boundary it hands off to (same
-        // `vqs_compare`-style narrow bridge used throughout this
-        // migration).
-        rule.match_0
-            .push(unsafe { coverage_from_raw(parse_coverage(Some(item))) });
+        rule.match_0.push(parse_coverage(Some(item)));
     }
     rule.apply = Vec::with_capacity(apply_items.len());
     for application in apply_items {
