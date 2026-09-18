@@ -4,9 +4,7 @@ use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::{
-    Coverage, otl_coverage_free, push_to_coverage, read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
@@ -70,8 +68,6 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
     _max_glyphs: GlyphId,
 ) -> *mut Subtable {
     let subtable: *mut GposMarkToLigatureSubtable = subtable_gpos_mark_to_ligature_create();
-    let mut marks: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    let mut bases: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
 
     'parse: {
@@ -98,9 +94,9 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
             break 'parse;
         };
 
-        marks = read_coverage(slice, offset.wrapping_add(marks_rel as u32));
-        bases = read_coverage(slice, offset.wrapping_add(bases_rel as u32));
-        if marks.is_null() || (*marks).is_empty() || bases.is_null() || (*bases).is_empty() {
+        let marks: Coverage = read_coverage(slice, offset.wrapping_add(marks_rel as u32));
+        let bases: Coverage = read_coverage(slice, offset.wrapping_add(bases_rel as u32));
+        if marks.is_empty() || bases.is_empty() {
             break 'parse;
         }
 
@@ -108,7 +104,7 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
         let mark_array_offset = offset.wrapping_add(mark_array_rel as u32);
         otl_read_mark_array(
             &mut (*subtable).mark_array,
-            &*marks,
+            &marks,
             slice,
             mark_array_offset,
         );
@@ -120,7 +116,7 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
         let Ok(lig_count) = lr.u16() else {
             break 'parse;
         };
-        if lig_count as usize != (*bases).len() {
+        if lig_count as usize != bases.len() {
             break 'parse;
         }
         if lr.require_room(lig_count as usize, 2).is_err() {
@@ -146,7 +142,7 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
                 break 'parse;
             }
             let mut lig = LigatureBaseRecord {
-                glyph: (&(*bases))[j].clone(),
+                glyph: bases[j].clone(),
                 component_count,
                 anchors: Vec::with_capacity(component_count as usize),
             };
@@ -168,19 +164,7 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
             (*subtable).lig_array.push(lig);
         }
 
-        if !marks.is_null() {
-            otl_coverage_free(marks);
-        }
-        if !bases.is_null() {
-            otl_coverage_free(bases);
-        }
         return subtable_from_raw(subtable, Subtable::GposMarkToLigature);
-    }
-    if !marks.is_null() {
-        otl_coverage_free(marks);
-    }
-    if !bases.is_null() {
-        otl_coverage_free(bases);
     }
     subtable_gpos_mark_to_ligature_free(subtable);
     ::core::ptr::null_mut::<Subtable>()

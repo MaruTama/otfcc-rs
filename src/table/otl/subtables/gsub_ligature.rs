@@ -2,10 +2,7 @@
 
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::{
-    Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage,
-    read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::support::font_reader::FontReader;
 
@@ -53,11 +50,6 @@ pub(crate) fn subtable_gsub_ligature_replace(
 fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
     Box::into_raw(Box::new(Vec::new()))
 }
-// Also fixes a real (if minor) pre-existing leak, same shape as
-// `gpos_mark_to_single.rs`'s: the original only freed `start_coverage`
-// (always-allocated by `read_coverage`, even for an empty result) on the
-// success path -- every failure guard reached after it was read fell
-// through to `subtable_gsub_ligature_free(subtable)` without freeing it.
 pub unsafe fn otl_read_gsub_ligature(
     data: FontFilePointer,
     table_length: u32,
@@ -65,7 +57,6 @@ pub unsafe fn otl_read_gsub_ligature(
     _max_glyphs: GlyphId,
 ) -> *mut Subtable {
     let subtable: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
-    let mut start_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
 
     'parse: {
@@ -83,11 +74,8 @@ pub unsafe fn otl_read_gsub_ligature(
             break 'parse;
         };
 
-        start_coverage = read_coverage(slice, offset.wrapping_add(cov_rel as u32));
-        if start_coverage.is_null() {
-            break 'parse;
-        }
-        if set_count as usize != (*start_coverage).len() {
+        let start_coverage: Coverage = read_coverage(slice, offset.wrapping_add(cov_rel as u32));
+        if set_count as usize != start_coverage.len() {
             break 'parse;
         }
         if header.require_room(set_count as usize, 2).is_err() {
@@ -129,30 +117,26 @@ pub unsafe fn otl_read_gsub_ligature(
                 {
                     break 'parse;
                 }
-                let cov: *mut Coverage = otl_coverage_create();
+                let mut cov: Coverage = Vec::new();
                 push_to_coverage(
-                    &mut *cov,
-                    handle_from_index((&(*start_coverage))[j].index) as GlyphHandle,
+                    &mut cov,
+                    handle_from_index(start_coverage[j].index) as GlyphHandle,
                 );
                 for _ in 1..lig_components {
                     push_to_coverage(
-                        &mut *cov,
+                        &mut cov,
                         handle_from_index(lr.u16().unwrap() as GlyphId) as GlyphHandle,
                     );
                 }
                 (*subtable).push(GsubLigatureEntry {
-                    from: coverage_from_raw(cov),
+                    from: cov,
                     to: handle_from_index(lig_glyph as GlyphId) as GlyphHandle,
                 });
             }
         }
-        otl_coverage_free(start_coverage);
         return subtable_from_raw(subtable, Subtable::GsubLigature);
     }
     subtable_gsub_ligature_free(subtable);
-    if !start_coverage.is_null() {
-        otl_coverage_free(start_coverage);
-    }
     ::core::ptr::null_mut::<Subtable>()
 }
 pub fn otl_gsub_dump_ligature(_subtable: &Subtable) -> BuiltValue {
@@ -182,9 +166,7 @@ pub fn otl_gsub_parse_ligature(
                 let to = entry.get_typed(b"to", JsonType::String);
                 if let (Some(from), Some(to)) = (from, to) {
                     st.push(GsubLigatureEntry {
-                        // See gsub_multi.rs's otl_gsub_parse_multi for why
-                        // this bridge is narrow rather than the whole fn.
-                        from: unsafe { coverage_from_raw(parse_coverage(Some(from))) },
+                        from: parse_coverage(Some(from)),
                         to: handle_from_name(to.as_str_bytes().map(|b| b.to_vec())) as GlyphHandle,
                     });
                 }
@@ -197,7 +179,7 @@ pub fn otl_gsub_parse_ligature(
             for (key, from) in fields {
                 if from.as_array().is_some() {
                     st_0.push(GsubLigatureEntry {
-                        from: unsafe { coverage_from_raw(parse_coverage(Some(from))) },
+                        from: parse_coverage(Some(from)),
                         to: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
                     });
                 }

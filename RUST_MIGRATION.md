@@ -13962,3 +13962,66 @@ on the other platform before a commit is trusted.
     90s each, clean), and the reconstructed repro confirmed fixed
     directly (`otf_parse -rss_limit_mb=2048` now completes in 593ms,
     down from a 2.2-3.4GB OOM).
+
+- **Stage L-2: `table/otl/coverage.rs`'s `read_coverage`/`parse_coverage`
+  return an owned `Coverage` value now, not a `*mut Coverage`.** Second
+  installment of the staged c2rust-residue removal Stage L started (see
+  the plan doc; Stage L-1 -- the `FontBuilder`/`FontSerializer` type-
+  erasure traits -- is a sibling PR, not a prerequisite this one stacks
+  on). `otl_coverage_create`/`otl_coverage_free`/`coverage_from_raw` --
+  pure `Box::into_raw`/`Box::from_raw` ceremony around a type that was
+  already just `Vec<GlyphHandle>` -- are deleted outright.
+  - **Why this was safe to do everywhere at once**: `read_coverage` and
+    `parse_coverage` never return null on any of their own exit paths
+    (every failure returns a boxed *empty* `Coverage`, not a null
+    pointer -- this file's own doc comments already said so), so every
+    `is_null()` check on their results across the crate was dead code,
+    and returning `Coverage` directly instead of `Option<Coverage>`
+    loses no information. Of the ~22 `read_coverage` and 6
+    `parse_coverage` call sites, all but one were either immediately
+    unwrapped via `coverage_from_raw` or dereferenced then explicitly
+    `otl_coverage_free`d -- pure ceremony around a value that was always
+    going to end up owned. No struct or enum field anywhere holds a
+    `*mut Coverage`/`*const Coverage` (confirmed by grepping struct
+    definitions, not just usages) -- `Coverage`-typed fields
+    (`GsubReverseSubtable.match_0: Vec<Coverage>`, `.to: Coverage`, etc.)
+    already hold it by value.
+  - **The one real structural coupling**: `chaining/read.rs`'s three
+    coverage-producing functions (`single_coverage`/`class_coverage`/
+    `format3_coverage`, all already plain safe `fn`s) and the
+    `impl FnMut(&[u8], u16, u32, u16, GlyphId) -> *mut Coverage` closure
+    type `general_read_contextual_rule`/`general_read_chaining_rule`
+    accept them through, all needed to change to `-> Coverage` together
+    in this same commit -- deliberately not folded into a later stage
+    (see this file's own "don't mix container replacement with ownership
+    changes" note from the VQ incident).
+  - **Two real, previously-undocumented leaks fell out as a side
+    effect**, both already flagged in comments at the time: `gpos_pair.rs`'s
+    old `otl_class_def_create`/`mem::take(&mut *cov)`/`otl_coverage_free`
+    dance collapses to a plain field assignment; `gpos_mark_to_single.rs`
+    and `gsub_ligature.rs` each had a comment explaining they'd
+    special-cased their control flow (an `Option<*mut Subtable>` result
+    wrapper, or careful placement of the free call) specifically to make
+    sure `read_coverage`'s always-allocated result got freed on every
+    exit path, not just the success one -- with an owned value that
+    entire category of bug is structurally impossible, so both revert to
+    the plain `'parse: { ...; break 'parse; }` shape every other reader
+    in this module already uses.
+  - **Clippy caught two genuine `needless_range_loop`s** once the
+    de-indexing removed the noise around them (`gpos_single.rs`'s two
+    loops, `gpos_mark_to_single.rs`'s one) -- converted to direct/
+    `enumerate()` iteration, same pattern established throughout Stage
+    E's while-to-iterator work.
+  - **Verification**: full pipeline green -- build, `clippy --all-targets
+    -- -D warnings`, `cargo test --lib` (406), `cargo test --
+    --test-threads=1` (integration suite, including `golden.rs`'s
+    byte-exact fixtures -- Coverage tables are pervasive throughout GSUB/
+    GPOS/GDEF, so this is a strong signal), Miri (0 UB), all three fuzz
+    targets 90s each plus every `tests/fuzz-corpus/known-issues/*.bin`
+    re-run directly. `survey-unsafe.sh`: `unsafe fn` 111 -> 108,
+    `unsafe blocks` 242 -> 223, raw pointer types 969 -> 941. (The
+    `unsafe fn` count drops less than the ceremony removed might suggest
+    -- most of the affected reader functions are still `unsafe fn` for
+    the *outer* `FontFilePointer`/`from_raw_parts` reason Stage L-3
+    targets next, not for any Coverage-specific reason this stage
+    touches.)

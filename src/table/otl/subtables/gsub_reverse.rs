@@ -2,7 +2,7 @@
 
 use crate::support::handle::{GlyphHandle, handle_from_index};
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::{Coverage, coverage_from_raw, push_to_coverage, read_coverage};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::support::font_reader::FontReader;
 
@@ -132,13 +132,12 @@ pub unsafe fn otl_read_gsub_reverse(
         (*subtable).input_index = n_backtrack;
 
         for (j, &cov_offset) in backtrack_offsets.iter().enumerate() {
-            (&mut (*subtable).match_0)[j] =
-                coverage_from_raw(read_coverage(slice, cov_offset));
+            (&mut (*subtable).match_0)[j] = read_coverage(slice, cov_offset);
         }
 
         let input_cov_offset = offset.wrapping_add(input_cov_rel as u32);
         (&mut (*subtable).match_0)[(*subtable).input_index as usize] =
-            coverage_from_raw(read_coverage(slice, input_cov_offset));
+            read_coverage(slice, input_cov_offset);
 
         if n_replacement as usize != (&(*subtable).match_0)[(*subtable).input_index as usize].len()
         {
@@ -147,8 +146,7 @@ pub unsafe fn otl_read_gsub_reverse(
 
         for (j, &cov_offset) in forward_offsets.iter().enumerate() {
             let fwd_idx = n_backtrack as usize + 1 + j;
-            (&mut (*subtable).match_0)[fwd_idx] =
-                coverage_from_raw(read_coverage(slice, cov_offset));
+            (&mut (*subtable).match_0)[fwd_idx] = read_coverage(slice, cov_offset);
         }
 
         (*subtable).to = Coverage::new();
@@ -193,15 +191,13 @@ pub fn otl_gsub_parse_reverse(
     let match_count = match_items.len() as TableId;
     let mut match_0: Vec<Coverage> = Vec::with_capacity(match_count as usize);
     for item in match_items {
-        // See gsub_multi.rs's otl_gsub_parse_multi for why this bridge is
-        // narrow rather than the whole fn.
-        match_0.push(unsafe { coverage_from_raw(parse_coverage(Some(item))) });
+        match_0.push(parse_coverage(Some(item)));
     }
     let subtable = GsubReverseSubtable {
         match_count,
         input_index: sv.get_num_or(b"inputIndex", 0.0) as TableId,
         match_0,
-        to: unsafe { coverage_from_raw(parse_coverage(Some(_to))) },
+        to: parse_coverage(Some(_to)),
     };
     Some(Subtable::GsubReverse(subtable))
 }

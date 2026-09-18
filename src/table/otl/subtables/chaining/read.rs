@@ -4,10 +4,7 @@ use crate::support::handle::{
     GlyphHandle, LookupHandle, handle_from_index,
 };
 use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
-use crate::table::otl::coverage::{
-    Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage,
-    read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::FontReader;
@@ -30,7 +27,7 @@ use crate::table::otl::{
 // any userdata at all) were also forced to accept. `general_read_
 // contextual_rule`/`general_read_chaining_rule` (the only two callers)
 // now take the reader as a generic `impl FnMut(&[u8], u16, u32, u16,
-// GlyphId) -> *mut Coverage` instead: `single_coverage`/`format3_coverage`
+// GlyphId) -> Coverage` instead: `single_coverage`/`format3_coverage`
 // (already plain safe `fn`s with this exact signature) are passed
 // directly as function items, and `class_coverage`'s call sites capture
 // `&ClassDefs` in a closure instead of casting a raw pointer to it --
@@ -212,10 +209,10 @@ pub fn single_coverage(
     mut _offset: u32,
     mut _kind: u16,
     _max_glyphs: GlyphId,
-) -> *mut Coverage {
+) -> Coverage {
     let mut cov = Coverage::new();
     push_to_coverage(&mut cov, handle_from_index(gid) as GlyphHandle);
-    Box::into_raw(Box::new(cov))
+    cov
 }
 pub fn class_coverage(
     mut _data: &[u8],
@@ -224,7 +221,7 @@ pub fn class_coverage(
     kind: u16,
     max_glyphs: GlyphId,
     defs: &ClassDefs,
-) -> *mut Coverage {
+) -> Coverage {
     // `.expect()`, not a null-pointer deref: every caller that reaches here
     // (`general_read_contextual_rule`/`general_read_chaining_rule` via
     // `class_coverage`'s `fn_0` slot) only ever asks for a `kind` whose
@@ -260,7 +257,7 @@ pub fn class_coverage(
         )
         .is_err()
     {
-        return otl_coverage_create();
+        return Coverage::new();
     }
     let mut cov = Coverage::new();
     // `general_read_contextual_rule`/`general_read_chaining_rule` call
@@ -331,7 +328,7 @@ pub fn class_coverage(
             j_2 = j_2.wrapping_add(1);
         }
     }
-    Box::into_raw(Box::new(cov))
+    cov
 }
 pub fn format3_coverage(
     data: &[u8],
@@ -339,7 +336,7 @@ pub fn format3_coverage(
     mut _offset: u32,
     mut _kind: u16,
     _max_glyphs: GlyphId,
-) -> *mut Coverage {
+) -> Coverage {
     return read_coverage(data, _offset.wrapping_add(shift as u32).wrapping_sub(2_u32));
 }
 // Every guard below is expressed as a `FontReader` read or `require_room`
@@ -360,7 +357,7 @@ pub unsafe fn general_read_contextual_rule(
     offset: u32,
     start_gid: u16,
     minus_one: bool,
-    mut fn_0: impl FnMut(&[u8], u16, u32, u16, GlyphId) -> *mut Coverage,
+    mut fn_0: impl FnMut(&[u8], u16, u32, u16, GlyphId) -> Coverage,
     max_glyphs: GlyphId,
 ) -> Option<Box<ChainingRule>> {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
@@ -409,13 +406,13 @@ pub unsafe fn general_read_contextual_rule(
     rule.match_0 = Vec::with_capacity(rule.match_count as usize);
     if minus_one {
         rule.match_0
-            .push(coverage_from_raw(fn_0(
+            .push(fn_0(
                 slice,
                 start_gid,
                 offset,
                 2_u16,
                 max_glyphs,
-            )));
+            ));
     }
     for j in 0..n_input_built {
         let gid = FontReader::new(slice)
@@ -424,13 +421,13 @@ pub unsafe fn general_read_contextual_rule(
             .u16()
             .unwrap();
         rule.match_0
-            .push(coverage_from_raw(fn_0(
+            .push(fn_0(
                 slice,
                 gid,
                 offset,
                 2_u16,
                 max_glyphs,
-            )));
+            ));
     }
 
     rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
@@ -456,7 +453,6 @@ unsafe fn read_contextual_format1(
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-    let mut first_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
 
     let result: Option<()> = 'parse: {
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
@@ -469,10 +465,8 @@ unsafe fn read_contextual_format1(
             break 'parse None;
         };
         let cov_offset = offset.wrapping_add(cov_rel as u32);
-        // `read_coverage` always returns a valid (possibly empty) `Coverage`
-        // shell, never null, even on malformed input -- see coverage.rs.
-        first_coverage = read_coverage(slice, cov_offset);
-        if chain_sub_rule_set_count as usize != (*first_coverage).len() {
+        let first_coverage: Coverage = read_coverage(slice, cov_offset);
+        if chain_sub_rule_set_count as usize != first_coverage.len() {
             break 'parse None;
         }
         if header
@@ -534,7 +528,7 @@ unsafe fn read_contextual_format1(
                     data,
                     table_length,
                     sr_offset,
-                    (&(*first_coverage))[j as usize].index as u16,
+                    first_coverage[j as usize].index as u16,
                     true,
                     single_coverage,
                     max_glyphs,
@@ -560,10 +554,6 @@ unsafe fn read_contextual_format1(
         break 'parse Some(());
     };
 
-    // `first_coverage` was leaked on every failure path here (only the
-    // success path below ever freed it) -- now freed exactly once,
-    // unconditionally, regardless of which branch above bailed out.
-    otl_coverage_free(first_coverage);
     if result.is_some() {
         return subtable;
     }
@@ -782,7 +772,7 @@ pub unsafe fn general_read_chaining_rule(
     offset: u32,
     start_gid: u16,
     minus_one: bool,
-    mut fn_0: impl FnMut(&[u8], u16, u32, u16, GlyphId) -> *mut Coverage,
+    mut fn_0: impl FnMut(&[u8], u16, u32, u16, GlyphId) -> Coverage,
     max_glyphs: GlyphId,
 ) -> Option<Box<ChainingRule>> {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
@@ -849,23 +839,23 @@ pub unsafe fn general_read_chaining_rule(
             .u16()
             .unwrap();
         rule.match_0
-            .push(coverage_from_raw(fn_0(
+            .push(fn_0(
                 slice,
                 gid,
                 offset,
                 1_u16,
                 max_glyphs,
-            )));
+            ));
     }
     if minus_one {
         rule.match_0
-            .push(coverage_from_raw(fn_0(
+            .push(fn_0(
                 slice,
                 start_gid,
                 offset,
                 2_u16,
                 max_glyphs,
-            )));
+            ));
     }
     // Array positions derived the same way `header`'s cursor validated
     // them above (cumulative `usize` addition on the *reduced* counts),
@@ -882,13 +872,13 @@ pub unsafe fn general_read_chaining_rule(
             .u16()
             .unwrap();
         rule.match_0
-            .push(coverage_from_raw(fn_0(
+            .push(fn_0(
                 slice,
                 gid,
                 offset,
                 2_u16,
                 max_glyphs,
-            )));
+            ));
     }
     let lookaround_base = input_base + 2 * n_input_read as usize + 2;
     for j1 in 0..n_lookaround_built {
@@ -898,13 +888,13 @@ pub unsafe fn general_read_chaining_rule(
             .u16()
             .unwrap();
         rule.match_0
-            .push(coverage_from_raw(fn_0(
+            .push(fn_0(
                 slice,
                 gid,
                 offset,
                 3_u16,
                 max_glyphs,
-            )));
+            ));
     }
 
     rule.apply = Vec::with_capacity((n_apply as usize).min(MAX_APPLY_PER_RULE));
@@ -930,7 +920,6 @@ unsafe fn read_chaining_format1(
     max_glyphs: GlyphId,
 ) -> *mut ChainingSubtable {
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-    let mut first_coverage: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
 
     let result: Option<()> = 'parse: {
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
@@ -943,10 +932,8 @@ unsafe fn read_chaining_format1(
             break 'parse None;
         };
         let cov_offset = offset.wrapping_add(cov_rel as u32);
-        // `read_coverage` always returns a valid (possibly empty) `Coverage`
-        // shell, never null, even on malformed input -- see coverage.rs.
-        first_coverage = read_coverage(slice, cov_offset);
-        if chain_sub_rule_set_count as usize != (*first_coverage).len() {
+        let first_coverage: Coverage = read_coverage(slice, cov_offset);
+        if chain_sub_rule_set_count as usize != first_coverage.len() {
             break 'parse None;
         }
         if header
@@ -1004,7 +991,7 @@ unsafe fn read_chaining_format1(
                     data,
                     table_length,
                     sr_offset,
-                    (&(*first_coverage))[j as usize].index as u16,
+                    first_coverage[j as usize].index as u16,
                     true,
                     single_coverage,
                     max_glyphs,
@@ -1030,9 +1017,6 @@ unsafe fn read_chaining_format1(
         break 'parse Some(());
     };
 
-    // Same fallthrough leak `read_contextual_format1` had: `first_coverage`
-    // was only freed on the success path. Freed exactly once here instead.
-    otl_coverage_free(first_coverage);
     if result.is_some() {
         return subtable;
     }

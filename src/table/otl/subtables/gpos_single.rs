@@ -3,9 +3,7 @@
 use crate::support::font_reader::FontReader;
 use crate::support::handle::{GlyphHandle, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::{
-    Coverage, otl_coverage_free, push_to_coverage, read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
@@ -51,7 +49,6 @@ pub unsafe fn otl_read_gpos_single(
     _max_glyphs: GlyphId,
 ) -> *mut Subtable {
     let subtable: *mut GposSingleSubtable = subtable_gpos_single_create();
-    let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
 
     'parse: {
@@ -66,8 +63,8 @@ pub unsafe fn otl_read_gpos_single(
             break 'parse;
         };
 
-        targets = read_coverage(slice, offset.wrapping_add(from_rel as u32));
-        if targets.is_null() || (*targets).is_empty() {
+        let targets: Coverage = read_coverage(slice, offset.wrapping_add(from_rel as u32));
+        if targets.is_empty() {
             break 'parse;
         }
 
@@ -77,9 +74,9 @@ pub unsafe fn otl_read_gpos_single(
             };
             let v: PositionValue =
                 read_gpos_value(slice, offset.wrapping_add(6), value_format);
-            for j in 0..(*targets).len() {
+            for target in &targets {
                 (*subtable).push(GposSingleEntry {
-                    target: (&(*targets))[j].clone(),
+                    target: target.clone(),
                     value: v,
                 });
             }
@@ -94,12 +91,12 @@ pub unsafe fn otl_read_gpos_single(
             if header.require_room(value_count as usize, stride).is_err() {
                 break 'parse;
             }
-            if value_count as usize != (*targets).len() {
+            if value_count as usize != targets.len() {
                 break 'parse;
             }
-            for j in 0..(*targets).len() {
+            for (j, target) in targets.iter().enumerate() {
                 (*subtable).push(GposSingleEntry {
-                    target: (&(*targets))[j].clone(),
+                    target: target.clone(),
                     value: read_gpos_value(
                         slice,
                         offset.wrapping_add(8).wrapping_add((j * stride) as u32),
@@ -109,15 +106,9 @@ pub unsafe fn otl_read_gpos_single(
             }
         }
 
-        if !targets.is_null() {
-            otl_coverage_free(targets);
-        }
         return subtable_from_raw(subtable, Subtable::GposSingle);
     }
 
-    if !targets.is_null() {
-        otl_coverage_free(targets);
-    }
     subtable_gpos_single_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }

@@ -9,7 +9,7 @@ use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::Pos;
 use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
-use crate::table::otl::coverage::{Coverage, coverage_from_raw, push_to_coverage, read_coverage};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
@@ -125,17 +125,7 @@ fn read_lig_carets(data: &[u8], lig_caret_offset: usize) -> Option<LigCaretTable
         return None;
     }
     let coverage_rel = FontReader::new(data).at(lig_caret_offset).ok()?.u16().ok()? as usize;
-    // `read_coverage` never returns null (every one of its own failure
-    // paths returns a boxed *empty* `Coverage`, not a null pointer -- see
-    // its own doc comment), so adopting its result into an owned value via
-    // `coverage_from_raw` is a narrow bridge into that raw-pointer return,
-    // not a real null check. Owning `cov` outright (instead of manually
-    // `otl_coverage_free`-ing it on every return path, as the old code
-    // did) also closes what used to be a real leak here: every early
-    // `None` below drops `cov` for free along with everything else on the
-    // stack.
-    let cov: Coverage =
-        unsafe { coverage_from_raw(read_coverage(data, (lig_caret_offset + coverage_rel) as u32)) };
+    let cov: Coverage = read_coverage(data, (lig_caret_offset + coverage_rel) as u32);
     let lig_glyph_count = FontReader::new(data).at(lig_caret_offset + 2).ok()?.u16().ok()?;
     if cov.len() != lig_glyph_count as usize {
         return None;

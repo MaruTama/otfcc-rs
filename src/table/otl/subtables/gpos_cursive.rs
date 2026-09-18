@@ -3,9 +3,7 @@
 use crate::support::font_reader::FontReader;
 use crate::support::handle::{GlyphHandle, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::{
-    Coverage, otl_coverage_free, push_to_coverage, read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
@@ -48,7 +46,6 @@ pub unsafe fn otl_read_gpos_cursive(
     _max_glyphs: GlyphId,
 ) -> *mut Subtable {
     let subtable: *mut GposCursiveSubtable = subtable_gpos_cursive_create();
-    let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
 
     'parse: {
@@ -66,14 +63,14 @@ pub unsafe fn otl_read_gpos_cursive(
             break 'parse;
         };
 
-        targets = read_coverage(slice, offset.wrapping_add(from_rel as u32));
-        if targets.is_null() || (*targets).is_empty() {
+        let targets: Coverage = read_coverage(slice, offset.wrapping_add(from_rel as u32));
+        if targets.is_empty() {
             break 'parse;
         }
         if header.require_room(value_count as usize, 4).is_err() {
             break 'parse;
         }
-        if value_count as usize != (*targets).len() {
+        if value_count as usize != targets.len() {
             break 'parse;
         }
 
@@ -95,18 +92,14 @@ pub unsafe fn otl_read_gpos_cursive(
                 otl_anchor_absent()
             };
             (*subtable).push(GposCursiveEntry {
-                target: (&(*targets))[j as usize].clone(),
+                target: targets[j as usize].clone(),
                 enter,
                 exit,
             });
         }
-        otl_coverage_free(targets);
         return subtable_from_raw(subtable, Subtable::GposCursive);
     }
 
-    if !targets.is_null() {
-        otl_coverage_free(targets);
-    }
     subtable_gpos_cursive_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }

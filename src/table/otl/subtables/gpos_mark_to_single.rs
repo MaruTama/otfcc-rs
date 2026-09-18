@@ -4,9 +4,7 @@ use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::{
-    Coverage, otl_coverage_free, push_to_coverage, read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
@@ -63,13 +61,6 @@ fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSingleSubtable {
 // ~8.6 billion), the same class of bug as `cmap.rs`'s `n_groups` guard,
 // just reached by two independently-large factors instead of one. Fixed
 // with `checked_mul` before ever calling `require_room`.
-//
-// Also fixes a real (if minor) pre-existing leak: the original only freed
-// `marks`/`bases` on the success path -- every failure guard after they
-// were read (`read_coverage` always allocates, even for an empty result)
-// fell through to `subtable_gpos_mark_to_single_free(subtable)` without
-// freeing either. Restructured so cleanup runs once, after the parse
-// attempt, on every path.
 pub unsafe fn otl_read_gpos_mark_to_single(
     data: FontFilePointer,
     table_length: u32,
@@ -77,67 +68,65 @@ pub unsafe fn otl_read_gpos_mark_to_single(
     _max_glyphs: GlyphId,
 ) -> *mut Subtable {
     let subtable: *mut GposMarkToSingleSubtable = subtable_gpos_mark_to_single_create();
-    let mut marks: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    let mut bases: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
 
-    let result: Option<*mut Subtable> = 'parse: {
+    'parse: {
         let mut header = match FontReader::new(slice).at(subtable_offset as usize) {
             Ok(r) => r,
-            Err(_) => break 'parse None,
+            Err(_) => break 'parse,
         };
         if header.skip(2).is_err() {
-            break 'parse None; // format, unused
+            break 'parse; // format, unused
         }
         let Ok(marks_rel) = header.u16() else {
-            break 'parse None;
+            break 'parse;
         };
         let Ok(bases_rel) = header.u16() else {
-            break 'parse None;
+            break 'parse;
         };
         let Ok(class_count) = header.u16() else {
-            break 'parse None;
+            break 'parse;
         };
         let Ok(mark_array_rel) = header.u16() else {
-            break 'parse None;
+            break 'parse;
         };
         let Ok(base_array_rel) = header.u16() else {
-            break 'parse None;
+            break 'parse;
         };
 
-        marks = read_coverage(slice, subtable_offset.wrapping_add(marks_rel as u32));
-        bases = read_coverage(slice, subtable_offset.wrapping_add(bases_rel as u32));
-        if marks.is_null() || (*marks).is_empty() || bases.is_null() || (*bases).is_empty() {
-            break 'parse None;
+        let marks: Coverage = read_coverage(slice, subtable_offset.wrapping_add(marks_rel as u32));
+        let bases: Coverage = read_coverage(slice, subtable_offset.wrapping_add(bases_rel as u32));
+        if marks.is_empty() || bases.is_empty() {
+            break 'parse;
         }
 
         (*subtable).class_count = class_count as GlyphClass;
         let mark_array_offset = subtable_offset.wrapping_add(mark_array_rel as u32);
         otl_read_mark_array(
             &mut (*subtable).mark_array,
-            &*marks,
+            &marks,
             slice,
             mark_array_offset,
         );
 
         let base_array_offset = subtable_offset.wrapping_add(base_array_rel as u32);
         let Ok(mut base_reader) = FontReader::new(slice).at(base_array_offset as usize) else {
-            break 'parse None;
+            break 'parse;
         };
         let Ok(base_count) = base_reader.u16() else {
-            break 'parse None;
+            break 'parse;
         };
-        if base_count as usize != (*bases).len() {
-            break 'parse None;
+        if base_count as usize != bases.len() {
+            break 'parse;
         }
-        let Some(total_anchors) = (*bases).len().checked_mul(class_count as usize) else {
-            break 'parse None;
+        let Some(total_anchors) = bases.len().checked_mul(class_count as usize) else {
+            break 'parse;
         };
         if base_reader.require_room(total_anchors, 2).is_err() {
-            break 'parse None;
+            break 'parse;
         }
 
-        for j in 0..(*bases).len() {
+        for base in &bases {
             let mut base_anchors: Vec<Anchor> = Vec::with_capacity(class_count as usize);
             for _ in 0..class_count {
                 let anchor_rel = base_reader.u16().unwrap();
@@ -151,26 +140,15 @@ pub unsafe fn otl_read_gpos_mark_to_single(
                 }
             }
             (*subtable).base_array.push(BaseRecord {
-                glyph: (&(*bases))[j].clone(),
+                glyph: base.clone(),
                 anchors: base_anchors,
             });
         }
-        break 'parse Some(subtable_from_raw(subtable, Subtable::GposMarkToSingle));
-    };
+        return subtable_from_raw(subtable, Subtable::GposMarkToSingle);
+    }
 
-    if !marks.is_null() {
-        otl_coverage_free(marks);
-    }
-    if !bases.is_null() {
-        otl_coverage_free(bases);
-    }
-    match result {
-        Some(s) => s,
-        None => {
-            subtable_gpos_mark_to_single_free(subtable);
-            ::core::ptr::null_mut::<Subtable>()
-        }
-    }
+    subtable_gpos_mark_to_single_free(subtable);
+    ::core::ptr::null_mut::<Subtable>()
 }
 pub fn otl_gpos_dump_mark_to_single(st: &Subtable) -> BuiltValue {
     let Subtable::GposMarkToSingle(subtable) = st else {

@@ -1126,7 +1126,7 @@ mod read_anchor_and_value_tests {
     use super::*;
     use crate::support::handle::handle_from_index;
     use crate::support::primitives::GlyphId;
-    use crate::table::otl::coverage::{otl_coverage_create, otl_coverage_free, push_to_coverage};
+    use crate::table::otl::coverage::push_to_coverage;
 
     #[test]
     fn otl_read_anchor_well_formed_reads_x_and_y() {
@@ -1164,10 +1164,10 @@ mod read_anchor_and_value_tests {
         assert_eq!((v.dx, v.dy), (0.0, 0.0));
     }
 
-    unsafe fn coverage_of(gids: &[GlyphId]) -> *mut Coverage {
-        let cov = otl_coverage_create();
+    fn coverage_of(gids: &[GlyphId]) -> Coverage {
+        let mut cov = Coverage::new();
         for &gid in gids {
-            push_to_coverage(&mut *cov, handle_from_index(gid) as GlyphHandle);
+            push_to_coverage(&mut cov, handle_from_index(gid) as GlyphHandle);
         }
         cov
     }
@@ -1181,12 +1181,9 @@ mod read_anchor_and_value_tests {
         data.extend_from_slice(&1u16.to_be_bytes()); // Anchor format (unread)
         data.extend_from_slice(&100i16.to_be_bytes()); // x
         data.extend_from_slice(&(-30i16).to_be_bytes()); // y
-        let cov = unsafe { coverage_of(&[5]) };
+        let cov = coverage_of(&[5]);
         let mut array: MarkArray = Vec::new();
-        unsafe {
-            otl_read_mark_array(&mut array, &*cov, &data, 0);
-            otl_coverage_free(cov);
-        }
+        otl_read_mark_array(&mut array, &cov, &data, 0);
         assert_eq!(array.len(), 1);
         assert_eq!(array[0].glyph.index, 5);
         assert_eq!(array[0].mark_class, 2);
@@ -1201,12 +1198,9 @@ mod read_anchor_and_value_tests {
         data.extend_from_slice(&1u16.to_be_bytes()); // MarkCount
         data.extend_from_slice(&0u16.to_be_bytes()); // Class
         data.extend_from_slice(&0u16.to_be_bytes()); // MarkAnchorOffset = 0
-        let cov = unsafe { coverage_of(&[5]) };
+        let cov = coverage_of(&[5]);
         let mut array: MarkArray = Vec::new();
-        unsafe {
-            otl_read_mark_array(&mut array, &*cov, &data, 0);
-            otl_coverage_free(cov);
-        }
+        otl_read_mark_array(&mut array, &cov, &data, 0);
         assert!(!array[0].anchor.present);
     }
 
@@ -1222,12 +1216,9 @@ mod read_anchor_and_value_tests {
         data.extend_from_slice(&0u16.to_be_bytes()); // record[0].MarkAnchorOffset
         data.extend_from_slice(&0u16.to_be_bytes()); // record[1].Class
         data.extend_from_slice(&0u16.to_be_bytes()); // record[1].MarkAnchorOffset
-        let cov = unsafe { coverage_of(&[5]) };
+        let cov = coverage_of(&[5]);
         let mut array: MarkArray = Vec::new();
-        unsafe {
-            otl_read_mark_array(&mut array, &*cov, &data, 0);
-            otl_coverage_free(cov);
-        }
+        otl_read_mark_array(&mut array, &cov, &data, 0);
         assert_eq!(array.len(), 1);
     }
 
@@ -1237,12 +1228,9 @@ mod read_anchor_and_value_tests {
         // 4-byte records -- a `MarkCount` this large against a 2-byte
         // buffer used to read straight off the end.
         let data = 1000u16.to_be_bytes().to_vec();
-        let cov = unsafe { coverage_of(&[5]) };
+        let cov = coverage_of(&[5]);
         let mut array: MarkArray = Vec::new();
-        unsafe {
-            otl_read_mark_array(&mut array, &*cov, &data, 0);
-            otl_coverage_free(cov);
-        }
+        otl_read_mark_array(&mut array, &cov, &data, 0);
         assert!(array.is_empty());
     }
 }

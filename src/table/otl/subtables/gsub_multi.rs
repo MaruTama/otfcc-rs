@@ -4,10 +4,7 @@ use crate::support::handle::{
     GlyphHandle, handle_from_index, handle_from_name,
 };
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::{
-    Coverage, coverage_from_raw, otl_coverage_create, otl_coverage_free, push_to_coverage,
-    read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::support::font_reader::FontReader;
 
@@ -75,7 +72,6 @@ pub unsafe fn otl_read_gsub_multi(
     _max_glyphs: GlyphId,
 ) -> *mut Subtable {
     let subtable: *mut GsubMultiSubtable = subtable_gsub_multi_create();
-    let mut from: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
     let slice = ::core::slice::from_raw_parts(data, table_length as usize);
 
     'parse: {
@@ -93,8 +89,8 @@ pub unsafe fn otl_read_gsub_multi(
             break 'parse;
         };
 
-        from = read_coverage(slice, offset.wrapping_add(from_rel as u32));
-        if seq_count as usize != (*from).len() {
+        let from: Coverage = read_coverage(slice, offset.wrapping_add(from_rel as u32));
+        if seq_count as usize != from.len() {
             break 'parse;
         }
         if header.require_room(seq_count as usize, 2).is_err() {
@@ -115,25 +111,21 @@ pub unsafe fn otl_read_gsub_multi(
             if total_outputs > MAX_TOTAL_GSUB_MULTI_OUTPUTS {
                 break 'parse;
             }
-            let cov: *mut Coverage = otl_coverage_create();
+            let mut cov: Coverage = Vec::new();
             for _ in 0..n {
                 push_to_coverage(
-                    &mut *cov,
+                    &mut cov,
                     handle_from_index(sr.u16().unwrap() as GlyphId) as GlyphHandle,
                 );
             }
             (*subtable).push(GsubMultiEntry {
-                from: (&(*from))[j as usize].clone(),
-                to: coverage_from_raw(cov),
+                from: from[j as usize].clone(),
+                to: cov,
             });
         }
-        otl_coverage_free(from);
         return subtable_from_raw(subtable, Subtable::GsubMulti);
     }
 
-    if !from.is_null() {
-        otl_coverage_free(from);
-    }
     subtable_gsub_multi_free(subtable);
     ::core::ptr::null_mut::<Subtable>()
 }
@@ -158,11 +150,7 @@ pub fn otl_gsub_parse_multi(
             if to.as_array().is_some() {
                 st.push(GsubMultiEntry {
                     from: handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle,
-                    // `parse_coverage` is a safe fn; `coverage_from_raw` is
-                    // the one still-unsafe `Box::from_raw` boundary it
-                    // hands off to (same `vqs_compare`-style narrow bridge
-                    // used throughout this migration).
-                    to: unsafe { coverage_from_raw(parse_coverage(Some(to))) },
+                    to: parse_coverage(Some(to)),
                 });
             }
         }

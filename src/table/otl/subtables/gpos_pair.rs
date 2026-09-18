@@ -4,10 +4,7 @@ use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::classdef::{
     ClassDef, classdef_from_raw, expand_class_def, otl_class_def_create, read_class_def,
 };
-use crate::table::otl::coverage::{
-    Coverage, otl_coverage_free, push_to_coverage, read_coverage,
-    shrink_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage, shrink_coverage};
 
 use crate::support::font_reader::FontReader;
 
@@ -105,20 +102,13 @@ pub unsafe fn otl_read_gpos_pair(
                 break 'parse;
             };
 
-            // Built through a local raw pointer first (matches
-            // `otl_class_def_create`'s own raw-pointer API), then adopted
-            // into `(*subtable).first` as soon as it's fully constructed --
-            // matching the original's immediate field assignment, so every
-            // exit path below still disposes it correctly via
-            // `subtable_gpos_pair_free`'s `Box::from_raw`.
-            let cov = read_coverage(slice, offset.wrapping_add(cov_rel as u32));
+            let cov: Coverage = read_coverage(slice, offset.wrapping_add(cov_rel as u32));
             let first_raw: *mut ClassDef = otl_class_def_create();
-            (*first_raw).glyphs = ::core::mem::take(&mut *cov);
+            (*first_raw).glyphs = cov;
             (*first_raw).maxclass = ((*first_raw).glyphs.len() as i32 - 1) as GlyphClass;
             (*first_raw).classes = (0..(*first_raw).glyphs.len())
                 .map(|j| j as GlyphClass)
                 .collect();
-            otl_coverage_free(cov);
             (*subtable).first = classdef_from_raw(first_raw);
             let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
 
@@ -270,15 +260,14 @@ pub unsafe fn otl_read_gpos_pair(
             let len1_0 = position_format_length(format1_0);
             let len2_0 = position_format_length(format2_0);
 
-            let cov_0 = read_coverage(slice, offset.wrapping_add(cov_rel as u32));
+            let cov_0: Coverage = read_coverage(slice, offset.wrapping_add(cov_rel as u32));
             // `expand_class_def` consumes (and internally frees) the `ocd`
             // it's handed and returns a brand-new `*mut ClassDef` -- kept
             // as a plain local raw pointer through that consuming call,
             // then adopted into `(*subtable).first` only once settled.
             let mut first_raw: *mut ClassDef =
                 read_class_def(slice, offset.wrapping_add(cd1_rel as u32));
-            first_raw = expand_class_def(&*cov_0, *Box::from_raw(first_raw));
-            otl_coverage_free(cov_0);
+            first_raw = expand_class_def(&cov_0, *Box::from_raw(first_raw));
             (*subtable).first = classdef_from_raw(first_raw);
             (*subtable).second =
                 classdef_from_raw(read_class_def(slice, offset.wrapping_add(cd2_rel as u32)));
