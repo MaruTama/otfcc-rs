@@ -655,7 +655,7 @@ pub fn otfcc_read_otl(
     // table's lookups are read, so the budget bounds this whole table's
     // total `class_coverage` cost rather than resetting fresh per subtable.
     crate::table::otl::subtables::chaining::read::reset_class_coverage_budgets();
-    crate::table::otl::coverage::reset_coverage_range_expansion_budget();
+    crate::table::otl::coverage::reset_coverage_entry_build_budget();
     // Every slot is still `Some` here -- this is the same freshly-built
     // table `parse_otl_common` just returned, before any consolidation.
     for lookup in otl_box.lookups.iter_mut().flatten() {

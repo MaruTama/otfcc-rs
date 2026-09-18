@@ -598,7 +598,7 @@ mod regression_tests {
     ///    are each individually bounded, but their *product* was not --
     ///    this font's coverage table expanded into billions of
     ///    `IndexMap::entry` calls. Fixed by
-    ///    `reset_coverage_range_expansion_budget`'s table-wide budget.
+    ///    `reset_coverage_entry_build_budget`'s table-wide budget.
     /// 2. `consolidate.rs::__declare_otl_consolidation`: once (1)'s fix
     ///    made most of this font's ~300,000 possible subtable slots
     ///    (`MAX_TOTAL_LOOKUPS_PER_TABLE` * `MAX_TOTAL_SUBTABLES_PER_

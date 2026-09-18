@@ -159,11 +159,11 @@ pub fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     if data.len() < 12 {
         return None;
     }
-    // See `coverage::reset_coverage_range_expansion_budget`'s own doc
+    // See `coverage::reset_coverage_entry_build_budget`'s own doc
     // comment: must run once per table, before any of this table's
     // `read_coverage` calls (reached below via `LigCaretList`'s own
     // coverage table).
-    crate::table::otl::coverage::reset_coverage_range_expansion_budget();
+    crate::table::otl::coverage::reset_coverage_entry_build_budget();
     let classdef_offset = FontReader::new(data).at(4).ok()?.u16().ok()?;
     // `classdef_from_raw` stays `unsafe fn` (its own `Box::from_raw`
     // ownership boundary); `read_class_def` itself is a safe fn, so this

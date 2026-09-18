@@ -13,31 +13,47 @@ use crate::support::primitives::GlyphId;
 /// wrapping one -- same "C-native vector shape becomes a bare `pub type`"
 /// call as `ColrTable`/`TsiTable` earlier in this migration.
 pub type Coverage = Vec<GlyphHandle>;
-/// Bounds the total Coverage-format-2 range-expansion cost (the `while
-/// k <= end` loop in `read_coverage` below) across a *whole* GSUB/GPOS/
-/// GDEF table -- every `read_coverage` call combined, not just one --
-/// same "per-subtable cap alone still multiplies into a table-wide hang"
-/// shape `chaining/read.rs`'s `CLASS_ZERO_BUDGET`/
-/// `CLASS_COVERAGE_CALL_BUDGET` document and fix for a different call
-/// site (see that file's own comments for the fuller reasoning). Sized
-/// at ~76x the largest amount of work any single legitimate coverage
-/// table could ever need (65,536 distinct glyphs), leaving generous
-/// headroom for a table with many real, non-adversarial coverage tables
-/// while still keeping worst-case adversarial cost to well under a
-/// second (confirmed against the fuzz-found font this budget exists to
-/// stop, which otherwise timed out at 1753s under CI's fuzz job).
-const MAX_TOTAL_COVERAGE_RANGE_EXPANSIONS_PER_TABLE: u32 = 5_000_000;
-static COVERAGE_RANGE_EXPANSION_BUDGET: ::core::sync::atomic::AtomicU32 =
-    ::core::sync::atomic::AtomicU32::new(MAX_TOTAL_COVERAGE_RANGE_EXPANSIONS_PER_TABLE);
+/// Bounds the total cost of *building* a `Coverage` -- format 1's `for _ in
+/// 0..glyph_count { h.insert(...) }` loop and format 2's `while k <= end`
+/// range-expansion loop, both in `read_coverage` below -- across a *whole*
+/// GSUB/GPOS/GDEF table, every `read_coverage` call combined, not just one.
+/// Originally guarded only format 2's range expansion (hence the name this
+/// budget/its reset function still carry); a `cargo fuzz run otf_parse` CI
+/// job later found that format 1 has the exact same "per-call cap alone
+/// still multiplies into a table-wide cost explosion" gap -- `glyph_count`
+/// is individually bounded (`require_room` against the table, at most
+/// 65,536 entries), but nothing capped how many separate `read_coverage`
+/// calls across a table's many lookups/subtables could each pay that cost,
+/// and each fully-populated `Coverage` retained afterward (a real,
+/// persistent `Vec<GlyphHandle>`, not a temporary) costs real memory --
+/// unlike a coverage table's actual byte size, that cost doesn't shrink
+/// just because the subtable offsets referencing it alias each other or
+/// point at the same bytes from unrelated (or corrupted) lookups.
+/// `cargo fuzz` found a GSUB table whose ~300 processed lookups' subtable
+/// dispatches repeatedly, independently built full ~65,535-glyph `Coverage`
+/// values this way, pushing RSS well past a 2048MB limit. Same
+/// "per-subtable cap alone still multiplies into a table-wide hang" shape
+/// `chaining/read.rs`'s `CLASS_ZERO_BUDGET`/`CLASS_COVERAGE_CALL_BUDGET`
+/// document and fix for a different call site (see that file's own
+/// comments for the fuller reasoning). Sized at ~76x the largest amount of
+/// work any single legitimate coverage table could ever need (65,536
+/// distinct glyphs), leaving generous headroom for a table with many real,
+/// non-adversarial coverage tables while still keeping worst-case
+/// adversarial cost bounded (confirmed against both the original
+/// format-2-only fuzz-found font, which otherwise timed out at 1753s under
+/// CI's fuzz job, and the format-1 OOM this comment now also documents).
+const MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE: u32 = 5_000_000;
+static COVERAGE_ENTRY_BUILD_BUDGET: ::core::sync::atomic::AtomicU32 =
+    ::core::sync::atomic::AtomicU32::new(MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE);
 /// Must be called once per top-level table read (`otfcc_read_otl`,
 /// `otfcc_read_gdef`), before any of that table's `read_coverage` calls
 /// happen -- see the budget's own doc comment for why table-wide scope,
 /// not per-call, is what actually bounds the cost. Safe as a plain
 /// static (no `Mutex`/`RefCell` needed): this crate is single-threaded
 /// throughout, same reasoning as `chaining/read.rs`'s own budgets.
-pub(crate) fn reset_coverage_range_expansion_budget() {
-    COVERAGE_RANGE_EXPANSION_BUDGET.store(
-        MAX_TOTAL_COVERAGE_RANGE_EXPANSIONS_PER_TABLE,
+pub(crate) fn reset_coverage_entry_build_budget() {
+    COVERAGE_ENTRY_BUILD_BUDGET.store(
+        MAX_TOTAL_COVERAGE_ENTRY_BUILDS_PER_TABLE,
         ::core::sync::atomic::Ordering::Relaxed,
     );
 }
@@ -113,9 +129,21 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32) -> *mut Coverage {
             // strictly increasing -- sorting by it reproduces insertion
             // order exactly. `IndexSet` (insertion-order-preserving,
             // dedups on `.insert()`) needs no explicit sort step at all.
+            //
+            // `glyph_count` is individually bounded (`require_room`
+            // against the table, at most 65,536 entries) but, like format
+            // 2's range expansion below, nothing capped how many separate
+            // `read_coverage` calls across a table's many lookups/
+            // subtables could each pay that cost -- see
+            // `COVERAGE_ENTRY_BUILD_BUDGET`'s own doc comment for the
+            // fuzz-found OOM this loop's own missing budget check caused.
             let mut h: indexmap::IndexSet<GlyphId> = indexmap::IndexSet::new();
-            for _ in 0..glyph_count {
+            'glyphs: for _ in 0..glyph_count {
+                if COVERAGE_ENTRY_BUILD_BUDGET.load(::core::sync::atomic::Ordering::Relaxed) == 0 {
+                    break 'glyphs;
+                }
                 h.insert(r.u16().unwrap());
+                COVERAGE_ENTRY_BUILD_BUDGET.fetch_sub(1, ::core::sync::atomic::Ordering::Relaxed);
             }
             for gid in h.into_iter() {
                 push_to_coverage(&mut coverage, handle_from_index(gid) as GlyphHandle);
@@ -157,15 +185,18 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32) -> *mut Coverage {
             // bytes, multiplying a fast single call back into the same
             // hang -- confirmed by instrumenting this exact fuzz-found
             // font, which kept timing out under a per-call-only cap.
-            // `COVERAGE_RANGE_EXPANSION_BUDGET` (reset once per table,
-            // see `reset_coverage_range_expansion_budget`) closes that
-            // gap the same way `chaining/read.rs`'s `CLASS_ZERO_BUDGET`/
+            // `COVERAGE_ENTRY_BUILD_BUDGET` (reset once per table, see
+            // `reset_coverage_entry_build_budget`) closes that gap the
+            // same way `chaining/read.rs`'s `CLASS_ZERO_BUDGET`/
             // `CLASS_COVERAGE_CALL_BUDGET` do for a different call site.
             // No coverage table can ever usefully describe more than
             // 65,536 distinct glyphs (the whole `GlyphId` space), so
             // this budget -- many multiples of that -- only ever
             // discards genuinely redundant/adversarial range expansion
-            // across the whole table, not real coverage.
+            // across the whole table, not real coverage. Shared with
+            // format 1's loop above: both are the same class of cost
+            // (building a `Coverage`), so they draw from one combined
+            // table-wide ceiling rather than each getting their own.
             let mut h: indexmap::IndexMap<GlyphId, i32> = indexmap::IndexMap::new();
             'ranges: for _ in 0..range_count {
                 let start = r.u16().unwrap();
@@ -173,13 +204,13 @@ pub(crate) fn read_coverage(data: &[u8], offset: u32) -> *mut Coverage {
                 let start_coverage_index = r.u16().unwrap();
                 let mut k = start as i32;
                 while k <= end as i32 {
-                    if COVERAGE_RANGE_EXPANSION_BUDGET.load(::core::sync::atomic::Ordering::Relaxed) == 0 {
+                    if COVERAGE_ENTRY_BUILD_BUDGET.load(::core::sync::atomic::Ordering::Relaxed) == 0 {
                         break 'ranges;
                     }
                     let cov_index = start_coverage_index as i32 + k;
                     h.entry(k as GlyphId).or_insert(cov_index);
                     k += 1;
-                    COVERAGE_RANGE_EXPANSION_BUDGET.fetch_sub(1, ::core::sync::atomic::Ordering::Relaxed);
+                    COVERAGE_ENTRY_BUILD_BUDGET.fetch_sub(1, ::core::sync::atomic::Ordering::Relaxed);
                 }
             }
             let mut entries: Vec<(GlyphId, i32)> = h.into_iter().collect();
