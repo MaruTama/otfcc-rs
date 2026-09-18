@@ -53,21 +53,11 @@ unsafe fn _caryll_read_otl_extend(
             return ::core::ptr::null_mut::<Subtable>();
         };
         let type_0 = LookupType::from_file(basis, extension_lookup_type);
-        // `otfcc_read_otl_subtable` returns `Option<Box<Subtable>>` now;
-        // `ExtendSubtable.subtable` itself is still `*mut Subtable`
-        // (out of this PR's scope -- see the plan doc's Stage L-4), so
-        // the result is converted back to a raw pointer right here,
-        // the same shape `otfcc_read_otl_lookup` used to apply to this
-        // whole function's own return value before this conversion.
-        let subtable: *mut Subtable = otfcc_read_otl_subtable(
-            slice,
-            real_subtable_offset,
-            type_0,
-            max_glyphs,
-            options,
-        )
-        .map(Box::into_raw)
-        .unwrap_or(::core::ptr::null_mut());
+        // `otfcc_read_otl_subtable` returns `Option<Box<Subtable>>`, the
+        // same type `ExtendSubtable.subtable` holds now -- no conversion
+        // needed at this boundary any more.
+        let subtable: Option<Box<Subtable>> =
+            otfcc_read_otl_subtable(slice, real_subtable_offset, type_0, max_glyphs, options);
         Box::into_raw(Box::new(Subtable::Extend(ExtendSubtable {
             type_0,
             subtable,

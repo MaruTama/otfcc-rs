@@ -610,29 +610,34 @@ fn otfcc_read_otl_lookup(data: &[u8], lookup: &mut Lookup, max_glyphs: GlyphId, 
                 // "copy the raw pointer out, then separately null the slot"
                 // two-step, and the only correct one: a `Box` can't be
                 // copied, only moved.
-                if let Some(elem) = slot.take() {
+                if let Some(mut elem) = slot.take() {
                     // Every element in this list is known to be an `Extend`
                     // placeholder -- that is what `OTL_TYPE_GSUB_EXTEND`/
                     // `OTL_TYPE_GPOS_EXTEND` means -- so unwrapping it is
-                    // infallible. Moving `ExtendSubtable` out of `*elem`
-                    // (it's `Copy`) also deallocates `elem`'s own heap slot,
-                    // same as the old explicit `Box::from_raw(..)` drop did.
-                    let Subtable::Extend(ext) = *elem else {
+                    // infallible. Matched through a `&mut` reference, not
+                    // moved by value: `Subtable` has a manual `Drop` impl,
+                    // so Rust forbids moving a field out of an owned value
+                    // of that type (E0509) even when, as here, the field is
+                    // that variant's entire payload -- `ext.subtable.take()`
+                    // extracts ownership of the nested `Option<Box<Subtable>>`
+                    // in place instead, leaving `elem` holding an empty
+                    // `Extend` shell that drops trivially (its `subtable`
+                    // is `None`) once this block ends.
+                    let Subtable::Extend(ext) = &mut *elem else {
                         unreachable!()
                     };
-                    if ext.type_0 == lookup.type_0 {
-                        // `.subtable`'s ownership transfers to become the new
-                        // list element. Same narrow bridge as above.
-                        *slot = unsafe { subtable_list_slot(ext.subtable) };
+                    let ext_type = ext.type_0;
+                    let nested = ext.subtable.take();
+                    if ext_type == lookup.type_0 {
+                        *slot = nested;
                     } else {
                         // A scratch `Lookup` purely to reuse its (now `Drop`-driven)
                         // type-dispatched subtable teardown on this one subtable --
                         // never pushed anywhere, so it's just let go out of scope
                         // instead of the old explicit `otfcc_delete_lookup` call.
                         let mut temp: Box<Lookup> = new_lookup();
-                        temp.type_0 = ext.type_0;
-                        temp.subtables
-                            .push(unsafe { subtable_list_slot(ext.subtable) });
+                        temp.type_0 = ext_type;
+                        temp.subtables.push(nested);
                         drop(temp);
                         // Slot already `None` from `.take()` above.
                     }

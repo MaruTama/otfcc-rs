@@ -212,15 +212,17 @@ impl Drop for Subtable {
             // manual dispose left to call, same reasoning as
             // `GposMarkToSingle` above.
             Subtable::GposMarkToLigature(_) => {}
-            // `subtable: *mut Subtable`'s ownership is always taken (via
-            // `.subtable`) before an `Extend` value is legitimately
-            // dropped -- `otl/read.rs`'s extend-expansion resolves every
-            // `Extend` placeholder to its nested subtable (or, on a
-            // mismatched-type error path, to a scratch `Lookup` that
-            // takes over `.subtable` and drops it itself) before the
-            // shell holding it is ever freed. Matches the old
-            // `dispose_subtable_dependent`'s behavior exactly: `EXTEND`
-            // had no arm there either, falling through its `_ => {}`.
+            // `subtable: Option<Box<Subtable>>` (a real owning field, not
+            // a raw pointer) self-drops -- no manual dispose needed, and
+            // unlike the raw-pointer shape this replaced, forgetting to
+            // `.take()` it before an `Extend` value drops is no longer a
+            // leak: Rust's own per-field drop glue frees whatever is
+            // still `Some` here automatically. `otl/read.rs`'s
+            // extend-expansion usually does take it first (to resolve
+            // every `Extend` placeholder to its nested subtable, or, on
+            // a mismatched-type error path, to a scratch `Lookup` that
+            // takes over `.subtable` and drops it itself), but nothing
+            // relies on that happening for correctness any more.
             Subtable::Extend(_) => {}
         }
     }
@@ -251,13 +253,17 @@ pub(crate) unsafe fn subtable_from_raw<T>(raw: *mut T, wrap: fn(T) -> Subtable) 
     let value = *Box::from_raw(raw);
     Box::into_raw(Box::new(wrap(value)))
 }
-/// Adopt an already-heap-allocated `*mut Subtable` (e.g. a
-/// `subtable_from_raw`/`Box::into_raw` result, or a `.subtable` field read
-/// out of an `ExtendSubtable`) into a `SubtableList` slot. Several read/parse
-/// entry points can legitimately return null (unrecognised lookup format,
-/// truncated data), and a null in a `SubtableList` slot was always a valid
-/// "hole" even before this migration -- `Box::from_raw` on a null pointer
-/// would be UB, so this null check is required, not defensive.
+/// Adopt an already-heap-allocated `*mut Subtable` (a `subtable_from_raw`/
+/// `Box::into_raw` result) into a `SubtableList` slot -- used by the
+/// still-raw-pointer-shaped chaining/contextual/extend readers'
+/// dispatch arms in `otl/read.rs`'s `otfcc_read_otl_subtable`.
+/// `ExtendSubtable.subtable` is a real `Option<Box<Subtable>>` field now,
+/// not a raw pointer, so it no longer goes through this bridge. Several
+/// read/parse entry points can legitimately return null (unrecognised
+/// lookup format, truncated data), and a null in a `SubtableList` slot
+/// was always a valid "hole" even before this migration -- `Box::from_raw`
+/// on a null pointer would be UB, so this null check is required, not
+/// defensive.
 pub(crate) unsafe fn subtable_list_slot(raw: SubtablePtr) -> Option<Box<Subtable>> {
     if raw.is_null() {
         None
@@ -265,10 +271,10 @@ pub(crate) unsafe fn subtable_list_slot(raw: SubtablePtr) -> Option<Box<Subtable
         Some(Box::from_raw(raw))
     }
 }
-#[derive(Copy, Clone, Debug)]
+#[derive(Debug)]
 pub struct ExtendSubtable {
     pub type_0: LookupType,
-    pub subtable: *mut Subtable,
+    pub subtable: Option<Box<Subtable>>,
 }
 // Embedded by value in `Subtable::GposMarkToLigature` -- no `Copy`/`Clone`
 // needed once `mark_array`/`lig_array` own `Vec`s.

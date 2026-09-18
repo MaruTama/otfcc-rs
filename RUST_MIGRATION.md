@@ -14091,3 +14091,69 @@ on the other platform before a commit is trusted.
     eight of the nine readers (`gpos_pair.rs` keeps it, for the
     `classdef.rs` reason above) rather than just simplifying what was
     already safe inside them.
+
+- **Stage L-4: `ExtendSubtable.subtable` is `Option<Box<Subtable>>` now,
+  not `*mut Subtable`.** Fourth installment of Stage L (see the plan
+  doc), stacked on L-3 (a real dependency: `extend.rs`'s recursive call
+  into `otfcc_read_otl_subtable` only got its `Option<Box<Subtable>>`
+  return type from that stage). Flagged in the plan doc as this stage's
+  "biggest design question" going in, and the one place in this whole
+  effort where the fix turned out to be a genuine safety improvement,
+  not just marker removal.
+  - **What the raw pointer actually risked**: `impl Drop for Subtable`'s
+    `Extend(_) => {}` arm was a deliberate no-op, on the documented
+    assumption that `otl/read.rs`'s extend-expansion pass always takes
+    ownership of `.subtable` (resolving it into its real position in the
+    lookup, or handing it to a scratch `Lookup` to drop) before the
+    `Extend` shell holding it is ever dropped. That invariant held by
+    convention, not by the type system -- nothing stopped a future
+    change from constructing or dropping an `ExtendSubtable` outside
+    that one code path and silently leaking whatever `.subtable`
+    pointed at. `Option<Box<Subtable>>` closes this by construction: an
+    `ExtendSubtable` that still holds `Some(subtable)` when it drops now
+    frees it correctly through the field's own drop glue -- Rust runs a
+    type's own per-field drop *after* a manual `Drop::drop` body
+    returns, so the existing no-op `Extend(_) => {}` arm needed no
+    change at all for this to start working. The leak-prevention
+    invariant moved from "a comment asking future code to keep taking
+    ownership first" to "true even if nothing ever does."
+  - **The move restriction this ran into**: `ExtendSubtable` was
+    `#[derive(Copy, Clone)]` (sound while its only heap-touching field
+    was a `Copy` raw pointer); an `Option<Box<_>>` field drops both
+    derives. `otl/read.rs`'s extend-expansion pass used to destructure
+    `let Subtable::Extend(ext) = *elem else { unreachable!() }` -- fine
+    when `ExtendSubtable` was `Copy` (the compiler just copies `ext` out
+    and lets the original, now-redundant copy drop trivially), but with
+    a non-`Copy` payload this is E0509 ("cannot move out of type
+    `Subtable`, which implements the `Drop` trait"): Rust forbids moving
+    any field out of an owned value whose type has a manual `Drop` impl,
+    even when, as here, the field being moved is that one variant's
+    entire payload. Fixed by matching through `&mut *elem` instead of
+    owned `*elem`, then `ext.subtable.take()` to extract ownership of
+    the nested subtable in place -- `elem` (still a `Box<Subtable>`,
+    now holding an empty `Extend` shell with `subtable: None`) is left
+    to drop trivially at the end of the block, same outcome as the old
+    by-value move, without ever needing to move anything out of the
+    `Drop`-typed value itself.
+  - **A real simplification fell out at the construction site too**:
+    `extend.rs`'s recursive `otfcc_read_otl_subtable` call used to need
+    `.map(Box::into_raw).unwrap_or(core::ptr::null_mut())` to convert
+    its `Option<Box<Subtable>>` result into the raw pointer
+    `ExtendSubtable.subtable` used to hold -- that conversion is gone
+    now that both sides agree on the same type; the two `unsafe {
+    subtable_list_slot(ext.subtable) }` calls in `otl/read.rs`'s
+    extend-expansion pass are gone the same way, since `ext.subtable`
+    is already the `Option<Box<Subtable>>` those calls used to
+    reconstruct.
+  - **Verification**: full pipeline green -- build, `clippy --all-targets
+    -- -D warnings`, `cargo test --lib` (406), `cargo test --
+    --test-threads=1` (integration suite, including `golden.rs`'s
+    byte-exact fixtures and `lookup_alias.rs`, which exercises the GSUB
+    Extension lookup path -- exactly the code this stage touches -- via
+    its own lookup-alias regression), Miri (0 UB), all three fuzz targets
+    90s each plus every `tests/fuzz-corpus/known-issues/*.bin` re-run
+    directly. `survey-unsafe.sh`: `unsafe fn` unchanged at 91 (no
+    function's own `unsafe fn` marker was at stake here), `unsafe
+    blocks` 201 -> 199, raw pointer types 905 -> 901 -- a small movement
+    on the counters, matching this stage's actual point: closing a
+    genuine leak-risk invariant, not shrinking the survey numbers.
