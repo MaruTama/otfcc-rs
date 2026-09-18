@@ -200,49 +200,48 @@ pub(crate) fn delete_font_table(font: &mut Font, tag: u32) {
         _ => {}
     };
 }
-#[inline]
-pub unsafe fn otfcc_font_create() -> *mut Font {
-    Box::into_raw(Box::new(Font {
-        subtype: FontSubtype::Ttf,
-        fvar: None,
-        head: None,
-        hhea: None,
-        maxp: None,
-        os_2: None,
-        hmtx: None,
-        post: None,
-        hdmx: None,
-        vhea: None,
-        vmtx: None,
-        vorg: None,
-        cff: None,
-        glyf: None,
-        cmap: None,
-        name: None,
-        meta: None,
-        fpgm: None,
-        prep: None,
-        cvt_: None,
-        gasp: None,
-        vdmx: None,
-        ltsh: None,
-        gsub: None,
-        gpos: None,
-        gdef: None,
-        base: None,
-        cpal: None,
-        colr: None,
-        svg: None,
-        tsi_01: None,
-        tsi_23: None,
-        tsi5: None,
-        glyph_order: None,
-    }))
-}
-#[inline]
-pub unsafe fn otfcc_font_free(x: *mut Font) {
-    if x.is_null() {
-        return;
+/// An empty TrueType `Font` -- every table absent, no glyph order yet. Was
+/// `otfcc_font_create() -> *mut Font` (a bare `Box::into_raw`) paired with
+/// `otfcc_font_free` (a bare `drop(Box::from_raw(..))`), a shell every
+/// caller had to remember to pair by hand; an owned `Box<Font>` (built from
+/// this) now frees itself.
+impl Default for Font {
+    fn default() -> Self {
+        Font {
+            subtype: FontSubtype::Ttf,
+            fvar: None,
+            head: None,
+            hhea: None,
+            maxp: None,
+            os_2: None,
+            hmtx: None,
+            post: None,
+            hdmx: None,
+            vhea: None,
+            vmtx: None,
+            vorg: None,
+            cff: None,
+            glyf: None,
+            cmap: None,
+            name: None,
+            meta: None,
+            fpgm: None,
+            prep: None,
+            cvt_: None,
+            gasp: None,
+            vdmx: None,
+            ltsh: None,
+            gsub: None,
+            gpos: None,
+            gdef: None,
+            base: None,
+            cpal: None,
+            colr: None,
+            svg: None,
+            tsi_01: None,
+            tsi_23: None,
+            tsi5: None,
+            glyph_order: None,
+        }
     }
-    drop(Box::from_raw(x));
 }

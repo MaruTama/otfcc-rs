@@ -4,8 +4,6 @@ use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 
 use crate::consolidate::otfcc_consolidate_font;
-use crate::font::caryll_font::Font;
-use crate::font::caryll_font::otfcc_font_free;
 use crate::json_reader::read_json;
 use crate::logger::{Logger, logger_indent, otfcc_new_empty_target};
 use crate::otf_writer::serialize_to_otf;
@@ -37,18 +35,18 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         otfcc_delete_options(options);
         return ::core::ptr::null_mut::<Buffer>();
     }
-    let font: *mut Font = read_json(&*json_root, &*options);
+    let font = read_json(&*json_root, &*options);
     json_value_free(json_root);
-    if font.is_null() {
+    let Some(mut font) = font else {
         otfcc_delete_options(options);
         return ::core::ptr::null_mut::<Buffer>();
-    }
-    otfcc_consolidate_font(&mut *font, &*options);
+    };
+    otfcc_consolidate_font(&mut font, &*options);
     // This is the one genuine `extern "C"` boundary in the crate, so it is
     // also the one place that still needs to hand a `Buffer` back as a raw
     // pointer -- `serialize_to_otf` returns the `Buffer` itself now.
-    let otf: *mut Buffer = serialize_to_otf(&mut *font, &*options).into_raw();
-    otfcc_font_free(font);
+    let otf: *mut Buffer = serialize_to_otf(&mut font, &*options).into_raw();
+    drop(font);
     otfcc_delete_options(options);
     return otf;
 }

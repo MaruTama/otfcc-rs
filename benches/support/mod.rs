@@ -18,7 +18,6 @@
 #![allow(dead_code)]
 
 use otfcc_rust::consolidate::otfcc_consolidate_font;
-use otfcc_rust::font::caryll_font::otfcc_font_free;
 use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::json_writer::serialize_to_json;
@@ -78,14 +77,13 @@ pub fn dump_to_json(sfnt_bytes: &[u8], options: *const Options) -> Vec<u8> {
         let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(sfnt_bytes));
         assert!(!sfnt.is_null(), "otfcc_read_sfnt_from_reader returned NULL");
 
-        let font = read_otf(&*sfnt, 0, &*options);
-        assert!(!font.is_null(), "read_otf returned NULL");
+        let mut font = read_otf(&*sfnt, 0, &*options).expect("read_otf returned None");
         otfcc_delete_sfnt(sfnt);
 
-        otfcc_consolidate_font(&mut *font, &*options);
+        otfcc_consolidate_font(&mut font, &*options);
 
-        let root = serialize_to_json(&mut *font, &*options);
-        otfcc_font_free(font);
+        let root = serialize_to_json(&mut font, &*options);
+        drop(font);
 
         let json_options = JsonSerializeOpts { mode: JSON_SERIALIZE_MODE_PACKED, opts: 0, indent_size: 4 };
         json_serialize_ex(&root, json_options)
@@ -99,14 +97,13 @@ pub fn build_to_otf(json_bytes: &[u8], options: *const Options) -> Vec<u8> {
         let json_root = json_parse(json_bytes.as_ptr() as *const ::core::ffi::c_char, json_bytes.len());
         assert!(!json_root.is_null(), "json_parse returned NULL");
 
-        let font = read_json(&*json_root, &*options);
-        assert!(!font.is_null(), "read_json returned NULL");
+        let mut font = read_json(&*json_root, &*options).expect("read_json returned None");
         json_value_free(json_root);
 
-        otfcc_consolidate_font(&mut *font, &*options);
+        otfcc_consolidate_font(&mut font, &*options);
 
-        let otf = serialize_to_otf(&mut *font, &*options);
-        otfcc_font_free(font);
+        let otf = serialize_to_otf(&mut font, &*options);
+        drop(font);
 
         otf.data
     }

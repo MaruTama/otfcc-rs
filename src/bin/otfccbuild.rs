@@ -23,7 +23,6 @@ use otfcc_rust::support::options::Options;
 use libc::timespec;
 use otfcc_rust::consolidate::otfcc_consolidate_font;
 use otfcc_rust::font::caryll_font::Font;
-use otfcc_rust::font::caryll_font::otfcc_font_free;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
@@ -377,7 +376,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         ___loggedstep_v_2 = false;
         logger_finish(&mut *(*options).logger.borrow_mut());
     }
-    let mut font: *mut Font = ::core::ptr::null_mut::<Font>();
+    let mut font: Option<Box<Font>> = None;
     logger_start_sds(
         &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Parse"),
@@ -385,7 +384,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
         font = read_json(&*json_root, &*options);
-        if font.is_null() {
+        if font.is_none() {
             logger_log_sds(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
@@ -414,7 +413,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
-        otfcc_consolidate_font(&mut *font, &*options);
+        otfcc_consolidate_font(font.as_mut().unwrap(), &*options);
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
@@ -433,7 +432,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         // Owned now that `serialize_to_otf` returns the `Buffer` itself;
         // it drops at the end of this block, where an explicit
         // `Buffer::from_raw` used to be needed.
-        let otf: Buffer = serialize_to_otf(&mut *font, &*options);
+        let otf: Buffer = serialize_to_otf(font.as_mut().unwrap(), &*options);
         logger_start_sds(
             &mut *(*options).logger.borrow_mut(),
             otfcc_rust::bytesbuild!(b"Write to file"),
@@ -466,7 +465,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
-        otfcc_font_free(font);
+        drop(font.take());
         // `inPath`/`outputPath` are `Option<CString>` now -- both drop on
         // their own at the end of this function's scope, no explicit
         // free needed.

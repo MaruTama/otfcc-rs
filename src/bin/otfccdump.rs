@@ -28,7 +28,6 @@ use otfcc_rust::support::{EXIT_FAILURE, NULL};
 
 use libc::timespec;
 use otfcc_rust::consolidate::otfcc_consolidate_font;
-use otfcc_rust::font::caryll_font::otfcc_font_free;
 use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt};
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
@@ -302,7 +301,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         ___loggedstep_v = false;
         logger_finish(&mut *(*options).logger.borrow_mut());
     }
-    let mut font: *mut Font = ::core::ptr::null_mut::<Font>();
+    let mut font: Option<Box<Font>> = None;
     logger_start_sds(
         &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Read Font"),
@@ -310,7 +309,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
         font = read_otf(&*sfnt, ttcindex, &*options);
-        if font.is_null() {
+        if font.is_none() {
             logger_log_sds(
                 &mut *(*options).logger.borrow_mut(),
                 LOG_VL_CRITICAL,
@@ -341,7 +340,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
-        otfcc_consolidate_font(&mut *font, &*options);
+        otfcc_consolidate_font(font.as_mut().unwrap(), &*options);
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
@@ -366,7 +365,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         // already dead: the serializer's every exit built a real
         // `BuiltValue`, so the pointer it handed back was never null. With
         // an owned return there is no null to test for at all.
-        root = Some(serialize_to_json(&mut *font, &*options));
+        root = Some(serialize_to_json(font.as_mut().unwrap(), &*options));
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
@@ -463,9 +462,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
-        if !font.is_null() {
-            otfcc_font_free(font);
-        }
+        drop(font.take());
         drop(root.take());
         // `inPath`/`outputPath` are `CString`/`Option<CString>` now --
         // both drop on their own at the end of this function's scope, no

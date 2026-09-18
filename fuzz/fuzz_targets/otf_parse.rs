@@ -27,7 +27,6 @@
 // thousands-per-process iterations.
 
 use libfuzzer_sys::fuzz_target;
-use otfcc_rust::font::caryll_font::otfcc_font_free;
 use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
 use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
 use otfcc_rust::otf_reader::read_otf;
@@ -60,9 +59,7 @@ fuzz_target!(|data: &[u8]| {
         let font = read_otf(&*sfnt, 0, &*options);
         otfcc_delete_sfnt(sfnt);
 
-        if !font.is_null() {
-            otfcc_font_free(font);
-        }
+        drop(font);
         otfcc_delete_options(options);
     }
 });

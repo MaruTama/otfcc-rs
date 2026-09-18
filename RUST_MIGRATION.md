@@ -14327,3 +14327,56 @@ on the other platform before a commit is trusted.
     terminates promptly, no regression). `survey-unsafe.sh`: `unsafe
     fn` 91 -> 79, `unsafe blocks` 199 -> 195, raw pointer types
     901 -> 872.
+
+- **Stage L-9a: `Font` is an owned `Box<Font>` end to end --
+  `otfcc_font_create`/`otfcc_font_free` deleted, `read_otf`/`read_json`
+  return `Option<Box<Font>>`.** Ninth installment of Stage L, and the
+  first half of what the plan doc listed as one optional last stage
+  ("`font/`+`options.rs`'s `*_create`/`*_free` pairs"); split in two
+  ("1 PR = 1 theme") because `Font` and `Options` are independent
+  ownership questions that just happen to be freed on adjacent lines in
+  every caller. Re-reading the code before starting (as this migration's
+  own rule requires) showed the plan's "8 pairs" was an overcount: there
+  are exactly two -- `Font` here, `Options` in L-9b.
+  - **What the pair was**: `otfcc_font_create() -> *mut Font` was a bare
+    `Box::into_raw(Box::new(Font { .. all None .. }))` and
+    `otfcc_font_free` a bare `drop(Box::from_raw(x))` (null-checked).
+    No allocator mismatch here, unlike `Options` -- just a shell every
+    caller had to pair by hand. `Font` now has `impl Default` (`subtype:
+    Ttf`, every table `None`, exactly what `create` built), and the pair
+    is gone.
+  - **`read_otf`/`read_json` return `Option<Box<Font>>`** instead of a
+    `*mut Font` that could be null: the `is_null()` checks at the callers
+    (`otfccdump`, `otfccbuild`, `ffi/dll.rs`'s `otfccbuild_json_otf`, the
+    fuzz targets, the benches, eight `otf_reader.rs` regression tests)
+    become `is_none()`/`let Some(..) else`/`.expect()`, and every
+    `(*font).field` inside the two readers becomes plain `font.field`.
+    `read_json`'s own `if font.is_null() { return null }` guard after
+    `otfcc_font_create()` was dead (`Box::into_raw` never returns null)
+    and is simply gone. **Both readers stay `unsafe fn`** -- deliberately,
+    and for a reason that has nothing to do with `Font`: they still call
+    `otfcc_parse_glyf`/`otfcc_parse_otl` (JSON-tree in-place rewriting,
+    out of Stage L's scope) and `otfcc_read_cff_and_glyf_tables`/
+    `unwrap_cff_table`/`unwrap_glyf_table` (the CFF builder core, excluded
+    by the user), which are themselves `unsafe fn`. Trying to drop the
+    marker was the first thing the compiler rejected.
+  - **`ffi/dll.rs`'s genuine `extern "C"` return path**: still hands a raw
+    `*mut Buffer` back across the ABI (`Buffer::into_raw`, unchanged), but
+    the `Font` it builds along the way is an owned `Box<Font>` that just
+    drops -- one fewer manual free on a path that already had a
+    leak-fix history (see that file's own tests).
+  - **Test-code fallout**: `otf_writer/stat.rs`'s one test built a font via
+    `otfcc_font_create()` + `&mut *ptr` + a trailing `otfcc_font_free`;
+    it is now `let mut font: Box<Font> = Box::default();`. clippy's
+    `box_default` lint asked for `Box::default()` rather than
+    `Box::new(Font::default())` in all three construction sites.
+  - **Verification**: full pipeline green -- build, `clippy --all-targets
+    -- -D warnings` (benches included), `cargo test --lib` (406),
+    `cargo test -- --test-threads=1` (integration suite, incl.
+    `golden.rs`'s byte-exact fixtures and `dll_abi.rs`, which exercises
+    `otfccbuild_json_otf` for real), `cargo check` of the fuzz crate (the
+    two fuzz targets that use `read_otf` were edited), Miri (370 passed,
+    36 ignored, 0 UB), all three fuzz targets 90s each plus every
+    `tests/fuzz-corpus/known-issues/*.bin` (21 files) re-run directly --
+    no regression. `survey-unsafe.sh`: `unsafe fn` 72 -> 70, `unsafe
+    blocks` 193 -> 190, raw pointer types 805 -> 797.

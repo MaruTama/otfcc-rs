@@ -26,7 +26,6 @@
 
 use libfuzzer_sys::fuzz_target;
 use otfcc_rust::consolidate::otfcc_consolidate_font;
-use otfcc_rust::font::caryll_font::otfcc_font_free;
 use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
@@ -58,8 +57,8 @@ fuzz_target!(|data: &[u8]| {
         let font = read_otf(&*sfnt, 0, &*options);
         otfcc_delete_sfnt(sfnt);
 
-        if !font.is_null() {
-            otfcc_consolidate_font(&mut *font, &*options);
+        if let Some(mut font) = font {
+            otfcc_consolidate_font(&mut font, &*options);
             // `serialize_to_json` used to return `*mut c_void` (the
             // type-erased `FontSerializer` trait boundary). Reclaiming that
             // untyped pointer with `Box::from_raw` built a `Box<c_void>`,
@@ -71,8 +70,7 @@ fuzz_target!(|data: &[u8]| {
             // `*mut BuiltValue` first. The erasure itself is gone now, so
             // the owned `BuiltValue` simply drops correctly here and that
             // whole class of mistake is unrepresentable.
-            drop(serialize_to_json(&mut *font, &*options));
-            otfcc_font_free(font);
+            drop(serialize_to_json(&mut font, &*options));
         }
         otfcc_delete_options(options);
     }
