@@ -464,20 +464,7 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext) -> BuiltVa
     }
     if !options.ignore_hints {
         if !g.instructions.is_empty() {
-            // `dump_ttinstr` stays `unsafe fn` (its own not-yet-safened
-            // pointer+length parameter pair); `g.instructions` is a plain
-            // `Vec<u8>`, so this is purely a narrow bridge, not a real
-            // pointer-arithmetic operation.
-            glyph.push_field(
-                b"instructions",
-                unsafe {
-                    dump_ttinstr(
-                        g.instructions.as_ptr() as *mut u8,
-                        g.instructions.len() as u32,
-                        options,
-                    )
-                },
-            );
+            glyph.push_field(b"instructions", dump_ttinstr(&g.instructions, options));
         }
         if !g.stem_h.is_empty() {
             glyph.push_field(b"stemH", glyf_glyph_dump_stemdefs(&g.stem_h).preserialize());
@@ -679,31 +666,33 @@ fn otfcc_glyf_parse_glyph(
     glyf_parse_contours(glyphdump.get_typed(b"contours", JsonType::Array), &mut g);
     glyf_parse_references(glyphdump.get_typed(b"references", JsonType::Array), &mut g);
     if !options.ignore_hints {
-        unsafe {
-            parse_ttinstr(
-                glyphdump.get(b"instructions").map_or(::core::ptr::null(), |v| v as *const ParsedValue),
-                |instrs| g.instructions = instrs,
-                |reason, pos| {
-                    // `fprintf`'s `%s` needs a NUL-terminated buffer, so a
-                    // NUL is appended to a byte-copy of `name` here -- this
-                    // is a diagnostic-only print to stderr (never part of
-                    // dumped/built output), so it doesn't need the
-                    // NUL-truncation care the crate's other `Handle`/
-                    // glyph-name-to-JSON sites take.
-                    let mut name_cstr: Vec<u8> = g.name.clone();
-                    name_cstr.push(0);
+        parse_ttinstr(
+            glyphdump.get(b"instructions"),
+            |instrs| g.instructions = instrs,
+            |reason: &[u8], pos| {
+                // `fprintf`'s `%s` needs NUL-terminated buffers, so a NUL
+                // is appended to byte-copies of `reason`/`name` here --
+                // this is a diagnostic-only print to stderr (never part
+                // of dumped/built output), so it doesn't need the
+                // NUL-truncation care the crate's other `Handle`/
+                // glyph-name-to-JSON sites take.
+                let mut reason_cstr: Vec<u8> = reason.to_vec();
+                reason_cstr.push(0);
+                let mut name_cstr: Vec<u8> = g.name.clone();
+                name_cstr.push(0);
+                unsafe {
                     fprintf(
                         stderr,
                         b"[OTFCC] TrueType instructions parse error : %s, at %d in /%s\n\0"
                             as *const u8
                             as *const ::core::ffi::c_char,
-                        reason,
+                        reason_cstr.as_ptr() as *const ::core::ffi::c_char,
                         pos,
                         name_cstr.as_ptr() as *const ::core::ffi::c_char,
                     );
-                },
-            );
-        }
+                }
+            },
+        );
         parse_stems(glyphdump.get_typed(b"stemH", JsonType::Array), &mut g.stem_h);
         parse_stems(glyphdump.get_typed(b"stemV", JsonType::Array), &mut g.stem_v);
         parse_masks(
