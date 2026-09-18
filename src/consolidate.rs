@@ -599,7 +599,7 @@ fn __declare_otl_consolidation(
     // to `MAX_TOTAL_SUBTABLES_PER_LOOKUP` (1,000) subtables and a table up
     // to `MAX_TOTAL_LOOKUPS_PER_TABLE` (300) lookups, so a font whose
     // subtables mostly fail to parse (e.g. many aliased offsets tripping
-    // `coverage::reset_coverage_range_expansion_budget`'s own guard) can
+    // `coverage::reset_coverage_entry_build_budget`'s own guard) can
     // drive the "Ignored empty subtable" branch below up to 300,000 times
     // -- CI fuzz found exactly this shape, and the wasted construction
     // alone (not any of this function's real per-subtable work) still
