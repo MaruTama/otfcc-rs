@@ -13,10 +13,12 @@ use crate::table::otl::{
 // is an enum with its own discriminant, there is no "the block" to allocate
 // ahead of knowing which variant it will hold; build the `ExtendSubtable`
 // value locally instead and hand it to `Box::new(Subtable::Extend(..))` the
-// same way every other subtable's read function now does via
-// `subtable_from_raw`. `type_0` is still computed before `subtable` (the
-// recursive read needs it as the nested lookup's type), so the dependency
-// order is unchanged.
+// same way every other subtable's read function builds its own `Subtable`
+// value directly now (the shared `subtable_from_raw` adapter this comment
+// used to name was deleted in Stage L-5, once the last of its callers --
+// `chaining/read.rs`'s own readers -- stopped needing it). `type_0` is
+// still computed before `subtable` (the recursive read needs it as the
+// nested lookup's type), so the dependency order is unchanged.
 ///
 /// `extensionOffset` (the field this reads at `subtable_offset + 4`) is the
 /// whole reason the Extension mechanism exists: it lets GSUB/GPOS carry a

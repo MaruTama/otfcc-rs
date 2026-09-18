@@ -138,16 +138,17 @@ use crate::table::otl::{
 };
 // `data` used to be a raw `FontFilePointer`/`table_length` pair,
 // reconstructed into a slice via `from_raw_parts` at the top of every one
-// of the (now nine) flat readers below -- a pure round trip, since the one
-// production caller (`otfcc_read_otl_lookup`, below) always held a real
-// `&[u8]` before breaking it apart to call in here. Those nine readers now
-// take `&[u8]` directly and return `Option<Subtable>`; the still-`*mut
-// Subtable`-returning chaining/contextual/extend arms (unconverted, out of
-// this PR's scope) reconstruct the raw parts locally, right where they're
-// still needed, and their result is adopted via `subtable_list_slot` --
-// the same `Box::from_raw` bridge `otfcc_read_otl_lookup` used to apply to
-// this whole function's own return value, now pushed down to just the
-// arms that still produce a raw pointer.
+// of the flat readers below -- a pure round trip, since the one production
+// caller (`otfcc_read_otl_lookup`, below) always held a real `&[u8]` before
+// breaking it apart to call in here. The nine flat subtable readers (Stage
+// L-3) and, since Stage L-5, the chaining/contextual readers as well now
+// take `&[u8]` directly and return `Option<Subtable>`/`Option<Box<Subtable>>`
+// via `.map(Box::new)`; only the still-`*mut Subtable`-returning `extend`
+// arms (unconverted, out of this PR's scope) reconstruct the raw parts
+// locally, right where they're still needed, and adopt their result via
+// `subtable_list_slot` -- the same `Box::from_raw` bridge `otfcc_read_otl_
+// lookup` used to apply to this whole function's own return value, now
+// pushed down to just the arms that still produce a raw pointer.
 pub unsafe fn otfcc_read_otl_subtable(
     data: &[u8],
     subtable_offset: u32,
@@ -163,51 +164,19 @@ pub unsafe fn otfcc_read_otl_subtable(
             otl_read_gsub_ligature(data, subtable_offset, max_glyphs).map(Box::new)
         }
         OTL_TYPE_GSUB_CHAINING => {
-            let raw_data = data.as_ptr() as FontFilePointer;
-            let table_length = data.len() as u32;
-            subtable_list_slot(otl_read_chaining(
-                raw_data,
-                table_length,
-                subtable_offset,
-                max_glyphs,
-                options,
-            ))
+            otl_read_chaining(data, subtable_offset, max_glyphs, options).map(Box::new)
         }
         OTL_TYPE_GSUB_REVERSE => {
             otl_read_gsub_reverse(data, subtable_offset, max_glyphs).map(Box::new)
         }
         OTL_TYPE_GPOS_CHAINING => {
-            let raw_data = data.as_ptr() as FontFilePointer;
-            let table_length = data.len() as u32;
-            subtable_list_slot(otl_read_chaining(
-                raw_data,
-                table_length,
-                subtable_offset,
-                max_glyphs,
-                options,
-            ))
+            otl_read_chaining(data, subtable_offset, max_glyphs, options).map(Box::new)
         }
         OTL_TYPE_GSUB_CONTEXT => {
-            let raw_data = data.as_ptr() as FontFilePointer;
-            let table_length = data.len() as u32;
-            subtable_list_slot(otl_read_contextual(
-                raw_data,
-                table_length,
-                subtable_offset,
-                max_glyphs,
-                options,
-            ))
+            otl_read_contextual(data, subtable_offset, max_glyphs, options).map(Box::new)
         }
         OTL_TYPE_GPOS_CONTEXT => {
-            let raw_data = data.as_ptr() as FontFilePointer;
-            let table_length = data.len() as u32;
-            subtable_list_slot(otl_read_contextual(
-                raw_data,
-                table_length,
-                subtable_offset,
-                max_glyphs,
-                options,
-            ))
+            otl_read_contextual(data, subtable_offset, max_glyphs, options).map(Box::new)
         }
         OTL_TYPE_GPOS_SINGLE => otl_read_gpos_single(data, subtable_offset, max_glyphs).map(Box::new),
         OTL_TYPE_GPOS_PAIR => otl_read_gpos_pair(data, subtable_offset, max_glyphs).map(Box::new),

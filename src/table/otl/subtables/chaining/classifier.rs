@@ -318,7 +318,7 @@ pub unsafe fn try_classify_around(
                     ..Default::default()
                 }),
             );
-            let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable0);
+            let ruleset: &mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable0);
             (*ruleset)
                 .rules
                 .push(Some(build_rule(&*rule0, &hb, &hi, &hf)));

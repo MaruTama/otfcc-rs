@@ -14157,3 +14157,109 @@ on the other platform before a commit is trusted.
     blocks` 201 -> 199, raw pointer types 905 -> 901 -- a small movement
     on the counters, matching this stage's actual point: closing a
     genuine leak-risk invariant, not shrinking the survey numbers.
+
+- **Stage L-5: chaining/contextual read helpers -- `&[u8]` in,
+  `Option<Subtable>` out.** Fifth installment of Stage L, stacked on
+  L-4 (depends on `otfcc_read_otl_subtable` already returning
+  `Option<Box<Subtable>>`, per L-3/L-4, for the dispatch arms this
+  stage simplifies). Converts the whole read-side call chain in
+  `chaining/read.rs`: `general_read_{contextual,chaining}_rule` (both
+  already `Option<Box<ChainingRule>>`-returning, per the plan's own
+  assessment that these were "already easiest") -> `read_{contextual,
+  chaining}_format1/2` -> `otl_read_{contextual,chaining}` (the two
+  outer entry points `otl/read.rs`'s dispatcher calls) ->
+  `reverse_backtracks` (the chaining-specific one operating on a
+  single `ChainingRule`, not `gsub_reverse.rs`'s namesake).
+  - **Every raw-pointer layer in this chain turned out to be a pure
+    round trip**, the same shape L-2/L-3 already found in the flat
+    subtable readers: `general_read_contextual_rule`/
+    `general_read_chaining_rule` took `data: FontFilePointer,
+    table_length: u32` only to immediately `slice::from_raw_parts`
+    them back into the `&[u8]` every call site already held (the one
+    production caller, `otfcc_read_otl_subtable`, always starts from a
+    real `&[u8]` -- see L-3's own note on this). Both now take
+    `slice: &[u8]` directly (dropping `table_length`, redundant with
+    `slice.len()`) and are safe `pub fn`, with no other change to
+    their bodies. `read_{contextual,chaining}_format1/2` follow the
+    same pattern in their own parameter list, but the ownership change
+    matters more than the pointer-vs-slice one: each now takes
+    `subtable: Box<ChainingSubtable>` by value and returns
+    `Option<Box<ChainingSubtable>>` (`None` on any parse failure --
+    the `Box` simply drops, replacing the old `drop(Box::from_raw(
+    subtable)); ::core::ptr::null_mut()` error-path dance the plan
+    doc's own L-5 entry called out: "エラー経路は単なるdrop"). The two
+    outer entry points, `otl_read_contextual`/`otl_read_chaining`,
+    build their own `Box::new(ChainingSubtable::Poly(ChainingRuleSet::
+    default()))` directly now instead of the two-step `subtable_
+    chaining_create()` (a fresh `Canonical`, allocated via raw
+    `Box::into_raw`) followed by an in-place overwrite -- `subtable_
+    chaining_create` itself is deleted (its only two call sites were
+    exactly these two functions), and `otfcc_read_otl_subtable`'s four
+    chaining/contextual dispatch arms simplify from reconstructing a
+    `FontFilePointer`/`table_length` pair and adopting the raw-pointer
+    result via `subtable_list_slot` down to the same one-line
+    `otl_read_X(data, subtable_offset, max_glyphs, options).map(Box::
+    new)` shape the nine flat readers already used (matching the plan
+    doc's own comment on that function, updated here to say so). Only
+    the `extend` arms still need the raw-pointer reconstruction now.
+  - **Closing the aliasing mine the plan doc called out by name**:
+    `chaining_ruleset_mut` (`chaining/common.rs`) used to return `*mut
+    ChainingRuleSet`, obtained once per format1/2 function and held
+    across the whole rule-building loop that follows -- safe in
+    practice (nothing in the loop ever frees the parent `subtable`),
+    but nothing in the *type system* said so; a future change to
+    either function's error paths could have freed `subtable` while
+    that raw pointer was still live, and the compiler would have had
+    no way to catch it. Changed to return `&mut ChainingRuleSet`
+    instead -- every existing call site (`(*ruleset).field`) still
+    compiles unchanged against a `&mut` (deref syntax is identical),
+    but now the borrow checker ties `ruleset`'s lifetime to `subtable`
+    directly: freeing or reassigning `subtable` while `ruleset` is
+    still borrowed from it is a compile error, not a latent runtime
+    hazard. `chaining/read.rs`'s own four call sites hold this `&mut`
+    across their respective loops the same way the old raw pointer
+    was held, just checked now. `classifier.rs`'s one other caller
+    (`try_classify_around`, still `unsafe fn`, out of this stage's
+    scope) needed only its local type annotation updated to match --
+    the deref expressions around it are untouched, and no new borrow
+    conflict arises since nothing else touches that same `subtable0`
+    while `ruleset` is alive there either.
+  - **One dependency this stage did *not* pull in**: `classdef_from_
+    raw`/`read_class_def` (`classdef.rs`) are still their own
+    raw-pointer round trip (out of scope here -- `classdef.rs`'s own
+    conversion isn't part of Stage L's plan), and `read_contextual_
+    format2`/`read_chaining_format2` call them to build their
+    `ClassDefs` scratch struct. Rather than pull `classdef.rs` into
+    this PR's scope (a different theme -- "1 PR = 1 theme"), those
+    three call sites keep a narrow `unsafe { classdef_from_raw(
+    read_class_def(..)) }` wrapper, the same one-line pattern `table/
+    gdef.rs`'s own callers of this exact pair already established.
+    Everything else in both functions -- and the rest of the file --
+    is safe.
+  - **Test-code fallout**: `otl_read_contextual`/`otl_read_chaining`
+    returning `Option<Subtable>` instead of `*mut Subtable` meant every
+    test's `unsafe { ...; assert!(!raw.is_null()); let boxed = Box::
+    from_raw(raw); let Subtable::Chaining(sub) = &*boxed else {...};
+    ... }` dance collapses to a plain `let sub = otl_read_X(&data, 0,
+    100, &options).unwrap(); let Subtable::Chaining(ref sub) = sub
+    else {...};` (`ref`, not a bare binding, for the same E0509 reason
+    L-3's tests hit: `Subtable` has a manual `Drop` impl, so a plain
+    `let Subtable::Chaining(sub) = sub` would try to move a field out
+    of a `Drop` type). The one direct `general_read_chaining_rule`
+    test and the file's own `glyphs_of` helper needed their `unsafe`
+    wrappers dropped too, now that both are safe to call directly.
+  - **Verification**: full pipeline green -- build, `clippy
+    --all-targets -- -D warnings` (one `redundant_closure` lint fixed
+    along the way, `.map(|c| glyphs_of(c))` -> `.map(glyphs_of)`, only
+    possible now that `glyphs_of` itself is a safe fn), `cargo test
+    --lib` (406), `cargo test -- --test-threads=1` (integration suite,
+    including `golden.rs`'s byte-exact fixtures -- several of its
+    payloads exercise GSUB/GPOS chaining and contextual lookups
+    directly), Miri (370 passed, 36 ignored, 0 UB), all three fuzz
+    targets 90s each plus every `tests/fuzz-corpus/known-issues/*.bin`
+    re-run directly against its target binary (including `otf-parse-
+    otl-contextual-amplification-hang.bin`, the one known-issue file
+    that exercises exactly the code path this stage touches -- still
+    terminates promptly, no regression). `survey-unsafe.sh`: `unsafe
+    fn` 91 -> 79, `unsafe blocks` 199 -> 195, raw pointer types
+    901 -> 872.

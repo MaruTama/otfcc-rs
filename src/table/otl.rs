@@ -227,43 +227,18 @@ impl Drop for Subtable {
         }
     }
 }
-/// Adopt a vtable-`create()`d raw pointer into a heap-allocated `Subtable`.
-///
-/// Every subtable's own `_create()` now allocates with `Box::into_raw(Box::
-/// new(..))` instead of `malloc` (Stage 7-2-d), so `raw` -- whether it comes
-/// straight back from `_create()` or via one of the `ChainingSubtable`
-/// read-helpers that thread the same pointer through in place
-/// (`read_contextual_format1`/`2`, `read_chaining_format1`/`2`) -- is always
-/// that same Rust allocation. `Box::from_raw` reclaims it directly (no more
-/// `ptr::read`-then-`free` shell dance: that was only ever needed to avoid
-/// mixing a `malloc`'d shell with a `Box`'s own drop glue), and the moved-out
-/// value is wrapped into the specific variant by `wrap` (a tuple-variant
-/// constructor, e.g. `Subtable::GsubSingle`) and boxed. This only changes
-/// what happens to `_create()`'s result at the point each read/parse
-/// function used to just cast it `as *mut Subtable`, which relied on
-/// `Subtable` being a union with no discriminant to disturb; that cast is
-/// unsound now that it is an enum. Null-safe -- several callers' result can
-/// still be null on a read error (`table_length` too short partway through,
-/// or a `ChainingSubtable` helper freeing it and returning null), and the
-/// old `as *mut Subtable` cast propagated a null exactly the same way.
-pub(crate) unsafe fn subtable_from_raw<T>(raw: *mut T, wrap: fn(T) -> Subtable) -> *mut Subtable {
-    if raw.is_null() {
-        return ::core::ptr::null_mut();
-    }
-    let value = *Box::from_raw(raw);
-    Box::into_raw(Box::new(wrap(value)))
-}
-/// Adopt an already-heap-allocated `*mut Subtable` (a `subtable_from_raw`/
-/// `Box::into_raw` result) into a `SubtableList` slot -- used by the
-/// still-raw-pointer-shaped chaining/contextual/extend readers'
-/// dispatch arms in `otl/read.rs`'s `otfcc_read_otl_subtable`.
-/// `ExtendSubtable.subtable` is a real `Option<Box<Subtable>>` field now,
-/// not a raw pointer, so it no longer goes through this bridge. Several
-/// read/parse entry points can legitimately return null (unrecognised
-/// lookup format, truncated data), and a null in a `SubtableList` slot
-/// was always a valid "hole" even before this migration -- `Box::from_raw`
-/// on a null pointer would be UB, so this null check is required, not
-/// defensive.
+/// Adopt an already-heap-allocated `*mut Subtable` (a `Box::into_raw`
+/// result) into a `SubtableList` slot -- used by the still-raw-pointer-
+/// shaped `extend` readers' dispatch arms in `otl/read.rs`'s
+/// `otfcc_read_otl_subtable` (the chaining/contextual arms moved off this
+/// bridge in Stage L-5, once their own read helpers started returning
+/// `Option<Subtable>` directly). `ExtendSubtable.subtable` is a real
+/// `Option<Box<Subtable>>` field now, not a raw pointer, so it no longer
+/// goes through this bridge either. Several read/parse entry points can
+/// legitimately return null (unrecognised lookup format, truncated data),
+/// and a null in a `SubtableList` slot was always a valid "hole" even
+/// before this migration -- `Box::from_raw` on a null pointer would be UB,
+/// so this null check is required, not defensive.
 pub(crate) unsafe fn subtable_list_slot(raw: SubtablePtr) -> Option<Box<Subtable>> {
     if raw.is_null() {
         None

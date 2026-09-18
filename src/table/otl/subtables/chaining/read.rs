@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::handle::{
     GlyphHandle, LookupHandle, handle_from_index,
 };
@@ -10,14 +8,11 @@ use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::FontReader;
 
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
+use crate::support::primitives::{GlyphId, TableId};
 
-use crate::table::otl::subtables::chaining::common::{
-    chaining_ruleset_mut, subtable_chaining_create,
-};
+use crate::table::otl::subtables::chaining::common::chaining_ruleset_mut;
 use crate::table::otl::{
     ChainLookupApplication, ChainingRule, ChainingRuleSet, ChainingSubtable, Subtable,
-    subtable_from_raw,
 };
 // Was `CoverageReaderHandler`, a `*mut c_void` userdata pointer threaded
 // alongside a fn-pointer typedef shared by all three concrete readers
@@ -351,16 +346,14 @@ pub fn format3_coverage(
 // `read_contextual_format2`'s and `read_chaining_format2`'s "no slop"
 // note below) -- always in the safe direction (rejecting strictly less
 // than before), documented per-function where it applies.
-pub unsafe fn general_read_contextual_rule(
-    data: FontFilePointer,
-    table_length: u32,
+pub fn general_read_contextual_rule(
+    slice: &[u8],
     offset: u32,
     start_gid: u16,
     minus_one: bool,
     mut fn_0: impl FnMut(&[u8], u16, u32, u16, GlyphId) -> Coverage,
     max_glyphs: GlyphId,
 ) -> Option<Box<ChainingRule>> {
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let minus_one_q: u16 = minus_one as u16;
 
     let mut header = FontReader::new(slice).at(offset as usize).ok()?;
@@ -442,18 +435,15 @@ pub unsafe fn general_read_contextual_rule(
         let lookup = handle_from_index(lookup_index) as LookupHandle;
         rule.apply.push(ChainLookupApplication { index, lookup });
     }
-    reverse_backtracks(&mut *rule as *mut ChainingRule);
+    reverse_backtracks(&mut rule);
     Some(rule)
 }
-unsafe fn read_contextual_format1(
-    subtable: *mut ChainingSubtable,
-    data: FontFilePointer,
-    table_length: u32,
+fn read_contextual_format1(
+    slice: &[u8],
     offset: u32,
     max_glyphs: GlyphId,
-) -> *mut ChainingSubtable {
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-
+    mut subtable: Box<ChainingSubtable>,
+) -> Option<Box<ChainingSubtable>> {
     let result: Option<()> = 'parse: {
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
             break 'parse None;
@@ -499,9 +489,13 @@ unsafe fn read_contextual_format1(
 
         // Second pass: build, re-deriving each offset exactly as the first
         // pass did (nothing here is retained across passes, matching the
-        // original's own two-pass structure).
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
-        (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+        // original's own two-pass structure). `ruleset` is a real `&mut
+        // ChainingRuleSet` borrowed from the owned `subtable` (Stage L-5) --
+        // held across the whole loop below the same way the old raw pointer
+        // was, but now the borrow checker (not just convention) guarantees
+        // `subtable` can't be freed out from under it.
+        let ruleset = chaining_ruleset_mut(&mut subtable);
+        ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'rulesets: for j in 0..chain_sub_rule_set_count {
             let srs_rel = FontReader::new(slice)
                 .at(offset as usize + 6 + 2 * j as usize)
@@ -525,8 +519,7 @@ unsafe fn read_contextual_format1(
                     .unwrap();
                 let sr_offset = srs_offset.wrapping_add(sr_rel as u32);
                 let rule_ptr = general_read_contextual_rule(
-                    data,
-                    table_length,
+                    slice,
                     sr_offset,
                     first_coverage[j as usize].index as u16,
                     true,
@@ -543,35 +536,21 @@ unsafe fn read_contextual_format1(
                 // pushed a `None` and hit that `.expect()`), so drop it here
                 // instead of ever storing a placeholder.
                 if rule_ptr.is_some() {
-                    // Same "malformed individual rule, not the whole subtable" case as
-        // the format1/format2 loops above -- see their comment.
-        if rule_ptr.is_some() {
-            (*ruleset).rules.push(rule_ptr);
-        }
+                    ruleset.rules.push(rule_ptr);
                 }
             }
         }
         break 'parse Some(());
     };
 
-    if result.is_some() {
-        return subtable;
-    }
-    // `subtable` is `subtable_chaining_create()`'s own `Box`-allocated
-    // result (Stage 7-2-d), not `subtable_chaining_free`'s
-    // `__caryll_allocate_clean`'d one -- reclaim it with `Box::from_raw`
-    // directly, matching `subtable_from_raw`'s own reclamation.
-    drop(Box::from_raw(subtable));
-    ::core::ptr::null_mut::<ChainingSubtable>()
+    if result.is_some() { Some(subtable) } else { None }
 }
-unsafe fn read_contextual_format2(
-    subtable: *mut ChainingSubtable,
-    data: FontFilePointer,
-    table_length: u32,
+fn read_contextual_format2(
+    slice: &[u8],
     offset: u32,
     max_glyphs: GlyphId,
-) -> *mut ChainingSubtable {
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+    mut subtable: Box<ChainingSubtable>,
+) -> Option<Box<ChainingSubtable>> {
     let cds: Option<ClassDefs>;
 
     let result: Option<()> = 'parse: {
@@ -597,7 +576,11 @@ unsafe fn read_contextual_format2(
 
         cds = Some(ClassDefs {
             bc: None,
-            ic: classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))),
+            // `classdef_from_raw`/`read_class_def` are the still-raw-pointer-
+            // shaped c2rust residue `classdef.rs` itself hasn't converted yet
+            // (out of this stage's scope) -- same one-line `unsafe` wrapping
+            // `table/gdef.rs`'s callers already use for this exact pattern.
+            ic: unsafe { classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))) },
             fc: None,
         });
 
@@ -630,8 +613,8 @@ unsafe fn read_contextual_format2(
             total_rules = total_rules.saturating_add(srs_count as usize);
         }
 
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
-        (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+        let ruleset = chaining_ruleset_mut(&mut subtable);
+        ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'class_sets: for j in 0..chain_sub_class_set_cnt {
             let src_rel = FontReader::new(slice)
                 .at(offset as usize + 8 + 2 * j as usize)
@@ -659,8 +642,7 @@ unsafe fn read_contextual_format2(
                     .wrapping_add(src_rel as u32)
                     .wrapping_add(sr_rel as u32);
                 let rule_ptr = general_read_contextual_rule(
-                    data,
-                    table_length,
+                    slice,
                     sr_offset,
                     j,
                     true,
@@ -679,11 +661,7 @@ unsafe fn read_contextual_format2(
                 // pushed a `None` and hit that `.expect()`), so drop it here
                 // instead of ever storing a placeholder.
                 if rule_ptr.is_some() {
-                    // Same "malformed individual rule, not the whole subtable" case as
-        // the format1/format2 loops above -- see their comment.
-        if rule_ptr.is_some() {
-            (*ruleset).rules.push(rule_ptr);
-        }
+                    ruleset.rules.push(rule_ptr);
                 }
             }
         }
@@ -695,52 +673,35 @@ unsafe fn read_contextual_format2(
     // `&ClassDefs` during the loop above, never took ownership, so no
     // manual cleanup is needed the way the old `Box<ClassDefs>` round trip
     // required.
-    if result.is_some() {
-        return subtable;
-    }
-    // `subtable` is `subtable_chaining_create()`'s own `Box`-allocated
-    // result (Stage 7-2-d), not `subtable_chaining_free`'s
-    // `__caryll_allocate_clean`'d one -- reclaim it with `Box::from_raw`
-    // directly, matching `subtable_from_raw`'s own reclamation.
-    drop(Box::from_raw(subtable));
-    ::core::ptr::null_mut::<ChainingSubtable>()
+    if result.is_some() { Some(subtable) } else { None }
 }
-pub unsafe fn otl_read_contextual(
-    data: FontFilePointer,
-    table_length: u32,
+pub fn otl_read_contextual(
+    data: &[u8],
     offset: u32,
     max_glyphs: GlyphId,
     options: &Options,
-) -> *mut Subtable {
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-    let subtable: *mut ChainingSubtable = (subtable_chaining_create)();
-    // `subtable` is fresh from `create()` (a valid, empty `Canonical`
-    // value) -- replace it wholesale with a valid, empty `Poly` ruleset.
-    // Every downstream construction path (format1/format2/format3, and the
-    // error paths that dispose the subtable without ever reaching one) now
-    // sees a valid, possibly-still-empty ruleset from this point on.
-    *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
-    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
+) -> Option<Subtable> {
+    // Built directly as an owned `Box`, a valid empty `Poly` ruleset from
+    // the start -- Stage L-5 dropped the two-step `subtable_chaining_
+    // create()` (a fresh `Canonical`)-then-overwrite dance this used to do,
+    // since there is no longer a raw-pointer "shell" that has to exist
+    // before its contents are known.
+    let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
     let mut format: u16 = 0_u16;
-    if let Ok(mut r) = FontReader::new(slice).at(offset as usize) {
+    if let Ok(mut r) = FontReader::new(data).at(offset as usize) {
         if let Ok(f) = r.u16() {
             format = f;
         }
     }
     if format as i32 == 1_i32 {
-        return subtable_from_raw(
-            read_contextual_format1(subtable, data, table_length, offset, max_glyphs),
-            Subtable::Chaining,
-        );
+        return read_contextual_format1(data, offset, max_glyphs, subtable)
+            .map(|s| Subtable::Chaining(*s));
     } else if format as i32 == 2_i32 {
-        return subtable_from_raw(
-            read_contextual_format2(subtable, data, table_length, offset, max_glyphs),
-            Subtable::Chaining,
-        );
+        return read_contextual_format2(data, offset, max_glyphs, subtable)
+            .map(|s| Subtable::Chaining(*s));
     } else if format as i32 == 3_i32 {
         let rule_ptr = general_read_contextual_rule(
             data,
-            table_length,
             offset.wrapping_add(2_u32),
             0_u16,
             false,
@@ -750,9 +711,9 @@ pub unsafe fn otl_read_contextual(
         // Same "malformed individual rule, not the whole subtable" case as
         // the format1/format2 loops above -- see their comment.
         if rule_ptr.is_some() {
-            (*ruleset).rules.push(rule_ptr);
+            chaining_ruleset_mut(&mut subtable).rules.push(rule_ptr);
         }
-        return subtable_from_raw(subtable, Subtable::Chaining);
+        return Some(Subtable::Chaining(*subtable));
     }
     logger_log_sds(
         &mut *options.logger.borrow_mut(),
@@ -760,22 +721,18 @@ pub unsafe fn otl_read_contextual(
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as i32, b".\n"),
     );
-    // Same reasoning as the format1/format2 helpers' own error paths: this
-    // is `subtable_chaining_create()`'s own `Box`-allocated result, reclaim
-    // with `Box::from_raw`, not `subtable_chaining_free`.
-    drop(Box::from_raw(subtable));
-    return ::core::ptr::null_mut::<Subtable>();
+    // `subtable` (still just a local `Box`, never adopted into anything)
+    // self-drops here -- no manual reclamation needed any more.
+    None
 }
-pub unsafe fn general_read_chaining_rule(
-    data: FontFilePointer,
-    table_length: u32,
+pub fn general_read_chaining_rule(
+    slice: &[u8],
     offset: u32,
     start_gid: u16,
     minus_one: bool,
     mut fn_0: impl FnMut(&[u8], u16, u32, u16, GlyphId) -> Coverage,
     max_glyphs: GlyphId,
 ) -> Option<Box<ChainingRule>> {
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
     let minus_one_q: u16 = minus_one as u16;
 
     // Four counts read back-to-back, each immediately followed by a skip
@@ -909,18 +866,15 @@ pub unsafe fn general_read_chaining_rule(
         let lookup = handle_from_index(lookup_index) as LookupHandle;
         rule.apply.push(ChainLookupApplication { index, lookup });
     }
-    reverse_backtracks(&mut *rule as *mut ChainingRule);
+    reverse_backtracks(&mut rule);
     Some(rule)
 }
-unsafe fn read_chaining_format1(
-    subtable: *mut ChainingSubtable,
-    data: FontFilePointer,
-    table_length: u32,
+fn read_chaining_format1(
+    slice: &[u8],
     offset: u32,
     max_glyphs: GlyphId,
-) -> *mut ChainingSubtable {
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-
+    mut subtable: Box<ChainingSubtable>,
+) -> Option<Box<ChainingSubtable>> {
     let result: Option<()> = 'parse: {
         let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
             break 'parse None;
@@ -963,8 +917,8 @@ unsafe fn read_chaining_format1(
             total_rules = total_rules.saturating_add(srs_count as usize);
         }
 
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
-        (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+        let ruleset = chaining_ruleset_mut(&mut subtable);
+        ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'rulesets: for j in 0..chain_sub_rule_set_count {
             let srs_rel = FontReader::new(slice)
                 .at(offset as usize + 6 + 2 * j as usize)
@@ -988,8 +942,7 @@ unsafe fn read_chaining_format1(
                     .unwrap();
                 let sr_offset = srs_offset.wrapping_add(sr_rel as u32);
                 let rule_ptr = general_read_chaining_rule(
-                    data,
-                    table_length,
+                    slice,
                     sr_offset,
                     first_coverage[j as usize].index as u16,
                     true,
@@ -1006,35 +959,21 @@ unsafe fn read_chaining_format1(
                 // pushed a `None` and hit that `.expect()`), so drop it here
                 // instead of ever storing a placeholder.
                 if rule_ptr.is_some() {
-                    // Same "malformed individual rule, not the whole subtable" case as
-        // the format1/format2 loops above -- see their comment.
-        if rule_ptr.is_some() {
-            (*ruleset).rules.push(rule_ptr);
-        }
+                    ruleset.rules.push(rule_ptr);
                 }
             }
         }
         break 'parse Some(());
     };
 
-    if result.is_some() {
-        return subtable;
-    }
-    // `subtable` is `subtable_chaining_create()`'s own `Box`-allocated
-    // result (Stage 7-2-d), not `subtable_chaining_free`'s
-    // `__caryll_allocate_clean`'d one -- reclaim it with `Box::from_raw`
-    // directly, matching `subtable_from_raw`'s own reclamation.
-    drop(Box::from_raw(subtable));
-    ::core::ptr::null_mut::<ChainingSubtable>()
+    if result.is_some() { Some(subtable) } else { None }
 }
-unsafe fn read_chaining_format2(
-    subtable: *mut ChainingSubtable,
-    data: FontFilePointer,
-    table_length: u32,
+fn read_chaining_format2(
+    slice: &[u8],
     offset: u32,
     max_glyphs: GlyphId,
-) -> *mut ChainingSubtable {
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+    mut subtable: Box<ChainingSubtable>,
+) -> Option<Box<ChainingSubtable>> {
     let cds: Option<ClassDefs>;
 
     let result: Option<()> = 'parse: {
@@ -1060,10 +999,14 @@ unsafe fn read_chaining_format2(
             break 'parse None;
         }
 
+        // `classdef_from_raw`/`read_class_def` are the still-raw-pointer-
+        // shaped c2rust residue `classdef.rs` itself hasn't converted yet
+        // (out of this stage's scope) -- same one-line `unsafe` wrapping
+        // `table/gdef.rs`'s callers already use for this exact pattern.
         cds = Some(ClassDefs {
-            bc: classdef_from_raw(read_class_def(slice, offset.wrapping_add(bc_rel as u32))),
-            ic: classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))),
-            fc: classdef_from_raw(read_class_def(slice, offset.wrapping_add(fc_rel as u32))),
+            bc: unsafe { classdef_from_raw(read_class_def(slice, offset.wrapping_add(bc_rel as u32))) },
+            ic: unsafe { classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))) },
+            fc: unsafe { classdef_from_raw(read_class_def(slice, offset.wrapping_add(fc_rel as u32))) },
         });
 
         // First pass: validate every non-empty ClassSet's own header +
@@ -1094,8 +1037,8 @@ unsafe fn read_chaining_format2(
             total_rules = total_rules.saturating_add(srs_count as usize);
         }
 
-        let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
-        (*ruleset).rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
+        let ruleset = chaining_ruleset_mut(&mut subtable);
+        ruleset.rules = Vec::with_capacity(total_rules.min(MAX_TOTAL_RULES_PER_TABLE as usize));
         'class_sets: for j in 0..chain_sub_class_set_cnt {
             let src_rel = FontReader::new(slice)
                 .at(offset as usize + 12 + 2 * j as usize)
@@ -1123,8 +1066,7 @@ unsafe fn read_chaining_format2(
                     .wrapping_add(src_rel as u32)
                     .wrapping_add(dsr_rel as u32);
                 let rule_ptr = general_read_chaining_rule(
-                    data,
-                    table_length,
+                    slice,
                     sr_offset,
                     j,
                     true,
@@ -1143,11 +1085,7 @@ unsafe fn read_chaining_format2(
                 // pushed a `None` and hit that `.expect()`), so drop it here
                 // instead of ever storing a placeholder.
                 if rule_ptr.is_some() {
-                    // Same "malformed individual rule, not the whole subtable" case as
-        // the format1/format2 loops above -- see their comment.
-        if rule_ptr.is_some() {
-            (*ruleset).rules.push(rule_ptr);
-        }
+                    ruleset.rules.push(rule_ptr);
                 }
             }
         }
@@ -1157,48 +1095,31 @@ unsafe fn read_chaining_format2(
     // `cds` (a plain `Option<ClassDefs>` local, same as `read_contextual_
     // format2`) auto-drops when this function returns -- no manual
     // cleanup needed.
-    if result.is_some() {
-        return subtable;
-    }
-    // `subtable` is `subtable_chaining_create()`'s own `Box`-allocated
-    // result (Stage 7-2-d), not `subtable_chaining_free`'s
-    // `__caryll_allocate_clean`'d one -- reclaim it with `Box::from_raw`
-    // directly, matching `subtable_from_raw`'s own reclamation.
-    drop(Box::from_raw(subtable));
-    ::core::ptr::null_mut::<ChainingSubtable>()
+    if result.is_some() { Some(subtable) } else { None }
 }
-pub unsafe fn otl_read_chaining(
-    data: FontFilePointer,
-    table_length: u32,
+pub fn otl_read_chaining(
+    data: &[u8],
     offset: u32,
     max_glyphs: GlyphId,
     options: &Options,
-) -> *mut Subtable {
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
-    let subtable: *mut ChainingSubtable = (subtable_chaining_create)();
+) -> Option<Subtable> {
     // See the identical comment in `otl_read_contextual`.
-    *subtable = ChainingSubtable::Poly(ChainingRuleSet::default());
-    let ruleset: *mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable);
+    let mut subtable = Box::new(ChainingSubtable::Poly(ChainingRuleSet::default()));
     let mut format: u16 = 0_u16;
-    if let Ok(mut r) = FontReader::new(slice).at(offset as usize) {
+    if let Ok(mut r) = FontReader::new(data).at(offset as usize) {
         if let Ok(f) = r.u16() {
             format = f;
         }
     }
     if format as i32 == 1_i32 {
-        return subtable_from_raw(
-            read_chaining_format1(subtable, data, table_length, offset, max_glyphs),
-            Subtable::Chaining,
-        );
+        return read_chaining_format1(data, offset, max_glyphs, subtable)
+            .map(|s| Subtable::Chaining(*s));
     } else if format as i32 == 2_i32 {
-        return subtable_from_raw(
-            read_chaining_format2(subtable, data, table_length, offset, max_glyphs),
-            Subtable::Chaining,
-        );
+        return read_chaining_format2(data, offset, max_glyphs, subtable)
+            .map(|s| Subtable::Chaining(*s));
     } else if format as i32 == 3_i32 {
         let rule_ptr = general_read_chaining_rule(
             data,
-            table_length,
             offset.wrapping_add(2_u32),
             0_u16,
             false,
@@ -1208,9 +1129,9 @@ pub unsafe fn otl_read_chaining(
         // Same "malformed individual rule, not the whole subtable" case as
         // the format1/format2 loops above -- see their comment.
         if rule_ptr.is_some() {
-            (*ruleset).rules.push(rule_ptr);
+            chaining_ruleset_mut(&mut subtable).rules.push(rule_ptr);
         }
-        return subtable_from_raw(subtable, Subtable::Chaining);
+        return Some(Subtable::Chaining(*subtable));
     }
     logger_log_sds(
         &mut *options.logger.borrow_mut(),
@@ -1218,20 +1139,18 @@ pub unsafe fn otl_read_chaining(
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as i32, b".\n"),
     );
-    // Same reasoning as the format1/format2 helpers' own error paths: this
-    // is `subtable_chaining_create()`'s own `Box`-allocated result, reclaim
-    // with `Box::from_raw`, not `subtable_chaining_free`.
-    drop(Box::from_raw(subtable));
-    return ::core::ptr::null_mut::<Subtable>();
+    // `subtable` (still just a local `Box`, never adopted into anything)
+    // self-drops here -- no manual reclamation needed any more.
+    None
 }
 #[inline]
 // Was a manual meet-in-the-middle index-swapping loop over
 // `*mut *mut Coverage` -- exactly `[T]::reverse` on the backtrack
 // sub-slice, now that `match_0` is a real `Vec<Coverage>`. `input_begins
 // == 0` (nothing to reverse) falls out of slicing an empty range.
-unsafe fn reverse_backtracks(rule: *mut ChainingRule) {
-    let input_begins = (*rule).input_begins as usize;
-    (&mut (*rule).match_0)[..input_begins].reverse();
+fn reverse_backtracks(rule: &mut ChainingRule) {
+    let input_begins = rule.input_begins as usize;
+    rule.match_0[..input_begins].reverse();
 }
 
 #[cfg(test)]
@@ -1242,7 +1161,7 @@ mod chaining_read_tests {
         Options::default()
     }
 
-    unsafe fn glyphs_of(cov: &Coverage) -> Vec<GlyphId> {
+    fn glyphs_of(cov: &Coverage) -> Vec<GlyphId> {
         cov.iter().map(|h| h.index).collect()
     }
 
@@ -1260,28 +1179,18 @@ mod chaining_read_tests {
         data[12..14].copy_from_slice(&1u16.to_be_bytes()); // glyphCount
         data[14..16].copy_from_slice(&42u16.to_be_bytes()); // glyph
         let options = zeroed_options();
-        unsafe {
-            let raw = otl_read_contextual(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                100,
-                &options,
-            );
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::Chaining(sub) = &*boxed else {
-                unreachable!()
-            };
-            let ChainingSubtable::Poly(ruleset) = sub else {
-                unreachable!()
-            };
-            assert_eq!(ruleset.rules.len(), 1);
-            let rule = ruleset.rules[0].as_ref().unwrap();
-            assert_eq!(rule.match_0.len(), 1);
-            assert_eq!(glyphs_of(&rule.match_0[0]), vec![42]);
-            assert!(rule.apply.is_empty());
-        }
+        let sub = otl_read_contextual(&data, 0, 100, &options).unwrap();
+        let Subtable::Chaining(ref sub) = sub else {
+            unreachable!()
+        };
+        let ChainingSubtable::Poly(ruleset) = sub else {
+            unreachable!()
+        };
+        assert_eq!(ruleset.rules.len(), 1);
+        let rule = ruleset.rules[0].as_ref().unwrap();
+        assert_eq!(rule.match_0.len(), 1);
+        assert_eq!(glyphs_of(&rule.match_0[0]), vec![42]);
+        assert!(rule.apply.is_empty());
     }
 
     #[test]
@@ -1304,27 +1213,17 @@ mod chaining_read_tests {
         data[18..20].copy_from_slice(&1u16.to_be_bytes()); // glyphCount
         data[20..22].copy_from_slice(&5u16.to_be_bytes()); // glyph
         let options = zeroed_options();
-        unsafe {
-            let raw = otl_read_contextual(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                100,
-                &options,
-            );
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::Chaining(sub) = &*boxed else {
-                unreachable!()
-            };
-            let ChainingSubtable::Poly(ruleset) = sub else {
-                unreachable!()
-            };
-            assert_eq!(ruleset.rules.len(), 1);
-            let rule = ruleset.rules[0].as_ref().unwrap();
-            assert_eq!(rule.match_count, 1);
-            assert_eq!(glyphs_of(&rule.match_0[0]), vec![5]);
-        }
+        let sub = otl_read_contextual(&data, 0, 100, &options).unwrap();
+        let Subtable::Chaining(ref sub) = sub else {
+            unreachable!()
+        };
+        let ChainingSubtable::Poly(ruleset) = sub else {
+            unreachable!()
+        };
+        assert_eq!(ruleset.rules.len(), 1);
+        let rule = ruleset.rules[0].as_ref().unwrap();
+        assert_eq!(rule.match_count, 1);
+        assert_eq!(glyphs_of(&rule.match_0[0]), vec![5]);
     }
 
     #[test]
@@ -1339,16 +1238,7 @@ mod chaining_read_tests {
         data[8..10].copy_from_slice(&1u16.to_be_bytes()); // glyphCount = 1
         data[10..12].copy_from_slice(&9u16.to_be_bytes());
         let options = zeroed_options();
-        unsafe {
-            let raw = otl_read_contextual(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                100,
-                &options,
-            );
-            assert!(raw.is_null());
-        }
+        assert!(otl_read_contextual(&data, 0, 100, &options).is_none());
     }
 
     #[test]
@@ -1365,16 +1255,7 @@ mod chaining_read_tests {
         data[6..8].copy_from_slice(&1u16.to_be_bytes()); // chainSubClassSetCnt
         data[8..10].copy_from_slice(&5000u16.to_be_bytes()); // classSetOffset[0]
         let options = zeroed_options();
-        unsafe {
-            let raw = otl_read_contextual(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                100,
-                &options,
-            );
-            assert!(raw.is_null());
-        }
+        assert!(otl_read_contextual(&data, 0, 100, &options).is_none());
     }
 
     #[test]
@@ -1388,24 +1269,14 @@ mod chaining_read_tests {
         data[6..8].copy_from_slice(&1u16.to_be_bytes());
         data[8..10].copy_from_slice(&0u16.to_be_bytes()); // classSetOffset[0] = 0
         let options = zeroed_options();
-        unsafe {
-            let raw = otl_read_contextual(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                100,
-                &options,
-            );
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::Chaining(sub) = &*boxed else {
-                unreachable!()
-            };
-            let ChainingSubtable::Poly(ruleset) = sub else {
-                unreachable!()
-            };
-            assert!(ruleset.rules.is_empty());
-        }
+        let sub = otl_read_contextual(&data, 0, 100, &options).unwrap();
+        let Subtable::Chaining(ref sub) = sub else {
+            unreachable!()
+        };
+        let ChainingSubtable::Poly(ruleset) = sub else {
+            unreachable!()
+        };
+        assert!(ruleset.rules.is_empty());
     }
 
     #[test]
@@ -1436,36 +1307,26 @@ mod chaining_read_tests {
         data[34..36].copy_from_slice(&1u16.to_be_bytes());
         data[36..38].copy_from_slice(&3u16.to_be_bytes()); // lookaround glyph
         let options = zeroed_options();
-        unsafe {
-            let raw = otl_read_chaining(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                100,
-                &options,
-            );
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::Chaining(sub) = &*boxed else {
-                unreachable!()
-            };
-            let ChainingSubtable::Poly(ruleset) = sub else {
-                unreachable!()
-            };
-            assert_eq!(ruleset.rules.len(), 1);
-            let rule = ruleset.rules[0].as_ref().unwrap();
-            // backtrack is stored reversed; here there's only one entry so
-            // the order is unaffected.
-            assert_eq!(
-                rule.match_0
-                    .iter()
-                    .map(|c| glyphs_of(c))
-                    .collect::<Vec<_>>(),
-                vec![vec![1], vec![2], vec![3]]
-            );
-            assert_eq!(rule.input_begins, 1);
-            assert_eq!(rule.input_ends, 2);
-        }
+        let sub = otl_read_chaining(&data, 0, 100, &options).unwrap();
+        let Subtable::Chaining(ref sub) = sub else {
+            unreachable!()
+        };
+        let ChainingSubtable::Poly(ruleset) = sub else {
+            unreachable!()
+        };
+        assert_eq!(ruleset.rules.len(), 1);
+        let rule = ruleset.rules[0].as_ref().unwrap();
+        // backtrack is stored reversed; here there's only one entry so
+        // the order is unaffected.
+        assert_eq!(
+            rule.match_0
+                .iter()
+                .map(glyphs_of)
+                .collect::<Vec<_>>(),
+            vec![vec![1], vec![2], vec![3]]
+        );
+        assert_eq!(rule.input_begins, 1);
+        assert_eq!(rule.input_ends, 2);
     }
 
     #[test]
@@ -1484,22 +1345,12 @@ mod chaining_read_tests {
         data[2..4].copy_from_slice(&0u16.to_be_bytes()); // nInput (malformed: 0)
         data[4..6].copy_from_slice(&0u16.to_be_bytes()); // nLookaround
         data[6..8].copy_from_slice(&0u16.to_be_bytes()); // nApply
-        unsafe {
-            let rule = general_read_chaining_rule(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                7,
-                true,
-                single_coverage,
-                100,
-            );
-            let rule = rule.unwrap();
-            // Only the `minus_one` slot (glyph 7, from `start_gid`) is
-            // filled; the (empty) input array contributes nothing.
-            assert_eq!(rule.match_0.len(), 1);
-            assert_eq!(glyphs_of(&rule.match_0[0]), vec![7]);
-        }
+        let rule = general_read_chaining_rule(&data, 0, 7, true, single_coverage, 100);
+        let rule = rule.unwrap();
+        // Only the `minus_one` slot (glyph 7, from `start_gid`) is
+        // filled; the (empty) input array contributes nothing.
+        assert_eq!(rule.match_0.len(), 1);
+        assert_eq!(glyphs_of(&rule.match_0[0]), vec![7]);
     }
 
     #[test]
@@ -1510,15 +1361,6 @@ mod chaining_read_tests {
         // default()`'s `logger` is a real (if `LoggerTarget::Empty`, i.e.
         // no-op-push) `Logger` rather than a null pointer.
         let options = Options::default();
-        unsafe {
-            let raw = otl_read_contextual(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                100,
-                &options,
-            );
-            assert!(raw.is_null());
-        }
+        assert!(otl_read_contextual(&data, 0, 100, &options).is_none());
     }
 }
