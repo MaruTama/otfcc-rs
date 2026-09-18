@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::handle::{GlyphHandle, handle_from_index};
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
@@ -9,7 +7,7 @@ use crate::support::font_reader::FontReader;
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
+use crate::support::primitives::{GlyphId, TableId};
 use crate::vendor::json::JsonType;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
@@ -17,29 +15,8 @@ use crate::bk::bkgraph::bk_build_block;
 use crate::support::built_json::BuiltValue;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
-use crate::table::otl::{GsubReverseSubtable, Subtable, subtable_from_raw};
+use crate::table::otl::{GsubReverseSubtable, Subtable};
 
-#[inline]
-unsafe fn subtable_gsub_reverse_free(x: *mut GsubReverseSubtable) {
-    if x.is_null() {
-        return;
-    }
-    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
-    // and runs `match_0`/`to`'s own drop glue directly -- no separate
-    // dispose-then-`free` needed (Stage 7-2-d). `dispose_gsub_reverse`/
-    // `subtable_gsub_reverse_dispose` had no other callers, so they're gone
-    // along with `init_gsub_reverse`/`subtable_gsub_reverse_init`.
-    drop(Box::from_raw(x));
-}
-#[inline]
-fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
-    Box::into_raw(Box::new(GsubReverseSubtable {
-        match_count: 0,
-        input_index: 0,
-        match_0: Vec::new(),
-        to: Coverage::new(),
-    }))
-}
 // Was a manual index-swapping loop over `start..end`, meeting in the
 // middle -- exactly what `[T]::reverse` does, now that `match_0` is a real
 // `Vec<Coverage>` slice instead of an array of raw pointers to swap by
@@ -53,17 +30,16 @@ fn subtable_gsub_reverse_create() -> *mut GsubReverseSubtable {
 fn reverse_backtracks(match_0: &mut [Coverage], input_index: TableId) {
     match_0[..input_index as usize].reverse();
 }
-pub unsafe fn otl_read_gsub_reverse(
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u32,
-    _max_glyphs: GlyphId,
-) -> *mut Subtable {
-    let subtable: *mut GsubReverseSubtable = subtable_gsub_reverse_create();
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+pub fn otl_read_gsub_reverse(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+    let mut subtable = GsubReverseSubtable {
+        match_count: 0,
+        input_index: 0,
+        match_0: Vec::new(),
+        to: Coverage::new(),
+    };
 
     'parse: {
-        let mut header = match FontReader::new(slice).at(offset as usize) {
+        let mut header = match FontReader::new(data).at(offset as usize) {
             Ok(r) => r,
             Err(_) => break 'parse,
         };
@@ -120,7 +96,7 @@ pub unsafe fn otl_read_gsub_reverse(
         }
         let match_count = match_count_u32 as TableId;
 
-        (*subtable).match_count = match_count;
+        subtable.match_count = match_count;
         // Filled out of sequential order below (backtrack slots, then the
         // input slot at `input_index`, then forward slots) -- every one of
         // the `match_count` slots is written exactly once by the time this
@@ -128,39 +104,36 @@ pub unsafe fn otl_read_gsub_reverse(
         // `Coverage`s and index-assigning is the direct replacement for
         // the old `offset`-indexed writes into `__caryll_allocate_clean`'d
         // memory.
-        (*subtable).match_0 = vec![Coverage::new(); match_count as usize];
-        (*subtable).input_index = n_backtrack;
+        subtable.match_0 = vec![Coverage::new(); match_count as usize];
+        subtable.input_index = n_backtrack;
 
         for (j, &cov_offset) in backtrack_offsets.iter().enumerate() {
-            (&mut (*subtable).match_0)[j] = read_coverage(slice, cov_offset);
+            subtable.match_0[j] = read_coverage(data, cov_offset);
         }
 
         let input_cov_offset = offset.wrapping_add(input_cov_rel as u32);
-        (&mut (*subtable).match_0)[(*subtable).input_index as usize] =
-            read_coverage(slice, input_cov_offset);
+        subtable.match_0[subtable.input_index as usize] = read_coverage(data, input_cov_offset);
 
-        if n_replacement as usize != (&(*subtable).match_0)[(*subtable).input_index as usize].len()
-        {
+        if n_replacement as usize != subtable.match_0[subtable.input_index as usize].len() {
             break 'parse;
         }
 
         for (j, &cov_offset) in forward_offsets.iter().enumerate() {
             let fwd_idx = n_backtrack as usize + 1 + j;
-            (&mut (*subtable).match_0)[fwd_idx] = read_coverage(slice, cov_offset);
+            subtable.match_0[fwd_idx] = read_coverage(data, cov_offset);
         }
 
-        (*subtable).to = Coverage::new();
+        subtable.to = Coverage::new();
         for _ in 0..n_replacement {
             push_to_coverage(
-                &mut (*subtable).to,
+                &mut subtable.to,
                 handle_from_index(header.u16().unwrap() as GlyphId) as GlyphHandle,
             );
         }
-        reverse_backtracks(&mut (*subtable).match_0, (*subtable).input_index);
-        return subtable_from_raw(subtable, Subtable::GsubReverse);
+        reverse_backtracks(&mut subtable.match_0, subtable.input_index);
+        return Some(Subtable::GsubReverse(subtable));
     }
-    subtable_gsub_reverse_free(subtable);
-    ::core::ptr::null_mut::<Subtable>()
+    None
 }
 pub fn otl_gsub_dump_reverse(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GsubReverse(subtable) = _subtable else {
@@ -302,35 +275,30 @@ mod otl_read_gsub_reverse_tests {
         data[20..22].copy_from_slice(&1u16.to_be_bytes());
         data[22..24].copy_from_slice(&1u16.to_be_bytes());
         data[24..26].copy_from_slice(&21u16.to_be_bytes());
-        unsafe {
-            let raw =
-                otl_read_gsub_reverse(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GsubReverse(subtable) = &*boxed else {
-                unreachable!()
-            };
-            assert_eq!(subtable.match_count, 2);
-            assert_eq!(subtable.input_index, 1);
-            assert_eq!(
-                subtable.match_0[0]
-                    .iter()
-                    .map(|h| h.index)
-                    .collect::<Vec<_>>(),
-                vec![21]
-            );
-            assert_eq!(
-                subtable.match_0[1]
-                    .iter()
-                    .map(|h| h.index)
-                    .collect::<Vec<_>>(),
-                vec![20]
-            );
-            assert_eq!(
-                subtable.to.iter().map(|h| h.index).collect::<Vec<_>>(),
-                vec![99]
-            );
-        }
+        let result = otl_read_gsub_reverse(&data, 0, 0);
+        let Some(Subtable::GsubReverse(ref subtable)) = result else {
+            unreachable!()
+        };
+        assert_eq!(subtable.match_count, 2);
+        assert_eq!(subtable.input_index, 1);
+        assert_eq!(
+            subtable.match_0[0]
+                .iter()
+                .map(|h| h.index)
+                .collect::<Vec<_>>(),
+            vec![21]
+        );
+        assert_eq!(
+            subtable.match_0[1]
+                .iter()
+                .map(|h| h.index)
+                .collect::<Vec<_>>(),
+            vec![20]
+        );
+        assert_eq!(
+            subtable.to.iter().map(|h| h.index).collect::<Vec<_>>(),
+            vec![99]
+        );
     }
 
     #[test]
@@ -360,10 +328,7 @@ mod otl_read_gsub_reverse_tests {
         let n_replacement_pos = n_forward_pos + 2 + 2;
         data[n_replacement_pos..n_replacement_pos + 2].copy_from_slice(&0u16.to_be_bytes()); // glyphCount
         assert_eq!(data.len(), n_replacement_pos + 2);
-        unsafe {
-            let raw =
-                otl_read_gsub_reverse(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(raw.is_null());
-        }
+        let result = otl_read_gsub_reverse(&data, 0, 0);
+        assert!(result.is_none());
     }
 }

@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
@@ -12,27 +10,16 @@ use crate::bk::bkgraph::bk_build_block;
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphId};
+use crate::support::primitives::GlyphId;
 use crate::table::otl::coverage::{build_coverage, dump_coverage, parse_coverage};
 use crate::table::otl::subtables::BuildHeuristics;
-use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, Subtable, subtable_from_raw};
+use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, Subtable};
 use crate::vendor::json::JsonType;
 // `from: Coverage` and `to: GlyphHandle` both self-drop now, so a
 // `GsubLigatureSubtable` (`Vec<GsubLigatureEntry>`) fully self-drops -- no
 // per-element dtor needed anymore.
 pub(crate) fn dispose_gsub_ligature_subtable(arr: &mut GsubLigatureSubtable) {
     *arr = Vec::new();
-}
-pub(crate) unsafe fn subtable_gsub_ligature_free(x: *mut GsubLigatureSubtable) {
-    if x.is_null() {
-        return;
-    }
-    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
-    // and runs the `Vec`'s own drop glue -- no separate dispose-then-`free`
-    // needed (Stage 7-2-d; `dispose_gsub_ligature_subtable` stays, it is
-    // still used by `table/otl.rs`'s `Drop for Subtable` and this file's own
-    // `subtable_gsub_ligature_replace`, just no longer from here).
-    drop(Box::from_raw(x));
 }
 /// The one live `.replace` among all the `Subtable`-union-blocked
 /// containers: `consolidate_gsub_ligature` builds a fresh, empty `nt`,
@@ -47,20 +34,11 @@ pub(crate) fn subtable_gsub_ligature_replace(
     dispose_gsub_ligature_subtable(dst);
     *dst = src;
 }
-fn subtable_gsub_ligature_create() -> *mut GsubLigatureSubtable {
-    Box::into_raw(Box::new(Vec::new()))
-}
-pub unsafe fn otl_read_gsub_ligature(
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u32,
-    _max_glyphs: GlyphId,
-) -> *mut Subtable {
-    let subtable: *mut GsubLigatureSubtable = subtable_gsub_ligature_create();
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+pub fn otl_read_gsub_ligature(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+    let mut subtable: GsubLigatureSubtable = Vec::new();
 
     'parse: {
-        let mut header = match FontReader::new(slice).at(offset as usize) {
+        let mut header = match FontReader::new(data).at(offset as usize) {
             Ok(r) => r,
             Err(_) => break 'parse,
         };
@@ -74,7 +52,7 @@ pub unsafe fn otl_read_gsub_ligature(
             break 'parse;
         };
 
-        let start_coverage: Coverage = read_coverage(slice, offset.wrapping_add(cov_rel as u32));
+        let start_coverage: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32));
         if set_count as usize != start_coverage.len() {
             break 'parse;
         }
@@ -87,7 +65,7 @@ pub unsafe fn otl_read_gsub_ligature(
         }
 
         for (j, &set_offset) in set_offsets.iter().enumerate() {
-            let Ok(mut sr) = FontReader::new(slice).at(set_offset as usize) else {
+            let Ok(mut sr) = FontReader::new(data).at(set_offset as usize) else {
                 break 'parse;
             };
             let Ok(lig_count) = sr.u16() else {
@@ -102,7 +80,7 @@ pub unsafe fn otl_read_gsub_ligature(
             }
 
             for &lig_offset in &lig_offsets {
-                let Ok(mut lr) = FontReader::new(slice).at(lig_offset as usize) else {
+                let Ok(mut lr) = FontReader::new(data).at(lig_offset as usize) else {
                     break 'parse;
                 };
                 let Ok(lig_glyph) = lr.u16() else {
@@ -128,16 +106,15 @@ pub unsafe fn otl_read_gsub_ligature(
                         handle_from_index(lr.u16().unwrap() as GlyphId) as GlyphHandle,
                     );
                 }
-                (*subtable).push(GsubLigatureEntry {
+                subtable.push(GsubLigatureEntry {
                     from: cov,
                     to: handle_from_index(lig_glyph as GlyphId) as GlyphHandle,
                 });
             }
         }
-        return subtable_from_raw(subtable, Subtable::GsubLigature);
+        return Some(Subtable::GsubLigature(subtable));
     }
-    subtable_gsub_ligature_free(subtable);
-    ::core::ptr::null_mut::<Subtable>()
+    None
 }
 pub fn otl_gsub_dump_ligature(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GsubLigature(subtable) = _subtable else {
@@ -273,21 +250,16 @@ mod otl_read_gsub_ligature_tests {
         data[18..20].copy_from_slice(&30u16.to_be_bytes());
         data[20..22].copy_from_slice(&2u16.to_be_bytes());
         data[22..24].copy_from_slice(&20u16.to_be_bytes());
-        unsafe {
-            let raw =
-                otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GsubLigature(entries) = &*boxed else {
-                unreachable!()
-            };
-            assert_eq!(entries.len(), 1);
-            assert_eq!(
-                entries[0].from.iter().map(|h| h.index).collect::<Vec<_>>(),
-                vec![10, 20]
-            );
-            assert_eq!(entries[0].to.index, 30);
-        }
+        let result = otl_read_gsub_ligature(&data, 0, 0);
+        let Some(Subtable::GsubLigature(ref entries)) = result else {
+            unreachable!()
+        };
+        assert_eq!(entries.len(), 1);
+        assert_eq!(
+            entries[0].from.iter().map(|h| h.index).collect::<Vec<_>>(),
+            vec![10, 20]
+        );
+        assert_eq!(entries[0].to.index, 30);
     }
 
     #[test]
@@ -300,10 +272,7 @@ mod otl_read_gsub_ligature_tests {
         data[8..10].copy_from_slice(&1u16.to_be_bytes());
         data[10..12].copy_from_slice(&1u16.to_be_bytes());
         data[12..14].copy_from_slice(&10u16.to_be_bytes());
-        unsafe {
-            let raw =
-                otl_read_gsub_ligature(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(raw.is_null());
-        }
+        let result = otl_read_gsub_ligature(&data, 0, 0);
+        assert!(result.is_none());
     }
 }

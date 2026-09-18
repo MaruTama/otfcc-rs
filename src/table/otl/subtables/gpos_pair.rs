@@ -18,7 +18,7 @@ use crate::bk::bkgraph::{
 use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId, Pos, TableId};
+use crate::support::primitives::{GlyphClass, GlyphId, Pos, TableId};
 use crate::table::otl::classdef::{build_class_def, dump_class_def, parse_class_def};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
@@ -26,7 +26,7 @@ use crate::table::otl::subtables::gpos_common::{
     FORMAT_DWIDTH, bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length,
     position_zero, read_gpos_value, required_position_format,
 };
-use crate::table::otl::{GposPairSubtable, PositionValue, Subtable, subtable_from_raw};
+use crate::table::otl::{GposPairSubtable, PositionValue, Subtable};
 use crate::vendor::json::JsonType;
 
 // `fv`/`sv` hold the matched cell's value directly now, not a pointer into
@@ -38,27 +38,6 @@ pub struct IndividualGposPair {
     pub gid: GlyphId,
     pub fv: PositionValue,
     pub sv: PositionValue,
-}
-#[inline]
-fn subtable_gpos_pair_create() -> *mut GposPairSubtable {
-    Box::into_raw(Box::new(GposPairSubtable {
-        first: None,
-        second: None,
-        first_values: Vec::new(),
-        second_values: Vec::new(),
-    }))
-}
-#[inline]
-unsafe fn subtable_gpos_pair_free(x: *mut GposPairSubtable) {
-    if x.is_null() {
-        return;
-    }
-    // `Box::from_raw` reclaims exactly the allocation `_create()` made above
-    // and runs `first`/`second`/`first_values`/`second_values`'s own drop
-    // glue directly -- no separate dispose-then-`free` needed (Stage 7-2-d).
-    // `dispose_gpos_pair`/`subtable_gpos_pair_dispose` had no other callers,
-    // so they're gone along with `init_gpos_pair`/`subtable_gpos_pair_init`.
-    drop(Box::from_raw(x));
 }
 // Two real bugs fixed, one per format:
 //
@@ -77,17 +56,16 @@ unsafe fn subtable_gpos_pair_free(x: *mut GposPairSubtable) {
 // so the product can reach 65535*65535*16 (~68.7 billion), far past
 // `i32::MAX`. Fixed with two chained `checked_mul`s on `usize` (count*count,
 // then that product against the per-cell stride via `require_room`).
-pub unsafe fn otl_read_gpos_pair(
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u32,
-    _max_glyphs: GlyphId,
-) -> *mut Subtable {
-    let subtable: *mut GposPairSubtable = subtable_gpos_pair_create();
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+pub unsafe fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+    let mut subtable = GposPairSubtable {
+        first: None,
+        second: None,
+        first_values: Vec::new(),
+        second_values: Vec::new(),
+    };
 
     'parse: {
-        let Ok(subtable_format) = FontReader::new(slice)
+        let Ok(subtable_format) = FontReader::new(data)
             .at(offset as usize)
             .and_then(|mut r| r.u16())
         else {
@@ -95,22 +73,22 @@ pub unsafe fn otl_read_gpos_pair(
         };
 
         if subtable_format == 1 {
-            let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
+            let Ok(mut header) = FontReader::new(data).at(offset as usize + 2) else {
                 break 'parse;
             };
             let Ok(cov_rel) = header.u16() else {
                 break 'parse;
             };
 
-            let cov: Coverage = read_coverage(slice, offset.wrapping_add(cov_rel as u32));
+            let cov: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32));
             let first_raw: *mut ClassDef = otl_class_def_create();
             (*first_raw).glyphs = cov;
             (*first_raw).maxclass = ((*first_raw).glyphs.len() as i32 - 1) as GlyphClass;
             (*first_raw).classes = (0..(*first_raw).glyphs.len())
                 .map(|j| j as GlyphClass)
                 .collect();
-            (*subtable).first = classdef_from_raw(first_raw);
-            let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
+            subtable.first = classdef_from_raw(first_raw);
+            let first_cd: *mut ClassDef = subtable.first.as_deref_mut().unwrap();
 
             let Ok(format1) = header.u16() else {
                 break 'parse;
@@ -139,7 +117,7 @@ pub unsafe fn otl_read_gpos_pair(
             let stride = 2usize + len1 as usize + len2 as usize;
             let mut pair_counts = Vec::with_capacity(pair_set_count as usize);
             for &pso in &pair_set_offsets {
-                let Ok(mut pr) = FontReader::new(slice).at(pso as usize) else {
+                let Ok(mut pr) = FontReader::new(data).at(pso as usize) else {
                     break 'parse;
                 };
                 let Ok(pc) = pr.u16() else { break 'parse };
@@ -167,13 +145,13 @@ pub unsafe fn otl_read_gpos_pair(
             // rebuilt) while re-reading the same pairs a second time to
             // place position values into the `first_values`/
             // `second_values` grid, then walked once more at the end to
-            // populate `(*subtable).second`'s `glyphs`/`classes`.
+            // populate `subtable.second`'s `glyphs`/`classes`.
             let mut h: indexmap::IndexSet<i32> = indexmap::IndexSet::new();
             for (i, &pso) in pair_set_offsets.iter().enumerate() {
                 for k in 0..pair_counts[i] {
                     let second_offset = pso as usize + 2 + stride * k as usize;
                     // Already validated by the pass above.
-                    let second = FontReader::new(slice)
+                    let second = FontReader::new(data)
                         .at(second_offset)
                         .unwrap()
                         .u16()
@@ -187,8 +165,8 @@ pub unsafe fn otl_read_gpos_pair(
             (*second_raw).maxclass = n_second as GlyphClass;
             (*second_raw).classes = vec![0 as GlyphClass; n_second];
             (*second_raw).glyphs = vec![GlyphHandle::default(); n_second];
-            (*subtable).second = classdef_from_raw(second_raw);
-            let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
+            subtable.second = classdef_from_raw(second_raw);
+            let second_cd: *mut ClassDef = subtable.second.as_deref_mut().unwrap();
             let class2_count = (*second_cd).maxclass as usize + 1;
 
             // Was a manual `__caryll_allocate_clean` + nested-loop-of-
@@ -205,35 +183,32 @@ pub unsafe fn otl_read_gpos_pair(
             for (j3, &pso) in pair_set_offsets.iter().enumerate() {
                 for k1 in 0..pair_counts[j3] {
                     let second_offset = pso as usize + 2 + stride * k1 as usize;
-                    let second = FontReader::new(slice)
+                    let second = FontReader::new(data)
                         .at(second_offset)
                         .unwrap()
                         .u16()
                         .unwrap() as i32;
                     if let Some(idx) = h.get_index_of(&second) {
                         let cid = idx + 1;
-                        first_values[j3][cid] = read_gpos_value(
-                            slice,
-                            (second_offset + 2) as u32,
-                            format1,
-                        );
+                        first_values[j3][cid] =
+                            read_gpos_value(data, (second_offset + 2) as u32, format1);
                         second_values[j3][cid] = read_gpos_value(
-                            slice,
+                            data,
                             (second_offset + 2 + len1 as usize) as u32,
                             format2,
                         );
                     }
                 }
             }
-            (*subtable).first_values = first_values;
-            (*subtable).second_values = second_values;
+            subtable.first_values = first_values;
+            subtable.second_values = second_values;
             for (jj, &gid) in h.iter().enumerate() {
                 (&mut (*second_cd).glyphs)[jj] = handle_from_index(gid as GlyphId) as GlyphHandle;
                 (&mut (*second_cd).classes)[jj] = (jj + 1) as GlyphClass;
             }
-            return subtable_from_raw(subtable, Subtable::GposPair);
+            return Some(Subtable::GposPair(subtable));
         } else if subtable_format == 2 {
-            let Ok(mut header) = FontReader::new(slice).at(offset as usize + 2) else {
+            let Ok(mut header) = FontReader::new(data).at(offset as usize + 2) else {
                 break 'parse;
             };
             let Ok(cov_rel) = header.u16() else {
@@ -260,22 +235,22 @@ pub unsafe fn otl_read_gpos_pair(
             let len1_0 = position_format_length(format1_0);
             let len2_0 = position_format_length(format2_0);
 
-            let cov_0: Coverage = read_coverage(slice, offset.wrapping_add(cov_rel as u32));
+            let cov_0: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32));
             // `expand_class_def` consumes (and internally frees) the `ocd`
             // it's handed and returns a brand-new `*mut ClassDef` -- kept
             // as a plain local raw pointer through that consuming call,
-            // then adopted into `(*subtable).first` only once settled.
+            // then adopted into `subtable.first` only once settled.
             let mut first_raw: *mut ClassDef =
-                read_class_def(slice, offset.wrapping_add(cd1_rel as u32));
+                read_class_def(data, offset.wrapping_add(cd1_rel as u32));
             first_raw = expand_class_def(&cov_0, *Box::from_raw(first_raw));
-            (*subtable).first = classdef_from_raw(first_raw);
-            (*subtable).second =
-                classdef_from_raw(read_class_def(slice, offset.wrapping_add(cd2_rel as u32)));
-            if (*subtable).first.is_none() || (*subtable).second.is_none() {
+            subtable.first = classdef_from_raw(first_raw);
+            subtable.second =
+                classdef_from_raw(read_class_def(data, offset.wrapping_add(cd2_rel as u32)));
+            if subtable.first.is_none() || subtable.second.is_none() {
                 break 'parse;
             }
-            let first_cd: *mut ClassDef = (*subtable).first.as_deref_mut().unwrap();
-            let second_cd: *mut ClassDef = (*subtable).second.as_deref_mut().unwrap();
+            let first_cd: *mut ClassDef = subtable.first.as_deref_mut().unwrap();
+            let second_cd: *mut ClassDef = subtable.second.as_deref_mut().unwrap();
             if (*first_cd).maxclass as usize + 1 != class1_count as usize {
                 break 'parse;
             }
@@ -288,7 +263,7 @@ pub unsafe fn otl_read_gpos_pair(
             else {
                 break 'parse;
             };
-            let Ok(matrix) = FontReader::new(slice).at(offset as usize + 16) else {
+            let Ok(matrix) = FontReader::new(data).at(offset as usize + 16) else {
                 break 'parse;
             };
             if matrix.require_room(total_cells, stride).is_err() {
@@ -309,28 +284,24 @@ pub unsafe fn otl_read_gpos_pair(
                 for k2 in 0..class2_count as u32 {
                     // Safe from u32 overflow: `require_room` above already
                     // rejected any input where `total_cells * stride`
-                    // wouldn't fit in `table_length` (itself a `u32`), so
-                    // every offset computed here is bounded by that.
+                    // wouldn't fit in `data`'s own length (itself bounded
+                    // by a `u32`-sized table), so every offset computed
+                    // here is bounded by that.
                     let cell_offset = offset
                         .wrapping_add(16)
                         .wrapping_add((j4 * class2_count as u32 + k2) * stride as u32);
-                    row1.push(read_gpos_value(slice, cell_offset, format1_0));
-                    row2.push(read_gpos_value(
-                        slice,
-                        cell_offset + len1_0 as u32,
-                        format2_0,
-                    ));
+                    row1.push(read_gpos_value(data, cell_offset, format1_0));
+                    row2.push(read_gpos_value(data, cell_offset + len1_0 as u32, format2_0));
                 }
                 first_values.push(row1);
                 second_values.push(row2);
             }
-            (*subtable).first_values = first_values;
-            (*subtable).second_values = second_values;
-            return subtable_from_raw(subtable, Subtable::GposPair);
+            subtable.first_values = first_values;
+            subtable.second_values = second_values;
+            return Some(Subtable::GposPair(subtable));
         }
     }
-    subtable_gpos_pair_free(subtable);
-    ::core::ptr::null_mut::<Subtable>()
+    None
 }
 pub fn otl_gpos_dump_pair(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GposPair(subtable) = _subtable else {
@@ -645,26 +616,22 @@ mod otl_read_gpos_pair_tests {
         data[18..20].copy_from_slice(&1u16.to_be_bytes());
         data[20..22].copy_from_slice(&20i16.to_be_bytes());
         data[22..24].copy_from_slice(&50i16.to_be_bytes());
-        unsafe {
-            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GposPair(subtable) = &*boxed else {
-                unreachable!()
-            };
-            let first = subtable.first.as_ref().unwrap();
-            let second = subtable.second.as_ref().unwrap();
-            assert_eq!(
-                first.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(),
-                vec![10]
-            );
-            assert_eq!(
-                second.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(),
-                vec![20]
-            );
-            assert_eq!(second.classes, vec![1]);
-            assert_eq!(subtable.first_values[0][1].dx, 50.0);
-        }
+        let result = unsafe { otl_read_gpos_pair(&data, 0, 0) };
+        let Some(Subtable::GposPair(ref subtable)) = result else {
+            unreachable!()
+        };
+        let first = subtable.first.as_ref().unwrap();
+        let second = subtable.second.as_ref().unwrap();
+        assert_eq!(
+            first.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(),
+            vec![10]
+        );
+        assert_eq!(
+            second.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(),
+            vec![20]
+        );
+        assert_eq!(second.classes, vec![1]);
+        assert_eq!(subtable.first_values[0][1].dx, 50.0);
     }
 
     #[test]
@@ -674,10 +641,8 @@ mod otl_read_gpos_pair_tests {
         // 2` -- just the 2-byte format field itself -- so a table this
         // short claiming format 1 read straight past its own end.
         let data = [0u8, 1]; // format = 1, nothing else
-        unsafe {
-            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(raw.is_null());
-        }
+        let result = unsafe { otl_read_gpos_pair(&data, 0, 0) };
+        assert!(result.is_none());
     }
 
     #[test]
@@ -707,16 +672,12 @@ mod otl_read_gpos_pair_tests {
         data[40..42].copy_from_slice(&20u16.to_be_bytes());
         data[42..44].copy_from_slice(&1u16.to_be_bytes());
         data[44..46].copy_from_slice(&1u16.to_be_bytes());
-        unsafe {
-            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GposPair(subtable) = &*boxed else {
-                unreachable!()
-            };
-            assert_eq!(subtable.first_values[1][1].dx, 77.0);
-            assert_eq!(subtable.first_values[0][0].dx, 0.0);
-        }
+        let result = unsafe { otl_read_gpos_pair(&data, 0, 0) };
+        let Some(Subtable::GposPair(ref subtable)) = result else {
+            unreachable!()
+        };
+        assert_eq!(subtable.first_values[1][1].dx, 77.0);
+        assert_eq!(subtable.first_values[0][0].dx, 0.0);
     }
 
     #[test]
@@ -754,9 +715,7 @@ mod otl_read_gpos_pair_tests {
         data[36..38].copy_from_slice(&20u16.to_be_bytes());
         data[38..40].copy_from_slice(&20u16.to_be_bytes());
         data[40..42].copy_from_slice(&(u16::MAX - 1).to_be_bytes());
-        unsafe {
-            let raw = otl_read_gpos_pair(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(raw.is_null());
-        }
+        let result = unsafe { otl_read_gpos_pair(&data, 0, 0) };
+        assert!(result.is_none());
     }
 }

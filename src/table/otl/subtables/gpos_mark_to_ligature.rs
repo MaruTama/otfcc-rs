@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name,
 };
@@ -14,7 +12,7 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
+use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
@@ -23,7 +21,6 @@ use crate::table::otl::subtables::gpos_common::{
 };
 use crate::table::otl::{
     Anchor, GposMarkToLigatureSubtable, LigatureArray, LigatureBaseRecord, MarkArray, Subtable,
-    subtable_from_raw,
 };
 use crate::vendor::json::JsonType;
 // `LigatureBaseRecord.anchors` is a plain `Vec<Vec<Anchor>>` now and
@@ -34,25 +31,6 @@ use crate::vendor::json::JsonType;
 pub(crate) fn dispose_lig_array(arr: &mut LigatureArray) {
     *arr = Vec::new();
 }
-pub(crate) unsafe fn subtable_gpos_mark_to_ligature_free(x: *mut GposMarkToLigatureSubtable) {
-    if x.is_null() {
-        return;
-    }
-    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
-    // and runs `mark_array`/`lig_array`'s own drop glue directly -- no more
-    // `ptr::read`-then-`free` shell dance (Stage 7-2-d): that idiom was only
-    // ever needed to avoid mixing a `__caryll_allocate_clean`'d (`calloc`)
-    // shell with a `Box`'s own drop glue, and `_create()` no longer produces
-    // one. `init_mark_to_ligature` had no other callers, so it's gone too.
-    drop(Box::from_raw(x));
-}
-fn subtable_gpos_mark_to_ligature_create() -> *mut GposMarkToLigatureSubtable {
-    Box::into_raw(Box::new(GposMarkToLigatureSubtable {
-        class_count: 0,
-        mark_array: Vec::new(),
-        lig_array: Vec::new(),
-    }))
-}
 // `2 * component_count * class_count` (the LigatureAttach's byte-length
 // guard) is the same overflow-defeats-guard shape as
 // `gpos_mark_to_single.rs`'s `bases.len() * class_count`, but sharper
@@ -61,17 +39,19 @@ fn subtable_gpos_mark_to_ligature_create() -> *mut GposMarkToLigatureSubtable {
 // by the actual glyph count), so the product can reach 65535*65535*2 --
 // ~8.6 billion -- from a much smaller, more plausible crafted input.
 // Fixed the same way: `checked_mul` on `usize` before `require_room`.
-pub unsafe fn otl_read_gpos_mark_to_ligature(
-    data: FontFilePointer,
-    table_length: u32,
+pub fn otl_read_gpos_mark_to_ligature(
+    data: &[u8],
     offset: u32,
     _max_glyphs: GlyphId,
-) -> *mut Subtable {
-    let subtable: *mut GposMarkToLigatureSubtable = subtable_gpos_mark_to_ligature_create();
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+) -> Option<Subtable> {
+    let mut subtable = GposMarkToLigatureSubtable {
+        class_count: 0,
+        mark_array: Vec::new(),
+        lig_array: Vec::new(),
+    };
 
     'parse: {
-        let mut header = match FontReader::new(slice).at(offset as usize) {
+        let mut header = match FontReader::new(data).at(offset as usize) {
             Ok(r) => r,
             Err(_) => break 'parse,
         };
@@ -94,23 +74,18 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
             break 'parse;
         };
 
-        let marks: Coverage = read_coverage(slice, offset.wrapping_add(marks_rel as u32));
-        let bases: Coverage = read_coverage(slice, offset.wrapping_add(bases_rel as u32));
+        let marks: Coverage = read_coverage(data, offset.wrapping_add(marks_rel as u32));
+        let bases: Coverage = read_coverage(data, offset.wrapping_add(bases_rel as u32));
         if marks.is_empty() || bases.is_empty() {
             break 'parse;
         }
 
-        (*subtable).class_count = class_count as GlyphClass;
+        subtable.class_count = class_count as GlyphClass;
         let mark_array_offset = offset.wrapping_add(mark_array_rel as u32);
-        otl_read_mark_array(
-            &mut (*subtable).mark_array,
-            &marks,
-            slice,
-            mark_array_offset,
-        );
+        otl_read_mark_array(&mut subtable.mark_array, &marks, data, mark_array_offset);
 
         let lig_array_offset = offset.wrapping_add(lig_array_rel as u32);
-        let Ok(mut lr) = FontReader::new(slice).at(lig_array_offset as usize) else {
+        let Ok(mut lr) = FontReader::new(data).at(lig_array_offset as usize) else {
             break 'parse;
         };
         let Ok(lig_count) = lr.u16() else {
@@ -128,7 +103,7 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
         }
 
         for (j, &lig_attach_offset) in lig_attach_offsets.iter().enumerate() {
-            let Ok(mut ar) = FontReader::new(slice).at(lig_attach_offset as usize) else {
+            let Ok(mut ar) = FontReader::new(data).at(lig_attach_offset as usize) else {
                 break 'parse;
             };
             let Ok(component_count) = ar.u16() else {
@@ -152,7 +127,7 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
                     let anchor_rel = ar.u16().unwrap();
                     if anchor_rel != 0 {
                         component.push(otl_read_anchor(
-                            slice,
+                            data,
                             lig_attach_offset.wrapping_add(anchor_rel as u32),
                         ));
                     } else {
@@ -161,13 +136,12 @@ pub unsafe fn otl_read_gpos_mark_to_ligature(
                 }
                 lig.anchors.push(component);
             }
-            (*subtable).lig_array.push(lig);
+            subtable.lig_array.push(lig);
         }
 
-        return subtable_from_raw(subtable, Subtable::GposMarkToLigature);
+        return Some(Subtable::GposMarkToLigature(subtable));
     }
-    subtable_gpos_mark_to_ligature_free(subtable);
-    ::core::ptr::null_mut::<Subtable>()
+    None
 }
 pub fn otl_gpos_dump_mark_to_ligature(st: &Subtable) -> BuiltValue {
     let Subtable::GposMarkToLigature(subtable) = st else {
@@ -418,39 +392,23 @@ mod otl_read_gpos_mark_to_ligature_tests {
     #[test]
     fn well_formed_table_reads_the_ligature_array() {
         let data = well_formed_data();
-        unsafe {
-            let raw = otl_read_gpos_mark_to_ligature(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                0,
-            );
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GposMarkToLigature(subtable) = &*boxed else {
-                unreachable!()
-            };
-            assert_eq!(subtable.class_count, 1);
-            assert_eq!(subtable.lig_array.len(), 1);
-            assert_eq!(subtable.lig_array[0].glyph.index, 6);
-            assert_eq!(subtable.lig_array[0].component_count, 1);
-            assert!(!subtable.lig_array[0].anchors[0][0].present);
-        }
+        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0);
+        let Some(Subtable::GposMarkToLigature(ref subtable)) = result else {
+            unreachable!()
+        };
+        assert_eq!(subtable.class_count, 1);
+        assert_eq!(subtable.lig_array.len(), 1);
+        assert_eq!(subtable.lig_array[0].glyph.index, 6);
+        assert_eq!(subtable.lig_array[0].component_count, 1);
+        assert!(!subtable.lig_array[0].anchors[0][0].present);
     }
 
     #[test]
     fn ligature_count_mismatch_with_coverage_is_rejected() {
         let mut data = well_formed_data();
         data[26..28].copy_from_slice(&2u16.to_be_bytes()); // ligatureCount claims 2, coverage has only 1
-        unsafe {
-            let raw = otl_read_gpos_mark_to_ligature(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                0,
-            );
-            assert!(raw.is_null());
-        }
+        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0);
+        assert!(result.is_none());
     }
 
     #[test]
@@ -465,14 +423,7 @@ mod otl_read_gpos_mark_to_ligature_tests {
         let mut data = well_formed_data();
         data[6..8].copy_from_slice(&u16::MAX.to_be_bytes()); // classCount
         data[30..32].copy_from_slice(&u16::MAX.to_be_bytes()); // componentCount
-        unsafe {
-            let raw = otl_read_gpos_mark_to_ligature(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                0,
-            );
-            assert!(raw.is_null());
-        }
+        let result = otl_read_gpos_mark_to_ligature(&data, 0, 0);
+        assert!(result.is_none());
     }
 }

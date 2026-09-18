@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::handle::{
     GlyphHandle, Handle, HandleState, handle_from_name,
 };
@@ -14,7 +12,7 @@ use crate::support::buffer::Buffer;
 use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphClass, GlyphId};
+use crate::support::primitives::{GlyphClass, GlyphId};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
@@ -23,7 +21,6 @@ use crate::table::otl::subtables::gpos_common::{
 };
 use crate::table::otl::{
     Anchor, BaseArray, BaseRecord, GposMarkToSingleSubtable, MarkArray, Subtable,
-    subtable_from_raw,
 };
 use crate::vendor::json::JsonType;
 // `BaseRecord.anchors` is a plain `Vec<Anchor>` now and `glyph: GlyphHandle`
@@ -34,25 +31,6 @@ use crate::vendor::json::JsonType;
 pub(crate) fn dispose_base_array(arr: &mut BaseArray) {
     *arr = Vec::new();
 }
-pub(crate) unsafe fn subtable_gpos_mark_to_single_free(x: *mut GposMarkToSingleSubtable) {
-    if x.is_null() {
-        return;
-    }
-    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
-    // and runs `mark_array`/`base_array`'s own drop glue directly -- no more
-    // `ptr::read`-then-`free` shell dance (Stage 7-2-d): that idiom was only
-    // ever needed to avoid mixing a `__caryll_allocate_clean`'d (`calloc`)
-    // shell with a `Box`'s own drop glue, and `_create()` no longer produces
-    // one. `init_mark_to_single` had no other callers, so it's gone too.
-    drop(Box::from_raw(x));
-}
-fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSingleSubtable {
-    Box::into_raw(Box::new(GposMarkToSingleSubtable {
-        class_count: 0,
-        mark_array: Vec::new(),
-        base_array: Vec::new(),
-    }))
-}
 // `2 * bases.len() * class_count` (the BaseArray's byte-length guard) is a
 // real, previously-undocumented overflow-defeats-guard bug: `bases.len()`
 // can be as large as the glyph count (bounded by `GlyphId`, up to 65535)
@@ -61,17 +39,19 @@ fn subtable_gpos_mark_to_single_create() -> *mut GposMarkToSingleSubtable {
 // ~8.6 billion), the same class of bug as `cmap.rs`'s `n_groups` guard,
 // just reached by two independently-large factors instead of one. Fixed
 // with `checked_mul` before ever calling `require_room`.
-pub unsafe fn otl_read_gpos_mark_to_single(
-    data: FontFilePointer,
-    table_length: u32,
+pub fn otl_read_gpos_mark_to_single(
+    data: &[u8],
     subtable_offset: u32,
     _max_glyphs: GlyphId,
-) -> *mut Subtable {
-    let subtable: *mut GposMarkToSingleSubtable = subtable_gpos_mark_to_single_create();
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+) -> Option<Subtable> {
+    let mut subtable = GposMarkToSingleSubtable {
+        class_count: 0,
+        mark_array: Vec::new(),
+        base_array: Vec::new(),
+    };
 
     'parse: {
-        let mut header = match FontReader::new(slice).at(subtable_offset as usize) {
+        let mut header = match FontReader::new(data).at(subtable_offset as usize) {
             Ok(r) => r,
             Err(_) => break 'parse,
         };
@@ -94,23 +74,18 @@ pub unsafe fn otl_read_gpos_mark_to_single(
             break 'parse;
         };
 
-        let marks: Coverage = read_coverage(slice, subtable_offset.wrapping_add(marks_rel as u32));
-        let bases: Coverage = read_coverage(slice, subtable_offset.wrapping_add(bases_rel as u32));
+        let marks: Coverage = read_coverage(data, subtable_offset.wrapping_add(marks_rel as u32));
+        let bases: Coverage = read_coverage(data, subtable_offset.wrapping_add(bases_rel as u32));
         if marks.is_empty() || bases.is_empty() {
             break 'parse;
         }
 
-        (*subtable).class_count = class_count as GlyphClass;
+        subtable.class_count = class_count as GlyphClass;
         let mark_array_offset = subtable_offset.wrapping_add(mark_array_rel as u32);
-        otl_read_mark_array(
-            &mut (*subtable).mark_array,
-            &marks,
-            slice,
-            mark_array_offset,
-        );
+        otl_read_mark_array(&mut subtable.mark_array, &marks, data, mark_array_offset);
 
         let base_array_offset = subtable_offset.wrapping_add(base_array_rel as u32);
-        let Ok(mut base_reader) = FontReader::new(slice).at(base_array_offset as usize) else {
+        let Ok(mut base_reader) = FontReader::new(data).at(base_array_offset as usize) else {
             break 'parse;
         };
         let Ok(base_count) = base_reader.u16() else {
@@ -132,23 +107,22 @@ pub unsafe fn otl_read_gpos_mark_to_single(
                 let anchor_rel = base_reader.u16().unwrap();
                 if anchor_rel != 0 {
                     base_anchors.push(otl_read_anchor(
-                        slice,
+                        data,
                         base_array_offset.wrapping_add(anchor_rel as u32),
                     ));
                 } else {
                     base_anchors.push(otl_anchor_absent());
                 }
             }
-            (*subtable).base_array.push(BaseRecord {
+            subtable.base_array.push(BaseRecord {
                 glyph: base.clone(),
                 anchors: base_anchors,
             });
         }
-        return subtable_from_raw(subtable, Subtable::GposMarkToSingle);
+        return Some(Subtable::GposMarkToSingle(subtable));
     }
 
-    subtable_gpos_mark_to_single_free(subtable);
-    ::core::ptr::null_mut::<Subtable>()
+    None
 }
 pub fn otl_gpos_dump_mark_to_single(st: &Subtable) -> BuiltValue {
     let Subtable::GposMarkToSingle(subtable) = st else {
@@ -368,38 +342,22 @@ mod otl_read_gpos_mark_to_single_tests {
     #[test]
     fn well_formed_table_reads_the_base_array() {
         let data = well_formed_data(1);
-        unsafe {
-            let raw = otl_read_gpos_mark_to_single(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                0,
-            );
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GposMarkToSingle(subtable) = &*boxed else {
-                unreachable!()
-            };
-            assert_eq!(subtable.class_count, 1);
-            assert_eq!(subtable.base_array.len(), 1);
-            assert_eq!(subtable.base_array[0].glyph.index, 6);
-            assert!(!subtable.base_array[0].anchors[0].present);
-        }
+        let result = otl_read_gpos_mark_to_single(&data, 0, 0);
+        let Some(Subtable::GposMarkToSingle(ref subtable)) = result else {
+            unreachable!()
+        };
+        assert_eq!(subtable.class_count, 1);
+        assert_eq!(subtable.base_array.len(), 1);
+        assert_eq!(subtable.base_array[0].glyph.index, 6);
+        assert!(!subtable.base_array[0].anchors[0].present);
     }
 
     #[test]
     fn base_count_mismatch_with_coverage_is_rejected() {
         let mut data = well_formed_data(1);
         data[26..28].copy_from_slice(&2u16.to_be_bytes()); // baseCount claims 2, coverage has only 1
-        unsafe {
-            let raw = otl_read_gpos_mark_to_single(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                0,
-            );
-            assert!(raw.is_null());
-        }
+        let result = otl_read_gpos_mark_to_single(&data, 0, 0);
+        assert!(result.is_none());
     }
 
     #[test]
@@ -413,14 +371,7 @@ mod otl_read_gpos_mark_to_single_tests {
         // shortfall at an ordinary scale (class_count raised from 1 to 5,
         // but the base array still has room for only 1 anchor slot).
         let data = well_formed_data(5); // baseCount=1, but only 1 anchor slot is present, not 5
-        unsafe {
-            let raw = otl_read_gpos_mark_to_single(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                0,
-                0,
-            );
-            assert!(raw.is_null());
-        }
+        let result = otl_read_gpos_mark_to_single(&data, 0, 0);
+        assert!(result.is_none());
     }
 }
