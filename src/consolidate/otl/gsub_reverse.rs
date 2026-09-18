@@ -6,13 +6,12 @@ use crate::font::caryll_font::Font;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
 
-use crate::table::otl::{OtlTable, Subtable};
+use crate::table::otl::Subtable;
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 
 pub fn consolidate_gsub_reverse(
     font: &Font,
-    _table: *const OtlTable,
     _subtable: &mut Subtable,
     options: &Options,
 ) -> bool {

@@ -6,14 +6,13 @@ use crate::font::caryll_font::Font;
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
-use crate::table::otl::{Anchor, GposCursiveEntry, OtlTable, Subtable};
+use crate::table::otl::{Anchor, GposCursiveEntry, Subtable};
 
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::subtables::gpos_cursive::dispose_gpos_cursive_subtable;
 
 pub fn consolidate_gpos_cursive(
     font: &Font,
-    _table: *const OtlTable,
     _subtable: &mut Subtable,
     options: &Options,
 ) -> bool {

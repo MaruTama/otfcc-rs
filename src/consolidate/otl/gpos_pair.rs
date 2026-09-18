@@ -4,11 +4,10 @@ use crate::font::caryll_font::Font;
 
 use crate::consolidate::otl::common::fontop_consolidate_class_def;
 use crate::table::otl::classdef::shrink_class_def;
-use crate::table::otl::{OtlTable, Subtable};
+use crate::table::otl::Subtable;
 
 pub fn consolidate_gpos_pair(
     font: &Font,
-    _table: *const OtlTable,
     _subtable: &mut Subtable,
     options: &Options,
 ) -> bool {

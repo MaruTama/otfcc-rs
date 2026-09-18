@@ -8,11 +8,10 @@ use crate::font::caryll_font::Font;
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::subtables::gsub_ligature::subtable_gsub_ligature_replace;
-use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, OtlTable, Subtable};
+use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, Subtable};
 
 pub fn consolidate_gsub_ligature(
     font: &Font,
-    _table: *const OtlTable,
     _subtable: &mut Subtable,
     options: &Options,
 ) -> bool {

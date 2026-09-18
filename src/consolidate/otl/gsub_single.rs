@@ -6,14 +6,13 @@ use crate::font::caryll_font::Font;
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
-use crate::table::otl::{GsubSingleEntry, OtlTable, Subtable};
+use crate::table::otl::{GsubSingleEntry, Subtable};
 
 use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
 use crate::table::otl::subtables::gsub_single::dispose_gsub_single_subtable;
 
 pub fn consolidate_gsub_single(
     font: &Font,
-    _table: *const OtlTable,
     _subtable: &mut Subtable,
     options: &Options,
 ) -> bool {
