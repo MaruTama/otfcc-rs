@@ -2,7 +2,6 @@
 use libc::{strlen, strtol};
 
 use crate::logger::{LOG_VL_NOTICE, LoggerType, logger_log_sds};
-use crate::otf_reader::FontBuilder;
 use crate::support::parsed_json::ParsedValue;
 
 use crate::font::caryll_font::{Font, FontSubtype};
@@ -222,91 +221,77 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
     order_glyphs(go);
     return Some(go_box);
 }
-#[derive(Debug)]
-struct JsonReader;
-impl FontBuilder for JsonReader {
-    unsafe fn read(
-        mut _root: *mut ::core::ffi::c_void,
-        mut _index: u32,
-        options: *const ::core::ffi::c_void,
-    ) -> *mut ::core::ffi::c_void {
-        let options: &Options = &*(options as *const Options);
-        let root: &ParsedValue = &*(_root as *const ParsedValue);
-        let font: *mut Font = (otfcc_font_create)();
-        if font.is_null() {
-            return ::core::ptr::null_mut::<::core::ffi::c_void>();
-        }
-        (*font).subtype = otfcc_decide_font_subtype_from_json(root);
-        (*font).glyph_order = parse_glyph_order(root, options);
-        (*font).glyf = otfcc_parse_glyf(root, (*font).glyph_order.as_deref(), options);
-        (*font).cff = otfcc_parse_cff(root, options);
-        (*font).head = otfcc_parse_head(root, options);
-        (*font).hhea = otfcc_parse_hhea(root, options);
-        (*font).os_2 = otfcc_parse_os_2(root, options);
-        (*font).maxp = otfcc_parse_maxp(root, options);
-        (*font).post = otfcc_parse_post(root, options);
-        (*font).name = otfcc_parse_name(root, options);
-        (*font).meta = otfcc_parse_meta(root, options);
-        (*font).cmap = otfcc_parse_cmap(root, options);
-        if !options.ignore_hints {
-            (*font).fpgm = otfcc_parse_fpgm_prep(
-                root,
-                options,
-                b"fpgm",
-            );
-            (*font).prep = otfcc_parse_fpgm_prep(
-                root,
-                options,
-                b"prep",
-            );
-            (*font).cvt_ = otfcc_parse_cvt(
-                root,
-                options,
-                b"cvt_",
-            );
-            (*font).gasp = otfcc_parse_gasp(root, options);
-        }
-        (*font).vdmx = otfcc_parse_vdmx(root, options);
-        (*font).vhea = otfcc_parse_vhea(root, options);
-        if (*font).glyf.is_some() {
-            (*font).gsub = otfcc_parse_otl(
-                root,
-                options,
-                b"GSUB",
-            );
-            (*font).gpos = otfcc_parse_otl(
-                root,
-                options,
-                b"GPOS",
-            );
-            (*font).gdef = otfcc_parse_gdef(root, options);
-        }
-        (*font).base = otfcc_parse_base(root, options);
-        (*font).cpal = otfcc_parse_cpal(root, options);
-        (*font).colr = otfcc_parse_colr(root, options);
-        (*font).svg = otfcc_parse_svg(root, options);
-        (*font).tsi_01 = otfcc_parse_tsi(
-            root,
-            options,
-            b"TSI_01",
-        );
-        (*font).tsi_23 = otfcc_parse_tsi(
-            root,
-            options,
-            b"TSI_23",
-        );
-        (*font).tsi5 = otfcc_parse_tsi5(root);
-        return font as *mut ::core::ffi::c_void;
+/// Builds a font from an already-parsed JSON tree.
+///
+/// Was a `FontBuilder` impl on a zero-sized `JsonReader` marker struct
+/// plus a casting wrapper; see `otf_reader::read_otf` for why that trait
+/// is gone. The subfont index the erased signature forced this side to
+/// accept was never read -- a JSON tree describes exactly one font --
+/// so it is dropped rather than kept as a silently-ignored parameter.
+pub unsafe fn read_json(root: &ParsedValue, options: &Options) -> *mut Font {
+    let font: *mut Font = (otfcc_font_create)();
+    if font.is_null() {
+        return ::core::ptr::null_mut::<Font>();
     }
-}
-pub unsafe fn read_json(
-    mut _root: *mut ::core::ffi::c_void,
-    mut _index: u32,
-    options: &Options,
-) -> *mut Font {
-    <JsonReader as FontBuilder>::read(
-        _root,
-        _index,
-        options as *const Options as *const ::core::ffi::c_void,
-    ) as *mut Font
+    (*font).subtype = otfcc_decide_font_subtype_from_json(root);
+    (*font).glyph_order = parse_glyph_order(root, options);
+    (*font).glyf = otfcc_parse_glyf(root, (*font).glyph_order.as_deref(), options);
+    (*font).cff = otfcc_parse_cff(root, options);
+    (*font).head = otfcc_parse_head(root, options);
+    (*font).hhea = otfcc_parse_hhea(root, options);
+    (*font).os_2 = otfcc_parse_os_2(root, options);
+    (*font).maxp = otfcc_parse_maxp(root, options);
+    (*font).post = otfcc_parse_post(root, options);
+    (*font).name = otfcc_parse_name(root, options);
+    (*font).meta = otfcc_parse_meta(root, options);
+    (*font).cmap = otfcc_parse_cmap(root, options);
+    if !options.ignore_hints {
+        (*font).fpgm = otfcc_parse_fpgm_prep(
+            root,
+            options,
+            b"fpgm",
+        );
+        (*font).prep = otfcc_parse_fpgm_prep(
+            root,
+            options,
+            b"prep",
+        );
+        (*font).cvt_ = otfcc_parse_cvt(
+            root,
+            options,
+            b"cvt_",
+        );
+        (*font).gasp = otfcc_parse_gasp(root, options);
+    }
+    (*font).vdmx = otfcc_parse_vdmx(root, options);
+    (*font).vhea = otfcc_parse_vhea(root, options);
+    if (*font).glyf.is_some() {
+        (*font).gsub = otfcc_parse_otl(
+            root,
+            options,
+            b"GSUB",
+        );
+        (*font).gpos = otfcc_parse_otl(
+            root,
+            options,
+            b"GPOS",
+        );
+        (*font).gdef = otfcc_parse_gdef(root, options);
+    }
+    (*font).base = otfcc_parse_base(root, options);
+    (*font).cpal = otfcc_parse_cpal(root, options);
+    (*font).colr = otfcc_parse_colr(root, options);
+    (*font).svg = otfcc_parse_svg(root, options);
+    (*font).tsi_01 = otfcc_parse_tsi(
+        root,
+        options,
+        b"TSI_01",
+    );
+    (*font).tsi_23 = otfcc_parse_tsi(
+        root,
+        options,
+        b"TSI_23",
+    );
+    (*font).tsi5 = otfcc_parse_tsi5(root);
+    return font;
 }

@@ -13962,3 +13962,68 @@ on the other platform before a commit is trusted.
     90s each, clean), and the reconstructed repro confirmed fixed
     directly (`otf_parse -rss_limit_mb=2048` now completes in 593ms,
     down from a 2.2-3.4GB OOM).
+
+- **Stage L-1: the `FontBuilder`/`FontSerializer` `c_void` type-erasure
+  traits deleted.** First installment of a staged removal of c2rust
+  structural residue (see the plan doc's "Stage L"), prompted by a survey
+  that found the crate's 111 remaining `unsafe fn` were mostly *not* the
+  genuine FFI boundaries they had been documented as: the real exported
+  ABI is only the four symbols in `abi-exports.txt`, and none of these
+  four functions was among them.
+  - **What the traits were**: `otf_reader.rs`'s `FontBuilder` and
+    `otf_writer.rs`'s `FontSerializer`, each with a single associated
+    function taking and returning `*mut c_void`, implemented by four
+    zero-sized marker structs (`OtfReader`, `JsonReader`, `OtfSerializer`,
+    `JsonSerializer`), each reached through a thin wrapper that cast
+    everything back to concrete types. The stated rationale -- that the
+    erasure let one signature be shared across `otf_reader.rs` and
+    `json_reader.rs` "without deduping those pervasively-used types" --
+    was stale: `Options`/`Font` are not per-file duplicates any more,
+    which is exactly why the wrappers could already take `&Options`
+    directly. Neither trait had a `&self`, so no dynamic dispatch was
+    possible; there was no `dyn` use, no fn-pointer table, no generic code
+    parameterized over either trait, and exactly one statically-resolved
+    call site per implementor. The marker structs were never constructed.
+    The two reader implementors did not even agree on what the erased
+    parameters *meant* (`sfnt` + subfont index vs. a `ParsedValue` root
+    and an ignored index).
+  - **What replaced it**: each impl body folded into its existing wrapper,
+    with concrete types -- `read_otf(&SplineFontContainer, u32, &Options)`,
+    `read_json(&ParsedValue, &Options)`,
+    `serialize_to_json(&mut Font, &Options) -> BuiltValue`,
+    `serialize_to_otf(&mut Font, &Options) -> Buffer`. `read_json`'s
+    subfont index is dropped outright rather than kept as a
+    silently-ignored parameter (a JSON tree describes exactly one font).
+  - **Two dead things fell out.** `BuiltValue::into_raw`/`from_raw`
+    existed *only* to bridge this erasure and had zero call sites left
+    afterwards, so they are deleted; `Buffer` keeps its own pair because
+    `ffi/dll.rs`'s genuine `extern "C"` return still needs one, and that
+    conversion now happens at that boundary itself. `bin/otfccdump.rs`'s
+    "dump returned null, font structure broken, exit" error path was
+    already unreachable -- the serializer's every exit built a real
+    `BuiltValue`, so the pointer was never null -- and with an owned
+    return there is no null to test for at all.
+  - **This erasure had caused a real bug.** `fuzz_targets/otf_dump.rs`
+    carries a comment describing a LeakSanitizer-confirmed leak of the
+    entire JSON tree on every dump: reclaiming the untyped `*mut c_void`
+    with `Box::from_raw` built a `Box<c_void>`, whose drop glue does
+    nothing and never ran `BuiltValue`'s recursive `Object`/`Array`
+    teardown. The fix at the time was to remember to cast back to
+    `*mut BuiltValue` first. With the erasure gone, the owned `BuiltValue`
+    simply drops correctly and that whole class of mistake is
+    unrepresentable -- the comment is kept, rewritten to past tense, as
+    the record of why this matters.
+  - **Verification**: full pipeline green -- build, `clippy --all-targets
+    -- -D warnings`, `cargo test --lib` (406), `cargo test --
+    --test-threads=1` (integration suite, including `golden.rs`'s
+    byte-exact fixtures, `dll_abi.rs`'s real cdylib FFI boundary and
+    `abi.rs`'s exported-symbol surface -- the last two matter especially
+    here, since this PR touches `ffi/dll.rs`), Miri (0 UB), all three
+    fuzz targets 90s each plus every `tests/fuzz-corpus/known-issues/
+    *.bin` re-run directly. `survey-unsafe.sh`: `unsafe fn` 111 -> 104,
+    `unsafe blocks` 242 -> 240, raw pointer types 969 -> 902.
+  - **Note on formatting**: the crate is *not* rustfmt-clean right now
+    (673 `cargo fmt --check` diff hunks on master), so the de-indentation
+    this change required was done by hand rather than with `cargo fmt` --
+    see this file's own earlier note and the `cargo fmt` memory for why
+    running it mid-PR is not acceptable here.

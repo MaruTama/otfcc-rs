@@ -309,7 +309,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
-        font = read_otf(sfnt as *mut ::core::ffi::c_void, ttcindex, &*options);
+        font = read_otf(&*sfnt, ttcindex, &*options);
         if font.is_null() {
             logger_log_sds(
                 &mut *(*options).logger.borrow_mut(),
@@ -351,27 +351,22 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         ___loggedstep_v_1 = false;
         logger_finish(&mut *(*options).logger.borrow_mut());
     }
-    let mut root: *mut BuiltValue = ::core::ptr::null_mut::<BuiltValue>();
+    // Owned now that `serialize_to_json` returns the `BuiltValue` itself
+    // rather than a `BuiltValue::into_raw` pointer; `Option` only because
+    // the goto-emulating `while ___loggedstep_v` block below is what
+    // assigns it.
+    let mut root: Option<BuiltValue> = None;
     logger_start_sds(
         &mut *(*options).logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Dump"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
-        root = serialize_to_json(font, &*options) as *mut BuiltValue;
-        if root.is_null() {
-            logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
-                LOG_VL_CRITICAL,
-                LoggerType::Error,
-                otfcc_rust::bytesbuild!(
-                    b"Font structure broken or corrupted \"",
-                    inPath.as_bytes(),
-                    b"\". Exit.\n",
-                ),
-            );
-            return EXIT_FAILURE;
-        }
+        // The "dump returned null" error path that used to sit here was
+        // already dead: the serializer's every exit built a real
+        // `BuiltValue`, so the pointer it handed back was never null. With
+        // an owned return there is no null to test for at all.
+        root = Some(serialize_to_json(&mut *font, &*options));
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
@@ -404,7 +399,10 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         if show_ugly {
             jsonOptions.mode = JSON_SERIALIZE_MODE_PACKED;
         }
-        buf = json_serialize_ex(&*root, jsonOptions);
+        buf = json_serialize_ex(
+            root.as_ref().expect("the Dump step above always assigns root"),
+            jsonOptions,
+        );
         logger_log_sds(
             &mut *(*options).logger.borrow_mut(),
             LOG_VL_PROGRESS,
@@ -468,7 +466,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         if !font.is_null() {
             otfcc_font_free(font);
         }
-        drop(BuiltValue::from_raw(root));
+        drop(root.take());
         // `inPath`/`outputPath` are `CString`/`Option<CString>` now --
         // both drop on their own at the end of this function's scope, no
         // explicit free needed.

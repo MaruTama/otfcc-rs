@@ -88,7 +88,7 @@ pub unsafe fn otfcc_delete_sfnt_builder(builder: *mut SfntBuilder) {
 // this migration and unlike `ScriptStatHash`/`FvarMaster`'s insertion
 // order.
 // `builder.is_null()` was dead: this function's one caller
-// (`otf_writer.rs`'s `OtfSerializer::serialize`) always passes the direct
+// (`otf_writer.rs`'s `serialize_to_otf`) always passes the direct
 // return of `otfcc_new_sfnt_builder`, unconditionally, and
 // `__caryll_allocate_clean` aborts via `handle_alloc_error` on OOM rather
 // than returning null for a nonzero size (`size_of::<SfntBuilder>()` is
