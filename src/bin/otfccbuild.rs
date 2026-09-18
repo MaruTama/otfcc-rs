@@ -28,9 +28,7 @@ use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
 use otfcc_rust::otf_writer::serialize_to_otf;
 use otfcc_rust::support::getopt::{GetoptItem, LongOpt, getopt_long};
-use otfcc_rust::support::options::{
-    otfcc_delete_options, otfcc_new_options, otfcc_options_optimize_to,
-};
+use otfcc_rust::support::options::otfcc_options_optimize_to;
 use otfcc_rust::support::parsed_json::ParsedValue;
 use otfcc_rust::support::parsed_json::{json_parse, json_value_free};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
@@ -123,10 +121,10 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     let mut show_version: bool = false;
     let mut outputPath: Option<::std::ffi::CString> = None;
     let mut inPath: Option<::std::ffi::CString> = None;
-    let mut options: *mut Options = otfcc_new_options();
-    (*options).logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
+    let mut options: Box<Options> = Box::default();
+    options.logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
     logger_indent(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
     otfcc_options_optimize_to(&mut *options, 1_u8);
@@ -198,40 +196,40 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             GetoptItem::Opt { val, arg } => match val {
                 OPT_VERSION => show_version = true,
                 OPT_HELP => show_help = true,
-                OPT_KEEP_GLYPH_ORDER => (*options).ignore_glyph_order = false,
-                OPT_IGNORE_GLYPH_ORDER => (*options).ignore_glyph_order = true,
+                OPT_KEEP_GLYPH_ORDER => options.ignore_glyph_order = false,
+                OPT_IGNORE_GLYPH_ORDER => options.ignore_glyph_order = true,
                 OPT_OUTPUT => {
                     outputPath = Some(
                         ::std::ffi::CString::new(arg.unwrap())
                             .expect("output path must not contain a NUL byte"),
                     );
                 }
-                OPT_DUMMY_DSIG => (*options).dummy_dsig = true,
-                OPT_QUIET => (*options).quiet = true,
+                OPT_DUMMY_DSIG => options.dummy_dsig = true,
+                OPT_QUIET => options.quiet = true,
                 OPT_OPTIMIZE => {
                     let carg = ::std::ffi::CString::new(arg.unwrap())
                         .expect("optimize level must not contain a NUL byte");
                     otfcc_options_optimize_to(&mut *options, atoi(carg.as_ptr()) as u8);
                 }
                 OPT_TIME => {}
-                OPT_IGNORE_HINTS => (*options).ignore_hints = true,
-                OPT_KEEP_AVERAGE_CHAR_WIDTH => (*options).keep_average_char_width = true,
-                OPT_KEEP_UNICODE_RANGES => (*options).keep_unicode_ranges = true,
-                OPT_KEEP_MODIFIED_TIME => (*options).keep_modified_time = true,
-                OPT_MERGE_LOOKUPS => (*options).merge_lookups = true,
-                OPT_MERGE_FEATURES => (*options).merge_features = true,
-                OPT_DONT_MERGE_LOOKUPS => (*options).merge_lookups = false,
-                OPT_DONT_MERGE_FEATURES => (*options).merge_features = false,
-                OPT_SHORT_POST => (*options).short_post = true,
-                OPT_FORCE_CID => (*options).force_cid = true,
-                OPT_SUBROUTINIZE => (*options).cff_do_subroutinize = true,
-                OPT_STUB_CMAP4 => (*options).stub_cmap4 = true,
+                OPT_IGNORE_HINTS => options.ignore_hints = true,
+                OPT_KEEP_AVERAGE_CHAR_WIDTH => options.keep_average_char_width = true,
+                OPT_KEEP_UNICODE_RANGES => options.keep_unicode_ranges = true,
+                OPT_KEEP_MODIFIED_TIME => options.keep_modified_time = true,
+                OPT_MERGE_LOOKUPS => options.merge_lookups = true,
+                OPT_MERGE_FEATURES => options.merge_features = true,
+                OPT_DONT_MERGE_LOOKUPS => options.merge_lookups = false,
+                OPT_DONT_MERGE_FEATURES => options.merge_features = false,
+                OPT_SHORT_POST => options.short_post = true,
+                OPT_FORCE_CID => options.force_cid = true,
+                OPT_SUBROUTINIZE => options.cff_do_subroutinize = true,
+                OPT_STUB_CMAP4 => options.stub_cmap4 = true,
                 OPT_SHIP => {
-                    (*options).ignore_glyph_order = true;
-                    (*options).short_post = true;
-                    (*options).dummy_dsig = true;
+                    options.ignore_glyph_order = true;
+                    options.short_post = true;
+                    options.dummy_dsig = true;
                 }
-                OPT_VERBOSE => (*options).verbose = true,
+                OPT_VERBOSE => options.verbose = true,
                 _ => {}
             },
             GetoptItem::UnknownLong(s) => {
@@ -263,10 +261,10 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         }
     }
     logger_set_verbosity(
-        &mut *(*options).logger.borrow_mut(),
-        (if (*options).quiet as i32 != 0 {
+        &mut *options.logger.borrow_mut(),
+        (if options.quiet as i32 != 0 {
             0_i32
-        } else if (*options).verbose as i32 != 0 {
+        } else if options.verbose as i32 != 0 {
             0xff_i32
         } else {
             1_i32
@@ -286,7 +284,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     });
     if outputPath.is_none() {
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_CRITICAL,
             LoggerType::Error,
             otfcc_rust::bytesbuild!(
@@ -298,14 +296,14 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     }
     let mut buffer: Vec<u8> = Vec::new();
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Load file"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         if let Some(ref in_path) = inPath {
             logger_start_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 otfcc_rust::bytesbuild!(b"Load from file ", in_path.as_bytes()),
             );
             let mut ___loggedstep_v_0: bool = true;
@@ -323,46 +321,46 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                 // the end, which is exactly what those later reads
                 // needed all along.
                 ___loggedstep_v_0 = false;
-                logger_finish(&mut *(*options).logger.borrow_mut());
+                logger_finish(&mut *options.logger.borrow_mut());
             }
         } else {
             logger_start_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 otfcc_rust::bytesbuild!(b"Load from stdin"),
             );
             let mut ___loggedstep_v_1: bool = true;
             while ___loggedstep_v_1 {
                 buffer = readEntireStdin();
                 ___loggedstep_v_1 = false;
-                logger_finish(&mut *(*options).logger.borrow_mut());
+                logger_finish(&mut *options.logger.borrow_mut());
             }
         }
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     let mut json_root: *mut ParsedValue = ::core::ptr::null_mut::<ParsedValue>();
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Parse into JSON"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
         json_root = json_parse(buffer.as_ptr() as *const ::core::ffi::c_char, buffer.len());
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         if json_root.is_null() {
             logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(
@@ -374,11 +372,11 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             return EXIT_FAILURE;
         }
         ___loggedstep_v_2 = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     let mut font: Option<Box<Font>> = None;
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Parse"),
     );
     let mut ___loggedstep_v_3: bool = true;
@@ -386,7 +384,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         font = read_json(&*json_root, &*options);
         if font.is_none() {
             logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(
@@ -399,32 +397,32 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         }
         json_value_free(json_root);
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_3 = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Consolidate"),
     );
     let mut ___loggedstep_v_4: bool = true;
     while ___loggedstep_v_4 {
         otfcc_consolidate_font(font.as_mut().unwrap(), &*options);
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_4 = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Build"),
     );
     let mut ___loggedstep_v_5: bool = true;
@@ -434,7 +432,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         // `Buffer::from_raw` used to be needed.
         let otf: Buffer = serialize_to_otf(font.as_mut().unwrap(), &*options);
         logger_start_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             otfcc_rust::bytesbuild!(b"Write to file"),
         );
         let mut ___loggedstep_v_6: bool = true;
@@ -445,7 +443,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
             if std::fs::write(std::path::Path::new(os_path), &otf.data).is_err() {
                 logger_log_sds(
-                    &mut *(*options).logger.borrow_mut(),
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_CRITICAL,
                     LoggerType::Error,
                     otfcc_rust::bytesbuild!(
@@ -457,10 +455,10 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                 return EXIT_FAILURE;
             }
             ___loggedstep_v_6 = false;
-            logger_finish(&mut *(*options).logger.borrow_mut());
+            logger_finish(&mut *options.logger.borrow_mut());
         }
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
@@ -470,9 +468,8 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         // their own at the end of this function's scope, no explicit
         // free needed.
         ___loggedstep_v_5 = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
-    otfcc_delete_options(options);
     return 0_i32;
 }
 pub fn main() -> ::std::process::ExitCode {

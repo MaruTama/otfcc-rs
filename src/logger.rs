@@ -70,8 +70,8 @@ impl Logger {
     // `Options` owns its `Logger` inline (see `support/options.rs`'s
     // `logger: RefCell<Logger>`), construction is just building the value --
     // no allocation, no calloc-then-`ptr::write` dance needed here (that
-    // hazard now lives at the one place that *does* still calloc a whole
-    // struct in one shot: `otfcc_new_options`).
+    // hazard now lives at the one place that *did* calloc a whole
+    // struct in one shot: the since-removed `otfcc_new_options`).
     pub fn new(target: LoggerTarget) -> Logger {
         Logger {
             target,

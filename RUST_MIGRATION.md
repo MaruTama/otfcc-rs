@@ -14380,3 +14380,42 @@ on the other platform before a commit is trusted.
     `tests/fuzz-corpus/known-issues/*.bin` (21 files) re-run directly --
     no regression. `survey-unsafe.sh`: `unsafe fn` 72 -> 70, `unsafe
     blocks` 193 -> 190, raw pointer types 805 -> 797.
+
+- **Stage L-9b: `Options` is an owned `Box<Options>` --
+  `otfcc_new_options`/`otfcc_delete_options` deleted, `glyph_name_prefix`
+  is `Option<Vec<u8>>`.** Tenth installment of Stage L, second half of the
+  old "L-9" (stacked on L-9a, which removed the `Font` pair).
+  - **What the pair was**: `otfcc_new_options() -> *mut Options` was a
+    `calloc` of the whole struct followed by a `ptr::write` of a valid
+    `Logger` over the zeroed `RefCell<Logger>` (an all-zero `Vec` is not a
+    valid `Vec`); `otfcc_delete_options` swapped an empty `Logger` back in
+    so its `Drop` would run, `free`d `glyph_name_prefix`, then `free`d the
+    struct -- a hand-maintained "calloc here, `free` there, and remember
+    which fields need a manual drop first" protocol. `Options` already
+    derived `Default` (and `Logger` already implemented it as
+    `Logger::new(LoggerTarget::Empty)`, i.e. exactly what the old
+    constructor `ptr::write`d), so every call site is now
+    `let mut options: Box<Options> = Box::default();` and the free is just
+    scope exit. No fresh allocator-mismatch hazard is left in the crate for
+    this type.
+  - **`glyph_name_prefix: *mut c_char` -> `Option<Vec<u8>>`**: the only
+    source was a CLI argument (`--glyph-name-prefix`) that `otfccdump`
+    already held as a Rust `CString`, then `strdup`ed. It is now
+    `Some(carg.into_bytes())`; the two readers
+    (`table/otl/read.rs`, `otf_reader/unconsolidate.rs`) test
+    `Option::is_some`/borrow the bytes instead of `is_null()`/`CStr`. A
+    NUL-free byte string round-trips identically, so no output changes
+    (the `--glyph-name-prefix` golden fixtures are unaffected).
+  - **Call sites**: `otfccdump`, `otfccbuild`, `ffi/dll.rs`'s
+    `otfccbuild_json_otf` (two early-return paths lose their manual
+    `otfcc_delete_options`), eight `otf_reader.rs` regression tests, the
+    `otf_parse`/`otf_dump` fuzz targets, and `benches/support` (where
+    `quiet_options()` now returns `Box<Options>`, `free_options` is gone and
+    the two helpers take `&Options` instead of `*const Options`).
+  - **Verification**: full pipeline green -- build, `clippy --all-targets
+    -- -D warnings`, `cargo test --lib` (406), `cargo test --
+    --test-threads=1` (integration suite incl. `golden.rs` byte-exact
+    fixtures and `dll_abi.rs`), Miri, all three fuzz targets 90s each plus
+    every `tests/fuzz-corpus/known-issues/*.bin` re-run directly.
+    `survey-unsafe.sh` (vs. the L-9a branch): `unsafe fn` 70 -> 68,
+    `unsafe blocks` 190 -> 183, raw pointer types 797 -> 787.

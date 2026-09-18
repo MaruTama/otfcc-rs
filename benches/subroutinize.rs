@@ -12,7 +12,7 @@
 mod support;
 
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
-use support::{build_to_otf, free_options, payload_bytes, quiet_options, quiet_options_o2};
+use support::{build_to_otf, payload_bytes, quiet_options, quiet_options_o2};
 
 fn bench_subroutinize(c: &mut Criterion) {
     let mut group = c.benchmark_group("subroutinize");
@@ -20,15 +20,13 @@ fn bench_subroutinize(c: &mut Criterion) {
 
     let default_options = quiet_options();
     group.bench_function("WorkSans-Regular-default", |b| {
-        b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, default_options), BatchSize::SmallInput);
+        b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, &default_options), BatchSize::SmallInput);
     });
-    free_options(default_options);
 
     let o2_options = quiet_options_o2();
     group.bench_function("WorkSans-Regular-O2", |b| {
-        b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, o2_options), BatchSize::SmallInput);
+        b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, &o2_options), BatchSize::SmallInput);
     });
-    free_options(o2_options);
 
     group.finish();
 }

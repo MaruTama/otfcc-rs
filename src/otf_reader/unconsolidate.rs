@@ -153,15 +153,7 @@ fn create_glyph_order(font: &mut Font, options: &Options) -> GlyphOrder {
     // Only ever called (from `otfcc_unconsolidate_font`) under a
     // `.glyf.is_some()` guard.
     let num_glyphs: GlyphId = font.glyf.as_ref().unwrap().len() as GlyphId;
-    let prefix: Vec<u8> = if !options.glyph_name_prefix.is_null() {
-        // `options.glyph_name_prefix: *const c_char` is a genuine external
-        // C-string boundary (CLI-supplied), not c2rust residue.
-        crate::bytesbuild!(unsafe {
-            crate::support::fmt::CCharRef::from_ptr(options.glyph_name_prefix)
-        })
-    } else {
-        Vec::new()
-    };
+    let prefix: Vec<u8> = options.glyph_name_prefix.clone().unwrap_or_default();
     for j in 0..num_glyphs {
         // Each iteration reads glyph `j` fully (`name_glyph_by_hash`/the
         // `.name.is_empty()` check below, both immutable) before writing

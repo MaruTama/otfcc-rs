@@ -176,7 +176,7 @@ mod regression_tests {
     use crate::consolidate::otfcc_consolidate_font;
     use crate::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
     use crate::logger::{Logger, otfcc_new_empty_target};
-    use crate::support::options::{otfcc_delete_options, otfcc_new_options};
+    use crate::support::options::Options;
     use std::cell::RefCell;
     use std::io::Cursor;
     use std::time::{Duration, Instant};
@@ -210,16 +210,15 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             let elapsed = start.elapsed();
 
             otfcc_delete_sfnt(sfnt);
             drop(font);
-            otfcc_delete_options(options);
 
             assert!(
                 elapsed < Duration::from_secs(10),
@@ -278,16 +277,15 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             let elapsed = start.elapsed();
 
             otfcc_delete_sfnt(sfnt);
             drop(font);
-            otfcc_delete_options(options);
 
             assert!(
                 elapsed < Duration::from_secs(10),
@@ -333,11 +331,11 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             let elapsed = start.elapsed();
 
             // The wall-clock check below alone doesn't actually catch this
@@ -370,7 +368,6 @@ mod regression_tests {
 
             otfcc_delete_sfnt(sfnt);
             drop(font);
-            otfcc_delete_options(options);
 
             assert!(
                 elapsed < Duration::from_secs(10),
@@ -408,11 +405,11 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             let elapsed = start.elapsed();
 
             // Same reasoning as the feature-ref-amplification test above:
@@ -442,7 +439,6 @@ mod regression_tests {
 
             otfcc_delete_sfnt(sfnt);
             drop(font);
-            otfcc_delete_options(options);
 
             assert!(
                 elapsed < Duration::from_secs(10),
@@ -486,17 +482,16 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
 
             otfcc_delete_sfnt(sfnt);
             let font = font.expect("font must parse");
             assert!(font.maxp.is_none());
             assert!(font.glyf.is_none());
             drop(font);
-            otfcc_delete_options(options);
         }
     }
 
@@ -534,10 +529,10 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             otfcc_delete_sfnt(sfnt);
             let mut font = font.expect("font must parse");
             assert!(font.maxp.is_none());
@@ -545,10 +540,9 @@ mod regression_tests {
             // The point of this regression test is that dumping a font with
             // no `maxp` does not panic; the dumped value itself is just
             // dropped.
-            drop(crate::json_writer::serialize_to_json(&mut font, &*options));
+            drop(crate::json_writer::serialize_to_json(&mut font, &options));
 
             drop(font);
-            otfcc_delete_options(options);
         }
     }
 
@@ -599,19 +593,18 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let mut font = super::read_otf(&*sfnt, 0, &*options);
+            let mut font = super::read_otf(&*sfnt, 0, &options);
             if let Some(font) = font.as_mut() {
-                otfcc_consolidate_font(font, &*options);
+                otfcc_consolidate_font(font, &options);
             }
             let elapsed = start.elapsed();
 
             otfcc_delete_sfnt(sfnt);
             drop(font);
-            otfcc_delete_options(options);
 
             assert!(
                 elapsed < Duration::from_secs(15),
@@ -660,11 +653,11 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             let elapsed = start.elapsed();
 
             let font = font.expect("font must parse");
@@ -678,7 +671,6 @@ mod regression_tests {
 
             otfcc_delete_sfnt(sfnt);
             drop(font);
-            otfcc_delete_options(options);
 
             assert!(
                 elapsed < Duration::from_secs(10),

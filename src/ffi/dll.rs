@@ -7,7 +7,7 @@ use crate::consolidate::otfcc_consolidate_font;
 use crate::json_reader::read_json;
 use crate::logger::{Logger, logger_indent, otfcc_new_empty_target};
 use crate::otf_writer::serialize_to_otf;
-use crate::support::options::{otfcc_delete_options, otfcc_new_options, otfcc_options_optimize_to};
+use crate::support::options::otfcc_options_optimize_to;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::parsed_json::{json_parse, json_value_free};
 use std::cell::RefCell;
@@ -19,26 +19,24 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     olevel: u8,
     for_webfont: bool,
 ) -> *mut Buffer {
-    let options: *mut Options = otfcc_new_options();
-    (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+    let mut options: Box<Options> = Box::default();
+    options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
     logger_indent(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    otfcc_options_optimize_to(&mut *options, olevel);
+    otfcc_options_optimize_to(&mut options, olevel);
     if for_webfont {
-        (*options).ignore_glyph_order = true;
-        (*options).force_cid = true;
+        options.ignore_glyph_order = true;
+        options.force_cid = true;
     }
     let json_root: *mut ParsedValue = json_parse(injson, inlen as usize);
     if json_root.is_null() {
-        otfcc_delete_options(options);
         return ::core::ptr::null_mut::<Buffer>();
     }
     let font = read_json(&*json_root, &*options);
     json_value_free(json_root);
     let Some(mut font) = font else {
-        otfcc_delete_options(options);
         return ::core::ptr::null_mut::<Buffer>();
     };
     otfcc_consolidate_font(&mut font, &*options);
@@ -47,7 +45,6 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
     // pointer -- `serialize_to_otf` returns the `Buffer` itself now.
     let otf: *mut Buffer = serialize_to_otf(&mut font, &*options).into_raw();
     drop(font);
-    otfcc_delete_options(options);
     return otf;
 }
 #[unsafe(no_mangle)]
@@ -114,8 +111,7 @@ mod tests {
     // `from_be_bytes` instead of a pointer cast). No longer miri-ignored.
     fn minimal_json_builds_and_frees_cleanly() {
         unsafe {
-            // Exercises the success-path `otfcc_delete_options` call this
-            // fix adds -- `read_json` on `{}` yields a fully-defaulted,
+            // Exercises the success path -- `read_json` on `{}` yields a fully-defaulted,
             // zero-glyph font (see the module doc comment above), which
             // otfcc_consolidate_font/serialize_to_otf still happily turn
             // into a (tiny but valid) OTF Buffer.
