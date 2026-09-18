@@ -25,8 +25,7 @@ use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
 use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::otf_writer::serialize_to_otf;
-use otfcc_rust::support::buffer::Buffer;
-use otfcc_rust::support::built_json::{BuiltValue, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, json_serialize_ex};
+use otfcc_rust::support::built_json::{JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, json_serialize_ex};
 use otfcc_rust::support::options::{Options, otfcc_delete_options, otfcc_new_options, otfcc_options_optimize_to};
 use otfcc_rust::support::parsed_json::{json_parse, json_value_free};
 use std::cell::RefCell;
@@ -79,20 +78,17 @@ pub fn dump_to_json(sfnt_bytes: &[u8], options: *const Options) -> Vec<u8> {
         let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(sfnt_bytes));
         assert!(!sfnt.is_null(), "otfcc_read_sfnt_from_reader returned NULL");
 
-        let font = read_otf(sfnt as *mut ::core::ffi::c_void, 0, &*options);
+        let font = read_otf(&*sfnt, 0, &*options);
         assert!(!font.is_null(), "read_otf returned NULL");
         otfcc_delete_sfnt(sfnt);
 
         otfcc_consolidate_font(&mut *font, &*options);
 
-        let root = serialize_to_json(font, &*options) as *mut BuiltValue;
-        assert!(!root.is_null(), "serialize_to_json returned NULL");
+        let root = serialize_to_json(&mut *font, &*options);
         otfcc_font_free(font);
 
         let json_options = JsonSerializeOpts { mode: JSON_SERIALIZE_MODE_PACKED, opts: 0, indent_size: 4 };
-        let buf = json_serialize_ex(&*root, json_options);
-        drop(BuiltValue::from_raw(root));
-        buf
+        json_serialize_ex(&root, json_options)
     }
 }
 
@@ -103,16 +99,15 @@ pub fn build_to_otf(json_bytes: &[u8], options: *const Options) -> Vec<u8> {
         let json_root = json_parse(json_bytes.as_ptr() as *const ::core::ffi::c_char, json_bytes.len());
         assert!(!json_root.is_null(), "json_parse returned NULL");
 
-        let font = read_json(json_root as *mut ::core::ffi::c_void, 0, &*options);
+        let font = read_json(&*json_root, &*options);
         assert!(!font.is_null(), "read_json returned NULL");
         json_value_free(json_root);
 
         otfcc_consolidate_font(&mut *font, &*options);
 
-        let otf = serialize_to_otf(font, &*options) as *mut Buffer;
-        assert!(!otf.is_null(), "serialize_to_otf returned NULL");
+        let otf = serialize_to_otf(&mut *font, &*options);
         otfcc_font_free(font);
 
-        Buffer::from_raw(otf).expect("otf was already checked non-null above").data
+        otf.data
     }
 }

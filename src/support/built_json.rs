@@ -97,10 +97,12 @@ pub enum BuiltValue {
 // reasoning `support/buffer.rs` used for `Buffer`, Stage 9's target). This
 // `impl` is the safe replacement API; every consumer across the crate now
 // calls it directly, so the free-function shell itself has been deleted
-// (see the plan doc's Stage 10 Phase 12). `into_raw`/`from_raw` below
-// remain as the one legitimate bridge across the `FontSerializer`
-// type-erasure boundary (`json_writer.rs`/`bin/otfccdump.rs`), matching
-// `Buffer::into_raw`/`Buffer::from_raw`'s equivalent role after Stage 9.
+// (see the plan doc's Stage 10 Phase 12). An `into_raw`/`from_raw` pair
+// used to live here too, as the bridge across the `FontSerializer`
+// type-erasure boundary; with that boundary gone (`serialize_to_json`
+// returns a `BuiltValue` now) the pair had no callers left and was
+// deleted. `Buffer` keeps its own equivalent pair -- `ffi/dll.rs`'s
+// genuine `extern "C"` return still needs one.
 impl BuiltValue {
     /// Pre-sized array constructor; `capacity` is a capacity hint only
     /// (`Vec::push` beyond it just reallocates).
@@ -206,24 +208,6 @@ impl BuiltValue {
         BuiltValue::PreSerialized(bytes)
     }
 
-    // The pair below is the bridge across the `FontSerializer` type-erasure
-    // boundary (`json_writer.rs`'s single `.into_raw()` at the very end of
-    // `serialize`; `bin/otfccdump.rs`'s matching `from_raw` on the way
-    // back), mirroring `Buffer::into_raw`/`Buffer::from_raw`'s role after
-    // Stage 9. Not for use anywhere else.
-    pub fn into_raw(self) -> *mut BuiltValue {
-        Box::into_raw(Box::new(self))
-    }
-    /// # Safety
-    /// `ptr` must either be null or have come from [`BuiltValue::into_raw`]
-    /// and not have been freed already.
-    pub unsafe fn from_raw(ptr: *mut BuiltValue) -> Option<BuiltValue> {
-        if ptr.is_null() {
-            None
-        } else {
-            Some(*unsafe { Box::from_raw(ptr) })
-        }
-    }
 }
 
 const F_SPACES_AROUND_BRACKETS: c_int = 1 << 0;

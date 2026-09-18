@@ -384,7 +384,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
-        font = read_json(json_root as *mut ::core::ffi::c_void, 0_u32, &*options);
+        font = read_json(&*json_root, &*options);
         if font.is_null() {
             logger_log_sds(
                 &mut *(*options).logger.borrow_mut(),
@@ -430,7 +430,10 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
-        let mut otf: *mut Buffer = serialize_to_otf(font, &*options) as *mut Buffer;
+        // Owned now that `serialize_to_otf` returns the `Buffer` itself;
+        // it drops at the end of this block, where an explicit
+        // `Buffer::from_raw` used to be needed.
+        let otf: Buffer = serialize_to_otf(&mut *font, &*options);
         logger_start_sds(
             &mut *(*options).logger.borrow_mut(),
             otfcc_rust::bytesbuild!(b"Write to file"),
@@ -441,7 +444,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             // above already exited.
             let output_path = outputPath.as_ref().unwrap();
             let os_path = std::ffi::OsStr::from_bytes(output_path.as_bytes());
-            if std::fs::write(std::path::Path::new(os_path), &(*otf).data).is_err() {
+            if std::fs::write(std::path::Path::new(os_path), &otf.data).is_err() {
                 logger_log_sds(
                     &mut *(*options).logger.borrow_mut(),
                     LOG_VL_CRITICAL,
@@ -463,7 +466,6 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
-        drop(unsafe { Buffer::from_raw(otf) });
         otfcc_font_free(font);
         // `inPath`/`outputPath` are `Option<CString>` now -- both drop on
         // their own at the end of this function's scope, no explicit
