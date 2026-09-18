@@ -13799,3 +13799,93 @@ on the other platform before a commit is trusted.
     archive/*` (the ones describing *past* PRs that moved files there, or
     fixed things about it) are deliberately unchanged, per the established
     convention.
+
+- **`libcff/cff_codecs.rs`: `atof` (a one-line `libc::strtod` FFI wrapper)
+  and `cff_encode_cff_float` (a `libc::sprintf("%.13g", ...)` +
+  hand-rolled nibble encoder) converted to safe Rust, closing the last two
+  `unsafe` operations in this file.** Both had previously been listed as
+  deliberately out of scope, alongside `vendor/emyg_dtoa.rs` and
+  `support/stopwatch.rs`, under "libc FFI + output byte-precision
+  preservation, do not touch" -- the user revisited that call and asked
+  for these two (but explicitly not `stopwatch.rs`'s `%g` usage, held off
+  for later) to be made safe as well, so long as CFF DICT real-number
+  output stays byte-identical.
+  - **`cff_dec_r`'s `atof` call** replaced with `str::parse::<f64>()` on
+    the already-built nibble-decoded text. `str::parse` requires the
+    *whole* string to be a valid float, where `strtod` accepts a leading
+    valid prefix and ignores trailing garbage -- the two can only diverge
+    on a malformed nibble sequence (e.g. an exponent marker with no
+    following digits), which only corrupted/fuzzed input can produce;
+    that case now falls back to `0.0`, matching `strtod`'s own "no valid
+    conversion could be performed" result. This also removes the
+    `#[cfg_attr(miri, ignore = "calls libc::strtod via atof, unsupported
+    under Miri")]` that `cff_token_reads_a_dict_real_number` had carried
+    since this file's Stage 7-1-era decoder-safety pass -- that test now
+    runs under Miri like everything else here.
+  - **`cff_encode_cff_float`** rewritten around a new `format_g13`
+    function: a from-scratch reimplementation of C's `%.Pg` conversion
+    (P = 13) using Rust's own correctly-rounded fixed-precision formatting
+    (`{:.N}`/`{:.N}e`) instead of `sprintf`. `%.Pg` rounds to `P`
+    significant decimal digits, picks `%f`-style (`P-1-X` fractional
+    digits, `X` the rounded value's decimal exponent) when `-4 <= X < P`
+    else `%e`-style (`P-1` fractional digits, exponent as `e+XX`/`e-XX`,
+    sign always shown, at least 2 digits), then strips trailing
+    fractional zeros (and a bare trailing decimal point) since the `#`
+    flag is never set here. This is a fundamentally easier fidelity
+    problem than `emyg_dtoa.rs`'s Grisu2 rewrite (PR #452): Grisu2
+    computes the *shortest* decimal string that round-trips back to the
+    same `f64`, which has genuine design freedom in how ties get broken,
+    so a from-scratch reimplementation there needed byte-for-byte
+    algorithmic fidelity to the original. Fixed-precision rounding to a
+    specific digit count has exactly one mathematically correct answer,
+    and both Rust's formatter and glibc's `printf` are required to
+    produce it (round-to-nearest, ties-to-even) -- so any two conformant
+    implementations must already agree bit-for-bit, with no port
+    required. With no working C toolchain left in this repository to
+    check against directly (`c/` was deleted well before this session),
+    verified this reasoning empirically instead: a Python port of the
+    exact same algorithm (`%f`/`%e`-style selection + trailing-zero
+    strip, driven by Python's own `"%.13e" % val`, which is glibc-
+    equivalent) against CPython's `"%.13g" % val` oracle across 200,000
+    pseudo-random `f64` bit patterns, zero mismatches. The nibble-packing
+    half of the function (mapping `.`/digits/`e-`/`e+`/`-` to BCD-ish
+    nibbles, then packing nibble pairs into bytes with a `0xf`/`0xff`
+    terminator depending on parity) is unchanged in shape, just moved off
+    a raw `[u8; 32]` stack buffer plus `strlen` onto the `String` that
+    `format_g13` returns.
+  - **New tests** (`libcff::cff_codecs::float_encoding_tests`):
+    `format_g13_matches_the_c_percent_g_oracle` pins the representative
+    values verified against the Python oracle above (including the zero,
+    negative, and both `%f`/`%e`-style branches);
+    `cff_encode_cff_float_matches_known_byte_sequences` pins exact output
+    bytes for several values (independently recomputed via a Python port
+    of the nibble-packing logic, not hand-derived, to avoid a second copy
+    of the same arithmetic mistake validating itself);
+    `encode_then_decode_recovers_the_same_value` round-trips several
+    values through the real `cff_encode_cff_float` -> `cff_decode_cff_token`
+    pair and asserts the decoded `f64` is bit-identical to the input (true
+    for every value tested here, though not true in general -- `%.13g`
+    is a lossy rounding for any value that genuinely needs more than 13
+    significant digits to round-trip, same as the original `sprintf`-
+    based version always was); `encoding_many_pseudo_random_finite_values_
+    never_panics` sweeps 20,000 pseudo-random finite `f64` bit patterns
+    through the same round trip as a panic/`unreachable!` regression
+    guard, since the nibble-packing `match` has to stay exhaustive over
+    everything `format_g13` can possibly emit.
+  - **Verified test effectiveness**: temporarily perturbed the digit
+    nibble mapping (`bytes[i] - b'0'` -> `bytes[i] - b'0' + 1`) and
+    confirmed `cff_encode_cff_float_matches_known_byte_sequences` and
+    `encode_then_decode_recovers_the_same_value` both failed with clear
+    byte/value mismatches before reverting.
+  - The sole caller (`cff_dict.rs`'s `build_dict`) had its
+    `unsafe { cff_encode_cff_float(d) }` call site un-wrapped along with
+    this change, since the function is no longer `unsafe fn`.
+  - **Verification**: full pipeline green -- `cargo build --release
+    --locked`, `cargo clippy --release --all-targets --locked -- -D
+    warnings`, `cargo test --release --locked --lib` (403 tests) and
+    `cargo test --release --locked -- --test-threads=1` (integration
+    suite, including `golden.rs`'s `krname_cff_subroutinize_o2_matches_
+    golden` and `cycles.rs`'s `cid-fdselect-test.json` cycle, the two
+    fixtures that actually exercise `cff_encode_cff_float` through a real
+    CFF FontMatrix), and `cargo +nightly-2026-08-17 miri test --lib --
+    test-threads=1` -- all clean.

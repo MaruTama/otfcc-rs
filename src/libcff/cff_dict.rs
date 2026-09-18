@@ -146,7 +146,7 @@ pub(crate) fn build_dict(dict: &CffDict) -> Buffer {
         while j < vals.len() {
             let blob_val: Buffer = match vals[j] {
                 CffValue::Integer(i) => cff_encode_cff_integer(i),
-                CffValue::Double(d) => unsafe { cff_encode_cff_float(d) },
+                CffValue::Double(d) => cff_encode_cff_float(d),
                 CffValue::Unset | CffValue::Operator(_) => cff_encode_cff_integer(0_i32),
             };
             blob.write_buffer_owned(blob_val);
