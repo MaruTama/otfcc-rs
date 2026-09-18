@@ -14327,3 +14327,101 @@ on the other platform before a commit is trusted.
     terminates promptly, no regression). `survey-unsafe.sh`: `unsafe
     fn` 91 -> 79, `unsafe blocks` 199 -> 195, raw pointer types
     901 -> 872.
+
+- **Stage L-6: `chaining/classifier.rs` -- calloc/pointer-identity design
+  removed.** Sixth installment of Stage L, branched from master after
+  L-1 through L-5 all landed (independent of the L-2..L-5 stack --
+  `classifier.rs` was untouched by any of them). Closes the "two
+  allocators for one type, distinguished only by a comment" hazard the
+  plan doc flagged as this stage's reason for existing.
+  - **`class_compatible`'s `cov: &mut Coverage` -> `&Coverage`**, first
+    (per the plan's own ordering): a grep of every read/write inside the
+    function confirmed zero writes through `cov` -- it was `&mut` only
+    because `try_classify_around` (below) threaded a `*mut Coverage`
+    through it, not because anything needed to mutate a coverage. This
+    one change is what let every downstream caller in this file stop
+    needing `&mut`/raw-pointer access to a `ChainingRule`'s `match_0`
+    entries at all.
+  - **`try_classify_around`**: was `unsafe fn(lookup: *const Lookup, j:
+    TableId, classified_st: *mut *mut ChainingSubtable) -> TableId`,
+    building its "found a compatible run of subtables" result with
+    `__caryll_allocate_clean` (a raw `calloc`) + `ptr::write` and handing
+    it back through the `classified_st` out-parameter. Now
+    `pub fn try_classify_around(subtables: &[Option<Box<Subtable>>], j:
+    usize) -> Option<(usize, ChainingSubtable)>` -- a `None` means "no
+    compatible run found, build from `subtables[j]` unchanged" and a
+    `Some((run_len, classified))` carries the owned replacement value
+    (built directly as a `ChainingRuleSet` struct literal, no allocator
+    call at all) plus how many subtables at and after `j` it replaces.
+    **Dead code found and removed along the way**: the original's inner
+    scan loop declared `let allcheck: bool = true;` and never reassigned
+    it anywhere in the loop body -- every incompatible-subtable exit used
+    a labeled `break 's_74` (breaking the *outer* scan entirely) before
+    ever reaching the `if allcheck { compatible_count += 1 }` check below
+    it, so `allcheck` was always `true` at the one place it was read. The
+    rewrite drops the variable and always counts a subtable that falls
+    through the inner loop without breaking -- behaviorally identical,
+    confirmed by the same golden-fixture byte comparison this whole file
+    already depends on for its real correctness signal.
+  - **`otfcc_classified_build_chaining`**: was `unsafe fn(lookup: *const
+    Lookup, ..., last_offset: *mut usize) -> TableId`, comparing the
+    pointer `try_classify_around` handed back against the original
+    subtable's own pointer (`if st != st0 { subtable_chaining_free(st) }`)
+    to decide whether a scratch allocation needs freeing. Now `pub fn(
+    lookup: &Lookup, subtable_buffers: &mut Vec<Buffer>, last_offset:
+    &mut usize) -> TableId`: the `Option<(usize, ChainingSubtable)>`
+    `try_classify_around` returns is matched directly, and whichever
+    value (`&owned` or `st0`) gets passed to `otfcc_build_contextual`/
+    `otfcc_build_chaining`; if `classified` is `Some`, its `ChainingSubtable`
+    simply drops at the end of the loop iteration -- there is no pointer
+    to compare and nothing to free by hand either way.
+  - **`otfcc_chaining_lookup_is_contextual_lookup`** (`build.rs`): was
+    `unsafe fn(lookup: *const Lookup) -> bool`, reaching each subtable via
+    `subtable_at` and, for the non-`Classified` case, casting a `*const
+    ChainingSubtable` to `*mut` through `chaining_rule_mut_from_const`
+    purely to read two fields (never writing through it) -- a gratuitous
+    const-to-mut cast for a read-only access. Now `pub fn(lookup:
+    &Lookup) -> bool`, reading through the new safe `chaining_rule_const`/
+    `chaining_ruleset_const` (see below) instead. `chaining_rule_mut_from_const`
+    itself is deleted -- this was its only call site.
+  - **`chaining/common.rs`**: `chaining_rule_const`/`chaining_ruleset_const`
+    now return `&ChainingRule`/`&ChainingRuleSet` instead of `*const`
+    (the same "safe reference, not a raw pointer" change L-5 made to
+    `chaining_ruleset_mut`) -- every existing call site's field-access
+    syntax is unaffected either way, so `build.rs` and `dump.rs`'s own
+    narrow `unsafe { &*chaining_rule_const(..) }` bridge (the latter's
+    comment explicitly invited this exact follow-up) both drop their
+    `unsafe` for free. Added `chaining_subtable_ref(slot: &Option<Box<
+    Subtable>>) -> &ChainingSubtable`, a shared helper both `classifier.rs`
+    and `build.rs` now use in place of their own `subtable_at`-plus-
+    `let Subtable::Chaining(..) = &*ptr else { unreachable!() }` dance --
+    same panic message and panic conditions, just starting from (and
+    staying) a safe reference. **Dead cluster deleted**: `otl_init_chaining`/
+    `otl_dispose_chaining`/`subtable_chaining_dispose`/`subtable_chaining_free`
+    all lost their only remaining caller once `classifier.rs` stopped
+    calloc'ing -- `otl_init_chaining` in particular had *no* caller left
+    even before this stage (confirmed by grep), so this also incidentally
+    cleans up pre-existing dead code the calloc removal made impossible to
+    ignore. The file's `#![allow(unsafe_op_in_unsafe_fn)]` and its `use
+    libc::free;` import are both gone -- nothing left in it is `unsafe`.
+  - **Verification**: full pipeline green -- build, `clippy --all-targets
+    -- -D warnings`, `cargo test --lib` (406), `cargo test --
+    --test-threads=1` (integration suite, including `golden.rs`'s
+    byte-exact fixtures -- the classifier's "merge a compatible run of
+    subtables" branch is confirmed *actually exercised* here, not just
+    reachable: a temporary `eprintln!` in that branch, removed before
+    committing, fired 57 times across the golden suite alone). **Test
+    effectiveness verified directly**: temporarily broke `compatible_count`
+    by one (`.saturating_sub(1)` right after the "found a real run" check)
+    and confirmed `cargo test --test golden` failed with 11 payloads
+    mismatching golden checksums, then reverted and re-confirmed green.
+    Miri (370 passed, 36 ignored, 0 UB), all three fuzz targets 90s each
+    plus every `tests/fuzz-corpus/known-issues/*.bin` re-run directly
+    against its target binary (all still pass; `otf-dump-otl-coverage-
+    consolidate-amplification-hang.bin` is unrelated to this stage --
+    a `consolidate.rs` coverage-amplification budget, not classifier.rs
+    -- and still just slow, not hanging). `survey-unsafe.sh`: `unsafe fn`
+    72 -> 64, `unsafe blocks` 193 -> 190, raw pointer types 805 -> 770,
+    while loops 230 -> 224 (the manual `while`s inside `try_classify_around`
+    became `for`/iterator loops as a side effect of the ownership rewrite,
+    not a separate pass).

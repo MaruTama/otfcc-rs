@@ -1,12 +1,7 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
-use crate::support::handle::{
-    GlyphHandle, Handle, HandleState, handle_from_index,
-};
+use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_index};
 use crate::table::otl::classdef::{ClassDef, push_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage};
 
-use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
 use crate::support::primitives::{GlyphClass, GlyphId, TableId};
 
@@ -14,11 +9,10 @@ use crate::table::otl::subtables::chaining::build::{
     otfcc_build_chaining, otfcc_build_contextual, otfcc_chaining_lookup_is_contextual_lookup,
 };
 use crate::table::otl::subtables::chaining::common::{
-    chaining_is_canonical, chaining_rule_mut, chaining_ruleset_mut, subtable_chaining_free,
+    chaining_is_canonical, chaining_rule_const, chaining_subtable_ref,
 };
 use crate::table::otl::{
     ChainLookupApplication, ChainingRule, ChainingRuleSet, ChainingSubtable, Lookup, Subtable,
-    SubtablePtr, subtable_at,
 };
 #[derive(Clone, Debug)]
 pub struct ClassifierValue {
@@ -27,13 +21,13 @@ pub struct ClassifierValue {
 }
 fn class_compatible(
     h: &mut std::collections::BTreeMap<GlyphId, ClassifierValue>,
-    cov: &mut Coverage,
+    cov: &Coverage,
     past: &mut i32,
 ) -> i32 {
-    if (*cov).len() == 0_usize {
+    if cov.is_empty() {
         return 1_i32;
     }
-    let gid: GlyphId = (&(*cov))[0].index;
+    let gid: GlyphId = cov[0].index;
     match h.get(&gid).map(|v| v.cls) {
         Some(cls) => {
             for entry in cov.iter().skip(1) {
@@ -62,11 +56,7 @@ fn class_compatible(
                 .iter()
                 .filter(|&(_, v)| v.cls == cls)
                 .all(|(gid_2, _)| revset.contains(gid_2));
-            return if allcheck {
-                cls
-            } else {
-                0_i32
-            };
+            if allcheck { cls } else { 0_i32 }
         }
         None => {
             for entry in cov.iter().skip(1) {
@@ -82,7 +72,7 @@ fn class_compatible(
                 });
             }
             *past += 1_i32;
-            return 1_i32;
+            1_i32
         }
     }
 }
@@ -160,7 +150,7 @@ fn build_rule(
             lookup: entry.lookup.clone(),
         });
     }
-    return new_rule;
+    new_rule
 }
 fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> Box<ClassDef> {
     // The dedup key (gid) and the original's `HASH_SORT` key (also gid,
@@ -195,203 +185,152 @@ fn to_class(h: &std::collections::BTreeMap<GlyphId, ClassifierValue>) -> Box<Cla
     }
     cd
 }
-pub unsafe fn try_classify_around(
-    lookup: *const Lookup,
-    j: TableId,
-    classified_st: *mut *mut ChainingSubtable,
-) -> TableId {
-    let mut compatible_count: TableId = 0 as TableId;
+/// Looks for a run of consecutive `Canonical` subtables starting at `j`
+/// (inclusive) that all classify compatibly against the same three
+/// backtrack/input/lookahead `ClassifierValue` maps, and -- if it finds
+/// more than one -- builds the single `Classified` subtable that replaces
+/// the whole run.
+///
+/// Returns `Some((run_len, classified))` when a run of more than one
+/// compatible subtable was found (`run_len` is how many subtables at and
+/// after `j` the caller should skip past, and `classified` is the owned
+/// replacement value to build from instead of `subtables[j]` itself), or
+/// `None` when `j`'s own subtable has no compatible neighbor to merge with
+/// (the caller should build from `subtables[j]` unchanged).
+///
+/// Stage L-6: `classified` used to be built by `__caryll_allocate_clean`
+/// (a raw `*mut ChainingSubtable`, `ptr::write`-initialized in place) and
+/// handed back through a `classified_st: *mut *mut ChainingSubtable` out
+/// parameter; the caller then had to compare that pointer against the
+/// original by identity (`if st != st0 { subtable_chaining_free(st) }`) to
+/// know whether a new allocation needs freeing. Returning the value owned
+/// in an `Option` instead removes both the calloc'd intermediate and the
+/// pointer-identity check: there is nothing to free by hand, because a
+/// `None` never allocated anything and a `Some` simply drops when the
+/// caller is done with it.
+pub fn try_classify_around(
+    subtables: &[Option<Box<Subtable>>],
+    j: usize,
+) -> Option<(usize, ChainingSubtable)> {
     let mut hb: std::collections::BTreeMap<GlyphId, ClassifierValue> =
         std::collections::BTreeMap::new();
     let mut hi: std::collections::BTreeMap<GlyphId, ClassifierValue> =
         std::collections::BTreeMap::new();
     let mut hf: std::collections::BTreeMap<GlyphId, ClassifierValue> =
         std::collections::BTreeMap::new();
-    let subtable0_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, j as usize);
-    let Subtable::Chaining(mut_subtable0) = &mut *subtable0_ptr else {
-        unreachable!()
-    };
-    let mut subtable0: *mut ChainingSubtable = mut_subtable0;
     let mut classno_b: i32 = 0_i32;
     let mut classno_i: i32 = 0_i32;
     let mut classno_f: i32 = 0_i32;
-    let rule0: *mut ChainingRule = chaining_rule_mut(&mut *subtable0);
-    let mut m: TableId = 0 as TableId;
-    // Was a `current_block`-flagged `loop`: this `while` runs to
-    // completion (every one of `rule0`'s own matches is class-compatible)
-    // or breaks early on the first incompatible one -- `rule0_is_compatible`
-    // records which, replacing the two `current_block` magic-number values
-    // the `match` below used to dispatch on.
+
+    let rule0 = chaining_rule_const(chaining_subtable_ref(&subtables[j]));
+
+    // Was a `current_block`-flagged `loop`: this runs to completion (every
+    // one of `rule0`'s own matches is class-compatible) or stops early on
+    // the first incompatible one -- `rule0_is_compatible` records which.
     let mut rule0_is_compatible = true;
-    while (m as i32) < (*rule0).match_count as i32 {
-        let check: i32;
-        if (m as i32) < (*rule0).input_begins as i32 {
-            check = class_compatible(
-                &mut hb,
-                &mut (&mut (*rule0).match_0)[m as usize],
-                &mut classno_b,
-            );
-        } else if (m as i32) < (*rule0).input_ends as i32 {
-            check = class_compatible(
-                &mut hi,
-                &mut (&mut (*rule0).match_0)[m as usize],
-                &mut classno_i,
-            );
+    for (m, cov) in rule0.match_0.iter().enumerate().take(rule0.match_count as usize) {
+        let (h, classno) = if m < rule0.input_begins as usize {
+            (&mut hb, &mut classno_b)
+        } else if m < rule0.input_ends as usize {
+            (&mut hi, &mut classno_i)
         } else {
-            check = class_compatible(
-                &mut hf,
-                &mut (&mut (*rule0).match_0)[m as usize],
-                &mut classno_f,
-            );
-        }
-        if check == 0 {
+            (&mut hf, &mut classno_f)
+        };
+        if class_compatible(h, cov, classno) == 0 {
             rule0_is_compatible = false;
             break;
         }
-        m = m.wrapping_add(1);
     }
-    if rule0_is_compatible {
-        let mut k: TableId = (j as i32 + 1_i32) as TableId;
-        's_74: while (k as usize) < (*lookup).subtables.len() {
-            let k_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k as usize);
-            let Subtable::Chaining(mut_subtable_k) = &mut *k_ptr else {
-                unreachable!()
-            };
-            let subtable_k: *mut ChainingSubtable = mut_subtable_k;
-            let rule: *mut ChainingRule = chaining_rule_mut(&mut *subtable_k);
-            let allcheck: bool = true;
-            let mut m_0: TableId = 0 as TableId;
-            while (m_0 as i32) < (*rule).match_count as i32 {
-                let check_0: i32;
-                if (m_0 as i32) < (*rule).input_begins as i32 {
-                    check_0 = class_compatible(
-                        &mut hb,
-                        &mut (&mut (*rule).match_0)[m_0 as usize],
-                        &mut classno_b,
-                    );
-                } else if (m_0 as i32) < (*rule).input_ends as i32
-                {
-                    check_0 = class_compatible(
-                        &mut hi,
-                        &mut (&mut (*rule).match_0)[m_0 as usize],
-                        &mut classno_i,
-                    );
-                } else {
-                    check_0 = class_compatible(
-                        &mut hf,
-                        &mut (&mut (*rule).match_0)[m_0 as usize],
-                        &mut classno_f,
-                    );
-                }
-                if check_0 == 0 {
-                    break 's_74;
-                } else {
-                    m_0 = m_0.wrapping_add(1);
-                }
-            }
-            if allcheck {
-                compatible_count = (compatible_count as i32
-                    + 1_i32)
-                    as TableId;
-            }
-            k = k.wrapping_add(1);
-        }
-        if compatible_count as i32 > 1_i32 {
-            subtable0 = __caryll_allocate_clean(
-                ::core::mem::size_of::<ChainingSubtable>() as usize,
-                170 as ::core::ffi::c_ulong,
-            ) as *mut ChainingSubtable;
-            // Place a valid `Classified` value directly -- the zeroed
-            // memory `__caryll_allocate_clean` hands back is not a
-            // valid `ChainingSubtable` bit pattern (it owns `Vec`/
-            // `Option<Box<_>>` fields), so there is nothing to drop
-            // first, same reasoning as `otl_init_chaining`. `bc`/`ic`/
-            // `fc` start `None` and are filled in below, after `to_class`
-            // (unavailable yet, still needs `hb`/`hi`/`hf` built first).
-            ::core::ptr::write(
-                subtable0,
-                ChainingSubtable::Classified(ChainingRuleSet {
-                    rules: Vec::with_capacity(
-                        (compatible_count as i32 + 1_i32)
-                            as usize,
-                    ),
-                    ..Default::default()
-                }),
-            );
-            let ruleset: &mut ChainingRuleSet = chaining_ruleset_mut(&mut *subtable0);
-            (*ruleset)
-                .rules
-                .push(Some(build_rule(&*rule0, &hb, &hi, &hf)));
-            let mut kk: TableId = 1 as TableId;
-            let mut k_0: TableId =
-                (j as i32 + 1_i32) as TableId;
-            while (k_0 as usize) < (*lookup).subtables.len()
-                && (kk as i32)
-                    < compatible_count as i32 + 1_i32
-            {
-                let k_0_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, k_0 as usize);
-                let Subtable::Chaining(mut_subtable_k_0) = &mut *k_0_ptr else {
-                    unreachable!()
-                };
-                let subtable_k_0: *mut ChainingSubtable = mut_subtable_k_0;
-                let rule_0: *mut ChainingRule = chaining_rule_mut(&mut *subtable_k_0);
-                (*ruleset)
-                    .rules
-                    .push(Some(build_rule(&*rule_0, &hb, &hi, &hf)));
-                kk = kk.wrapping_add(1);
-                k_0 = k_0.wrapping_add(1);
-            }
-            (*ruleset).bc = Some(to_class(&hb));
-            (*ruleset).ic = Some(to_class(&hi));
-            (*ruleset).fc = Some(to_class(&hf));
-            *classified_st = subtable0;
-        }
+    if !rule0_is_compatible {
+        return None;
     }
-    // hb/hi/hf are owned BTreeMaps now (not uthash nodes reached via
-    // a raw *mut), so they need no manual HASH_ITER+HASH_DEL+free walk
-    // here -- they simply drop when this function returns, whether or
-    // not to_class borrowed them above.
-    if compatible_count as i32 > 1_i32 {
-        return compatible_count;
-    } else {
-        return 0 as TableId;
-    };
-}
-pub unsafe fn otfcc_classified_build_chaining(
-    lookup: *const Lookup,
-    subtable_buffers: &mut Vec<Buffer>,
-    last_offset: *mut usize,
-) -> TableId {
-    let is_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup);
-    let mut subtables_written: TableId = 0 as TableId;
-    subtable_buffers.clear();
-    subtable_buffers.reserve((*lookup).subtables.len());
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*lookup).subtables.len() {
-        let j_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, j as usize);
-        let Subtable::Chaining(mut_st0) = &mut *j_ptr else {
-            unreachable!()
-        };
-        let st0: *mut ChainingSubtable = mut_st0;
-        if chaining_is_canonical(&*st0) {
-            let mut st: *mut ChainingSubtable = st0;
-            j = (j as i32
-                + try_classify_around(lookup, j, &raw mut st) as i32)
-                as TableId;
-            let buf: Buffer = if is_contextual as i32 != 0 {
-                otfcc_build_contextual(&*st)
+
+    // Scan forward for a run of subtables that all classify compatibly
+    // against the same maps -- `compatible_count` is how many of them (not
+    // counting `rule0` itself) qualify. `allcheck` in the original C-shaped
+    // code was declared `true` and never reassigned anywhere in this loop
+    // (any incompatible subtable broke the loop outright, via `break
+    // 's_74`, before ever reaching the `if allcheck` check) -- dead, so
+    // there is nothing to reproduce beyond "reaching the bottom of the loop
+    // body always counts".
+    let mut compatible_count: usize = 0;
+    'run: for slot in subtables.iter().skip(j + 1) {
+        let rule = chaining_rule_const(chaining_subtable_ref(slot));
+        for (m, cov) in rule.match_0.iter().enumerate().take(rule.match_count as usize) {
+            let (h, classno) = if m < rule.input_begins as usize {
+                (&mut hb, &mut classno_b)
+            } else if m < rule.input_ends as usize {
+                (&mut hi, &mut classno_i)
             } else {
-                otfcc_build_chaining(&*st)
+                (&mut hf, &mut classno_f)
             };
-            if st != st0 {
-                subtable_chaining_free(st);
+            if class_compatible(h, cov, classno) == 0 {
+                break 'run;
             }
-            *last_offset = (*last_offset).wrapping_add(buf.data.len());
-            subtable_buffers.push(buf);
-            subtables_written =
-                (subtables_written as i32 + 1_i32) as TableId;
         }
-        j = j.wrapping_add(1);
+        compatible_count += 1;
     }
-    return subtables_written;
+
+    if compatible_count <= 1 {
+        return None;
+    }
+
+    let mut rules: Vec<Option<Box<ChainingRule>>> = Vec::with_capacity(compatible_count + 1);
+    rules.push(Some(build_rule(rule0, &hb, &hi, &hf)));
+    for slot in subtables.iter().skip(j + 1).take(compatible_count) {
+        let rule_k = chaining_rule_const(chaining_subtable_ref(slot));
+        rules.push(Some(build_rule(rule_k, &hb, &hi, &hf)));
+    }
+    let ruleset = ChainingRuleSet {
+        rules,
+        bc: Some(to_class(&hb)),
+        ic: Some(to_class(&hi)),
+        fc: Some(to_class(&hf)),
+    };
+    Some((compatible_count, ChainingSubtable::Classified(ruleset)))
+}
+pub fn otfcc_classified_build_chaining(
+    lookup: &Lookup,
+    subtable_buffers: &mut Vec<Buffer>,
+    last_offset: &mut usize,
+) -> TableId {
+    let is_contextual = otfcc_chaining_lookup_is_contextual_lookup(lookup);
+    let mut subtables_written: TableId = 0;
+    subtable_buffers.clear();
+    subtable_buffers.reserve(lookup.subtables.len());
+    let mut j: usize = 0;
+    while j < lookup.subtables.len() {
+        let st0 = chaining_subtable_ref(&lookup.subtables[j]);
+        if chaining_is_canonical(st0) {
+            // `classified` is the owned replacement (if a compatible run of
+            // more than one subtable was found) -- it lives only for this
+            // iteration and drops automatically once `buf` has been built
+            // from it, no manual free needed either way.
+            let classified = try_classify_around(&lookup.subtables, j);
+            let buf: Buffer = match &classified {
+                Some((_, owned)) => {
+                    if is_contextual {
+                        otfcc_build_contextual(owned)
+                    } else {
+                        otfcc_build_chaining(owned)
+                    }
+                }
+                None => {
+                    if is_contextual {
+                        otfcc_build_contextual(st0)
+                    } else {
+                        otfcc_build_chaining(st0)
+                    }
+                }
+            };
+            if let Some((run_len, _)) = classified {
+                j += run_len;
+            }
+            *last_offset += buf.data.len();
+            subtable_buffers.push(buf);
+            subtables_written += 1;
+        }
+        j += 1;
+    }
+    subtables_written
 }

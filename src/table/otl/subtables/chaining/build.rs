@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 use crate::table::otl::coverage::Coverage;
 
 use crate::support::buffer::Buffer;
@@ -11,55 +10,37 @@ use crate::bk::bkgraph::bk_build_block;
 use crate::table::otl::classdef::{ClassDef, build_class_def};
 use crate::table::otl::coverage::build_coverage;
 use crate::table::otl::subtables::chaining::common::{
-    chaining_is_classified, chaining_rule_mut_from_const, chaining_ruleset_const,
+    chaining_is_classified, chaining_rule_const, chaining_ruleset_const, chaining_subtable_ref,
 };
 use crate::table::otl::{
-    ChainingRule, ChainingRuleSet, ChainingSubtable, Lookup, OTL_TYPE_GPOS_CHAINING,
-    OTL_TYPE_GSUB_CHAINING, Subtable, SubtablePtr, subtable_at,
+    ChainingRule, ChainingSubtable, Lookup, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GSUB_CHAINING,
 };
-pub unsafe fn otfcc_chaining_lookup_is_contextual_lookup(lookup: *const Lookup) -> bool {
-    if !((*lookup).type_0 == OTL_TYPE_GPOS_CHAINING || (*lookup).type_0 == OTL_TYPE_GSUB_CHAINING) {
+pub fn otfcc_chaining_lookup_is_contextual_lookup(lookup: &Lookup) -> bool {
+    if !(lookup.type_0 == OTL_TYPE_GPOS_CHAINING || lookup.type_0 == OTL_TYPE_GSUB_CHAINING) {
         return false;
     }
-    let mut is_contextual: bool = true;
-    let mut j: TableId = 0 as TableId;
-    while (j as usize) < (*lookup).subtables.len() {
-        let subtable_ptr: SubtablePtr = subtable_at(&(*lookup).subtables, j as usize);
-        let Subtable::Chaining(mut_subtable) = &*subtable_ptr else {
-            unreachable!()
-        };
-        let subtable: *const ChainingSubtable = mut_subtable;
-        if chaining_is_classified(&*subtable) {
-            let ruleset: *const ChainingRuleSet = chaining_ruleset_const(&*subtable);
-            let mut k: TableId = 0 as TableId;
-            while (k as usize) < (*ruleset).rules.len() {
-                let rule: *mut ChainingRule = (&(*ruleset).rules)[k as usize]
+    let mut is_contextual = true;
+    for slot in lookup.subtables.iter() {
+        let subtable = chaining_subtable_ref(slot);
+        if chaining_is_classified(subtable) {
+            let ruleset = chaining_ruleset_const(subtable);
+            for rule_slot in ruleset.rules.iter() {
+                let rule = rule_slot
                     .as_deref()
-                    .expect("chaining rule slot should never be None at build time")
-                    as *const ChainingRule
-                    as *mut ChainingRule;
-                let n_backtrack: TableId = (*rule).input_begins;
-                let n_lookahead: TableId = ((*rule).match_count as i32
-                    - (*rule).input_ends as i32)
-                    as TableId;
-                is_contextual = is_contextual as i32 != 0
-                    && n_backtrack == 0
-                    && n_lookahead == 0;
-                k = k.wrapping_add(1);
+                    .expect("chaining rule slot should never be None at build time");
+                let n_backtrack: TableId = rule.input_begins;
+                let n_lookahead: TableId =
+                    (rule.match_count as i32 - rule.input_ends as i32) as TableId;
+                is_contextual = is_contextual && n_backtrack == 0 && n_lookahead == 0;
             }
         } else {
-            let rule_0: *mut ChainingRule = chaining_rule_mut_from_const(subtable);
-            let n_backtrack_0: TableId = (*rule_0).input_begins;
-            let n_lookahead_0: TableId = ((*rule_0).match_count as i32
-                - (*rule_0).input_ends as i32)
-                as TableId;
-            is_contextual = is_contextual as i32 != 0
-                && n_backtrack_0 == 0
-                && n_lookahead_0 == 0;
+            let rule = chaining_rule_const(subtable);
+            let n_backtrack: TableId = rule.input_begins;
+            let n_lookahead: TableId = (rule.match_count as i32 - rule.input_ends as i32) as TableId;
+            is_contextual = is_contextual && n_backtrack == 0 && n_lookahead == 0;
         }
-        j = j.wrapping_add(1);
     }
-    return is_contextual;
+    is_contextual
 }
 pub fn otfcc_build_chaining_coverage(_subtable: &ChainingSubtable) -> Buffer {
     let ChainingSubtable::Canonical(rule) = _subtable else {

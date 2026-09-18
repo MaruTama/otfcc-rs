@@ -174,16 +174,7 @@ fn _build_lookup(
     heuristics: BuildHeuristics,
 ) -> TableId {
     if lookup.type_0 == OTL_TYPE_GPOS_CHAINING || lookup.type_0 == OTL_TYPE_GSUB_CHAINING {
-        // `otfcc_classified_build_chaining` is the chaining/contextual
-        // lookup family's own not-yet-migrated shell -- narrow bridge,
-        // same shape as `vqs_compare`'s.
-        return unsafe {
-            otfcc_classified_build_chaining(
-                lookup as *const Lookup,
-                subtables,
-                last_offset as *mut usize,
-            )
-        };
+        return otfcc_classified_build_chaining(lookup, subtables, last_offset);
     }
     let mut written: TableId = 0 as TableId;
     if written == 0 {
@@ -426,11 +417,7 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
                 crate::bytesbuild!(b"Lookup ", &lookup_0.name, b" is empty.\n",),
             );
         }
-        // `otfcc_chaining_lookup_is_contextual_lookup` still walks a raw
-        // `*const Lookup` internally (its own `subtable_at` indexing), so
-        // this stays a narrow bridge rather than a plain safe call.
-        let can_be_contextual: bool =
-            unsafe { otfcc_chaining_lookup_is_contextual_lookup(lookup_0 as *const Lookup) };
+        let can_be_contextual: bool = otfcc_chaining_lookup_is_contextual_lookup(lookup_0);
         let use_extended_for_it: bool =
             use_extended as i32 != 0 || prefer_ext_for_this_lut[j_1] as i32 != 0;
         if use_extended_for_it {
