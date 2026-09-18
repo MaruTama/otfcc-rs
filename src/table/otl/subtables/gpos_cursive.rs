@@ -1,16 +1,12 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::font_reader::FontReader;
 use crate::support::handle::{GlyphHandle, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::{
-    Coverage, otl_coverage_free, push_to_coverage, read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphId};
+use crate::support::primitives::GlyphId;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
@@ -20,39 +16,18 @@ use crate::table::otl::subtables::BuildHeuristics;
 use crate::table::otl::subtables::gpos_common::{
     bk_from_anchor, otl_anchor_absent, otl_dump_anchor, otl_parse_anchor, otl_read_anchor,
 };
-use crate::table::otl::{GposCursiveEntry, GposCursiveSubtable, Subtable, subtable_from_raw};
+use crate::table::otl::{GposCursiveEntry, GposCursiveSubtable, Subtable};
 // `GposCursiveEntry` holds only a `GlyphHandle` plus two plain `Anchor`
 // values, so dropping the `Vec` runs `Handle`'s own `Drop` for every entry --
 // no per-element dtor needed anymore.
 pub(crate) fn dispose_gpos_cursive_subtable(arr: &mut GposCursiveSubtable) {
     *arr = Vec::new();
 }
-pub(crate) unsafe fn subtable_gpos_cursive_free(x: *mut GposCursiveSubtable) {
-    if x.is_null() {
-        return;
-    }
-    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
-    // and runs the `Vec`'s own drop glue -- no separate dispose-then-`free`
-    // needed (Stage 7-2-d; `dispose_gpos_cursive_subtable` stays, it is still
-    // used by `table/otl.rs`'s `Drop for Subtable` and `consolidate/otl/
-    // gpos_cursive.rs`, just no longer from here).
-    drop(Box::from_raw(x));
-}
-fn subtable_gpos_cursive_create() -> *mut GposCursiveSubtable {
-    Box::into_raw(Box::new(Vec::new()))
-}
-pub unsafe fn otl_read_gpos_cursive(
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u32,
-    _max_glyphs: GlyphId,
-) -> *mut Subtable {
-    let subtable: *mut GposCursiveSubtable = subtable_gpos_cursive_create();
-    let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+pub fn otl_read_gpos_cursive(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+    let mut subtable: GposCursiveSubtable = Vec::new();
 
     'parse: {
-        let mut header = match FontReader::new(slice).at(offset as usize) {
+        let mut header = match FontReader::new(data).at(offset as usize) {
             Ok(r) => r,
             Err(_) => break 'parse,
         };
@@ -66,14 +41,14 @@ pub unsafe fn otl_read_gpos_cursive(
             break 'parse;
         };
 
-        targets = read_coverage(slice, offset.wrapping_add(from_rel as u32));
-        if targets.is_null() || (*targets).is_empty() {
+        let targets: Coverage = read_coverage(data, offset.wrapping_add(from_rel as u32));
+        if targets.is_empty() {
             break 'parse;
         }
         if header.require_room(value_count as usize, 4).is_err() {
             break 'parse;
         }
-        if value_count as usize != (*targets).len() {
+        if value_count as usize != targets.len() {
             break 'parse;
         }
 
@@ -85,30 +60,25 @@ pub unsafe fn otl_read_gpos_cursive(
                 break 'parse;
             };
             let enter = if enter_offset != 0 {
-                otl_read_anchor(slice, offset.wrapping_add(enter_offset as u32))
+                otl_read_anchor(data, offset.wrapping_add(enter_offset as u32))
             } else {
                 otl_anchor_absent()
             };
             let exit = if exit_offset != 0 {
-                otl_read_anchor(slice, offset.wrapping_add(exit_offset as u32))
+                otl_read_anchor(data, offset.wrapping_add(exit_offset as u32))
             } else {
                 otl_anchor_absent()
             };
-            (*subtable).push(GposCursiveEntry {
-                target: (&(*targets))[j as usize].clone(),
+            subtable.push(GposCursiveEntry {
+                target: targets[j as usize].clone(),
                 enter,
                 exit,
             });
         }
-        otl_coverage_free(targets);
-        return subtable_from_raw(subtable, Subtable::GposCursive);
+        return Some(Subtable::GposCursive(subtable));
     }
 
-    if !targets.is_null() {
-        otl_coverage_free(targets);
-    }
-    subtable_gpos_cursive_free(subtable);
-    ::core::ptr::null_mut::<Subtable>()
+    None
 }
 pub fn otl_gpos_dump_cursive(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GposCursive(subtable) = _subtable else {
@@ -188,17 +158,12 @@ mod otl_read_gpos_cursive_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        unsafe {
-            let raw =
-                otl_read_gpos_cursive(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GposCursive(entries) = &*boxed else {
-                unreachable!()
-            };
-            assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].target.index, 5);
-        }
+        let result = otl_read_gpos_cursive(&data, 0, 0);
+        let Some(Subtable::GposCursive(ref entries)) = result else {
+            unreachable!()
+        };
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].target.index, 5);
     }
 
     #[test]
@@ -215,10 +180,7 @@ mod otl_read_gpos_cursive_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        unsafe {
-            let raw =
-                otl_read_gpos_cursive(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(raw.is_null());
-        }
+        let result = otl_read_gpos_cursive(&data, 0, 0);
+        assert!(result.is_none());
     }
 }

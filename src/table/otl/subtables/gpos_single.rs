@@ -1,16 +1,12 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::font_reader::FontReader;
 use crate::support::handle::{GlyphHandle, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
-use crate::table::otl::coverage::{
-    Coverage, otl_coverage_free, push_to_coverage, read_coverage,
-};
+use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphId};
+use crate::support::primitives::GlyphId;
 
 use crate::bk::bkblock::bk_new_block_from_buffer;
 use crate::bk::bkgraph::bk_build_block;
@@ -21,41 +17,18 @@ use crate::table::otl::subtables::gpos_common::{
     bk_gpos_value, gpos_dump_value, gpos_parse_value, position_format_length, read_gpos_value,
     required_position_format,
 };
-use crate::table::otl::{
-    GposSingleEntry, GposSingleSubtable, PositionValue, Subtable, subtable_from_raw,
-};
+use crate::table::otl::{GposSingleEntry, GposSingleSubtable, PositionValue, Subtable};
 // `GposSingleEntry` holds only a `GlyphHandle` plus a plain `PositionValue`,
 // so dropping the `Vec` runs `Handle`'s own `Drop` for every entry -- no
 // per-element dtor needed anymore.
 pub(crate) fn dispose_gpos_single_subtable(arr: &mut GposSingleSubtable) {
     *arr = Vec::new();
 }
-pub(crate) unsafe fn subtable_gpos_single_free(x: *mut GposSingleSubtable) {
-    if x.is_null() {
-        return;
-    }
-    // `Box::from_raw` reclaims exactly the allocation `_create()` made below
-    // and runs the `Vec`'s own drop glue -- no separate dispose-then-`free`
-    // needed (Stage 7-2-d; `dispose_gpos_single_subtable` stays, it is still
-    // used by `table/otl.rs`'s `Drop for Subtable` and `consolidate/otl/
-    // gpos_single.rs`, just no longer from here).
-    drop(Box::from_raw(x));
-}
-fn subtable_gpos_single_create() -> *mut GposSingleSubtable {
-    Box::into_raw(Box::new(Vec::new()))
-}
-pub unsafe fn otl_read_gpos_single(
-    data: FontFilePointer,
-    table_length: u32,
-    offset: u32,
-    _max_glyphs: GlyphId,
-) -> *mut Subtable {
-    let subtable: *mut GposSingleSubtable = subtable_gpos_single_create();
-    let mut targets: *mut Coverage = ::core::ptr::null_mut::<Coverage>();
-    let slice = ::core::slice::from_raw_parts(data, table_length as usize);
+pub fn otl_read_gpos_single(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+    let mut subtable: GposSingleSubtable = Vec::new();
 
     'parse: {
-        let mut header = match FontReader::new(slice).at(offset as usize) {
+        let mut header = match FontReader::new(data).at(offset as usize) {
             Ok(r) => r,
             Err(_) => break 'parse,
         };
@@ -66,8 +39,8 @@ pub unsafe fn otl_read_gpos_single(
             break 'parse;
         };
 
-        targets = read_coverage(slice, offset.wrapping_add(from_rel as u32));
-        if targets.is_null() || (*targets).is_empty() {
+        let targets: Coverage = read_coverage(data, offset.wrapping_add(from_rel as u32));
+        if targets.is_empty() {
             break 'parse;
         }
 
@@ -75,11 +48,10 @@ pub unsafe fn otl_read_gpos_single(
             let Ok(value_format) = header.u16() else {
                 break 'parse;
             };
-            let v: PositionValue =
-                read_gpos_value(slice, offset.wrapping_add(6), value_format);
-            for j in 0..(*targets).len() {
-                (*subtable).push(GposSingleEntry {
-                    target: (&(*targets))[j].clone(),
+            let v: PositionValue = read_gpos_value(data, offset.wrapping_add(6), value_format);
+            for target in &targets {
+                subtable.push(GposSingleEntry {
+                    target: target.clone(),
                     value: v,
                 });
             }
@@ -94,14 +66,14 @@ pub unsafe fn otl_read_gpos_single(
             if header.require_room(value_count as usize, stride).is_err() {
                 break 'parse;
             }
-            if value_count as usize != (*targets).len() {
+            if value_count as usize != targets.len() {
                 break 'parse;
             }
-            for j in 0..(*targets).len() {
-                (*subtable).push(GposSingleEntry {
-                    target: (&(*targets))[j].clone(),
+            for (j, target) in targets.iter().enumerate() {
+                subtable.push(GposSingleEntry {
+                    target: target.clone(),
                     value: read_gpos_value(
-                        slice,
+                        data,
                         offset.wrapping_add(8).wrapping_add((j * stride) as u32),
                         value_format,
                     ),
@@ -109,17 +81,10 @@ pub unsafe fn otl_read_gpos_single(
             }
         }
 
-        if !targets.is_null() {
-            otl_coverage_free(targets);
-        }
-        return subtable_from_raw(subtable, Subtable::GposSingle);
+        return Some(Subtable::GposSingle(subtable));
     }
 
-    if !targets.is_null() {
-        otl_coverage_free(targets);
-    }
-    subtable_gpos_single_free(subtable);
-    ::core::ptr::null_mut::<Subtable>()
+    None
 }
 pub fn otl_gpos_dump_single(_subtable: &Subtable) -> BuiltValue {
     let Subtable::GposSingle(subtable) = _subtable else {
@@ -218,18 +183,13 @@ mod otl_read_gpos_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&9u16.to_be_bytes());
-        unsafe {
-            let raw =
-                otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GposSingle(entries) = &*boxed else {
-                unreachable!()
-            };
-            assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].target.index, 9);
-            assert_eq!(entries[0].value.dx, 77.0);
-        }
+        let result = otl_read_gpos_single(&data, 0, 0);
+        let Some(Subtable::GposSingle(ref entries)) = result else {
+            unreachable!()
+        };
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].target.index, 9);
+        assert_eq!(entries[0].value.dx, 77.0);
     }
 
     #[test]
@@ -244,17 +204,12 @@ mod otl_read_gpos_single_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&5u16.to_be_bytes());
-        unsafe {
-            let raw =
-                otl_read_gpos_single(data.as_ptr() as FontFilePointer, data.len() as u32, 0, 0);
-            assert!(!raw.is_null());
-            let boxed = Box::from_raw(raw);
-            let Subtable::GposSingle(entries) = &*boxed else {
-                unreachable!()
-            };
-            assert_eq!(entries.len(), 1);
-            assert_eq!(entries[0].target.index, 5);
-            assert_eq!(entries[0].value.dx, 50.0);
-        }
+        let result = otl_read_gpos_single(&data, 0, 0);
+        let Some(Subtable::GposSingle(ref entries)) = result else {
+            unreachable!()
+        };
+        assert_eq!(entries.len(), 1);
+        assert_eq!(entries[0].target.index, 5);
+        assert_eq!(entries[0].value.dx, 50.0);
     }
 }
