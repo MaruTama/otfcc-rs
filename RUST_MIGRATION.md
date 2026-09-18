@@ -13889,3 +13889,76 @@ on the other platform before a commit is trusted.
     fixtures that actually exercise `cff_encode_cff_float` through a real
     CFF FontMatrix), and `cargo +nightly-2026-08-17 miri test --lib --
     test-threads=1` -- all clean.
+
+- **`table/otl/coverage.rs`'s `read_coverage`: Coverage-format-1 (the
+  plain glyph-array encoding) had no table-wide budget on how many
+  separate calls could each build a full, permanently-retained
+  `Coverage` -- a real, previously-undocumented `otf_parse` OOM.**
+  Found by the very next `cargo fuzz run otf_parse` CI job once PR
+  #452's own change landed (unrelated to that PR -- `emyg_dtoa.rs` is
+  on the JSON-serialization/dump side, this bug is in binary-format
+  parsing). Reconstructed the crashing input (545KB) from the CI job's
+  raw log via the GitHub REST API (`gh api .../logs`, avoiding `gh run
+  view --log`'s truncation of large `Debug` byte arrays -- same
+  technique the `cmap` format14 non-default-UVS OOM investigation
+  used), reproduced locally (`otf_parse -rss_limit_mb=2048` OOMed at
+  ~2.2-3.4GB), then bisected by shrinking each top-level table's
+  declared length in the SFNT directory one at a time -- only
+  shrinking `GSUB` made the OOM disappear. A throwaway debug binary
+  wrapping the global allocator to log a backtrace on any allocation
+  over 2MB pinpointed the exact call site: `read_coverage`'s
+  Coverage-format-1 branch, dispatched via
+  `gsub_single::otl_read_gsub_single`.
+  - **The bug**: `read_coverage` already had a table-wide budget
+    (`COVERAGE_RANGE_EXPANSION_BUDGET`, added for a different, earlier
+    fuzz-found hang) capping Coverage-format-2's range-expansion cost
+    across a whole GSUB/GPOS/GDEF table -- but format 1's own
+    `for _ in 0..glyph_count { h.insert(...) }` loop had no such cap.
+    `glyph_count` is individually bounded (`require_room` against the
+    table, at most 65,536 entries), but nothing bounded how many
+    separate `read_coverage` calls one table's many lookups/subtables
+    could each pay that cost, and -- unlike a purely CPU-bound hang --
+    each fully-built `Coverage` (a real `Vec<GlyphHandle>`) is retained
+    in memory for the rest of the font's lifetime, not freed after the
+    call returns. The fuzzed GSUB table declared 511 lookups (parsing
+    caps this at 300 via the existing `MAX_TOTAL_LOOKUPS_PER_TABLE`),
+    many with corrupted `lookupType`/`subtableCount` fields from
+    fuzzing but still landing, via `wrapping_add` offset arithmetic, on
+    real-looking coverage bytes elsewhere in the table -- repeatedly
+    building full ~65,535-glyph `Coverage` values (~2MB each, given
+    `Handle`'s `state`/`index`/`Vec<u8> name` layout) this way pushed
+    RSS well past the fuzz harness's 2048MB limit. Same "per-call cap
+    alone still multiplies into a table-wide cost explosion" shape
+    `chaining/read.rs`'s `CLASS_ZERO_BUDGET`/`CLASS_COVERAGE_CALL_
+    BUDGET` and this same file's own format-2 budget already existed
+    to close -- format 1 simply never got the same treatment when
+    format 2's fix landed.
+  - **The fix**: renamed the budget (`COVERAGE_RANGE_EXPANSION_BUDGET`
+    -> `COVERAGE_ENTRY_BUILD_BUDGET`, `reset_coverage_range_expansion_
+    budget` -> `reset_coverage_entry_build_budget`) to reflect that
+    both formats now share one table-wide ceiling on the cost of
+    *building* a `Coverage`, not just format 2's range-expansion step,
+    and added the same budget check (load, compare to zero, break;
+    fetch_sub after each accepted entry) to format 1's loop. Both
+    formats drawing from one combined budget, rather than each getting
+    an independent one, matches how the cost is actually shared: a
+    table mixing many format-1 and format-2 coverage tables shouldn't
+    be able to multiply its total cost by having *both* kinds of
+    amplification available at once.
+  - **New fuzz corpus regression**: `tests/fuzz-corpus/known-issues/
+    otf-parse-otl-coverage-format1-amplification-oom.bin` (the
+    reconstructed crashing input), wired into `.github/workflows/
+    rust.yml`'s fuzz job's fixed-findings regression list.
+  - **Verification**: full pipeline green (`cargo build --release
+    --locked`, `cargo clippy --release --all-targets --locked -- -D
+    warnings`, `cargo test --release --locked --lib` (403 tests),
+    `cargo test --release --locked -- --test-threads=1` (integration
+    suite, including `golden.rs`'s byte-exact fixtures, which exercise
+    `read_coverage` heavily), `cargo +nightly-2026-08-17 miri test
+    --lib -- --test-threads=1` (367 passed, 0 UB)), every existing
+    `tests/fuzz-corpus/known-issues/*.bin` regression file re-run
+    directly against its target binary (all still pass, no
+    regressions), extended fuzz (`otf_dump`/`otf_parse`/`json_build`,
+    90s each, clean), and the reconstructed repro confirmed fixed
+    directly (`otf_parse -rss_limit_mb=2048` now completes in 593ms,
+    down from a 2.2-3.4GB OOM).
