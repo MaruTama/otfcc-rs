@@ -1,6 +1,6 @@
 use crate::support::font_reader::FontReader;
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphId};
+use crate::support::primitives::GlyphId;
 
 use crate::table::otl::read::otfcc_read_otl_subtable;
 use crate::table::otl::{
@@ -32,75 +32,42 @@ use crate::table::otl::{
 /// downstream `otfcc_read_otl_subtable` call would silently read whatever
 /// happens to live at that wrong small offset. `checked_add` rejects it
 /// outright instead.
-unsafe fn _caryll_read_otl_extend(
-    data: FontFilePointer,
-    table_length: u32,
+fn read_otl_extend(
+    data: &[u8],
     subtable_offset: u32,
     basis: LookupType,
     max_glyphs: GlyphId,
     options: &Options,
-) -> *mut Subtable {
-    unsafe {
-        let slice = ::core::slice::from_raw_parts(data as *const u8, table_length as usize);
-        let Ok(mut r) = FontReader::new(slice).at(subtable_offset as usize) else {
-            return ::core::ptr::null_mut::<Subtable>();
-        };
-        let Ok(header) = r.bytes(8) else {
-            return ::core::ptr::null_mut::<Subtable>();
-        };
-        let extension_lookup_type = u16::from_be_bytes([header[2], header[3]]);
-        let extension_offset =
-            u32::from_be_bytes([header[4], header[5], header[6], header[7]]);
-        let Some(real_subtable_offset) = subtable_offset.checked_add(extension_offset) else {
-            return ::core::ptr::null_mut::<Subtable>();
-        };
-        let type_0 = LookupType::from_file(basis, extension_lookup_type);
-        // `otfcc_read_otl_subtable` returns `Option<Box<Subtable>>`, the
-        // same type `ExtendSubtable.subtable` holds now -- no conversion
-        // needed at this boundary any more.
-        let subtable: Option<Box<Subtable>> =
-            otfcc_read_otl_subtable(slice, real_subtable_offset, type_0, max_glyphs, options);
-        Box::into_raw(Box::new(Subtable::Extend(ExtendSubtable {
-            type_0,
-            subtable,
-        })))
-    }
+) -> Option<Subtable> {
+    let mut r = FontReader::new(data).at(subtable_offset as usize).ok()?;
+    let header = r.bytes(8).ok()?;
+    let extension_lookup_type = u16::from_be_bytes([header[2], header[3]]);
+    let extension_offset = u32::from_be_bytes([header[4], header[5], header[6], header[7]]);
+    let real_subtable_offset = subtable_offset.checked_add(extension_offset)?;
+    let type_0 = LookupType::from_file(basis, extension_lookup_type);
+    // `otfcc_read_otl_subtable` returns `Option<Box<Subtable>>`, the same
+    // type `ExtendSubtable.subtable` holds -- no conversion at this
+    // boundary. A nested read that fails still yields an `Extend` with an
+    // empty `subtable` (only a bad *header* above rejects the whole thing),
+    // exactly as before.
+    let subtable = otfcc_read_otl_subtable(data, real_subtable_offset, type_0, max_glyphs, options);
+    Some(Subtable::Extend(ExtendSubtable { type_0, subtable }))
 }
-pub unsafe fn otfcc_read_otl_gsub_extend(
-    data: FontFilePointer,
-    table_length: u32,
+pub fn otfcc_read_otl_gsub_extend(
+    data: &[u8],
     subtable_offset: u32,
     max_glyphs: GlyphId,
     options: &Options,
-) -> *mut Subtable {
-    return unsafe {
-        _caryll_read_otl_extend(
-            data,
-            table_length,
-            subtable_offset,
-            OTL_TYPE_GSUB_UNKNOWN,
-            max_glyphs,
-            options,
-        )
-    };
+) -> Option<Subtable> {
+    read_otl_extend(data, subtable_offset, OTL_TYPE_GSUB_UNKNOWN, max_glyphs, options)
 }
-pub unsafe fn otfcc_read_otl_gpos_extend(
-    data: FontFilePointer,
-    table_length: u32,
+pub fn otfcc_read_otl_gpos_extend(
+    data: &[u8],
     subtable_offset: u32,
     max_glyphs: GlyphId,
     options: &Options,
-) -> *mut Subtable {
-    return unsafe {
-        _caryll_read_otl_extend(
-            data,
-            table_length,
-            subtable_offset,
-            OTL_TYPE_GPOS_UNKNOWN,
-            max_glyphs,
-            options,
-        )
-    };
+) -> Option<Subtable> {
+    read_otl_extend(data, subtable_offset, OTL_TYPE_GPOS_UNKNOWN, max_glyphs, options)
 }
 
 #[cfg(test)]
@@ -122,33 +89,15 @@ mod caryll_read_otl_extend_tests {
         data[18..20].copy_from_slice(&1u16.to_be_bytes()); // extensionLookupType
         data[20..24].copy_from_slice(&0xFFFF_FFF0u32.to_be_bytes()); // extensionOffset
         let options = Options::default();
-        let result = unsafe {
-            _caryll_read_otl_extend(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                16,
-                OTL_TYPE_GSUB_UNKNOWN,
-                0,
-                &options,
-            )
-        };
-        assert!(result.is_null());
+        let result = read_otl_extend(&data, 16, OTL_TYPE_GSUB_UNKNOWN, 0, &options);
+        assert!(result.is_none());
     }
 
     #[test]
     fn truncated_extension_header_is_rejected_not_read_oob() {
         let data = [0u8; 20]; // subtable_offset=16 needs 8 more bytes, only 4 remain
         let options = Options::default();
-        let result = unsafe {
-            _caryll_read_otl_extend(
-                data.as_ptr() as FontFilePointer,
-                data.len() as u32,
-                16,
-                OTL_TYPE_GSUB_UNKNOWN,
-                0,
-                &options,
-            )
-        };
-        assert!(result.is_null());
+        let result = read_otl_extend(&data, 16, OTL_TYPE_GSUB_UNKNOWN, 0, &options);
+        assert!(result.is_none());
     }
 }

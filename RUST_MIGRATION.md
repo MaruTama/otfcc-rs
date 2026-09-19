@@ -14922,3 +14922,48 @@ on the other platform before a commit is trusted.
     targets plus every `tests/fuzz-corpus/known-issues/*.bin`.
     `survey-unsafe.sh`: `unsafe fn` 41 -> 38, raw pointer types 644 ->
     637, files with the file-level allow 38 -> 36.
+
+- **Stage M-5: the `extend` readers take `&[u8]` and return
+  `Option<Subtable>`.** Fifth installment, stacked on M-4. The last of the
+  L-3/L-4 leftovers: L-3 converted the nine flat subtable readers, L-4 the
+  `ExtendSubtable.subtable` field, but the two `extend` readers themselves
+  kept the old `(FontFilePointer, table_length, ..) -> *mut Subtable` shape
+  because they recurse back into `otfcc_read_otl_subtable`.
+  - **What that shape cost**: `otfcc_read_otl_subtable` had to *break* its
+    `&[u8]` into `data.as_ptr() as FontFilePointer` plus a separate length
+    at each of its two extend arms, `_caryll_read_otl_extend` rebuilt the
+    slice with `from_raw_parts`, and the result crossed back through
+    `subtable_list_slot` (a null check plus `Box::from_raw`). A slice to a
+    raw pointer to a slice, per level of nesting.
+  - **Now**: `otfcc_read_otl_gsub_extend`/`_gpos_extend` are
+    `(&[u8], u32, GlyphId, &Options) -> Option<Subtable>` over one shared
+    `read_otl_extend`, and the dispatch arms are the same one-line
+    `.map(Box::new)` as every other. The mutual recursion
+    (`read_otl_subtable` -> `extend` -> `read_otl_subtable`) is ordinary
+    safe recursion over a shared slice. **Semantics preserved exactly**: a
+    bad *header* (out of range, or `extensionOffset` overflowing `u32` --
+    the `checked_add` guard from the earlier fix is kept verbatim) rejects
+    the whole subtable, while a bad *nested* read still yields an `Extend`
+    with an empty `subtable`, as before.
+  - **Deleted**: `subtable_list_slot` (its only callers were these two
+    arms), `_caryll_read_otl_extend`, and the `FontFilePointer` import in
+    both files. `otfcc_read_otl_subtable` is safe, so
+    `otl/read.rs` -- with no `unsafe` left in it at all -- loses its
+    file-level `#![allow(unsafe_op_in_unsafe_fn)]`.
+  - **Not touched**: `SubtablePtr`/`subtable_at` (still used by
+    `otf_writer/stat.rs` and `otl/build.rs`, a different question), and
+    `FontFilePointer` itself, whose one remaining user is the excluded CFF
+    reader (`table/cff.rs`).
+  - **Test effectiveness**: a temporary counter shows the extend path runs
+    857 times across the suite (real GSUB/GPOS Extension lookups in the
+    payload fonts). A deliberate bug -- the resolved subtable offset
+    shifted by two bytes -- fails `golden.rs` (2 of 4 payload tests) and
+    `cycles.rs`. The two existing unit tests for the overflow and
+    truncated-header guards were converted to call `read_otl_extend`
+    directly and assert `is_none()`.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (412), Miri, all three fuzz targets
+    plus every `tests/fuzz-corpus/known-issues/*.bin`.
+    `survey-unsafe.sh`: `unsafe fn` 38 -> 33, `unsafe blocks` 141 -> 135,
+    raw pointer types 637 -> 632, files with the file-level allow 36 ->
+    35.
