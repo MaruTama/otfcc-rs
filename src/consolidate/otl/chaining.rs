@@ -9,7 +9,7 @@ use crate::font::caryll_font::Font;
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_mut};
-use crate::table::otl::{ChainingRule, OtlTable, Subtable};
+use crate::table::otl::{ChainingRule, LookupList, Subtable};
 
 /// See `Options::consolidate_warning_budget`'s own doc comment: bounds the
 /// total "invalid lookup reference" warnings this function will log across
@@ -21,18 +21,20 @@ pub(crate) const CONSOLIDATE_WARNING_BUDGET: u32 = 10_000;
 
 pub(crate) fn consolidate_chaining(
     font: &Font,
-    // Stays a raw pointer, never a `&OtlTable`: `table.lookups[j]` (the
-    // lookup this subtable belongs to) is exactly the `&mut Subtable`
-    // this function already mutates through `rule` below, so a blanket
-    // shared `&OtlTable` covering that same memory alongside `rule`'s
-    // live `&mut` would be a genuine Stacked-Borrows violation (confirmed
-    // by miri). Each read below is a narrow, one-off `unsafe {}` bridge
-    // instead (`vqs_compare` pattern) -- for any index `k != j` this is
-    // trivially sound (a different `Box<Lookup>` allocation entirely);
-    // for the self-referencing `k == j` case (a chaining rule naming its
-    // own lookup) this mirrors the original c2rust raw-pointer code's
-    // permissiveness exactly, rather than introducing a new restriction.
-    table: *const OtlTable,
+    // `lookups` is the *whole* table's lookup list, but the caller
+    // (`consolidate_otl_table`) physically removed `lookups[self_index]`
+    // (via `Option::take()`) before handing this out -- otherwise a
+    // shared `&LookupList` spanning the entire `Vec` would alias the
+    // `&mut Lookup`/`&mut Subtable` the caller is holding into that exact
+    // slot, a genuine borrow-checker conflict, not just a Stacked-Borrows
+    // one. That means `lookups[self_index]` reads back as `None` here --
+    // never actually read for that reason: every comparison against the
+    // *current* lookup (a chaining rule naming its own containing lookup,
+    // `k == self_index`) is answered from `self_name` instead of from
+    // `lookups`, which is exactly the data that slot would have held.
+    lookups: &LookupList,
+    self_index: TableId,
+    self_name: &[u8],
     _subtable: &mut Subtable,
     options: &Options,
 ) -> bool {
@@ -74,28 +76,45 @@ pub(crate) fn consolidate_chaining(
     for app in rule.apply.iter_mut() {
         let mut found_lookup: bool = false;
         if !app.lookup.name.is_empty() {
-            let mut k: TableId = 0 as TableId;
-            while (k as usize) < unsafe { (*table).lookups.len() } {
-                // A `None` slot here is a hole an earlier iteration of the
-                // caller's own fixed-point loop already punched (see
-                // `consolidate_otl_table`) -- nothing to match against.
-                let matched = unsafe { (&(*table).lookups)[k as usize].as_deref() }.is_some_and(
-                    |lookup| !lookup.subtables.is_empty() && handle_name_eq_bytes(&app.lookup.name, &lookup.name),
-                );
-                if matched {
+            // Deliberately no early exit on the first match: a later `k`
+            // matching the same name overwrites `app.lookup` again, same
+            // as the original's own unconditional overwrite -- "last
+            // matching index wins" for a font with duplicate lookup names,
+            // preserved exactly rather than "fixed" to first-match.
+            for (k, slot) in lookups.iter().enumerate() {
+                let k = k as TableId;
+                // `k == self_index` is answered from `self_name` instead
+                // of `slot` (a `None` hole left by the caller's `take()`,
+                // see this function's own doc comment) -- see also why
+                // "exists" doesn't need checking for that case: reaching
+                // this call at all means `self_index`'s own subtable list
+                // still has at least one slot (`__declare_otl_consolidation`
+                // bails out before ever calling in here otherwise, and the
+                // `Vec`'s length -- as opposed to its slots' contents --
+                // never shrinks mid-pass, only at that function's trailing
+                // `retain()`), so "self" is unconditionally present.
+                let (exists, name) = if k == self_index {
+                    (true, self_name)
+                } else {
+                    // A `None` slot here is a hole an earlier iteration of
+                    // the caller's own fixed-point loop already punched
+                    // (see `consolidate_otl_table`) -- nothing to match
+                    // against.
+                    match slot.as_deref() {
+                        Some(lookup) if !lookup.subtables.is_empty() => (true, lookup.name.as_slice()),
+                        _ => (false, [].as_slice()),
+                    }
+                };
+                if exists && handle_name_eq_bytes(&app.lookup.name, name) {
                     found_lookup = true;
                     app.lookup = Handle {
                         state: HandleState::Consolidated,
-                        index: k as GlyphId,
-                        name: unsafe { (&(*table).lookups)[k as usize].as_deref() }
-                            .unwrap()
-                            .name
-                            .clone(),
+                        index: k,
+                        name: name.to_vec(),
                     } as LookupHandle;
                 }
-                k = k.wrapping_add(1);
             }
-            if !found_lookup && !app.lookup.name.is_empty() {
+            if !found_lookup {
                 // See `CONSOLIDATE_WARNING_BUDGET`'s doc comment: a font
                 // whose rules apply thousands of unresolvable lookups can
                 // still reach this point despite the per-rule/per-subtable/
@@ -124,10 +143,19 @@ pub(crate) fn consolidate_chaining(
             // Invalid now covers both "out of range" (unchanged) and
             // "in range but a hole" (new -- see the `None`-slot comment
             // above): either way there is no real `Lookup` at this index
-            // to resolve against.
-            let lookups = unsafe { &(*table).lookups };
-            let target = lookups.get(app.lookup.index as usize).and_then(Option::as_deref);
-            if target.is_none() {
+            // to resolve against. Same self-reference treatment as the
+            // name-based branch above: `idx == self_index` never actually
+            // reads `lookups[self_index]` (a `None` hole), answering from
+            // `self_name` instead.
+            let target_exists = if app.lookup.index == self_index {
+                true
+            } else {
+                lookups
+                    .get(app.lookup.index as usize)
+                    .and_then(Option::as_deref)
+                    .is_some()
+            };
+            if !target_exists {
                 let budget = options.consolidate_warning_budget.get();
                 if budget > 0 {
                     options.consolidate_warning_budget.set(budget - 1);
@@ -145,10 +173,14 @@ pub(crate) fn consolidate_chaining(
                 app.lookup.index = 0 as GlyphId;
             }
             let idx = app.lookup.index;
-            let name = lookups
-                .get(idx as usize)
-                .and_then(Option::as_deref)
-                .map_or_else(Vec::new, |lookup| lookup.name.clone());
+            let name = if idx == self_index {
+                self_name.to_vec()
+            } else {
+                lookups
+                    .get(idx as usize)
+                    .and_then(Option::as_deref)
+                    .map_or_else(Vec::new, |lookup| lookup.name.clone())
+            };
             app.lookup = Handle {
                 state: HandleState::Consolidated,
                 index: idx,

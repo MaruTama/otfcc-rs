@@ -11,7 +11,7 @@ use crate::support::primitives::{GlyphClass, GlyphId};
 
 use crate::table::otl::{
     Anchor, BaseArray, BaseRecord, LigatureArray, LigatureBaseRecord, MarkArray, MarkRecord,
-    OtlTable, Subtable,
+    Subtable,
 };
 
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
@@ -38,7 +38,6 @@ struct LigHashValue {
 }
 fn consolidate_mark_array(
     font: &Font,
-    _table: *const OtlTable,
     options: &Options,
     mark_array: &mut MarkArray,
     class_count: GlyphClass,
@@ -103,7 +102,6 @@ fn consolidate_mark_array(
 }
 fn consolidate_base_array(
     font: &Font,
-    _table: *const OtlTable,
     options: &Options,
     base_array: &mut BaseArray,
 ) {
@@ -157,7 +155,6 @@ fn consolidate_base_array(
 }
 fn consolidate_lig_array(
     font: &Font,
-    _table: *const OtlTable,
     options: &Options,
     lig_array: &mut LigatureArray,
 ) {
@@ -215,41 +212,29 @@ fn consolidate_lig_array(
         });
     }
 }
-pub fn consolidate_mark_to_single(
-    font: &Font,
-    table: *const OtlTable,
-    _subtable: &mut Subtable,
-    options: &Options,
-) -> bool {
+pub fn consolidate_mark_to_single(font: &Font, _subtable: &mut Subtable, options: &Options) -> bool {
     let Subtable::GposMarkToSingle(subtable) = _subtable else {
         unreachable!()
     };
     consolidate_mark_array(
         font,
-        table,
         options,
         &mut subtable.mark_array,
         subtable.class_count,
     );
-    consolidate_base_array(font, table, options, &mut subtable.base_array);
+    consolidate_base_array(font, options, &mut subtable.base_array);
     subtable.mark_array.len() == 0_usize || subtable.base_array.len() == 0_usize
 }
-pub fn consolidate_mark_to_ligature(
-    font: &Font,
-    table: *const OtlTable,
-    _subtable: &mut Subtable,
-    options: &Options,
-) -> bool {
+pub fn consolidate_mark_to_ligature(font: &Font, _subtable: &mut Subtable, options: &Options) -> bool {
     let Subtable::GposMarkToLigature(subtable) = _subtable else {
         unreachable!()
     };
     consolidate_mark_array(
         font,
-        table,
         options,
         &mut subtable.mark_array,
         subtable.class_count,
     );
-    consolidate_lig_array(font, table, options, &mut subtable.lig_array);
+    consolidate_lig_array(font, options, &mut subtable.lig_array);
     subtable.mark_array.len() == 0_usize || subtable.lig_array.len() == 0_usize
 }

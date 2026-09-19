@@ -30,7 +30,7 @@ use crate::table::glyf::{
 };
 
 use crate::table::otl::{
-    LanguageSystem, Lookup, LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE,
+    Lookup, LookupList, LookupType, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_CURSIVE,
     OTL_TYPE_GPOS_MARK_TO_BASE, OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK,
     OTL_TYPE_GPOS_PAIR, OTL_TYPE_GPOS_SINGLE, OTL_TYPE_GSUB_ALTERNATE, OTL_TYPE_GSUB_CHAINING,
     OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_MULTIPLE, OTL_TYPE_GSUB_REVERSE, OTL_TYPE_GSUB_SINGLE,
@@ -58,16 +58,17 @@ use crate::table::otl::{
 use crate::vf::vq::VQ;
 use crate::vf::vq::{vq_get_still, vq_neutral, vq_point_linear_tfm};
 
-// `table` stays a raw pointer, never a `&OtlTable`, on purpose: `lookup`
-// (the 3rd param) is `table.lookups[j]` itself, so a blanket `&OtlTable`
-// covering that same memory alongside a live `&mut Lookup` into it is a
-// real Stacked-Borrows violation (confirmed by miri, not just a lint) --
-// `consolidate_chaining`, the one implementation that actually reads
-// `table`, takes narrow `unsafe {}` derefs per access instead (same
-// `vqs_compare`-style bridge used throughout this migration), keeping
-// this dispatch machinery itself fully safe.
-pub type OtlConsolidationFunction =
-    Option<fn(&Font, *const OtlTable, &mut Subtable, &Options) -> bool>;
+// Stage L-7: of the 13 dispatch call sites in `otfcc_consolidate_lookup`
+// below, only `consolidate_chaining` (2 of the 13) ever reads anything
+// about the table beyond the one `&mut Subtable` it's handed -- the other
+// 11 calls (10 distinct functions) never touched `table` at all, so it is
+// gone from their signatures entirely. `__declare_otl_consolidation` takes
+// `fn_0` as `impl Fn(&Font, &mut Subtable, &Options) -> bool` (not a bare
+// `fn` pointer) precisely so `otfcc_consolidate_lookup` can pass a
+// capturing closure for the two chaining calls (closing over the
+// `lookups`/`self_index`/`self_name` it now receives) while every other
+// call site just passes the plain function -- no shared function-pointer
+// type needs to carry context none of the other 11 ever used.
 fn by_stem_pos(a: &PostscriptStemDef, b: &PostscriptStemDef) -> i32 {
     if a.position == b.position {
         a.map as i32 - b.map as i32
@@ -575,9 +576,8 @@ pub fn consolidate_cmap(font: &mut Font, options: &Options) {
 }
 fn __declare_otl_consolidation(
     type_0: LookupType,
-    fn_0: OtlConsolidationFunction,
+    fn_0: impl Fn(&Font, &mut Subtable, &Options) -> bool,
     font: &Font,
-    table: *const OtlTable,
     lookup: &mut Lookup,
     options: &Options,
 ) {
@@ -626,7 +626,7 @@ fn __declare_otl_consolidation(
             }
         } else {
             let sub = slot.as_deref_mut().unwrap();
-            let subtable_removed = fn_0.expect("non-null function pointer")(font, table, sub, options);
+            let subtable_removed = fn_0(font, sub, options);
             if subtable_removed {
                 // Was a `fndel: SubtableRemover` parameter, one
                 // `LookupType`-keyed function pointer per call site
@@ -679,146 +679,115 @@ fn __declare_otl_consolidation(
 }
 pub fn otfcc_consolidate_lookup(
     font: &Font,
-    table: *const OtlTable,
+    lookups: &LookupList,
+    self_index: TableId,
+    self_name: &[u8],
     lookup: &mut Lookup,
     options: &Options,
 ) {
-    __declare_otl_consolidation(
-        OTL_TYPE_GSUB_SINGLE,
-        Some(consolidate_gsub_single),
-        font,
-        table,
-        lookup,
-        options,
-    );
-    __declare_otl_consolidation(
-        OTL_TYPE_GSUB_MULTIPLE,
-        Some(consolidate_gsub_multi),
-        font,
-        table,
-        lookup,
-        options,
-    );
+    __declare_otl_consolidation(OTL_TYPE_GSUB_SINGLE, consolidate_gsub_single, font, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GSUB_MULTIPLE, consolidate_gsub_multi, font, lookup, options);
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_ALTERNATE,
-        Some(consolidate_gsub_alternative),
+        consolidate_gsub_alternative,
         font,
-        table,
         lookup,
         options,
     );
-    __declare_otl_consolidation(
-        OTL_TYPE_GSUB_LIGATURE,
-        Some(consolidate_gsub_ligature),
-        font,
-        table,
-        lookup,
-        options,
-    );
+    __declare_otl_consolidation(OTL_TYPE_GSUB_LIGATURE, consolidate_gsub_ligature, font, lookup, options);
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_CHAINING,
-        Some(consolidate_chaining),
+        |f, sub, o| consolidate_chaining(f, lookups, self_index, self_name, sub, o),
         font,
-        table,
         lookup,
         options,
     );
-    __declare_otl_consolidation(
-        OTL_TYPE_GSUB_REVERSE,
-        Some(consolidate_gsub_reverse),
-        font,
-        table,
-        lookup,
-        options,
-    );
-    __declare_otl_consolidation(
-        OTL_TYPE_GPOS_SINGLE,
-        Some(consolidate_gpos_single),
-        font,
-        table,
-        lookup,
-        options,
-    );
-    __declare_otl_consolidation(
-        OTL_TYPE_GPOS_PAIR,
-        Some(consolidate_gpos_pair),
-        font,
-        table,
-        lookup,
-        options,
-    );
-    __declare_otl_consolidation(
-        OTL_TYPE_GPOS_CURSIVE,
-        Some(consolidate_gpos_cursive),
-        font,
-        table,
-        lookup,
-        options,
-    );
+    __declare_otl_consolidation(OTL_TYPE_GSUB_REVERSE, consolidate_gsub_reverse, font, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GPOS_SINGLE, consolidate_gpos_single, font, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GPOS_PAIR, consolidate_gpos_pair, font, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GPOS_CURSIVE, consolidate_gpos_cursive, font, lookup, options);
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_CHAINING,
-        Some(consolidate_chaining),
+        |f, sub, o| consolidate_chaining(f, lookups, self_index, self_name, sub, o),
         font,
-        table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_BASE,
-        Some(consolidate_mark_to_single),
+        consolidate_mark_to_single,
         font,
-        table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_MARK,
-        Some(consolidate_mark_to_single),
+        consolidate_mark_to_single,
         font,
-        table,
         lookup,
         options,
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_LIGATURE,
-        Some(consolidate_mark_to_ligature),
+        consolidate_mark_to_ligature,
         font,
-        table,
         lookup,
         options,
     );
 }
-unsafe fn consolidate_otl_table(
-    font: *mut Font,
-    table: *mut OtlTable,
-    options: &Options,
-) {
-    if (*font).glyph_order.is_none() || table.is_null() {
+// Stage L-7: `table` is a real `&mut OtlTable` now, not a raw pointer --
+// closing the aliasing hazard the plan doc flagged this stage for. The one
+// wrinkle: `otfcc_consolidate_lookup`'s call into `consolidate_chaining`
+// still needs read access to *every* lookup, including the very one whose
+// `&mut Lookup` this loop is holding at the time (a chaining rule can name
+// its own containing lookup -- `k == self_index` below). A blanket
+// `&table.lookups` alongside a live `&mut Lookup` borrowed from inside
+// that same `Vec` is a real, ordinary (not just Stacked-Borrows-flavored)
+// borrow-checker conflict -- there is no way around it by index alone.
+// `Option::take()` resolves it: physically remove the lookup being
+// processed from its slot (leaving a plain `None` there, not a dangling
+// borrow) before handing out `&table.lookups`, then put it back
+// afterwards. A naive version of this (deliberately *not* what this does)
+// would silently break self-reference -- with the lookup missing from the
+// list, a name/index scan that includes itself would come up empty, and
+// `consolidate_chaining` would treat a real self-reference as an invalid
+// lookup and discard it, a genuine output regression. `self_index`/
+// `self_name` (the latter cloned *before* the `take`, since it borrows
+// from the very value about to be reborrowed mutably) are threaded down
+// so `consolidate_chaining` can special-case exactly that slot instead of
+// reading it (as `None`) from `lookups`.
+unsafe fn consolidate_otl_table(font: *mut Font, table: Option<&mut OtlTable>, options: &Options) {
+    if (*font).glyph_order.is_none() {
         return;
     }
+    let Some(table) = table else {
+        return;
+    };
     loop {
-        let mut j: TableId = 0 as TableId;
-        while (j as usize) < (*table).lookups.len() {
+        for j in 0..table.lookups.len() {
             // A hole here (`None`) means a previous iteration of this
             // same fixed-point loop already punched it -- nothing left
             // to consolidate at this slot.
-            if let Some(lookup) = (&mut (*table).lookups)[j as usize].as_mut() {
-                otfcc_consolidate_lookup(&*font, table, lookup, options);
+            let mut current = table.lookups[j].take();
+            if let Some(lookup) = current.as_deref_mut() {
+                let self_name = lookup.name.clone();
+                otfcc_consolidate_lookup(
+                    &*font,
+                    &table.lookups,
+                    j as TableId,
+                    &self_name,
+                    lookup,
+                    options,
+                );
             }
-            j = j.wrapping_add(1);
+            table.lookups[j] = current;
         }
-        let mut j_0: TableId = 0 as TableId;
-        while (j_0 as usize) < (*table).features.len() {
-            if let Some(feature) = (&mut (*table).features)[j_0 as usize].as_mut() {
-                otl_lookup_ref_list_filter_env(&mut feature.lookups, &(*table).lookups, |lut| {
-                    lut.is_some_and(|l| !l.subtables.is_empty())
-                });
-            }
-            j_0 = j_0.wrapping_add(1);
+        for feature in table.features.iter_mut().flatten() {
+            otl_lookup_ref_list_filter_env(&mut feature.lookups, &table.lookups, |lut| {
+                lut.is_some_and(|l| !l.subtables.is_empty())
+            });
         }
-        let mut j_1: TableId = 0 as TableId;
-        while (j_1 as usize) < (*table).languages.len() {
-            let lang: *mut LanguageSystem = &raw mut *(&mut (*table).languages)[j_1 as usize];
+        for lang in table.languages.iter_mut() {
             // `required_feature` is a single borrowed `Option<FeatureIdx>`,
             // not a list element `otl_feature_ref_list_filter_env` (below)
             // ever touches -- it was set once at parse time and otherwise
@@ -837,17 +806,16 @@ unsafe fn consolidate_otl_table(
             // hole punched by an *earlier* iteration of this same loop)
             // is treated the same as "empty": either way, nothing valid to
             // require.
-            if let Some(rf) = (*lang).required_feature {
-                let target_empty = crate::table::otl::feature_at(&(*table).features, rf)
+            if let Some(rf) = lang.required_feature {
+                let target_empty = crate::table::otl::feature_at(&table.features, rf)
                     .is_none_or(|f| f.lookups.is_empty());
                 if target_empty {
-                    (*lang).required_feature = None;
+                    lang.required_feature = None;
                 }
             }
-            otl_feature_ref_list_filter_env(&mut (*lang).features, &(*table).features, |feat| {
+            otl_feature_ref_list_filter_env(&mut lang.features, &table.features, |feat| {
                 feat.is_some_and(|f| !f.lookups.is_empty())
             });
-            j_1 = j_1.wrapping_add(1);
         }
         // A hole-preserving `Vec` never shrinks, unlike the old
         // `Vec::retain`-based compaction this replaces -- `punched_lookups`/
@@ -855,9 +823,9 @@ unsafe fn consolidate_otl_table(
         // anything" signal the fixed-point loop below now watches instead
         // of `.len()`.
         let punched_lookups =
-            otl_lookup_list_punch_holes(&mut (*table).lookups, |lut| !lut.subtables.is_empty());
+            otl_lookup_list_punch_holes(&mut table.lookups, |lut| !lut.subtables.is_empty());
         let punched_features =
-            otl_feature_list_punch_holes(&mut (*table).features, |feat| !feat.lookups.is_empty());
+            otl_feature_list_punch_holes(&mut table.features, |feat| !feat.lookups.is_empty());
         if !punched_lookups && !punched_features {
             break;
         }
@@ -870,14 +838,7 @@ unsafe fn consolidate_otl(font: *mut Font, options: &Options) {
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        consolidate_otl_table(
-            font,
-            (*font)
-                .gsub
-                .as_deref_mut()
-                .map_or(::core::ptr::null_mut(), |t| t as *mut OtlTable),
-            options,
-        );
+        consolidate_otl_table(font, (*font).gsub.as_deref_mut(), options);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
@@ -887,14 +848,7 @@ unsafe fn consolidate_otl(font: *mut Font, options: &Options) {
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
-        consolidate_otl_table(
-            font,
-            (*font)
-                .gpos
-                .as_deref_mut()
-                .map_or(::core::ptr::null_mut(), |t| t as *mut OtlTable),
-            options,
-        );
+        consolidate_otl_table(font, (*font).gpos.as_deref_mut(), options);
         ___loggedstep_v_0 = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
@@ -1127,23 +1081,18 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
     consolidate_cmap(font, options);
     logger_finish(&mut *options.logger.borrow_mut());
     if has_glyf {
-        // `OtlConsolidationFunction`'s ~9-file dispatch table is safe now
-        // (see `__declare_otl_consolidation`/`otfcc_consolidate_lookup`
-        // above), and the `otl_*_filter_env` family (`table/otl.rs`) is
-        // safe too (closures instead of a type-erased `*mut c_void`
-        // callback). `consolidate_otl`/`consolidate_otl_table` themselves
-        // stay `unsafe fn` for a different, deliberate reason: `table:
-        // *mut OtlTable` is kept raw rather than `&mut OtlTable` so that
-        // `otfcc_consolidate_lookup`'s call into `consolidate_chaining`
-        // (which re-derives `(*table).lookups[k]` for a self-referencing
-        // lookup, `k == j`) never aliases the `&mut Lookup` this same loop
-        // holds for index `j` -- promoting `table` to a real `&mut`
-        // reference here would make that self-reference a Stacked Borrows
-        // violation one layer up (the same hazard `otfcc_consolidate_
-        // lookup`'s own doc comment already avoids at its layer). `*mut
-        // Font` stays raw for the same reason; `.map_or(null_mut(), ...)`
-        // is still threaded through -- both out of scope for this PR,
-        // bridged narrowly here instead.
+        // The 10-file `__declare_otl_consolidation`/`otfcc_consolidate_
+        // lookup` dispatch is fully safe now, `table: &mut OtlTable`
+        // included (Stage L-7 -- see `consolidate_otl_table`'s own doc
+        // comment for how the `k == self_index` self-reference case is
+        // handled without an aliasing raw pointer), and the
+        // `otl_*_filter_env` family (`table/otl.rs`) was already safe
+        // (closures instead of a type-erased `*mut c_void` callback).
+        // `consolidate_otl`/`consolidate_otl_table` themselves stay
+        // `unsafe fn` for the one remaining reason: `font: *mut Font` is
+        // still raw, since giving it up requires splitting `Font.gsub`/
+        // `.gpos`/`.gdef` borrows apart from the rest of `Font` -- a
+        // separate stage, out of scope here.
         unsafe {
             consolidate_otl(font, options);
         }
@@ -1181,7 +1130,11 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
 #[cfg(test)]
 mod consolidate_otl_table_tests {
     use super::*;
-    use crate::table::otl::{FeatureIdx, LookupIdx, new_feature, new_language, new_lookup};
+    use crate::support::handle::{Handle, HandleState, LookupHandle};
+    use crate::table::otl::{
+        ChainLookupApplication, ChainingRule, ChainingSubtable, FeatureIdx, LookupIdx, new_feature,
+        new_language, new_lookup,
+    };
 
     fn empty_font_with_glyph_order() -> Box<Font> {
         Box::new(Font {
@@ -1265,11 +1218,7 @@ mod consolidate_otl_table_tests {
         let options = Options::default();
 
         unsafe {
-            consolidate_otl_table(
-                font.as_mut() as *mut Font,
-                table.as_mut() as *mut OtlTable,
-                &options,
-            );
+            consolidate_otl_table(font.as_mut() as *mut Font, Some(table.as_mut()), &options);
         }
 
         assert!(table.languages[0].required_feature.is_none());
@@ -1278,6 +1227,130 @@ mod consolidate_otl_table_tests {
         // just `None` rather than removed outright.
         assert!(table.features.iter().all(Option::is_none));
         assert!(table.lookups.iter().all(Option::is_none));
+    }
+
+    fn self_referencing_chaining_lookup(lookup_type: LookupType, app_lookup: LookupHandle) -> Box<Lookup> {
+        let mut lookup = new_lookup();
+        lookup.name = b"self_ref_lookup".to_vec();
+        lookup.type_0 = lookup_type;
+        lookup.subtables.push(Some(Box::new(Subtable::Chaining(
+            ChainingSubtable::Canonical(ChainingRule {
+                match_count: 0,
+                input_begins: 0,
+                input_ends: 0,
+                match_0: Vec::new(),
+                apply: vec![ChainLookupApplication {
+                    index: 0,
+                    lookup: app_lookup,
+                }],
+            }),
+        ))));
+        lookup
+    }
+
+    // Stage L-7's own reason for existing: `consolidate_otl_table` now
+    // `take()`s the lookup being processed out of `table.lookups` before
+    // handing `consolidate_chaining` a shared `&LookupList` (so that
+    // shared borrow can't alias the `&mut Subtable` also being threaded
+    // through), which means a naive scan for "does lookup k exist" would
+    // see the current lookup's own slot as an empty hole. A chaining rule
+    // whose one lookup application names its own containing lookup (a
+    // real OpenType idiom, e.g. an iterative contextual substitution) is
+    // exactly the case that would silently break: without the `self_index`/
+    // `self_name` special-casing this test pins down, the self-reference
+    // would be misdiagnosed as an invalid lookup and discarded.
+    #[test]
+    fn chaining_rule_naming_its_own_lookup_by_name_resolves_instead_of_being_invalidated() {
+        let lookup = self_referencing_chaining_lookup(
+            OTL_TYPE_GSUB_CHAINING,
+            Handle {
+                state: HandleState::Name,
+                index: 0,
+                name: b"self_ref_lookup".to_vec(),
+            },
+        );
+        let mut table = Box::new(OtlTable {
+            lookups: vec![Some(lookup)],
+            features: Vec::new(),
+            languages: Vec::new(),
+        });
+        let mut font = empty_font_with_glyph_order();
+        let options = Options::default();
+
+        unsafe {
+            consolidate_otl_table(font.as_mut() as *mut Font, Some(table.as_mut()), &options);
+        }
+
+        let resolved = table.lookups[0]
+            .as_deref()
+            .expect("the self-referencing lookup itself must survive consolidation");
+        let Subtable::Chaining(ChainingSubtable::Canonical(rule)) =
+            resolved.subtables[0].as_deref().unwrap()
+        else {
+            unreachable!()
+        };
+        assert_eq!(
+            rule.apply.len(),
+            1,
+            "the self-referencing apply entry must not have been dropped as invalid"
+        );
+        assert_eq!(rule.apply[0].lookup.state, HandleState::Consolidated);
+        assert_eq!(rule.apply[0].lookup.index, 0);
+        assert_eq!(rule.apply[0].lookup.name, b"self_ref_lookup");
+    }
+
+    // Same self-reference case as above, but through the index-based
+    // resolution branch (`HandleState::Index`) instead of the name-based
+    // one -- both branches independently special-case `self_index`. The
+    // self-referencing lookup is deliberately at index 1, not 0: the
+    // "unresolvable index" fallback also resets to index 0, so a
+    // self-index of 0 would make a broken self-index special case
+    // indistinguishable from a correctly-handled one (both end up
+    // pointing at index 0) -- this placement is what actually exercises
+    // the bug this test exists to catch.
+    #[test]
+    fn chaining_rule_naming_its_own_lookup_by_index_resolves_instead_of_being_invalidated() {
+        let mut lookup = self_referencing_chaining_lookup(
+            OTL_TYPE_GPOS_CHAINING,
+            Handle {
+                state: HandleState::Index,
+                index: 1,
+                name: Vec::new(),
+            },
+        );
+        lookup.subtables[0]
+            .as_deref_mut()
+            .map(|s| {
+                let Subtable::Chaining(ChainingSubtable::Canonical(rule)) = s else {
+                    unreachable!()
+                };
+                rule.apply[0].index = 1;
+            })
+            .unwrap();
+        let mut table = Box::new(OtlTable {
+            lookups: vec![Some(new_lookup()), Some(lookup)],
+            features: Vec::new(),
+            languages: Vec::new(),
+        });
+        let mut font = empty_font_with_glyph_order();
+        let options = Options::default();
+
+        unsafe {
+            consolidate_otl_table(font.as_mut() as *mut Font, Some(table.as_mut()), &options);
+        }
+
+        let resolved = table.lookups[1]
+            .as_deref()
+            .expect("the self-referencing lookup itself must survive consolidation");
+        let Subtable::Chaining(ChainingSubtable::Canonical(rule)) =
+            resolved.subtables[0].as_deref().unwrap()
+        else {
+            unreachable!()
+        };
+        assert_eq!(rule.apply.len(), 1);
+        assert_eq!(rule.apply[0].lookup.state, HandleState::Consolidated);
+        assert_eq!(rule.apply[0].lookup.index, 1);
+        assert_eq!(rule.apply[0].lookup.name, b"self_ref_lookup");
     }
 }
 

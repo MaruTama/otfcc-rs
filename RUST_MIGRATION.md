@@ -14425,6 +14425,113 @@ on the other platform before a commit is trusted.
     while loops 230 -> 224 (the manual `while`s inside `try_classify_around`
     became `for`/iterator loops as a side effect of the ownership rewrite,
     not a separate pass).
+
+- **Stage L-7: `consolidate.rs`'s OTL table reference -- `table: &mut
+  OtlTable` instead of `*mut OtlTable`.** Seventh installment of Stage L,
+  branched independently from master (untouched by L-2 through L-6 --
+  `consolidate.rs`/`consolidate/otl/*.rs` are a different file family
+  entirely). Closes the aliasing hazard `consolidate_otl_table`'s own
+  comment used to name explicitly as the reason `table` had to stay raw.
+  - **The actual hazard, precisely**: `otfcc_consolidate_lookup`'s call
+    into `consolidate_chaining` needs read access to *every* lookup in
+    the table (a chaining rule can apply its own containing lookup, by
+    name or by index -- a real, if uncommon, OpenType idiom for
+    iterative contextual substitution), while the same call site already
+    holds a live `&mut Lookup`/`&mut Subtable` borrowed from *inside*
+    that same table's lookup list, for the lookup currently being
+    consolidated. A shared `&LookupList` spanning the whole `Vec` at the
+    same time as a `&mut` into one of its own elements is an ordinary
+    borrow-checker conflict, not merely a Stacked-Borrows one -- there is
+    no index-based workaround that lets the borrow checker see the two
+    as disjoint, because they aren't (same backing allocation, same
+    `Vec`).
+  - **The fix -- and why a plain `mem::take` alone was rejected (per the
+    plan doc's own explicit call-out)**: `consolidate_otl_table`'s
+    per-lookup loop now does `let mut current = table.lookups[j].take();`
+    before calling `otfcc_consolidate_lookup`, physically removing the
+    lookup being processed from its slot (leaving a real, empty `None`
+    there -- not a dangling borrow) so `&table.lookups` becomes a
+    genuinely unaliased shared borrow for the rest of the call. Doing
+    *only* that would silently break every genuine self-reference: with
+    the current lookup missing from the list, a name or index scan that
+    happens to include itself would come up empty, misdiagnosing a valid
+    self-reference as an unresolvable lookup and discarding it (a real
+    output regression the original code never had). The fix threads
+    `self_index: TableId` and `self_name: &[u8]` (the latter cloned
+    *before* the `take`, since it would otherwise borrow from the very
+    value about to be reborrowed mutably) down to `consolidate_chaining`,
+    which special-cases `k == self_index` in both its name-based and
+    index-based resolution branches, answering from `self_name` instead
+    of ever reading the now-empty slot. The "exists" half of that check
+    needs no dynamic lookup either: reaching `consolidate_chaining` at
+    all already guarantees the current lookup's own `subtables` list is
+    non-empty (`__declare_otl_consolidation` bails out before calling in
+    otherwise), and that `Vec`'s *length* -- as opposed to which slots
+    are `Some`/`None` -- never shrinks mid-pass, only at that function's
+    trailing `retain()` -- so "self exists" is unconditionally true at
+    this point, not merely usually true.
+  - **`__declare_otl_consolidation`'s `fn_0` parameter is `impl Fn(&Font,
+    &mut Subtable, &Options) -> bool` now, not a bare `Option<fn(...)>`
+    carrying a `table` argument**: this is what let 10 of the 11 other
+    dispatch call sites drop `table`/`_table` from their own signatures
+    entirely (confirmed unused by grep in every one, previously carried
+    only because they had to match one shared function-pointer type) --
+    `otfcc_consolidate_lookup`'s two chaining call sites instead pass a
+    closure (`|f, sub, o| consolidate_chaining(f, lookups, self_index,
+    self_name, sub, o)`) that captures the three new parameters, so no
+    shared type needs to carry context only one function ever used.
+  - **The `languages`/`features` loops lost their own raw-pointer cast
+    for a completely different, incidental reason**: once `table` itself
+    is a real `&mut OtlTable`, `table.languages.iter_mut()` (`&mut
+    Lookup`... `LanguageSystem`, one field) and `&table.features`
+    (a different field) are disjoint field projections the borrow
+    checker already understands natively -- the `let lang: *mut
+    LanguageSystem = &raw mut *(&mut (*table).languages)[j_1]` cast this
+    replaces existed only because `table` itself was raw, not because of
+    any real aliasing between these two fields.
+  - **Dead-code cleanup found along the way**: the original's
+    `!found_lookup && !app.lookup.name.is_empty()` guard's second half
+    was always true (the whole block already ran inside `if
+    !app.lookup.name.is_empty() { .. }`, and nothing between there and
+    the check reassigns `app.lookup.name` except on a match, which also
+    sets `found_lookup`) -- simplified to `if !found_lookup`.
+  - **New regression tests, and why existing fixtures didn't already
+    cover this**: a debug `eprintln!` (removed before committing) showed
+    that no existing test payload -- not `golden.rs`'s real-world fonts,
+    not `cycles.rs`, not `lookup_alias.rs` -- ever actually exercises a
+    *genuine* self-reference match (`k == self_index` is reached on
+    every full scan trivially, but the name/index only actually equals
+    `self_name`/`self_index` when a rule truly targets its own lookup,
+    which apparently none of the current fixtures happen to do). Added
+    `chaining_rule_naming_its_own_lookup_by_{name,index}_resolves_
+    instead_of_being_invalidated` directly exercising both resolution
+    branches. **Test effectiveness verified twice**: first by confirming
+    both new tests pass, then by deliberately disabling the `k ==
+    self_index`/`idx == self_index` special cases (`if false && ..`) and
+    confirming both tests fail with the expected panic, then reverting.
+    The index-based test's self-referencing lookup is deliberately
+    placed at index 1, not 0: the "unresolvable index" fallback also
+    resets to index 0, so a self-index of 0 would make a broken special
+    case indistinguishable from a correctly-handled one by coincidence
+    (both would end up pointing at index 0) -- confirmed by first writing
+    the test at index 0 and watching it pass even with the bug
+    deliberately injected, then fixing the test itself.
+  - **Verification**: full pipeline green -- build, `clippy --all-targets
+    -- -D warnings`, `cargo test --lib` (408, incl. the 2 new tests),
+    `cargo test -- --test-threads=1` (integration suite, incl.
+    `golden.rs`'s byte-exact fixtures), Miri (372 passed, 36 ignored,
+    0 UB -- the most relevant check here, given this stage's entire
+    point is an aliasing fix), all three fuzz targets 90s each plus every
+    `tests/fuzz-corpus/known-issues/*.bin` re-run directly against its
+    target binary (including `otf-dump-required-feature-use-after-
+    free.bin`, which exercises exactly the `required_feature` handling
+    this stage's loop rewrite touches -- no regression). `survey-
+    unsafe.sh`: `unsafe fn` unchanged at 72 (no function's own marker was
+    at stake -- `consolidate_otl_table`/`consolidate_otl` stay `unsafe
+    fn` for the still-raw `font: *mut Font`, deferred per the plan),
+    `unsafe blocks` 193 -> 189, raw pointer types 805 -> 785, while loops
+    230 -> 227.
+
 - **Stage L-9a: `Font` is an owned `Box<Font>` end to end --
   `otfcc_font_create`/`otfcc_font_free` deleted, `read_otf`/`read_json`
   return `Option<Box<Font>>`.** Ninth installment of Stage L, and the
