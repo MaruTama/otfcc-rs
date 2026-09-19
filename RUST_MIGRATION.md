@@ -15013,3 +15013,36 @@ on the other platform before a commit is trusted.
     `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`: `unsafe fn`
     33 -> 31, `unsafe blocks` 135 -> 127, raw pointer types 632 -> 629,
     files with the file-level allow 35 -> 34.
+
+- **Stage M-7: `json_parse`/`json_value_free` deleted -- the callers use
+  `parse_json` directly.** Seventh installment, stacked on M-6. The last
+  raw-pointer wrapper around the JSON tree.
+  - **What they were**: `json_parse(*const c_char, usize) -> *mut
+    ParsedValue` rebuilt a slice with `from_raw_parts`, called the
+    already-safe `parse_json(&[u8]) -> Option<ParsedValue>`, and
+    `Box::into_raw`'d the result (null for failure); `json_value_free` was
+    the matching `Box::from_raw` + drop. Their own doc comment said the
+    point was to "swap the call site without reshaping the surrounding
+    code" -- a migration convenience that outlived the migration.
+  - **Callers**: `bin/otfccbuild.rs` already owned a `Vec<u8>`, so it just
+    calls `parse_json(&buffer)` and holds an `Option<ParsedValue>` (the same
+    assigned-in-one-step, used-in-another shape as `sfnt` in M-6, dropped
+    with `drop(json_root.take())` at the point the old free ran).
+    `benches/support` likewise. **`ffi/dll.rs` is the one place a raw
+    `(pointer, length)` pair genuinely arrives from C** -- it is the
+    `otfccbuild_json_otf` `extern "C"` entry point -- so that is where the
+    single `slice::from_raw_parts` now lives, in the function that is
+    already `unsafe extern "C"`, instead of inside a helper every caller had
+    to wrap in `unsafe {}`. The public ABI (four functions) is unchanged;
+    `abi.rs` and `dll_abi.rs` both pass.
+  - **Test effectiveness**: shortening the slice handed to `parse_json` by
+    one byte fails two of `ffi/dll.rs`'s unit tests. `dll_abi.rs`'s
+    byte-exact cdylib comparison did *not* catch it, and that is worth
+    knowing rather than assuming: its input JSON ends in whitespace, so
+    dropping the final byte still parses. The lib tests are the ones
+    guarding this boundary.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    test -- --test-threads=1` (411), `abi`/`dll_abi` explicitly, Miri, all
+    three fuzz targets plus every `tests/fuzz-corpus/known-issues/*.bin`.
+    `survey-unsafe.sh`: `unsafe fn` 31 -> 29, `unsafe blocks` 127 -> 125,
+    raw pointer types 629 -> 622.
