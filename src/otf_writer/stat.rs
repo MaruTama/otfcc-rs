@@ -1412,7 +1412,7 @@ pub const __FLT_MAX__: ::core::ffi::c_float = 3.40282347e+38f32;
 #[cfg(test)]
 mod stat_os_2_average_width_tests {
     use super::*;
-    use crate::font::caryll_font::otfcc_font_create;
+    use crate::font::caryll_font::Font;
     use crate::table::os_2::Os2Table;
 
     // A `glyf` table can legitimately be present-but-empty (a JSON font
@@ -1425,8 +1425,7 @@ mod stat_os_2_average_width_tests {
     // its own `nnsum.wrapping_div(nn)`.
     #[test]
     fn empty_glyf_table_does_not_panic_and_yields_a_zero_average() {
-        let font_ptr = unsafe { otfcc_font_create() };
-        let font = unsafe { &mut *font_ptr };
+        let mut font: Box<Font> = Box::default();
         font.glyf = Some(Vec::new());
         font.os_2 = Some(Box::new(Os2Table {
             version: 0,
@@ -1470,8 +1469,7 @@ mod stat_os_2_average_width_tests {
             us_upper_optical_point_size: 0,
         }));
         let options = Options::default();
-        stat_os_2_average_width(font, &options);
+        stat_os_2_average_width(&mut font, &options);
         assert_eq!(font.os_2.as_deref().unwrap().x_avg_char_width, 0);
-        unsafe { crate::font::caryll_font::otfcc_font_free(font_ptr) };
     }
 }

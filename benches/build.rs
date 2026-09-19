@@ -8,7 +8,7 @@
 mod support;
 
 use criterion::{BatchSize, Criterion, criterion_group, criterion_main};
-use support::{build_to_otf, dump_to_json, free_options, payload_bytes, quiet_options};
+use support::{build_to_otf, dump_to_json, payload_bytes, quiet_options};
 
 fn bench_build(c: &mut Criterion) {
     let mut group = c.benchmark_group("build");
@@ -24,14 +24,12 @@ fn bench_build(c: &mut Criterion) {
     for &name in binary_fixtures {
         let sfnt_bytes = payload_bytes(name);
         let dump_options = quiet_options();
-        let json_bytes = dump_to_json(&sfnt_bytes, dump_options);
-        free_options(dump_options);
+        let json_bytes = dump_to_json(&sfnt_bytes, &dump_options);
 
         let options = quiet_options();
         group.bench_function(name, |b| {
-            b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, options), BatchSize::SmallInput);
+            b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, &options), BatchSize::SmallInput);
         });
-        free_options(options);
     }
 
     // JSON-only fixtures: no corresponding binary dump path exists (or, for
@@ -41,9 +39,8 @@ fn bench_build(c: &mut Criterion) {
         let json_bytes = payload_bytes(name);
         let options = quiet_options();
         group.bench_function(name, |b| {
-            b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, options), BatchSize::SmallInput);
+            b.iter_batched(|| json_bytes.clone(), |json| build_to_otf(&json, &options), BatchSize::SmallInput);
         });
-        free_options(options);
     }
 
     group.finish();

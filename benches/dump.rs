@@ -10,7 +10,7 @@
 mod support;
 
 use criterion::{Criterion, criterion_group, criterion_main};
-use support::{dump_to_json, free_options, payload_bytes, quiet_options};
+use support::{dump_to_json, payload_bytes, quiet_options};
 
 fn bench_dump(c: &mut Criterion) {
     let mut group = c.benchmark_group("dump");
@@ -24,9 +24,8 @@ fn bench_dump(c: &mut Criterion) {
         let bytes = payload_bytes(name);
         let options = quiet_options();
         group.bench_function(name, |b| {
-            b.iter(|| dump_to_json(&bytes, options));
+            b.iter(|| dump_to_json(&bytes, &options));
         });
-        free_options(options);
     }
     group.finish();
 }
