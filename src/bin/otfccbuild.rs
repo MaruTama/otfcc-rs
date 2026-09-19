@@ -30,7 +30,7 @@ use otfcc_rust::otf_writer::serialize_to_otf;
 use otfcc_rust::support::getopt::{GetoptItem, LongOpt, getopt_long};
 use otfcc_rust::support::options::otfcc_options_optimize_to;
 use otfcc_rust::support::parsed_json::ParsedValue;
-use otfcc_rust::support::parsed_json::{json_parse, json_value_free};
+use otfcc_rust::support::parsed_json::parse_json;
 use otfcc_rust::support::strtol::strtol;
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::support::EXIT_FAILURE;
@@ -72,9 +72,9 @@ pub fn printHelp() {
 //
 // `_buffer`/`_length` out-params and the `malloc`'d backing storage are
 // gone entirely -- the single caller (`main_0`) now just owns the
-// returned `Vec<u8>` directly and passes `.as_ptr()`/`.len()` to
-// `json_parse` itself, the same shape `ffi/dll.rs`'s FFI entry points
-// already use at that same boundary. `readEntireFile` itself has no
+// returned `Vec<u8>` directly and hands it to `parse_json` (since Stage
+// M-7 as a plain `&[u8]`; it used to be `.as_ptr()`/`.len()` into the
+// raw-pointer `json_parse` wrapper). `readEntireFile` itself has no
 // remaining unsafe operation other than the `fprintf` error-path call.
 pub fn readEntireFile(inPath: &::core::ffi::CStr) -> Option<Vec<u8>> {
     let os_path = std::ffi::OsStr::from_bytes(inPath.to_bytes());
@@ -332,21 +332,21 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
-    let mut json_root: *mut ParsedValue = ::core::ptr::null_mut::<ParsedValue>();
+    let mut json_root: Option<ParsedValue> = None;
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Parse into JSON"),
     );
     let mut ___loggedstep_v_2: bool = true;
     while ___loggedstep_v_2 {
-        json_root = json_parse(buffer.as_ptr() as *const ::core::ffi::c_char, buffer.len());
+        json_root = parse_json(&buffer);
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
-        if json_root.is_null() {
+        if json_root.is_none() {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_CRITICAL,
@@ -369,7 +369,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
-        font = read_json(&*json_root, &*options);
+        font = read_json(json_root.as_ref().unwrap(), &*options);
         if font.is_none() {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
@@ -383,7 +383,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             );
             return EXIT_FAILURE;
         }
-        json_value_free(json_root);
+        drop(json_root.take());
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
