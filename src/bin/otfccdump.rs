@@ -28,7 +28,7 @@ use otfcc_rust::support::EXIT_FAILURE;
 
 use libc::timespec;
 use otfcc_rust::consolidate::otfcc_consolidate_font;
-use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt};
+use otfcc_rust::font::caryll_sfnt::otfcc_read_sfnt;
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
 use otfcc_rust::otf_reader::read_otf;
@@ -229,7 +229,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         tv_nsec: 0,
     };
     time_now(&raw mut begin);
-    let mut sfnt: *mut SplineFontContainer = ::core::ptr::null_mut::<SplineFontContainer>();
+    let mut sfnt: Option<SplineFontContainer> = None;
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Read SFNT"),
@@ -242,8 +242,8 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             LoggerType::Progress,
             otfcc_rust::bytesbuild!(b"From file ", inPath.as_bytes()),
         );
-        sfnt = otfcc_read_sfnt(inPath.as_ptr());
-        if sfnt.is_null() || (*sfnt).count == 0_u32 {
+        sfnt = otfcc_read_sfnt(std::path::Path::new(std::ffi::OsStr::from_bytes(inPath.as_bytes())));
+        if sfnt.as_ref().is_none_or(|s| s.count == 0_u32) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_CRITICAL,
@@ -256,7 +256,8 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             );
             return EXIT_FAILURE;
         }
-        if ttcindex >= (*sfnt).count {
+        let subfonts = sfnt.as_ref().unwrap().count;
+        if ttcindex >= subfonts {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_CRITICAL,
@@ -267,7 +268,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                     b" out of range for \"",
                     inPath.as_bytes(),
                     b"\" (0 -- ",
-                    (*sfnt).count.wrapping_sub(1_u32),
+                    subfonts.wrapping_sub(1_u32),
                     b"). Exit.\n",
                 ),
             );
@@ -289,7 +290,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
-        font = read_otf(&*sfnt, ttcindex, &*options);
+        font = read_otf(sfnt.as_ref().unwrap(), ttcindex, &*options);
         if font.is_none() {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
@@ -303,9 +304,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             );
             return EXIT_FAILURE;
         }
-        if !sfnt.is_null() {
-            otfcc_delete_sfnt(sfnt);
-        }
+        drop(sfnt.take());
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
