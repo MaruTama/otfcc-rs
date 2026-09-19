@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::classdef::{ClassDef, push_class_def};
 
@@ -14,23 +13,10 @@ use crate::table::otl::classdef::{dump_class_def, parse_class_def};
 use crate::vendor::json::JsonType;
 
 pub type Tsi5Table = ClassDef;
-// Stage 6-4 "Box化": `Font.tsi5` becomes `Option<Box<Tsi5Table>>`.
-// `ClassDef` itself stays a raw-pointer-constructible type everywhere else
-// in the crate (`otl_class_def_create`/`parse_class_def`/`read_class_def`
-// used throughout `otl`/`gdef` construction and consolidation, and adopted
-// into an owned `Option<Box<ClassDef>>` only at each field's own assignment
-// site via `classdef_from_raw` -- see `GdefTable.glyph_class_def`/
-// `.mark_attach_class_def`, Stage 7-2-c) -- widening those constructors
-// themselves to return `Box<ClassDef>` would ripple across all of those,
-// well beyond this field's own scope. Instead, `unwrap_class_def` "adopts"
-// the value into a genuine `Box`: since `otl_class_def_create` itself allocates via
-// `Box::into_raw` now, `Box::from_raw` reclaims that exact allocation
-// directly -- no read-then-free-then-reallocate needed (and reaching for
-// `free` here would be wrong regardless: it must match `Box::into_raw`, not
-// libc's allocator, even though the two happen to coincide today).
-unsafe fn unwrap_class_def(raw: *mut ClassDef) -> Box<ClassDef> {
-    Box::from_raw(raw)
-}
+// Stage 6-4 "Box化": `Font.tsi5` is an `Option<Box<Tsi5Table>>`. The
+// `unwrap_class_def` shim that used to adopt `parse_class_def`'s raw
+// `*mut ClassDef` into that `Box` is gone with Stage M-3 -- the producers
+// return owned values now, so this is a plain `.map(Box::new)`.
 // The original loop condition (`j * 2 < table.length`) admitted one
 // out-of-bounds 2-byte read whenever `table.length` was odd: e.g. a
 // 1-byte table has `j = 0` satisfy `0 < 1`, then reads bytes `[0, 1]` --
@@ -69,15 +55,10 @@ pub fn otfcc_dump_tsi5(table: Option<&Tsi5Table>, root: &mut BuiltValue) {
 }
 pub fn otfcc_parse_tsi5(root: &ParsedValue) -> Option<Box<Tsi5Table>> {
     let tsi = root.get_typed(b"TSI5", JsonType::Object)?;
-    let raw = parse_class_def(Some(tsi));
-    if raw.is_null() {
-        return None;
-    }
-    // `parse_class_def` genuinely can return null (an empty/absent object),
-    // so this is a real check, not shell residue -- `unwrap_class_def`
-    // stays `unsafe fn` (its own `Box::from_raw` boundary), narrow bridge
-    // only.
-    Some(unsafe { unwrap_class_def(raw) })
+    // `parse_class_def` genuinely can answer "no class def here" (an
+    // empty/absent object), which is why it returns `Option` where
+    // `read_class_def` returns a plain value.
+    parse_class_def(Some(tsi)).map(Box::new)
 }
 pub fn otfcc_build_tsi5(tsi5: Option<&Tsi5Table>, num_glyphs: GlyphId) -> Option<Buffer> {
     let tsi5 = tsi5?;

@@ -14839,3 +14839,49 @@ on the other platform before a commit is trusted.
     `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`:
     `unsafe fn` 49 -> 44, `unsafe blocks` 162 -> 160, raw pointer types
     678 -> 658, `.offset(` 24 -> 22.
+
+- **Stage M-3: `ClassDef` producers return owned values.** Third
+  installment of the post-Stage-L inventory. The same conversion L-2 did
+  for `Coverage`, applied to the other type the OTL readers pass around
+  through raw pointers -- and the reason five `unsafe fn` existed.
+  - **`read_class_def` and `expand_class_def` return `ClassDef`**, not
+    `*mut ClassDef`: neither ever returned null (every exit was a
+    `Box::into_raw`), so the `Option` is not needed either -- the same
+    "the null check was dead all along" finding as `read_coverage`.
+    **`parse_class_def` returns `Option<ClassDef>`**, because that one
+    genuinely can answer "no class def here" (a non-object JSON value).
+    `otl_class_def_create`, `classdef_from_raw` and `tsi5.rs`'s
+    `unwrap_class_def` are deleted; `ClassDef` derives `Default`, which is
+    exactly the value `otl_class_def_create` used to hand out.
+  - **`gpos_pair.rs`'s `otl_read_gpos_pair` is safe now**, and that is
+    where the real cleanup is. Both branches used to assign a half-built
+    `ClassDef` into `subtable.first`/`.second` immediately and then take a
+    `*mut ClassDef` back out of the `Box` (`subtable.first.as_deref_mut()
+    .unwrap()`) so they could keep reading it while the subtable's other
+    fields were written -- a raw pointer whose only job was dodging the
+    borrow checker. They are plain locals now, moved into the subtable
+    once the branch has succeeded. This is observably identical because
+    every `break 'parse` path returns `None` and drops the subtable.
+    Format 2's `expand_class_def` call loses its
+    `*Box::from_raw(first_raw)` bridge, and the
+    `subtable.first.is_none() || subtable.second.is_none()` guard after it
+    goes with the nullability that motivated it.
+  - **Four files are now entirely `unsafe`-free** and lose their
+    file-level `#![allow(unsafe_op_in_unsafe_fn)]`: `classdef.rs`,
+    `gpos_pair.rs`, `gdef.rs`, `tsi5.rs`.
+  - **Deliberately left for a follow-up**: the fields themselves are still
+    `Option<Box<ClassDef>>` (`GposPairSubtable.first`/`.second`,
+    `ChainingSubtable.bc`/`.ic`/`.fc`, `GdefTable`'s two). Dropping that
+    `Box` is a mechanical ~32-site change (`as_deref` -> `as_ref`) with no
+    `unsafe` in it, and mixing it in here would be the "container
+    replacement plus element ownership in one PR" mistake the VQ work
+    warned about.
+  - **Test effectiveness**: two deliberate bugs, one per format -- the
+    Format 1 synthesized `second` class ids shifted by one, and Format 2's
+    `second` class def read from the wrong offset. `golden.rs`'s
+    `fixed_payloads_match_golden` catches both.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (412), Miri, all three fuzz targets
+    90s each plus every `tests/fuzz-corpus/known-issues/*.bin`.
+    `survey-unsafe.sh`: `unsafe fn` 44 -> 41, `unsafe blocks` 160 -> 141,
+    raw pointer types 658 -> 644, files with the file-level allow 42 -> 38.

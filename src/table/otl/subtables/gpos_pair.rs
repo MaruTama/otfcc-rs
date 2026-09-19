@@ -1,8 +1,7 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 use crate::support::handle::{GlyphHandle, handle_from_index};
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::classdef::{
-    ClassDef, classdef_from_raw, expand_class_def, otl_class_def_create, read_class_def,
+    ClassDef, expand_class_def, read_class_def,
 };
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage, shrink_coverage};
 
@@ -56,7 +55,7 @@ pub struct IndividualGposPair {
 // so the product can reach 65535*65535*16 (~68.7 billion), far past
 // `i32::MAX`. Fixed with two chained `checked_mul`s on `usize` (count*count,
 // then that product against the per-cell stride via `require_room`).
-pub unsafe fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
+pub fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId) -> Option<Subtable> {
     let mut subtable = GposPairSubtable {
         first: None,
         second: None,
@@ -80,15 +79,20 @@ pub unsafe fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId)
                 break 'parse;
             };
 
+            // Built and used as a plain local, then moved into `subtable`
+            // once the whole branch has succeeded. The old code assigned it
+            // to `subtable.first` up front and then re-borrowed it as a
+            // `*mut ClassDef` to keep reading it while `subtable`'s other
+            // fields were written -- a raw pointer that existed only to
+            // dodge the borrow checker. Every `break 'parse` below returns
+            // `None` and drops `subtable`, so moving the assignment to the
+            // end changes nothing observable.
             let cov: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32));
-            let first_raw: *mut ClassDef = otl_class_def_create();
-            (*first_raw).glyphs = cov;
-            (*first_raw).maxclass = ((*first_raw).glyphs.len() as i32 - 1) as GlyphClass;
-            (*first_raw).classes = (0..(*first_raw).glyphs.len())
-                .map(|j| j as GlyphClass)
-                .collect();
-            subtable.first = classdef_from_raw(first_raw);
-            let first_cd: *mut ClassDef = subtable.first.as_deref_mut().unwrap();
+            let first_cd = ClassDef {
+                maxclass: (cov.len() as i32 - 1) as GlyphClass,
+                classes: (0..cov.len()).map(|j| j as GlyphClass).collect(),
+                glyphs: cov,
+            };
 
             let Ok(format1) = header.u16() else {
                 break 'parse;
@@ -101,7 +105,7 @@ pub unsafe fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId)
             let Ok(pair_set_count) = header.u16() else {
                 break 'parse;
             };
-            if pair_set_count as usize != (*first_cd).glyphs.len() {
+            if pair_set_count as usize != first_cd.glyphs.len() {
                 break 'parse;
             }
             if header.require_room(pair_set_count as usize, 2).is_err() {
@@ -160,21 +164,20 @@ pub unsafe fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId)
                 }
             }
 
-            let second_raw: *mut ClassDef = otl_class_def_create();
             let n_second = h.len();
-            (*second_raw).maxclass = n_second as GlyphClass;
-            (*second_raw).classes = vec![0 as GlyphClass; n_second];
-            (*second_raw).glyphs = vec![GlyphHandle::default(); n_second];
-            subtable.second = classdef_from_raw(second_raw);
-            let second_cd: *mut ClassDef = subtable.second.as_deref_mut().unwrap();
-            let class2_count = (*second_cd).maxclass as usize + 1;
+            let mut second_cd = ClassDef {
+                maxclass: n_second as GlyphClass,
+                classes: vec![0 as GlyphClass; n_second],
+                glyphs: vec![GlyphHandle::default(); n_second],
+            };
+            let class2_count = second_cd.maxclass as usize + 1;
 
             // Was a manual `__caryll_allocate_clean` + nested-loop-of-
             // `position_zero()` writes over `*mut *mut PositionValue` --
             // `PositionValue` is `Copy`, so pre-sizing the whole grid
             // collapses to one `vec![vec![..]; ..]` expression; the real
             // values below are then index-assigned directly.
-            let first_class_count = (*first_cd).maxclass as usize + 1;
+            let first_class_count = first_cd.maxclass as usize + 1;
             let mut first_values: Vec<Vec<PositionValue>> =
                 vec![vec![position_zero(); class2_count]; first_class_count];
             let mut second_values: Vec<Vec<PositionValue>> =
@@ -203,9 +206,11 @@ pub unsafe fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId)
             subtable.first_values = first_values;
             subtable.second_values = second_values;
             for (jj, &gid) in h.iter().enumerate() {
-                (&mut (*second_cd).glyphs)[jj] = handle_from_index(gid as GlyphId) as GlyphHandle;
-                (&mut (*second_cd).classes)[jj] = (jj + 1) as GlyphClass;
+                second_cd.glyphs[jj] = handle_from_index(gid as GlyphId) as GlyphHandle;
+                second_cd.classes[jj] = (jj + 1) as GlyphClass;
             }
+            subtable.first = Some(Box::new(first_cd));
+            subtable.second = Some(Box::new(second_cd));
             return Some(Subtable::GposPair(subtable));
         } else if subtable_format == 2 {
             let Ok(mut header) = FontReader::new(data).at(offset as usize + 2) else {
@@ -236,27 +241,25 @@ pub unsafe fn otl_read_gpos_pair(data: &[u8], offset: u32, _max_glyphs: GlyphId)
             let len2_0 = position_format_length(format2_0);
 
             let cov_0: Coverage = read_coverage(data, offset.wrapping_add(cov_rel as u32));
-            // `expand_class_def` consumes (and internally frees) the `ocd`
-            // it's handed and returns a brand-new `*mut ClassDef` -- kept
-            // as a plain local raw pointer through that consuming call,
-            // then adopted into `subtable.first` only once settled.
-            let mut first_raw: *mut ClassDef =
-                read_class_def(data, offset.wrapping_add(cd1_rel as u32));
-            first_raw = expand_class_def(&cov_0, *Box::from_raw(first_raw));
-            subtable.first = classdef_from_raw(first_raw);
-            subtable.second =
-                classdef_from_raw(read_class_def(data, offset.wrapping_add(cd2_rel as u32)));
-            if subtable.first.is_none() || subtable.second.is_none() {
+            // `expand_class_def` consumes the `ocd` it is handed and
+            // returns a fresh one; both are plain values now, so the
+            // `Box::from_raw`/`classdef_from_raw` pair that used to bridge
+            // that call is gone -- and with it the
+            // `subtable.first.is_none() || subtable.second.is_none()` guard,
+            // which could never fire (neither producer ever returned null).
+            let first_cd = expand_class_def(
+                &cov_0,
+                read_class_def(data, offset.wrapping_add(cd1_rel as u32)),
+            );
+            let second_cd = read_class_def(data, offset.wrapping_add(cd2_rel as u32));
+            if first_cd.maxclass as usize + 1 != class1_count as usize {
                 break 'parse;
             }
-            let first_cd: *mut ClassDef = subtable.first.as_deref_mut().unwrap();
-            let second_cd: *mut ClassDef = subtable.second.as_deref_mut().unwrap();
-            if (*first_cd).maxclass as usize + 1 != class1_count as usize {
+            if second_cd.maxclass as usize + 1 != class2_count as usize {
                 break 'parse;
             }
-            if (*second_cd).maxclass as usize + 1 != class2_count as usize {
-                break 'parse;
-            }
+            subtable.first = Some(Box::new(first_cd));
+            subtable.second = Some(Box::new(second_cd));
 
             let stride = len1_0 as usize + len2_0 as usize;
             let Some(total_cells) = (class1_count as usize).checked_mul(class2_count as usize)
@@ -354,21 +357,12 @@ pub fn otl_gpos_parse_pair(
 ) -> Option<Subtable> {
     let sv = _subtable;
     let mat = sv.and_then(|v| v.get_typed(b"matrix", JsonType::Array))?;
-    // `parse_class_def` is a safe fn; `classdef_from_raw` is the one
-    // still-unsafe `Box::from_raw` boundary it hands off to (same
-    // `vqs_compare`-style narrow bridge used throughout this migration).
-    let first: Option<Box<ClassDef>> = unsafe {
-        classdef_from_raw(parse_class_def(
-            sv.and_then(|v| v.get_typed(b"first", JsonType::Object)),
-        ))
-    };
-    let second: Option<Box<ClassDef>> = unsafe {
-        classdef_from_raw(parse_class_def(
-            sv.and_then(|v| v.get_typed(b"second", JsonType::Object)),
-        ))
-    };
-    let first_cd = first.as_deref()?;
-    let second_cd = second.as_deref()?;
+    let first: Option<ClassDef> =
+        parse_class_def(sv.and_then(|v| v.get_typed(b"first", JsonType::Object)));
+    let second: Option<ClassDef> =
+        parse_class_def(sv.and_then(|v| v.get_typed(b"second", JsonType::Object)));
+    let first_cd = first.as_ref()?;
+    let second_cd = second.as_ref()?;
     let class1_count: GlyphClass = (first_cd.maxclass as i32 + 1_i32) as GlyphClass;
     let class2_count: GlyphClass = (second_cd.maxclass as i32 + 1_i32) as GlyphClass;
     let mut first_values: Vec<Vec<PositionValue>> =
@@ -392,8 +386,8 @@ pub fn otl_gpos_parse_pair(
         }
     }
     Some(Subtable::GposPair(GposPairSubtable {
-        first,
-        second,
+        first: first.map(Box::new),
+        second: second.map(Box::new),
         first_values,
         second_values,
     }))
@@ -616,7 +610,7 @@ mod otl_read_gpos_pair_tests {
         data[18..20].copy_from_slice(&1u16.to_be_bytes());
         data[20..22].copy_from_slice(&20i16.to_be_bytes());
         data[22..24].copy_from_slice(&50i16.to_be_bytes());
-        let result = unsafe { otl_read_gpos_pair(&data, 0, 0) };
+        let result = otl_read_gpos_pair(&data, 0, 0);
         let Some(Subtable::GposPair(ref subtable)) = result else {
             unreachable!()
         };
@@ -641,7 +635,7 @@ mod otl_read_gpos_pair_tests {
         // 2` -- just the 2-byte format field itself -- so a table this
         // short claiming format 1 read straight past its own end.
         let data = [0u8, 1]; // format = 1, nothing else
-        let result = unsafe { otl_read_gpos_pair(&data, 0, 0) };
+        let result = otl_read_gpos_pair(&data, 0, 0);
         assert!(result.is_none());
     }
 
@@ -672,7 +666,7 @@ mod otl_read_gpos_pair_tests {
         data[40..42].copy_from_slice(&20u16.to_be_bytes());
         data[42..44].copy_from_slice(&1u16.to_be_bytes());
         data[44..46].copy_from_slice(&1u16.to_be_bytes());
-        let result = unsafe { otl_read_gpos_pair(&data, 0, 0) };
+        let result = otl_read_gpos_pair(&data, 0, 0);
         let Some(Subtable::GposPair(ref subtable)) = result else {
             unreachable!()
         };
@@ -715,7 +709,7 @@ mod otl_read_gpos_pair_tests {
         data[36..38].copy_from_slice(&20u16.to_be_bytes());
         data[38..40].copy_from_slice(&20u16.to_be_bytes());
         data[40..42].copy_from_slice(&(u16::MAX - 1).to_be_bytes());
-        let result = unsafe { otl_read_gpos_pair(&data, 0, 0) };
+        let result = otl_read_gpos_pair(&data, 0, 0);
         assert!(result.is_none());
     }
 }
