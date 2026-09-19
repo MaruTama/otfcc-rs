@@ -53,10 +53,7 @@ pub fn table_dump_table_fpgm_prep(
         return;
     };
     logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
-    // `dump_ttinstr` stays `unsafe fn` (its own not-yet-safened
-    // pointer+length parameter pair); `table.bytes` is a plain `Vec<u8>`,
-    // so this is purely a narrow bridge.
-    let dumped = unsafe { dump_ttinstr(table.bytes.as_ptr() as *mut u8, table.bytes.len() as u32, options) };
+    let dumped = dump_ttinstr(&table.bytes, options);
     root.push_field(tag, dumped);
     logger_finish(&mut *options.logger.borrow_mut());
 }
@@ -71,13 +68,7 @@ pub fn otfcc_parse_fpgm_prep(
         tag: tag.to_vec(),
         bytes: Vec::new(),
     });
-    unsafe {
-        parse_ttinstr(
-            table as *const ParsedValue,
-            |instrs| boxed.bytes = instrs,
-            |_reason, _pos| {},
-        );
-    }
+    parse_ttinstr(Some(table), |instrs| boxed.bytes = instrs, |_reason, _pos| {});
     logger_finish(&mut *options.logger.borrow_mut());
     Some(boxed)
 }

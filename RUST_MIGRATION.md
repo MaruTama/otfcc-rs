@@ -14532,6 +14532,118 @@ on the other platform before a commit is trusted.
     `unsafe blocks` 193 -> 189, raw pointer types 805 -> 785, while loops
     230 -> 227.
 
+- **Stage L-8: `support/ttinstr.rs`'s TrueType instruction text parser --
+  hand-written `&[u8]` lexer instead of `strlen`/`strtol`/`strnmatch` on
+  a raw `*mut c_char`.** Eighth installment of Stage L, branched
+  independently from master (untouched by any of L-2 through L-7 --
+  `ttinstr.rs` is its own file family). All 5 of this file's `unsafe fn`s
+  are safe now: `strnmatch` (deleted outright), `parse_instrs`,
+  `instr_typify`, `dump_ttinstr`, `parse_ttinstr`.
+  - **`InstrData.instrs` gained a lifetime (`&'a [u8]`) instead of
+    staying a raw pointer**: every value only ever lives for the
+    duration of one `dump_ttinstr` call (never stored, never outlives
+    its caller's own buffer), so this cost nothing at either call site
+    -- both already held a `&[u8]` for exactly as long as the struct
+    needed to borrow it.
+  - **`parse_instrs`'s hand-written lexer**: replaces pointer-walking
+    (`*pt`, `pt.offset(1)`, `pt.offset_from(text)`) with a `usize`
+    cursor into `&[u8]`, and a `peek(text, pos) -> u8` helper (`0` past
+    the end) standing in for reading through a NUL-terminated C string
+    -- including reproducing the one genuine ambiguity that shape has:
+    an embedded NUL byte inside the text (reachable, since
+    `parse_ttinstr`'s array-of-strings form copies arbitrary JSON string
+    bytes in) reads back as `0` exactly like the true end of the buffer
+    does, the same thing a C string can't distinguish either. Every
+    single one of the original's `iv_error(...)` call sites was checked
+    individually for whether it `return None`s afterward or falls
+    through and keeps parsing -- one of them (`"Expected a number for a
+    push count"`) deliberately does *not* return, a real quirk in the
+    original preserved exactly rather than "fixed" into consistency with
+    its seven siblings.
+  - **`strtol`'s base-0 auto-detection, hand-rolled**: `strtol_base0`
+    mirrors `strtol(s, &mut end, 0)` exactly -- an optional `-`, then
+    `"0x"`/`"0X"` (with at least one hex digit after) for hex, a leading
+    `0` (with at least one octal digit after) for octal, decimal
+    otherwise, including the corner cases where the prefix alone isn't
+    backed by a digit (`"0x"` with nothing after it, a bare `"0"`) and
+    real `strtol` falls back to just the leading `0` as decimal zero.
+    `strtol_base2` (for the fixed-radix binary value inside a bracketed
+    command like `MDRP[grey]`'s `grey`) is the simpler fixed-base
+    sibling -- no prefix detection, since an explicit non-zero base never
+    skips one. In practice every number `parse_ttinstr`'s own two
+    callers ever *feed in* is plain decimal (JSON integers, or
+    `dump_ttinstr`'s own output), so this level of fidelity matters only
+    for a user hand-editing the array-of-strings text form with a
+    literal hex/octal number -- kept anyway, matching this whole
+    migration's "preserve the original's exact behavior" standard rather
+    than only the common case.
+  - **A latent OOB-read the original C-shaped code had, fixed by
+    construction, not by additional checking**: `strnmatch(pt, name.
+    as_ptr(), n)` read `n` bytes from `name` (a `FF_TTF_INSTRNAMES`
+    entry, a fixed-size `'static` byte string with no padding)
+    regardless of whether `n` exceeded that entry's own length -- the
+    matching length-equality check ran *after*, as a separate `&&`
+    clause, so the out-of-bounds read already happened by the time it
+    would have mattered. `instr_name_matches`/`instr_name_has_prefix`
+    (this stage's slice-based replacements for the first/second
+    `strnmatch` call sites respectively) check the length relationship
+    *first*, making the read structurally impossible instead of merely
+    detecting the mismatch afterward -- the same "safe indexing
+    prevents a latent bug, doesn't just port it" shape this migration
+    has hit before.
+  - **`parse_ttinstr`'s two-pass length pre-computation is gone**: the
+    original computed `istrlen` in a first pass purely to size one
+    `sdsnewlen`/zero-filled-`Vec` allocation up front, including a
+    trailing NUL byte for `parse_instrs`'s own `strlen` call.
+    `Vec::extend_from_slice`/`push` grow the buffer as they go, and
+    there's no `strlen` terminator to reserve room for any more, so the
+    whole first pass and the `+1`-byte NUL accounting are simply gone.
+    The decimal-integer-to-text conversion (`snprintf(head, 20, "%d",
+    n)`) becomes `bytesbuild!(n as i32)`, reusing `i32`'s existing
+    `SdsPart` impl (plain, unpadded decimal -- matches `%d` exactly)
+    instead of a fixed 20-byte `snprintf` scratch buffer.
+  - **The one remaining FFI call in this area, left alone**: `table/
+    glyf.rs`'s diagnostic `wrong` callback still calls `libc::fprintf`
+    to print a parse error to stderr -- unrelated to this stage's scope
+    (a real, intentional FFI print, not c2rust residue), so it stays,
+    now wrapped in its own narrow `unsafe {}` (previously nested inside
+    the whole `parse_ttinstr` call's now-removed outer `unsafe {}`) and
+    building its NUL-terminated buffers from the new safe `&[u8]`
+    `reason` parameter instead of forwarding a raw pointer through.
+  - **New regression tests, one of which caught a real mistake made
+    while writing this stage**: `a_bracket_family_base_name_without_
+    its_bracket_is_not_treated_as_a_prefix_match` pins the
+    length-equality fix above directly ("MDRP" alone, no bracket, must
+    not resolve to "MDRP[grey]"'s opcode just because it's a genuine
+    4-character prefix of it) -- `golden.rs`'s real-font fixtures did
+    *not* catch this when the check was temporarily loosened to a prefix
+    comparison during development (apparently no font in the corpus
+    happens to feed a bracket-family base name through without its
+    bracket), so this is exactly the kind of case a dedicated unit test
+    exists to cover that fixture-based testing alone would miss.
+    `strtol_base0_matches_libc_strtol_hex_octal_and_decimal_prefixes`
+    pins the hex/octal/decimal auto-detection directly. **Test
+    effectiveness verified for both**: temporarily loosening
+    `instr_name_matches` to a prefix comparison made the first test fail
+    with a clear, wrong-opcode mismatch; reverted immediately after.
+  - **Verification**: full pipeline green -- build, `clippy --all-targets
+    -- -D warnings`, `cargo test --lib` (408, incl. the 2 new tests),
+    `cargo test -- --test-threads=1` (integration suite, incl.
+    `golden.rs`'s byte-exact fixtures and `cycles.rs` -- a debug print
+    confirmed `parse_instrs` runs on non-empty instruction text 23,982
+    times across just `golden.rs`/`cycles.rs`/`lookup_alias.rs`, real
+    TrueType hinting bytecode from real fonts round-tripped through the
+    new hand-written lexer and checked byte-exact against golden output,
+    removed before committing), Miri (372 passed, 36 ignored, 0 UB),
+    all three fuzz targets 90s each plus every `tests/fuzz-corpus/
+    known-issues/*.bin` re-run directly against its target binary
+    (including both `otf-dump-ttinstr-npushb-oob-write.bin` and
+    `otf-dump-ttinstr-pushw-orphaned-wordhi-oob-read.bin`, the two
+    known-issue files that exercise `instr_typify`'s own bounds fixes
+    directly -- no regression). `survey-unsafe.sh`: `unsafe fn`
+    72 -> 67 (exactly the 5 the plan predicted), `unsafe blocks`
+    193 -> 188, raw pointer types 805 -> 751, `.offset(` calls 59 -> 24.
+
 - **Stage L-9a: `Font` is an owned `Box<Font>` end to end --
   `otfcc_font_create`/`otfcc_font_free` deleted, `read_otf`/`read_json`
   return `Option<Box<Font>>`.** Ninth installment of Stage L, and the

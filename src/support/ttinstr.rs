@@ -1,6 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-use libc::{memcpy, snprintf, strlen, strtol};
-
 use crate::support::parsed_json::ParsedValue;
 
 use crate::support::options::Options;
@@ -22,17 +19,18 @@ pub const TTF_NPUSHB: u8 = 64;
 pub const TTF_NPUSHW: u8 = 65;
 pub const TTF_PUSHB: u8 = 176;
 pub const TTF_PUSHW: u8 = 184;
-// `instrs` stays a borrowed raw pointer -- every `InstrData.instrs` value is
-// an alias into a caller-owned buffer (`Glyph.instructions`/`FpgmPrepTable.
-// bytes`), never allocated here, and those two fields are themselves a
-// deliberate Stage 6-4 "outer struct Box'd, inner array stays a manually
-// freed raw pointer" case, per RUST_MIGRATION.md -- left untouched this round.
-// `bts`, in contrast, is allocated, filled, and freed entirely within this
-// file (`instr_typify` builds it, `dump_ttinstr` reads it and drops it), so
-// it converts cleanly to `Vec` with no boundary to preserve.
+// Stage L-8: `instrs` is a real borrowed slice now, not a raw pointer --
+// every `InstrData` value only ever lives for the duration of one
+// `dump_ttinstr` call (never stored, never outlives its caller's own
+// buffer), so a lifetime parameter costs nothing at either of its two
+// call sites (both already hold a `&[u8]` for exactly as long as this
+// struct needs to borrow it). `bts`, in contrast, is allocated, filled,
+// and freed entirely within this file (`instr_typify` builds it,
+// `dump_ttinstr` reads it and drops it), so it converts cleanly to `Vec`
+// with no boundary to preserve.
 #[derive(Debug)]
-pub struct InstrData {
-    pub instrs: *mut u8,
+pub struct InstrData<'a> {
+    pub instrs: &'a [u8],
     pub instr_cnt: u32,
     /// What each byte of `instrs` *is*, one entry per byte, filled in by
     /// [`instr_typify`]. Not part of the instruction stream: the two arrays run
@@ -313,29 +311,97 @@ pub static FF_TTF_INSTRNAMES: [&[u8]; 256] = [
     b"MIRP[rp0,min,rnd,white]",
     b"MIRP1f",
 ];
-unsafe fn strnmatch(
-    mut str1: *const ::core::ffi::c_char,
-    mut str2: *const ::core::ffi::c_char,
-    mut n: i32,
-) -> i32 {
-    let mut ch1: i32;
-    let mut ch2: i32;
-    loop {
-        if !(n > 0_i32) {
-            break;
-        }
-        n = n - 1;
-        ch1 = *str1 as i32;
-        str1 = str1.offset(1);
-        ch2 = *str2 as i32;
-        str2 = str2.offset(1);
-        ch1 = c_tolower(ch1);
-        ch2 = c_tolower(ch2);
-        if ch1 != ch2 || ch1 == '\0' as i32 {
-            return ch1 - ch2;
-        }
+/// Peeks the byte at `pos`, or `0` past the end -- the same sentinel a
+/// NUL-terminated C string gives a `strlen`/pointer-walking reader for
+/// "nothing more here", reproduced without needing an actual embedded NUL
+/// byte or an out-of-bounds read to get it. An embedded NUL byte inside
+/// `text` (reachable: `parse_ttinstr` can copy arbitrary JSON string bytes
+/// in) reads back as `0` here exactly like the true end of the buffer
+/// does -- the same ambiguity a C string can't distinguish either, so this
+/// is a faithful port, not a new behavior.
+fn peek(text: &[u8], pos: usize) -> u8 {
+    text.get(pos).copied().unwrap_or(0)
+}
+/// Mirrors `strtol(s, &mut end, 0)`'s base-0 auto-detection on the decimal
+/// push-value operands `parse_instrs` reads: an optional leading `-`,
+/// then a radix from the digit prefix -- `"0x"`/`"0X"` (followed by at
+/// least one hex digit) selects hex, a leading `0` (followed by at least
+/// one octal digit) selects octal, anything else is decimal. Returns the
+/// value and how many bytes of `s` were consumed. Only ever called on a
+/// prefix already confirmed to start with a digit or `-`
+/// (`peek(..).is_ascii_digit() || peek(..) == b'-'`), so there is always
+/// at least the decimal fallback to consume something.
+fn strtol_base0(s: &[u8]) -> (i64, usize) {
+    let mut i = 0usize;
+    let neg = s.first() == Some(&b'-');
+    if neg {
+        i += 1;
     }
-    return 0_i32;
+    if s[i..].len() >= 3 && s[i] == b'0' && matches!(s[i + 1], b'x' | b'X') && s[i + 2].is_ascii_hexdigit() {
+        let mut j = i + 2;
+        let mut val: i64 = 0;
+        while let Some(d) = s.get(j).and_then(|&b| (b as char).to_digit(16)) {
+            val = val * 16 + d as i64;
+            j += 1;
+        }
+        return (if neg { -val } else { val }, j);
+    }
+    if s.get(i) == Some(&b'0') && s.get(i + 1).is_some_and(u8::is_ascii_digit) && s[i + 1] <= b'7' {
+        let mut j = i + 1;
+        let mut val: i64 = 0;
+        while s.get(j).is_some_and(|&b| (b'0'..=b'7').contains(&b)) {
+            val = val * 8 + (s[j] - b'0') as i64;
+            j += 1;
+        }
+        return (if neg { -val } else { val }, j);
+    }
+    let mut j = i;
+    let mut val: i64 = 0;
+    while s.get(j).is_some_and(u8::is_ascii_digit) {
+        val = val * 10 + (s[j] - b'0') as i64;
+        j += 1;
+    }
+    (if neg { -val } else { val }, j)
+}
+/// Mirrors `strtol(s, &mut end, 2)` for the fixed-base binary value inside
+/// a bracketed command like `MDRP[grey]`'s `grey` -- no prefix detection
+/// (an explicit non-zero base never skips one), just an optional `-` and
+/// then `0`/`1` digits.
+fn strtol_base2(s: &[u8]) -> (i64, usize) {
+    let mut i = 0usize;
+    let neg = s.first() == Some(&b'-');
+    if neg {
+        i += 1;
+    }
+    let mut j = i;
+    let mut val: i64 = 0;
+    while matches!(s.get(j), Some(b'0') | Some(b'1')) {
+        val = val * 2 + (s[j] - b'0') as i64;
+        j += 1;
+    }
+    (if neg { -val } else { val }, j)
+}
+/// Case-insensitive *exact-length* comparison, replacing `strnmatch(pt,
+/// name, end-pt) == 0 && (end-pt) == name.len()`'s combined condition.
+/// The original's own `strnmatch` call read up to `end-pt` bytes from
+/// `name` regardless of `name`'s own length -- reading past a shorter
+/// `FF_TTF_INSTRNAMES` entry's static array bounds whenever `end-pt`
+/// exceeded it, before the separate length check downstream ever ran.
+/// Comparing real slices (with the length check moved *first*) makes
+/// that read structurally impossible instead of merely detecting the
+/// mismatch afterward.
+fn instr_name_matches(token: &[u8], name: &[u8]) -> bool {
+    token.len() == name.len() && token.iter().zip(name).all(|(&a, &b)| c_tolower(a as i32) == c_tolower(b as i32))
+}
+/// Case-insensitive *prefix* comparison -- `token` may be shorter than
+/// `name`, used only for the bracketed-family fallback scan
+/// (`MDRP[...]`/`MIRP[...]`-style names). The original's own second
+/// `strnmatch` call had no length-equality check at all, only the
+/// shared-prefix comparison through the bracket character; the
+/// `token.len() <= name.len()` guard here is the same "never read past
+/// either slice" fix `instr_name_matches` makes above.
+fn instr_name_has_prefix(token: &[u8], name: &[u8]) -> bool {
+    token.len() <= name.len() && token.iter().zip(name).all(|(&a, &b)| c_tolower(a as i32) == c_tolower(b as i32))
 }
 // Was a `*mut c_void` context pointer + `Option<unsafe fn(*mut c_void,
 // ...)>` callback, type-erasing this function's two callers' distinct
@@ -349,77 +415,52 @@ unsafe fn strnmatch(
 // `iv_error` -- a generic `impl FnMut` closure carries the same
 // information with no context pointer to thread at all, since each
 // concrete error handler can just capture what it needs directly.
-unsafe fn parse_instrs(
-    text: *mut ::core::ffi::c_char,
-    mut iv_error: impl FnMut(*mut ::core::ffi::c_char, i32),
-) -> Option<Vec<u8>> {
-    let mut numberstack: [::core::ffi::c_short; 256] = [0; 256];
+fn parse_instrs(text: &[u8], mut iv_error: impl FnMut(&[u8], i32)) -> Option<Vec<u8>> {
+    let mut numberstack: [i16; 256] = [0; 256];
     let mut npos: i32;
     let mut nread: i32;
     let mut i: i32;
     let mut push_left: i32 = 0_i32;
     let mut push_size: i32 = 0_i32;
-    let mut pt: *mut ::core::ffi::c_char;
-    let mut end: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut bend: *mut ::core::ffi::c_char = ::core::ptr::null_mut::<::core::ffi::c_char>();
-    let mut brack: *mut ::core::ffi::c_char;
-    let imax: i32 = strlen(text) as i32;
+    let mut end: usize;
+    let mut bend: usize;
+    let mut brack: Option<usize>;
     let mut val: i32;
-    let mut instrs: Vec<u8> = Vec::with_capacity(imax as usize);
-    pt = text;
-    while *pt != 0 {
+    let mut instrs: Vec<u8> = Vec::with_capacity(text.len());
+    let mut pt: usize = 0;
+    while peek(text, pt) != 0 {
         npos = 0_i32;
         while npos < 256_i32 {
-            while *pt as i32 == ' ' as i32
-                || *pt as i32 == '\t' as i32
-            {
-                pt = pt.offset(1);
+            while peek(text, pt) == b' ' || peek(text, pt) == b'\t' {
+                pt += 1;
             }
-            if !(c_isdigit(*pt as i32) || *pt as i32 == '-' as i32) {
+            let c = peek(text, pt);
+            if !(c_isdigit(c as i32) || c == b'-') {
                 break;
             }
-            val = strtol(pt, &raw mut end, 0_i32) as i32;
+            let (raw_val, consumed) = strtol_base0(&text[pt..]);
+            val = raw_val as i32;
             if !(-32768_i32..=32767_i32).contains(&val) {
-                iv_error(
-                    b"A value must be between [-32768,32767]\0" as *const u8
-                        as *const ::core::ffi::c_char
-                        as *mut ::core::ffi::c_char,
-                    pt.offset_from(text) as ::core::ffi::c_long as i32,
-                );
+                iv_error(b"A value must be between [-32768,32767]", pt as i32);
                 return None;
             }
-            pt = end;
-            numberstack[npos as usize] = val as ::core::ffi::c_short;
+            pt += consumed;
+            numberstack[npos as usize] = val as i16;
             npos = npos + 1;
         }
-        while *pt as i32 == ' ' as i32 || *pt as i32 == '\t' as i32 {
-            pt = pt.offset(1);
+        while peek(text, pt) == b' ' || peek(text, pt) == b'\t' {
+            pt += 1;
         }
-        if !(npos == 0_i32
-            && (*pt as i32 == '\r' as i32
-                || *pt as i32 == '\n' as i32
-                || *pt as i32 == '\0' as i32))
-        {
+        let c = peek(text, pt);
+        if !(npos == 0_i32 && (c == b'\r' || c == b'\n' || c == 0)) {
             nread = 0_i32;
             if push_left == -1_i32 {
                 if npos == 0_i32 {
-                    iv_error(
-                        b"Expected a number for a push count\0" as *const u8
-                            as *const ::core::ffi::c_char
-                            as *mut ::core::ffi::c_char,
-                        pt.offset_from(text) as ::core::ffi::c_long as i32,
-                    );
-                } else if numberstack[0_i32 as usize] as i32
-                    > 255_i32
-                    || numberstack[0_i32 as usize] as i32
-                        <= 0_i32
+                    iv_error(b"Expected a number for a push count", pt as i32);
+                } else if numberstack[0_i32 as usize] as i32 > 255_i32
+                    || numberstack[0_i32 as usize] as i32 <= 0_i32
                 {
-                    iv_error(
-                        b"The push count must be a number between 0 and 255\0" as *const u8
-                            as *const ::core::ffi::c_char
-                            as *mut ::core::ffi::c_char,
-                        pt.offset_from(text) as ::core::ffi::c_long as i32,
-                    );
+                    iv_error(b"The push count must be a number between 0 and 255", pt as i32);
                     return None;
                 } else {
                     nread = 1_i32;
@@ -427,41 +468,22 @@ unsafe fn parse_instrs(
                     push_left = numberstack[0_i32 as usize] as i32;
                 }
             }
-            if push_left != 0_i32
-                && push_left < npos - nread
-                && (*pt as i32 == '\r' as i32
-                    || *pt as i32 == '\n' as i32
-                    || *pt as i32 == '\0' as i32)
-            {
-                iv_error(
-                    b"More pushes specified than needed\0" as *const u8
-                        as *const ::core::ffi::c_char
-                        as *mut ::core::ffi::c_char,
-                    pt.offset_from(text) as ::core::ffi::c_long as i32,
-                );
+            let c = peek(text, pt);
+            if push_left != 0_i32 && push_left < npos - nread && (c == b'\r' || c == b'\n' || c == 0) {
+                iv_error(b"More pushes specified than needed", pt as i32);
                 return None;
             }
             while push_left > 0_i32 && nread < npos {
                 if push_size == 2_i32 {
-                    instrs.push(
-                        (numberstack[nread as usize] as i32
-                            >> 8_i32) as u8,
-                    );
-                    instrs.push(
-                        (numberstack[nread as usize] as i32
-                            & 0xff_i32) as u8,
-                    );
+                    instrs.push((numberstack[nread as usize] as i32 >> 8_i32) as u8);
+                    instrs.push((numberstack[nread as usize] as i32 & 0xff_i32) as u8);
                     nread = nread + 1;
-                } else if numberstack[0_i32 as usize] as i32
-                    > 255_i32
-                    || (numberstack[0_i32 as usize] as i32)
-                        < 0_i32
+                } else if numberstack[0_i32 as usize] as i32 > 255_i32
+                    || (numberstack[0_i32 as usize] as i32) < 0_i32
                 {
                     iv_error(
-                        b"A value to be pushed by a byte push must be between 0 and 255\0"
-                            as *const u8 as *const ::core::ffi::c_char
-                            as *mut ::core::ffi::c_char,
-                        pt.offset_from(text) as ::core::ffi::c_long as i32,
+                        b"A value to be pushed by a byte push must be between 0 and 255",
+                        pt as i32,
                     );
                     return None;
                 } else {
@@ -470,51 +492,25 @@ unsafe fn parse_instrs(
                 }
                 push_left -= 1;
             }
-            if nread < npos
-                && push_left == 0_i32
-                && (*pt as i32 == '\r' as i32
-                    || *pt as i32 == '\n' as i32
-                    || *pt as i32 == '\0' as i32)
-            {
-                iv_error(
-                    b"Unexpected number\0" as *const u8 as *const ::core::ffi::c_char
-                        as *mut ::core::ffi::c_char,
-                    pt.offset_from(text) as ::core::ffi::c_long as i32,
-                );
+            let c = peek(text, pt);
+            if nread < npos && push_left == 0_i32 && (c == b'\r' || c == b'\n' || c == 0) {
+                iv_error(b"Unexpected number", pt as i32);
                 return None;
             }
-            if !(*pt as i32 == '\r' as i32
-                || *pt as i32 == '\n' as i32
-                || *pt as i32 == '\0' as i32)
-            {
+            let c = peek(text, pt);
+            if !(c == b'\r' || c == b'\n' || c == 0) {
                 if push_left > 0_i32 {
-                    iv_error(
-                        b"Missing pushes\0" as *const u8 as *const ::core::ffi::c_char
-                            as *mut ::core::ffi::c_char,
-                        pt.offset_from(text) as ::core::ffi::c_long as i32,
-                    );
+                    iv_error(b"Missing pushes", pt as i32);
                     return None;
                 }
                 while nread < npos {
                     i = nread;
-                    if numberstack[nread as usize] as i32 >= 0_i32
-                        && numberstack[nread as usize] as i32
-                            <= 255_i32
-                    {
-                        while i < npos
-                            && numberstack[i as usize] as i32
-                                >= 0_i32
-                            && numberstack[i as usize] as i32
-                                <= 255_i32
-                        {
+                    if numberstack[nread as usize] as i32 >= 0_i32 && numberstack[nread as usize] as i32 <= 255_i32 {
+                        while i < npos && numberstack[i as usize] as i32 >= 0_i32 && numberstack[i as usize] as i32 <= 255_i32 {
                             i += 1;
                         }
                         if i - nread <= 8_i32 {
-                            instrs.push(
-                                (TTF_PUSHB as i32 + (i - nread)
-                                    - 1_i32)
-                                    as u8,
-                            );
+                            instrs.push((TTF_PUSHB as i32 + (i - nread) - 1_i32) as u8);
                         } else {
                             instrs.push(TTF_NPUSHB);
                             instrs.push((i - nread) as u8);
@@ -524,161 +520,100 @@ unsafe fn parse_instrs(
                             nread = nread + 1;
                         }
                     } else {
-                        while i < npos
-                            && ((numberstack[i as usize] as i32)
-                                < 0_i32
-                                || numberstack[i as usize] as i32
-                                    > 255_i32)
-                        {
+                        while i < npos && ((numberstack[i as usize] as i32) < 0_i32 || numberstack[i as usize] as i32 > 255_i32) {
                             i += 1;
                         }
                         if i - nread <= 8_i32 {
-                            instrs.push(
-                                (TTF_PUSHW as i32 + (i - nread)
-                                    - 1_i32)
-                                    as u8,
-                            );
+                            instrs.push((TTF_PUSHW as i32 + (i - nread) - 1_i32) as u8);
                         } else {
                             instrs.push(TTF_NPUSHW);
                             instrs.push((i - nread) as u8);
                         }
                         while nread < i {
-                            instrs.push(
-                                (numberstack[nread as usize] as i32
-                                    >> 8_i32)
-                                    as u8,
-                            );
-                            instrs.push(
-                                (numberstack[nread as usize] as i32
-                                    & 0xff_i32)
-                                    as u8,
-                            );
+                            instrs.push((numberstack[nread as usize] as i32 >> 8_i32) as u8);
+                            instrs.push((numberstack[nread as usize] as i32 & 0xff_i32) as u8);
                             nread = nread + 1;
                         }
                     }
                 }
-                brack = ::core::ptr::null_mut::<::core::ffi::c_char>();
+                brack = None;
                 end = pt;
-                while *end as i32 != '\r' as i32
-                    && *end as i32 != '\n' as i32
-                    && *end as i32 != ' ' as i32
-                    && *end as i32 != '\0' as i32
-                {
-                    if *end as i32 == '[' as i32
-                        || *end as i32 == '_' as i32
-                    {
-                        brack = end;
+                while !matches!(peek(text, end), b'\r' | b'\n' | b' ' | 0) {
+                    if matches!(peek(text, end), b'[' | b'_') {
+                        brack = Some(end);
                     }
-                    end = end.offset(1);
+                    end += 1;
                 }
                 i = 0_i32;
                 while i < 256_i32 {
-                    if strnmatch(
-                        pt,
-                        FF_TTF_INSTRNAMES[i as usize].as_ptr() as *const ::core::ffi::c_char,
-                        end.offset_from(pt) as ::core::ffi::c_long as i32,
-                    ) == 0_i32
-                        && ::core::mem::size_of::<::core::ffi::c_char>()
-                            .wrapping_mul(end.offset_from(pt) as ::core::ffi::c_long as usize)
-                            == FF_TTF_INSTRNAMES[i as usize].len()
-                    {
+                    if instr_name_matches(&text[pt..end], FF_TTF_INSTRNAMES[i as usize]) {
                         break;
                     }
                     i += 1;
                 }
-                if i == 256_i32 && !brack.is_null() {
-                    i = 0_i32;
-                    while i < 256_i32 {
-                        if strnmatch(
-                            pt,
-                            FF_TTF_INSTRNAMES[i as usize].as_ptr() as *const ::core::ffi::c_char,
-                            (brack.offset_from(pt) as ::core::ffi::c_long
-                                + 1 as ::core::ffi::c_long)
-                                as i32,
-                        ) == 0_i32
-                        {
-                            break;
+                if i == 256_i32 {
+                    if let Some(brack) = brack {
+                        i = 0_i32;
+                        while i < 256_i32 {
+                            if instr_name_has_prefix(&text[pt..=brack], FF_TTF_INSTRNAMES[i as usize]) {
+                                break;
+                            }
+                            i += 1;
                         }
-                        i += 1;
+                        let (raw_val, consumed) = strtol_base2(&text[brack + 1..]);
+                        val = raw_val as i32;
+                        bend = brack + 1 + consumed;
+                        while peek(text, bend) == b' ' || peek(text, bend) == b'\t' {
+                            bend += 1;
+                        }
+                        if peek(text, bend) != b']' {
+                            iv_error(
+                                b"Missing right bracket in command (or bad binary value in bracket)",
+                                pt as i32,
+                            );
+                            return None;
+                        }
+                        if val >= 32_i32 {
+                            iv_error(b"Bracketted value is too large", pt as i32);
+                            return None;
+                        }
+                        i += val;
                     }
-                    val = strtol(
-                        brack.offset(1_i32 as isize),
-                        &raw mut bend,
-                        2_i32,
-                    ) as i32;
-                    while *bend as i32 == ' ' as i32
-                        || *bend as i32 == '\t' as i32
-                    {
-                        bend = bend.offset(1);
-                    }
-                    if *bend as i32 != ']' as i32 {
-                        iv_error(
-                            b"Missing right bracket in command (or bad binary value in bracket)\0"
-                                as *const u8
-                                as *const ::core::ffi::c_char
-                                as *mut ::core::ffi::c_char,
-                            pt.offset_from(text) as ::core::ffi::c_long as i32,
-                        );
-                        return None;
-                    }
-                    if val >= 32_i32 {
-                        iv_error(
-                            b"Bracketted value is too large\0" as *const u8
-                                as *const ::core::ffi::c_char
-                                as *mut ::core::ffi::c_char,
-                            pt.offset_from(text) as ::core::ffi::c_long as i32,
-                        );
-                        return None;
-                    }
-                    i += val;
                 }
                 pt = end;
                 instrs.push(i as u8);
-                if i == TTF_NPUSHB as i32
-                    || i == TTF_NPUSHW as i32
-                    || i >= TTF_PUSHB as i32
-                        && i <= TTF_PUSHW as i32 + 7_i32
-                {
-                    push_size = if i == TTF_NPUSHB as i32
-                        || i >= TTF_PUSHB as i32
-                            && i <= TTF_PUSHB as i32 + 7_i32
-                    {
+                if i == TTF_NPUSHB as i32 || i == TTF_NPUSHW as i32 || i >= TTF_PUSHB as i32 && i <= TTF_PUSHW as i32 + 7_i32 {
+                    push_size = if i == TTF_NPUSHB as i32 || i >= TTF_PUSHB as i32 && i <= TTF_PUSHB as i32 + 7_i32 {
                         1_i32
                     } else {
                         2_i32
                     };
-                    if i == TTF_NPUSHB as i32
-                        || i == TTF_NPUSHW as i32
-                    {
+                    if i == TTF_NPUSHB as i32 || i == TTF_NPUSHW as i32 {
                         push_left = -1_i32;
-                    } else if i >= TTF_PUSHB as i32
-                        && i <= TTF_PUSHB as i32 + 7_i32
-                    {
+                    } else if i >= TTF_PUSHB as i32 && i <= TTF_PUSHB as i32 + 7_i32 {
                         push_left = i - TTF_PUSHB as i32 + 1_i32;
                     } else {
                         push_left = i - TTF_PUSHW as i32 + 1_i32;
                     }
                 }
-                if *pt as i32 == '\0' as i32 {
+                if peek(text, pt) == 0 {
                     break;
                 }
             }
         }
-        pt = pt.offset(1);
+        pt += 1;
     }
     Some(instrs)
 }
-unsafe fn instr_typify(id: *mut InstrData) -> i32 {
+fn instr_typify(id: &mut InstrData) -> i32 {
     let mut i: i32;
-    let len: i32 = (*id).instr_cnt as i32;
+    let len: i32 = id.instr_cnt as i32;
     let mut cnt: i32;
     let mut j: i32;
     let mut lh: i32;
-    let instrs: *mut u8 = (*id).instrs;
-    if (*id).bts.is_empty() {
-        (*id).bts = vec![ByteType::Instr; (len + 1_i32) as usize];
+    if id.bts.is_empty() {
+        id.bts = vec![ByteType::Instr; (len + 1_i32) as usize];
     }
-    let bts: *mut ByteType = (*id).bts.as_mut_ptr();
     lh = 0_i32;
     i = lh;
     // `NPUSHB`/`NPUSHW`/`PUSHB[n]`/`PUSHW[n]` each carry their own
@@ -699,33 +634,33 @@ unsafe fn instr_typify(id: *mut InstrData) -> i32 {
     // condition would anyway, so the trailing `ImpliedReturn` write below
     // needs no separate guard.
     'outer: while i < len {
-        *bts.offset(i as isize) = ByteType::Instr;
+        id.bts[i as usize] = ByteType::Instr;
         lh += 1;
-        if *instrs.offset(i as isize) == TTF_NPUSHB {
+        if id.instrs[i as usize] == TTF_NPUSHB {
             i += 1;
             if i >= len {
                 break 'outer;
             }
-            *bts.offset(i as isize) = ByteType::Cnt;
-            cnt = *instrs.offset(i as isize) as i32;
+            id.bts[i as usize] = ByteType::Cnt;
+            cnt = id.instrs[i as usize] as i32;
             j = 0_i32;
             while j < cnt {
                 i += 1;
                 if i >= len {
                     break 'outer;
                 }
-                *bts.offset(i as isize) = ByteType::Byte;
+                id.bts[i as usize] = ByteType::Byte;
                 j += 1;
             }
             lh += 1_i32 + cnt;
-        } else if *instrs.offset(i as isize) == TTF_NPUSHW {
+        } else if id.instrs[i as usize] == TTF_NPUSHW {
             i += 1;
             if i >= len {
                 break 'outer;
             }
-            *bts.offset(i as isize) = ByteType::Cnt;
+            id.bts[i as usize] = ByteType::Cnt;
             lh += 1;
-            cnt = *instrs.offset(i as isize) as i32;
+            cnt = id.instrs[i as usize] as i32;
             j = 0_i32;
             while j < cnt {
                 i += 1;
@@ -742,8 +677,8 @@ unsafe fn instr_typify(id: *mut InstrData) -> i32 {
                 // font's truncated `NPUSHW`/`PUSHW[n]` operand did exactly
                 // this, a 1-byte heap-buffer-overflow read in
                 // `dump_ttinstr`).
-                if i.wrapping_add(1) >= len {
-                    *bts.offset(i as isize) = ByteType::Byte;
+                if i + 1 >= len {
+                    id.bts[i as usize] = ByteType::Byte;
                     // Advance `i` to `len` before breaking -- every other
                     // break path in this loop leaves `i == len`, which the
                     // unconditional `ImpliedReturn` write right after this
@@ -755,32 +690,26 @@ unsafe fn instr_typify(id: *mut InstrData) -> i32 {
                     i += 1;
                     break 'outer;
                 }
-                *bts.offset(i as isize) = ByteType::WordHi;
+                id.bts[i as usize] = ByteType::WordHi;
                 i += 1;
-                *bts.offset(i as isize) = ByteType::WordLo;
+                id.bts[i as usize] = ByteType::WordLo;
                 j += 1;
             }
             lh += 1_i32 + cnt;
-        } else if *instrs.offset(i as isize) as i32 & 0xf8_i32
-            == 0xb0_i32
-        {
-            cnt = (*instrs.offset(i as isize) as i32 & 7_i32)
-                + 1_i32;
+        } else if id.instrs[i as usize] as i32 & 0xf8_i32 == 0xb0_i32 {
+            cnt = (id.instrs[i as usize] as i32 & 7_i32) + 1_i32;
             j = 0_i32;
             while j < cnt {
                 i += 1;
                 if i >= len {
                     break 'outer;
                 }
-                *bts.offset(i as isize) = ByteType::Byte;
+                id.bts[i as usize] = ByteType::Byte;
                 j += 1;
             }
             lh += cnt;
-        } else if *instrs.offset(i as isize) as i32 & 0xf8_i32
-            == 0xb8_i32
-        {
-            cnt = (*instrs.offset(i as isize) as i32 & 7_i32)
-                + 1_i32;
+        } else if id.instrs[i as usize] as i32 & 0xf8_i32 == 0xb8_i32 {
+            cnt = (id.instrs[i as usize] as i32 & 7_i32) + 1_i32;
             j = 0_i32;
             while j < cnt {
                 i += 1;
@@ -788,8 +717,8 @@ unsafe fn instr_typify(id: *mut InstrData) -> i32 {
                     break 'outer;
                 }
                 // Same "no orphaned WordHi" fix as the NPUSHW branch above.
-                if i.wrapping_add(1) >= len {
-                    *bts.offset(i as isize) = ByteType::Byte;
+                if i + 1 >= len {
+                    id.bts[i as usize] = ByteType::Byte;
                     // Advance `i` to `len` before breaking -- every other
                     // break path in this loop leaves `i == len`, which the
                     // unconditional `ImpliedReturn` write right after this
@@ -801,50 +730,40 @@ unsafe fn instr_typify(id: *mut InstrData) -> i32 {
                     i += 1;
                     break 'outer;
                 }
-                *bts.offset(i as isize) = ByteType::WordHi;
+                id.bts[i as usize] = ByteType::WordHi;
                 i += 1;
-                *bts.offset(i as isize) = ByteType::WordLo;
+                id.bts[i as usize] = ByteType::WordLo;
                 j += 1;
             }
             lh += cnt;
         }
         i += 1;
     }
-    *bts.offset(i as isize) = ByteType::ImpliedReturn;
-    return lh;
+    id.bts[i as usize] = ByteType::ImpliedReturn;
+    lh
 }
-pub unsafe fn dump_ttinstr(instructions: *mut u8, length: u32, options: &Options) -> BuiltValue {
+pub fn dump_ttinstr(instructions: &[u8], options: &Options) -> BuiltValue {
     if options.instr_as_bytes {
-        let encoded = base64_encode(::core::slice::from_raw_parts(
-            instructions,
-            length as usize,
-        ));
-        BuiltValue::Str(encoded)
+        BuiltValue::Str(base64_encode(instructions))
     } else {
-        let mut id: InstrData = InstrData {
-            instrs: ::core::ptr::null_mut::<u8>(),
-            instr_cnt: 0,
+        let mut id = InstrData {
+            instrs: instructions,
+            instr_cnt: instructions.len() as u32,
             bts: Vec::new(),
         };
-        id.instr_cnt = length;
-        id.instrs = instructions;
-        instr_typify(&raw mut id);
+        instr_typify(&mut id);
         let mut ret = BuiltValue::new_array(id.instr_cnt as usize);
         let mut i: u32 = 0_u32;
         while i < id.instr_cnt {
             if id.bts[i as usize] == ByteType::WordHi {
                 ret.push_item(BuiltValue::Int(
-                    ((*id.instrs.offset(i as isize) as i32) << 8_i32
-                        | *id.instrs.offset(i.wrapping_add(1_u32) as isize) as i32)
-                        as i16 as i64,
+                    ((id.instrs[i as usize] as i32) << 8_i32 | id.instrs[i.wrapping_add(1_u32) as usize] as i32) as i16 as i64,
                 ));
                 i = i.wrapping_add(1);
             } else if id.bts[i as usize] == ByteType::Cnt || id.bts[i as usize] == ByteType::Byte {
-                ret.push_item(BuiltValue::Int(*id.instrs.offset(i as isize) as i64));
+                ret.push_item(BuiltValue::Int(id.instrs[i as usize] as i64));
             } else {
-                ret.push_item(BuiltValue::Str(
-                    FF_TTF_INSTRNAMES[*id.instrs.offset(i as isize) as usize].to_vec(),
-                ));
+                ret.push_item(BuiltValue::Str(FF_TTF_INSTRNAMES[id.instrs[i as usize] as usize].to_vec()));
             }
             i = i.wrapping_add(1);
         }
@@ -856,12 +775,8 @@ pub unsafe fn dump_ttinstr(instructions: *mut u8, length: u32, options: &Options
 // `wrong` (this function's own two callers, `table/fpgm_prep.rs`'s
 // `otfcc_parse_fpgm_prep` and `table/glyf.rs`'s `otfcc_glyf_parse_glyph`,
 // each with a different concrete target for `make` to write into).
-pub unsafe fn parse_ttinstr(
-    col: *const ParsedValue,
-    mut make: impl FnMut(Vec<u8>),
-    mut wrong: impl FnMut(*mut ::core::ffi::c_char, i32),
-) {
-    let Some(col_ref) = col.as_ref() else {
+pub fn parse_ttinstr(col: Option<&ParsedValue>, mut make: impl FnMut(Vec<u8>), mut wrong: impl FnMut(&[u8], i32)) {
+    let Some(col_ref) = col else {
         make(Vec::new());
         return;
     };
@@ -874,49 +789,28 @@ pub unsafe fn parse_ttinstr(
         make(Vec::new());
         return;
     };
-    let mut istrlen: usize = 0_usize;
+    // No pre-computed total length needed any more (that was only ever in
+    // service of a single `sdsnewlen`/zero-filled-`Vec` allocation sized
+    // up front) -- `Vec::extend_from_slice`/`push` grow the buffer as they
+    // go, and there's no `strlen`-terminator byte to leave room for either
+    // (`parse_instrs` takes a real `&[u8]` now, with its own length).
+    let mut instr_string: Vec<u8> = Vec::new();
     for record in items {
         if let Some(bytes) = record.as_str_bytes() {
-            istrlen = istrlen.wrapping_add(bytes.len().wrapping_add(1_usize));
-        } else if record.as_int().is_some() {
-            istrlen = istrlen.wrapping_add(1_usize + 20_usize);
+            instr_string.extend_from_slice(bytes);
+        } else if let Some(n) = record.as_int() {
+            // Matches the original's `snprintf(head, 20, "%d", n as i32)`
+            // exactly: plain decimal, no padding, and the same `as i32`
+            // truncation for a value that doesn't fit ("%d" reads a C
+            // `int`).
+            instr_string.extend(crate::bytesbuild!(n as i32));
         } else {
             make(Vec::new());
             return;
         }
+        instr_string.push(b'\n');
     }
-    // Zero-filled, `istrlen + 1` bytes: the fill loop below writes
-    // exactly `istrlen` bytes, leaving the last one at its zero-
-    // initialized value as `parse_instrs`'s NUL terminator (it reads
-    // this buffer with `strlen`) -- same size and same guarantee
-    // `sdsnewlen(NULL, istrlen + 1)` gave, without needing `sds` at
-    // all.
-    let mut instr_string: Vec<u8> = vec![0u8; istrlen.wrapping_add(1_usize)];
-    let mut head: *mut ::core::ffi::c_char = instr_string.as_mut_ptr() as *mut ::core::ffi::c_char;
-    for record in items {
-        if let Some(bytes) = record.as_str_bytes() {
-            memcpy(
-                head as *mut ::core::ffi::c_void,
-                bytes.as_ptr() as *const ::core::ffi::c_void,
-                bytes.len(),
-            );
-            head = head.offset(bytes.len() as isize);
-        } else if let Some(n) = record.as_int() {
-            let written: i32 = snprintf(
-                head,
-                20_usize,
-                b"%d\0" as *const u8 as *const ::core::ffi::c_char,
-                n as i32,
-            );
-            head = head.offset(written as isize);
-        }
-        *head = '\n' as i32 as ::core::ffi::c_char;
-        head = head.offset(1);
-    }
-    let instructions_0: Option<Vec<u8>> = parse_instrs(
-        instr_string.as_mut_ptr() as *mut ::core::ffi::c_char,
-        &mut wrong,
-    );
+    let instructions_0: Option<Vec<u8>> = parse_instrs(&instr_string, &mut wrong);
     match instructions_0 {
         Some(v) if !v.is_empty() => {
             make(v);
@@ -992,15 +886,13 @@ mod tests {
     // "pushed" operand bytes the count promises don't exist.
     #[test]
     fn npushb_count_running_past_the_declared_length_stops_cleanly_instead_of_overflowing_bts() {
-        let mut instrs: Vec<u8> = vec![TTF_NPUSHB, 2];
+        let instrs: Vec<u8> = vec![TTF_NPUSHB, 2];
         let mut id = InstrData {
-            instrs: instrs.as_mut_ptr(),
+            instrs: &instrs,
             instr_cnt: instrs.len() as u32,
             bts: Vec::new(),
         };
-        unsafe {
-            instr_typify(&raw mut id);
-        }
+        instr_typify(&mut id);
         // Reaching here at all -- rather than writing past `bts`'s
         // 3-slot allocation -- is the regression signal.
         assert_eq!(id.bts.len(), 3);
@@ -1018,16 +910,57 @@ mod tests {
     /// trailing byte reproduces the exact shape.
     #[test]
     fn pushw_with_only_one_trailing_byte_marks_it_plain_instead_of_an_orphaned_wordhi() {
-        let mut instrs: Vec<u8> = vec![0xb8, 0xab];
+        let instrs: Vec<u8> = vec![0xb8, 0xab];
         let mut id = InstrData {
-            instrs: instrs.as_mut_ptr(),
+            instrs: &instrs,
             instr_cnt: instrs.len() as u32,
             bts: Vec::new(),
         };
-        unsafe {
-            instr_typify(&raw mut id);
-        }
+        instr_typify(&mut id);
         // Must never be `WordHi` with nothing following it in `instrs`.
         assert_eq!(id.bts[1], ByteType::Byte);
+    }
+
+    // Stage L-8: `instr_name_matches`'s `token.len() == name.len()` guard
+    // replaces the original's separate `(end-pt) == name.len()` check
+    // that ran *alongside* `strnmatch`'s own comparison -- both are
+    // required for a match, exact length included. "MDRP" (no bracket)
+    // is a genuine 4-character *prefix* of "MDRP[grey]" but is not
+    // itself a complete entry in `FF_TTF_INSTRNAMES` (every MDRP variant
+    // needs a bracketed or numeric-suffixed qualifier) -- a prefix-only
+    // comparison would wrongly resolve it to that opcode instead of
+    // falling through to "not recognized", exactly the same outcome an
+    // unrecognized name with no bracket at all gets (opcode 0, via the
+    // `i == 256 as u8` wraparound). This test failed when
+    // `instr_name_matches` was temporarily changed to `token.len() <=
+    // name.len()` (a prefix comparison) during development, confirming
+    // it actually exercises the guard -- `golden.rs`'s real-font fixtures
+    // did not catch that same change, since none of them happen to feed
+    // a bracket-family base name through without its bracket.
+    #[test]
+    fn a_bracket_family_base_name_without_its_bracket_is_not_treated_as_a_prefix_match() {
+        let mdrp_grey = FF_TTF_INSTRNAMES
+            .iter()
+            .position(|n| *n == b"MDRP[grey]")
+            .expect("MDRP[grey] must be in the name table") as u8;
+        let result = parse_instrs(b"MDRP\n", |_, _| {}).unwrap();
+        assert_eq!(result, vec![0]);
+        assert_ne!(result, vec![mdrp_grey]);
+    }
+
+    // Mirrors `strtol(s, &mut end, 0)`'s base auto-detection exactly:
+    // `"0x1F"`/hex, a leading `0` followed by another octal digit/octal,
+    // anything else/decimal -- including the two corner cases where the
+    // prefix alone doesn't have a digit to back it up (`"0x"` with no hex
+    // digit after it, a bare `"0"`) and strtol falls back to consuming
+    // just the leading `0` as decimal zero.
+    #[test]
+    fn strtol_base0_matches_libc_strtol_hex_octal_and_decimal_prefixes() {
+        assert_eq!(strtol_base0(b"0x1F"), (0x1F, 4));
+        assert_eq!(strtol_base0(b"010"), (8, 3));
+        assert_eq!(strtol_base0(b"10"), (10, 2));
+        assert_eq!(strtol_base0(b"-5"), (-5, 2));
+        assert_eq!(strtol_base0(b"0"), (0, 1));
+        assert_eq!(strtol_base0(b"0x"), (0, 1));
     }
 }
