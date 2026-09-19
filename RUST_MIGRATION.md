@@ -14885,3 +14885,40 @@ on the other platform before a commit is trusted.
     90s each plus every `tests/fuzz-corpus/known-issues/*.bin`.
     `survey-unsafe.sh`: `unsafe fn` 44 -> 41, `unsafe blocks` 160 -> 141,
     raw pointer types 658 -> 644, files with the file-level allow 42 -> 38.
+
+- **Stage M-4: `SfntBuilder` is an owned value.** Fourth installment,
+  stacked on M-3. The `*_create`/`*_free` pair pattern of Stage L-9,
+  applied to the last big one.
+  - **What the pair was**: `otfcc_new_sfnt_builder` calloc'd the struct
+    through `__caryll_allocate_clean`, then `ptr::write`'d a real
+    `BTreeMap` over the zeroed bytes (an all-zero map is not a valid one);
+    `otfcc_delete_sfnt_builder` ran `drop_in_place` on that map before a
+    raw `free`. It is now `SfntBuilder::new(header, options)` returning
+    the value, held as a local in `serialize_to_otf`, dropped by scope.
+  - **`options: *const Options` -> `&'a Options`**: the field's own
+    comment said it was a raw pointer only because "this struct has no
+    lifetime parameter to hold a `&Options` in" -- which was true exactly
+    because the struct was calloc'd. Giving `SfntBuilder` a lifetime says
+    what the field always meant, and `push_table`'s narrow
+    `unsafe { &*builder.options }` bridge goes with it.
+  - **`serialize_to_otf` is safe now**, and this is the part worth
+    reading: it was a 214-line `unsafe fn` whose body was ~37 `(*builder)`
+    derefs plus **one** genuinely unsafe call. With the builder a local,
+    the derefs are plain field access, and `otfcc_build_cff` -- which
+    takes `CffAndGlyf`, two raw pointers into the excluded CFF builder
+    core, so it carries a real caller contract -- sits in a narrow
+    `unsafe { .. }` block. The contract is upheld in plain sight: both
+    pointers are built twelve lines above out of `font`'s own live
+    `Option<Box<_>>` fields and consumed before any later use of `font`.
+    Same shape as Stage L-8's treatment of `glyf.rs`'s `fprintf`.
+  - `otf_writer.rs` and `caryll_sfnt_builder.rs` lose their file-level
+    `#![allow(unsafe_op_in_unsafe_fn)]`.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (412, incl. `golden.rs`'s byte-exact
+    fixtures -- every one of them goes through `serialize_to_otf`), Miri
+    (**the one that matters here**: the raw pointers handed to
+    `otfcc_build_cff` are derived from `&mut Font` borrows, so Stacked
+    Borrows is the real check, not the type system), all three fuzz
+    targets plus every `tests/fuzz-corpus/known-issues/*.bin`.
+    `survey-unsafe.sh`: `unsafe fn` 41 -> 38, raw pointer types 644 ->
+    637, files with the file-level allow 38 -> 36.
