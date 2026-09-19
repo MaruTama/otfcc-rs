@@ -14328,6 +14328,210 @@ on the other platform before a commit is trusted.
     fn` 91 -> 79, `unsafe blocks` 199 -> 195, raw pointer types
     901 -> 872.
 
+- **Stage L-6: `chaining/classifier.rs` -- calloc/pointer-identity design
+  removed.** Sixth installment of Stage L, branched from master after
+  L-1 through L-5 all landed (independent of the L-2..L-5 stack --
+  `classifier.rs` was untouched by any of them). Closes the "two
+  allocators for one type, distinguished only by a comment" hazard the
+  plan doc flagged as this stage's reason for existing.
+  - **`class_compatible`'s `cov: &mut Coverage` -> `&Coverage`**, first
+    (per the plan's own ordering): a grep of every read/write inside the
+    function confirmed zero writes through `cov` -- it was `&mut` only
+    because `try_classify_around` (below) threaded a `*mut Coverage`
+    through it, not because anything needed to mutate a coverage. This
+    one change is what let every downstream caller in this file stop
+    needing `&mut`/raw-pointer access to a `ChainingRule`'s `match_0`
+    entries at all.
+  - **`try_classify_around`**: was `unsafe fn(lookup: *const Lookup, j:
+    TableId, classified_st: *mut *mut ChainingSubtable) -> TableId`,
+    building its "found a compatible run of subtables" result with
+    `__caryll_allocate_clean` (a raw `calloc`) + `ptr::write` and handing
+    it back through the `classified_st` out-parameter. Now
+    `pub fn try_classify_around(subtables: &[Option<Box<Subtable>>], j:
+    usize) -> Option<(usize, ChainingSubtable)>` -- a `None` means "no
+    compatible run found, build from `subtables[j]` unchanged" and a
+    `Some((run_len, classified))` carries the owned replacement value
+    (built directly as a `ChainingRuleSet` struct literal, no allocator
+    call at all) plus how many subtables at and after `j` it replaces.
+    **Dead code found and removed along the way**: the original's inner
+    scan loop declared `let allcheck: bool = true;` and never reassigned
+    it anywhere in the loop body -- every incompatible-subtable exit used
+    a labeled `break 's_74` (breaking the *outer* scan entirely) before
+    ever reaching the `if allcheck { compatible_count += 1 }` check below
+    it, so `allcheck` was always `true` at the one place it was read. The
+    rewrite drops the variable and always counts a subtable that falls
+    through the inner loop without breaking -- behaviorally identical,
+    confirmed by the same golden-fixture byte comparison this whole file
+    already depends on for its real correctness signal.
+  - **`otfcc_classified_build_chaining`**: was `unsafe fn(lookup: *const
+    Lookup, ..., last_offset: *mut usize) -> TableId`, comparing the
+    pointer `try_classify_around` handed back against the original
+    subtable's own pointer (`if st != st0 { subtable_chaining_free(st) }`)
+    to decide whether a scratch allocation needs freeing. Now `pub fn(
+    lookup: &Lookup, subtable_buffers: &mut Vec<Buffer>, last_offset:
+    &mut usize) -> TableId`: the `Option<(usize, ChainingSubtable)>`
+    `try_classify_around` returns is matched directly, and whichever
+    value (`&owned` or `st0`) gets passed to `otfcc_build_contextual`/
+    `otfcc_build_chaining`; if `classified` is `Some`, its `ChainingSubtable`
+    simply drops at the end of the loop iteration -- there is no pointer
+    to compare and nothing to free by hand either way.
+  - **`otfcc_chaining_lookup_is_contextual_lookup`** (`build.rs`): was
+    `unsafe fn(lookup: *const Lookup) -> bool`, reaching each subtable via
+    `subtable_at` and, for the non-`Classified` case, casting a `*const
+    ChainingSubtable` to `*mut` through `chaining_rule_mut_from_const`
+    purely to read two fields (never writing through it) -- a gratuitous
+    const-to-mut cast for a read-only access. Now `pub fn(lookup:
+    &Lookup) -> bool`, reading through the new safe `chaining_rule_const`/
+    `chaining_ruleset_const` (see below) instead. `chaining_rule_mut_from_const`
+    itself is deleted -- this was its only call site.
+  - **`chaining/common.rs`**: `chaining_rule_const`/`chaining_ruleset_const`
+    now return `&ChainingRule`/`&ChainingRuleSet` instead of `*const`
+    (the same "safe reference, not a raw pointer" change L-5 made to
+    `chaining_ruleset_mut`) -- every existing call site's field-access
+    syntax is unaffected either way, so `build.rs` and `dump.rs`'s own
+    narrow `unsafe { &*chaining_rule_const(..) }` bridge (the latter's
+    comment explicitly invited this exact follow-up) both drop their
+    `unsafe` for free. Added `chaining_subtable_ref(slot: &Option<Box<
+    Subtable>>) -> &ChainingSubtable`, a shared helper both `classifier.rs`
+    and `build.rs` now use in place of their own `subtable_at`-plus-
+    `let Subtable::Chaining(..) = &*ptr else { unreachable!() }` dance --
+    same panic message and panic conditions, just starting from (and
+    staying) a safe reference. **Dead cluster deleted**: `otl_init_chaining`/
+    `otl_dispose_chaining`/`subtable_chaining_dispose`/`subtable_chaining_free`
+    all lost their only remaining caller once `classifier.rs` stopped
+    calloc'ing -- `otl_init_chaining` in particular had *no* caller left
+    even before this stage (confirmed by grep), so this also incidentally
+    cleans up pre-existing dead code the calloc removal made impossible to
+    ignore. The file's `#![allow(unsafe_op_in_unsafe_fn)]` and its `use
+    libc::free;` import are both gone -- nothing left in it is `unsafe`.
+  - **Verification**: full pipeline green -- build, `clippy --all-targets
+    -- -D warnings`, `cargo test --lib` (406), `cargo test --
+    --test-threads=1` (integration suite, including `golden.rs`'s
+    byte-exact fixtures -- the classifier's "merge a compatible run of
+    subtables" branch is confirmed *actually exercised* here, not just
+    reachable: a temporary `eprintln!` in that branch, removed before
+    committing, fired 57 times across the golden suite alone). **Test
+    effectiveness verified directly**: temporarily broke `compatible_count`
+    by one (`.saturating_sub(1)` right after the "found a real run" check)
+    and confirmed `cargo test --test golden` failed with 11 payloads
+    mismatching golden checksums, then reverted and re-confirmed green.
+    Miri (370 passed, 36 ignored, 0 UB), all three fuzz targets 90s each
+    plus every `tests/fuzz-corpus/known-issues/*.bin` re-run directly
+    against its target binary (all still pass; `otf-dump-otl-coverage-
+    consolidate-amplification-hang.bin` is unrelated to this stage --
+    a `consolidate.rs` coverage-amplification budget, not classifier.rs
+    -- and still just slow, not hanging). `survey-unsafe.sh`: `unsafe fn`
+    72 -> 64, `unsafe blocks` 193 -> 190, raw pointer types 805 -> 770,
+    while loops 230 -> 224 (the manual `while`s inside `try_classify_around`
+    became `for`/iterator loops as a side effect of the ownership rewrite,
+    not a separate pass).
+
+- **Stage L-7: `consolidate.rs`'s OTL table reference -- `table: &mut
+  OtlTable` instead of `*mut OtlTable`.** Seventh installment of Stage L,
+  branched independently from master (untouched by L-2 through L-6 --
+  `consolidate.rs`/`consolidate/otl/*.rs` are a different file family
+  entirely). Closes the aliasing hazard `consolidate_otl_table`'s own
+  comment used to name explicitly as the reason `table` had to stay raw.
+  - **The actual hazard, precisely**: `otfcc_consolidate_lookup`'s call
+    into `consolidate_chaining` needs read access to *every* lookup in
+    the table (a chaining rule can apply its own containing lookup, by
+    name or by index -- a real, if uncommon, OpenType idiom for
+    iterative contextual substitution), while the same call site already
+    holds a live `&mut Lookup`/`&mut Subtable` borrowed from *inside*
+    that same table's lookup list, for the lookup currently being
+    consolidated. A shared `&LookupList` spanning the whole `Vec` at the
+    same time as a `&mut` into one of its own elements is an ordinary
+    borrow-checker conflict, not merely a Stacked-Borrows one -- there is
+    no index-based workaround that lets the borrow checker see the two
+    as disjoint, because they aren't (same backing allocation, same
+    `Vec`).
+  - **The fix -- and why a plain `mem::take` alone was rejected (per the
+    plan doc's own explicit call-out)**: `consolidate_otl_table`'s
+    per-lookup loop now does `let mut current = table.lookups[j].take();`
+    before calling `otfcc_consolidate_lookup`, physically removing the
+    lookup being processed from its slot (leaving a real, empty `None`
+    there -- not a dangling borrow) so `&table.lookups` becomes a
+    genuinely unaliased shared borrow for the rest of the call. Doing
+    *only* that would silently break every genuine self-reference: with
+    the current lookup missing from the list, a name or index scan that
+    happens to include itself would come up empty, misdiagnosing a valid
+    self-reference as an unresolvable lookup and discarding it (a real
+    output regression the original code never had). The fix threads
+    `self_index: TableId` and `self_name: &[u8]` (the latter cloned
+    *before* the `take`, since it would otherwise borrow from the very
+    value about to be reborrowed mutably) down to `consolidate_chaining`,
+    which special-cases `k == self_index` in both its name-based and
+    index-based resolution branches, answering from `self_name` instead
+    of ever reading the now-empty slot. The "exists" half of that check
+    needs no dynamic lookup either: reaching `consolidate_chaining` at
+    all already guarantees the current lookup's own `subtables` list is
+    non-empty (`__declare_otl_consolidation` bails out before calling in
+    otherwise), and that `Vec`'s *length* -- as opposed to which slots
+    are `Some`/`None` -- never shrinks mid-pass, only at that function's
+    trailing `retain()` -- so "self exists" is unconditionally true at
+    this point, not merely usually true.
+  - **`__declare_otl_consolidation`'s `fn_0` parameter is `impl Fn(&Font,
+    &mut Subtable, &Options) -> bool` now, not a bare `Option<fn(...)>`
+    carrying a `table` argument**: this is what let 10 of the 11 other
+    dispatch call sites drop `table`/`_table` from their own signatures
+    entirely (confirmed unused by grep in every one, previously carried
+    only because they had to match one shared function-pointer type) --
+    `otfcc_consolidate_lookup`'s two chaining call sites instead pass a
+    closure (`|f, sub, o| consolidate_chaining(f, lookups, self_index,
+    self_name, sub, o)`) that captures the three new parameters, so no
+    shared type needs to carry context only one function ever used.
+  - **The `languages`/`features` loops lost their own raw-pointer cast
+    for a completely different, incidental reason**: once `table` itself
+    is a real `&mut OtlTable`, `table.languages.iter_mut()` (`&mut
+    Lookup`... `LanguageSystem`, one field) and `&table.features`
+    (a different field) are disjoint field projections the borrow
+    checker already understands natively -- the `let lang: *mut
+    LanguageSystem = &raw mut *(&mut (*table).languages)[j_1]` cast this
+    replaces existed only because `table` itself was raw, not because of
+    any real aliasing between these two fields.
+  - **Dead-code cleanup found along the way**: the original's
+    `!found_lookup && !app.lookup.name.is_empty()` guard's second half
+    was always true (the whole block already ran inside `if
+    !app.lookup.name.is_empty() { .. }`, and nothing between there and
+    the check reassigns `app.lookup.name` except on a match, which also
+    sets `found_lookup`) -- simplified to `if !found_lookup`.
+  - **New regression tests, and why existing fixtures didn't already
+    cover this**: a debug `eprintln!` (removed before committing) showed
+    that no existing test payload -- not `golden.rs`'s real-world fonts,
+    not `cycles.rs`, not `lookup_alias.rs` -- ever actually exercises a
+    *genuine* self-reference match (`k == self_index` is reached on
+    every full scan trivially, but the name/index only actually equals
+    `self_name`/`self_index` when a rule truly targets its own lookup,
+    which apparently none of the current fixtures happen to do). Added
+    `chaining_rule_naming_its_own_lookup_by_{name,index}_resolves_
+    instead_of_being_invalidated` directly exercising both resolution
+    branches. **Test effectiveness verified twice**: first by confirming
+    both new tests pass, then by deliberately disabling the `k ==
+    self_index`/`idx == self_index` special cases (`if false && ..`) and
+    confirming both tests fail with the expected panic, then reverting.
+    The index-based test's self-referencing lookup is deliberately
+    placed at index 1, not 0: the "unresolvable index" fallback also
+    resets to index 0, so a self-index of 0 would make a broken special
+    case indistinguishable from a correctly-handled one by coincidence
+    (both would end up pointing at index 0) -- confirmed by first writing
+    the test at index 0 and watching it pass even with the bug
+    deliberately injected, then fixing the test itself.
+  - **Verification**: full pipeline green -- build, `clippy --all-targets
+    -- -D warnings`, `cargo test --lib` (408, incl. the 2 new tests),
+    `cargo test -- --test-threads=1` (integration suite, incl.
+    `golden.rs`'s byte-exact fixtures), Miri (372 passed, 36 ignored,
+    0 UB -- the most relevant check here, given this stage's entire
+    point is an aliasing fix), all three fuzz targets 90s each plus every
+    `tests/fuzz-corpus/known-issues/*.bin` re-run directly against its
+    target binary (including `otf-dump-required-feature-use-after-
+    free.bin`, which exercises exactly the `required_feature` handling
+    this stage's loop rewrite touches -- no regression). `survey-
+    unsafe.sh`: `unsafe fn` unchanged at 72 (no function's own marker was
+    at stake -- `consolidate_otl_table`/`consolidate_otl` stay `unsafe
+    fn` for the still-raw `font: *mut Font`, deferred per the plan),
+    `unsafe blocks` 193 -> 189, raw pointer types 805 -> 785, while loops
+    230 -> 227.
+
 - **Stage L-8: `support/ttinstr.rs`'s TrueType instruction text parser --
   hand-written `&[u8]` lexer instead of `strlen`/`strtol`/`strnmatch` on
   a raw `*mut c_char`.** Eighth installment of Stage L, branched
@@ -14439,6 +14643,7 @@ on the other platform before a commit is trusted.
     directly -- no regression). `survey-unsafe.sh`: `unsafe fn`
     72 -> 67 (exactly the 5 the plan predicted), `unsafe blocks`
     193 -> 188, raw pointer types 805 -> 751, `.offset(` calls 59 -> 24.
+
 - **Stage L-9a: `Font` is an owned `Box<Font>` end to end --
   `otfcc_font_create`/`otfcc_font_free` deleted, `read_otf`/`read_json`
   return `Option<Box<Font>>`.** Ninth installment of Stage L, and the

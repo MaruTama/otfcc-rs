@@ -8,18 +8,13 @@ use crate::support::primitives::GlyphId;
 
 use crate::font::caryll_font::Font;
 
-use crate::table::otl::{GsubMultiEntry, OtlTable, Subtable};
+use crate::table::otl::{GsubMultiEntry, Subtable};
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::subtables::gsub_multi::dispose_gsub_multi_subtable;
 
-pub fn consolidate_gsub_multi(
-    font: &Font,
-    _table: *const OtlTable,
-    _subtable: &mut Subtable,
-    options: &Options,
-) -> bool {
+pub fn consolidate_gsub_multi(font: &Font, _subtable: &mut Subtable, options: &Options) -> bool {
     let Subtable::GsubMulti(subtable) = _subtable else {
         unreachable!()
     };
@@ -81,11 +76,6 @@ pub fn consolidate_gsub_multi(
     }
     subtable.len() == 0_usize
 }
-pub fn consolidate_gsub_alternative(
-    font: &Font,
-    table: *const OtlTable,
-    _subtable: &mut Subtable,
-    options: &Options,
-) -> bool {
-    consolidate_gsub_multi(font, table, _subtable, options)
+pub fn consolidate_gsub_alternative(font: &Font, _subtable: &mut Subtable, options: &Options) -> bool {
+    consolidate_gsub_multi(font, _subtable, options)
 }
