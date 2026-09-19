@@ -1,10 +1,8 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
-use crate::support::primitives::{FontFilePointer, GlyphId, TableId};
+use crate::support::primitives::{GlyphId, TableId};
 use crate::support::fmt::{Byte, Dec5, Hex2};
 
 // A `ScriptList` entry's own `Script` table offset, and a `Script` table's
@@ -134,7 +132,7 @@ use crate::table::otl::{
     OTL_TYPE_UNKNOWN, OtlTable, Subtable,
 };
 use crate::table::otl::{
-    new_feature, new_language, new_lookup, otl_feature_ref_list_dispose, subtable_list_slot,
+    new_feature, new_language, new_lookup, otl_feature_ref_list_dispose,
 };
 // `data` used to be a raw `FontFilePointer`/`table_length` pair,
 // reconstructed into a slice via `from_raw_parts` at the top of every one
@@ -149,7 +147,7 @@ use crate::table::otl::{
 // `subtable_list_slot` -- the same `Box::from_raw` bridge `otfcc_read_otl_
 // lookup` used to apply to this whole function's own return value, now
 // pushed down to just the arms that still produce a raw pointer.
-pub unsafe fn otfcc_read_otl_subtable(
+pub fn otfcc_read_otl_subtable(
     data: &[u8],
     subtable_offset: u32,
     lookup_type: LookupType,
@@ -193,26 +191,10 @@ pub unsafe fn otfcc_read_otl_subtable(
             otl_read_gpos_mark_to_ligature(data, subtable_offset, max_glyphs).map(Box::new)
         }
         OTL_TYPE_GSUB_EXTEND => {
-            let raw_data = data.as_ptr() as FontFilePointer;
-            let table_length = data.len() as u32;
-            subtable_list_slot(otfcc_read_otl_gsub_extend(
-                raw_data,
-                table_length,
-                subtable_offset,
-                max_glyphs,
-                options,
-            ))
+            otfcc_read_otl_gsub_extend(data, subtable_offset, max_glyphs, options).map(Box::new)
         }
         OTL_TYPE_GPOS_EXTEND => {
-            let raw_data = data.as_ptr() as FontFilePointer;
-            let table_length = data.len() as u32;
-            subtable_list_slot(otfcc_read_otl_gpos_extend(
-                raw_data,
-                table_length,
-                subtable_offset,
-                max_glyphs,
-                options,
-            ))
+            otfcc_read_otl_gpos_extend(data, subtable_offset, max_glyphs, options).map(Box::new)
         }
         _ => None,
     }
@@ -543,14 +525,8 @@ fn otfcc_read_otl_lookup(data: &[u8], lookup: &mut Lookup, max_glyphs: GlyphId, 
     };
     lookup.flags = flags;
     for subtable_offset in subtable_offsets {
-        // `otfcc_read_otl_subtable` dispatches to the nine flat `&[u8]`-
-        // taking readers directly; the still-raw-pointer-shaped chaining/
-        // contextual/extend readers (out of this PR's scope) reconstruct
-        // their own `FontFilePointer`/length pair internally now, instead
-        // of this call site doing it up front for every lookup type.
-        let subtable = unsafe {
-            otfcc_read_otl_subtable(data, subtable_offset, lookup.type_0, max_glyphs, options)
-        };
+        let subtable =
+            otfcc_read_otl_subtable(data, subtable_offset, lookup.type_0, max_glyphs, options);
         lookup.subtables.push(subtable);
     }
     if lookup.type_0 == OTL_TYPE_GSUB_EXTEND || lookup.type_0 == OTL_TYPE_GPOS_EXTEND {
