@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 #![allow(
     dead_code,
     non_camel_case_types,
@@ -10,8 +9,6 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use libc::fprintf;
-use otfcc_rust::support::stdio::stderr;
 
 use otfcc_rust::logger::{
     LoggerType, logger_finish, logger_indent_sds, logger_log_sds, logger_set_verbosity,
@@ -79,13 +76,14 @@ pub fn printHelp() {
 pub fn readEntireFile(inPath: &::core::ffi::CStr) -> Option<Vec<u8>> {
     let os_path = std::ffi::OsStr::from_bytes(inPath.to_bytes());
     let Ok(bytes) = std::fs::read(std::path::Path::new(os_path)) else {
-        unsafe {
-            fprintf(
-                stderr,
-                b"Cannot read JSON file \"%s\". Exit.\n\0" as *const u8 as *const ::core::ffi::c_char,
-                inPath.as_ptr(),
-            );
-        }
+        // Written as raw bytes, not through `eprint!`/`format!`: `inPath` is
+        // an OS path and need not be UTF-8, which a `str` formatter would
+        // either reject or mangle into U+FFFD. `%s` printed the bytes as-is.
+        use std::io::Write;
+        let mut msg = b"Cannot read JSON file \"".to_vec();
+        msg.extend_from_slice(inPath.to_bytes());
+        msg.extend_from_slice(b"\". Exit.\n");
+        let _ = std::io::stderr().write_all(&msg);
         return None;
     };
     Some(bytes)
@@ -104,12 +102,12 @@ pub fn readEntireStdin() -> Vec<u8> {
     let _ = std::io::stdin().lock().read_to_end(&mut bytes);
     bytes
 }
-unsafe fn main_0(args: Vec<String>) -> i32 {
+fn main_0(args: Vec<String>) -> i32 {
     let mut begin: timespec = timespec {
         tv_sec: 0,
         tv_nsec: 0,
     };
-    time_now(&raw mut begin);
+    time_now(&mut begin);
     let mut show_help: bool = false;
     let mut show_version: bool = false;
     let mut outputPath: Option<::std::ffi::CString> = None;
@@ -221,30 +219,18 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                 _ => {}
             },
             GetoptItem::UnknownLong(s) => {
-                let c = ::std::ffi::CString::new(format!("otfccbuild: unrecognized option '{s}'\n"))
-                    .unwrap();
-                fprintf(stderr, b"%s\0" as *const u8 as *const ::core::ffi::c_char, c.as_ptr());
+                eprintln!("otfccbuild: unrecognized option '{s}'");
             }
             GetoptItem::UnknownShort(ch) => {
-                let c = ::std::ffi::CString::new(format!("otfccbuild: invalid option -- '{ch}'\n"))
-                    .unwrap();
-                fprintf(stderr, b"%s\0" as *const u8 as *const ::core::ffi::c_char, c.as_ptr());
+                eprintln!("otfccbuild: invalid option -- '{ch}'");
             }
             GetoptItem::AmbiguousLong { given, matches } => {
                 let possibilities =
                     matches.iter().map(|m| format!("'--{m}'")).collect::<Vec<_>>().join(" ");
-                let c = ::std::ffi::CString::new(format!(
-                    "otfccbuild: option '{given}' is ambiguous; possibilities: {possibilities}\n"
-                ))
-                .unwrap();
-                fprintf(stderr, b"%s\0" as *const u8 as *const ::core::ffi::c_char, c.as_ptr());
+                eprintln!("otfccbuild: option '{given}' is ambiguous; possibilities: {possibilities}");
             }
             GetoptItem::MissingArgument(s) => {
-                let c = ::std::ffi::CString::new(format!(
-                    "otfccbuild: option '{s}' requires an argument\n"
-                ))
-                .unwrap();
-                fprintf(stderr, b"%s\0" as *const u8 as *const ::core::ffi::c_char, c.as_ptr());
+                eprintln!("otfccbuild: option '{s}' requires an argument");
             }
         }
     }
@@ -327,7 +313,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
-            push_stopwatch(&raw mut begin),
+            push_stopwatch(&mut begin),
         );
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
@@ -344,7 +330,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
-            push_stopwatch(&raw mut begin),
+            push_stopwatch(&mut begin),
         );
         if json_root.is_none() {
             logger_log_sds(
@@ -369,7 +355,11 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     );
     let mut ___loggedstep_v_3: bool = true;
     while ___loggedstep_v_3 {
-        font = read_json(json_root.as_ref().unwrap(), &*options);
+        // `read_json` is `unsafe fn` only because its body calls the
+        // in-place JSON-tree parsers and the CFF builder core (both
+        // excluded from this migration); its arguments are plain shared
+        // references, so there is no caller-side contract to uphold here.
+        font = unsafe { read_json(json_root.as_ref().unwrap(), &*options) };
         if font.is_none() {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
@@ -388,7 +378,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
-            push_stopwatch(&raw mut begin),
+            push_stopwatch(&mut begin),
         );
         ___loggedstep_v_3 = false;
         logger_finish(&mut *options.logger.borrow_mut());
@@ -404,7 +394,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
-            push_stopwatch(&raw mut begin),
+            push_stopwatch(&mut begin),
         );
         ___loggedstep_v_4 = false;
         logger_finish(&mut *options.logger.borrow_mut());
@@ -449,7 +439,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
-            push_stopwatch(&raw mut begin),
+            push_stopwatch(&mut begin),
         );
         drop(font.take());
         // `inPath`/`outputPath` are `Option<CString>` now -- both drop on
@@ -462,5 +452,5 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
 }
 pub fn main() -> ::std::process::ExitCode {
     let args: Vec<String> = ::std::env::args().skip(1).collect();
-    unsafe { ::std::process::ExitCode::from(main_0(args) as u8) }
+    ::std::process::ExitCode::from(main_0(args) as u8)
 }

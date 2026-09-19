@@ -9,7 +9,14 @@
 // shape on x86_64 Linux and says nothing about any other target.
 use libc::{CLOCK_REALTIME, clock_gettime, snprintf, time_t, timespec};
 
-pub unsafe fn time_now(tv: *mut timespec) {
+// `tv` is a `&mut timespec` rather than a `*mut`: the only reason the old
+// signature was raw is that its callers wrote `&raw mut begin`. The one
+// genuinely unsafe operation is the `clock_gettime` FFI call itself, whose
+// only requirement (a valid, writable `timespec`) a `&mut` satisfies by
+// construction -- so that call is the whole of the `unsafe` block, and this
+// function is safe. (The `%g` formatting further down is a separate,
+// deliberately deferred question and is untouched.)
+pub fn time_now(tv: &mut timespec) {
     unsafe { clock_gettime(CLOCK_REALTIME, tv) };
 }
 pub const BILLION: i32 = 1000000000_i32;
@@ -22,18 +29,18 @@ fn timespec_diff(start: &timespec, stop: &timespec, result: &mut timespec) {
         result.tv_nsec = stop.tv_nsec - start.tv_nsec;
     };
 }
-pub unsafe fn push_stopwatch(sofar: *mut timespec) -> Vec<u8> {
+pub fn push_stopwatch(sofar: &mut timespec) -> Vec<u8> {
     let mut ends: timespec = timespec {
         tv_sec: 0,
         tv_nsec: 0,
     };
-    unsafe { time_now(&raw mut ends) };
+    time_now(&mut ends);
     let mut diff: timespec = timespec {
         tv_sec: 0,
         tv_nsec: 0,
     };
-    timespec_diff(unsafe { &*sofar }, &ends, &mut diff);
-    unsafe { *sofar = ends };
+    timespec_diff(sofar, &ends, &mut diff);
+    *sofar = ends;
     // The one `%g` that ever reached `sdscatprintf`, and the only reason libc's
     // formatting is still called here: Rust has no `%g`, and this crate does not
     // format floats itself on purpose -- JSON numbers go through the vendored

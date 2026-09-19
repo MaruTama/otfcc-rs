@@ -15046,3 +15046,51 @@ on the other platform before a commit is trusted.
     three fuzz targets plus every `tests/fuzz-corpus/known-issues/*.bin`.
     `survey-unsafe.sh`: `unsafe fn` 31 -> 29, `unsafe blocks` 127 -> 125,
     raw pointer types 629 -> 622.
+
+- **Stage M-8: the two `main_0` functions are safe, and `stopwatch`'s
+  `timespec` is passed by reference.** Eighth installment, stacked on M-7.
+  Both CLI entry points had been `unsafe fn main_0` since the c2rust port;
+  M-2 narrowed the reasons to two, this removes them.
+  - **`fprintf(stderr, "%s", <CString>)` -> `eprintln!`** for the eight
+    getopt diagnostics (unknown/ambiguous/missing-argument). Each one built
+    a `CString` from a `format!` only to hand libc a pointer to print; the
+    `.unwrap()` on that `CString::new` could even panic on a NUL byte, which
+    `eprintln!` cannot. `otfccdump`'s `isatty(fileno(stdout))` becomes
+    `std::io::stdout().is_terminal()`, the same test. That removes the
+    crate's last `fileno`/`isatty` and both bins' `stdio::{stderr, stdout}`
+    imports (`support/stdio.rs` stays: `bk/` and `glyf.rs` still use it,
+    a different question).
+  - **`readEntireFile`'s error message is written as raw bytes**
+    (`stderr().write_all`), not through `eprint!`: `inPath` is an OS path
+    and need not be UTF-8, which a `str` formatter would reject or mangle.
+    `%s` printed the bytes as-is and so does this. *Worth knowing:* that
+    branch is currently unreachable from the command line, because
+    `main()` collects `std::env::args()`, which itself panics on a
+    non-UTF-8 argument (identical before and after this change; a separate,
+    pre-existing limitation that is not fixed here).
+  - **`stopwatch.rs`: `time_now`/`push_stopwatch` take `&mut timespec`**
+    instead of `*mut timespec`, and are safe fns. The only reason they were
+    raw is that the callers wrote `&raw mut begin`; the one genuinely
+    unsafe operation, the `clock_gettime` FFI call, keeps its own narrow
+    `unsafe {}`. **The `%g` formatting -- the part the user deferred -- is
+    untouched**: same `snprintf`, same format string, same arguments, same
+    bytes. (The argument-passing shape and the float formatting are
+    independent questions.)
+  - **What is left in `main_0`**: one `unsafe { .. }` per bin, around
+    `read_otf` (dump) / `read_json` (build). Both are `unsafe fn` because
+    their *bodies* drive the excluded CFF builder core and the in-place
+    JSON-tree parsers; their arguments are plain shared references, so
+    there is no caller-side contract, and the block says so. Both bins
+    also lose their file-level `#![allow(unsafe_op_in_unsafe_fn)]`.
+  - **Test effectiveness -- this one is CLI behaviour, which the suite only
+    partly pins, so it was checked directly.** Twelve diagnostic paths
+    (unknown long/short option, ambiguous, missing argument, unreadable
+    SFNT, nonexistent file, invalid JSON, for both binaries) were run
+    against the pre-change binary (built from master in a scratch
+    worktree) and the new one, comparing stdout, stderr and exit code
+    byte for byte: all twelve identical.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    test -- --test-threads=1` (411), Miri, all three fuzz targets plus
+    every `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`:
+    `unsafe fn` 29 -> 25, `unsafe blocks` 125 -> 121, raw pointer types
+    622 -> 602, files with the file-level allow 34 -> 32.
