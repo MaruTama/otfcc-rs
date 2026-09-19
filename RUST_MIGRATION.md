@@ -14777,3 +14777,65 @@ on the other platform before a commit is trusted.
     `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`:
     `unsafe fn` 55 -> 49, `unsafe blocks` 171 -> 162, files with the
     file-level allow 44 -> 42.
+
+- **Stage M-2: one `strtol`, and no more C strings built just to parse or
+  label something.** Second installment of the post-Stage-L inventory, on
+  top of M-1. Five more `unsafe fn` go, but the point is the duplication
+  underneath them: four call sites reached for `libc::strtol` on a raw
+  `*const c_char` even though every one of them already had the bytes in
+  something Rust owned.
+  - **`support/strtol.rs` (new)**: one `strtol(&[u8], base) -> i32`
+    reproducing exactly the part of C's `strtol` this crate uses (optional
+    leading whitespace, optional sign, longest run of digits valid in
+    `base`, `0` for "no conversion"). It replaces `table/cmap.rs`'s
+    `atoi` **and** `parse_hex` -- two hand-rolled copies Stage E had
+    already written, differing only in the digit predicate.
+    **`support/ttinstr.rs` keeps its own `strtol_base0`/`strtol_base2`**:
+    those return how many bytes they consumed (their caller is a lexer
+    that has to advance past the number) and base 0 sniffs `0x`/`0`
+    prefixes. Folding them in would hand every other caller an end
+    position it does not want; noted as follow-up rather than forced.
+  - **One latent panic fixed on the way**: the predecessors accumulated
+    into an `i64` and cast, so a long enough digit run overflowed --
+    silently wrapping in release, but *panicking* under `debug_assertions`,
+    which is Miri and `cargo fuzz`'s default profile. The object keys that
+    reach `parse_unicode` come straight from fuzzed JSON, so this was
+    reachable. `wrapping_mul`/`wrapping_add` keep the release behavior and
+    make the debug builds agree with it instead of aborting.
+  - **`json_reader.rs`'s `place_order_entries_from_cmap`** inlined the
+    `U+XXXX`-or-decimal parse byte for byte (`strlen`, `strtol`,
+    `.offset()` over the key's raw storage) -- and its own comment said it
+    was the same as `table/cmap.rs`'s `parse_unicode`. It now calls that
+    function. The file's private `atoi` copy had no other caller and is
+    gone with it.
+  - **`logger.rs`'s `logger_indent`** was a `*const c_char` shim over
+    `logger_indent_sds`; all three callers passed a `b"otfccdump\0"`-style
+    literal. Deleted; they call `logger_indent_sds` directly, which is
+    already how the crate's ~30 `logger_start_sds` sites work.
+  - **The two `bin/` `atoi` copies** are gone, and with them the
+    `CString::new(..).expect("must not contain a NUL byte")` dance that
+    existed only to produce a pointer for them: `--ttc-index` and `-O`
+    parse their `String` argument's bytes directly. `--glyph-name-prefix`
+    lost the same round trip (it was already only calling `into_bytes()`
+    on the far side).
+  - **`main_0` still cannot lose its marker**, and now for exactly two
+    named reasons: `fprintf`/`stderr` for usage and CLI-error output, and
+    `support/stopwatch.rs`'s `time_now`/`push_stopwatch` (the `%g`
+    formatting the user has deferred). Converting the `fprintf` calls to
+    `eprint!` is the obvious next step and is deliberately not in this PR.
+  - **Test effectiveness, checked both ways before trusting it.** A
+    temporary counter showed `place_order_entries_from_cmap` runs 24,167
+    times in `golden.rs` alone (all decimal keys) and `parse_unicode`'s
+    hex branch 4,712 times across the integration suite (via `cycles.rs`'s
+    dump->build round trips, where the dump side writes `U+XXXX` and the
+    build side reads it back) -- so both branches are under byte-exact
+    coverage, which was worth confirming rather than assuming. Then a
+    deliberate one-digit bug in `strtol` was injected: the two new unit
+    tests fail, and so do `golden.rs` (3 of 4 payload tests) and
+    `cycles.rs`.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (412, incl. the two new `strtol`
+    tests), Miri, all three fuzz targets 90s each plus every
+    `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`:
+    `unsafe fn` 49 -> 44, `unsafe blocks` 162 -> 160, raw pointer types
+    678 -> 658, `.offset(` 24 -> 22.

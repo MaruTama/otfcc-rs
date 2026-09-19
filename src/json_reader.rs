@@ -1,11 +1,9 @@
 #![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-use libc::{strlen, strtol};
 
 use crate::logger::{LOG_VL_NOTICE, LoggerType, logger_log_sds};
 use crate::support::parsed_json::ParsedValue;
 
 use crate::font::caryll_font::{Font, FontSubtype};
-use crate::support::NULL;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry, GlyphOrderPass};
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
@@ -35,14 +33,6 @@ use crate::table::tsi5::otfcc_parse_tsi5;
 use crate::table::vdmx::funcs::otfcc_parse_vdmx;
 use crate::table::vhea::otfcc_parse_vhea;
 
-#[inline]
-unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> i32 {
-    return strtol(
-        __nptr,
-        NULL as *mut *mut ::core::ffi::c_char,
-        10_i32,
-    ) as i32;
-}
 fn otfcc_decide_font_subtype_from_json(root: &ParsedValue) -> FontSubtype {
     if root.get_typed(b"CFF_", JsonType::Object).is_some() {
         FontSubtype::Cff
@@ -133,35 +123,19 @@ fn place_order_entries_from_glyf(table: &ParsedValue, go: &mut GlyphOrder) {
 // converted raw-C-string shell -- same shape as `table/cmap.rs`'s
 // `parse_unicode` (this function inlines the identical U+XXXX-or-decimal
 // parse and stays unsafe for the same reason), out of scope here.
-unsafe fn place_order_entries_from_cmap(table: &ParsedValue, go: &mut GlyphOrder) {
+// The `U+XXXX`-or-decimal object-key parse this used to inline byte for
+// byte (`strlen`/`strtol`/`.offset()` over the key's raw storage) is
+// `table/cmap.rs`'s own `parse_unicode` -- the old comment here said so and
+// then duplicated it anyway. Calling it directly is the whole function's
+// unsafety gone, and leaves one parser to keep correct instead of two.
+fn place_order_entries_from_cmap(table: &ParsedValue, go: &mut GlyphOrder) {
     let Some(fields) = table.as_object() else {
         return;
     };
     for (key, item) in fields {
-        // Borrows the object key's own storage directly rather than an
-        // owned `sds` copy -- every JSON object key is already
-        // NUL-terminated in `ParsedValue`'s own storage, so `strlen` sees
-        // the same length `sdslen` used to on the copy. Same reasoning as
-        // `table/cmap.rs`'s `parse_unicode` (this function inlines the
-        // identical U+XXXX-or-decimal parse).
-        let unicode_str: *const ::core::ffi::c_char = key.as_ptr() as *const ::core::ffi::c_char;
-        let unicode: i32;
-        if strlen(unicode_str) > 2_usize
-            && *unicode_str.offset(0_i32 as isize) as i32
-                == 'U' as i32
-            && *unicode_str.offset(1_i32 as isize) as i32
-                == '+' as i32
-        {
-            unicode = strtol(
-                unicode_str.offset(2_i32 as isize) as *const ::core::ffi::c_char,
-                ::core::ptr::null_mut::<*mut ::core::ffi::c_char>(),
-                16_i32,
-            ) as i32;
-        } else {
-            unicode = atoi(unicode_str as *const ::core::ffi::c_char);
-        }
+        let unicode = crate::table::cmap::parse_unicode(&key[..key.len() - 1]);
         if let Some(bytes) = item.as_str_bytes() {
-            if unicode > 0_i32 && unicode <= 0x10ffff_i32 {
+            if unicode > 0 && unicode <= 0x10ffff {
                 let gname: Vec<u8> = bytes.to_vec();
                 escalate_glyph_order_by_name(go, &gname, GlyphOrderPass::Cmap, unicode as u32);
             }
@@ -201,7 +175,7 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
             // raw-C-string shell -- out of scope here, so this is a narrow
             // unsafe {} rather than the whole function, the same way
             // vf/vq.rs's vqs_compare bridges to vq_compare_region.
-            unsafe { place_order_entries_from_cmap(table, go) };
+            place_order_entries_from_cmap(table, go);
         }
         if let Some(table) = root.get_typed(b"glyph_order", JsonType::Array) {
             let mut ignore_glyph_order: bool = options.ignore_glyph_order;

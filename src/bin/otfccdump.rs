@@ -10,11 +10,11 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use libc::{fileno, fprintf, isatty, strtol};
+use libc::{fileno, fprintf, isatty};
 use otfcc_rust::support::stdio::{stderr, stdout};
 
 use otfcc_rust::logger::{
-    LoggerType, logger_finish, logger_indent, logger_log_sds, logger_set_verbosity,
+    LoggerType, logger_finish, logger_indent_sds, logger_log_sds, logger_set_verbosity,
     logger_start_sds,
 };
 
@@ -24,7 +24,7 @@ use otfcc_rust::font::caryll_font::Font;
 use otfcc_rust::font::caryll_sfnt::SplineFontContainer;
 use otfcc_rust::logger::{LOG_VL_CRITICAL, LOG_VL_PROGRESS};
 use otfcc_rust::support::built_json::BuiltValue;
-use otfcc_rust::support::{EXIT_FAILURE, NULL};
+use otfcc_rust::support::EXIT_FAILURE;
 
 use libc::timespec;
 use otfcc_rust::consolidate::otfcc_consolidate_font;
@@ -37,20 +37,13 @@ use otfcc_rust::support::built_json::{
     JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts,
 };
 use otfcc_rust::support::getopt::{GetoptItem, LongOpt, getopt_long};
+use otfcc_rust::support::strtol::strtol;
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use std::cell::RefCell;
 use std::io::{Read, Write};
 use std::os::unix::ffi::OsStrExt;
 
-#[inline]
-unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> i32 {
-    return strtol(
-        __nptr,
-        NULL as *mut *mut ::core::ffi::c_char,
-        10_i32,
-    ) as i32;
-}
 // `fprintf(stdout, ...)` -> `print!` -- both of these were pure fixed
 // text (the only variadic args are plain integers substituted by
 // value, not by reference or pointer), so there was never a genuine
@@ -123,10 +116,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     ];
     let mut options: Box<Options> = Box::default();
     options.logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
-    logger_indent(
-        &mut *options.logger.borrow_mut(),
-        b"otfccdump\0" as *const u8 as *const ::core::ffi::c_char,
-    );
+    logger_indent_sds(&mut *options.logger.borrow_mut(), b"otfccdump".to_vec());
     options.decimal_cmap = true;
     let mut outputPath: Option<::std::ffi::CString> = None;
     // Placeholder, unconditionally overwritten below before any real use
@@ -148,9 +138,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                 }
                 OPT_QUIET => options.quiet = true,
                 OPT_TTC_INDEX => {
-                    let carg = ::std::ffi::CString::new(arg.unwrap())
-                        .expect("ttc index must not contain a NUL byte");
-                    ttcindex = atoi(carg.as_ptr()) as u32;
+                    ttcindex = strtol(arg.unwrap().as_bytes(), 10) as u32;
                 }
                 OPT_UGLY => show_ugly = true,
                 OPT_TIME => {}
@@ -164,9 +152,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                 OPT_NAME_BY_GID => options.name_glyphs_by_gid = true,
                 OPT_INSTR_AS_BYTES => options.instr_as_bytes = true,
                 OPT_GLYPH_NAME_PREFIX => {
-                    let carg = ::std::ffi::CString::new(arg.unwrap())
-                        .expect("glyph name prefix must not contain a NUL byte");
-                    options.glyph_name_prefix = Some(carg.into_bytes());
+                    options.glyph_name_prefix = Some(arg.unwrap().into_bytes());
                 }
                 OPT_DEBUG_WAIT_ON_START => options.debug_wait_on_start = true,
                 _ => {}
