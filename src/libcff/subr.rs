@@ -933,7 +933,7 @@ pub fn cff_il_graph_to_buffers(
 #[cfg(test)]
 mod subr_graph_tests {
     use super::*;
-    use crate::libcff::cff_index::{cff_index_create, extract_index};
+    use crate::libcff::cff_index::{extract_index, new_empty_cff_index};
     use crate::libcff::charstring_il::{CffCharstringIl, il_push_op, il_push_operand};
     use crate::libcff::{OP_HLINETO, OP_RMOVETO};
 
@@ -947,12 +947,16 @@ mod subr_graph_tests {
         il
     }
 
-    unsafe fn index_count(buf: &Buffer) -> u32 {
-        let idx = cff_index_create();
-        extract_index(&buf.data, 0, &mut *idx);
-        let count = (*idx).count;
-        cff_index_free(idx);
-        count
+    // Was a `cff_index_create()` (`Box::into_raw`) / `cff_index_free`
+    // (`Box::from_raw`) round trip around a plain stack value, which is the
+    // only reason this helper -- and the four test bodies calling it -- had
+    // to be `unsafe`. `CffIndex` owns nothing but two `Vec`s, and
+    // `cff_index_dispose` only clears them, so letting the local drop does
+    // exactly what the manual free did.
+    fn index_count(buf: &Buffer) -> u32 {
+        let mut idx = new_empty_cff_index();
+        extract_index(&buf.data, 0, &mut idx);
+        idx.count
     }
 
     fn build(glyphs: &[CffCharstringIl], do_subroutinize: bool) -> (Buffer, Buffer, Buffer) {
@@ -979,12 +983,10 @@ mod subr_graph_tests {
 
     #[test]
     fn empty_graph_produces_an_empty_char_strings_index() {
-        unsafe {
-            let (s, gs, ls) = build(&[], false);
-            assert_eq!(index_count(&s), 0);
-            assert_eq!(index_count(&gs), 0);
-            assert_eq!(index_count(&ls), 0);
-        }
+        let (s, gs, ls) = build(&[], false);
+        assert_eq!(index_count(&s), 0);
+        assert_eq!(index_count(&gs), 0);
+        assert_eq!(index_count(&ls), 0);
     }
 
     #[test]
@@ -993,13 +995,11 @@ mod subr_graph_tests {
         ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri"
     )]
     fn one_glyph_with_subroutinize_off_produces_one_char_string_and_no_subroutines() {
-        unsafe {
-            let il = simple_glyph_il(10.0, 20.0);
-            let (s, gs, ls) = build(&[il], false);
-            assert_eq!(index_count(&s), 1);
-            assert_eq!(index_count(&gs), 0);
-            assert_eq!(index_count(&ls), 0);
-        }
+        let il = simple_glyph_il(10.0, 20.0);
+        let (s, gs, ls) = build(&[il], false);
+        assert_eq!(index_count(&s), 1);
+        assert_eq!(index_count(&gs), 0);
+        assert_eq!(index_count(&ls), 0);
     }
 
     #[test]
@@ -1008,18 +1008,16 @@ mod subr_graph_tests {
         ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri"
     )]
     fn two_identical_glyphs_with_subroutinize_on_extract_a_shared_subroutine() {
-        unsafe {
-            let il1 = simple_glyph_il(10.0, 20.0);
-            let il2 = simple_glyph_il(10.0, 20.0);
-            let (s, gs, ls) = build(&[il1, il2], true);
-            assert_eq!(index_count(&s), 2);
-            // The identical [rmoveto, hlineto] pair repeated across both
-            // glyphs is exactly the doublet `append_node_to_graph` checks
-            // for on every append -- it should be extracted into one
-            // shared subroutine (local or global depending on the
-            // max_l_subrs/max_g_subrs split, so check both).
-            assert!(index_count(&gs) + index_count(&ls) >= 1);
-        }
+        let il1 = simple_glyph_il(10.0, 20.0);
+        let il2 = simple_glyph_il(10.0, 20.0);
+        let (s, gs, ls) = build(&[il1, il2], true);
+        assert_eq!(index_count(&s), 2);
+        // The identical [rmoveto, hlineto] pair repeated across both
+        // glyphs is exactly the doublet `append_node_to_graph` checks
+        // for on every append -- it should be extracted into one
+        // shared subroutine (local or global depending on the
+        // max_l_subrs/max_g_subrs split, so check both).
+        assert!(index_count(&gs) + index_count(&ls) >= 1);
     }
 
     #[test]
@@ -1052,13 +1050,11 @@ mod subr_graph_tests {
         ignore = "calls libc::modf via cff_merge_cs2_operand, unsupported under Miri"
     )]
     fn two_different_glyphs_with_subroutinize_on_extract_no_subroutine() {
-        unsafe {
-            let il1 = simple_glyph_il(10.0, 20.0);
-            let il2 = simple_glyph_il(30.0, 40.0);
-            let (s, gs, ls) = build(&[il1, il2], true);
-            assert_eq!(index_count(&s), 2);
-            assert_eq!(index_count(&gs), 0);
-            assert_eq!(index_count(&ls), 0);
-        }
+        let il1 = simple_glyph_il(10.0, 20.0);
+        let il2 = simple_glyph_il(30.0, 40.0);
+        let (s, gs, ls) = build(&[il1, il2], true);
+        assert_eq!(index_count(&s), 2);
+        assert_eq!(index_count(&gs), 0);
+        assert_eq!(index_count(&ls), 0);
     }
 }

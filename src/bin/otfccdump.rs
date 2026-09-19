@@ -51,14 +51,6 @@ unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> i32 {
         10_i32,
     ) as i32;
 }
-#[inline]
-unsafe fn getchar() -> i32 {
-    let mut byte = [0u8; 1];
-    match std::io::stdin().read(&mut byte) {
-        Ok(1) => byte[0] as i32,
-        _ => -1,
-    }
-}
 // `fprintf(stdout, ...)` -> `print!` -- both of these were pure fixed
 // text (the only variadic args are plain integers substituted by
 // value, not by reference or pointer), so there was never a genuine
@@ -208,7 +200,11 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         }
     }
     if options.debug_wait_on_start {
-        getchar();
+        // `--debug-wait-on-start` blocks until the user presses a key, so a
+        // debugger can attach. Was a `getchar()` shim kept for the C name's
+        // sake; the return value was already discarded, and so is a read
+        // error (EOF under a pipe means "do not wait", same as before).
+        let _ = std::io::stdin().read(&mut [0u8; 1]);
     }
     logger_set_verbosity(
         &mut *options.logger.borrow_mut(),

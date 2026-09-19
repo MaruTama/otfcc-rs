@@ -14735,3 +14735,45 @@ on the other platform before a commit is trusted.
     every `tests/fuzz-corpus/known-issues/*.bin` re-run directly.
     `survey-unsafe.sh` (vs. the L-9a branch): `unsafe fn` 70 -> 68,
     `unsafe blocks` 190 -> 183, raw pointer types 797 -> 787.
+
+- **Stage M-1: the six `unsafe fn` markers the compiler never asked for.**
+  First installment after Stage L, and the start of a fresh inventory of
+  all 55 remaining `unsafe fn` (the method: strip every marker in a
+  throwaway worktree and let `rustc`'s E0133 say which ones are load
+  bearing). These six are not: nothing in their bodies or signatures
+  requires the caller to uphold anything.
+  - `table/cmap.rs`'s `otfcc_build_cmap` and `otfcc_build_cmap_format14`,
+    and `json_writer.rs`'s `serialize_to_json`: leftovers from when these
+    took `*mut` tables. Both files are now entirely free of `unsafe`, so
+    their file-level `#![allow(unsafe_op_in_unsafe_fn)]` goes too (the
+    per-file ratchet this migration has used since Stage 6).
+  - `libcff/cff_parser.rs`'s `cff_file_over` (a test helper) and its five
+    `unsafe { .. }` call sites.
+  - `libcff/subr.rs`'s `index_count` (a test helper) **plus the round trip
+    that made it unsafe**: it built a `CffIndex` with `cff_index_create()`
+    (`Box::into_raw`), filled it through `&mut *idx`, read `(*idx).count`
+    and freed it with `cff_index_free`. `CffIndex` owns nothing but two
+    `Vec`s and `cff_index_dispose` only clears them, so a plain local and
+    its drop glue do the same work: `new_empty_cff_index()` +
+    `extract_index(.., &mut idx)` + `idx.count`. Four test bodies lose
+    their `unsafe` blocks with it.
+  - `bin/otfccdump.rs`'s `getchar`, folded into its single call site --
+    the body was already pure `std::io` (only the libc name survived), and
+    `--debug-wait-on-start` discards the result either way.
+  - **Two traps worth recording, both hit during this pass.** (1) A
+    `cargo check`/`cargo build` sweep does **not** compile `#[cfg(test)]`
+    code, so two of the six looked marker-only when they were not:
+    `index_count` really did need its marker until the round trip above
+    was removed. Use `clippy --all-targets`. (2) A function whose body
+    already wraps its unsafety in an inner `unsafe { .. }` block compiles
+    fine without the outer `unsafe fn`, which does **not** make it safe to
+    call -- `logger.rs`'s `logger_indent` takes a `*const c_char` and was
+    rejected from this batch for exactly that reason. The filter that
+    produced this list therefore requires *both* no raw pointer in the
+    signature *and* no inner `unsafe` block.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (410, incl. `golden.rs`'s byte-exact
+    fixtures), Miri, all three fuzz targets 90s each plus every
+    `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`:
+    `unsafe fn` 55 -> 49, `unsafe blocks` 171 -> 162, files with the
+    file-level allow 44 -> 42.

@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
 
@@ -1080,7 +1078,7 @@ fn build_format14_for_selector(
         0_i32
     })) as u8;
 }
-unsafe fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
+fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
     let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];
     for (key, _) in cmap.uvs.iter() {
         if key.selector < MAX_UNICODE as u32 {
@@ -1144,7 +1142,7 @@ unsafe fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
     buf
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer> {
+pub fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer> {
     let cmap = match cmap {
         Some(c) if !c.unicodes.is_empty() => c,
         _ => return None,
