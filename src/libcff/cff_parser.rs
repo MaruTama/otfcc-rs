@@ -2439,7 +2439,7 @@ mod cff_header_and_encoding_tests {
         }
     }
 
-    unsafe fn cff_file_over(data: &[u8]) -> CffFile {
+    fn cff_file_over(data: &[u8]) -> CffFile {
         CffFile {
             raw_data: data.as_ptr() as *mut u8,
             raw_length: data.len() as u32,
@@ -2468,7 +2468,7 @@ mod cff_header_and_encoding_tests {
         // The original read the 4 fixed header bytes with no check that
         // `raw_length` was even that long.
         let data = [0x01u8]; // only 1 byte, header needs 4
-        let mut cff = unsafe { cff_file_over(&data) };
+        let mut cff = cff_file_over(&data);
         // Never dereferenced on this path: `name.count == top_dict.count`
         // (both 0 for a header this short), so the only place this
         // function reads `options` -- the mismatch-count warning log --
@@ -2488,7 +2488,7 @@ mod cff_header_and_encoding_tests {
         // offset=0/1 are reserved predefined-encoding sentinels, so the
         // real data starts at offset 2.
         let data = [0u8, 0, 0x00, 0x02, 5, 9]; // format=0, codes=[5,9]
-        let cff = unsafe { cff_file_over(&data) };
+        let cff = cff_file_over(&data);
         let CffEncoding::Format0(code) = parse_encoding(&cff, 2) else {
             panic!("expected Format0");
         };
@@ -2498,7 +2498,7 @@ mod cff_header_and_encoding_tests {
     #[test]
     fn parse_encoding_format0_truncated_falls_back_to_unspecified_instead_of_reading_oob() {
         let data = [0u8, 0, 0x00, 0x02, 5]; // format=0, ncodes=2, only 1 code present
-        let cff = unsafe { cff_file_over(&data) };
+        let cff = cff_file_over(&data);
         let result = parse_encoding(&cff, 2);
         assert!(matches!(result, CffEncoding::Unspecified));
     }
@@ -2507,7 +2507,7 @@ mod cff_header_and_encoding_tests {
     fn parse_encoding_negative_offset_falls_back_to_unspecified_instead_of_reading_before_the_buffer()
      {
         let data = [0u8; 8];
-        let cff = unsafe { cff_file_over(&data) };
+        let cff = cff_file_over(&data);
         let result = parse_encoding(&cff, -5);
         assert!(matches!(result, CffEncoding::Unspecified));
     }
@@ -2537,7 +2537,7 @@ mod cff_header_and_encoding_tests {
             0, 0, 0, // Global Subr INDEX: empty
             0, 0, 0,
         ];
-        let mut cff = unsafe { cff_file_over(&data) };
+        let mut cff = cff_file_over(&data);
         let options: Options = Options::default();
         parse_cff_bytecode(&mut cff, &options);
         assert_eq!(cff.top_dict.count, 1, "sanity: Top DICT INDEX parsed");

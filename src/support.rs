@@ -15,6 +15,7 @@ pub mod parsed_json;
 pub mod primitives;
 pub mod stdio;
 pub mod stopwatch;
+pub mod strtol;
 pub mod ttinstr;
 pub mod unicodeconv;
 

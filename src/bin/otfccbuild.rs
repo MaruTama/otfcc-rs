@@ -10,11 +10,11 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use libc::{fprintf, strtol};
+use libc::fprintf;
 use otfcc_rust::support::stdio::stderr;
 
 use otfcc_rust::logger::{
-    LoggerType, logger_finish, logger_indent, logger_log_sds, logger_set_verbosity,
+    LoggerType, logger_finish, logger_indent_sds, logger_log_sds, logger_set_verbosity,
     logger_start_sds,
 };
 use otfcc_rust::support::buffer::Buffer;
@@ -31,21 +31,14 @@ use otfcc_rust::support::getopt::{GetoptItem, LongOpt, getopt_long};
 use otfcc_rust::support::options::otfcc_options_optimize_to;
 use otfcc_rust::support::parsed_json::ParsedValue;
 use otfcc_rust::support::parsed_json::{json_parse, json_value_free};
+use otfcc_rust::support::strtol::strtol;
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
-use otfcc_rust::support::{EXIT_FAILURE, NULL};
+use otfcc_rust::support::EXIT_FAILURE;
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use std::cell::RefCell;
 use std::io::Read;
 use std::os::unix::ffi::OsStrExt;
 
-#[inline]
-unsafe fn atoi(mut __nptr: *const ::core::ffi::c_char) -> i32 {
-    return strtol(
-        __nptr,
-        NULL as *mut *mut ::core::ffi::c_char,
-        10_i32,
-    ) as i32;
-}
 // `fprintf(stdout, ...)` -> `print!` -- both of these were pure fixed
 // text (the only variadic args are plain integers substituted by
 // value, not by reference or pointer), so there was never a genuine
@@ -123,10 +116,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     let mut inPath: Option<::std::ffi::CString> = None;
     let mut options: Box<Options> = Box::default();
     options.logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
-    logger_indent(
-        &mut *options.logger.borrow_mut(),
-        b"otfccbuild\0" as *const u8 as *const ::core::ffi::c_char,
-    );
+    logger_indent_sds(&mut *options.logger.borrow_mut(), b"otfccbuild".to_vec());
     otfcc_options_optimize_to(&mut *options, 1_u8);
     const OPT_VERSION: i32 = 'v' as i32;
     const OPT_HELP: i32 = 'h' as i32;
@@ -207,9 +197,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                 OPT_DUMMY_DSIG => options.dummy_dsig = true,
                 OPT_QUIET => options.quiet = true,
                 OPT_OPTIMIZE => {
-                    let carg = ::std::ffi::CString::new(arg.unwrap())
-                        .expect("optimize level must not contain a NUL byte");
-                    otfcc_options_optimize_to(&mut *options, atoi(carg.as_ptr()) as u8);
+                    otfcc_options_optimize_to(&mut options, strtol(arg.unwrap().as_bytes(), 10) as u8);
                 }
                 OPT_TIME => {}
                 OPT_IGNORE_HINTS => options.ignore_hints = true,

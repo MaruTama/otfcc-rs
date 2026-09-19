@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, ShapeId};
 
@@ -40,7 +38,7 @@ use crate::table::vhea::otfcc_dump_vhea;
 /// trait is gone. Returning the `BuiltValue` itself rather than a
 /// `BuiltValue::into_raw` pointer drops the last reason that bridge
 /// existed on this path.
-pub unsafe fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
+pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
     let mut root = BuiltValue::new_object(48);
     otfcc_dump_fvar((*font).fvar.as_deref(), &mut root, options);
     otfcc_dump_head((*font).head.as_deref(), &mut root, options);

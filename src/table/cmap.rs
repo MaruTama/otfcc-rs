@@ -1,6 +1,5 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
+use crate::support::strtol::strtol;
 use crate::support::parsed_json::ParsedValue;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
@@ -67,30 +66,6 @@ pub struct CmapTable {
     pub uvs: std::collections::BTreeMap<CmapUvsKey, GlyphHandle>,
 }
 pub const UINT16_MAX: i32 = 65535_i32;
-// Was `libc::strtol(s, NULL, 10)` over a raw C string -- every caller now
-// passes a plain byte slice sourced from a `ParsedValue` object key
-// (already an owned, NUL-free `Vec<u8>` slice by the time it reaches here;
-// see `parse_unicode`'s own comment), so this reproduces `strtol`'s base-10
-// parsing (optional leading whitespace/sign, first run of decimal digits,
-// `0` for "no digits found") directly over `&[u8]` instead.
-fn atoi(s: &[u8]) -> i32 {
-    let mut it = s.iter().skip_while(|b| b.is_ascii_whitespace()).peekable();
-    let negative = match it.peek() {
-        Some(&&b'-') => {
-            it.next();
-            true
-        }
-        Some(&&b'+') => {
-            it.next();
-            false
-        }
-        _ => false,
-    };
-    let val: i64 = it
-        .take_while(|b| b.is_ascii_digit())
-        .fold(0i64, |acc, &b| acc * 10 + (b - b'0') as i64);
-    if negative { -val as i32 } else { val as i32 }
-}
 pub fn otfcc_encode_cmap_by_index(
     cmap: &mut CmapTable,
     c: i32,
@@ -662,32 +637,12 @@ pub fn otfcc_dump_cmap(
 // storage NUL stripped by the caller, same as every other `ParsedValue`
 // object-key consumer in this crate) instead of going through an owned
 // C-string copy -- no allocation or `unsafe` `libc` call needed any more.
-fn parse_unicode(unicode_str: &[u8]) -> Unicode {
+pub(crate) fn parse_unicode(unicode_str: &[u8]) -> Unicode {
     if unicode_str.len() > 2 && unicode_str[0] == b'U' && unicode_str[1] == b'+' {
-        parse_hex(&unicode_str[2..]) as Unicode
+        strtol(&unicode_str[2..], 16) as Unicode
     } else {
-        atoi(unicode_str) as Unicode
+        strtol(unicode_str, 10) as Unicode
     }
-}
-// Was `libc::strtol(s, NULL, 16)` -- same `strtol` semantics as `atoi`
-// above, base 16 instead of base 10.
-fn parse_hex(s: &[u8]) -> i32 {
-    let mut it = s.iter().skip_while(|b| b.is_ascii_whitespace()).peekable();
-    let negative = match it.peek() {
-        Some(&&b'-') => {
-            it.next();
-            true
-        }
-        Some(&&b'+') => {
-            it.next();
-            false
-        }
-        _ => false,
-    };
-    let val: i64 = it
-        .take_while(|b| b.is_ascii_hexdigit())
-        .fold(0i64, |acc, &b| acc * 16 + (b as char).to_digit(16).unwrap() as i64);
-    if negative { -val as i32 } else { val as i32 }
 }
 fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &Options) {
     let Some(fields) = table.and_then(ParsedValue::as_object) else {
@@ -1080,7 +1035,7 @@ fn build_format14_for_selector(
         0_i32
     })) as u8;
 }
-unsafe fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
+fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
     let mut valid_selectors: Vec<bool> = vec![false; MAX_UNICODE as usize];
     for (key, _) in cmap.uvs.iter() {
         if key.selector < MAX_UNICODE as u32 {
@@ -1144,7 +1099,7 @@ unsafe fn otfcc_build_cmap_format14(cmap: &CmapTable) -> Buffer {
     buf
 }
 #[allow(improper_ctypes_definitions)]
-pub unsafe fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer> {
+pub fn otfcc_build_cmap(cmap: Option<&CmapTable>, options: &Options) -> Option<Buffer> {
     let cmap = match cmap {
         Some(c) if !c.unicodes.is_empty() => c,
         _ => return None,
