@@ -14967,3 +14967,49 @@ on the other platform before a commit is trusted.
     `survey-unsafe.sh`: `unsafe fn` 38 -> 33, `unsafe blocks` 141 -> 135,
     raw pointer types 637 -> 632, files with the file-level allow 36 ->
     35.
+
+- **Stage M-6: `SplineFontContainer` is an owned value --
+  `otfcc_delete_sfnt` deleted, the readers return `Option<..>`.** Sixth
+  installment, stacked on M-5. The Stage L-9a treatment, for the last
+  create/free pair the readers' callers had to remember.
+  - **`otfcc_read_sfnt(&Path) -> Option<SplineFontContainer>`** and
+    **`otfcc_read_sfnt_from_reader(&mut R) -> Option<SplineFontContainer>`**,
+    where they were `(*const c_char) -> *mut SplineFontContainer` and
+    `(&mut R) -> *mut SplineFontContainer` with a null for failure and a
+    matching `otfcc_delete_sfnt` to give the box back. **A plain value, not
+    a `Box`, this time** -- unlike `Font` in L-9a there is nothing here that
+    wants the indirection, and `read_otf` already takes `&SplineFontContainer`.
+    Callers just hold it and let scope drop it; `otfcc_delete_sfnt` is gone.
+  - **The "null path" case is retired by the type**: the old
+    `otfcc_read_sfnt(null)` guard (and its test) existed only because a
+    `*const c_char` can be null. A `&Path` cannot. That test is deleted
+    rather than converted -- there is no longer a way to express it, which
+    is the point. (411 lib tests, not 412.)
+  - **`bin/otfccdump.rs`** keeps `inPath` as a `CString` and builds the
+    `&Path` from its bytes at the one call site; the `sfnt` local is an
+    `Option<SplineFontContainer>` because it is assigned in the "Read SFNT"
+    step and consumed in "Read Font", two of the crate's goto-shaped
+    `while ___loggedstep_v` blocks apart. `(*sfnt).count == 0` checks
+    become `is_none_or(|s| s.count == 0)`, and the explicit delete becomes
+    `drop(sfnt.take())` so the SFNT is released at the same point as
+    before.
+  - **Other call sites**: the 8 `otf_reader.rs` regression tests, the
+    `otf_parse`/`otf_dump` fuzz targets and `benches/support` each lose an
+    `assert!(!sfnt.is_null())`/`if sfnt.is_null() {..}` and an
+    `otfcc_delete_sfnt`. The test helper `write_temp_file` returns a
+    `PathBuf` now instead of a `CString` that every test immediately
+    turned back into an `OsStr` to clean up after itself. `caryll_sfnt.rs`
+    has no `unsafe` left at all, so it drops its file-level
+    `#![allow(unsafe_op_in_unsafe_fn)]`.
+  - **Test effectiveness**: the error path (a file that is not an SFNT) is
+    what the CLI actually shows a user, so that is what was checked:
+    disabling the read-failure guard makes `otfccdump` print a *different*
+    message ("Subfont index 0 out of range ... (0 -- 4294967295)") for a
+    garbage file, and `log_output.rs`'s byte-exact stderr comparison fails.
+    The success path is under `golden.rs` as always.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    check` of the fuzz crate (both targets were edited), `cargo test --
+    --test-threads=1` (411), Miri, all three fuzz targets plus every
+    `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`: `unsafe fn`
+    33 -> 31, `unsafe blocks` 135 -> 127, raw pointer types 632 -> 629,
+    files with the file-level allow 35 -> 34.

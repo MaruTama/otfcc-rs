@@ -18,7 +18,7 @@
 #![allow(dead_code)]
 
 use otfcc_rust::consolidate::otfcc_consolidate_font;
-use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
+use otfcc_rust::font::caryll_sfnt::otfcc_read_sfnt_from_reader;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
@@ -66,11 +66,10 @@ pub fn quiet_options_o2() -> Box<Options> {
 /// in, pretty-printed JSON bytes out.
 pub fn dump_to_json(sfnt_bytes: &[u8], options: &Options) -> Vec<u8> {
     unsafe {
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(sfnt_bytes));
-        assert!(!sfnt.is_null(), "otfcc_read_sfnt_from_reader returned NULL");
+        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(sfnt_bytes))
+            .expect("otfcc_read_sfnt_from_reader returned None");
 
-        let mut font = read_otf(&*sfnt, 0, options).expect("read_otf returned None");
-        otfcc_delete_sfnt(sfnt);
+        let mut font = read_otf(&sfnt, 0, options).expect("read_otf returned None");
 
         otfcc_consolidate_font(&mut font, options);
 

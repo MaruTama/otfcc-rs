@@ -1,6 +1,4 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 use std::io::{Read, Seek, SeekFrom};
-use std::os::unix::ffi::OsStrExt;
 
 // `data` was `__caryll_allocate_clean`'d/`free`'d, sized from `length` --
 // read straight out of the SFNT table directory, i.e. untrusted font bytes.
@@ -253,23 +251,19 @@ fn otfcc_read_sfnt_body<R: Read + Seek>(font: &mut SplineFontContainer, file: &m
         }
     }
 }
-/// Opens and reads an SFNT (or TTC) file by path, returning null on any
+/// Opens and reads an SFNT (or TTC) file by path, returning `None` on any
 /// failure -- the file doesn't exist, isn't readable, or is truncated/
-/// malformed partway through. `otfccdump.rs`'s caller null-checks the
-/// result and logs accordingly; there is no separate "couldn't open" vs.
-/// "couldn't parse" signal, matching how this always worked (previously,
-/// the caller `fopen`'d the file itself and this function null-checked
-/// that pointer -- opening now happens in here instead, so the caller no
-/// longer needs a `libc::fopen`/`FILE*` of its own at all).
-pub unsafe fn otfcc_read_sfnt(path: *const ::core::ffi::c_char) -> *mut SplineFontContainer {
-    if path.is_null() {
-        return ::core::ptr::null_mut::<SplineFontContainer>();
-    }
-    let path_bytes = unsafe { ::core::ffi::CStr::from_ptr(path) }.to_bytes();
-    let os_path = std::ffi::OsStr::from_bytes(path_bytes);
-    let Ok(mut file) = std::fs::File::open(std::path::Path::new(os_path)) else {
-        return ::core::ptr::null_mut::<SplineFontContainer>();
-    };
+/// malformed partway through. `otfccdump.rs`'s caller checks the result and
+/// logs accordingly; there is no separate "couldn't open" vs. "couldn't
+/// parse" signal, matching how this always worked.
+///
+/// Was `(*const c_char) -> *mut SplineFontContainer` (null for failure,
+/// and a matching `otfcc_delete_sfnt` to give it back). The path is a
+/// `&Path` now -- which also retires the "null path" case, since a
+/// reference cannot be null -- and the result is the owned value, so the
+/// caller's scope frees it and there is no delete function to forget.
+pub fn otfcc_read_sfnt(path: &std::path::Path) -> Option<SplineFontContainer> {
+    let mut file = std::fs::File::open(path).ok()?;
     otfcc_read_sfnt_from_reader(&mut file)
 }
 /// [`otfcc_read_sfnt`]'s file-opening split from its actual reading, for
@@ -279,23 +273,14 @@ pub unsafe fn otfcc_read_sfnt(path: *const ::core::ffi::c_char) -> *mut SplineFo
 /// every one of its thousands-per-process iterations (this used to be
 /// `fmemopen` wrapping a byte buffer as a `FILE*`, back when
 /// `otfcc_read_sfnt` itself was `FILE*`-shaped).
-pub fn otfcc_read_sfnt_from_reader<R: Read + Seek>(file: &mut R) -> *mut SplineFontContainer {
+pub fn otfcc_read_sfnt_from_reader<R: Read + Seek>(file: &mut R) -> Option<SplineFontContainer> {
     let mut font = SplineFontContainer {
         type_0: 0,
         count: 0,
         offsets: Vec::new(),
         packets: Vec::new(),
     };
-    if !otfcc_read_sfnt_body(&mut font, file) {
-        return ::core::ptr::null_mut::<SplineFontContainer>();
-    }
-    Box::into_raw(Box::new(font))
-}
-pub unsafe fn otfcc_delete_sfnt(font: *mut SplineFontContainer) {
-    if font.is_null() {
-        return;
-    }
-    drop(Box::from_raw(font));
+    otfcc_read_sfnt_body(&mut font, file).then_some(font)
 }
 // `None` on a short read (EOF partway through, i.e. a truncated file).
 // `read_exact` reports that as an `Err` on its own -- no separate
@@ -316,7 +301,7 @@ mod tests {
     use super::*;
     use std::io::Write;
 
-    fn write_temp_file(bytes: &[u8]) -> std::ffi::CString {
+    fn write_temp_file(bytes: &[u8]) -> std::path::PathBuf {
         let mut path = std::env::temp_dir();
         path.push(format!(
             "otfcc-caryll-sfnt-test-{:?}-{}",
@@ -325,23 +310,13 @@ mod tests {
         ));
         let mut f = std::fs::File::create(&path).unwrap();
         f.write_all(bytes).unwrap();
-        std::ffi::CString::new(path.as_os_str().as_bytes()).unwrap()
+        path
     }
 
     #[test]
     #[cfg_attr(miri, ignore = "calls std::fs::File::open on a real path, unsupported under Miri's default isolation")]
-    fn nonexistent_path_returns_null() {
-        unsafe {
-            let path = std::ffi::CString::new("/nonexistent/otfcc-test-path").unwrap();
-            assert!(otfcc_read_sfnt(path.as_ptr()).is_null());
-        }
-    }
-
-    #[test]
-    fn null_path_returns_null() {
-        unsafe {
-            assert!(otfcc_read_sfnt(::core::ptr::null()).is_null());
-        }
+    fn nonexistent_path_returns_none() {
+        assert!(otfcc_read_sfnt(std::path::Path::new("/nonexistent/otfcc-test-path")).is_none());
     }
 
     // The bug this file's rewrite fixes: a table whose declared length runs
@@ -350,28 +325,24 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
     fn table_length_past_truncated_file_end_fails_instead_of_zero_padding() {
-        unsafe {
-            // A minimal one-table SFNT: header (12 bytes) + one 16-byte
-            // directory entry declaring the table's length as 8 bytes, but
-            // only 4 of those 8 bytes are actually present in the file.
-            let mut bytes = Vec::new();
-            bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
-            bytes.extend_from_slice(&1u16.to_be_bytes()); // num_tables
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // search_range
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // entry_selector
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
-            let table_offset = 12 + 16u32;
-            bytes.extend_from_slice(b"TEST"); // tag
-            bytes.extend_from_slice(&0u32.to_be_bytes()); // check_sum
-            bytes.extend_from_slice(&table_offset.to_be_bytes()); // offset
-            bytes.extend_from_slice(&8u32.to_be_bytes()); // length (8, but...)
-            bytes.extend_from_slice(&[0xAA; 4]); // ...only 4 bytes follow
-            let path = write_temp_file(&bytes);
-            assert!(otfcc_read_sfnt(path.as_ptr()).is_null());
-            let _ = std::fs::remove_file(std::path::Path::new(
-                std::ffi::OsStr::from_bytes(path.as_bytes()),
-            ));
-        }
+        // A minimal one-table SFNT: header (12 bytes) + one 16-byte
+        // directory entry declaring the table's length as 8 bytes, but
+        // only 4 of those 8 bytes are actually present in the file.
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
+        bytes.extend_from_slice(&1u16.to_be_bytes()); // num_tables
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // search_range
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // entry_selector
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
+        let table_offset = 12 + 16u32;
+        bytes.extend_from_slice(b"TEST"); // tag
+        bytes.extend_from_slice(&0u32.to_be_bytes()); // check_sum
+        bytes.extend_from_slice(&table_offset.to_be_bytes()); // offset
+        bytes.extend_from_slice(&8u32.to_be_bytes()); // length (8, but...)
+        bytes.extend_from_slice(&[0xAA; 4]); // ...only 4 bytes follow
+        let path = write_temp_file(&bytes);
+        assert!(otfcc_read_sfnt(&path).is_none());
+        let _ = std::fs::remove_file(&path);
     }
 
     // The bug fixed alongside the one above: a table's declared length was
@@ -384,24 +355,20 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
     fn table_length_far_past_file_end_fails_without_allocating_it() {
-        unsafe {
-            let mut bytes = Vec::new();
-            bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
-            bytes.extend_from_slice(&1u16.to_be_bytes()); // num_tables
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // search_range
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // entry_selector
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
-            let table_offset = 12 + 16u32;
-            bytes.extend_from_slice(b"TEST"); // tag
-            bytes.extend_from_slice(&0u32.to_be_bytes()); // check_sum
-            bytes.extend_from_slice(&table_offset.to_be_bytes()); // offset
-            bytes.extend_from_slice(&(u32::MAX - 1).to_be_bytes()); // length: ~4GB
-            let path = write_temp_file(&bytes);
-            assert!(otfcc_read_sfnt(path.as_ptr()).is_null());
-            let _ = std::fs::remove_file(std::path::Path::new(
-                std::ffi::OsStr::from_bytes(path.as_bytes()),
-            ));
-        }
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
+        bytes.extend_from_slice(&1u16.to_be_bytes()); // num_tables
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // search_range
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // entry_selector
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
+        let table_offset = 12 + 16u32;
+        bytes.extend_from_slice(b"TEST"); // tag
+        bytes.extend_from_slice(&0u32.to_be_bytes()); // check_sum
+        bytes.extend_from_slice(&table_offset.to_be_bytes()); // offset
+        bytes.extend_from_slice(&(u32::MAX - 1).to_be_bytes()); // length: ~4GB
+        let path = write_temp_file(&bytes);
+        assert!(otfcc_read_sfnt(&path).is_none());
+        let _ = std::fs::remove_file(&path);
     }
 
     // The bug found by fuzzing after this file's TTC-count allocation-budget
@@ -424,87 +391,69 @@ mod tests {
     #[test]
     #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
     fn ttc_member_with_fewer_tables_than_the_first_member_reads_cleanly() {
-        unsafe {
-            let mut bytes = Vec::new();
-            bytes.extend_from_slice(&crate::tag::SFNT_TTC_TAG.to_be_bytes());
-            bytes.extend_from_slice(&0x00010000u32.to_be_bytes()); // ttc version 1.0
-            bytes.extend_from_slice(&2u32.to_be_bytes()); // numFonts
-            bytes.extend_from_slice(&20u32.to_be_bytes()); // offsets[0]
-            bytes.extend_from_slice(&48u32.to_be_bytes()); // offsets[1]
-            // Member 0 (offset 20): one table.
-            bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
-            bytes.extend_from_slice(&1u16.to_be_bytes()); // num_tables
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // search_range
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // entry_selector
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
-            bytes.extend_from_slice(b"TEST"); // tag
-            bytes.extend_from_slice(&0u32.to_be_bytes()); // check_sum
-            bytes.extend_from_slice(&0u32.to_be_bytes()); // offset
-            bytes.extend_from_slice(&0u32.to_be_bytes()); // length
-            // Member 1 (offset 48): zero tables.
-            bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // num_tables
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // search_range
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // entry_selector
-            bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
-            assert_eq!(bytes.len(), 60);
-            let path = write_temp_file(&bytes);
-            let sfnt = otfcc_read_sfnt(path.as_ptr());
-            assert!(!sfnt.is_null());
-            let font: &SplineFontContainer = &*sfnt;
-            assert_eq!(font.count, 2);
-            assert_eq!(font.packets[0].pieces.len(), 1);
-            assert_eq!(font.packets[1].pieces.len(), 0);
-            otfcc_delete_sfnt(sfnt);
-            let _ = std::fs::remove_file(std::path::Path::new(
-                std::ffi::OsStr::from_bytes(path.as_bytes()),
-            ));
-        }
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&crate::tag::SFNT_TTC_TAG.to_be_bytes());
+        bytes.extend_from_slice(&0x00010000u32.to_be_bytes()); // ttc version 1.0
+        bytes.extend_from_slice(&2u32.to_be_bytes()); // numFonts
+        bytes.extend_from_slice(&20u32.to_be_bytes()); // offsets[0]
+        bytes.extend_from_slice(&48u32.to_be_bytes()); // offsets[1]
+        // Member 0 (offset 20): one table.
+        bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
+        bytes.extend_from_slice(&1u16.to_be_bytes()); // num_tables
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // search_range
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // entry_selector
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
+        bytes.extend_from_slice(b"TEST"); // tag
+        bytes.extend_from_slice(&0u32.to_be_bytes()); // check_sum
+        bytes.extend_from_slice(&0u32.to_be_bytes()); // offset
+        bytes.extend_from_slice(&0u32.to_be_bytes()); // length
+        // Member 1 (offset 48): zero tables.
+        bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // num_tables
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // search_range
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // entry_selector
+        bytes.extend_from_slice(&0u16.to_be_bytes()); // range_shift
+        assert_eq!(bytes.len(), 60);
+        let path = write_temp_file(&bytes);
+        let font = otfcc_read_sfnt(&path).expect("font must parse");
+        assert_eq!(font.count, 2);
+        assert_eq!(font.packets[0].pieces.len(), 1);
+        assert_eq!(font.packets[1].pieces.len(), 0);
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
     #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
     fn ttc_count_far_past_file_end_fails_without_allocating_it() {
-        unsafe {
-            let mut bytes = Vec::new();
-            bytes.extend_from_slice(&crate::tag::SFNT_TTC_TAG.to_be_bytes());
-            bytes.extend_from_slice(&0x00010000u32.to_be_bytes()); // ttc version 1.0
-            bytes.extend_from_slice(&(u32::MAX - 1).to_be_bytes()); // numFonts: ~4 billion
-            let path = write_temp_file(&bytes);
-            assert!(otfcc_read_sfnt(path.as_ptr()).is_null());
-            let _ = std::fs::remove_file(std::path::Path::new(
-                std::ffi::OsStr::from_bytes(path.as_bytes()),
-            ));
-        }
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&crate::tag::SFNT_TTC_TAG.to_be_bytes());
+        bytes.extend_from_slice(&0x00010000u32.to_be_bytes()); // ttc version 1.0
+        bytes.extend_from_slice(&(u32::MAX - 1).to_be_bytes()); // numFonts: ~4 billion
+        let path = write_temp_file(&bytes);
+        assert!(otfcc_read_sfnt(&path).is_none());
+        let _ = std::fs::remove_file(&path);
     }
 
     #[test]
     #[cfg_attr(miri, ignore = "writes/opens a real temp file, unsupported under Miri's default isolation")]
     fn well_formed_single_table_font_reads_its_bytes_back() {
-        unsafe {
-            let mut bytes = Vec::new();
-            bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
-            bytes.extend_from_slice(&1u16.to_be_bytes());
-            bytes.extend_from_slice(&0u16.to_be_bytes());
-            bytes.extend_from_slice(&0u16.to_be_bytes());
-            bytes.extend_from_slice(&0u16.to_be_bytes());
-            let table_offset = 12 + 16u32;
-            bytes.extend_from_slice(b"TEST");
-            bytes.extend_from_slice(&0u32.to_be_bytes());
-            bytes.extend_from_slice(&table_offset.to_be_bytes());
-            bytes.extend_from_slice(&4u32.to_be_bytes());
-            bytes.extend_from_slice(b"DATA");
-            let path = write_temp_file(&bytes);
-            let sfnt = otfcc_read_sfnt(path.as_ptr());
-            assert!(!sfnt.is_null());
-            let font: &SplineFontContainer = &*sfnt;
-            assert_eq!(font.count, 1);
-            assert_eq!(font.packets[0].pieces.len(), 1);
-            assert_eq!(font.packets[0].pieces[0].data, b"DATA");
-            otfcc_delete_sfnt(sfnt);
-            let _ = std::fs::remove_file(std::path::Path::new(
-                std::ffi::OsStr::from_bytes(path.as_bytes()),
-            ));
-        }
+        let mut bytes = Vec::new();
+        bytes.extend_from_slice(&crate::tag::SFNT_VERSION_TRUE_TYPE.to_be_bytes());
+        bytes.extend_from_slice(&1u16.to_be_bytes());
+        bytes.extend_from_slice(&0u16.to_be_bytes());
+        bytes.extend_from_slice(&0u16.to_be_bytes());
+        bytes.extend_from_slice(&0u16.to_be_bytes());
+        let table_offset = 12 + 16u32;
+        bytes.extend_from_slice(b"TEST");
+        bytes.extend_from_slice(&0u32.to_be_bytes());
+        bytes.extend_from_slice(&table_offset.to_be_bytes());
+        bytes.extend_from_slice(&4u32.to_be_bytes());
+        bytes.extend_from_slice(b"DATA");
+        let path = write_temp_file(&bytes);
+        let font = otfcc_read_sfnt(&path).expect("font must parse");
+        assert_eq!(font.count, 1);
+        assert_eq!(font.packets[0].pieces.len(), 1);
+        assert_eq!(font.packets[0].pieces[0].data, b"DATA");
+        let _ = std::fs::remove_file(&path);
     }
 }
