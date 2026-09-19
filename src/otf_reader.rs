@@ -10,7 +10,6 @@ use crate::font::caryll_sfnt::{Packet, PacketPiece, SplineFontContainer};
 use crate::table::cff::{CffAndGlyf, unwrap_cff_table};
 use crate::table::glyf::{GlyfIOContext, unwrap_glyf_table};
 
-use crate::font::caryll_font::otfcc_font_create;
 use crate::otf_reader::unconsolidate::otfcc_unconsolidate_font;
 use crate::table::_tsi::otfcc_read_tsi;
 use crate::table::base::otfcc_read_base;
@@ -68,45 +67,45 @@ fn decide_font_subtype_otf(sfnt: &SplineFontContainer, index: u32) -> FontSubtyp
 /// over it and exactly one call site per implementor, so the erasure bought
 /// nothing and cost every caller a pair of casts. Both inputs are plain
 /// references now and the cast pairs are gone.
-pub unsafe fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> *mut Font {
+pub unsafe fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options) -> Option<Box<Font>> {
     if sfnt.count.wrapping_sub(1_u32) < index {
-        return ::core::ptr::null_mut::<Font>();
+        return None;
     } else {
-        let font: *mut Font = (otfcc_font_create)();
+        let mut font: Box<Font> = Box::default();
         let sfnt_packets = &sfnt.packets;
         let packet: &Packet = &sfnt_packets[index as usize];
-        (*font).subtype = decide_font_subtype_otf(sfnt, index);
-        (*font).fvar = otfcc_read_fvar(packet, options);
-        (*font).head = otfcc_read_head(packet, options);
-        (*font).maxp = otfcc_read_maxp(packet, options);
-        (*font).name = otfcc_read_name(packet, options);
-        (*font).meta = otfcc_read_meta(packet, options);
-        (*font).os_2 = otfcc_read_os_2(packet, options);
-        (*font).post = otfcc_read_post(packet, options);
-        (*font).hhea = otfcc_read_hhea(packet, options);
-        (*font).cmap = otfcc_read_cmap(packet, options);
-        if (*font).subtype == FontSubtype::Ttf {
-            (*font).hmtx = otfcc_read_hmtx(
+        font.subtype = decide_font_subtype_otf(sfnt, index);
+        font.fvar = otfcc_read_fvar(packet, options);
+        font.head = otfcc_read_head(packet, options);
+        font.maxp = otfcc_read_maxp(packet, options);
+        font.name = otfcc_read_name(packet, options);
+        font.meta = otfcc_read_meta(packet, options);
+        font.os_2 = otfcc_read_os_2(packet, options);
+        font.post = otfcc_read_post(packet, options);
+        font.hhea = otfcc_read_hhea(packet, options);
+        font.cmap = otfcc_read_cmap(packet, options);
+        if font.subtype == FontSubtype::Ttf {
+            font.hmtx = otfcc_read_hmtx(
                 packet,
                 options,
-                (*font).hhea.as_deref(),
-                (*font).maxp.as_deref(),
+                font.hhea.as_deref(),
+                font.maxp.as_deref(),
             );
-            (*font).vhea = otfcc_read_vhea(packet, options);
-            if (*font).vhea.is_some() {
-                (*font).vmtx = otfcc_read_vmtx(
+            font.vhea = otfcc_read_vhea(packet, options);
+            if font.vhea.is_some() {
+                font.vmtx = otfcc_read_vmtx(
                     packet,
                     options,
-                    (*font).vhea.as_deref(),
-                    (*font).maxp.as_deref(),
+                    font.vhea.as_deref(),
+                    font.maxp.as_deref(),
                 );
             }
-            (*font).fpgm = otfcc_read_fpgm_prep(packet, crate::tag::TAG_FPGM);
-            (*font).prep = otfcc_read_fpgm_prep(packet, crate::tag::TAG_PREP);
-            (*font).cvt_ = otfcc_read_cvt(packet, crate::tag::TAG_CVT);
-            (*font).gasp = otfcc_read_gasp(packet, options);
-            (*font).vdmx = otfcc_read_vdmx(packet, options);
-            (*font).ltsh = otfcc_read_ltsh(packet, options);
+            font.fpgm = otfcc_read_fpgm_prep(packet, crate::tag::TAG_FPGM);
+            font.prep = otfcc_read_fpgm_prep(packet, crate::tag::TAG_PREP);
+            font.cvt_ = otfcc_read_cvt(packet, crate::tag::TAG_CVT);
+            font.gasp = otfcc_read_gasp(packet, options);
+            font.vdmx = otfcc_read_vdmx(packet, options);
+            font.ltsh = otfcc_read_ltsh(packet, options);
             // `loca_is_long`/`num_glyphs` come from `head`/`maxp`, which
             // -- unlike the CFF branch below, which already tolerates a
             // missing `head` via `.map_or(null(), ...)` -- this branch
@@ -118,67 +117,66 @@ pub unsafe fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options
             // hit exactly this. `glyf` genuinely cannot be read without
             // both, so it is left `None` (its default) rather than
             // guessing at either value.
-            if (*font).head.is_some() && (*font).maxp.is_some() {
+            if font.head.is_some() && font.maxp.is_some() {
                 let ctx: GlyfIOContext = GlyfIOContext {
-                    loca_is_long: (*font).head.as_deref().unwrap().index_to_loc_format != 0,
-                    num_glyphs: (*font).maxp.as_deref().unwrap().num_glyphs as GlyphId,
+                    loca_is_long: font.head.as_deref().unwrap().index_to_loc_format != 0,
+                    num_glyphs: font.maxp.as_deref().unwrap().num_glyphs as GlyphId,
                     n_phantom_points: 4 as ShapeId,
-                    fvar: (*font)
+                    fvar: font
                         .fvar
                         .as_deref_mut()
                         .map_or(::core::ptr::null_mut(), |f| f as *mut FvarTable),
                     has_vertical_metrics: false,
                     export_fd_select: false,
                 };
-                (*font).glyf = otfcc_read_glyf(packet, options, &ctx);
+                font.glyf = otfcc_read_glyf(packet, options, &ctx);
             }
         } else {
             let cffpr: CffAndGlyf = otfcc_read_cff_and_glyf_tables(
                 packet,
                 options,
-                (*font)
+                font
                     .head
                     .as_deref()
                     .map_or(::core::ptr::null(), |h| h as *const HeadTable),
             );
-            (*font).cff = unwrap_cff_table(cffpr.meta);
-            (*font).glyf = unwrap_glyf_table(cffpr.glyphs);
-            (*font).vhea = otfcc_read_vhea(packet, options);
-            if (*font).vhea.is_some() {
-                (*font).vmtx = otfcc_read_vmtx(
+            font.cff = unwrap_cff_table(cffpr.meta);
+            font.glyf = unwrap_glyf_table(cffpr.glyphs);
+            font.vhea = otfcc_read_vhea(packet, options);
+            if font.vhea.is_some() {
+                font.vmtx = otfcc_read_vmtx(
                     packet,
                     options,
-                    (*font).vhea.as_deref(),
-                    (*font).maxp.as_deref(),
+                    font.vhea.as_deref(),
+                    font.maxp.as_deref(),
                 );
-                (*font).vorg = otfcc_read_vorg(packet, options);
+                font.vorg = otfcc_read_vorg(packet, options);
             }
         }
-        if let Some(glyf) = (*font).glyf.as_ref() {
+        if let Some(glyf) = font.glyf.as_ref() {
             let num_glyphs = glyf.len() as GlyphId;
-            (*font).gsub = otfcc_read_otl(packet, options, crate::tag::TAG_GSUB, num_glyphs);
-            (*font).gpos = otfcc_read_otl(packet, options, crate::tag::TAG_GPOS, num_glyphs);
-            (*font).gdef = otfcc_read_gdef(packet);
+            font.gsub = otfcc_read_otl(packet, options, crate::tag::TAG_GSUB, num_glyphs);
+            font.gpos = otfcc_read_otl(packet, options, crate::tag::TAG_GPOS, num_glyphs);
+            font.gdef = otfcc_read_gdef(packet);
         }
-        (*font).base = otfcc_read_base(packet, options);
-        (*font).cpal = otfcc_read_cpal(packet);
-        (*font).colr = otfcc_read_colr(packet, options);
-        (*font).svg = otfcc_read_svg(packet);
-        (*font).tsi_01 = otfcc_read_tsi(packet, crate::tag::TAG_TSI0, crate::tag::TAG_TSI1);
-        (*font).tsi_23 = otfcc_read_tsi(packet, crate::tag::TAG_TSI2, crate::tag::TAG_TSI3);
-        (*font).tsi5 = otfcc_read_tsi5(packet);
-        otfcc_unconsolidate_font(&mut *font, options);
-        return font;
+        font.base = otfcc_read_base(packet, options);
+        font.cpal = otfcc_read_cpal(packet);
+        font.colr = otfcc_read_colr(packet, options);
+        font.svg = otfcc_read_svg(packet);
+        font.tsi_01 = otfcc_read_tsi(packet, crate::tag::TAG_TSI0, crate::tag::TAG_TSI1);
+        font.tsi_23 = otfcc_read_tsi(packet, crate::tag::TAG_TSI2, crate::tag::TAG_TSI3);
+        font.tsi5 = otfcc_read_tsi5(packet);
+        otfcc_unconsolidate_font(&mut font, options);
+        return Some(font);
     };
 }
 
 #[cfg(test)]
 mod regression_tests {
     use crate::consolidate::otfcc_consolidate_font;
-    use crate::font::caryll_font::otfcc_font_free;
     use crate::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
     use crate::logger::{Logger, otfcc_new_empty_target};
-    use crate::support::options::{otfcc_delete_options, otfcc_new_options};
+    use crate::support::options::Options;
     use std::cell::RefCell;
     use std::io::Cursor;
     use std::time::{Duration, Instant};
@@ -212,18 +210,15 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             let elapsed = start.elapsed();
 
             otfcc_delete_sfnt(sfnt);
-            if !font.is_null() {
-                otfcc_font_free(font);
-            }
-            otfcc_delete_options(options);
+            drop(font);
 
             assert!(
                 elapsed < Duration::from_secs(10),
@@ -282,18 +277,15 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             let elapsed = start.elapsed();
 
             otfcc_delete_sfnt(sfnt);
-            if !font.is_null() {
-                otfcc_font_free(font);
-            }
-            otfcc_delete_options(options);
+            drop(font);
 
             assert!(
                 elapsed < Duration::from_secs(10),
@@ -339,11 +331,11 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             let elapsed = start.elapsed();
 
             // The wall-clock check below alone doesn't actually catch this
@@ -354,8 +346,8 @@ mod regression_tests {
             // memory-overhead multiplier in CI. Assert the actual
             // invariant the fix establishes instead: neither cap was
             // exceeded, for either table.
-            assert!(!font.is_null());
-            for otl in [(*font).gsub.as_deref(), (*font).gpos.as_deref()]
+            let font = font.expect("font must parse");
+            for otl in [font.gsub.as_deref(), font.gpos.as_deref()]
                 .into_iter()
                 .flatten()
             {
@@ -375,10 +367,7 @@ mod regression_tests {
             }
 
             otfcc_delete_sfnt(sfnt);
-            if !font.is_null() {
-                otfcc_font_free(font);
-            }
-            otfcc_delete_options(options);
+            drop(font);
 
             assert!(
                 elapsed < Duration::from_secs(10),
@@ -416,19 +405,19 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             let elapsed = start.elapsed();
 
             // Same reasoning as the feature-ref-amplification test above:
             // assert the actual invariant the fix establishes, not just
             // wall-clock time (which may not reliably distinguish "fixed"
             // from "fast enough on this hardware" alone).
-            assert!(!font.is_null());
-            for otl in [(*font).gsub.as_deref(), (*font).gpos.as_deref()]
+            let font = font.expect("font must parse");
+            for otl in [font.gsub.as_deref(), font.gpos.as_deref()]
                 .into_iter()
                 .flatten()
             {
@@ -449,10 +438,7 @@ mod regression_tests {
             }
 
             otfcc_delete_sfnt(sfnt);
-            if !font.is_null() {
-                otfcc_font_free(font);
-            }
-            otfcc_delete_options(options);
+            drop(font);
 
             assert!(
                 elapsed < Duration::from_secs(10),
@@ -496,17 +482,16 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
 
             otfcc_delete_sfnt(sfnt);
-            assert!(!font.is_null());
-            assert!((*font).maxp.is_none());
-            assert!((*font).glyf.is_none());
-            otfcc_font_free(font);
-            otfcc_delete_options(options);
+            let font = font.expect("font must parse");
+            assert!(font.maxp.is_none());
+            assert!(font.glyf.is_none());
+            drop(font);
         }
     }
 
@@ -515,7 +500,7 @@ mod regression_tests {
     /// shape the test above already covers on the *read* side --
     /// `json_writer.rs`'s `serialize_to_json` (the `otf_dump`
     /// path, not `otf_parse`) builds its own `GlyfIOContext` for the dump
-    /// step and unconditionally `.unwrap()`ed `(*font).head`/`(*font).
+    /// step and unconditionally `.unwrap()`ed `font.head`/`font.
     /// maxp` there too, independently of `read_otf`'s own fix
     /// above. That fix only stops `font.glyf` from being *populated* when
     /// `head`/`maxp` are missing -- it does nothing to stop `font.head`/
@@ -544,21 +529,20 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             otfcc_delete_sfnt(sfnt);
-            assert!(!font.is_null());
-            assert!((*font).maxp.is_none());
+            let mut font = font.expect("font must parse");
+            assert!(font.maxp.is_none());
 
             // The point of this regression test is that dumping a font with
             // no `maxp` does not panic; the dumped value itself is just
             // dropped.
-            drop(crate::json_writer::serialize_to_json(&mut *font, &*options));
+            drop(crate::json_writer::serialize_to_json(&mut font, &options));
 
-            otfcc_font_free(font);
-            otfcc_delete_options(options);
+            drop(font);
         }
     }
 
@@ -609,21 +593,18 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let font = super::read_otf(&*sfnt, 0, &*options);
-            if !font.is_null() {
-                otfcc_consolidate_font(&mut *font, &*options);
+            let mut font = super::read_otf(&*sfnt, 0, &options);
+            if let Some(font) = font.as_mut() {
+                otfcc_consolidate_font(font, &options);
             }
             let elapsed = start.elapsed();
 
             otfcc_delete_sfnt(sfnt);
-            if !font.is_null() {
-                otfcc_font_free(font);
-            }
-            otfcc_delete_options(options);
+            drop(font);
 
             assert!(
                 elapsed < Duration::from_secs(15),
@@ -672,15 +653,15 @@ mod regression_tests {
             let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(bytes.as_slice()));
             assert!(!sfnt.is_null());
 
-            let options = otfcc_new_options();
-            (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+            let mut options: Box<Options> = Box::default();
+            options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
             let start = Instant::now();
-            let font = super::read_otf(&*sfnt, 0, &*options);
+            let font = super::read_otf(&*sfnt, 0, &options);
             let elapsed = start.elapsed();
 
-            assert!(!font.is_null());
-            if let Some(cmap) = (*font).cmap.as_deref() {
+            let font = font.expect("font must parse");
+            if let Some(cmap) = font.cmap.as_deref() {
                 assert!(
                     cmap.uvs.len() <= crate::table::cmap::MAX_TOTAL_CMAP_MAPPINGS as usize,
                     "cmap.uvs.len() = {} exceeds MAX_TOTAL_CMAP_MAPPINGS",
@@ -689,10 +670,7 @@ mod regression_tests {
             }
 
             otfcc_delete_sfnt(sfnt);
-            if !font.is_null() {
-                otfcc_font_free(font);
-            }
-            otfcc_delete_options(options);
+            drop(font);
 
             assert!(
                 elapsed < Duration::from_secs(10),

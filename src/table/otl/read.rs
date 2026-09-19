@@ -335,14 +335,14 @@ fn parse_otl_common(
         let tag = fr.u32()?;
         let feature_offset = feature_list_offset.wrapping_add(fr.u16()? as u32);
         let mut feature: Box<Feature> = new_feature();
-        if !options.glyph_name_prefix.is_null() {
+        if let Some(prefix) = &options.glyph_name_prefix {
             feature.name = crate::bytesbuild!(
                 Byte((tag >> 24 & 0xff) as u8),
                 Byte((tag >> 16 & 0xff) as u8),
                 Byte((tag >> 8 & 0xff) as u8),
                 Byte((tag & 0xff) as u8),
                 b"_",
-                unsafe { crate::support::fmt::CCharRef::from_ptr(options.glyph_name_prefix) },
+                prefix,
                 b"_",
                 Dec5(j as i32),
             );
@@ -369,12 +369,10 @@ fn parse_otl_common(
                     .as_mut()
                     .expect("freshly read lookup slot should not be empty");
                 if lookup_0.name.is_empty() {
-                    if !options.glyph_name_prefix.is_null() {
+                    if let Some(prefix) = &options.glyph_name_prefix {
                         lookup_0.name = crate::bytesbuild!(
                             b"lookup_",
-                            unsafe {
-                                crate::support::fmt::CCharRef::from_ptr(options.glyph_name_prefix)
-                            },
+                            prefix,
                             b"_",
                             Byte((tag >> 24 & 0xff) as u8),
                             Byte((tag >> 16 & 0xff) as u8),
@@ -494,10 +492,10 @@ fn parse_otl_common(
     // consolidation, well after this function returns.
     for (j_3, lookup) in table_box.lookups.iter_mut().flatten().enumerate() {
         if lookup.name.is_empty() {
-            if !options.glyph_name_prefix.is_null() {
+            if let Some(prefix) = &options.glyph_name_prefix {
                 lookup.name = crate::bytesbuild!(
                     b"lookup_",
-                    unsafe { crate::support::fmt::CCharRef::from_ptr(options.glyph_name_prefix) },
+                    prefix,
                     b"_",
                     Hex2(lookup.type_0.raw()),
                     b"_",

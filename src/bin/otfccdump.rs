@@ -10,7 +10,7 @@
 #[allow(unused_imports)]
 use ::otfcc_rust;
 
-use libc::{fileno, fprintf, isatty, strdup, strtol};
+use libc::{fileno, fprintf, isatty, strtol};
 use otfcc_rust::support::stdio::{stderr, stdout};
 
 use otfcc_rust::logger::{
@@ -28,7 +28,6 @@ use otfcc_rust::support::{EXIT_FAILURE, NULL};
 
 use libc::timespec;
 use otfcc_rust::consolidate::otfcc_consolidate_font;
-use otfcc_rust::font::caryll_font::otfcc_font_free;
 use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt};
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::logger::{Logger, otfcc_new_std_err_target};
@@ -38,7 +37,6 @@ use otfcc_rust::support::built_json::{
     JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts,
 };
 use otfcc_rust::support::getopt::{GetoptItem, LongOpt, getopt_long};
-use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
 use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use std::cell::RefCell;
@@ -131,13 +129,13 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         LongOpt { name: "ttc-index", has_arg: true, val: OPT_TTC_INDEX },
         LongOpt { name: "debug-wait-on-start", has_arg: false, val: OPT_DEBUG_WAIT_ON_START },
     ];
-    let mut options: *mut Options = otfcc_new_options();
-    (*options).logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
+    let mut options: Box<Options> = Box::default();
+    options.logger = RefCell::new(Logger::new(otfcc_new_std_err_target()));
     logger_indent(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         b"otfccdump\0" as *const u8 as *const ::core::ffi::c_char,
     );
-    (*options).decimal_cmap = true;
+    options.decimal_cmap = true;
     let mut outputPath: Option<::std::ffi::CString> = None;
     // Placeholder, unconditionally overwritten below before any real use
     // (the only path that skips the assignment calls `exit()`).
@@ -149,14 +147,14 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                 OPT_VERSION => show_version = true,
                 OPT_HELP => show_help = true,
                 OPT_PRETTY => show_pretty = true,
-                OPT_IGNORE_GLYPH_ORDER => (*options).ignore_glyph_order = true,
+                OPT_IGNORE_GLYPH_ORDER => options.ignore_glyph_order = true,
                 OPT_OUTPUT => {
                     outputPath = Some(
                         ::std::ffi::CString::new(arg.unwrap())
                             .expect("output path must not contain a NUL byte"),
                     );
                 }
-                OPT_QUIET => (*options).quiet = true,
+                OPT_QUIET => options.quiet = true,
                 OPT_TTC_INDEX => {
                     let carg = ::std::ffi::CString::new(arg.unwrap())
                         .expect("ttc index must not contain a NUL byte");
@@ -166,19 +164,19 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
                 OPT_TIME => {}
                 OPT_ADD_BOM => add_bom = true,
                 OPT_NO_BOM => _no_bom = true,
-                OPT_VERBOSE => (*options).verbose = true,
-                OPT_IGNORE_HINTS => (*options).ignore_hints = true,
-                OPT_DECIMAL_CMAP => (*options).decimal_cmap = true,
-                OPT_HEX_CMAP => (*options).decimal_cmap = false,
-                OPT_NAME_BY_HASH => (*options).name_glyphs_by_hash = true,
-                OPT_NAME_BY_GID => (*options).name_glyphs_by_gid = true,
-                OPT_INSTR_AS_BYTES => (*options).instr_as_bytes = true,
+                OPT_VERBOSE => options.verbose = true,
+                OPT_IGNORE_HINTS => options.ignore_hints = true,
+                OPT_DECIMAL_CMAP => options.decimal_cmap = true,
+                OPT_HEX_CMAP => options.decimal_cmap = false,
+                OPT_NAME_BY_HASH => options.name_glyphs_by_hash = true,
+                OPT_NAME_BY_GID => options.name_glyphs_by_gid = true,
+                OPT_INSTR_AS_BYTES => options.instr_as_bytes = true,
                 OPT_GLYPH_NAME_PREFIX => {
                     let carg = ::std::ffi::CString::new(arg.unwrap())
                         .expect("glyph name prefix must not contain a NUL byte");
-                    (*options).glyph_name_prefix = strdup(carg.as_ptr());
+                    options.glyph_name_prefix = Some(carg.into_bytes());
                 }
-                OPT_DEBUG_WAIT_ON_START => (*options).debug_wait_on_start = true,
+                OPT_DEBUG_WAIT_ON_START => options.debug_wait_on_start = true,
                 _ => {}
             },
             GetoptItem::UnknownLong(s) => {
@@ -209,14 +207,14 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             }
         }
     }
-    if (*options).debug_wait_on_start {
+    if options.debug_wait_on_start {
         getchar();
     }
     logger_set_verbosity(
-        &mut *(*options).logger.borrow_mut(),
-        (if (*options).quiet as i32 != 0 {
+        &mut *options.logger.borrow_mut(),
+        (if options.quiet as i32 != 0 {
             0_i32
-        } else if (*options).verbose as i32 != 0 {
+        } else if options.verbose as i32 != 0 {
             0xff_i32
         } else {
             1_i32
@@ -236,7 +234,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             ::std::ffi::CString::new(p).expect("input path must not contain a NUL byte");
     } else {
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_CRITICAL,
             LoggerType::Error,
             otfcc_rust::bytesbuild!(b"Expected argument for input file name.\n"),
@@ -251,13 +249,13 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     time_now(&raw mut begin);
     let mut sfnt: *mut SplineFontContainer = ::core::ptr::null_mut::<SplineFontContainer>();
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Read SFNT"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             otfcc_rust::bytesbuild!(b"From file ", inPath.as_bytes()),
@@ -265,7 +263,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         sfnt = otfcc_read_sfnt(inPath.as_ptr());
         if sfnt.is_null() || (*sfnt).count == 0_u32 {
             logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(
@@ -278,7 +276,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         }
         if ttcindex >= (*sfnt).count {
             logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(
@@ -294,25 +292,25 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             return EXIT_FAILURE;
         }
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
-    let mut font: *mut Font = ::core::ptr::null_mut::<Font>();
+    let mut font: Option<Box<Font>> = None;
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Read Font"),
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
         font = read_otf(&*sfnt, ttcindex, &*options);
-        if font.is_null() {
+        if font.is_none() {
             logger_log_sds(
-                &mut *(*options).logger.borrow_mut(),
+                &mut *options.logger.borrow_mut(),
                 LOG_VL_CRITICAL,
                 LoggerType::Error,
                 otfcc_rust::bytesbuild!(
@@ -327,29 +325,29 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             otfcc_delete_sfnt(sfnt);
         }
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_0 = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Consolidate"),
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
-        otfcc_consolidate_font(&mut *font, &*options);
+        otfcc_consolidate_font(font.as_mut().unwrap(), &*options);
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_1 = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     // Owned now that `serialize_to_json` returns the `BuiltValue` itself
     // rather than a `BuiltValue::into_raw` pointer; `Option` only because
@@ -357,7 +355,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
     // assigns it.
     let mut root: Option<BuiltValue> = None;
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Dump"),
     );
     let mut ___loggedstep_v_2: bool = true;
@@ -366,19 +364,19 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
         // already dead: the serializer's every exit built a real
         // `BuiltValue`, so the pointer it handed back was never null. With
         // an owned return there is no null to test for at all.
-        root = Some(serialize_to_json(&mut *font, &*options));
+        root = Some(serialize_to_json(font.as_mut().unwrap(), &*options));
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_2 = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     let mut buf: Vec<u8> = Vec::new();
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Serialize to JSON"),
     );
     let mut ___loggedstep_v_3: bool = true;
@@ -404,16 +402,16 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             jsonOptions,
         );
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_3 = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Output"),
     );
     let mut ___loggedstep_v_4: bool = true;
@@ -430,7 +428,7 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             );
             if write_result.is_err() {
                 logger_log_sds(
-                    &mut *(*options).logger.borrow_mut(),
+                    &mut *options.logger.borrow_mut(),
                     LOG_VL_CRITICAL,
                     LoggerType::Error,
                     otfcc_rust::bytesbuild!(
@@ -449,37 +447,34 @@ unsafe fn main_0(args: Vec<String>) -> i32 {
             let _ = stdout_handle.write_all(&buf);
         }
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_4 = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
     logger_start_sds(
-        &mut *(*options).logger.borrow_mut(),
+        &mut *options.logger.borrow_mut(),
         otfcc_rust::bytesbuild!(b"Finalize"),
     );
     let mut ___loggedstep_v_5: bool = true;
     while ___loggedstep_v_5 {
-        if !font.is_null() {
-            otfcc_font_free(font);
-        }
+        drop(font.take());
         drop(root.take());
         // `inPath`/`outputPath` are `CString`/`Option<CString>` now --
         // both drop on their own at the end of this function's scope, no
         // explicit free needed.
         logger_log_sds(
-            &mut *(*options).logger.borrow_mut(),
+            &mut *options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             push_stopwatch(&raw mut begin),
         );
         ___loggedstep_v_5 = false;
-        logger_finish(&mut *(*options).logger.borrow_mut());
+        logger_finish(&mut *options.logger.borrow_mut());
     }
-    otfcc_delete_options(options);
     return 0_i32;
 }
 pub fn main() -> ::std::process::ExitCode {
