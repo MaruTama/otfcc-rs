@@ -27,11 +27,10 @@
 // thousands-per-process iterations.
 
 use libfuzzer_sys::fuzz_target;
-use otfcc_rust::font::caryll_font::otfcc_font_free;
 use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
 use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
 use otfcc_rust::otf_reader::read_otf;
-use otfcc_rust::support::options::{otfcc_delete_options, otfcc_new_options};
+use otfcc_rust::support::options::Options;
 use std::cell::RefCell;
 use std::io::Cursor;
 
@@ -50,19 +49,16 @@ fuzz_target!(|data: &[u8]| {
             return;
         }
 
-        let options = otfcc_new_options();
-        (*options).logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
+        let mut options: Box<Options> = Box::default();
+        options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
 
         // Subfont index 0 always exists once `count > 0` -- fuzzing which
         // TTC subfont gets selected would mostly re-exercise the same
         // per-table readers this target already drives, at the cost of a
         // second dimension in the corpus.
-        let font = read_otf(&*sfnt, 0, &*options);
+        let font = read_otf(&*sfnt, 0, &options);
         otfcc_delete_sfnt(sfnt);
 
-        if !font.is_null() {
-            otfcc_font_free(font);
-        }
-        otfcc_delete_options(options);
+        drop(font);
     }
 });
