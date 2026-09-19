@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 pub mod stat;
 
 use crate::support::buffer::Buffer;
@@ -14,8 +13,7 @@ use crate::table::cff::{CffAndGlyf, CffTable};
 use crate::table::glyf::{GlyfAndLocaBuffers, GlyfTable};
 
 use crate::font::caryll_sfnt_builder::{
-    otfcc_delete_sfnt_builder, otfcc_new_sfnt_builder, otfcc_sfnt_builder_push_table,
-    otfcc_sfnt_builder_serialize,
+    otfcc_sfnt_builder_push_table, otfcc_sfnt_builder_serialize,
 };
 use crate::otf_writer::stat::{otfcc_stat_font, otfcc_unstat_font};
 use crate::table::_tsi::otfcc_build_tsi;
@@ -53,9 +51,9 @@ use crate::table::vorg::otfcc_build_vorg;
 /// trait is gone. With the erased return type went the reason to hand back
 /// a `Buffer::into_raw` pointer -- only `ffi/dll.rs`'s genuine `extern "C"`
 /// boundary needs one, and it makes that conversion itself now.
-pub unsafe fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
+pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
     otfcc_stat_font(&mut *font, options);
-    let builder: *mut SfntBuilder = otfcc_new_sfnt_builder(
+    let mut builder = SfntBuilder::new(
         (if (*font).subtype == FontSubtype::Cff {
             crate::tag::SFNT_VERSION_OTTO as i32
         } else {
@@ -66,8 +64,8 @@ pub unsafe fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
     if (*font).subtype == FontSubtype::Ttf {
         let pair: GlyfAndLocaBuffers =
             otfcc_build_glyf((*font).glyf.as_ref(), (*font).head.as_deref_mut());
-        otfcc_sfnt_builder_push_table(&mut *builder, crate::tag::TAG_GLYF, Some(pair.glyf));
-        otfcc_sfnt_builder_push_table(&mut *builder, crate::tag::TAG_LOCA, Some(pair.loca));
+        otfcc_sfnt_builder_push_table(&mut builder, crate::tag::TAG_GLYF, Some(pair.glyf));
+        otfcc_sfnt_builder_push_table(&mut builder, crate::tag::TAG_LOCA, Some(pair.loca));
     } else {
         let r: CffAndGlyf = CffAndGlyf {
             meta: (*font)
@@ -79,80 +77,85 @@ pub unsafe fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
                 .as_mut()
                 .map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable),
         };
-        otfcc_sfnt_builder_push_table(
-            &mut *builder,
-            crate::tag::TAG_CFF,
-            Some(otfcc_build_cff(r, options)),
-        );
+        // The one genuinely unsafe call left in this function, and the
+        // reason it used to be an `unsafe fn` in its entirety.
+        // `otfcc_build_cff` takes `CffAndGlyf`, whose two fields are raw
+        // pointers into the CFF builder core (excluded from this
+        // migration) -- so it carries a real caller contract. Both
+        // pointers are built immediately above out of `font`'s own live
+        // `Option<Box<_>>` fields and are consumed here, before any later
+        // use of `font`, so the contract is upheld in plain sight.
+        let cff = unsafe { otfcc_build_cff(r, options) };
+        otfcc_sfnt_builder_push_table(&mut builder, crate::tag::TAG_CFF, Some(cff));
     }
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_HEAD,
         otfcc_build_head((*font).head.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_HHEA,
         otfcc_build_hhea((*font).hhea.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_OS_2,
         otfcc_build_os_2((*font).os_2.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_MAXP,
         otfcc_build_maxp((*font).maxp.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_NAME,
         otfcc_build_name((*font).name.as_ref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_META,
         otfcc_build_meta((*font).meta.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_POST,
         otfcc_build_post((*font).post.as_deref(), (*font).glyph_order.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_CMAP,
         otfcc_build_cmap((*font).cmap.as_deref(), options),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_GASP,
         otfcc_build_gasp((*font).gasp.as_deref()),
     );
     if (*font).subtype == FontSubtype::Ttf {
         otfcc_sfnt_builder_push_table(
-            &mut *builder,
+            &mut builder,
             crate::tag::TAG_FPGM,
             otfcc_build_fpgm_prep((*font).fpgm.as_deref()),
         );
         otfcc_sfnt_builder_push_table(
-            &mut *builder,
+            &mut builder,
             crate::tag::TAG_PREP,
             otfcc_build_fpgm_prep((*font).prep.as_deref()),
         );
         otfcc_sfnt_builder_push_table(
-            &mut *builder,
+            &mut builder,
             crate::tag::TAG_CVT,
             otfcc_build_cvt((*font).cvt_.as_deref()),
         );
         otfcc_sfnt_builder_push_table(
-            &mut *builder,
+            &mut builder,
             crate::tag::TAG_LTSH,
             otfcc_build_ltsh((*font).ltsh.as_deref()),
         );
         otfcc_sfnt_builder_push_table(
-            &mut *builder,
+            &mut builder,
             crate::tag::TAG_VDMX,
             otfcc_build_vdmx((*font).vdmx.as_deref()),
         );
@@ -164,7 +167,7 @@ pub unsafe fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
             - (*font).hhea.as_deref().unwrap().number_of_metrics as i32)
             as u16;
         otfcc_sfnt_builder_push_table(
-            &mut *builder,
+            &mut builder,
             crate::tag::TAG_HMTX,
             Some(otfcc_build_hmtx(
                 (*font).hmtx.as_deref(),
@@ -174,7 +177,7 @@ pub unsafe fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
         );
     }
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_VHEA,
         otfcc_build_vhea((*font).vhea.as_deref()),
     );
@@ -185,7 +188,7 @@ pub unsafe fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
             - (*font).vhea.as_deref().unwrap().num_of_long_ver_metrics as i32)
             as u16;
         otfcc_sfnt_builder_push_table(
-            &mut *builder,
+            &mut builder,
             crate::tag::TAG_VMTX,
             Some(otfcc_build_vmtx(
                 (*font).vmtx.as_deref(),
@@ -195,12 +198,12 @@ pub unsafe fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
         );
     }
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_VORG,
         otfcc_build_vorg((*font).vorg.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_GSUB,
         otfcc_build_otl(
             (*font).gsub.as_deref(),
@@ -209,7 +212,7 @@ pub unsafe fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
         ),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_GPOS,
         otfcc_build_otl(
             (*font).gpos.as_deref(),
@@ -218,39 +221,39 @@ pub unsafe fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
         ),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_GDEF,
         otfcc_build_gdef((*font).gdef.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_BASE,
         otfcc_build_base((*font).base.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_CPAL,
         otfcc_build_cpal((*font).cpal.as_deref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_COLR,
         otfcc_build_colr((*font).colr.as_ref()),
     );
     otfcc_sfnt_builder_push_table(
-        &mut *builder,
+        &mut builder,
         crate::tag::TAG_SVG,
         otfcc_build_svg((*font).svg.as_ref()),
     );
     let target: TsiBuildTarget = otfcc_build_tsi((*font).tsi_01.as_ref());
-    otfcc_sfnt_builder_push_table(&mut *builder, crate::tag::TAG_TSI0, target.index_part);
-    otfcc_sfnt_builder_push_table(&mut *builder, crate::tag::TAG_TSI1, target.text_part);
+    otfcc_sfnt_builder_push_table(&mut builder, crate::tag::TAG_TSI0, target.index_part);
+    otfcc_sfnt_builder_push_table(&mut builder, crate::tag::TAG_TSI1, target.text_part);
     let target_0: TsiBuildTarget = otfcc_build_tsi((*font).tsi_23.as_ref());
-    otfcc_sfnt_builder_push_table(&mut *builder, crate::tag::TAG_TSI2, target_0.index_part);
-    otfcc_sfnt_builder_push_table(&mut *builder, crate::tag::TAG_TSI3, target_0.text_part);
+    otfcc_sfnt_builder_push_table(&mut builder, crate::tag::TAG_TSI2, target_0.index_part);
+    otfcc_sfnt_builder_push_table(&mut builder, crate::tag::TAG_TSI3, target_0.text_part);
     if let Some(glyf) = (*font).glyf.as_ref() {
         otfcc_sfnt_builder_push_table(
-            &mut *builder,
+            &mut builder,
             crate::tag::TAG_TSI5,
             otfcc_build_tsi5((*font).tsi5.as_deref(), glyf.len() as GlyphId),
         );
@@ -260,10 +263,9 @@ pub unsafe fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
         dsig.write_u32be(0x1_u32);
         dsig.write_u16be(0_u16);
         dsig.write_u16be(0_u16);
-        otfcc_sfnt_builder_push_table(&mut *builder, crate::tag::TAG_DSIG, Some(dsig));
+        otfcc_sfnt_builder_push_table(&mut builder, crate::tag::TAG_DSIG, Some(dsig));
     }
-    let otf: Buffer = otfcc_sfnt_builder_serialize(&*builder);
-    otfcc_delete_sfnt_builder(builder);
+    let otf: Buffer = otfcc_sfnt_builder_serialize(&builder);
     otfcc_unstat_font(&mut *font);
     return otf;
 }

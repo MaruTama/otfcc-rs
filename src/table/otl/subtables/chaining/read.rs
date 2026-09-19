@@ -1,7 +1,7 @@
 use crate::support::handle::{
     GlyphHandle, LookupHandle, handle_from_index,
 };
-use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
+use crate::table::otl::classdef::{ClassDef, read_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
@@ -580,7 +580,7 @@ fn read_contextual_format2(
             // shaped c2rust residue `classdef.rs` itself hasn't converted yet
             // (out of this stage's scope) -- same one-line `unsafe` wrapping
             // `table/gdef.rs`'s callers already use for this exact pattern.
-            ic: unsafe { classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))) },
+            ic: Some(Box::new(read_class_def(slice, offset.wrapping_add(ic_rel as u32)))),
             fc: None,
         });
 
@@ -1004,9 +1004,9 @@ fn read_chaining_format2(
         // (out of this stage's scope) -- same one-line `unsafe` wrapping
         // `table/gdef.rs`'s callers already use for this exact pattern.
         cds = Some(ClassDefs {
-            bc: unsafe { classdef_from_raw(read_class_def(slice, offset.wrapping_add(bc_rel as u32))) },
-            ic: unsafe { classdef_from_raw(read_class_def(slice, offset.wrapping_add(ic_rel as u32))) },
-            fc: unsafe { classdef_from_raw(read_class_def(slice, offset.wrapping_add(fc_rel as u32))) },
+            bc: Some(Box::new(read_class_def(slice, offset.wrapping_add(bc_rel as u32)))),
+            ic: Some(Box::new(read_class_def(slice, offset.wrapping_add(ic_rel as u32)))),
+            fc: Some(Box::new(read_class_def(slice, offset.wrapping_add(fc_rel as u32)))),
         });
 
         // First pass: validate every non-empty ClassSet's own header +

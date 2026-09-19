@@ -14839,3 +14839,86 @@ on the other platform before a commit is trusted.
     `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`:
     `unsafe fn` 49 -> 44, `unsafe blocks` 162 -> 160, raw pointer types
     678 -> 658, `.offset(` 24 -> 22.
+
+- **Stage M-3: `ClassDef` producers return owned values.** Third
+  installment of the post-Stage-L inventory. The same conversion L-2 did
+  for `Coverage`, applied to the other type the OTL readers pass around
+  through raw pointers -- and the reason five `unsafe fn` existed.
+  - **`read_class_def` and `expand_class_def` return `ClassDef`**, not
+    `*mut ClassDef`: neither ever returned null (every exit was a
+    `Box::into_raw`), so the `Option` is not needed either -- the same
+    "the null check was dead all along" finding as `read_coverage`.
+    **`parse_class_def` returns `Option<ClassDef>`**, because that one
+    genuinely can answer "no class def here" (a non-object JSON value).
+    `otl_class_def_create`, `classdef_from_raw` and `tsi5.rs`'s
+    `unwrap_class_def` are deleted; `ClassDef` derives `Default`, which is
+    exactly the value `otl_class_def_create` used to hand out.
+  - **`gpos_pair.rs`'s `otl_read_gpos_pair` is safe now**, and that is
+    where the real cleanup is. Both branches used to assign a half-built
+    `ClassDef` into `subtable.first`/`.second` immediately and then take a
+    `*mut ClassDef` back out of the `Box` (`subtable.first.as_deref_mut()
+    .unwrap()`) so they could keep reading it while the subtable's other
+    fields were written -- a raw pointer whose only job was dodging the
+    borrow checker. They are plain locals now, moved into the subtable
+    once the branch has succeeded. This is observably identical because
+    every `break 'parse` path returns `None` and drops the subtable.
+    Format 2's `expand_class_def` call loses its
+    `*Box::from_raw(first_raw)` bridge, and the
+    `subtable.first.is_none() || subtable.second.is_none()` guard after it
+    goes with the nullability that motivated it.
+  - **Four files are now entirely `unsafe`-free** and lose their
+    file-level `#![allow(unsafe_op_in_unsafe_fn)]`: `classdef.rs`,
+    `gpos_pair.rs`, `gdef.rs`, `tsi5.rs`.
+  - **Deliberately left for a follow-up**: the fields themselves are still
+    `Option<Box<ClassDef>>` (`GposPairSubtable.first`/`.second`,
+    `ChainingSubtable.bc`/`.ic`/`.fc`, `GdefTable`'s two). Dropping that
+    `Box` is a mechanical ~32-site change (`as_deref` -> `as_ref`) with no
+    `unsafe` in it, and mixing it in here would be the "container
+    replacement plus element ownership in one PR" mistake the VQ work
+    warned about.
+  - **Test effectiveness**: two deliberate bugs, one per format -- the
+    Format 1 synthesized `second` class ids shifted by one, and Format 2's
+    `second` class def read from the wrong offset. `golden.rs`'s
+    `fixed_payloads_match_golden` catches both.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (412), Miri, all three fuzz targets
+    90s each plus every `tests/fuzz-corpus/known-issues/*.bin`.
+    `survey-unsafe.sh`: `unsafe fn` 44 -> 41, `unsafe blocks` 160 -> 141,
+    raw pointer types 658 -> 644, files with the file-level allow 42 -> 38.
+
+- **Stage M-4: `SfntBuilder` is an owned value.** Fourth installment,
+  stacked on M-3. The `*_create`/`*_free` pair pattern of Stage L-9,
+  applied to the last big one.
+  - **What the pair was**: `otfcc_new_sfnt_builder` calloc'd the struct
+    through `__caryll_allocate_clean`, then `ptr::write`'d a real
+    `BTreeMap` over the zeroed bytes (an all-zero map is not a valid one);
+    `otfcc_delete_sfnt_builder` ran `drop_in_place` on that map before a
+    raw `free`. It is now `SfntBuilder::new(header, options)` returning
+    the value, held as a local in `serialize_to_otf`, dropped by scope.
+  - **`options: *const Options` -> `&'a Options`**: the field's own
+    comment said it was a raw pointer only because "this struct has no
+    lifetime parameter to hold a `&Options` in" -- which was true exactly
+    because the struct was calloc'd. Giving `SfntBuilder` a lifetime says
+    what the field always meant, and `push_table`'s narrow
+    `unsafe { &*builder.options }` bridge goes with it.
+  - **`serialize_to_otf` is safe now**, and this is the part worth
+    reading: it was a 214-line `unsafe fn` whose body was ~37 `(*builder)`
+    derefs plus **one** genuinely unsafe call. With the builder a local,
+    the derefs are plain field access, and `otfcc_build_cff` -- which
+    takes `CffAndGlyf`, two raw pointers into the excluded CFF builder
+    core, so it carries a real caller contract -- sits in a narrow
+    `unsafe { .. }` block. The contract is upheld in plain sight: both
+    pointers are built twelve lines above out of `font`'s own live
+    `Option<Box<_>>` fields and consumed before any later use of `font`.
+    Same shape as Stage L-8's treatment of `glyf.rs`'s `fprintf`.
+  - `otf_writer.rs` and `caryll_sfnt_builder.rs` lose their file-level
+    `#![allow(unsafe_op_in_unsafe_fn)]`.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (412, incl. `golden.rs`'s byte-exact
+    fixtures -- every one of them goes through `serialize_to_otf`), Miri
+    (**the one that matters here**: the raw pointers handed to
+    `otfcc_build_cff` are derived from `&mut Font` borrows, so Stacked
+    Borrows is the real check, not the type system), all three fuzz
+    targets plus every `tests/fuzz-corpus/known-issues/*.bin`.
+    `survey-unsafe.sh`: `unsafe fn` 41 -> 38, raw pointer types 644 ->
+    637, files with the file-level allow 38 -> 36.

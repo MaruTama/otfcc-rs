@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 use crate::support::handle::{GlyphHandle, Handle, handle_from_index, handle_from_name};
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::Coverage;
@@ -13,7 +12,9 @@ use crate::support::primitives::{GlyphClass, GlyphId};
 /// `Vec<GlyphClass>`. `maxclass` is a running maximum scalar, not part of
 /// either array, so `ClassDef` stays a real (if now `Vec`-holding) struct
 /// rather than collapsing to a bare `pub type` the way `Coverage` did.
-#[derive(Clone, Debug)]
+// `Default` is exactly the value the deleted `otl_class_def_create()`
+// used to `Box::into_raw`: class 0, both arrays empty.
+#[derive(Clone, Debug, Default)]
 pub struct ClassDef {
     pub maxclass: GlyphClass,
     pub glyphs: Vec<GlyphHandle>,
@@ -23,33 +24,6 @@ pub struct ClassDef {
 pub struct ClassDefSortRecord {
     pub gid: GlyphId,
     pub cid: GlyphClass,
-}
-pub(crate) fn otl_class_def_create() -> *mut ClassDef {
-    // A real Rust allocation now, not a `malloc`'d shell: `Box::into_raw`
-    // gives back a pointer with the same shape (`*mut ClassDef`) every
-    // caller already expects, but it must from here on only ever be
-    // reclaimed with `Box::from_raw` (`classdef_from_raw` below, and
-    // `tsi5.rs`'s `unwrap_class_def`), never a bare `free` -- mixing the
-    // two is exactly the hazard this conversion removes.
-    Box::into_raw(Box::new(ClassDef {
-        maxclass: 0,
-        glyphs: Vec::new(),
-        classes: Vec::new(),
-    }))
-}
-/// Adopt a `otl_class_def_create()`/`read_class_def()`/vtable-`.parse()`-style
-/// raw `*mut ClassDef` into an owned `Option<Box<ClassDef>>` -- the same
-/// "unwrap_X_table" idiom as `coverage_from_raw`, but `Option`-wrapped since
-/// (unlike `Coverage`) `ClassDef`-producing calls can legitimately return
-/// null (`parse_class_def` on a non-object JSON value). `Box::from_raw`
-/// reclaims the exact allocation `otl_class_def_create` made -- no extra
-/// copy into a fresh `Box` needed now that the original allocation already
-/// is one.
-pub(crate) unsafe fn classdef_from_raw(raw: *mut ClassDef) -> Option<Box<ClassDef>> {
-    if raw.is_null() {
-        return None;
-    }
-    Some(Box::from_raw(raw))
 }
 // `Handle` (aliased `GlyphHandle`) now owns a `Vec<u8>` name, so passing it
 // by value trips `improper_ctypes_definitions`; this is never called across
@@ -64,24 +38,20 @@ pub(crate) fn push_class_def(cd: &mut ClassDef, h: GlyphHandle, cls: GlyphClass)
 // Same trustworthiness reasoning as `coverage.rs::read_coverage` (see its
 // comment) -- `data` is untrusted font bytes, but the bounds check is now
 // `FontReader`'s, not a raw slice reconstructed from a pointer/length pair.
-pub(crate) fn read_class_def(data: &[u8], offset: u32) -> *mut ClassDef {
-    let mut cd = ClassDef {
-        maxclass: 0,
-        glyphs: Vec::new(),
-        classes: Vec::new(),
-    };
+pub(crate) fn read_class_def(data: &[u8], offset: u32) -> ClassDef {
+    let mut cd = ClassDef::default();
     let Ok(mut r) = FontReader::new(data).at(offset as usize) else {
-        return Box::into_raw(Box::new(cd));
+        return cd;
     };
     let Ok(format) = r.u16() else {
-        return Box::into_raw(Box::new(cd));
+        return cd;
     };
     if format == 1 {
         let Ok(start_gid) = r.u16() else {
-            return Box::into_raw(Box::new(cd));
+            return cd;
         };
         let Ok(count) = r.u16() else {
-            return Box::into_raw(Box::new(cd));
+            return cd;
         };
         if count != 0 && r.require_room(count as usize, 2).is_ok() {
             for j in 0..count {
@@ -95,10 +65,10 @@ pub(crate) fn read_class_def(data: &[u8], offset: u32) -> *mut ClassDef {
         }
     } else if format == 2 {
         let Ok(range_count) = r.u16() else {
-            return Box::into_raw(Box::new(cd));
+            return cd;
         };
         if r.require_room(range_count as usize, 6).is_err() {
-            return Box::into_raw(Box::new(cd));
+            return cd;
         }
         // `covIndex` is repurposed here to carry the class value, not a
         // coverage position -- `HASH_SORT`-by-it therefore orders the
@@ -123,12 +93,12 @@ pub(crate) fn read_class_def(data: &[u8], offset: u32) -> *mut ClassDef {
             push_class_def(&mut cd, handle_from_index(gid) as GlyphHandle, cls);
         }
     }
-    Box::into_raw(Box::new(cd))
+    cd
 }
 // `ocd` is consumed here (its entries are read once, then it's dropped),
 // so taking it by value lets the compiler's own drop glue replace the old
 // explicit `otl_class_def_free(ocd)` call at the end.
-pub(crate) fn expand_class_def(cov: &Coverage, ocd: ClassDef) -> *mut ClassDef {
+pub(crate) fn expand_class_def(cov: &Coverage, ocd: ClassDef) -> ClassDef {
     // No `HASH_SORT` call anywhere in the original -- the final walk is
     // plain insertion order (uthash's natural `.next` list), which
     // `IndexMap` reproduces directly with no separate sort step. `ocd`'s
@@ -143,16 +113,12 @@ pub(crate) fn expand_class_def(cov: &Coverage, ocd: ClassDef) -> *mut ClassDef {
     for g in cov.iter() {
         h.entry(g.index).or_insert(0 as GlyphClass);
     }
-    let mut cd = ClassDef {
-        maxclass: 0,
-        glyphs: Vec::new(),
-        classes: Vec::new(),
-    };
+    let mut cd = ClassDef::default();
     for (gid, cid) in h.into_iter() {
         push_class_def(&mut cd, handle_from_index(gid) as GlyphHandle, cid);
     }
     // `ocd` drops here (its own Vec-drop glue), no explicit free needed.
-    Box::into_raw(Box::new(cd))
+    cd
 }
 pub(crate) fn dump_class_def(cd: &ClassDef) -> BuiltValue {
     let mut a = BuiltValue::new_object(cd.glyphs.len());
@@ -161,15 +127,9 @@ pub(crate) fn dump_class_def(cd: &ClassDef) -> BuiltValue {
     }
     a.preserialize()
 }
-pub(crate) fn parse_class_def(cd: Option<&ParsedValue>) -> *mut ClassDef {
-    let Some(fields) = cd.and_then(ParsedValue::as_object) else {
-        return ::core::ptr::null_mut::<ClassDef>();
-    };
-    let mut cd = ClassDef {
-        maxclass: 0,
-        glyphs: Vec::new(),
-        classes: Vec::new(),
-    };
+pub(crate) fn parse_class_def(cd: Option<&ParsedValue>) -> Option<ClassDef> {
+    let fields = cd.and_then(ParsedValue::as_object)?;
+    let mut cd = ClassDef::default();
     for (key, val) in fields {
         let h: GlyphHandle = handle_from_name(Some(key[..key.len() - 1].to_vec())) as GlyphHandle;
         let cls: GlyphClass = if let Some(i) = val.as_int() {
@@ -181,7 +141,7 @@ pub(crate) fn parse_class_def(cd: Option<&ParsedValue>) -> *mut ClassDef {
         };
         push_class_def(&mut cd, h, cls);
     }
-    Box::into_raw(Box::new(cd))
+    Some(cd)
 }
 pub(crate) fn build_class_def(cd: &ClassDef) -> Buffer {
     let mut buf = Buffer::new();
@@ -271,9 +231,8 @@ mod read_class_def_tests {
         data.extend_from_slice(&2u16.to_be_bytes()); // glyphCount
         data.extend_from_slice(&3u16.to_be_bytes()); // classValueArray[0]
         data.extend_from_slice(&4u16.to_be_bytes()); // classValueArray[1]
-        unsafe {
-            let raw = read_class_def(&data, 0);
-            let cd = classdef_from_raw(raw).unwrap();
+        {
+            let cd = read_class_def(&data, 0);
             assert_eq!(
                 cd.glyphs.iter().map(|h| h.index).collect::<Vec<_>>(),
                 vec![10, 11]
@@ -293,9 +252,8 @@ mod read_class_def_tests {
         data.extend_from_slice(&10u16.to_be_bytes()); // range1: startGlyphID
         data.extend_from_slice(&10u16.to_be_bytes()); // range1: endGlyphID
         data.extend_from_slice(&1u16.to_be_bytes()); // range1: class
-        unsafe {
-            let raw = read_class_def(&data, 0);
-            let cd = classdef_from_raw(raw).unwrap();
+        {
+            let cd = read_class_def(&data, 0);
             // Sorted by class value ascending: class 1 (gid 10) then class 5 (gid 20).
             assert_eq!(cd.classes, vec![1, 5]);
             assert_eq!(
@@ -308,9 +266,8 @@ mod read_class_def_tests {
     #[test]
     fn offset_near_u32_max_does_not_wrap_the_guard() {
         let data = [0u8; 8];
-        unsafe {
-            let raw = read_class_def(&data, 0xFFFF_FFF0);
-            let cd = classdef_from_raw(raw).unwrap();
+        {
+            let cd = read_class_def(&data, 0xFFFF_FFF0);
             assert!(cd.glyphs.is_empty());
         }
     }
@@ -321,9 +278,8 @@ mod read_class_def_tests {
         data.extend_from_slice(&1u16.to_be_bytes());
         data.extend_from_slice(&0u16.to_be_bytes()); // startGlyphID
         data.extend_from_slice(&0u16.to_be_bytes()); // glyphCount = 0
-        unsafe {
-            let raw = read_class_def(&data, 0);
-            let cd = classdef_from_raw(raw).unwrap();
+        {
+            let cd = read_class_def(&data, 0);
             assert!(cd.glyphs.is_empty());
         }
     }

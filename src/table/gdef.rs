@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};
 use crate::font::caryll_sfnt::Packet;
 use crate::logger::{logger_finish, logger_start_sds};
@@ -8,7 +7,7 @@ use crate::support::handle::{GlyphHandle, Handle, HandleState, handle_from_name}
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
 use crate::support::primitives::Pos;
-use crate::table::otl::classdef::{ClassDef, classdef_from_raw, read_class_def};
+use crate::table::otl::classdef::{ClassDef, read_class_def};
 use crate::table::otl::coverage::{Coverage, push_to_coverage, read_coverage};
 use crate::vendor::json::JsonType;
 
@@ -155,11 +154,9 @@ pub fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
     // coverage table).
     crate::table::otl::coverage::reset_coverage_entry_build_budget();
     let classdef_offset = FontReader::new(data).at(4).ok()?.u16().ok()?;
-    // `classdef_from_raw` stays `unsafe fn` (its own `Box::from_raw`
-    // ownership boundary); `read_class_def` itself is a safe fn, so this
     // is purely a narrow bridge.
     let glyph_class_def = if classdef_offset != 0 {
-        unsafe { classdef_from_raw(read_class_def(data, classdef_offset as u32)) }
+        Some(Box::new(read_class_def(data, classdef_offset as u32)))
     } else {
         None
     };
@@ -169,7 +166,7 @@ pub fn otfcc_read_gdef(packet: &Packet) -> Option<Box<GdefTable>> {
 
     let mark_attach_def_offset = FontReader::new(data).at(10).ok()?.u16().ok()?;
     let mark_attach_class_def = if mark_attach_def_offset != 0 {
-        unsafe { classdef_from_raw(read_class_def(data, mark_attach_def_offset as u32)) }
+        Some(Box::new(read_class_def(data, mark_attach_def_offset as u32)))
     } else {
         None
     };
@@ -266,13 +263,11 @@ pub fn otfcc_parse_gdef(root: &ParsedValue, options: &Options) -> Option<Box<Gde
         mark_attach_class_def: None,
         lig_carets: Vec::new(),
     });
-    // `classdef_from_raw` stays `unsafe fn` (its own `Box::from_raw`
-    // ownership boundary); `parse_class_def` itself is a safe fn, so this
     // is purely a narrow bridge.
     gdef.glyph_class_def =
-        unsafe { classdef_from_raw(parse_class_def(table.get(b"glyphClassDef"))) };
+        parse_class_def(table.get(b"glyphClassDef")).map(Box::new);
     gdef.mark_attach_class_def =
-        unsafe { classdef_from_raw(parse_class_def(table.get(b"markAttachClassDef"))) };
+        parse_class_def(table.get(b"markAttachClassDef")).map(Box::new);
     lig_caret_from_json(table.get(b"ligCarets"), &mut gdef.lig_carets);
     logger_finish(&mut *options.logger.borrow_mut());
     Some(gdef)

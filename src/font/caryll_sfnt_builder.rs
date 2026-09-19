@@ -1,8 +1,5 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-use libc::free;
 
 use crate::logger::{LOG_VL_PROGRESS, LoggerType, logger_log_sds};
-use crate::support::alloc::__caryll_allocate_clean;
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
 use crate::support::fmt::Byte;
@@ -13,12 +10,32 @@ pub struct SfntTableEntry {
     pub checksum: u32,
     pub buffer: Buffer,
 }
+// `options` was a `*const Options` purely because this struct was calloc'd
+// through `__caryll_allocate_clean` and so could not carry a lifetime. It
+// is an owned value with a borrow now, which is what it always meant.
 #[derive(Debug)]
-pub struct SfntBuilder {
+pub struct SfntBuilder<'a> {
     pub count: u32,
     pub header: u32,
     pub tables: std::collections::BTreeMap<i32, SfntTableEntry>,
-    pub options: *const Options,
+    pub options: &'a Options,
+}
+
+impl<'a> SfntBuilder<'a> {
+    // Replaces `otfcc_new_sfnt_builder`/`otfcc_delete_sfnt_builder`: a
+    // calloc of the whole struct, a `ptr::write` of a real `BTreeMap` over
+    // the zeroed bytes (an all-zero map is not a valid one), and on the
+    // other side an explicit `drop_in_place` of that map before the raw
+    // `free`. Constructing the value directly makes all of that the
+    // compiler's job, exactly as `Options` and `Font` in Stage L-9.
+    pub fn new(header: u32, options: &'a Options) -> Self {
+        SfntBuilder {
+            count: 0,
+            header,
+            tables: std::collections::BTreeMap::new(),
+            options,
+        }
+    }
 }
 // sfnt table checksums sum the table's bytes as big-endian u32 words.
 // `buflongalign` (called by both callers just before this) always pads
@@ -42,38 +59,6 @@ fn create_segment(tag: u32, mut buffer: Buffer) -> SfntTableEntry {
         checksum: sum,
         buffer,
     }
-}
-pub unsafe fn otfcc_new_sfnt_builder(header: u32, options: &Options) -> *mut SfntBuilder {
-    let builder: *mut SfntBuilder = __caryll_allocate_clean(
-        ::core::mem::size_of::<SfntBuilder>() as usize,
-        40 as ::core::ffi::c_ulong,
-    ) as *mut SfntBuilder;
-    (*builder).count = 0_u32;
-    (*builder).header = header;
-    // `BTreeMap` (a `std` type, but the caution established for
-    // `IndexMap` in `table/fvar.rs` applies just as much: no documented
-    // guarantee that an all-zero-bytes value is a safe-to-drop empty map)
-    // gets `ptr::write`, not a plain assignment, so the calloc'd garbage
-    // sitting here is never read or dropped.
-    ::core::ptr::write(
-        &raw mut (*builder).tables,
-        std::collections::BTreeMap::new(),
-    );
-    (*builder).options = options;
-    return builder;
-}
-pub unsafe fn otfcc_delete_sfnt_builder(builder: *mut SfntBuilder) {
-    if builder.is_null() {
-        return;
-    }
-    // `tables` (a `BTreeMap`, each entry now owning its `Buffer` directly)
-    // needs its `Drop` glue run explicitly before the raw `free()` below --
-    // `free()` only reclaims the allocation itself, it does not run Rust
-    // destructors. `drop_in_place` does that in place, without needing to
-    // move the map out first the way the old per-entry `Buffer::from_raw`
-    // loop did.
-    ::core::ptr::drop_in_place(&raw mut (*builder).tables);
-    free(builder as *mut ::core::ffi::c_void);
 }
 // Deduplicates by `tag`, first registration wins -- a later
 // `otfcc_sfnt_builder_push_table` call for a tag already present just
@@ -104,11 +89,7 @@ pub fn otfcc_sfnt_builder_push_table(builder: &mut SfntBuilder, tag: u32, buffer
     }
     let entry = create_segment(tag, buffer);
     builder.tables.insert(tag as i32, entry);
-    // `builder.options: *const Options` is a separate, not-yet-safened
-    // raw-pointer field (this struct has no lifetime parameter to hold a
-    // `&Options` in) -- narrow bridge only, everything else above and
-    // below is plain safe `BTreeMap`/`Buffer` work.
-    let options: &Options = unsafe { &*builder.options };
+    let options = builder.options;
     logger_log_sds(
         &mut *options.logger.borrow_mut(),
         LOG_VL_PROGRESS,
