@@ -10,13 +10,7 @@ pub fn otl_dump_chaining(_subtable: &Subtable) -> BuiltValue {
     if !chaining_is_canonical(subtable) {
         return BuiltValue::Null;
     }
-    // `chaining_rule_const` itself is a safe fn, but still returns a raw
-    // `*const ChainingRule` (chaining/common.rs's own `Canonical`-variant
-    // extraction hasn't been widened to a lifetime-bound reference) --
-    // dereference it once, narrowly, the same bridge pattern `vf/vq.rs`'s
-    // `vqs_compare` established for a single remaining call into an
-    // unconverted shell.
-    let rule: &ChainingRule = unsafe { &*chaining_rule_const(subtable) };
+    let rule: &ChainingRule = chaining_rule_const(subtable);
     let mut _st = BuiltValue::new_object(4);
     let mut _match = BuiltValue::new_array(rule.match_count as usize);
     // Bounded by `rule.match_count`, not assumed equal to `match_0.len()`
