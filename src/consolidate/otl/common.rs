@@ -9,11 +9,11 @@ use crate::support::primitives::GlyphClass;
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::classdef::ClassDef;
 
-// Takes `glyph_order: &GlyphOrder` directly rather than `font: &Font`
+// Takes `glyph_order: &GlyphOrder` directly rather than `glyph_order: &GlyphOrder`
 // (same reason as `consolidate_tsi`'s split `glyf`/`glyph_order`
 // parameters, above in `consolidate.rs`): the one caller that reaches
 // this from a `&mut Font` (TSI5 consolidation) needs to mutably borrow a
-// *different* field (`font.tsi5`) in the same call, which a `font: &Font`
+// *different* field (`font.tsi5`) in the same call, which a `glyph_order: &GlyphOrder`
 // parameter here would block by requiring the whole struct immutably.
 pub fn fontop_consolidate_coverage(
     glyph_order: &GlyphOrder,

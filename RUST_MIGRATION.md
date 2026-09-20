@@ -15094,3 +15094,54 @@ on the other platform before a commit is trusted.
     every `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`:
     `unsafe fn` 29 -> 25, `unsafe blocks` 125 -> 121, raw pointer types
     622 -> 602, files with the file-level allow 34 -> 32.
+
+- **Stage M-9: `consolidate_otl`/`consolidate_otl_table` are safe -- the
+  lookup consolidators take a `&GlyphOrder`, not a `Font`.** Ninth
+  installment, stacked on M-8. This is the item Stage L-7 deferred as
+  "`font: *mut Font` -> `&mut Font` needs `Font`'s `gsub`/`gpos` borrows
+  split apart, a separate stage".
+  - **The split turned out to be one field.** Every function under
+    `consolidate/otl/` (12 files, 19 signatures) took a `font: &Font` and
+    read exactly one thing from it: `font.glyph_order` (checked by grepping
+    every `font.` use in that directory; the rest of what `consolidate.rs`
+    does with `glyf`/`cmap`/`tsi_`/`colr` lives in other, already-safe
+    functions). `glyph_order` and `gsub`/`gpos`/`gdef` are disjoint fields
+    of `Font`, so `consolidate_otl` borrows `font.glyph_order` shared and
+    `font.gsub.as_deref_mut()` mutable *at the same time* with no raw
+    pointer -- exactly what `consolidate_colr` already did for
+    `glyph_order` + `colr`. Every signature is `glyph_order: &GlyphOrder`
+    now (`&Font` -> `&GlyphOrder`, and the `.glyph_order.as_deref()
+    .unwrap()` at each use disappears), `consolidate_gdef` takes
+    `Option<&GlyphOrder>`, and `otfcc_consolidate_lookup`/
+    `__declare_otl_consolidation` pass it through.
+  - **`consolidate_otl_table` keeps its `None` guard.** It returns without
+    touching the table when there is no glyph order. `otfcc_consolidate_font`
+    cannot actually reach it that way (it errors out earlier for `glyf`
+    without a glyph order), so the guard is unreachable today and **no
+    fixture exercises it** -- a temporary counter showed 186 hits on the
+    `Some` path and none on the `None` one. That is exactly the kind of
+    branch an ownership refactor can lose without any test noticing, so a
+    unit test now pins it: `without_a_glyph_order_the_otl_table_is_left_
+    untouched`. Checked by removing the early return (substituting an empty
+    glyph order): the test fails, because the empty lookup is then visited
+    and punched away.
+  - **The L-7 self-reference is preserved**, which is the part of this
+    file that has bitten before: the `k == self_index` special case in
+    `consolidate_chaining` is untouched (only its `font` parameter became
+    `glyph_order`), and disabling it with `false &&` makes both
+    `chaining_rule_naming_its_own_lookup_by_{name,index}` tests fail.
+    `chaining.rs`'s one remaining `unsafe { &mut *chaining_rule_mut(..) }`
+    is a different, unrelated raw-pointer helper and is not touched here.
+  - **Tests**: the three `consolidate_otl_table_tests` that built a whole
+    `Font` and wrapped the call in `unsafe {}` just to hand over its glyph
+    order now pass `font.glyph_order.as_deref()` directly; `let mut font`
+    becomes `let font`. 412 lib tests (one new).
+  - **Not done, on purpose**: `consolidate.rs` still has
+    `get_point_coordinates`/`consolidate_anchor_ref` (composite-glyph cycle
+    detection, the intentional Stacked-Borrows-avoiding raw-pointer
+    design), so it keeps its file-level `#![allow(unsafe_op_in_unsafe_fn)]`.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    test -- --test-threads=1` (412), Miri (the check that matters for the
+    L-7 aliasing story), all three fuzz targets plus every
+    `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`: `unsafe fn`
+    25 -> 23, `unsafe blocks` 121 -> 117, raw pointer types 602 -> 596.

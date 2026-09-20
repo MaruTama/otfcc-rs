@@ -2,7 +2,6 @@ use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::font::caryll_font::Font;
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
@@ -12,7 +11,7 @@ use crate::support::glyph_order::{GlyphOrder, otfcc_gord_consolidate_handle};
 use crate::table::otl::subtables::gsub_single::dispose_gsub_single_subtable;
 
 pub fn consolidate_gsub_single(
-    font: &Font,
+    glyph_order: &GlyphOrder,
     _subtable: &mut Subtable,
     options: &Options,
 ) -> bool {
@@ -20,7 +19,6 @@ pub fn consolidate_gsub_single(
     // ever runs when `glyf` is present, and `otfcc_consolidate_font`
     // always populates `glyph_order` before that, whenever `glyf` is
     // present.
-    let glyph_order: &GlyphOrder = font.glyph_order.as_deref().unwrap();
     let Subtable::GsubSingle(subtable) = _subtable else {
         unreachable!()
     };

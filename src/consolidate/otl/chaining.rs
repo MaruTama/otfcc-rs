@@ -5,7 +5,7 @@ use crate::table::otl::coverage::shrink_coverage;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
 
-use crate::font::caryll_font::Font;
+use crate::support::glyph_order::GlyphOrder;
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::table::otl::subtables::chaining::common::{chaining_is_canonical, chaining_rule_mut};
@@ -20,7 +20,7 @@ use crate::table::otl::{ChainingRule, LookupList, Subtable};
 pub(crate) const CONSOLIDATE_WARNING_BUDGET: u32 = 10_000;
 
 pub(crate) fn consolidate_chaining(
-    font: &Font,
+    glyph_order: &GlyphOrder,
     // `lookups` is the *whole* table's lookup list, but the caller
     // (`consolidate_otl_table`) physically removed `lookups[self_index]`
     // (via `Option::take()`) before handing this out -- otherwise a
@@ -59,7 +59,6 @@ pub(crate) fn consolidate_chaining(
     // reaches here) only ever runs when `glyf` is present, and
     // `otfcc_consolidate_font` always populates `glyph_order` before
     // that, whenever `glyf` is present.
-    let glyph_order = font.glyph_order.as_deref().unwrap();
     let mut possible: bool = true;
     let match_count = rule.match_count as usize;
     for cov in rule.match_0.iter_mut().take(match_count) {
