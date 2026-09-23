@@ -18,7 +18,7 @@
 #![allow(dead_code)]
 
 use otfcc_rust::consolidate::otfcc_consolidate_font;
-use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
+use otfcc_rust::font::caryll_sfnt::otfcc_read_sfnt_from_reader;
 use otfcc_rust::json_reader::read_json;
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
@@ -26,7 +26,7 @@ use otfcc_rust::otf_reader::read_otf;
 use otfcc_rust::otf_writer::serialize_to_otf;
 use otfcc_rust::support::built_json::{JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts, json_serialize_ex};
 use otfcc_rust::support::options::{Options, otfcc_options_optimize_to};
-use otfcc_rust::support::parsed_json::{json_parse, json_value_free};
+use otfcc_rust::support::parsed_json::parse_json;
 use std::cell::RefCell;
 use std::io::Cursor;
 use std::path::{Path, PathBuf};
@@ -66,11 +66,10 @@ pub fn quiet_options_o2() -> Box<Options> {
 /// in, pretty-printed JSON bytes out.
 pub fn dump_to_json(sfnt_bytes: &[u8], options: &Options) -> Vec<u8> {
     unsafe {
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(sfnt_bytes));
-        assert!(!sfnt.is_null(), "otfcc_read_sfnt_from_reader returned NULL");
+        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(sfnt_bytes))
+            .expect("otfcc_read_sfnt_from_reader returned None");
 
-        let mut font = read_otf(&*sfnt, 0, options).expect("read_otf returned None");
-        otfcc_delete_sfnt(sfnt);
+        let mut font = read_otf(&sfnt, 0, options).expect("read_otf returned None");
 
         otfcc_consolidate_font(&mut font, options);
 
@@ -86,11 +85,9 @@ pub fn dump_to_json(sfnt_bytes: &[u8], options: &Options) -> Vec<u8> {
 /// in, built OTF/TTF bytes out.
 pub fn build_to_otf(json_bytes: &[u8], options: &Options) -> Vec<u8> {
     unsafe {
-        let json_root = json_parse(json_bytes.as_ptr() as *const ::core::ffi::c_char, json_bytes.len());
-        assert!(!json_root.is_null(), "json_parse returned NULL");
+        let json_root = parse_json(json_bytes).expect("parse_json returned None");
 
-        let mut font = read_json(&*json_root, options).expect("read_json returned None");
-        json_value_free(json_root);
+        let mut font = read_json(&json_root, options).expect("read_json returned None");
 
         otfcc_consolidate_font(&mut font, options);
 

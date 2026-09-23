@@ -14922,3 +14922,226 @@ on the other platform before a commit is trusted.
     targets plus every `tests/fuzz-corpus/known-issues/*.bin`.
     `survey-unsafe.sh`: `unsafe fn` 41 -> 38, raw pointer types 644 ->
     637, files with the file-level allow 38 -> 36.
+
+- **Stage M-5: the `extend` readers take `&[u8]` and return
+  `Option<Subtable>`.** Fifth installment, stacked on M-4. The last of the
+  L-3/L-4 leftovers: L-3 converted the nine flat subtable readers, L-4 the
+  `ExtendSubtable.subtable` field, but the two `extend` readers themselves
+  kept the old `(FontFilePointer, table_length, ..) -> *mut Subtable` shape
+  because they recurse back into `otfcc_read_otl_subtable`.
+  - **What that shape cost**: `otfcc_read_otl_subtable` had to *break* its
+    `&[u8]` into `data.as_ptr() as FontFilePointer` plus a separate length
+    at each of its two extend arms, `_caryll_read_otl_extend` rebuilt the
+    slice with `from_raw_parts`, and the result crossed back through
+    `subtable_list_slot` (a null check plus `Box::from_raw`). A slice to a
+    raw pointer to a slice, per level of nesting.
+  - **Now**: `otfcc_read_otl_gsub_extend`/`_gpos_extend` are
+    `(&[u8], u32, GlyphId, &Options) -> Option<Subtable>` over one shared
+    `read_otl_extend`, and the dispatch arms are the same one-line
+    `.map(Box::new)` as every other. The mutual recursion
+    (`read_otl_subtable` -> `extend` -> `read_otl_subtable`) is ordinary
+    safe recursion over a shared slice. **Semantics preserved exactly**: a
+    bad *header* (out of range, or `extensionOffset` overflowing `u32` --
+    the `checked_add` guard from the earlier fix is kept verbatim) rejects
+    the whole subtable, while a bad *nested* read still yields an `Extend`
+    with an empty `subtable`, as before.
+  - **Deleted**: `subtable_list_slot` (its only callers were these two
+    arms), `_caryll_read_otl_extend`, and the `FontFilePointer` import in
+    both files. `otfcc_read_otl_subtable` is safe, so
+    `otl/read.rs` -- with no `unsafe` left in it at all -- loses its
+    file-level `#![allow(unsafe_op_in_unsafe_fn)]`.
+  - **Not touched**: `SubtablePtr`/`subtable_at` (still used by
+    `otf_writer/stat.rs` and `otl/build.rs`, a different question), and
+    `FontFilePointer` itself, whose one remaining user is the excluded CFF
+    reader (`table/cff.rs`).
+  - **Test effectiveness**: a temporary counter shows the extend path runs
+    857 times across the suite (real GSUB/GPOS Extension lookups in the
+    payload fonts). A deliberate bug -- the resolved subtable offset
+    shifted by two bytes -- fails `golden.rs` (2 of 4 payload tests) and
+    `cycles.rs`. The two existing unit tests for the overflow and
+    truncated-header guards were converted to call `read_otl_extend`
+    directly and assert `is_none()`.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (412), Miri, all three fuzz targets
+    plus every `tests/fuzz-corpus/known-issues/*.bin`.
+    `survey-unsafe.sh`: `unsafe fn` 38 -> 33, `unsafe blocks` 141 -> 135,
+    raw pointer types 637 -> 632, files with the file-level allow 36 ->
+    35.
+
+- **Stage M-6: `SplineFontContainer` is an owned value --
+  `otfcc_delete_sfnt` deleted, the readers return `Option<..>`.** Sixth
+  installment, stacked on M-5. The Stage L-9a treatment, for the last
+  create/free pair the readers' callers had to remember.
+  - **`otfcc_read_sfnt(&Path) -> Option<SplineFontContainer>`** and
+    **`otfcc_read_sfnt_from_reader(&mut R) -> Option<SplineFontContainer>`**,
+    where they were `(*const c_char) -> *mut SplineFontContainer` and
+    `(&mut R) -> *mut SplineFontContainer` with a null for failure and a
+    matching `otfcc_delete_sfnt` to give the box back. **A plain value, not
+    a `Box`, this time** -- unlike `Font` in L-9a there is nothing here that
+    wants the indirection, and `read_otf` already takes `&SplineFontContainer`.
+    Callers just hold it and let scope drop it; `otfcc_delete_sfnt` is gone.
+  - **The "null path" case is retired by the type**: the old
+    `otfcc_read_sfnt(null)` guard (and its test) existed only because a
+    `*const c_char` can be null. A `&Path` cannot. That test is deleted
+    rather than converted -- there is no longer a way to express it, which
+    is the point. (411 lib tests, not 412.)
+  - **`bin/otfccdump.rs`** keeps `inPath` as a `CString` and builds the
+    `&Path` from its bytes at the one call site; the `sfnt` local is an
+    `Option<SplineFontContainer>` because it is assigned in the "Read SFNT"
+    step and consumed in "Read Font", two of the crate's goto-shaped
+    `while ___loggedstep_v` blocks apart. `(*sfnt).count == 0` checks
+    become `is_none_or(|s| s.count == 0)`, and the explicit delete becomes
+    `drop(sfnt.take())` so the SFNT is released at the same point as
+    before.
+  - **Other call sites**: the 8 `otf_reader.rs` regression tests, the
+    `otf_parse`/`otf_dump` fuzz targets and `benches/support` each lose an
+    `assert!(!sfnt.is_null())`/`if sfnt.is_null() {..}` and an
+    `otfcc_delete_sfnt`. The test helper `write_temp_file` returns a
+    `PathBuf` now instead of a `CString` that every test immediately
+    turned back into an `OsStr` to clean up after itself. `caryll_sfnt.rs`
+    has no `unsafe` left at all, so it drops its file-level
+    `#![allow(unsafe_op_in_unsafe_fn)]`.
+  - **Test effectiveness**: the error path (a file that is not an SFNT) is
+    what the CLI actually shows a user, so that is what was checked:
+    disabling the read-failure guard makes `otfccdump` print a *different*
+    message ("Subfont index 0 out of range ... (0 -- 4294967295)") for a
+    garbage file, and `log_output.rs`'s byte-exact stderr comparison fails.
+    The success path is under `golden.rs` as always.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    check` of the fuzz crate (both targets were edited), `cargo test --
+    --test-threads=1` (411), Miri, all three fuzz targets plus every
+    `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`: `unsafe fn`
+    33 -> 31, `unsafe blocks` 135 -> 127, raw pointer types 632 -> 629,
+    files with the file-level allow 35 -> 34.
+
+- **Stage M-7: `json_parse`/`json_value_free` deleted -- the callers use
+  `parse_json` directly.** Seventh installment, stacked on M-6. The last
+  raw-pointer wrapper around the JSON tree.
+  - **What they were**: `json_parse(*const c_char, usize) -> *mut
+    ParsedValue` rebuilt a slice with `from_raw_parts`, called the
+    already-safe `parse_json(&[u8]) -> Option<ParsedValue>`, and
+    `Box::into_raw`'d the result (null for failure); `json_value_free` was
+    the matching `Box::from_raw` + drop. Their own doc comment said the
+    point was to "swap the call site without reshaping the surrounding
+    code" -- a migration convenience that outlived the migration.
+  - **Callers**: `bin/otfccbuild.rs` already owned a `Vec<u8>`, so it just
+    calls `parse_json(&buffer)` and holds an `Option<ParsedValue>` (the same
+    assigned-in-one-step, used-in-another shape as `sfnt` in M-6, dropped
+    with `drop(json_root.take())` at the point the old free ran).
+    `benches/support` likewise. **`ffi/dll.rs` is the one place a raw
+    `(pointer, length)` pair genuinely arrives from C** -- it is the
+    `otfccbuild_json_otf` `extern "C"` entry point -- so that is where the
+    single `slice::from_raw_parts` now lives, in the function that is
+    already `unsafe extern "C"`, instead of inside a helper every caller had
+    to wrap in `unsafe {}`. The public ABI (four functions) is unchanged;
+    `abi.rs` and `dll_abi.rs` both pass.
+  - **Test effectiveness**: shortening the slice handed to `parse_json` by
+    one byte fails two of `ffi/dll.rs`'s unit tests. `dll_abi.rs`'s
+    byte-exact cdylib comparison did *not* catch it, and that is worth
+    knowing rather than assuming: its input JSON ends in whitespace, so
+    dropping the final byte still parses. The lib tests are the ones
+    guarding this boundary.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    test -- --test-threads=1` (411), `abi`/`dll_abi` explicitly, Miri, all
+    three fuzz targets plus every `tests/fuzz-corpus/known-issues/*.bin`.
+    `survey-unsafe.sh`: `unsafe fn` 31 -> 29, `unsafe blocks` 127 -> 125,
+    raw pointer types 629 -> 622.
+
+- **Stage M-8: the two `main_0` functions are safe, and `stopwatch`'s
+  `timespec` is passed by reference.** Eighth installment, stacked on M-7.
+  Both CLI entry points had been `unsafe fn main_0` since the c2rust port;
+  M-2 narrowed the reasons to two, this removes them.
+  - **`fprintf(stderr, "%s", <CString>)` -> `eprintln!`** for the eight
+    getopt diagnostics (unknown/ambiguous/missing-argument). Each one built
+    a `CString` from a `format!` only to hand libc a pointer to print; the
+    `.unwrap()` on that `CString::new` could even panic on a NUL byte, which
+    `eprintln!` cannot. `otfccdump`'s `isatty(fileno(stdout))` becomes
+    `std::io::stdout().is_terminal()`, the same test. That removes the
+    crate's last `fileno`/`isatty` and both bins' `stdio::{stderr, stdout}`
+    imports (`support/stdio.rs` stays: `bk/` and `glyf.rs` still use it,
+    a different question).
+  - **`readEntireFile`'s error message is written as raw bytes**
+    (`stderr().write_all`), not through `eprint!`: `inPath` is an OS path
+    and need not be UTF-8, which a `str` formatter would reject or mangle.
+    `%s` printed the bytes as-is and so does this. *Worth knowing:* that
+    branch is currently unreachable from the command line, because
+    `main()` collects `std::env::args()`, which itself panics on a
+    non-UTF-8 argument (identical before and after this change; a separate,
+    pre-existing limitation that is not fixed here).
+  - **`stopwatch.rs`: `time_now`/`push_stopwatch` take `&mut timespec`**
+    instead of `*mut timespec`, and are safe fns. The only reason they were
+    raw is that the callers wrote `&raw mut begin`; the one genuinely
+    unsafe operation, the `clock_gettime` FFI call, keeps its own narrow
+    `unsafe {}`. **The `%g` formatting -- the part the user deferred -- is
+    untouched**: same `snprintf`, same format string, same arguments, same
+    bytes. (The argument-passing shape and the float formatting are
+    independent questions.)
+  - **What is left in `main_0`**: one `unsafe { .. }` per bin, around
+    `read_otf` (dump) / `read_json` (build). Both are `unsafe fn` because
+    their *bodies* drive the excluded CFF builder core and the in-place
+    JSON-tree parsers; their arguments are plain shared references, so
+    there is no caller-side contract, and the block says so. Both bins
+    also lose their file-level `#![allow(unsafe_op_in_unsafe_fn)]`.
+  - **Test effectiveness -- this one is CLI behaviour, which the suite only
+    partly pins, so it was checked directly.** Twelve diagnostic paths
+    (unknown long/short option, ambiguous, missing argument, unreadable
+    SFNT, nonexistent file, invalid JSON, for both binaries) were run
+    against the pre-change binary (built from master in a scratch
+    worktree) and the new one, comparing stdout, stderr and exit code
+    byte for byte: all twelve identical.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    test -- --test-threads=1` (411), Miri, all three fuzz targets plus
+    every `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`:
+    `unsafe fn` 29 -> 25, `unsafe blocks` 125 -> 121, raw pointer types
+    622 -> 602, files with the file-level allow 34 -> 32.
+
+- **Stage M-9: `consolidate_otl`/`consolidate_otl_table` are safe -- the
+  lookup consolidators take a `&GlyphOrder`, not a `Font`.** Ninth
+  installment, stacked on M-8. This is the item Stage L-7 deferred as
+  "`font: *mut Font` -> `&mut Font` needs `Font`'s `gsub`/`gpos` borrows
+  split apart, a separate stage".
+  - **The split turned out to be one field.** Every function under
+    `consolidate/otl/` (12 files, 19 signatures) took a `font: &Font` and
+    read exactly one thing from it: `font.glyph_order` (checked by grepping
+    every `font.` use in that directory; the rest of what `consolidate.rs`
+    does with `glyf`/`cmap`/`tsi_`/`colr` lives in other, already-safe
+    functions). `glyph_order` and `gsub`/`gpos`/`gdef` are disjoint fields
+    of `Font`, so `consolidate_otl` borrows `font.glyph_order` shared and
+    `font.gsub.as_deref_mut()` mutable *at the same time* with no raw
+    pointer -- exactly what `consolidate_colr` already did for
+    `glyph_order` + `colr`. Every signature is `glyph_order: &GlyphOrder`
+    now (`&Font` -> `&GlyphOrder`, and the `.glyph_order.as_deref()
+    .unwrap()` at each use disappears), `consolidate_gdef` takes
+    `Option<&GlyphOrder>`, and `otfcc_consolidate_lookup`/
+    `__declare_otl_consolidation` pass it through.
+  - **`consolidate_otl_table` keeps its `None` guard.** It returns without
+    touching the table when there is no glyph order. `otfcc_consolidate_font`
+    cannot actually reach it that way (it errors out earlier for `glyf`
+    without a glyph order), so the guard is unreachable today and **no
+    fixture exercises it** -- a temporary counter showed 186 hits on the
+    `Some` path and none on the `None` one. That is exactly the kind of
+    branch an ownership refactor can lose without any test noticing, so a
+    unit test now pins it: `without_a_glyph_order_the_otl_table_is_left_
+    untouched`. Checked by removing the early return (substituting an empty
+    glyph order): the test fails, because the empty lookup is then visited
+    and punched away.
+  - **The L-7 self-reference is preserved**, which is the part of this
+    file that has bitten before: the `k == self_index` special case in
+    `consolidate_chaining` is untouched (only its `font` parameter became
+    `glyph_order`), and disabling it with `false &&` makes both
+    `chaining_rule_naming_its_own_lookup_by_{name,index}` tests fail.
+    `chaining.rs`'s one remaining `unsafe { &mut *chaining_rule_mut(..) }`
+    is a different, unrelated raw-pointer helper and is not touched here.
+  - **Tests**: the three `consolidate_otl_table_tests` that built a whole
+    `Font` and wrapped the call in `unsafe {}` just to hand over its glyph
+    order now pass `font.glyph_order.as_deref()` directly; `let mut font`
+    becomes `let font`. 412 lib tests (one new).
+  - **Not done, on purpose**: `consolidate.rs` still has
+    `get_point_coordinates`/`consolidate_anchor_ref` (composite-glyph cycle
+    detection, the intentional Stacked-Borrows-avoiding raw-pointer
+    design), so it keeps its file-level `#![allow(unsafe_op_in_unsafe_fn)]`.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    test -- --test-threads=1` (412), Miri (the check that matters for the
+    L-7 aliasing story), all three fuzz targets plus every
+    `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`: `unsafe fn`
+    25 -> 23, `unsafe blocks` 121 -> 117, raw pointer types 602 -> 596.

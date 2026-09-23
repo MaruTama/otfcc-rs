@@ -5,7 +5,7 @@ use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::font::caryll_font::Font;
+use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphClass, GlyphId};
 
@@ -37,7 +37,7 @@ struct LigHashValue {
     anchors: Vec<Vec<Anchor>>,
 }
 fn consolidate_mark_array(
-    font: &Font,
+    glyph_order: &GlyphOrder,
     options: &Options,
     mark_array: &mut MarkArray,
     class_count: GlyphClass,
@@ -48,7 +48,7 @@ fn consolidate_mark_array(
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut rec.glyph) {
+        if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
@@ -101,7 +101,7 @@ fn consolidate_mark_array(
     }
 }
 fn consolidate_base_array(
-    font: &Font,
+    glyph_order: &GlyphOrder,
     options: &Options,
     base_array: &mut BaseArray,
 ) {
@@ -111,7 +111,7 @@ fn consolidate_base_array(
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut rec.glyph) {
+        if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
@@ -154,7 +154,7 @@ fn consolidate_base_array(
     }
 }
 fn consolidate_lig_array(
-    font: &Font,
+    glyph_order: &GlyphOrder,
     options: &Options,
     lig_array: &mut LigatureArray,
 ) {
@@ -164,7 +164,7 @@ fn consolidate_lig_array(
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut rec.glyph) {
+        if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
@@ -212,29 +212,29 @@ fn consolidate_lig_array(
         });
     }
 }
-pub fn consolidate_mark_to_single(font: &Font, _subtable: &mut Subtable, options: &Options) -> bool {
+pub fn consolidate_mark_to_single(glyph_order: &GlyphOrder, _subtable: &mut Subtable, options: &Options) -> bool {
     let Subtable::GposMarkToSingle(subtable) = _subtable else {
         unreachable!()
     };
     consolidate_mark_array(
-        font,
+        glyph_order,
         options,
         &mut subtable.mark_array,
         subtable.class_count,
     );
-    consolidate_base_array(font, options, &mut subtable.base_array);
+    consolidate_base_array(glyph_order, options, &mut subtable.base_array);
     subtable.mark_array.len() == 0_usize || subtable.base_array.len() == 0_usize
 }
-pub fn consolidate_mark_to_ligature(font: &Font, _subtable: &mut Subtable, options: &Options) -> bool {
+pub fn consolidate_mark_to_ligature(glyph_order: &GlyphOrder, _subtable: &mut Subtable, options: &Options) -> bool {
     let Subtable::GposMarkToLigature(subtable) = _subtable else {
         unreachable!()
     };
     consolidate_mark_array(
-        font,
+        glyph_order,
         options,
         &mut subtable.mark_array,
         subtable.class_count,
     );
-    consolidate_lig_array(font, options, &mut subtable.lig_array);
+    consolidate_lig_array(glyph_order, options, &mut subtable.lig_array);
     subtable.mark_array.len() == 0_usize || subtable.lig_array.len() == 0_usize
 }

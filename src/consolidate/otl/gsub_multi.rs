@@ -6,7 +6,7 @@ use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
-use crate::font::caryll_font::Font;
+use crate::support::glyph_order::GlyphOrder;
 
 use crate::table::otl::{GsubMultiEntry, Subtable};
 
@@ -14,7 +14,7 @@ use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::subtables::gsub_multi::dispose_gsub_multi_subtable;
 
-pub fn consolidate_gsub_multi(font: &Font, _subtable: &mut Subtable, options: &Options) -> bool {
+pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable, options: &Options) -> bool {
     let Subtable::GsubMulti(subtable) = _subtable else {
         unreachable!()
     };
@@ -33,7 +33,7 @@ pub fn consolidate_gsub_multi(font: &Font, _subtable: &mut Subtable, options: &O
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut entry.from) {
+        if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.from) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
@@ -41,7 +41,7 @@ pub fn consolidate_gsub_multi(font: &Font, _subtable: &mut Subtable, options: &O
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.from.name, b".\n",),
             );
         } else {
-            fontop_consolidate_coverage(font.glyph_order.as_deref().unwrap(), &mut entry.to, options);
+            fontop_consolidate_coverage(glyph_order, &mut entry.to, options);
             shrink_coverage(&mut entry.to, false);
             if entry.to.is_empty() {
                 logger_log_sds(
@@ -76,6 +76,6 @@ pub fn consolidate_gsub_multi(font: &Font, _subtable: &mut Subtable, options: &O
     }
     subtable.len() == 0_usize
 }
-pub fn consolidate_gsub_alternative(font: &Font, _subtable: &mut Subtable, options: &Options) -> bool {
-    consolidate_gsub_multi(font, _subtable, options)
+pub fn consolidate_gsub_alternative(glyph_order: &GlyphOrder, _subtable: &mut Subtable, options: &Options) -> bool {
+    consolidate_gsub_multi(glyph_order, _subtable, options)
 }

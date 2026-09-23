@@ -5,7 +5,7 @@ use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
-use crate::font::caryll_font::Font;
+use crate::support::glyph_order::GlyphOrder;
 
 use crate::table::gdef::{CaretValueList, CaretValueRecord, GdefTable, clear_lig_carets};
 
@@ -13,8 +13,8 @@ use crate::consolidate::otl::common::fontop_consolidate_class_def;
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::classdef::shrink_class_def;
 
-pub fn consolidate_gdef(font: &Font, gdef: Option<&mut GdefTable>, options: &Options) {
-    let (Some(gdef), Some(glyph_order)) = (gdef, font.glyph_order.as_deref()) else {
+pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut GdefTable>, options: &Options) {
+    let (Some(gdef), Some(glyph_order)) = (gdef, glyph_order) else {
         return;
     };
     if let Some(cd) = gdef.glyph_class_def.as_deref_mut() {

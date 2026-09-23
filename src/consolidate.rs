@@ -576,8 +576,8 @@ pub fn consolidate_cmap(font: &mut Font, options: &Options) {
 }
 fn __declare_otl_consolidation(
     type_0: LookupType,
-    fn_0: impl Fn(&Font, &mut Subtable, &Options) -> bool,
-    font: &Font,
+    fn_0: impl Fn(&GlyphOrder, &mut Subtable, &Options) -> bool,
+    glyph_order: &GlyphOrder,
     lookup: &mut Lookup,
     options: &Options,
 ) {
@@ -626,7 +626,7 @@ fn __declare_otl_consolidation(
             }
         } else {
             let sub = slot.as_deref_mut().unwrap();
-            let subtable_removed = fn_0(font, sub, options);
+            let subtable_removed = fn_0(glyph_order, sub, options);
             if subtable_removed {
                 // Was a `fndel: SubtableRemover` parameter, one
                 // `LookupType`-keyed function pointer per call site
@@ -678,59 +678,59 @@ fn __declare_otl_consolidation(
     logger_finish(&mut *options.logger.borrow_mut());
 }
 pub fn otfcc_consolidate_lookup(
-    font: &Font,
+    glyph_order: &GlyphOrder,
     lookups: &LookupList,
     self_index: TableId,
     self_name: &[u8],
     lookup: &mut Lookup,
     options: &Options,
 ) {
-    __declare_otl_consolidation(OTL_TYPE_GSUB_SINGLE, consolidate_gsub_single, font, lookup, options);
-    __declare_otl_consolidation(OTL_TYPE_GSUB_MULTIPLE, consolidate_gsub_multi, font, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GSUB_SINGLE, consolidate_gsub_single, glyph_order, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GSUB_MULTIPLE, consolidate_gsub_multi, glyph_order, lookup, options);
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_ALTERNATE,
         consolidate_gsub_alternative,
-        font,
+        glyph_order,
         lookup,
         options,
     );
-    __declare_otl_consolidation(OTL_TYPE_GSUB_LIGATURE, consolidate_gsub_ligature, font, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GSUB_LIGATURE, consolidate_gsub_ligature, glyph_order, lookup, options);
     __declare_otl_consolidation(
         OTL_TYPE_GSUB_CHAINING,
         |f, sub, o| consolidate_chaining(f, lookups, self_index, self_name, sub, o),
-        font,
+        glyph_order,
         lookup,
         options,
     );
-    __declare_otl_consolidation(OTL_TYPE_GSUB_REVERSE, consolidate_gsub_reverse, font, lookup, options);
-    __declare_otl_consolidation(OTL_TYPE_GPOS_SINGLE, consolidate_gpos_single, font, lookup, options);
-    __declare_otl_consolidation(OTL_TYPE_GPOS_PAIR, consolidate_gpos_pair, font, lookup, options);
-    __declare_otl_consolidation(OTL_TYPE_GPOS_CURSIVE, consolidate_gpos_cursive, font, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GSUB_REVERSE, consolidate_gsub_reverse, glyph_order, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GPOS_SINGLE, consolidate_gpos_single, glyph_order, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GPOS_PAIR, consolidate_gpos_pair, glyph_order, lookup, options);
+    __declare_otl_consolidation(OTL_TYPE_GPOS_CURSIVE, consolidate_gpos_cursive, glyph_order, lookup, options);
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_CHAINING,
         |f, sub, o| consolidate_chaining(f, lookups, self_index, self_name, sub, o),
-        font,
+        glyph_order,
         lookup,
         options,
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_BASE,
         consolidate_mark_to_single,
-        font,
+        glyph_order,
         lookup,
         options,
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_MARK,
         consolidate_mark_to_single,
-        font,
+        glyph_order,
         lookup,
         options,
     );
     __declare_otl_consolidation(
         OTL_TYPE_GPOS_MARK_TO_LIGATURE,
         consolidate_mark_to_ligature,
-        font,
+        glyph_order,
         lookup,
         options,
     );
@@ -756,10 +756,15 @@ pub fn otfcc_consolidate_lookup(
 // from the very value about to be reborrowed mutably) are threaded down
 // so `consolidate_chaining` can special-case exactly that slot instead of
 // reading it (as `None`) from `lookups`.
-unsafe fn consolidate_otl_table(font: *mut Font, table: Option<&mut OtlTable>, options: &Options) {
-    if (*font).glyph_order.is_none() {
+fn consolidate_otl_table(glyph_order: Option<&GlyphOrder>, table: Option<&mut OtlTable>, options: &Options) {
+    // Every lookup consolidator below reads exactly one thing from the font:
+    // its glyph order (checked across `consolidate/otl/` -- nothing else).
+    // So this takes `glyph_order`, not the `Font`, which is what lets the
+    // caller borrow `font.glyph_order` and `font.gsub`/`.gpos` (disjoint
+    // fields) at the same time without a raw pointer.
+    let Some(glyph_order) = glyph_order else {
         return;
-    }
+    };
     let Some(table) = table else {
         return;
     };
@@ -772,7 +777,7 @@ unsafe fn consolidate_otl_table(font: *mut Font, table: Option<&mut OtlTable>, o
             if let Some(lookup) = current.as_deref_mut() {
                 let self_name = lookup.name.clone();
                 otfcc_consolidate_lookup(
-                    &*font,
+                    glyph_order,
                     &table.lookups,
                     j as TableId,
                     &self_name,
@@ -831,14 +836,15 @@ unsafe fn consolidate_otl_table(font: *mut Font, table: Option<&mut OtlTable>, o
         }
     }
 }
-unsafe fn consolidate_otl(font: *mut Font, options: &Options) {
+fn consolidate_otl(font: &mut Font, options: &Options) {
+    let glyph_order = font.glyph_order.as_deref();
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
         crate::bytesbuild!(b"GSUB"),
     );
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
-        consolidate_otl_table(font, (*font).gsub.as_deref_mut(), options);
+        consolidate_otl_table(glyph_order, font.gsub.as_deref_mut(), options);
         ___loggedstep_v = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
@@ -848,7 +854,7 @@ unsafe fn consolidate_otl(font: *mut Font, options: &Options) {
     );
     let mut ___loggedstep_v_0: bool = true;
     while ___loggedstep_v_0 {
-        consolidate_otl_table(font, (*font).gpos.as_deref_mut(), options);
+        consolidate_otl_table(glyph_order, font.gpos.as_deref_mut(), options);
         ___loggedstep_v_0 = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
@@ -858,7 +864,7 @@ unsafe fn consolidate_otl(font: *mut Font, options: &Options) {
     );
     let mut ___loggedstep_v_1: bool = true;
     while ___loggedstep_v_1 {
-        consolidate_gdef(&*font, (*font).gdef.as_deref_mut(), options);
+        consolidate_gdef(glyph_order, font.gdef.as_deref_mut(), options);
         ___loggedstep_v_1 = false;
         logger_finish(&mut *options.logger.borrow_mut());
     }
@@ -1081,21 +1087,14 @@ pub fn otfcc_consolidate_font(font: &mut Font, options: &Options) {
     consolidate_cmap(font, options);
     logger_finish(&mut *options.logger.borrow_mut());
     if has_glyf {
-        // The 10-file `__declare_otl_consolidation`/`otfcc_consolidate_
-        // lookup` dispatch is fully safe now, `table: &mut OtlTable`
-        // included (Stage L-7 -- see `consolidate_otl_table`'s own doc
-        // comment for how the `k == self_index` self-reference case is
-        // handled without an aliasing raw pointer), and the
-        // `otl_*_filter_env` family (`table/otl.rs`) was already safe
-        // (closures instead of a type-erased `*mut c_void` callback).
-        // `consolidate_otl`/`consolidate_otl_table` themselves stay
-        // `unsafe fn` for the one remaining reason: `font: *mut Font` is
-        // still raw, since giving it up requires splitting `Font.gsub`/
-        // `.gpos`/`.gdef` borrows apart from the rest of `Font` -- a
-        // separate stage, out of scope here.
-        unsafe {
-            consolidate_otl(font, options);
-        }
+        // The lookup consolidators read exactly one thing from the font --
+        // its glyph order -- so `consolidate_otl` splits `font.glyph_order`
+        // off from `font.gsub`/`.gpos`/`.gdef` (disjoint fields) and hands
+        // each piece to the safe dispatch. Was `unsafe fn` over a
+        // `font: *mut Font`, on the belief (Stage L-7's note) that this
+        // needed the `Font` borrows split apart in a way that was out of
+        // scope; it turned out to need only that one field.
+        consolidate_otl(font, options);
     }
     logger_start_sds(
         &mut *options.logger.borrow_mut(),
@@ -1214,12 +1213,10 @@ mod consolidate_otl_table_tests {
         lang.features.push(FeatureIdx(0));
         table.languages.push(lang);
 
-        let mut font = empty_font_with_glyph_order();
+        let font = empty_font_with_glyph_order();
         let options = Options::default();
 
-        unsafe {
-            consolidate_otl_table(font.as_mut() as *mut Font, Some(table.as_mut()), &options);
-        }
+        consolidate_otl_table(font.glyph_order.as_deref(), Some(table.as_mut()), &options);
 
         assert!(table.languages[0].required_feature.is_none());
         // Consolidation now punches holes instead of compacting -- an
@@ -1227,6 +1224,27 @@ mod consolidate_otl_table_tests {
         // just `None` rather than removed outright.
         assert!(table.features.iter().all(Option::is_none));
         assert!(table.lookups.iter().all(Option::is_none));
+    }
+
+    // `consolidate_otl_table` takes the font's glyph order alone (the only
+    // thing any lookup consolidator reads), and returns without touching the
+    // table when there is none. `otfcc_consolidate_font` cannot actually
+    // reach it that way today -- it errors out earlier for `glyf` without a
+    // glyph order -- so no fixture exercises the guard, which is exactly why
+    // it is pinned here: an emptied-out lookup would be punched away below
+    // if the early return were ever lost.
+    #[test]
+    fn without_a_glyph_order_the_otl_table_is_left_untouched() {
+        let mut table = Box::new(OtlTable {
+            lookups: vec![Some(new_lookup())], // no subtables: would be punched if visited
+            features: Vec::new(),
+            languages: Vec::new(),
+        });
+        let options = Options::default();
+
+        consolidate_otl_table(None, Some(table.as_mut()), &options);
+
+        assert!(table.lookups[0].is_some());
     }
 
     fn self_referencing_chaining_lookup(lookup_type: LookupType, app_lookup: LookupHandle) -> Box<Lookup> {
@@ -1274,12 +1292,10 @@ mod consolidate_otl_table_tests {
             features: Vec::new(),
             languages: Vec::new(),
         });
-        let mut font = empty_font_with_glyph_order();
+        let font = empty_font_with_glyph_order();
         let options = Options::default();
 
-        unsafe {
-            consolidate_otl_table(font.as_mut() as *mut Font, Some(table.as_mut()), &options);
-        }
+        consolidate_otl_table(font.glyph_order.as_deref(), Some(table.as_mut()), &options);
 
         let resolved = table.lookups[0]
             .as_deref()
@@ -1332,12 +1348,10 @@ mod consolidate_otl_table_tests {
             features: Vec::new(),
             languages: Vec::new(),
         });
-        let mut font = empty_font_with_glyph_order();
+        let font = empty_font_with_glyph_order();
         let options = Options::default();
 
-        unsafe {
-            consolidate_otl_table(font.as_mut() as *mut Font, Some(table.as_mut()), &options);
-        }
+        consolidate_otl_table(font.glyph_order.as_deref(), Some(table.as_mut()), &options);
 
         let resolved = table.lookups[1]
             .as_deref()

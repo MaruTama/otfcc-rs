@@ -76,8 +76,10 @@ use crate::vendor::json::JsonType;
 // and `support::built_json` used for `Buffer`/`BuiltValue` (Stage 9/10);
 // this `impl` was always the safe replacement API underneath it, and
 // every former consumer now calls it directly -- the shell itself is
-// gone (Phase 12), save for `json_parse`/`json_value_free` (the real
-// FFI-adjacent generation/destruction boundary).
+// gone (Phase 12), and the last two raw-pointer entry points,
+// `json_parse`/`json_value_free`, went in Stage M-7: they were a
+// `Box::into_raw`/`Box::from_raw` wrapper around `parse_json`, and the
+// callers now use `parse_json`'s `Option<ParsedValue>` directly.
 impl ParsedValue {
     /// The `JsonType` tag for this value -- `Null` here always means a
     /// real JSON `null`, never "absent"; a lookup that found nothing
@@ -642,27 +644,6 @@ impl<'a> Parser<'a> {
         } else {
             Some(ParsedValue::Int(if negative { -int_val } else { int_val }))
         }
-    }
-}
-
-/// Raw-pointer entry point matching `vendor::json::json_parse`'s own
-/// signature exactly (`*const c_char`/`usize` in, null on any parse
-/// failure) -- lets `bin/otfccbuild.rs`/`ffi/dll.rs` swap the call site
-/// without reshaping the surrounding code. Owns the result as a `Box`;
-/// pair with `json_value_free` below.
-pub unsafe fn json_parse(json: *const ::core::ffi::c_char, length: usize) -> *mut ParsedValue {
-    let bytes = unsafe { ::core::slice::from_raw_parts(json as *const u8, length) };
-    match parse_json(bytes) {
-        Some(v) => Box::into_raw(Box::new(v)),
-        None => ::core::ptr::null_mut(),
-    }
-}
-
-/// Frees a tree returned by `json_parse` above. No-op on null, matching
-/// `vendor::json::json_value_free`.
-pub unsafe fn json_value_free(v: *mut ParsedValue) {
-    if !v.is_null() {
-        drop(unsafe { Box::from_raw(v) });
     }
 }
 

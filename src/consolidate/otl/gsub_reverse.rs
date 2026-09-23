@@ -2,7 +2,7 @@ use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::font::caryll_font::Font;
+use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, TableId};
 
@@ -11,7 +11,7 @@ use crate::table::otl::Subtable;
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 
 pub fn consolidate_gsub_reverse(
-    font: &Font,
+    glyph_order: &GlyphOrder,
     _subtable: &mut Subtable,
     options: &Options,
 ) -> bool {
@@ -22,7 +22,6 @@ pub fn consolidate_gsub_reverse(
     // reaches here) only ever runs when `glyf` is present, and
     // `otfcc_consolidate_font` always populates `glyph_order` before
     // that, whenever `glyf` is present.
-    let glyph_order = font.glyph_order.as_deref().unwrap();
     let match_count = subtable.match_count as usize;
     for cov in subtable.match_0.iter_mut().take(match_count) {
         fontop_consolidate_coverage(glyph_order, cov, options);

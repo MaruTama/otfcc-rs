@@ -2,7 +2,7 @@ use crate::support::handle::{GlyphHandle, Handle, HandleState};
 
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 
-use crate::font::caryll_font::Font;
+use crate::support::glyph_order::GlyphOrder;
 use crate::support::options::Options;
 use crate::support::primitives::GlyphId;
 
@@ -12,7 +12,7 @@ use crate::support::glyph_order::otfcc_gord_consolidate_handle;
 use crate::table::otl::subtables::gpos_single::dispose_gpos_single_subtable;
 
 pub fn consolidate_gpos_single(
-    font: &Font,
+    glyph_order: &GlyphOrder,
     _subtable: &mut Subtable,
     options: &Options,
 ) -> bool {
@@ -35,7 +35,7 @@ pub fn consolidate_gpos_single(
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut entry.target) {
+        if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.target) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,

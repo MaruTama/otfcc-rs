@@ -3,7 +3,7 @@ use crate::table::otl::coverage::shrink_coverage;
 
 use crate::support::options::Options;
 
-use crate::font::caryll_font::Font;
+use crate::support::glyph_order::GlyphOrder;
 
 use crate::consolidate::otl::common::fontop_consolidate_coverage;
 use crate::support::glyph_order::otfcc_gord_consolidate_handle;
@@ -11,7 +11,7 @@ use crate::table::otl::subtables::gsub_ligature::subtable_gsub_ligature_replace;
 use crate::table::otl::{GsubLigatureEntry, GsubLigatureSubtable, Subtable};
 
 pub fn consolidate_gsub_ligature(
-    font: &Font,
+    glyph_order: &GlyphOrder,
     _subtable: &mut Subtable,
     options: &Options,
 ) -> bool {
@@ -24,7 +24,7 @@ pub fn consolidate_gsub_ligature(
         // only ever runs when `glyf` is present, and `otfcc_consolidate_font`
         // always populates `glyph_order` before that, whenever `glyf` is
         // present.
-        if !otfcc_gord_consolidate_handle(font.glyph_order.as_deref().unwrap(), &mut entry.to) {
+        if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.to) {
             logger_log_sds(
                 &mut *options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
@@ -32,7 +32,7 @@ pub fn consolidate_gsub_ligature(
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.to.name, b".\n",),
             );
         } else {
-            fontop_consolidate_coverage(font.glyph_order.as_deref().unwrap(), &mut entry.from, options);
+            fontop_consolidate_coverage(glyph_order, &mut entry.from, options);
             shrink_coverage(&mut entry.from, false);
             if entry.from.is_empty() {
                 logger_log_sds(

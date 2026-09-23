@@ -26,7 +26,7 @@
 
 use libfuzzer_sys::fuzz_target;
 use otfcc_rust::consolidate::otfcc_consolidate_font;
-use otfcc_rust::font::caryll_sfnt::{otfcc_delete_sfnt, otfcc_read_sfnt_from_reader};
+use otfcc_rust::font::caryll_sfnt::otfcc_read_sfnt_from_reader;
 use otfcc_rust::json_writer::serialize_to_json;
 use otfcc_rust::logger::{Logger, otfcc_new_empty_target};
 use otfcc_rust::otf_reader::read_otf;
@@ -40,12 +40,10 @@ fuzz_target!(|data: &[u8]| {
     }
 
     unsafe {
-        let sfnt = otfcc_read_sfnt_from_reader(&mut Cursor::new(data));
-
-        if sfnt.is_null() || (*sfnt).count == 0 {
-            if !sfnt.is_null() {
-                otfcc_delete_sfnt(sfnt);
-            }
+        let Some(sfnt) = otfcc_read_sfnt_from_reader(&mut Cursor::new(data)) else {
+            return;
+        };
+        if sfnt.count == 0 {
             return;
         }
 
@@ -54,8 +52,7 @@ fuzz_target!(|data: &[u8]| {
 
         // Subfont index 0 always exists once `count > 0` -- see otf_parse's
         // own comment on why this target does not also fuzz the TTC index.
-        let font = read_otf(&*sfnt, 0, &options);
-        otfcc_delete_sfnt(sfnt);
+        let font = read_otf(&sfnt, 0, &options);
 
         if let Some(mut font) = font {
             otfcc_consolidate_font(&mut font, &options);

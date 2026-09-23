@@ -8,8 +8,7 @@ use crate::json_reader::read_json;
 use crate::logger::{Logger, logger_indent_sds, otfcc_new_empty_target};
 use crate::otf_writer::serialize_to_otf;
 use crate::support::options::otfcc_options_optimize_to;
-use crate::support::parsed_json::ParsedValue;
-use crate::support::parsed_json::{json_parse, json_value_free};
+use crate::support::parsed_json::parse_json;
 use std::cell::RefCell;
 
 #[unsafe(no_mangle)]
@@ -27,15 +26,16 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
         options.ignore_glyph_order = true;
         options.force_cid = true;
     }
-    let json_root: *mut ParsedValue = json_parse(injson, inlen as usize);
-    if json_root.is_null() {
-        return ::core::ptr::null_mut::<Buffer>();
-    }
-    let font = read_json(&*json_root, &*options);
-    json_value_free(json_root);
-    let Some(mut font) = font else {
+    // The one place the raw `(pointer, length)` pair from the C caller is
+    // turned into a slice; everything from here on is safe.
+    let Some(json_root) = parse_json(::core::slice::from_raw_parts(injson as *const u8, inlen as usize))
+    else {
         return ::core::ptr::null_mut::<Buffer>();
     };
+    let Some(mut font) = read_json(&json_root, &options) else {
+        return ::core::ptr::null_mut::<Buffer>();
+    };
+    drop(json_root);
     otfcc_consolidate_font(&mut font, &*options);
     // This is the one genuine `extern "C"` boundary in the crate, so it is
     // also the one place that still needs to hand a `Buffer` back as a raw
