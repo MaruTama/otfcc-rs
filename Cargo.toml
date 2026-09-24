@@ -90,6 +90,7 @@ useless_transmute = "allow" # 2
 vec_box = "allow" # 2 -- `Vec<Box<T>>` field clippy thinks should be `Vec<T>`
 
 [dependencies]
+base64 = "0.23.1"
 bitflags = "2.13.1"
 indexmap = "2.14.0"
 libc = "0.2.189"

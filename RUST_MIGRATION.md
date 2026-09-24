@@ -15785,3 +15785,77 @@ on the other platform before a commit is trusted.
     `vq_delete_region`'s `*mut VqRegion` parameter, and `vq_copy_region`'s
     `*mut VqRegion` return type, one file-level `allow(unsafe_op_in_
     unsafe_fn)` also dropped).
+
+- **Stage M-18: `src/support/base64.rs`'s encoder swapped for the
+  `base64` crate; the decoder stays hand-rolled.** Eighteenth
+  installment, following up on a dependency-audit finding rather than an
+  `unsafe`-removal one -- this crate has very few external dependencies,
+  and a hand-rolled RFC 4648 codec is exactly the kind of small, easy-to-
+  get-subtly-wrong utility a vetted crate exists to replace.
+  - **What was there.** `base64_encode`/`base64_decode`
+    (`#![forbid(unsafe_code)]`, no `unsafe` anywhere in the file) -- a
+    standard-alphabet, `=`-padded, no-line-wrap RFC 4648 codec. `encode`
+    matches the RFC's own section 10 test vectors exactly, with no surprises.
+    `decode` has two non-standard behaviors, both confirmed by reading the
+    function (not assumed): (1) any byte outside the alphabet and not `=`
+    is silently skipped rather than rejected -- already documented on the
+    function before this stage -- and (2) a second, more subtle one this
+    stage's own investigation turned up: a `=` that appears anywhere
+    *other than* the final processed 4-character group is not treated as
+    padding at all -- it looks up as data value `0` (the same table slot
+    as `'A'`) and decodes into the output like any other alphabet
+    character, with truncation only checked against the very last
+    processed group's `=` positions. E.g. `base64_decode(b"Z=g=")` returns
+    `Some(vec![100, 8])`, not `None` and not a 1-byte result.
+  - **The fix, scoped to what's provably safe.** `base64_encode` becomes a
+    thin wrapper over `base64::engine::general_purpose::STANDARD.encode`:
+    encoding a byte slice has exactly one well-defined RFC 4648 output, so
+    there's no behavior for a conformant crate to diverge on --
+    cross-checked directly against the crate's own output (not just the
+    RFC vectors) across every remainder length 0..40 bytes.
+    `base64_decode` is deliberately left hand-rolled. The `base64` crate's
+    decoders, including its most permissive `GeneralPurposeConfig`,
+    validate `=` position and reject a misplaced one instead of treating
+    it as data -- there is no lenient mode that reproduces quirk (2)
+    above, and a manual pre-filter-then-decode (the fallback this stage's
+    own instructions allowed) can't reproduce it either, since filtering
+    doesn't change *where* the crate considers a `=` to be positioned.
+    Per this migration's own "byte-exact output is sacred" standard, a
+    provable behavior difference on malformed input is reported rather
+    than silently shipped -- see the function's own doc comment, which
+    now states both quirks explicitly, and
+    `decode_treats_a_non_trailing_equals_sign_as_data_not_padding`, the
+    regression test pinning the exact values.
+  - **No call sites changed.** Both functions keep their original names
+    and signatures (`base64_encode(&[u8]) -> Vec<u8>`,
+    `base64_decode(&[u8]) -> Option<Vec<u8>>`), so none of the six call
+    sites (`support/ttinstr.rs`, `table/cvt.rs`, `table/meta/dump.rs`,
+    `table/meta/parse.rs`, `table/svg.rs`, `table/name.rs`, verified by
+    grep) needed touching.
+  - **Dependency added.** `base64 = "0.23.1"` in `[dependencies]`
+    (crates.io's current stable release as of this stage, verified via
+    the crates.io API rather than assumed from training data), matching
+    this `Cargo.toml`'s existing plain-version pinning style (`bitflags
+    = "2.13.1"`, `indexmap = "2.14.0"`, etc. -- no exact-pin `=` prefix
+    anywhere in this file).
+  - **New tests.** Beyond the existing RFC-vector/round-trip coverage:
+    empty input, embedded whitespace of several kinds (space/tab/CRLF, not
+    just the pre-existing bare-newline case), a length one character short
+    of a full group, and four adversarial cases pinning the non-trailing-
+    `=` quirk exactly (`"Z=g="`, `"===="`, `"AA=A"`, `"A=A="`, and a
+    two-group case confirming only the *last* group's `=` positions are
+    ever checked for truncation).
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (419 lib tests: 416 baseline plus
+    3 new base64 tests, same 2 pre-existing timing-threshold failures in
+    this sandbox as every stage since M-10), targeted Miri
+    (`support::base64::` -- 10 passed), `tests/golden.rs`'s full byte-
+    exact JSON round-trip suite (4 tests, covering `svg`/`cvt`/instruction
+    tables through base64) unchanged and passing, `json_build` fuzz
+    target 100s (4,540,203 runs, clean -- the target that reaches
+    `base64_decode` from attacker-controlled JSON text), `otf_dump` fuzz
+    target's ttinstr/svg/meta/name known-issues corpus files re-run
+    directly, clean. `survey-unsafe.sh`: unchanged (`unsafe fn` 12,
+    `unsafe blocks` 74, raw pointer types 527) -- this stage touches no
+    `unsafe`/raw-pointer code at all, matching `base64.rs`'s own
+    `#![forbid(unsafe_code)]`.
