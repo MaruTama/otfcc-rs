@@ -341,7 +341,7 @@ fn strtol_base0(s: &[u8]) -> (i64, usize) {
         let mut j = i + 2;
         let mut val: i64 = 0;
         while let Some(d) = s.get(j).and_then(|&b| (b as char).to_digit(16)) {
-            val = val * 16 + d as i64;
+            val = val.saturating_mul(16).saturating_add(d as i64);
             j += 1;
         }
         return (if neg { -val } else { val }, j);
@@ -350,7 +350,7 @@ fn strtol_base0(s: &[u8]) -> (i64, usize) {
         let mut j = i + 1;
         let mut val: i64 = 0;
         while s.get(j).is_some_and(|&b| (b'0'..=b'7').contains(&b)) {
-            val = val * 8 + (s[j] - b'0') as i64;
+            val = val.saturating_mul(8).saturating_add((s[j] - b'0') as i64);
             j += 1;
         }
         return (if neg { -val } else { val }, j);
@@ -358,7 +358,7 @@ fn strtol_base0(s: &[u8]) -> (i64, usize) {
     let mut j = i;
     let mut val: i64 = 0;
     while s.get(j).is_some_and(u8::is_ascii_digit) {
-        val = val * 10 + (s[j] - b'0') as i64;
+        val = val.saturating_mul(10).saturating_add((s[j] - b'0') as i64);
         j += 1;
     }
     (if neg { -val } else { val }, j)
@@ -962,5 +962,23 @@ mod tests {
         assert_eq!(strtol_base0(b"-5"), (-5, 2));
         assert_eq!(strtol_base0(b"0"), (0, 1));
         assert_eq!(strtol_base0(b"0x"), (0, 1));
+    }
+
+    // Fuzz-found, pre-existing crash (see RUST_MIGRATION.md Stage M-14 and
+    // M-15): a decimal/hex/octal digit run long enough to overflow `i64`
+    // during accumulation used to panic with "attempt to multiply with
+    // overflow" (plain `val * 10 + digit` arithmetic). `strtol_base0` now
+    // saturates instead, mirroring libc `strtol`'s own overflow behavior
+    // (clamp to `LONG_MAX`/`LONG_MIN` and keep scanning digits), so a
+    // value this large -- however it's spelled -- can never be anything
+    // but `i64::MAX` here, which is guaranteed to fail `parse_instrs`'s
+    // `[-32768, 32767]` range check the same way libc's clamped
+    // `LONG_MAX` would.
+    #[test]
+    fn strtol_base0_saturates_on_overflow_instead_of_panicking() {
+        assert_eq!(strtol_base0(b"99999999999999999999999"), (i64::MAX, 23));
+        assert_eq!(strtol_base0(b"-99999999999999999999999"), (i64::MIN + 1, 24));
+        assert_eq!(strtol_base0(b"0xffffffffffffffffffff"), (i64::MAX, 22));
+        assert_eq!(strtol_base0(b"07777777777777777777777777"), (i64::MAX, 26));
     }
 }
