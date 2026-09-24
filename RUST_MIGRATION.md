@@ -15545,3 +15545,70 @@ on the other platform before a commit is trusted.
     78 -> 79 (one net new explicit `unsafe {}` block replaces the removed
     `unsafe fn` umbrella around a ~150-line body), raw pointer types
     535 -> 532.
+
+- **Stage M-15: `strtol_base0` no longer panics on an overlong digit
+  run.** Fixes the pre-existing, unrelated crash Stage M-14 found while
+  fuzzing `json_build` and left out of scope.
+  - **The bug**: `support/ttinstr.rs`'s `strtol_base0` (mirroring libc
+    `strtol(s, &mut end, 0)`'s base-0 auto-detection for the decimal
+    push-value operands `parse_instrs` reads out of an `fpgm`/`prep`
+    table's text form, reached via `otfcc_parse_fpgm_prep`) accumulates
+    its hex/octal/decimal branches with plain `val * base + digit`
+    arithmetic and no length cap on how many digits it will consume. A
+    digit run long enough to overflow `i64` (24 nines is already well
+    past `i64::MAX`) panics with "attempt to multiply with overflow" in
+    debug/`overflow-checks` builds -- reproduced identically against the
+    unmodified `ca5cafe` tree (stashing this stage's changes and
+    rebuilding), confirming it predates every stage back through M-10.
+  - **The fix, and why clamping rather than wrapping**: each of the
+    three branches (hex/octal/decimal) swaps `val * base + digit` for
+    `val.saturating_mul(base).saturating_add(digit)`. This mirrors libc
+    `strtol`'s own overflow contract -- clamp to `LONG_MAX`/`LONG_MIN`
+    and keep scanning digits to the end of the run -- rather than Stage
+    M-13's `wrapping_neg()` fix for `parse_number`'s `i64::MIN` case.
+    The two functions' contracts differ: `parse_number`'s doc comment
+    already commits every other overflow in that function to silent
+    wraparound, so `wrapping_neg()` was the idiom already in force
+    there. `strtol_base0` has no such precedent, and its one caller
+    (`parse_instrs`) immediately truncates the result to `i32` and
+    rejects anything outside `[-32768, 32767]`; wrapping risks an
+    adversarial digit run landing back inside that narrow range by
+    chance (a real observable-behavior difference from real `strtol`,
+    which would report `LONG_MAX`/`LONG_MIN` and fail the same check).
+    Saturating arithmetic can't produce that false negative: `val` only
+    ever accumulates non-negative digit magnitudes, so it saturates at
+    `i64::MAX` at most, guaranteeing `val as i32` overflows the
+    `i32` cast into something already far outside `[-32768, 32767]` --
+    the same "always ends up rejected" outcome libc's own clamp-then-
+    compare gives. As a side effect, this also makes the final `if neg
+    { -val }` unconditionally safe: `val` is always in `[0, i64::MAX]`,
+    so `-val` is always representable and can never re-hit M-13's
+    negate-overflow shape.
+  - **Regression test**: `strtol_base0_saturates_on_overflow_instead_of_
+    panicking`, next to the function's existing `strtol_base0_matches_
+    libc_strtol_hex_octal_and_decimal_prefixes` test, covers all three
+    branches (a 25-digit decimal run, its negated form, an overlong hex
+    run, an overlong octal run) and asserts each saturates to
+    `i64::MAX`/`i64::MIN + 1` while still reporting every digit as
+    consumed (matching libc `strtol`'s own "consume to the end of the
+    digit run even past the point of overflow" behavior).
+  - **Verified the test actually catches the bug**: temporarily reverted
+    the three `saturating_mul`/`saturating_add` call sites back to plain
+    `*`/`+` with the test in place -- it panics with the exact "attempt
+    to multiply with overflow" backtrace through `strtol_base0`,
+    confirming the test fails on the unfixed code and passes on the
+    fixed code.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (416 lib tests: the 415 from M-14
+    plus this stage's one new test; the same 2 pre-existing timing-
+    threshold tests time out in this sandbox, unrelated per M-10's
+    notes), targeted Miri (`support::ttinstr::` -- 7 passed), `cargo
+    fuzz run json_build` for 100s afterward (2.2M runs, clean -- this is
+    the target that reaches `otfcc_parse_fpgm_prep`'s text-instruction
+    parser from JSON input), the two `json-build-*.bin` and two
+    `otf-dump-ttinstr-*.bin` known-issues corpus files most relevant to
+    this file re-run directly against both `otf_dump`/`json_build`,
+    clean. `survey-unsafe.sh`: unchanged (`unsafe fn` 13, `unsafe
+    blocks` 79, raw pointer types 532) -- this stage touches no
+    `unsafe`/raw-pointer code, only a checked-vs-saturating arithmetic
+    operator, the same shape of fix as M-13.
