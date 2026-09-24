@@ -1,5 +1,3 @@
-use libc::fprintf;
-
 // Stage D (2026-09): `BkBlock`/`BkCellValue::Ptr` become an owned, `Box`-based
 // recursive tree. The previous version of this comment (added 2026-09-07,
 // correcting an even earlier "single-parent forest" claim) argued this was
@@ -99,7 +97,6 @@ pub enum BkCellType {
     Embed = 255,
 }
 use crate::support::buffer::Buffer;
-use crate::support::stdio::stderr;
 
 pub fn bk_cell_is_pointer(cell: &BkCell) -> bool {
     cell.t >= BkCellType::P16
@@ -184,60 +181,6 @@ pub fn bk_new_block_from_buffer_copy(buf: Option<&Buffer>) -> Option<BkBlock> {
     let buf = buf?;
     Some(bk_new_block_from_bytes(&buf.data))
 }
-/// Debug-print `b`'s cells to stderr. Zero callers anywhere in this crate
-/// today (confirmed by grep before this conversion, same as `bufprint`'s
-/// status when Stage 9 reached it) -- kept as a manual-debugging tool rather
-/// than deleted, per that same precedent's resolution.
-pub fn bk_print_block(b: &BkBlock) {
-    unsafe {
-        fprintf(
-            stderr,
-            b"Block size %08x\n\0" as *const u8 as *const ::core::ffi::c_char,
-            b.cells.len() as u32,
-        );
-        fprintf(
-            stderr,
-            b"------------------\n\0" as *const u8 as *const ::core::ffi::c_char,
-        );
-    }
-    for cell in b.cells.iter() {
-        if bk_cell_is_pointer(cell) {
-            match &cell.value {
-                BkCellValue::Ptr(Some(p)) => unsafe {
-                    fprintf(
-                        stderr,
-                        b"  %3d %p\n\0" as *const u8 as *const ::core::ffi::c_char,
-                        cell.t as ::core::ffi::c_uint,
-                        &**p as *const BkBlock,
-                    );
-                },
-                _ => unsafe {
-                    fprintf(
-                        stderr,
-                        b"  %3d [NULL]\n\0" as *const u8 as *const ::core::ffi::c_char,
-                        cell.t as ::core::ffi::c_uint,
-                    );
-                },
-            }
-        } else {
-            unsafe {
-                fprintf(
-                    stderr,
-                    b"  %3d %d\n\0" as *const u8 as *const ::core::ffi::c_char,
-                    cell.t as ::core::ffi::c_uint,
-                    cell.as_int(),
-                );
-            }
-        }
-    }
-    unsafe {
-        fprintf(
-            stderr,
-            b"------------------\n\0" as *const u8 as *const ::core::ffi::c_char,
-        );
-    }
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;

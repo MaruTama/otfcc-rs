@@ -15275,3 +15275,53 @@ on the other platform before a commit is trusted.
     targets 90s each plus every `tests/fuzz-corpus/known-issues/*.bin`.
     `survey-unsafe.sh`: `unsafe fn` 23 -> 14, `unsafe blocks` 117 -> 96,
     raw pointer types 596 -> 558, files with the file-level allow 32 -> 30.
+
+- **Stage M-11: two dev-diagnostic `fprintf`s go through `eprintln!`/the
+  `Logger`, and `bk_print_block` -- confirmed dead since Stage D -- is
+  deleted.** Eleventh installment, stacked on M-10. Three unrelated
+  `libc::fprintf`-to-stderr call sites, each
+  checked individually against `tests/log_output.rs`'s golden-log
+  comparison (which pins only what `otfccdump`/`otfccbuild` write through
+  the `Logger`, per that file's own doc comment) before touching it.
+  - **`bkgraph.rs`'s `getoffset`** prints an offset-overflow warning
+    (`"[otfcc-bk] Warning : Unable to fit offset..."`) from deep inside
+    `otfcc_build_bkblock`, which ~19 unrelated table builders call with no
+    `Logger`/`Options` anywhere in scope -- threading one through would be
+    a large, out-of-scope refactor for a warning this rarely hit. The raw
+    `fprintf`/`stderr` call becomes a plain `eprintln!` with the same text
+    and arguments; `bkgraph.rs` loses its `libc::fprintf` and
+    `support::stdio::stderr` imports.
+  - **`glyf.rs`'s `otfcc_glyf_parse_glyph`** prints a TrueType-instruction
+    parse error (`"[OTFCC] TrueType instructions parse error : ..."`) from
+    inside a closure that already captures `options: &Options` -- the
+    exact `Logger` this file's neighboring `logger_start_sds`/
+    `logger_finish` calls already use. This one goes through the real
+    thing: `logger_log_sds(&mut *options.logger.borrow_mut(),
+    LOG_VL_IMPORTANT, LoggerType::Warning, bytesbuild!(...))`, replacing
+    the NUL-terminated byte-copies `fprintf`'s `%s` needed with
+    `bytesbuild!`'s existing `&[u8]`/`&Vec<u8>`/`i32` parts. `glyf.rs`
+    loses the same two imports (its only other `fprintf`/`stderr` call
+    sites).
+  - **`bkblock.rs`'s `bk_print_block`** -- a six-`fprintf` cell dumper a
+    previous stage's comment explicitly kept "as a manual-debugging tool
+    rather than deleted" -- has zero callers anywhere in the crate
+    (confirmed by grep across `src/`, `tests/`, `benches/`, `fuzz/`), so
+    this stage reverses that call and deletes it outright, along with the
+    `libc::fprintf`/`support::stdio::stderr` imports it was the last user
+    of in that file.
+  - **Test effectiveness**: `tests/log_output.rs`'s golden-log comparison
+    (which would have caught a change to output it actually pins) passed
+    unchanged, confirming neither touched message reaches a golden
+    fixture. All three fuzz targets (90s each) and every
+    `tests/fuzz-corpus/known-issues/*.bin` file re-run directly (including
+    the two `otf-dump-ttinstr-*` reproducers, the closest thing to a
+    regression test for the exact `parse_ttinstr` error path this stage
+    edited) came back clean.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    test -- --test-threads=1` (412 lib tests; the crate's full suite
+    showed the same 2 pre-existing timing-threshold failures both before
+    and after this change, confirmed by re-running the unmodified tree),
+    Miri (targeted: `bk::` and `table::glyf::`), all three fuzz targets,
+    all 21 `tests/fuzz-corpus/known-issues/*.bin` files. `survey-unsafe.sh`:
+    `unsafe fn` 14 -> 14 (unchanged -- none of these three functions was
+    `unsafe fn`), `unsafe blocks` 96 -> 89, raw pointer types 558 -> 539.

@@ -2,12 +2,11 @@
 pub mod build;
 pub mod read;
 
-use libc::fprintf;
 unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::logger::{logger_finish, logger_start_sds};
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::TRUE_0;
 use crate::support::buffer::Buffer;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
@@ -16,7 +15,6 @@ use crate::support::handle::{
 };
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
-use crate::support::stdio::stderr;
 use crate::table::fvar::FvarTable;
 use crate::vendor::json::JsonType;
 
@@ -661,27 +659,31 @@ fn otfcc_glyf_parse_glyph(
             glyphdump.get(b"instructions"),
             |instrs| g.instructions = instrs,
             |reason: &[u8], pos| {
-                // `fprintf`'s `%s` needs NUL-terminated buffers, so a NUL
-                // is appended to byte-copies of `reason`/`name` here --
-                // this is a diagnostic-only print to stderr (never part
-                // of dumped/built output), so it doesn't need the
-                // NUL-truncation care the crate's other `Handle`/
-                // glyph-name-to-JSON sites take.
-                let mut reason_cstr: Vec<u8> = reason.to_vec();
-                reason_cstr.push(0);
-                let mut name_cstr: Vec<u8> = g.name.clone();
-                name_cstr.push(0);
-                unsafe {
-                    fprintf(
-                        stderr,
-                        b"[OTFCC] TrueType instructions parse error : %s, at %d in /%s\n\0"
-                            as *const u8
-                            as *const ::core::ffi::c_char,
-                        reason_cstr.as_ptr() as *const ::core::ffi::c_char,
+                // Same idiom the rest of this file already uses for
+                // `Options`-carrying diagnostics (`logger_start_sds`/
+                // `logger_finish`, above and below): `options` is right
+                // here in scope, so this drops the raw `fprintf`-to-stderr
+                // call (and the NUL-terminated byte-copies it needed) for
+                // a real `Logger` call, not just an `eprintln!`. Per
+                // `tests/log_output.rs`'s own doc comment, this crate's
+                // stderr-comparison tests pin only output written through
+                // the `Logger` -- and this message wasn't reaching the
+                // `Logger` at all before, so no golden fixture already
+                // depends on its exact old wording.
+                logger_log_sds(
+                    &mut *options.logger.borrow_mut(),
+                    LOG_VL_IMPORTANT,
+                    LoggerType::Warning,
+                    crate::bytesbuild!(
+                        b"[OTFCC] TrueType instructions parse error : ",
+                        reason,
+                        b", at ",
                         pos,
-                        name_cstr.as_ptr() as *const ::core::ffi::c_char,
-                    );
-                }
+                        b" in /",
+                        &g.name,
+                        b"\n",
+                    ),
+                );
             },
         );
         parse_stems(glyphdump.get_typed(b"stemH", JsonType::Array), &mut g.stem_h);
