@@ -16001,3 +16001,87 @@ on the other platform before a commit is trusted.
     net +1 the script's plain text-grep counts along with everything
     else -- called out here rather than left as an unexplained bump,
     the same honesty this migration's own instructions ask for.
+
+- **Stage M-21: delete `support/alloc.rs`'s dead `calloc`/`realloc`
+  emulation entirely.** Twenty-first installment, a pure deletion rather
+  than an idiomatization -- the module's own doc comment had gone stale.
+  - **The find.** `support/alloc.rs` held two `pub(crate) unsafe fn`s,
+    `__caryll_allocate_clean` (a `calloc` wrapper) and
+    `__caryll_reallocate` (a `realloc` wrapper), consolidated early in
+    this migration out of the ~50 per-file private copies c2rust emitted
+    for every translation unit that `#include`d c/lib/support/mem.h's
+    `NEW_CLEAN`/`RENEW_CLEAN` macros. The module's doc comment claimed
+    "only support/bk has migrated to use this module so far; the
+    remaining ~47 files still carry their own private copy pending a
+    future, wider pass" -- but that pass already happened, piecemeal,
+    across M-3, M-9, M-10, M-14, M-16, M-17, M-19, L-6 and others, each
+    stage converting one more of those private copies to an owned
+    `Vec`/`Box` and leaving behind a "was `__caryll_allocate_clean`'d/
+    `free`'d, now a `Vec`/`Box`" comment at the call site rather than
+    switching it to call this module. By the time this stage looked, the
+    module had exactly one internal caller left (`__caryll_reallocate`'s
+    own zero-pointer branch calling `__caryll_allocate_clean`) and zero
+    external ones anywhere in the crate.
+  - **Verification before deleting.** `grep -rn
+    "__caryll_allocate_clean(\|__caryll_reallocate(" --include="*.rs" .`
+    (with the trailing `(` to catch real calls, not comment mentions)
+    across src, tests, benches and fuzz targets found only the two
+    functions' own definitions and that one internal call between them --
+    zero external call sites. Checked for anything a plain grep could
+    miss: no `#[no_mangle]`/`extern "C"` export of either name (confirmed
+    by the module's own doc comment, which already noted neither was
+    "externally linked... even in their per-file form"), no re-export
+    under another name, no function-pointer or trait/vtable indirection
+    (the module has no such machinery -- just two free functions). A
+    second grep without the `(` suffix found 27 files (26 after this
+    stage's own deletion of `alloc.rs` itself) that *mention* the names in
+    comments -- every one of them is a historical "was X, now Y" narrative
+    comment left behind by the stage that converted that file away from
+    the C-style allocator, not a live reference; those comments are left
+    untouched, as they remain the correct account of what changed and
+    when. `grep -n "mod alloc\|support::alloc\|use.*alloc::"` confirmed
+    the only declaration site was `support.rs`'s `pub mod alloc;` and the
+    only `use` was the module's own internal `std::alloc::{Layout,
+    handle_alloc_error}` import -- nothing else in the crate names the
+    module at all, so nothing else in `alloc.rs` (there was nothing else
+    to keep) needed preserving.
+  - **The fix.** Deleted `src/support/alloc.rs` outright (both functions
+    were the entire content of the file past its doc comment and two
+    imports) and removed the `pub mod alloc;` line from `src/support.rs`.
+    No other file changed -- the 26 remaining files' "was
+    `__caryll_allocate_clean`'d, now a `Vec`" comments stand as-is, since
+    they document a real, already-completed conversion, not a pending one.
+  - **Why clippy never flagged these as dead code.** `pub(crate)` items
+    are reachable from anywhere in the crate root's module tree in
+    principle, and rustc/clippy's dead-code analysis is conservative about
+    `pub(crate)` functions that are still referenced *from within their
+    own module* (the internal `__caryll_reallocate` -> 
+    `__caryll_allocate_clean` call) -- that one reachable-looking edge was
+    enough to keep both off the dead-code lint's radar even though nothing
+    outside the module (and, transitively, nothing outside the pair
+    itself) ever called either one. Deleting both together removes that
+    internal edge along with the functions, so there was no partial state
+    where one was flagged as dead and the other wasn't.
+  - **No behavior change.** Nothing called these functions, so nothing
+    a font-processing run does is different; this is a pure deletion of
+    unreachable code and its module declaration.
+  - **Verification**: `cargo build --lib`, `cargo build --all-targets`,
+    `cargo clippy --all-targets -- -D warnings` all clean, no new
+    `dead_code`/`unused_imports` warnings introduced anywhere else in the
+    crate by the removal. `cargo test -- --test-threads=1`: 419 passed,
+    same 2 pre-existing timing-threshold failures in this sandbox as
+    every stage since M-10 (unrelated to this change). Targeted Miri
+    (`cargo +nightly-2026-08-17 miri test --lib support:: -- --test-
+    threads=1`): 102 passed, 0 failed, 13 ignored (the module deleted
+    carried no tests of its own, so this only reconfirms the rest of
+    `support::` is unaffected). `cargo check` in `fuzz/` is clean --
+    neither fuzz target referenced these functions either. `survey-
+    unsafe.sh`: `unsafe fn` 11 -> 9 (both deleted functions were `unsafe
+    fn`), `unsafe blocks` 70 -> 66 (the four `unsafe { ... }` blocks
+    inside their bodies: one `calloc` call, one internal
+    `__caryll_allocate_clean` call, one `free` call, one `realloc` call),
+    raw pointer types 527 -> 524 (the `*mut ::core::ffi::c_void`/`*mut
+    ::core::ffi::c_void` parameter and return types the two signatures
+    used, net of the file's own text going away). No fuzz re-run beyond
+    the `cargo check` sanity build -- nothing behavioral changed, so the
+    existing corpora remain exactly as valid as before this stage.

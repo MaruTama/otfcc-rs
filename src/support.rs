@@ -1,5 +1,4 @@
 pub mod aglfn;
-pub mod alloc;
 pub mod base64;
 pub mod binio;
 pub mod buffer;
