@@ -7,7 +7,7 @@ use crate::support::options::Options;
 
 use crate::libcff::CffCharstringOperator;
 use crate::libcff::cff_index::CffIndex;
-use crate::libcff::cff_index::{build_index, cff_index_free, new_index_by_callback};
+use crate::libcff::cff_index::{build_index, new_index_by_callback};
 use crate::libcff::cff_writer::{
     cff_merge_cs2_int, cff_merge_cs2_operand, cff_merge_cs2_operator, cff_merge_cs2_special,
 };
@@ -893,13 +893,13 @@ pub fn cff_il_graph_to_buffers(
         }
         e = next;
     }
-    let is: *mut CffIndex = new_index_by_callback(
+    let is: CffIndex = new_index_by_callback(
         g.total_char_strings,
         char_strings[..g.total_char_strings as usize].iter().cloned(),
     );
-    let igs: *mut CffIndex =
+    let igs: CffIndex =
         new_index_by_callback(max_g_subrs, gsubrs[..max_g_subrs as usize].iter().cloned());
-    let ils: *mut CffIndex =
+    let ils: CffIndex =
         new_index_by_callback(max_l_subrs, lsubrs[..max_l_subrs as usize].iter().cloned());
     for entry in char_strings.iter_mut().take(g.total_char_strings as usize) {
         entry.data = Vec::new();
@@ -910,14 +910,9 @@ pub fn cff_il_graph_to_buffers(
     for entry in lsubrs.iter_mut().take(max_l_subrs as usize) {
         entry.data = Vec::new();
     }
-    let s = build_index(unsafe { &*is });
-    let gs = build_index(unsafe { &*igs });
-    let ls = build_index(unsafe { &*ils });
-    unsafe {
-        cff_index_free(is);
-        cff_index_free(igs);
-        cff_index_free(ils);
-    }
+    let s = build_index(&is);
+    let gs = build_index(&igs);
+    let ls = build_index(&ils);
     (s, gs, ls)
 }
 

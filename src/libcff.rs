@@ -345,10 +345,16 @@ pub struct CffStack {
 // three of its variants. Confirmed by grep before removing the derive --
 // `CffFile` is never used by value anywhere in the crate, always through
 // `*mut CffFile`/`*const CffFile`, so the derive was vestigial.
+// `raw_data`/`raw_length` (a `*mut u8` + `u32` pair) become a single
+// `Vec<u8>` -- the Stage L-3 treatment. Every consumer immediately did
+// `slice::from_raw_parts(raw_data, raw_length)` and never wrote through
+// the pointer after `cff_open_stream` built it, so the two fields were
+// exactly a `Vec`'s own `(ptr, len)` pulled apart into a raw pointer and a
+// manually-tracked count. `cff_close`'s matching `free(raw_data)` is gone
+// too -- see `cff_parser.rs`.
 #[derive(Debug)]
 pub struct CffFile {
-    pub raw_data: *mut u8,
-    pub raw_length: u32,
+    pub raw_data: Vec<u8>,
     pub cnt_glyph: u16,
     pub head: CffHeader,
     pub name: CffIndex,

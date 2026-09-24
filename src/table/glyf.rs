@@ -317,25 +317,16 @@ pub fn otfcc_new_glyf_glyph() -> Box<Glyph> {
 // Stage 6-4 "Box化": `Font.glyf` becomes `Option<Vec<Option<Box<Glyph>>>>`
 // (not `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
 // `table_glyf_create_n` stays: `table/cff.rs`'s CFF glyph extraction still
-// builds a `GlyfTable` through it as a bare `*mut GlyfTable`, so
-// `unwrap_glyf_table` below "adopts" that raw pointer into a genuine owned
-// value at the one point it actually needs to become `Font.glyf`. Since
-// Stage 7-2-d, `table_glyf_create_n` builds via `Box::into_raw(Box::new(..))`
-// rather than `malloc`, so `raw` already points at a real `Box<GlyfTable>`
-// allocation -- `Box::from_raw` is the exact inverse (dereferencing moves
-// the `Vec` value out and drops the now-empty `Box` shell in the same
-// step), no separate `free` call needed. Same technique as
-// `table/cff.rs`'s `unwrap_cff_table`.
-pub(crate) unsafe fn unwrap_glyf_table(raw: *mut GlyfTable) -> Option<GlyfTable> {
-    if raw.is_null() {
-        return None;
-    }
-    Some(*Box::from_raw(raw))
-}
-pub(crate) unsafe fn table_glyf_create_n(n: usize) -> *mut GlyfTable {
+// builds its `GlyfTable` through it. Stage M-10 drops the raw-pointer
+// round trip this used to go through on the way there -- `GlyfTable` is
+// itself just a `Vec`, so there is nothing to `Box`/adopt at all; the old
+// `unwrap_glyf_table` (a `*mut GlyfTable` -> `Option<GlyfTable>` bridge,
+// `table/cff.rs`'s `unwrap_cff_table` sibling) is gone along with its one
+// call site.
+pub(crate) fn table_glyf_create_n(n: usize) -> GlyfTable {
     let mut v: GlyfTable = Vec::with_capacity(n);
     v.resize_with(n, || None);
-    Box::into_raw(Box::new(v))
+    v
 }
 fn glyf_glyph_dump_contours(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOContext) {
     if g.contours.is_empty() {

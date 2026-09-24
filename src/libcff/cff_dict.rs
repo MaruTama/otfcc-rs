@@ -1,4 +1,6 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
+// Stage M-10 removed this file's last `unsafe` (the `cff_dict_free` shell
+// around `CffDict`), so the file-level allow for implicit-unsafe-in-
+// unsafe-fn is gone too.
 use crate::libcff::CffDictOperator;
 use crate::libcff::cff_codecs::{
     cff_decode_cff_token, cff_encode_cff_float, cff_encode_cff_integer, cff_encode_cff_operator,
@@ -23,29 +25,12 @@ pub struct CffDictEntry {
 pub struct CffDict {
     pub ents: Vec<CffDictEntry>,
 }
-#[inline]
-pub(crate) unsafe fn cff_dict_free(x: *mut CffDict) {
-    if x.is_null() {
-        return;
-    }
-    // `ents`/each entry's `vals` are still freed here exactly as before --
-    // only the outer shell's own allocator changed, from a bare `malloc`/
-    // `free` pair to `Box::into_raw`/`Box::from_raw`. Every call site
-    // builds its `*mut CffDict` via `Box::into_raw(Box::new(CffDict {
-    // ents: Vec::new() }))` (formerly the standalone `cff_dict_create()`,
-    // deleted once `table/cff.rs`'s dict builders started constructing the
-    // value locally instead) and reclaims it here (confirmed by grep: no
-    // generic adapter reclaims a `*mut CffDict` any other way, unlike
-    // `GposPairSubtable`'s `subtable_from_raw`), so this is self-contained.
-    cff_dict_dispose(&mut *x);
-    drop(Box::from_raw(x));
-}
-// Absorbs the old one-line `dispose_dict` helper (same shape as
-// `libcff/cff_index.rs`'s `cff_index_dispose` absorbing `dispose_cff_index`).
-#[inline]
-fn cff_dict_dispose(x: &mut CffDict) {
-    x.ents = Vec::new();
-}
+// `cff_dict_free` (a `Box::into_raw`/`Box::from_raw` shell around a
+// `CffDict` every producer -- `table/cff.rs`'s `cff_make_fd_dict`/
+// `cff_make_private_dict` -- already built as a plain owned local before
+// boxing it) is gone as of Stage M-10, matching this migration's Stage
+// M-3 treatment of `ClassDef`: those two functions return `CffDict` by
+// value now, and their callers just let the local drop.
 // `data` used to be a raw `(*const u8, u32)` pair: the loop itself always
 // respected `len` correctly (each iteration passes `&data[pos..]`, a
 // bounds-checked slice, to `cff_decode_cff_token`), but every
