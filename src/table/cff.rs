@@ -25,9 +25,7 @@ use crate::libcff::{
 use crate::logger::{logger_finish, logger_start_sds};
 use crate::support::buffer::Buffer;
 use crate::support::options::Options;
-use crate::support::primitives::{
-    Arity, CffSid, FontFilePointer, GlyphId, Pos, Scale, ShapeId, TableId,
-};
+use crate::support::primitives::{Arity, CffSid, GlyphId, Pos, Scale, ShapeId, TableId};
 use crate::support::{FALSE_0, TRUE_0};
 use crate::table::glyf::{
     Contour, GlyfTable, Glyph, MaskList, Point, PostscriptHintMask, PostscriptStemDef, StemDefList,
@@ -1201,10 +1199,17 @@ fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Option<&HeadTabl
 // access/reborrow through the `Box`, and the trailing `Box::from_raw` is
 // gone -- `cff_file`'s own `Drop` (via `CffFile`'s field-by-field glue)
 // runs when it goes out of scope at the end of the `if let` arm below,
-// same as any other owned local. The one remaining unsafe operation is the
-// call into `cff_open_stream` itself, which still builds a slice from a
-// caller-supplied raw `data`/`len` pointer pair -- that single call is now
-// the function's only `unsafe {}` block.
+// same as any other owned local.
+//
+// Stage M-19: the unsafe block this comment used to describe as "the one
+// remaining unsafe operation" is gone too. `cff_open_stream` now takes
+// `&[u8]` directly instead of a raw `data`/`len` pointer pair, and this
+// function already had a real `&[u8]` in hand (`table.data`, a
+// `Vec<u8>` field) -- decomposing it into `table.data.as_ptr() as
+// FontFilePointer` + `table.length` was pure borrow-checker-dodging, the
+// pointer never outliving this scope and never aliased. Passing
+// `&table.data` straight through removes the decompose/reconstruct round
+// trip along with the unsafe wrapping it required.
 pub fn otfcc_read_cff_and_glyf_tables(
     packet: &Packet,
     options: &Options,
@@ -1217,12 +1222,10 @@ pub fn otfcc_read_cff_and_glyf_tables(
     // piece with this tag" idiom `otfcc_read_otl` (`table/otl/read.rs`)
     // already uses for the identical kind of lookup.
     if let Some(table) = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CFF) {
-        let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
-        let length: u32 = table.length;
         // `meta`/`glyphs` (this function's own two results) are plain
         // owned values, not a second raw-pointer round trip through
         // `table_cff_create`/`unwrap_cff_table` on top of the first one.
-        let cff_file: Box<CffFile> = unsafe { cff_open_stream(data, length, options) };
+        let cff_file: Box<CffFile> = cff_open_stream(&table.data, options);
         // A CFF table's Top DICT INDEX with a declared `count`
         // of 0 has no entries at all -- `extract_index` only
         // populates `offset` (`count + 1` entries) when

@@ -1,5 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
-
 use crate::support::primitives::{Pos, ShapeId};
 
 use crate::vf::vv::VV;
@@ -22,17 +20,11 @@ pub struct VqRegion {
     pub dimensions: ShapeId,
     pub spans: Vec<VqAxisSpan>,
 }
-pub fn vq_create_region(dimensions: ShapeId) -> *mut VqRegion {
-    Box::into_raw(Box::new(VqRegion {
+pub fn vq_create_region(dimensions: ShapeId) -> Box<VqRegion> {
+    Box::new(VqRegion {
         dimensions,
         spans: Vec::with_capacity(dimensions as usize),
-    }))
-}
-pub unsafe fn vq_delete_region(region: *mut VqRegion) {
-    drop(Box::from_raw(region));
-}
-pub fn vq_copy_region(region: &VqRegion) -> *mut VqRegion {
-    Box::into_raw(Box::new(region.clone()))
+    })
 }
 // Was `strncmp` over the whole header+spans byte range (after a
 // `dimensions` shortcut) -- a byte-identity check that made sense when

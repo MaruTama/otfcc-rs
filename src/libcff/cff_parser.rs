@@ -1,4 +1,3 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
 use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_log_sds};
 use crate::support::font_reader::FontReader;
 
@@ -302,11 +301,7 @@ fn parse_cff_bytecode(cff: &mut CffFile, options: &Options) {
         empty_index(&mut cff.local_subr);
     };
 }
-pub unsafe fn cff_open_stream(
-    data: *mut u8,
-    len: u32,
-    options: &Options,
-) -> Box<CffFile> {
+pub fn cff_open_stream(data: &[u8], options: &Options) -> Box<CffFile> {
     // `CffFile` owns several `Vec`-backed fields (each `CffIndex`'s
     // `offset`/`data`, and `CffEncoding`/`CffCharset`/`CffFdSelect`'s
     // `Vec`-carrying variants) -- calloc'ing it and then letting
@@ -335,9 +330,7 @@ pub unsafe fn cff_open_stream(
     // migration already removed from `cff_dict_create`/`new_index_by_
     // callback` and friends at Stage M-10. Nothing aliases `file` between
     // construction and return, so ownership transfers cleanly through the
-    // `Box` itself; `cff_open_stream` stays `unsafe fn` regardless, since
-    // it still builds a slice from the caller-supplied `data`/`len` raw
-    // pointer pair below.
+    // `Box` itself.
     let mut file: Box<CffFile> = Box::new(CffFile {
         raw_data: Vec::new(),
         cnt_glyph: 0,
@@ -358,11 +351,20 @@ pub unsafe fn cff_open_stream(
         font_dict: new_empty_cff_index(),
         local_subr: new_empty_cff_index(),
     });
-    // The calloc+memcpy pair becomes a straight `to_vec()` off the caller's
-    // own `data`/`len` pointer pair -- the one place this file still needs
-    // to build a slice from a raw pointer (`data`'s validity for `len`
-    // bytes is this function's own caller contract, same as before).
-    file.raw_data = ::core::slice::from_raw_parts(data, len as usize).to_vec();
+    // Stage M-19: `data`/`len` used to be a raw mutable byte pointer plus
+    // a `u32` length, requiring an unsafe call to `core::slice::from_raw_parts(data,
+    // len as usize)` here and an `unsafe fn` signature purely to carry
+    // that contract -- but this function's one production caller
+    // (`table/cff.rs`'s `otfcc_read_cff_and_glyf_tables`) already had a
+    // real `&[u8]` in hand (`PacketPiece.data`) and was only decomposing
+    // it into a pointer+length to satisfy this signature, the same
+    // "raw pointer purely dodging the borrow checker" shape M-3/M-9/
+    // M-14/M-16/M-17 removed elsewhere. Taking `&[u8]` directly removes
+    // the decompose-then-reconstruct round trip and the unsafe wrapping
+    // it required at both call sites (this file's one test included) --
+    // `to_vec()` needs no unsafe at all once `data` is already a real
+    // slice.
+    file.raw_data = data.to_vec();
     file.cnt_glyph = 0_u16;
     parse_cff_bytecode(&mut file, options);
     return file;
@@ -2555,9 +2557,12 @@ mod cff_open_stream_tests {
     // Stage M-14: `cff_open_stream` now returns `Box<CffFile>` directly,
     // so this test drops the plain `Box` at scope end instead of a
     // separate `Box::from_raw` call.
+    //
+    // Stage M-19: `cff_open_stream` takes `&[u8]` directly now, so this
+    // call needs no unsafe wrapper any more either.
     #[test]
     fn open_and_close_on_a_font_with_an_empty_top_dict_does_not_construct_invalid_values() {
-        let mut data: [u8; 16] = [
+        let data: [u8; 16] = [
             1, 0, 4, 4, // header: major, minor, hdrSize, offSize
             0, 0, 0, // Name INDEX: empty
             0, 0, 0, // Top DICT INDEX: empty
@@ -2565,7 +2570,7 @@ mod cff_open_stream_tests {
             0, 0, 0, // Global Subr INDEX: empty
         ];
         let options = Options::default();
-        let file = unsafe { cff_open_stream(data.as_mut_ptr(), data.len() as u32, &options) };
+        let file = cff_open_stream(&data, &options);
         assert_eq!(file.top_dict.count, 0);
         assert_eq!(file.char_strings.count, 0);
         assert!(file.char_strings.data.is_empty());

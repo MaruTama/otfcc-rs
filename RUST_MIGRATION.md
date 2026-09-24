@@ -15714,3 +15714,290 @@ on the other platform before a commit is trusted.
     `unsafe { vq_delete_region(...) }`/pointer-deref call sites in
     `fvar_register_region` and the one test this stage simplified), raw
     pointer types 532 -> 530.
+
+- **Stage M-17: `vf/region.rs`'s dead create/delete/copy trio.**
+  Seventeenth installment, scouted by a dedicated investigation pass and
+  implemented here.
+  - **The shape.** `vq_create_region` built an owned `VqRegion` local
+    and immediately `Box::into_raw`'d it, exactly the M-3/M-9/M-14/M-16
+    "producer boxes a value it already owns outright, just to satisfy an
+    unmigrated caller" pattern -- and its matching `vq_delete_region`
+    (`pub unsafe fn`, `drop(Box::from_raw(region))`) was the hand-rolled
+    `*_free` half of that same pair. But unlike M-16's `FvarMaster.
+    region` (a real production owner), grepping every call site first
+    showed `vq_create_region`/`vq_delete_region` have **zero production
+    callers left**: the one real producer, `create_region_from_tuples`
+    (`table/glyf/read.rs`), already builds its `VqRegion` as an owned
+    local and returns `Option<Box<VqRegion>>` directly since M-16,
+    bypassing `vq_create_region` entirely. The only remaining callers
+    were two direct unit tests in `table/glyf/read.rs`'s `gvar_
+    polymorphize_tests` module, building a throwaway region to pass into
+    `apply_polymorphism`. `vq_copy_region` (also `Box::into_raw`-shaped)
+    had **zero callers anywhere in the crate** -- src, tests, benches,
+    and fuzz targets all confirmed clean by grep -- pure dead code, the
+    same shape as Stage M-11's `bk_print_block` deletion.
+  - **The fix.** `vq_create_region(dimensions: ShapeId) -> *mut VqRegion`
+    becomes `-> Box<VqRegion>`, dropping the `Box::into_raw` and
+    returning the `Box` it already held. `vq_delete_region` and
+    `vq_copy_region` are deleted outright. The two test call sites bind
+    `vq_create_region`'s result as `let r = vq_create_region(1);` (a
+    `Box<VqRegion>` now, same binding syntax as before) and pass `&*r`
+    to `apply_polymorphism` (which still takes `r: *const VqRegion`,
+    left unchanged per this stage's scope -- `&*r` is `&VqRegion`,
+    coerced to `*const VqRegion` at the call site the same way every
+    earlier stage's owned-`Box`-to-raw-pointer call sites have been);
+    the trailing `vq_delete_region(r)` call each test used to make is
+    simply removed, letting the `Box` drop naturally at the end of the
+    test body. This emptied out both tests' remaining reason for an
+    enclosing `unsafe {}` block (the only unsafe operation either body
+    ever performed was the `vq_delete_region` call), so both blocks'
+    now-unnecessary `unsafe {}` wrappers are removed too (kept, either
+    would be a `clippy -D warnings`-failing `unused_unsafe`). `vf/
+    region.rs` itself has no `unsafe` code left anywhere in the file
+    after this trio's removal, so its file-level `#![allow(unsafe_op_in_
+    unsafe_fn)]` (present since Stage 6) is dropped, per this
+    migration's established practice of removing that allow once a file
+    no longer needs it.
+  - **No behavior change.** Both touched tests build the exact same
+    `VqRegion` value and pass the exact same `*const VqRegion` down to
+    `apply_polymorphism` as before -- only the ownership handle
+    (`Box<VqRegion>` instead of a raw pointer plus a manual free call)
+    changed. `create_region_from_tuples`, `apply_polymorphism`, and
+    every other function in either touched file are untouched, per this
+    stage's own scope.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (416 lib tests: 414 passed plus the
+    same 2 pre-existing timing-threshold failures in this sandbox as
+    every prior stage since M-10, matching baseline), targeted Miri
+    (`table::glyf::read::` -- 18 passed, including both directly-touched
+    tests; `vf::region::` has no direct unit tests of its own, 0 run as
+    expected), `otf_parse` fuzz target 100s (3,702,563 runs, clean),
+    `otf_dump` fuzz target 100s (620,580 runs, clean) -- both
+    exercise `vf`/`gvar` code paths per this stage's own instructions.
+    None of the 21 `tests/fuzz-corpus/known-issues/*.bin` files are
+    named for gvar/variable-font parsing specifically (checked by
+    listing the directory), so no individual known-issues re-run was
+    needed beyond the full `cargo test`/fuzz runs above, which already
+    exercise every file this stage touched. `survey-unsafe.sh`: `unsafe
+    fn` 13 -> 12 (the deleted `vq_delete_region`), `unsafe blocks` 76 ->
+    74 (the two now-unnecessary `unsafe {}` test wrappers), raw pointer
+    types 530 -> 527 (`vq_create_region`'s `*mut VqRegion` return type,
+    `vq_delete_region`'s `*mut VqRegion` parameter, and `vq_copy_region`'s
+    `*mut VqRegion` return type, one file-level `allow(unsafe_op_in_
+    unsafe_fn)` also dropped).
+
+- **Stage M-18: `src/support/base64.rs`'s encoder swapped for the
+  `base64` crate; the decoder stays hand-rolled.** Eighteenth
+  installment, following up on a dependency-audit finding rather than an
+  `unsafe`-removal one -- this crate has very few external dependencies,
+  and a hand-rolled RFC 4648 codec is exactly the kind of small, easy-to-
+  get-subtly-wrong utility a vetted crate exists to replace.
+  - **What was there.** `base64_encode`/`base64_decode`
+    (`#![forbid(unsafe_code)]`, no `unsafe` anywhere in the file) -- a
+    standard-alphabet, `=`-padded, no-line-wrap RFC 4648 codec. `encode`
+    matches the RFC's own section 10 test vectors exactly, with no surprises.
+    `decode` has two non-standard behaviors, both confirmed by reading the
+    function (not assumed): (1) any byte outside the alphabet and not `=`
+    is silently skipped rather than rejected -- already documented on the
+    function before this stage -- and (2) a second, more subtle one this
+    stage's own investigation turned up: a `=` that appears anywhere
+    *other than* the final processed 4-character group is not treated as
+    padding at all -- it looks up as data value `0` (the same table slot
+    as `'A'`) and decodes into the output like any other alphabet
+    character, with truncation only checked against the very last
+    processed group's `=` positions. E.g. `base64_decode(b"Z=g=")` returns
+    `Some(vec![100, 8])`, not `None` and not a 1-byte result.
+  - **The fix, scoped to what's provably safe.** `base64_encode` becomes a
+    thin wrapper over `base64::engine::general_purpose::STANDARD.encode`:
+    encoding a byte slice has exactly one well-defined RFC 4648 output, so
+    there's no behavior for a conformant crate to diverge on --
+    cross-checked directly against the crate's own output (not just the
+    RFC vectors) across every remainder length 0..40 bytes.
+    `base64_decode` is deliberately left hand-rolled. The `base64` crate's
+    decoders, including its most permissive `GeneralPurposeConfig`,
+    validate `=` position and reject a misplaced one instead of treating
+    it as data -- there is no lenient mode that reproduces quirk (2)
+    above, and a manual pre-filter-then-decode (the fallback this stage's
+    own instructions allowed) can't reproduce it either, since filtering
+    doesn't change *where* the crate considers a `=` to be positioned.
+    Per this migration's own "byte-exact output is sacred" standard, a
+    provable behavior difference on malformed input is reported rather
+    than silently shipped -- see the function's own doc comment, which
+    now states both quirks explicitly, and
+    `decode_treats_a_non_trailing_equals_sign_as_data_not_padding`, the
+    regression test pinning the exact values.
+  - **No call sites changed.** Both functions keep their original names
+    and signatures (`base64_encode(&[u8]) -> Vec<u8>`,
+    `base64_decode(&[u8]) -> Option<Vec<u8>>`), so none of the six call
+    sites (`support/ttinstr.rs`, `table/cvt.rs`, `table/meta/dump.rs`,
+    `table/meta/parse.rs`, `table/svg.rs`, `table/name.rs`, verified by
+    grep) needed touching.
+  - **Dependency added.** `base64 = "0.23.1"` in `[dependencies]`
+    (crates.io's current stable release as of this stage, verified via
+    the crates.io API rather than assumed from training data), matching
+    this `Cargo.toml`'s existing plain-version pinning style (`bitflags
+    = "2.13.1"`, `indexmap = "2.14.0"`, etc. -- no exact-pin `=` prefix
+    anywhere in this file).
+  - **New tests.** Beyond the existing RFC-vector/round-trip coverage:
+    empty input, embedded whitespace of several kinds (space/tab/CRLF, not
+    just the pre-existing bare-newline case), a length one character short
+    of a full group, and four adversarial cases pinning the non-trailing-
+    `=` quirk exactly (`"Z=g="`, `"===="`, `"AA=A"`, `"A=A="`, and a
+    two-group case confirming only the *last* group's `=` positions are
+    ever checked for truncation).
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (419 lib tests: 416 baseline plus
+    3 new base64 tests, same 2 pre-existing timing-threshold failures in
+    this sandbox as every stage since M-10), targeted Miri
+    (`support::base64::` -- 10 passed), `tests/golden.rs`'s full byte-
+    exact JSON round-trip suite (4 tests, covering `svg`/`cvt`/instruction
+    tables through base64) unchanged and passing, `json_build` fuzz
+    target 100s (4,540,203 runs, clean -- the target that reaches
+    `base64_decode` from attacker-controlled JSON text), `otf_dump` fuzz
+    target's ttinstr/svg/meta/name known-issues corpus files re-run
+    directly, clean. `survey-unsafe.sh`: unchanged (`unsafe fn` 12,
+    `unsafe blocks` 74, raw pointer types 527) -- this stage touches no
+    `unsafe`/raw-pointer code at all, matching `base64.rs`'s own
+    `#![forbid(unsafe_code)]`.
+
+- **Stage M-19: `cff_open_stream` takes `&[u8]` instead of a raw
+  `data`/`len` pointer pair.** Nineteenth installment, scouted by
+  re-reading every remaining `unsafe fn` in the crate against its real,
+  current call sites rather than trusting an earlier investigation's
+  notes.
+  - **The shape.** `cff_open_stream` (`libcff/cff_parser.rs`) was `pub
+    unsafe fn cff_open_stream(data: *mut u8, len: u32, options: &Options)
+    -> Box<CffFile>`, whose only unsafe operation was building a slice via
+    `core::slice::from_raw_parts(data, len as usize)` before immediately
+    `.to_vec()`-ing it into `CffFile.raw_data`. Its one production caller,
+    `table/cff.rs`'s `otfcc_read_cff_and_glyf_tables`, already held a real
+    `&[u8]` (`PacketPiece.data`, a `Vec<u8>` field read straight off the
+    SFNT table directory) and was only decomposing it into `table.data.
+    as_ptr() as FontFilePointer` + `table.length` to satisfy this
+    function's raw-pointer signature -- exactly the "raw pointer purely
+    dodging the borrow checker" shape M-3/M-9/M-14/M-16/M-17 already
+    removed elsewhere in this crate. The one other call site, a unit test
+    in this same file, likewise already had a real `[u8; 16]` array and
+    was only reaching for `.as_mut_ptr()` to match the signature.
+  - **The fix.** `cff_open_stream` drops the `len` parameter and the
+    `unsafe fn` qualifier, taking `data: &[u8]` directly; its body's slice
+    construction becomes a plain `data.to_vec()`, needing no unsafe at
+    all now that `data` is already a real slice. Both call sites pass
+    their existing `&[u8]`/array data straight through
+    (`cff_open_stream(&table.data, options)` and
+    `cff_open_stream(&data, &options)` in the test), dropping their
+    `unsafe { }` wrappers -- the now-unused `FontFilePointer` import in
+    `table/cff.rs` is removed alongside its one remaining use. This file
+    had no other `unsafe` code anywhere (confirmed by grep before editing,
+    the same check M-17 made of `vf/region.rs`), so its file-level
+    `#![allow(unsafe_op_in_unsafe_fn)]` (present since Stage 6) is dropped
+    too, per this migration's established practice.
+  - **No behavior change.** `table.data.len() == table.length as usize`
+    always (`otfcc_read_packets`, `font/caryll_sfnt.rs`, sizes each
+    `PacketPiece.data` Vec from `length` and then `read_exact`s exactly
+    that many bytes into it), so `&table.data` carries the identical bytes
+    the old `data`/`length` pointer pair did -- `data.to_vec()` produces
+    the same `Vec<u8>` `core::slice::from_raw_parts(data, len as
+    usize).to_vec()` used to.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (419 lib tests, same 2 pre-existing
+    timing-threshold failures in this sandbox as every stage since M-10,
+    matching baseline), targeted Miri (`libcff::cff_parser::` -- 19
+    passed, 2 ignored as already documented for being too slow under
+    Miri's interpreter; `table::cff::` -- 1 passed, 1 ignored as already
+    documented for calling `libc::modf`, unsupported under Miri),
+    `tests/golden.rs`'s full byte-exact suite unchanged and passing,
+    `otf_parse` fuzz target 100s (10,312,603 runs, clean) and `otf_dump`
+    fuzz target 100s (both exercise CFF parsing directly), the CFF-tagged
+    known-issues corpus files (`otf-parse-cff-dict-key-zero-operand-
+    panic`, `otf-parse-cff-hintmask-oob-read`, `otf-parse-cff-per-glyph-
+    stack-realloc-hang`, `otf-parse-empty-top-dict-index-panic`,
+    `otf-parse-fdselect-fd-out-of-range-segv`) re-run directly against
+    `otf_parse`, all clean. `survey-unsafe.sh`: `unsafe fn` 12 -> 11 (the
+    deleted `cff_open_stream` qualifier), `unsafe blocks` 74 -> 71 (the
+    two now-unnecessary call-site wrappers, plus one comment line this
+    stage's own edit removed that happened to contain the literal text
+    the script counts), raw pointer types 527 -> 526 (`cff_open_stream`'s
+    `*mut u8` parameter), one file-level `allow(unsafe_op_in_
+    unsafe_fn)` also dropped (28 files carry it now, down from 29).
+
+- **Stage M-20: `fvar_register_region` takes `&mut FvarTable`, not
+  `*mut FvarTable`.** Twentieth installment, found by re-reading every
+  remaining `unsafe fn` (and, per this stage's own instructions, the
+  raw-pointer code those functions' bodies still lean on) against its
+  real, current call sites -- the same re-scout M-19 did.
+  - **The shape.** `table/fvar.rs`'s `fvar_register_region` (a plain
+    `pub(crate) fn`, not itself `unsafe fn` -- `json_reader::read_json`/
+    `otf_reader::read_otf` stay `unsafe fn` for the unrelated,
+    already-documented `otfcc_parse_glyf`/`otfcc_parse_otl` reasons, not
+    this) took `fvar: *mut FvarTable` and opened it with `let fvar =
+    unsafe { &mut *fvar };` as its very first line -- the only `unsafe`
+    anywhere in the function. Its one production call site,
+    `table/glyf/read.rs`'s gvar tuple-variation loop, already held a real
+    `&mut FvarTable` (`ctx.fvar.as_deref_mut().expect(...)`) and was
+    already relying on it, unchanged, to *coerce* to the raw-pointer
+    parameter -- the function's own comment said as much before this
+    stage, in the past tense ("a `&mut FvarTable` coerces to that raw
+    pointer at the call site"). Both of this function's own unit tests
+    (`fvar_register_region_tests`) likewise already passed `&mut fvar`
+    directly, for the same reason. Exactly the "raw pointer purely
+    dodging the borrow checker" shape M-3/M-9/M-14/M-16/M-17/M-19 already
+    removed elsewhere -- here the borrow checker was never actually being
+    dodged, the parameter type just hadn't caught up to the caller.
+  - **The fix.** The parameter becomes `fvar: &mut FvarTable`, and the
+    `unsafe { &mut *fvar }` reborrow line is deleted -- every other line
+    of the function body already used `fvar.masters`/etc. through the
+    resulting binding unchanged, so nothing past that first line needed
+    editing. The one production call site needed no change at all (a
+    `&mut FvarTable` argument against a `&mut FvarTable` parameter is
+    just a normal call, not even a coercion any more); both test call
+    sites likewise needed no change, since they already passed `&mut
+    fvar`. The stale "coerces to that raw pointer" comment at the call
+    site is updated to describe the real parameter type now.
+  - **What stays untouched, and why.** The function's *return* type,
+    `*const VqRegion`, is deliberately left alone -- its own doc comment
+    (present since Stage M-16) already names giving that pointer a real
+    lifetime as "the genuine aliasing wall this stage's own instructions
+    say not to force," since it aliases into a `Box<VqRegion>` living
+    inside `FvarTable.masters` for the rest of `Font`'s lifetime, well
+    past this function's own borrow of `fvar`. `vf/vq.rs`'s
+    `VqSegmentDelta.region: *const VqRegion` field (the long-lived
+    consumer of that pointer) carries the identical, already-documented
+    "Stage 7-2-f" rationale for staying raw rather than becoming an arena
+    index -- neither of those was re-litigated this stage; only the
+    `fvar` *parameter*, a strictly narrower and genuinely mechanical
+    change, was in scope.
+  - **No behavior change.** The function's body is byte-for-byte
+    identical past the deleted reborrow line; a `&mut` reference and the
+    raw pointer it used to be dereferenced from point at the exact same
+    `FvarTable`, so every `RegionKey`-dedup decision, `"m1"`/`"m2"`-style
+    naming, and canonical-pointer return is unchanged.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (419 lib tests, same 2 pre-existing
+    timing-threshold failures in this sandbox as every stage since M-10,
+    matching baseline), targeted Miri (`table::fvar::` -- 10 passed,
+    including both directly-touched `fvar_register_region_tests`;
+    `table::glyf::read::` -- 18 passed, including the `gvar_polymorphize_
+    tests` module that exercises `fvar_register_region`'s one production
+    call site), `tests/golden.rs`'s full byte-exact suite (4 tests)
+    unchanged and passing, `otf_parse` fuzz target 100s (5,225,788 runs,
+    clean) and `otf_dump` fuzz target 100s (1,228,328 runs, clean) --
+    both exercise `fvar`/`gvar` parsing directly. No known-issues corpus
+    file is named for `fvar`/`gvar`/variable-font parsing specifically
+    (checked by listing the directory, same check M-16 made for its own
+    `vf`/`gvar` work); the three glyf-tagged ones that exist
+    (`json-build-cff-charset-null-glyf.bin`, `otf-dump-glyf-context-
+    missing-maxp-panic.bin`, `otf-parse-glyf-consecutive-zero-length-
+    contours-panic.bin`) were re-run directly against `otf_parse` anyway,
+    all clean. `survey-unsafe.sh`: `unsafe fn` unchanged at 11 (this
+    function was never `unsafe fn` itself, only its body's now-deleted
+    reborrow), `unsafe blocks` 71 -> 70 (the deleted reborrow), raw
+    pointer types 526 -> 527 -- a net *increase* of one, not a typo: the
+    diff removes two real `*mut `/`*const ` occurrences (the old
+    parameter type and the old call-site comment's mention of it) but
+    this stage's own, more detailed replacement comments (explaining
+    both the removed `*mut FvarTable` and the still-`*const VqRegion`
+    return type this stage deliberately leaves alone) add three, for a
+    net +1 the script's plain text-grep counts along with everything
+    else -- called out here rather than left as an unexplained bump,
+    the same honesty this migration's own instructions ask for.

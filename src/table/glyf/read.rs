@@ -827,12 +827,11 @@ fn polymorphize_glyph(
         // `polymorphize`'s caller-side guard (`axes_len` computed via
         // `ctx.fvar.as_deref()`) already returned early if there was no
         // `fvar` table, so every `polymorphize_glyph` call is guaranteed
-        // a `Some` here; `fvar_register_region` still takes a `*mut
+        // a `Some` here; `fvar_register_region` takes a real `&mut
         // FvarTable` (out of this file's scope, `fvar.rs`'s own
-        // region-dedup table), but a `&mut FvarTable` coerces to that
-        // raw pointer at the call site with no signature change needed
-        // there -- reborrowed fresh each iteration of this loop, same as
-        // the reborrow that built `ctx.fvar` itself in `polymorphize`.
+        // region-dedup table) -- reborrowed fresh each iteration of this
+        // loop, same as the reborrow that built `ctx.fvar` itself in
+        // `polymorphize`.
         let r: *const VqRegion =
             fvar_register_region(ctx.fvar.as_deref_mut().expect("fvar checked non-null by polymorphize"), region);
 
@@ -1325,7 +1324,7 @@ mod glyf_read_tests {
 #[cfg(test)]
 mod gvar_polymorphize_tests {
     use super::*;
-    use crate::vf::region::{vq_create_region, vq_delete_region};
+    use crate::vf::region::vq_create_region;
 
     #[test]
     fn next_tvh_offset_truncated_header_is_rejected_instead_of_reading_oob() {
@@ -1435,37 +1434,34 @@ mod gvar_polymorphize_tests {
         // positions between P0 and P2 (25% along X, 75% along Y) so the
         // correct interpolated Y-delta (using Y's own 75% ratio) differs
         // sharply from what reusing X's 25% ratio would produce.
-        unsafe {
-            let mut glyph = otfcc_new_glyf_glyph();
-            let mut contour: Contour = Vec::new();
-            for (x, y) in [(0.0, 0.0), (5.0, 150.0), (20.0, 200.0)] {
-                contour.push(Point {
-                    x: vq_create_still(x),
-                    y: vq_create_still(y),
-                    on_curve: 1,
-                });
-            }
-            glyph.contours.push(contour);
-
-            let r = vq_create_region(1);
-            let points: [ShapeId; 2] = [0, 2];
-            let delta_x: [Pos; 2] = [0.0, 100.0];
-            let delta_y: [Pos; 2] = [0.0, 1000.0];
-            apply_polymorphism(3, &mut glyph, 2, &points, &delta_x, &delta_y, r);
-            vq_delete_region(r);
-
-            let p1 = &glyph.contours[0][1];
-            // X: P1 sits 25% of the way from P0 to P2 -> interpolated
-            // delta_x is 25% of the way from 0 to 100.
-            assert_eq!(p1.x.shift.len(), 1);
-            assert_eq!(p1.x.shift[0].unwrap_delta().quantity, 25.0);
-            // Y: P1 sits 75% of the way from P0 to P2 -> interpolated
-            // delta_y is 75% of the way from 0 to 1000 (750), not the
-            // 25%-of-1000 = 250 the bug would have produced by reusing
-            // X's ratio.
-            assert_eq!(p1.y.shift.len(), 1);
-            assert_eq!(p1.y.shift[0].unwrap_delta().quantity, 750.0);
+        let mut glyph = otfcc_new_glyf_glyph();
+        let mut contour: Contour = Vec::new();
+        for (x, y) in [(0.0, 0.0), (5.0, 150.0), (20.0, 200.0)] {
+            contour.push(Point {
+                x: vq_create_still(x),
+                y: vq_create_still(y),
+                on_curve: 1,
+            });
         }
+        glyph.contours.push(contour);
+
+        let r = vq_create_region(1);
+        let points: [ShapeId; 2] = [0, 2];
+        let delta_x: [Pos; 2] = [0.0, 100.0];
+        let delta_y: [Pos; 2] = [0.0, 1000.0];
+        apply_polymorphism(3, &mut glyph, 2, &points, &delta_x, &delta_y, &*r);
+
+        let p1 = &glyph.contours[0][1];
+        // X: P1 sits 25% of the way from P0 to P2 -> interpolated
+        // delta_x is 25% of the way from 0 to 100.
+        assert_eq!(p1.x.shift.len(), 1);
+        assert_eq!(p1.x.shift[0].unwrap_delta().quantity, 25.0);
+        // Y: P1 sits 75% of the way from P0 to P2 -> interpolated
+        // delta_y is 75% of the way from 0 to 1000 (750), not the
+        // 25%-of-1000 = 250 the bug would have produced by reusing
+        // X's ratio.
+        assert_eq!(p1.y.shift.len(), 1);
+        assert_eq!(p1.y.shift[0].unwrap_delta().quantity, 750.0);
     }
 
     #[test]
@@ -1481,41 +1477,38 @@ mod gvar_polymorphize_tests {
     // write-back pass visiting references before contours, or skipping a
     // point) would have gone undetected.
     fn apply_polymorphism_writes_nudges_back_to_the_matching_point_or_reference() {
-        unsafe {
-            let mut glyph = otfcc_new_glyf_glyph();
-            // One contour with one touched point (flattened index 0) ...
-            let contour: Contour = vec![Point {
-                x: vq_create_still(0.0),
-                y: vq_create_still(0.0),
-                on_curve: 1,
-            }];
-            glyph.contours.push(contour);
-            // ... followed by one touched component reference (flattened
-            // index 1, per the same contours-then-references order the
-            // original `CoordRef`-building loop used).
-            let mut reference = glyf_component_reference_empty();
-            reference.x = vq_create_still(0.0);
-            reference.y = vq_create_still(0.0);
-            glyph.references.push(reference);
+        let mut glyph = otfcc_new_glyf_glyph();
+        // One contour with one touched point (flattened index 0) ...
+        let contour: Contour = vec![Point {
+            x: vq_create_still(0.0),
+            y: vq_create_still(0.0),
+            on_curve: 1,
+        }];
+        glyph.contours.push(contour);
+        // ... followed by one touched component reference (flattened
+        // index 1, per the same contours-then-references order the
+        // original `CoordRef`-building loop used).
+        let mut reference = glyf_component_reference_empty();
+        reference.x = vq_create_still(0.0);
+        reference.y = vq_create_still(0.0);
+        glyph.references.push(reference);
 
-            let r = vq_create_region(1);
-            let points: [ShapeId; 2] = [0, 1];
-            let delta_x: [Pos; 2] = [5.0, 100.0];
-            let delta_y: [Pos; 2] = [50.0, 200.0];
-            apply_polymorphism(2, &mut glyph, 2, &points, &delta_x, &delta_y, r);
-            vq_delete_region(r);
+        let r = vq_create_region(1);
+        let points: [ShapeId; 2] = [0, 1];
+        let delta_x: [Pos; 2] = [5.0, 100.0];
+        let delta_y: [Pos; 2] = [50.0, 200.0];
+        apply_polymorphism(2, &mut glyph, 2, &points, &delta_x, &delta_y, &*r);
 
-            let p0 = &glyph.contours[0][0];
-            assert_eq!(p0.x.shift.len(), 1);
-            assert_eq!(p0.x.shift[0].unwrap_delta().quantity, 5.0);
-            assert_eq!(p0.y.shift.len(), 1);
-            assert_eq!(p0.y.shift[0].unwrap_delta().quantity, 50.0);
+        let p0 = &glyph.contours[0][0];
+        assert_eq!(p0.x.shift.len(), 1);
+        assert_eq!(p0.x.shift[0].unwrap_delta().quantity, 5.0);
+        assert_eq!(p0.y.shift.len(), 1);
+        assert_eq!(p0.y.shift[0].unwrap_delta().quantity, 50.0);
 
-            let c0 = &glyph.references[0];
-            assert_eq!(c0.x.shift.len(), 1);
-            assert_eq!(c0.x.shift[0].unwrap_delta().quantity, 100.0);
-            assert_eq!(c0.y.shift.len(), 1);
-            assert_eq!(c0.y.shift[0].unwrap_delta().quantity, 200.0);
-        }
+        let c0 = &glyph.references[0];
+        assert_eq!(c0.x.shift.len(), 1);
+        assert_eq!(c0.x.shift[0].unwrap_delta().quantity, 100.0);
+        assert_eq!(c0.y.shift.len(), 1);
+        assert_eq!(c0.y.shift[0].unwrap_delta().quantity, 200.0);
     }
 }
