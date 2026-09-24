@@ -15401,3 +15401,47 @@ on the other platform before a commit is trusted.
     above), all 21 `tests/fuzz-corpus/known-issues/*.bin` files re-run
     directly. `survey-unsafe.sh`: `unsafe fn` 14 -> 14, `unsafe blocks`
     89 -> 78, raw pointer types 539 -> 535, `is_null()` calls 32 -> 31.
+
+- **Stage M-13: `parse_number` no longer panics on the `i64::MIN`
+  literal.** Fixes the pre-existing, unrelated crash Stage M-12 found
+  while fuzzing `json_build` and left out of scope.
+  - **The bug**: `int_val` is accumulated purely with `wrapping_mul`/
+    `wrapping_add`, so it can already equal `i64::MIN` before any sign is
+    applied -- the 19-digit magnitude `9223372036854775808` (one past
+    `i64::MAX`) wraps around to exactly `i64::MIN`. The final `if
+    negative { -int_val }` then computed `-i64::MIN`, which has no
+    in-range `i64` representation and panics on overflow (debug and
+    `overflow-checks` builds; a release build without them would instead
+    silently wrap, which is the behavior every other overflow in this
+    function already gets deliberately -- see the function's own doc
+    comment). The minimal repro is the literal text of `i64::MIN` itself:
+    `-9223372036854775808`.
+  - **The fix**: `int_val.wrapping_neg()` in place of unary `-int_val`.
+    `wrapping_neg()` on `i64::MIN` returns `i64::MIN` unchanged (its
+    two's-complement negation has no other representable value), which
+    is exactly the silent-wrap idiom the rest of `parse_number` already
+    uses -- no restructuring, no new branch, one operator swapped for its
+    wrapping equivalent. The float path (`-dbl`) is untouched: `f64`
+    negation has no overflow case.
+  - **Regression test**: `most_negative_i64_literal_does_not_panic`,
+    next to `number_edge_cases` in `parsed_json.rs`'s test module,
+    asserts `parse_v("-9223372036854775808") == ParsedValue::Int(i64::
+    MIN)`. Kept as its own test rather than folded into
+    `number_edge_cases` because that test is `#[cfg_attr(miri, ignore)]`
+    (its `powf` calls are non-deterministic under Miri's shim); this one
+    touches no float path, so it runs under Miri too.
+  - **Verified the test actually catches the bug**: reverted the fix
+    locally (`int_val.wrapping_neg()` back to `-int_val`) with the test
+    in place -- it panics with the exact `attempt to negate with
+    overflow` backtrace through `parse_number`, confirming the test fails
+    on the unfixed code and passes on the fixed code.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (415 lib tests: the 412 from M-12
+    plus this stage's one new test, plus two more that had landed on
+    `master` in between; the same 2 pre-existing timing-threshold tests
+    time out in this sandbox, unrelated per M-10's notes), `cargo fuzz
+    run json_build` for 100s afterward with no crash of this or any
+    other shape. `survey-unsafe.sh`: unchanged (`unsafe fn` 14, `unsafe
+    blocks` 78, raw pointer types 535) -- this stage touches no
+    `unsafe`/raw-pointer code, only a checked-vs-wrapping arithmetic
+    operator.

@@ -642,7 +642,22 @@ impl<'a> Parser<'a> {
         if is_double {
             Some(ParsedValue::Double(if negative { -dbl } else { dbl }))
         } else {
-            Some(ParsedValue::Int(if negative { -int_val } else { int_val }))
+            // `int_val` was built entirely with `wrapping_mul`/`wrapping_add`
+            // above, so it can itself already be `i64::MIN` (e.g. the
+            // 19-digit magnitude `9223372036854775808` wraps to exactly
+            // that). A plain `-int_val` on `i64::MIN` overflows (`-i64::MIN`
+            // has no in-range representation) and panics, which a fuzz run
+            // of `json_build` found on the literal input
+            // `-9223372036854775808`. Since every other overflow in this
+            // function wraps silently rather than panicking (see the doc
+            // comment above), the sign application does the same:
+            // `wrapping_neg()` keeps `i64::MIN` as `i64::MIN`, consistent
+            // with how two's-complement negation already behaves.
+            Some(ParsedValue::Int(if negative {
+                int_val.wrapping_neg()
+            } else {
+                int_val
+            }))
         }
     }
 }
@@ -795,6 +810,20 @@ mod tests {
         assert_eq!(parse_v("123.456e-7"), ParsedValue::Double(123.456e-7));
         assert_eq!(parse_v("1e-300"), ParsedValue::Double(1e-300));
         assert_eq!(parse_v("0.0000001"), ParsedValue::Double(0.0000001));
+    }
+
+    /// Regression test for a panic `cargo fuzz run json_build` found: the
+    /// literal `i64::MIN` has a 19-digit magnitude
+    /// (`9223372036854775808`) that is one past `i64::MAX`, so the
+    /// `wrapping_mul`/`wrapping_add` accumulation above wraps it around to
+    /// exactly `i64::MIN` *before* the leading `-` is ever applied. The
+    /// final `if negative { -int_val }` then computed `-i64::MIN`, which
+    /// has no in-range `i64` representation and panics on overflow. No
+    /// `powf`/float path is involved, so unlike `number_edge_cases` this
+    /// doesn't need to skip under Miri.
+    #[test]
+    fn most_negative_i64_literal_does_not_panic() {
+        assert_eq!(parse_v("-9223372036854775808"), ParsedValue::Int(i64::MIN));
     }
 
     #[test]
