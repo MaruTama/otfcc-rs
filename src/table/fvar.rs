@@ -11,7 +11,7 @@ use crate::support::built_json::BuiltValue;
 use crate::support::primitives::otfcc_from_fixed;
 use crate::vf::axis::{VfAxes, VfAxis};
 use crate::vf::region::{VqAxisSpan, VqRegion};
-use crate::vf::region::{vq_axis_span_is_one, vq_delete_region};
+use crate::vf::region::vq_axis_span_is_one;
 use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vq::{vq_create_still, vq_get_still};
 use crate::vf::vv::VV;
@@ -31,7 +31,7 @@ pub type FvarInstanceList = Vec<FvarInstance>;
 #[derive(Debug)]
 pub struct FvarMaster {
     pub name: Vec<u8>,
-    pub region: *mut VqRegion,
+    pub region: Box<VqRegion>,
 }
 // A `VqRegion` used to be a fixed header (`dimensions: ShapeId`) followed
 // by a C "flexible array member" trailing `spans: [VqAxisSpan; 0]`,
@@ -98,50 +98,52 @@ pub struct FvarTable {
     pub instances: FvarInstanceList,
     pub masters: indexmap::IndexMap<RegionKey, FvarMaster>,
 }
-// Stage 6-4 "Box化": `masters`' values own a raw pointer (`region: *mut
-// VqRegion`) -- this `Drop` impl is the same "walk `masters`, dispose each
-// master" shape `dispose_fvar` already had. `Copy`/`Clone` were already
-// absent (no derive to drop).
+// `FvarMaster.region` is `Box<VqRegion>` now, not `*mut VqRegion` -- it was
+// already documented as "individually Box-owned" (see
+// `otf_reader/unconsolidate.rs`'s `hash_vqs`, whose `delta.region: *const
+// VqRegion` comment names this field as the real owner), just spelled as a
+// raw pointer with a hand-written `Drop` standing in for `Box`'s own. Now
+// that it's a real `Box`, the default derived drop glue for
+// `masters: IndexMap<RegionKey, FvarMaster>` already frees every region on
+// `FvarTable::drop`, so the explicit `Drop` impl and `dispose_fvar_master`
+// (previously `unsafe { vq_delete_region(m.region) }`, a manual
+// `Box::from_raw`+`drop`) are both deleted outright -- nothing else in
+// `FvarTable` ever needed custom drop logic (see the struct's own doc
+// comment above). `Font.fvar`/`vdmx` no longer leaking (Stage 7-2-d) is
+// unaffected: this is the same "recursive field drop is automatic" fact,
+// one field deeper.
 //
-// `Font.fvar` (and `Font.vdmx`) used to leak on font teardown: the old
-// `dispose_font` explicitly null'd 31 of `Font`'s 33 table fields before the
-// struct's memory was `free()`'d raw, and `fvar`/`vdmx` were the two it
-// missed -- a raw `free()` runs no field `Drop` glue, so whatever `fvar`
-// pointed to was never reclaimed. Fixed as a side effect of Stage 7-2-d's
-// `Font` Box化: `otfcc_font_free` is now `drop(Box::from_raw(x))`, which
-// drops every field (including this one) through its own `Drop` impl
-// regardless of whether `dispose_font`'s hand-written list covered it.
-impl Drop for FvarTable {
-    fn drop(&mut self) {
-        for (_, master) in ::core::mem::take(&mut self.masters) {
-            dispose_fvar_master(&master);
-        }
-    }
-}
-#[inline]
-fn dispose_fvar_master(m: &FvarMaster) {
-    unsafe { vq_delete_region(m.region) };
-}
 // Deduplicates by `region`'s content (`RegionKey`), not identity: a
-// `region` that content-matches an already-registered master is freed
-// here and the existing master's own `region` is returned instead, so
-// every caller ends up sharing one canonical `VqRegion` per distinct
+// `region` that content-matches an already-registered master is dropped
+// here and the existing master's own `region` pointer is returned instead,
+// so every caller ends up sharing one canonical `VqRegion` per distinct
 // content -- callers (`glyf/read.rs`'s gvar tuple-variation parsing) rely
 // on this to avoid allocating a fresh region per tuple when many tuples
 // share the same region. First registration wins the name "m1", "m2", ...
 // in registration order (`(*fvar).masters.len() + 1` at insert time,
 // exactly reproducing the original's `HASH_COUNT`-at-insert-time scheme).
-pub(crate) fn fvar_register_region(fvar: *mut FvarTable, region: *mut VqRegion) -> *const VqRegion {
+// The long-lived, `Font`-lifetime-spanning consumers of the returned
+// `*const VqRegion` (`VQ.region`/`ComponentReference` deltas, per
+// `vf/vq.rs`'s own doc comment) stay raw-pointer, non-owning aliases into
+// this `Box`'s stable heap address -- a `Box`'s data address never moves
+// when the `Box` handle itself is moved (e.g. by `IndexMap` insertion or
+// rehashing), so this is exactly as sound as the pointer they aliased
+// before this stage, just derived from a `Box` deref instead of an
+// already-raw pointer. Giving those call sites real lifetimes would need
+// `FvarTable`/`Font`-wide lifetime threading, the genuine "aliasing wall"
+// this stage's own instructions say not to force -- out of scope here.
+pub(crate) fn fvar_register_region(fvar: *mut FvarTable, region: Box<VqRegion>) -> *const VqRegion {
     let fvar = unsafe { &mut *fvar };
-    let key = RegionKey::from_region(unsafe { &*region });
+    let key = RegionKey::from_region(&region);
     if let Some(existing) = fvar.masters.get(&key) {
-        let canonical = existing.region;
-        unsafe { vq_delete_region(region) };
+        let canonical: *const VqRegion = existing.region.as_ref();
+        drop(region);
         return canonical;
     }
     let name: Vec<u8> = format!("m{}", fvar.masters.len() + 1).into_bytes();
+    let canonical: *const VqRegion = region.as_ref();
     fvar.masters.insert(key, FvarMaster { name, region });
-    region as *const VqRegion
+    canonical
 }
 fn fvar_find_master_by_region(fvar: &FvarTable, region: *const VqRegion) -> Option<&FvarMaster> {
     let key = RegionKey::from_region(unsafe { &*region });
@@ -323,7 +325,7 @@ pub fn otfcc_dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue, options
     for master in table.masters.values() {
         _masters.push_field_bytes_key(
             &master.name,
-            json_new_vq_region_explicit(master.region, table).preserialize(),
+            json_new_vq_region_explicit(master.region.as_ref(), table).preserialize(),
         );
     }
     t.push_field(b"masters", _masters);
@@ -538,9 +540,9 @@ mod parse_fvar_tests {
 mod fvar_register_region_tests {
     use super::*;
 
-    fn region_with_spans(spans: Vec<VqAxisSpan>) -> *mut VqRegion {
+    fn region_with_spans(spans: Vec<VqAxisSpan>) -> Box<VqRegion> {
         let dimensions = spans.len() as crate::support::primitives::ShapeId;
-        Box::into_raw(Box::new(VqRegion { dimensions, spans }))
+        Box::new(VqRegion { dimensions, spans })
     }
 
     fn empty_fvar_table() -> FvarTable {

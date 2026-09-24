@@ -693,16 +693,22 @@ fn apply_polymorphism(
 // checking at all (a peak or intermediate-region array embedded in a
 // `TupleVariationHeader`, itself found by nothing but the wire format's
 // own self-description, per `next_tvh_offset`'s comment). `spans` is built
-// as a plain local `Vec` and only boxed into a `*mut VqRegion` once, right
+// as a plain local `Vec` and only boxed into a `Box<VqRegion>` once, right
 // before the final `Some(...)` -- unlike the old `vq_create_region`-first
 // shape, nothing is ever allocated on a path that can still fail, so
 // there's nothing to free on the two early-return failure paths below.
+// Returns an owned `Box<VqRegion>`, not a raw pointer: this function's one
+// production caller (below) immediately hands it to
+// `fvar_register_region`, which now takes the same owned `Box` (see
+// `table/fvar.rs`'s `FvarMaster.region` doc comment) -- there was never a
+// point in this call chain where the value needed to be anything but
+// uniquely owned.
 fn create_region_from_tuples(
     gvar: &[u8],
     dimensions: u16,
     peak_offset: usize,
     range_offset: Option<usize>,
-) -> Option<*mut VqRegion> {
+) -> Option<Box<VqRegion>> {
     let mut spans: Vec<VqAxisSpan> = Vec::with_capacity(dimensions as usize);
     for d in 0..dimensions {
         let Ok(peak_raw) = FontReader::new(gvar)
@@ -745,10 +751,10 @@ fn create_region_from_tuples(
         }
         spans.push(span);
     }
-    Some(Box::into_raw(Box::new(VqRegion {
+    Some(Box::new(VqRegion {
         dimensions: dimensions as ShapeId,
         spans,
-    })))
+    }))
 }
 // `gvd_offset` is an absolute byte offset into `gvar` instead of a `*mut
 // GlyphVariationData` -- every read below goes through `FontReader`,
@@ -1359,11 +1365,8 @@ mod gvar_polymorphize_tests {
     #[test]
     fn create_region_from_tuples_reads_a_single_dimension_peak() {
         let gvar = [0x40u8, 0x00u8]; // F2Dot14 0x4000 = 1.0
-        unsafe {
-            let region = create_region_from_tuples(&gvar, 1, 0, None).unwrap();
-            assert_eq!((*region).dimensions, 1);
-            vq_delete_region(region);
-        }
+        let region = create_region_from_tuples(&gvar, 1, 0, None).unwrap();
+        assert_eq!(region.dimensions, 1);
     }
 
     #[test]

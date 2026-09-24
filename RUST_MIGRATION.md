@@ -15612,3 +15612,105 @@ on the other platform before a commit is trusted.
     blocks` 79, raw pointer types 532) -- this stage touches no
     `unsafe`/raw-pointer code, only a checked-vs-saturating arithmetic
     operator, the same shape of fix as M-13.
+
+- **Stage M-16: `FvarMaster.region` is `Box<VqRegion>`, not `*mut
+  VqRegion`.** Sixteenth installment. Found by re-checking `table/
+  fvar.rs`/`vf/region.rs` for the same "raw pointer that's already
+  documented as the real, sole owner, just spelled with a manual
+  dispose instead of `Box`'s own drop glue" shape M-9/M-14 removed
+  elsewhere -- `otf_reader/unconsolidate.rs`'s `hash_vqs` already
+  described `delta.region: *const VqRegion` as "a deliberately-raw
+  borrowed pointer... a longer-lived, individually `Box`-owned
+  `VqRegion` inside `FvarTable.masters`", naming the ownership shape
+  this stage now makes literal.
+  - **The shape.** `FvarMaster.region` was `*mut VqRegion`, freed by a
+    hand-written `dispose_fvar_master` (`unsafe { vq_delete_region(m.
+    region) }`, itself a manual `Box::from_raw` + drop) that `impl Drop
+    for FvarTable` called once per `masters` entry. `masters`
+    (`IndexMap<RegionKey, FvarMaster>`) is the *only* place a `VqRegion`
+    is ever inserted with intent to own it: `fvar_register_region`
+    (`table/fvar.rs`) is the one production path that builds a region
+    and either keeps it (first registration of a given content) or
+    frees it immediately (a content-duplicate, coalesced into the
+    existing master) -- there is exactly one owner, ever, for the
+    lifetime of the value. Every other holder of a `VqRegion` pointer in
+    the crate (`VQ.region`/`ComponentReference` deltas' `*const
+    VqRegion`, `vf/vq.rs`) is a non-owning alias into that same owner,
+    confirmed by grep: nothing else ever frees a `VqRegion` reached
+    through `masters`.
+  - **The fix.** `FvarMaster.region: *mut VqRegion` -> `Box<VqRegion>`.
+    `impl Drop for FvarTable` and `dispose_fvar_master` are deleted
+    outright: once `region` is a real `Box`, `IndexMap<RegionKey,
+    FvarMaster>`'s own derived-away-but-still-automatic per-field drop
+    glue already frees every region when `FvarTable` (or an entry) goes
+    out of scope, the same "no custom `Drop` needed once ownership is a
+    `Box`" fact every earlier `Box`化 stage in this migration relied on.
+    `fvar_register_region(fvar: *mut FvarTable, region: *mut VqRegion)
+    -> *const VqRegion` becomes `fvar_register_region(fvar: *mut
+    FvarTable, region: Box<VqRegion>) -> *const VqRegion` -- the
+    duplicate-content path is now a plain `drop(region)` instead of
+    `unsafe { vq_delete_region(region) }`, and the pointer returned to
+    callers (`*const VqRegion`, still needed by the long-lived aliasing
+    consumers below) is taken via `region.as_ref()` before `region`
+    moves into the `Box` field or drops. This is sound because a `Box`'s
+    heap allocation address never moves when the `Box` handle itself is
+    moved (by `IndexMap` insertion or a later rehash) -- the raw pointer
+    handed out is exactly as stable as the already-raw pointer it
+    replaces. `create_region_from_tuples` (`table/glyf/read.rs`, this
+    stage's one production caller building a fresh region) already built
+    its `VqRegion` as an owned local per M-10's own "own it, box it only
+    at the very end" pattern -- its `Option<*mut VqRegion>` return type
+    drops the `Box::into_raw` and becomes `Option<Box<VqRegion>>`
+    directly, one line changed.
+  - **Left alone, deliberately.** `VQ.region`/`ComponentReference`
+    deltas' own `*const VqRegion` fields (`vf/vq.rs`, `table/glyf.rs`)
+    are untouched: they alias a `masters` entry for the rest of the
+    enclosing `Font`'s lifetime, which would need real lifetime
+    threading through `Font`/`FvarTable`/every table that stores a `VQ`
+    to express safely -- the genuine aliasing/lifetime wall this stage's
+    own instructions say not to force, unlike M-12's `GlyfIOContext.fvar`
+    (one reborrow per call, no long-lived aliasing) or this stage's own
+    `FvarMaster.region` (single owner, no other stakeholder in the
+    allocation's lifetime, just its address). `vq_delete_region`/
+    `vq_create_region` (`vf/region.rs`) are untouched too: still used
+    directly by `glyf/read.rs`'s own unit tests building throwaway
+    regions, out of this stage's one-caller scope.
+  - **Test effectiveness.** `table/fvar.rs`'s `fvar_register_region_
+    tests` module (`two_content_identical_regions_coalesce_into_one_
+    master`, `content_distinct_regions_register_separately`) is the
+    direct regression coverage for this function's ownership/dedup
+    behavior; its `region_with_spans` test helper drops the same
+    `Box::into_raw` its production counterpart did. `table/glyf/read.
+    rs`'s `create_region_from_tuples_reads_a_single_dimension_peak`
+    (the one direct test of the other changed function) drops its
+    `unsafe { }`/pointer-deref wrapper for plain field access on the
+    returned `Box`, with no `vq_delete_region` call needed any more.
+    Both changed files' full existing suites (parse_fvar_tests,
+    gvar_polymorphize_tests) re-run unmodified otherwise and still pass,
+    confirming the ownership-shape swap alone didn't disturb the
+    region-dedup or gvar-tuple-parsing behavior they pin.
+  - **No aliasing/lifetime wall found for the field itself.** Checked by
+    reading every construction and consumption site, not assuming:
+    `FvarMaster.region` has exactly one owner for its entire lifetime
+    (built by `create_region_from_tuples` or a test helper, owned by
+    whichever `FvarMaster` `fvar_register_region` inserts it into,
+    dropped along with that entry), matching this stage's own
+    instructions' description of the "genuinely just dodging the borrow
+    checker" case -- no restructuring beyond the mechanical
+    pointer-to-`Box` swap was needed for the field itself; the long-lived
+    aliasing lives entirely in the *other* holders' fields, left alone as
+    above.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (416 lib tests, same 2 pre-existing
+    timing-threshold failures in this sandbox as every prior stage since
+    M-10, matching baseline), targeted Miri (`table::fvar::` -- 10
+    passed; `table::glyf::read::` -- 18 passed), both `otf_parse`
+    (~5.4M runs) and `otf_dump` (~229K runs) fuzz targets 100s each,
+    clean, `tests/golden.rs`'s full suite (including the variable-font
+    fixtures that exercise `fvar`/`gvar` end to end) unchanged and
+    passing. `survey-unsafe.sh`: `unsafe fn` unchanged at 13, `unsafe
+    blocks` 79 -> 76 (the deleted `impl Drop for FvarTable` and
+    `dispose_fvar_master`'s one `unsafe {}` block, plus the two
+    `unsafe { vq_delete_region(...) }`/pointer-deref call sites in
+    `fvar_register_region` and the one test this stage simplified), raw
+    pointer types 532 -> 530.
