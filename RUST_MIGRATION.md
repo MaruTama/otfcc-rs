@@ -15920,3 +15920,84 @@ on the other platform before a commit is trusted.
     the script counts), raw pointer types 527 -> 526 (`cff_open_stream`'s
     `*mut u8` parameter), one file-level `allow(unsafe_op_in_
     unsafe_fn)` also dropped (28 files carry it now, down from 29).
+
+- **Stage M-20: `fvar_register_region` takes `&mut FvarTable`, not
+  `*mut FvarTable`.** Twentieth installment, found by re-reading every
+  remaining `unsafe fn` (and, per this stage's own instructions, the
+  raw-pointer code those functions' bodies still lean on) against its
+  real, current call sites -- the same re-scout M-19 did.
+  - **The shape.** `table/fvar.rs`'s `fvar_register_region` (a plain
+    `pub(crate) fn`, not itself `unsafe fn` -- `json_reader::read_json`/
+    `otf_reader::read_otf` stay `unsafe fn` for the unrelated,
+    already-documented `otfcc_parse_glyf`/`otfcc_parse_otl` reasons, not
+    this) took `fvar: *mut FvarTable` and opened it with `let fvar =
+    unsafe { &mut *fvar };` as its very first line -- the only `unsafe`
+    anywhere in the function. Its one production call site,
+    `table/glyf/read.rs`'s gvar tuple-variation loop, already held a real
+    `&mut FvarTable` (`ctx.fvar.as_deref_mut().expect(...)`) and was
+    already relying on it, unchanged, to *coerce* to the raw-pointer
+    parameter -- the function's own comment said as much before this
+    stage, in the past tense ("a `&mut FvarTable` coerces to that raw
+    pointer at the call site"). Both of this function's own unit tests
+    (`fvar_register_region_tests`) likewise already passed `&mut fvar`
+    directly, for the same reason. Exactly the "raw pointer purely
+    dodging the borrow checker" shape M-3/M-9/M-14/M-16/M-17/M-19 already
+    removed elsewhere -- here the borrow checker was never actually being
+    dodged, the parameter type just hadn't caught up to the caller.
+  - **The fix.** The parameter becomes `fvar: &mut FvarTable`, and the
+    `unsafe { &mut *fvar }` reborrow line is deleted -- every other line
+    of the function body already used `fvar.masters`/etc. through the
+    resulting binding unchanged, so nothing past that first line needed
+    editing. The one production call site needed no change at all (a
+    `&mut FvarTable` argument against a `&mut FvarTable` parameter is
+    just a normal call, not even a coercion any more); both test call
+    sites likewise needed no change, since they already passed `&mut
+    fvar`. The stale "coerces to that raw pointer" comment at the call
+    site is updated to describe the real parameter type now.
+  - **What stays untouched, and why.** The function's *return* type,
+    `*const VqRegion`, is deliberately left alone -- its own doc comment
+    (present since Stage M-16) already names giving that pointer a real
+    lifetime as "the genuine aliasing wall this stage's own instructions
+    say not to force," since it aliases into a `Box<VqRegion>` living
+    inside `FvarTable.masters` for the rest of `Font`'s lifetime, well
+    past this function's own borrow of `fvar`. `vf/vq.rs`'s
+    `VqSegmentDelta.region: *const VqRegion` field (the long-lived
+    consumer of that pointer) carries the identical, already-documented
+    "Stage 7-2-f" rationale for staying raw rather than becoming an arena
+    index -- neither of those was re-litigated this stage; only the
+    `fvar` *parameter*, a strictly narrower and genuinely mechanical
+    change, was in scope.
+  - **No behavior change.** The function's body is byte-for-byte
+    identical past the deleted reborrow line; a `&mut` reference and the
+    raw pointer it used to be dereferenced from point at the exact same
+    `FvarTable`, so every `RegionKey`-dedup decision, `"m1"`/`"m2"`-style
+    naming, and canonical-pointer return is unchanged.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (419 lib tests, same 2 pre-existing
+    timing-threshold failures in this sandbox as every stage since M-10,
+    matching baseline), targeted Miri (`table::fvar::` -- 10 passed,
+    including both directly-touched `fvar_register_region_tests`;
+    `table::glyf::read::` -- 18 passed, including the `gvar_polymorphize_
+    tests` module that exercises `fvar_register_region`'s one production
+    call site), `tests/golden.rs`'s full byte-exact suite (4 tests)
+    unchanged and passing, `otf_parse` fuzz target 100s (5,225,788 runs,
+    clean) and `otf_dump` fuzz target 100s (1,228,328 runs, clean) --
+    both exercise `fvar`/`gvar` parsing directly. No known-issues corpus
+    file is named for `fvar`/`gvar`/variable-font parsing specifically
+    (checked by listing the directory, same check M-16 made for its own
+    `vf`/`gvar` work); the three glyf-tagged ones that exist
+    (`json-build-cff-charset-null-glyf.bin`, `otf-dump-glyf-context-
+    missing-maxp-panic.bin`, `otf-parse-glyf-consecutive-zero-length-
+    contours-panic.bin`) were re-run directly against `otf_parse` anyway,
+    all clean. `survey-unsafe.sh`: `unsafe fn` unchanged at 11 (this
+    function was never `unsafe fn` itself, only its body's now-deleted
+    reborrow), `unsafe blocks` 71 -> 70 (the deleted reborrow), raw
+    pointer types 526 -> 527 -- a net *increase* of one, not a typo: the
+    diff removes two real `*mut `/`*const ` occurrences (the old
+    parameter type and the old call-site comment's mention of it) but
+    this stage's own, more detailed replacement comments (explaining
+    both the removed `*mut FvarTable` and the still-`*const VqRegion`
+    return type this stage deliberately leaves alone) add three, for a
+    net +1 the script's plain text-grep counts along with everything
+    else -- called out here rather than left as an unexplained bump,
+    the same honesty this migration's own instructions ask for.

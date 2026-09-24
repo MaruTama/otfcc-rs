@@ -132,8 +132,16 @@ pub struct FvarTable {
 // already-raw pointer. Giving those call sites real lifetimes would need
 // `FvarTable`/`Font`-wide lifetime threading, the genuine "aliasing wall"
 // this stage's own instructions say not to force -- out of scope here.
-pub(crate) fn fvar_register_region(fvar: *mut FvarTable, region: Box<VqRegion>) -> *const VqRegion {
-    let fvar = unsafe { &mut *fvar };
+//
+// `fvar` itself is `&mut FvarTable` now, not `*mut FvarTable`: its one
+// caller (`glyf/read.rs`'s `polymorphize_glyph`) already held a real
+// `&mut FvarTable` (`ctx.fvar.as_deref_mut().expect(...)`, per this
+// function's own old comment) and only relied on Rust's implicit
+// reference-to-raw-pointer coercion to satisfy this signature -- the raw
+// pointer bought nothing here, only for the *returned* `*const VqRegion`
+// (untouched, see above). Both test call sites already pass `&mut fvar`
+// directly.
+pub(crate) fn fvar_register_region(fvar: &mut FvarTable, region: Box<VqRegion>) -> *const VqRegion {
     let key = RegionKey::from_region(&region);
     if let Some(existing) = fvar.masters.get(&key) {
         let canonical: *const VqRegion = existing.region.as_ref();

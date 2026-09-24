@@ -827,12 +827,11 @@ fn polymorphize_glyph(
         // `polymorphize`'s caller-side guard (`axes_len` computed via
         // `ctx.fvar.as_deref()`) already returned early if there was no
         // `fvar` table, so every `polymorphize_glyph` call is guaranteed
-        // a `Some` here; `fvar_register_region` still takes a `*mut
+        // a `Some` here; `fvar_register_region` takes a real `&mut
         // FvarTable` (out of this file's scope, `fvar.rs`'s own
-        // region-dedup table), but a `&mut FvarTable` coerces to that
-        // raw pointer at the call site with no signature change needed
-        // there -- reborrowed fresh each iteration of this loop, same as
-        // the reborrow that built `ctx.fvar` itself in `polymorphize`.
+        // region-dedup table) -- reborrowed fresh each iteration of this
+        // loop, same as the reborrow that built `ctx.fvar` itself in
+        // `polymorphize`.
         let r: *const VqRegion =
             fvar_register_region(ctx.fvar.as_deref_mut().expect("fvar checked non-null by polymorphize"), region);
 
