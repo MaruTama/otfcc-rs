@@ -15859,3 +15859,64 @@ on the other platform before a commit is trusted.
     `unsafe blocks` 74, raw pointer types 527) -- this stage touches no
     `unsafe`/raw-pointer code at all, matching `base64.rs`'s own
     `#![forbid(unsafe_code)]`.
+
+- **Stage M-19: `cff_open_stream` takes `&[u8]` instead of a raw
+  `data`/`len` pointer pair.** Nineteenth installment, scouted by
+  re-reading every remaining `unsafe fn` in the crate against its real,
+  current call sites rather than trusting an earlier investigation's
+  notes.
+  - **The shape.** `cff_open_stream` (`libcff/cff_parser.rs`) was `pub
+    unsafe fn cff_open_stream(data: *mut u8, len: u32, options: &Options)
+    -> Box<CffFile>`, whose only unsafe operation was building a slice via
+    `core::slice::from_raw_parts(data, len as usize)` before immediately
+    `.to_vec()`-ing it into `CffFile.raw_data`. Its one production caller,
+    `table/cff.rs`'s `otfcc_read_cff_and_glyf_tables`, already held a real
+    `&[u8]` (`PacketPiece.data`, a `Vec<u8>` field read straight off the
+    SFNT table directory) and was only decomposing it into `table.data.
+    as_ptr() as FontFilePointer` + `table.length` to satisfy this
+    function's raw-pointer signature -- exactly the "raw pointer purely
+    dodging the borrow checker" shape M-3/M-9/M-14/M-16/M-17 already
+    removed elsewhere in this crate. The one other call site, a unit test
+    in this same file, likewise already had a real `[u8; 16]` array and
+    was only reaching for `.as_mut_ptr()` to match the signature.
+  - **The fix.** `cff_open_stream` drops the `len` parameter and the
+    `unsafe fn` qualifier, taking `data: &[u8]` directly; its body's slice
+    construction becomes a plain `data.to_vec()`, needing no unsafe at
+    all now that `data` is already a real slice. Both call sites pass
+    their existing `&[u8]`/array data straight through
+    (`cff_open_stream(&table.data, options)` and
+    `cff_open_stream(&data, &options)` in the test), dropping their
+    `unsafe { }` wrappers -- the now-unused `FontFilePointer` import in
+    `table/cff.rs` is removed alongside its one remaining use. This file
+    had no other `unsafe` code anywhere (confirmed by grep before editing,
+    the same check M-17 made of `vf/region.rs`), so its file-level
+    `#![allow(unsafe_op_in_unsafe_fn)]` (present since Stage 6) is dropped
+    too, per this migration's established practice.
+  - **No behavior change.** `table.data.len() == table.length as usize`
+    always (`otfcc_read_packets`, `font/caryll_sfnt.rs`, sizes each
+    `PacketPiece.data` Vec from `length` and then `read_exact`s exactly
+    that many bytes into it), so `&table.data` carries the identical bytes
+    the old `data`/`length` pointer pair did -- `data.to_vec()` produces
+    the same `Vec<u8>` `core::slice::from_raw_parts(data, len as
+    usize).to_vec()` used to.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (419 lib tests, same 2 pre-existing
+    timing-threshold failures in this sandbox as every stage since M-10,
+    matching baseline), targeted Miri (`libcff::cff_parser::` -- 19
+    passed, 2 ignored as already documented for being too slow under
+    Miri's interpreter; `table::cff::` -- 1 passed, 1 ignored as already
+    documented for calling `libc::modf`, unsupported under Miri),
+    `tests/golden.rs`'s full byte-exact suite unchanged and passing,
+    `otf_parse` fuzz target 100s (10,312,603 runs, clean) and `otf_dump`
+    fuzz target 100s (both exercise CFF parsing directly), the CFF-tagged
+    known-issues corpus files (`otf-parse-cff-dict-key-zero-operand-
+    panic`, `otf-parse-cff-hintmask-oob-read`, `otf-parse-cff-per-glyph-
+    stack-realloc-hang`, `otf-parse-empty-top-dict-index-panic`,
+    `otf-parse-fdselect-fd-out-of-range-segv`) re-run directly against
+    `otf_parse`, all clean. `survey-unsafe.sh`: `unsafe fn` 12 -> 11 (the
+    deleted `cff_open_stream` qualifier), `unsafe blocks` 74 -> 71 (the
+    two now-unnecessary call-site wrappers, plus one comment line this
+    stage's own edit removed that happened to contain the literal text
+    the script counts), raw pointer types 527 -> 526 (`cff_open_stream`'s
+    `*mut u8` parameter), one file-level `allow(unsafe_op_in_
+    unsafe_fn)` also dropped (28 files carry it now, down from 29).
