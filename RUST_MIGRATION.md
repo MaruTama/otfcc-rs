@@ -15714,3 +15714,74 @@ on the other platform before a commit is trusted.
     `unsafe { vq_delete_region(...) }`/pointer-deref call sites in
     `fvar_register_region` and the one test this stage simplified), raw
     pointer types 532 -> 530.
+
+- **Stage M-17: `vf/region.rs`'s dead create/delete/copy trio.**
+  Seventeenth installment, scouted by a dedicated investigation pass and
+  implemented here.
+  - **The shape.** `vq_create_region` built an owned `VqRegion` local
+    and immediately `Box::into_raw`'d it, exactly the M-3/M-9/M-14/M-16
+    "producer boxes a value it already owns outright, just to satisfy an
+    unmigrated caller" pattern -- and its matching `vq_delete_region`
+    (`pub unsafe fn`, `drop(Box::from_raw(region))`) was the hand-rolled
+    `*_free` half of that same pair. But unlike M-16's `FvarMaster.
+    region` (a real production owner), grepping every call site first
+    showed `vq_create_region`/`vq_delete_region` have **zero production
+    callers left**: the one real producer, `create_region_from_tuples`
+    (`table/glyf/read.rs`), already builds its `VqRegion` as an owned
+    local and returns `Option<Box<VqRegion>>` directly since M-16,
+    bypassing `vq_create_region` entirely. The only remaining callers
+    were two direct unit tests in `table/glyf/read.rs`'s `gvar_
+    polymorphize_tests` module, building a throwaway region to pass into
+    `apply_polymorphism`. `vq_copy_region` (also `Box::into_raw`-shaped)
+    had **zero callers anywhere in the crate** -- src, tests, benches,
+    and fuzz targets all confirmed clean by grep -- pure dead code, the
+    same shape as Stage M-11's `bk_print_block` deletion.
+  - **The fix.** `vq_create_region(dimensions: ShapeId) -> *mut VqRegion`
+    becomes `-> Box<VqRegion>`, dropping the `Box::into_raw` and
+    returning the `Box` it already held. `vq_delete_region` and
+    `vq_copy_region` are deleted outright. The two test call sites bind
+    `vq_create_region`'s result as `let r = vq_create_region(1);` (a
+    `Box<VqRegion>` now, same binding syntax as before) and pass `&*r`
+    to `apply_polymorphism` (which still takes `r: *const VqRegion`,
+    left unchanged per this stage's scope -- `&*r` is `&VqRegion`,
+    coerced to `*const VqRegion` at the call site the same way every
+    earlier stage's owned-`Box`-to-raw-pointer call sites have been);
+    the trailing `vq_delete_region(r)` call each test used to make is
+    simply removed, letting the `Box` drop naturally at the end of the
+    test body. This emptied out both tests' remaining reason for an
+    enclosing `unsafe {}` block (the only unsafe operation either body
+    ever performed was the `vq_delete_region` call), so both blocks'
+    now-unnecessary `unsafe {}` wrappers are removed too (kept, either
+    would be a `clippy -D warnings`-failing `unused_unsafe`). `vf/
+    region.rs` itself has no `unsafe` code left anywhere in the file
+    after this trio's removal, so its file-level `#![allow(unsafe_op_in_
+    unsafe_fn)]` (present since Stage 6) is dropped, per this
+    migration's established practice of removing that allow once a file
+    no longer needs it.
+  - **No behavior change.** Both touched tests build the exact same
+    `VqRegion` value and pass the exact same `*const VqRegion` down to
+    `apply_polymorphism` as before -- only the ownership handle
+    (`Box<VqRegion>` instead of a raw pointer plus a manual free call)
+    changed. `create_region_from_tuples`, `apply_polymorphism`, and
+    every other function in either touched file are untouched, per this
+    stage's own scope.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (416 lib tests: 414 passed plus the
+    same 2 pre-existing timing-threshold failures in this sandbox as
+    every prior stage since M-10, matching baseline), targeted Miri
+    (`table::glyf::read::` -- 18 passed, including both directly-touched
+    tests; `vf::region::` has no direct unit tests of its own, 0 run as
+    expected), `otf_parse` fuzz target 100s (3,702,563 runs, clean),
+    `otf_dump` fuzz target 100s (620,580 runs, clean) -- both
+    exercise `vf`/`gvar` code paths per this stage's own instructions.
+    None of the 21 `tests/fuzz-corpus/known-issues/*.bin` files are
+    named for gvar/variable-font parsing specifically (checked by
+    listing the directory), so no individual known-issues re-run was
+    needed beyond the full `cargo test`/fuzz runs above, which already
+    exercise every file this stage touched. `survey-unsafe.sh`: `unsafe
+    fn` 13 -> 12 (the deleted `vq_delete_region`), `unsafe blocks` 76 ->
+    74 (the two now-unnecessary `unsafe {}` test wrappers), raw pointer
+    types 530 -> 527 (`vq_create_region`'s `*mut VqRegion` return type,
+    `vq_delete_region`'s `*mut VqRegion` parameter, and `vq_copy_region`'s
+    `*mut VqRegion` return type, one file-level `allow(unsafe_op_in_
+    unsafe_fn)` also dropped).
