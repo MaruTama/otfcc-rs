@@ -1188,7 +1188,24 @@ fn apply_cff_matrix(cff: &CffTable, glyf: &mut GlyfTable, head: Option<&HeadTabl
         }
     }
 }
-pub unsafe fn otfcc_read_cff_and_glyf_tables(
+// Stage M-14: no longer `unsafe fn`. `cff_file` (formerly `*mut CffFile`,
+// paired with a manual `Box::from_raw` at the bottom of this function --
+// see `cff_parser.rs`'s `cff_open_stream`) is a plain `Box<CffFile>` now:
+// `cff_open_stream` already built it as an owned local internally and only
+// `Box::into_raw`-ed it to hand back a pointer, which this function's one
+// call site immediately `Box::from_raw`-ed back at the end of its own
+// scope -- the same "producer already owns the value, boxing-to-a-pointer
+// was pure roundtrip" pattern this migration already removed from
+// `cff_dict_create`/`new_index_by_callback` at Stage M-10. Every
+// `(*cff_file).field`/`&*cff_file` deref below becomes a plain field
+// access/reborrow through the `Box`, and the trailing `Box::from_raw` is
+// gone -- `cff_file`'s own `Drop` (via `CffFile`'s field-by-field glue)
+// runs when it goes out of scope at the end of the `if let` arm below,
+// same as any other owned local. The one remaining unsafe operation is the
+// call into `cff_open_stream` itself, which still builds a slice from a
+// caller-supplied raw `data`/`len` pointer pair -- that single call is now
+// the function's only `unsafe {}` block.
+pub fn otfcc_read_cff_and_glyf_tables(
     packet: &Packet,
     options: &Options,
     head: Option<&HeadTable>,
@@ -1202,15 +1219,10 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
     if let Some(table) = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_CFF) {
         let data: FontFilePointer = table.data.as_ptr() as FontFilePointer;
         let length: u32 = table.length;
-        // `cff_file` stays a raw pointer -- `CffFile`'s own ownership
-        // shell (`cff_open_stream`'s ABI-like `*mut CffFile` return, paired
-        // with a manual `Box::from_raw` at the bottom of this function
-        // instead of a named `cff_close`, see `cff_parser.rs`) is out of
-        // this stage's scope. What *does* change here: `meta`/`glyphs`
-        // (this function's own two results) are plain owned values now,
-        // not a second raw-pointer round trip through `table_cff_create`/
-        // `unwrap_cff_table` on top of the first one.
-        let cff_file: *mut CffFile = cff_open_stream(data, length, options);
+        // `meta`/`glyphs` (this function's own two results) are plain
+        // owned values, not a second raw-pointer round trip through
+        // `table_cff_create`/`unwrap_cff_table` on top of the first one.
+        let cff_file: Box<CffFile> = unsafe { cff_open_stream(data, length, options) };
         // A CFF table's Top DICT INDEX with a declared `count`
         // of 0 has no entries at all -- `extract_index` only
         // populates `offset` (`count + 1` entries) when
@@ -1221,7 +1233,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
         // local fuzzing run found. Same guard shape as
         // `font_dict.count != 0` a few lines down for the
         // FDArray INDEX.
-        if (*cff_file).top_dict.count != 0 {
+        if cff_file.top_dict.count != 0 {
             let mut meta: Box<CffTable> = table_cff_new();
 
             // ---- Phase A: Top/Font DICT + Private DICT extraction ----
@@ -1229,16 +1241,16 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                 let mut context = CffFdExtractContext {
                     fd_array_index: -1_i32,
                     meta: &mut meta,
-                    cff_file: &*cff_file,
+                    cff_file: &cff_file,
                 };
                 parse_to_callback(
                     {
                         let top_dict_len = {
-                            let top_dict_offset = &(*cff_file).top_dict.offset;
+                            let top_dict_offset = &cff_file.top_dict.offset;
                             (top_dict_offset[1_usize])
                                 .wrapping_sub(top_dict_offset[0_usize])
                         } as usize;
-                        let top_dict_data: &[u8] = &(*cff_file).top_dict.data;
+                        let top_dict_data: &[u8] = &cff_file.top_dict.data;
                         top_dict_data.get(..top_dict_len).unwrap_or(&[])
                     },
                     |op, top, stack| {
@@ -1247,10 +1259,10 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                 );
                 if context.meta.font_name.is_empty() {
                     context.meta.font_name =
-                        get_cff_sid(391_u16, &(*cff_file).name).unwrap_or_default();
+                        get_cff_sid(391_u16, &cff_file.name).unwrap_or_default();
                 }
-                if (*cff_file).font_dict.count != 0 {
-                    let fd_count = (*cff_file).font_dict.count as usize;
+                if cff_file.font_dict.count != 0 {
+                    let fd_count = cff_file.font_dict.count as usize;
                     context.meta.fd_array = Vec::with_capacity(fd_count);
                     let mut j: TableId = 0 as TableId;
                     while (j as usize) < fd_count {
@@ -1267,7 +1279,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                         context.fd_array_index = j as i32;
                         parse_to_callback(
                             {
-                                let font_dict_offset = &(*cff_file).font_dict.offset;
+                                let font_dict_offset = &cff_file.font_dict.offset;
                                 let start =
                                     font_dict_offset[j as usize].wrapping_sub(1) as usize;
                                 let len = (font_dict_offset[(j as i32
@@ -1275,7 +1287,7 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
                                     as usize])
                                     .wrapping_sub(font_dict_offset[j as usize])
                                     as usize;
-                                let font_dict_data: &[u8] = &(*cff_file).font_dict.data;
+                                let font_dict_data: &[u8] = &cff_file.font_dict.data;
                                 font_dict_data
                                     .get(start..)
                                     .and_then(|s| s.get(..len))
@@ -1298,13 +1310,13 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
             if let Some(pd) = meta.private_dict.as_deref() {
                 seed = pd.initial_random_seed as u64 ^ 0x1234567887654321_u64;
             }
-            let mut glyphs: GlyfTable = table_glyf_create_n((*cff_file).char_strings.count as usize);
+            let mut glyphs: GlyfTable = table_glyf_create_n(cff_file.char_strings.count as usize);
 
             // ---- Phase B: per-glyph outline building + naming ----
             {
                 let meta_ref: &CffTable = &meta;
                 let glyphs_ref: &mut GlyfTable = &mut glyphs;
-                let cff_file_ref: &CffFile = &*cff_file;
+                let cff_file_ref: &CffFile = &cff_file;
                 // Allocated once for the whole font, not once per
                 // glyph -- see `build_outline`'s doc comment.
                 let mut outline_stack: CffStack = CffStack {
@@ -1337,11 +1349,8 @@ pub unsafe fn otfcc_read_cff_and_glyf_tables(
             ret.meta = Some(meta);
             ret.glyphs = Some(glyphs);
         }
-        // `cff_close` is gone (Stage M-10): its only remaining job, once
-        // `raw_data` became a plain `Vec<u8>`, was this `Box::from_raw` +
-        // `drop` -- done here directly instead of through a named
-        // one-caller function.
-        drop(Box::from_raw(cff_file));
+        // `cff_file`'s own `Drop` glue runs here, at the end of its scope
+        // -- no explicit `Box::from_raw` + `drop` needed any more.
     }
     return ret;
 }
@@ -2291,7 +2300,7 @@ mod cff_matrix_no_head_regression_tests {
 
         // The call that used to segfault: `head: None`, matching a
         // `Font` with no `head` table at all.
-        let result = unsafe { otfcc_read_cff_and_glyf_tables(&packet, &options, None) };
+        let result = otfcc_read_cff_and_glyf_tables(&packet, &options, None);
 
         // Sanity: the FontMatrix really did round-trip through the
         // writer and back, and there is a real glyph to (not) scale --

@@ -15445,3 +15445,103 @@ on the other platform before a commit is trusted.
     blocks` 78, raw pointer types 535) -- this stage touches no
     `unsafe`/raw-pointer code, only a checked-vs-wrapping arithmetic
     operator.
+
+- **Stage M-14: `cff_open_stream` returns `Box<CffFile>` instead of
+  `Box::into_raw`-ing it into `*mut CffFile`, and its one caller,
+  `otfcc_read_cff_and_glyf_tables`, drops its own `unsafe fn` marker.**
+  Fourteenth installment, stacked on M-13. Found by re-checking
+  `table/cff.rs`/`libcff/` for the same "producer already owns the value
+  as a local, boxes it only to hand back a pointer" shape Stage M-10
+  removed from `cff_dict_create`/`new_index_by_callback` -- M-10's own
+  writeup flagged `cff_open_stream`'s "ABI-like `*mut CffFile` return,
+  paired with a manual `Box::from_raw`" as exactly this pattern but out
+  of that stage's scope.
+  - **The shape.** `cff_open_stream` (`libcff/cff_parser.rs`) builds the
+    whole `CffFile` via `Box::new(...)` up front (Stage M-9's fix for the
+    calloc-then-first-write-is-UB bug -- see that function's own doc
+    comment, unchanged by this stage), fills it in via `parse_cff_bytecode`,
+    and used to `Box::into_raw` it purely to satisfy a `*mut CffFile`
+    return type. Its **one** caller, `otfcc_read_cff_and_glyf_tables`
+    (`table/cff.rs`), immediately dereferenced that pointer for the rest
+    of its own body (`(*cff_file).top_dict`, `&*cff_file`, ... -- nine
+    call sites) and, at the very end of its own scope, did the matching
+    `drop(Box::from_raw(cff_file))`. No aliasing: `cff_file` is never
+    copied, stored anywhere longer-lived, or handed to a second owner --
+    construction, every read, and disposal all happen within this one
+    caller's one function body, the same "raw pointer wasn't actually
+    dodging anything" case M-12 described for `GlyfIOContext.fvar`.
+  - **The fix.** `cff_open_stream` keeps its `Box::new(...)`-built local
+    but `return`s it directly as `Box<CffFile>`; its three internal
+    `(*file).field = ...` assignments become plain `file.field = ...`
+    (a `Box`'s `DerefMut` makes the raw-pointer deref syntax unnecessary
+    once there is no more raw pointer). `cff_open_stream` stays
+    `unsafe fn` regardless -- it still builds a slice from the
+    caller-supplied `data: *mut u8`/`len: u32` pair via
+    `::core::slice::from_raw_parts`, a real raw-pointer dependency this
+    stage leaves untouched. `otfcc_read_cff_and_glyf_tables` binds the
+    result as `let cff_file: Box<CffFile> = unsafe { cff_open_stream(...) };`
+    -- its **only** remaining unsafe operation, now an explicit `unsafe
+    {}` block around that one call instead of an implicit `unsafe fn`
+    covering the whole ~150-line body -- and every `(*cff_file).field`/
+    `&*cff_file` below becomes a plain field access or `&cff_file`
+    reborrow (Rust's usual deref coercion turns `&Box<CffFile>` into
+    `&CffFile` at each of those call/struct-literal sites with no cast
+    needed). The trailing `drop(Box::from_raw(cff_file))` is deleted
+    outright: `cff_file`'s own `Drop` glue (`CffFile`'s field-by-field
+    teardown, already relied on since M-9) now runs automatically at the
+    end of its scope, same as any other owned local.
+  - **`otfcc_read_cff_and_glyf_tables` itself is no longer `unsafe fn`.**
+    Every other operation in its body (`table_cff_new`, `table_glyf_create_n`,
+    `parse_to_callback`, `build_outline`, `apply_cff_matrix`,
+    `name_glyphs_according_to_cff`, ...) was already a safe function
+    before this stage -- confirmed by reading each one's signature --
+    so once the `cff_open_stream` call is isolated in its own `unsafe {}`
+    block, nothing else in the function needs the `unsafe fn` umbrella.
+    Its own two callers update to match: `otf_reader.rs`'s call site
+    needed no change (it already sits inside `read_otf`'s own `unsafe
+    fn` body, so calling a now-safe function there is simply legal, not
+    wrong); the direct unit test in `table/cff.rs`
+    (`cff_font_matrix_with_no_head_table_does_not_crash`) drops its
+    now-unnecessary `unsafe { ... }` wrapper around the call (kept, it
+    would be a `clippy -D warnings`-failing `unused_unsafe`).
+  - **Test effectiveness.** `libcff::cff_parser::cff_open_stream_tests`'s
+    own test (`open_and_close_on_a_font_with_an_empty_top_dict_does_not_
+    construct_invalid_values`, the one direct test of `cff_open_stream`,
+    pinning the M-9 calloc/UB fix this stage's comment above still
+    references) updates the same way: `cff_open_stream`'s return value
+    is bound as `Box<CffFile>` and every assertion drops its `(*file)`
+    deref for plain field access, with a final `drop(file)` replacing
+    the old `drop(Box::from_raw(file))`. `table/cff.rs`'s
+    `cff_font_matrix_with_no_head_table_does_not_crash` (the SIGSEGV
+    regression test from M-10) re-run under the real writer+reader round
+    trip it always used, unmodified apart from dropping its `unsafe {}`
+    wrapper, still passes -- confirming the ownership-shape change alone
+    didn't disturb the exact null-`head` path that test pins.
+  - **No aliasing/lifetime wall found.** Checked by reading, not assuming:
+    `cff_file` has exactly one owner for its entire lifetime (built by
+    `cff_open_stream`, read only within `otfcc_read_cff_and_glyf_tables`'s
+    own body, dropped at that body's end), matching this stage's own
+    instructions' description of the "genuinely just dodging the borrow
+    checker" case rather than a real aliasing conflict -- no restructuring
+    beyond the mechanical pointer-to-`Box` swap was needed.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (415 lib tests, same 2 pre-existing
+    timing-threshold failures in this sandbox as every prior stage since
+    M-10, matching baseline), targeted Miri
+    (`libcff::cff_parser::` -- 19 passed, 2 pre-existing-too-slow-for-Miri
+    ignored, matching baseline; `table::cff::cff_matrix_no_head_
+    regression_tests` -- both this stage's own most-relevant tests),
+    all three fuzz targets 100s each (`otf_parse`: ~7.0M runs; `otf_dump`:
+    ~1.2M runs; both clean), all 21 `tests/fuzz-corpus/known-issues/*.bin`
+    files re-run directly against both changed files' code paths, clean.
+    **Unrelated pre-existing bug found while fuzzing `json_build`, not
+    touched, out of scope**: an `attempt to multiply with overflow` panic
+    in `support::ttinstr.rs`'s `strtol_base0` (reached via
+    `otfcc_parse_fpgm_prep`'s TrueType-instruction text parser, nowhere
+    near this stage's two files) -- reproduced identically by stashing
+    this stage's changes, rebuilding against the unmodified `ca5cafe`
+    tree, and re-running the exact crash input, confirming it predates
+    this stage. `survey-unsafe.sh`: `unsafe fn` 14 -> 13, `unsafe blocks`
+    78 -> 79 (one net new explicit `unsafe {}` block replaces the removed
+    `unsafe fn` umbrella around a ~150-line body), raw pointer types
+    535 -> 532.

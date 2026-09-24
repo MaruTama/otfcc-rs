@@ -306,7 +306,7 @@ pub unsafe fn cff_open_stream(
     data: *mut u8,
     len: u32,
     options: &Options,
-) -> *mut CffFile {
+) -> Box<CffFile> {
     // `CffFile` owns several `Vec`-backed fields (each `CffIndex`'s
     // `offset`/`data`, and `CffEncoding`/`CffCharset`/`CffFdSelect`'s
     // `Vec`-carrying variants) -- calloc'ing it and then letting
@@ -319,13 +319,26 @@ pub unsafe fn cff_open_stream(
     // also fires on disposing a malformed font whose empty Top DICT left
     // `char_strings`/`font_dict`/`encodings`/`charsets`/`fdselect` never
     // written by `parse_cff_bytecode` at all: dropping them unconditionally
-    // (as this struct's own `Drop` glue now does, see `cff_close` below) is
-    // the identical first-write-onto-zeroed-memory pattern. Building the
-    // whole value via `Box::new` up front (instead of calloc) closes both:
-    // every field starts out as a real, valid (empty) value, so every
-    // later plain `=` -- in `parse_cff_bytecode` or on drop -- safely
-    // drops a real prior value instead of an invalid zeroed one.
-    let file: *mut CffFile = Box::into_raw(Box::new(CffFile {
+    // (as this struct's own `Drop` glue already does) is the identical
+    // first-write-onto-zeroed-memory pattern. Building the whole value via
+    // `Box::new` up front (instead of calloc) closes both: every field
+    // starts out as a real, valid (empty) value, so every later plain `=`
+    // -- in `parse_cff_bytecode` or on drop -- safely drops a real prior
+    // value instead of an invalid zeroed one.
+    //
+    // Stage M-14: returns the `Box<CffFile>` itself now, instead of
+    // `Box::into_raw`-ing it purely to hand back a pointer. This function
+    // already built the value as an owned local (the `Box::new(...)`
+    // above) -- boxing it into a raw pointer only to have its one caller
+    // immediately `Box::from_raw` it back at the end of that caller's
+    // scope was pure ABI-shaped roundtrip, the same pattern this
+    // migration already removed from `cff_dict_create`/`new_index_by_
+    // callback` and friends at Stage M-10. Nothing aliases `file` between
+    // construction and return, so ownership transfers cleanly through the
+    // `Box` itself; `cff_open_stream` stays `unsafe fn` regardless, since
+    // it still builds a slice from the caller-supplied `data`/`len` raw
+    // pointer pair below.
+    let mut file: Box<CffFile> = Box::new(CffFile {
         raw_data: Vec::new(),
         cnt_glyph: 0,
         head: crate::libcff::CffHeader {
@@ -344,21 +357,16 @@ pub unsafe fn cff_open_stream(
         char_strings: new_empty_cff_index(),
         font_dict: new_empty_cff_index(),
         local_subr: new_empty_cff_index(),
-    }));
+    });
     // The calloc+memcpy pair becomes a straight `to_vec()` off the caller's
     // own `data`/`len` pointer pair -- the one place this file still needs
     // to build a slice from a raw pointer (`data`'s validity for `len`
     // bytes is this function's own caller contract, same as before).
-    (*file).raw_data = ::core::slice::from_raw_parts(data, len as usize).to_vec();
-    (*file).cnt_glyph = 0_u16;
-    parse_cff_bytecode(&mut *file, options);
+    file.raw_data = ::core::slice::from_raw_parts(data, len as usize).to_vec();
+    file.cnt_glyph = 0_u16;
+    parse_cff_bytecode(&mut file, options);
     return file;
 }
-// Deleted: was `free(raw_data)` (now unnecessary -- `Vec`'s own `Drop`
-// reaches it as part of `CffFile`'s field-by-field drop glue) followed by
-// `drop(Box::from_raw(file))`. Its one caller (`table/cff.rs`'s
-// `otfcc_read_cff_and_glyf_tables`) now just does the `Box::from_raw` +
-// `drop` half directly.
 // No longer `extern "C"`: `&CffFdSelect` has no C spelling. Only called
 // from within `table/cff.rs`, not part of the crate's public ABI -- same
 // reasoning as `parse_encoding`. Takes `&CffFdSelect` rather than by value
@@ -2543,6 +2551,10 @@ mod cff_open_stream_tests {
     // `CffFile` via `Box::new` up front (this fix) makes every field a
     // real, valid (empty) value from construction, so disposing of it is
     // always dropping a real prior value.
+    //
+    // Stage M-14: `cff_open_stream` now returns `Box<CffFile>` directly,
+    // so this test drops the plain `Box` at scope end instead of a
+    // separate `Box::from_raw` call.
     #[test]
     fn open_and_close_on_a_font_with_an_empty_top_dict_does_not_construct_invalid_values() {
         let mut data: [u8; 16] = [
@@ -2553,18 +2565,16 @@ mod cff_open_stream_tests {
             0, 0, 0, // Global Subr INDEX: empty
         ];
         let options = Options::default();
-        unsafe {
-            let file = cff_open_stream(data.as_mut_ptr(), data.len() as u32, &options);
-            assert_eq!((*file).top_dict.count, 0);
-            assert_eq!((*file).char_strings.count, 0);
-            assert!((*file).char_strings.data.is_empty());
-            assert_eq!((*file).font_dict.count, 0);
-            assert!(matches!((*file).encodings, CffEncoding::Unspecified));
-            assert!(matches!((*file).charsets, CffCharset::IsoAdobe));
-            assert!(matches!((*file).fdselect, CffFdSelect::Unspecified));
-            assert_eq!((*file).local_subr.count, 0);
-            drop(Box::from_raw(file));
-        }
+        let file = unsafe { cff_open_stream(data.as_mut_ptr(), data.len() as u32, &options) };
+        assert_eq!(file.top_dict.count, 0);
+        assert_eq!(file.char_strings.count, 0);
+        assert!(file.char_strings.data.is_empty());
+        assert_eq!(file.font_dict.count, 0);
+        assert!(matches!(file.encodings, CffEncoding::Unspecified));
+        assert!(matches!(file.charsets, CffCharset::IsoAdobe));
+        assert!(matches!(file.fdselect, CffFdSelect::Unspecified));
+        assert_eq!(file.local_subr.count, 0);
+        drop(file);
     }
 }
 
