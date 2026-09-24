@@ -14,7 +14,7 @@ use crate::table::colr::otfcc_dump_colr;
 use crate::table::cpal::otfcc_dump_cpal;
 use crate::table::cvt::otfcc_dump_cvt;
 use crate::table::fpgm_prep::table_dump_table_fpgm_prep;
-use crate::table::fvar::{FvarTable, otfcc_dump_fvar};
+use crate::table::fvar::otfcc_dump_fvar;
 use crate::table::gasp::otfcc_dump_gasp;
 use crate::table::gdef::otfcc_dump_gdef;
 use crate::table::glyf::otfcc_dump_glyf;
@@ -64,10 +64,7 @@ pub fn serialize_to_json(font: &mut Font, options: &Options) -> BuiltValue {
             loca_is_long: head.index_to_loc_format != 0,
             num_glyphs: maxp.num_glyphs as GlyphId,
             n_phantom_points: 4 as ShapeId,
-            fvar: (*font)
-                .fvar
-                .as_deref_mut()
-                .map_or(::core::ptr::null_mut(), |f| f as *mut FvarTable),
+            fvar: (*font).fvar.as_deref_mut(),
             has_vertical_metrics: (*font).vhea.is_some(),
             export_fd_select: (*font).cff.as_deref().map_or(false, |c| c.is_cid),
         };

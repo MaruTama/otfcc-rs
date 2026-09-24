@@ -2,12 +2,11 @@
 pub mod build;
 pub mod read;
 
-use libc::fprintf;
 unsafe extern "C" {
     fn fabs(__x: ::core::ffi::c_double) -> ::core::ffi::c_double;
 }
 
-use crate::logger::{logger_finish, logger_start_sds};
+use crate::logger::{LOG_VL_IMPORTANT, LoggerType, logger_finish, logger_log_sds, logger_start_sds};
 use crate::support::TRUE_0;
 use crate::support::buffer::Buffer;
 use crate::support::glyph_order::{GlyphOrder, GlyphOrderEntry};
@@ -16,7 +15,6 @@ use crate::support::handle::{
 };
 use crate::support::options::Options;
 use crate::support::primitives::{GlyphId, Pos, Scale, ShapeId};
-use crate::support::stdio::stderr;
 use crate::table::fvar::FvarTable;
 use crate::vendor::json::JsonType;
 
@@ -146,12 +144,29 @@ pub type GlyphPtr = *mut Glyph;
 /// fresh empty glyph. `Box<Glyph>` cannot represent "no glyph here" (a
 /// `Box` is never null), so the element type stays `Option<Box<Glyph>>`.
 pub type GlyfTable = Vec<Option<Box<Glyph>>>;
-#[derive(Copy, Clone, Debug)]
-pub struct GlyfIOContext {
+// No longer `Copy`/`Clone`: `fvar` is a real `&'a mut FvarTable` now (see
+// below), and `&mut` is neither. Every construction site builds exactly one
+// `GlyfIOContext` and either shares it by `&` (the whole dump side, which
+// never mutates `fvar`) or threads it by `&mut` through the one read-side
+// call chain that does (`otfcc_read_glyf` -> `polymorphize` ->
+// `TuplePolymorphizerCtx`, in `glyf/read.rs`) -- nothing ever needed a
+// second, aliasing copy of the struct itself.
+#[derive(Debug)]
+pub struct GlyfIOContext<'a> {
     pub loca_is_long: bool,
     pub num_glyphs: GlyphId,
     pub n_phantom_points: ShapeId,
-    pub fvar: *mut FvarTable,
+    // Was `*mut FvarTable`, doubling as both "the fvar table" and "is
+    // there one at all" via null. `fvar_register_region` (the one thing
+    // that genuinely mutates through this, deep in `glyf/read.rs`'s
+    // `polymorphize`/`polymorphize_glyph`) already takes a `&mut
+    // FvarTable` argument that coerces to the raw pointer at its own call
+    // site -- so a real borrow slots in with no signature change to
+    // `fvar.rs` at all. `Option`, not a bare `&'a mut FvarTable`, because
+    // a font with no variable-font data (no `fvar` table) legitimately
+    // constructs this with nothing to borrow, the same case the null
+    // pointer used to encode.
+    pub fvar: Option<&'a mut FvarTable>,
     pub has_vertical_metrics: bool,
     pub export_fd_select: bool,
 }
@@ -317,27 +332,18 @@ pub fn otfcc_new_glyf_glyph() -> Box<Glyph> {
 // Stage 6-4 "Box化": `Font.glyf` becomes `Option<Vec<Option<Box<Glyph>>>>`
 // (not `Option<Box<Vec<...>>>` -- `Vec` already owns its own heap buffer).
 // `table_glyf_create_n` stays: `table/cff.rs`'s CFF glyph extraction still
-// builds a `GlyfTable` through it as a bare `*mut GlyfTable`, so
-// `unwrap_glyf_table` below "adopts" that raw pointer into a genuine owned
-// value at the one point it actually needs to become `Font.glyf`. Since
-// Stage 7-2-d, `table_glyf_create_n` builds via `Box::into_raw(Box::new(..))`
-// rather than `malloc`, so `raw` already points at a real `Box<GlyfTable>`
-// allocation -- `Box::from_raw` is the exact inverse (dereferencing moves
-// the `Vec` value out and drops the now-empty `Box` shell in the same
-// step), no separate `free` call needed. Same technique as
-// `table/cff.rs`'s `unwrap_cff_table`.
-pub(crate) unsafe fn unwrap_glyf_table(raw: *mut GlyfTable) -> Option<GlyfTable> {
-    if raw.is_null() {
-        return None;
-    }
-    Some(*Box::from_raw(raw))
-}
-pub(crate) unsafe fn table_glyf_create_n(n: usize) -> *mut GlyfTable {
+// builds its `GlyfTable` through it. Stage M-10 drops the raw-pointer
+// round trip this used to go through on the way there -- `GlyfTable` is
+// itself just a `Vec`, so there is nothing to `Box`/adopt at all; the old
+// `unwrap_glyf_table` (a `*mut GlyfTable` -> `Option<GlyfTable>` bridge,
+// `table/cff.rs`'s `unwrap_cff_table` sibling) is gone along with its one
+// call site.
+pub(crate) fn table_glyf_create_n(n: usize) -> GlyfTable {
     let mut v: GlyfTable = Vec::with_capacity(n);
     v.resize_with(n, || None);
-    Box::into_raw(Box::new(v))
+    v
 }
-fn glyf_glyph_dump_contours(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOContext) {
+fn glyf_glyph_dump_contours(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOContext<'_>) {
     if g.contours.is_empty() {
         return;
     }
@@ -346,11 +352,11 @@ fn glyf_glyph_dump_contours(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCont
         let mut contour = BuiltValue::new_array(c.len());
         for p in c.iter() {
             let mut point = BuiltValue::new_object(4);
-            // `json_new_vq` itself is safe now; `ctx.fvar` (tied to
-            // `GlyfIOContext`, out of this file's scope) is still a raw
-            // `*mut FvarTable`, so this narrow reborrow is the bridge.
-            point.push_field(b"x", json_new_vq(p.x.clone(), unsafe { ctx.fvar.as_ref() }));
-            point.push_field(b"y", json_new_vq(p.y.clone(), unsafe { ctx.fvar.as_ref() }));
+            // `ctx.fvar` is a real `Option<&mut FvarTable>` now (Stage
+            // M-12); `.as_deref()` downgrades it to the `Option<&FvarTable>`
+            // `json_new_vq` wants, no `unsafe` needed.
+            point.push_field(b"x", json_new_vq(p.x.clone(), ctx.fvar.as_deref()));
+            point.push_field(b"y", json_new_vq(p.y.clone(), ctx.fvar.as_deref()));
             point.push_field(b"on", BuiltValue::Bool(p.on_curve & MASK_ON_CURVE != 0));
             contour.push_item(point);
         }
@@ -358,7 +364,7 @@ fn glyf_glyph_dump_contours(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCont
     }
     target.push_field(b"contours", contours);
 }
-fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOContext) {
+fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOContext<'_>) {
     if g.references.is_empty() {
         return;
     }
@@ -368,8 +374,8 @@ fn glyf_glyph_dump_references(g: &Glyph, target: &mut BuiltValue, ctx: &GlyfIOCo
         ref_0.push_field(b"glyph", BuiltValue::str_truncated_at_nul(&r.glyph.name));
         // See the comment on the `json_new_vq` calls in
         // `glyf_glyph_dump_contours` above.
-        ref_0.push_field(b"x", json_new_vq(r.x.clone(), unsafe { ctx.fvar.as_ref() }));
-        ref_0.push_field(b"y", json_new_vq(r.y.clone(), unsafe { ctx.fvar.as_ref() }));
+        ref_0.push_field(b"x", json_new_vq(r.x.clone(), ctx.fvar.as_deref()));
+        ref_0.push_field(b"y", json_new_vq(r.y.clone(), ctx.fvar.as_deref()));
         ref_0.push_field(b"a", BuiltValue::position(r.a as Pos));
         ref_0.push_field(b"b", BuiltValue::position(r.b as Pos));
         ref_0.push_field(b"c", BuiltValue::position(r.c as Pos));
@@ -425,11 +431,11 @@ fn glyf_glyph_dump_maskdefs(masks: &MaskList, hh: &StemDefList, vv: &StemDefList
     }
     a
 }
-fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext) -> BuiltValue {
+fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext<'_>) -> BuiltValue {
     let mut glyph = BuiltValue::new_object(12);
     glyph.push_field(
         b"advanceWidth",
-        json_new_vq(g.advance_width.clone(), unsafe { ctx.fvar.as_ref() }),
+        json_new_vq(g.advance_width.clone(), ctx.fvar.as_deref()),
     );
     // `vq_is_still`/`vq_get_still` are plain safe fns; `fabs` is the crate's
     // one remaining `unsafe extern "C"` import (declared at the top of this
@@ -440,17 +446,17 @@ fn glyf_dump_glyph(g: &Glyph, options: &Options, ctx: &GlyfIOContext) -> BuiltVa
     {
         glyph.push_field(
             b"horizontalOrigin",
-            json_new_vq(g.horizontal_origin.clone(), unsafe { ctx.fvar.as_ref() }),
+            json_new_vq(g.horizontal_origin.clone(), ctx.fvar.as_deref()),
         );
     }
     if ctx.has_vertical_metrics {
         glyph.push_field(
             b"advanceHeight",
-            json_new_vq(g.advance_height.clone(), unsafe { ctx.fvar.as_ref() }),
+            json_new_vq(g.advance_height.clone(), ctx.fvar.as_deref()),
         );
         glyph.push_field(
             b"verticalOrigin",
-            json_new_vq(g.vertical_origin.clone(), unsafe { ctx.fvar.as_ref() }),
+            json_new_vq(g.vertical_origin.clone(), ctx.fvar.as_deref()),
         );
     }
     glyf_glyph_dump_contours(g, &mut glyph, ctx);
@@ -502,7 +508,7 @@ pub fn otfcc_dump_glyf(
     table: Option<&GlyfTable>,
     root: &mut BuiltValue,
     options: &Options,
-    ctx: &GlyfIOContext,
+    ctx: &GlyfIOContext<'_>,
 ) {
     let Some(table) = table else {
         return;
@@ -670,27 +676,31 @@ fn otfcc_glyf_parse_glyph(
             glyphdump.get(b"instructions"),
             |instrs| g.instructions = instrs,
             |reason: &[u8], pos| {
-                // `fprintf`'s `%s` needs NUL-terminated buffers, so a NUL
-                // is appended to byte-copies of `reason`/`name` here --
-                // this is a diagnostic-only print to stderr (never part
-                // of dumped/built output), so it doesn't need the
-                // NUL-truncation care the crate's other `Handle`/
-                // glyph-name-to-JSON sites take.
-                let mut reason_cstr: Vec<u8> = reason.to_vec();
-                reason_cstr.push(0);
-                let mut name_cstr: Vec<u8> = g.name.clone();
-                name_cstr.push(0);
-                unsafe {
-                    fprintf(
-                        stderr,
-                        b"[OTFCC] TrueType instructions parse error : %s, at %d in /%s\n\0"
-                            as *const u8
-                            as *const ::core::ffi::c_char,
-                        reason_cstr.as_ptr() as *const ::core::ffi::c_char,
+                // Same idiom the rest of this file already uses for
+                // `Options`-carrying diagnostics (`logger_start_sds`/
+                // `logger_finish`, above and below): `options` is right
+                // here in scope, so this drops the raw `fprintf`-to-stderr
+                // call (and the NUL-terminated byte-copies it needed) for
+                // a real `Logger` call, not just an `eprintln!`. Per
+                // `tests/log_output.rs`'s own doc comment, this crate's
+                // stderr-comparison tests pin only output written through
+                // the `Logger` -- and this message wasn't reaching the
+                // `Logger` at all before, so no golden fixture already
+                // depends on its exact old wording.
+                logger_log_sds(
+                    &mut *options.logger.borrow_mut(),
+                    LOG_VL_IMPORTANT,
+                    LoggerType::Warning,
+                    crate::bytesbuild!(
+                        b"[OTFCC] TrueType instructions parse error : ",
+                        reason,
+                        b", at ",
                         pos,
-                        name_cstr.as_ptr() as *const ::core::ffi::c_char,
-                    );
-                }
+                        b" in /",
+                        &g.name,
+                        b"\n",
+                    ),
+                );
             },
         );
         parse_stems(glyphdump.get_typed(b"stemH", JsonType::Array), &mut g.stem_h);

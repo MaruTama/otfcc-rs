@@ -15145,3 +15145,403 @@ on the other platform before a commit is trusted.
     L-7 aliasing story), all three fuzz targets plus every
     `tests/fuzz-corpus/known-issues/*.bin`. `survey-unsafe.sh`: `unsafe fn`
     25 -> 23, `unsafe blocks` 121 -> 117, raw pointer types 602 -> 596.
+
+- **Stage M-10: five of the CFF core's raw-pointer shells are gone, and a
+  real SIGSEGV in `otfcc_read_cff_and_glyf_tables` is fixed.** Tenth
+  installment, stacked on M-9. An earlier throwaway-worktree investigation
+  found the CFF core (`table/cff.rs` + `libcff/`) held 11 of the crate's
+  23 `unsafe fn` (plus 3 more forced by them transitively) with no real
+  aliasing or lifetime wall behind most of them -- just raw pointers left
+  over from the c2rust port. This stage converts the five it found clean,
+  and fixes a crash the investigation turned up along the way.
+  - **`CffFile.raw_data: *mut u8` + `raw_length: u32` -> `raw_data:
+    Vec<u8>`.** The Stage L-3 treatment: every one of the four call sites
+    (`parse_encoding`, `parse_cff_bytecode`, `callback_extract_fd`'s
+    operator-18 arm, `build_outline`) did nothing but
+    `slice::from_raw_parts(raw_data, raw_length)` and never wrote through
+    the pointer after construction. `cff_open_stream`'s calloc+`memcpy`
+    pair becomes `slice::from_raw_parts(data, len).to_vec()` off its own
+    `data`/`len` parameters (still a raw `*mut u8`/`u32` pair -- that
+    outer signature is unchanged, matching every C caller it still has to
+    serve). **`cff_close` is deleted**: once `raw_data` is a real `Vec`,
+    its own `free(raw_data)` call is unnecessary (the field's `Drop`
+    glue reaches it as part of `CffFile`'s field-by-field drop), so its
+    only remaining job -- `Box::from_raw(file)` + `drop` -- moved inline
+    to its one caller.
+  - **`build_outline`'s `stack: *mut CffStack` -> `&mut CffStack`.**
+    `cff_parse_outline` (its one callee that takes the stack) already
+    took `&mut CffStack`; this parameter was a pure pass-through with no
+    separate contract of its own. Combined with the `raw_data` fix above
+    (the function's other unsafe operation, a `slice::from_raw_parts`
+    over `f.raw_data`), `build_outline` reaches zero `unsafe` and drops
+    its `unsafe fn` marker entirely.
+  - **`otfcc_read_cff_and_glyf_tables`'s `meta_ptr`/`glyphs_ptr` locals
+    are owned values, not a second raw-pointer round trip on top of
+    `CffFile`'s own (still-raw, out of scope here) one.** `meta` is a
+    plain `Box<CffTable>` from `table_cff_new()` directly; `glyphs` is a
+    plain `GlyfTable` (itself just a `Vec`, so nothing to `Box` at all).
+    `table_cff_create`/`unwrap_cff_table` and `unwrap_glyf_table`
+    (`Box::into_raw`/`Box::from_raw` shells that existed only to bridge
+    this one function's own locals back into themselves) are deleted
+    outright -- their one caller now just keeps the value it already
+    had. `table_glyf_create_n` returns `GlyfTable` by value and drops its
+    `unsafe fn` marker; the function itself stays `unsafe fn` (it still
+    dereferences the separately-scoped `cff_file: *mut CffFile` throughout
+    -- that pointer's own ownership shell is `CffFile`'s, not this
+    function's, and is out of this stage's five items).
+  - **`CffAndGlyf` (one `{meta: *mut CffTable, glyphs: *mut GlyfTable}`,
+    `Copy`) is split into `CffAndGlyfOwned`/`CffAndGlyfRef<'a>`.** It was
+    two genuinely different use shapes sharing one raw-pointer struct: the
+    read side (`otfcc_read_cff_and_glyf_tables`) always builds a fresh
+    owned pair (or leaves both `None`), while the write side
+    (`otfcc_build_cff`) only ever borrows into a `Font`'s already-owned
+    `cff`/`glyf` fields. `CffAndGlyfOwned { meta: Option<Box<CffTable>>,
+    glyphs: Option<GlyfTable> }` is what `read_otf` now gets back and
+    moves straight into `font.cff`/`font.glyf` -- no `unwrap_cff_table`/
+    `unwrap_glyf_table` call at that end either.
+    `CffAndGlyfRef<'a> { meta: &'a mut CffTable, glyphs: Option<&'a
+    GlyfTable> }` is what `serialize_to_otf` builds from
+    `font.cff.as_deref_mut()`/`font.glyf.as_ref()`; `meta` is required
+    (`.expect(..)`) rather than `Option`, making explicit the assumption
+    `writecff_cid_keyed` already made implicitly by dereferencing it
+    unconditionally. **The stale artifact this forced into the open**:
+    `CffCharstringBuilderContext.glyf: *mut GlyfTable`/`.options: *const
+    Options` were themselves raw pointers only because the old
+    `writecff_cid_keyed`'s own `glyf`/`options` were -- both are plain
+    `&'a GlyfTable`/`&'a Options` now, and `cff_make_charstrings` (their
+    one reader) drops its two `unsafe {}` bridges. `writecff_cid_keyed`
+    itself takes `cff: &mut CffTable, glyf: Option<&GlyfTable>` (the
+    `None`-means-"treat as empty" substitution is unchanged, just typed
+    instead of null-checked) and, with every other item below landing
+    too, reaches zero `unsafe` -- both it and `otfcc_build_cff` drop their
+    `unsafe fn` marker, and `serialize_to_otf` loses the `unsafe {}` block
+    that used to wrap the one call into it.
+  - **`cff_dict_free`/`cff_index_free` are deleted, matching this
+    migration's Stage M-3 treatment of `ClassDef`.** Every producer
+    already built its `CffDict`/`CffIndex` as an owned local before
+    boxing it purely to hand back a pointer -- `cff_make_fd_dict`,
+    `cff_make_private_dict`, `new_index_by_callback` (and, downstream,
+    `cff_make_fdarray`, `compile_fd_buffer`, `cffstrings_to_indexblob`)
+    just return the value now. `writecff_cid_keyed`'s `fd_array_index`
+    (mutated in place after construction, to patch each FD's Private DICT
+    offset/length once known) becomes `Option<CffIndex>`, `Some` exactly
+    when `cff.is_cid` -- the same nullability the old `*mut CffIndex`
+    encoded, just typed. `cff_index_create` (a test-only convenience
+    wrapper) is deleted too: every test that reached for it now builds a
+    plain `new_empty_cff_index()` local, since `extract_index` already
+    takes `&mut CffIndex`, nothing to adopt from a pointer either way.
+    `libcff/cff_dict.rs` and `libcff/cff_index.rs` are now entirely
+    `unsafe`-free and lose their file-level
+    `#![allow(unsafe_op_in_unsafe_fn)]`.
+  - **The SIGSEGV**: `read_otf` built `head: *const HeadTable` from
+    `Font.head`'s `Option<Box<HeadTable>>` via `.map_or(ptr::null(),
+    ...)`, and `otfcc_read_cff_and_glyf_tables` immediately did
+    `apply_cff_matrix(meta_ref, glyphs_ref, &*head)` -- an unconditional
+    deref of that pointer, before `apply_cff_matrix` got a chance to
+    check anything. Reproduced concretely: strip the `head` table from a
+    CFF OTF font whose Top DICT has a `FontMatrix`, run it through
+    `otfccdump`, exit code 139. Confirmed CFF-specific (stripping `head`
+    from a TTF, or stripping other tables from the same CFF font, does
+    not crash) and that the original C otfcc has the identical null-deref
+    bug, so there is no legacy behavior being preserved by keeping it.
+    **Fixed by the type**, not a null check: `head` is `Option<&HeadTable>`
+    the whole way from `read_otf` through
+    `otfcc_read_cff_and_glyf_tables` to `apply_cff_matrix`, which now
+    takes the `None` branch and leaves the outline unscaled -- the same
+    "skip this table, keep going" idiom every other optional-table reader
+    in this crate already uses. `read_otf`'s own
+    `.map_or(ptr::null(), ...)`/cast collapses to a plain
+    `font.head.as_deref()`.
+  - **Test effectiveness**: `apply_cff_matrix_with_no_head_leaves_the_
+    outline_unscaled` (a direct, Miri-clean unit test with no FFI in the
+    loop) pins the exact branch the crash was in -- disabling the `None`
+    guard reintroduces the null deref immediately. A second test,
+    `cff_font_matrix_with_no_head_table_does_not_crash`, builds a real
+    `CffTable` with a `FontMatrix` and a glyph with an actual point,
+    round-trips it through the crate's own writer to get genuine CFF
+    bytes with a real Top DICT `FontMatrix` operator, and feeds them back
+    through `otfcc_read_cff_and_glyf_tables` with `head: None` -- the
+    same path `otfccdump` takes on a `head`-stripped file. It is
+    `#[cfg_attr(miri, ignore = ...)]`: it goes through
+    `writecff_cid_keyed`'s charstring writer, which calls `libc::modf`,
+    already a known Miri limitation elsewhere in this crate
+    (`libcff/subr.rs`'s `subr_graph_tests`) rather than anything this
+    stage introduces.
+  - **Skipped, per the investigation's own caveat**: none. All five items
+    held up under implementation -- no real aliasing wall turned up for
+    any of them, matching what the investigation found.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (414, two new), Miri, all three fuzz
+    targets 90s each plus every `tests/fuzz-corpus/known-issues/*.bin`.
+    `survey-unsafe.sh`: `unsafe fn` 23 -> 14, `unsafe blocks` 117 -> 96,
+    raw pointer types 596 -> 558, files with the file-level allow 32 -> 30.
+
+- **Stage M-11: two dev-diagnostic `fprintf`s go through `eprintln!`/the
+  `Logger`, and `bk_print_block` -- confirmed dead since Stage D -- is
+  deleted.** Eleventh installment, stacked on M-10. Three unrelated
+  `libc::fprintf`-to-stderr call sites, each
+  checked individually against `tests/log_output.rs`'s golden-log
+  comparison (which pins only what `otfccdump`/`otfccbuild` write through
+  the `Logger`, per that file's own doc comment) before touching it.
+  - **`bkgraph.rs`'s `getoffset`** prints an offset-overflow warning
+    (`"[otfcc-bk] Warning : Unable to fit offset..."`) from deep inside
+    `otfcc_build_bkblock`, which ~19 unrelated table builders call with no
+    `Logger`/`Options` anywhere in scope -- threading one through would be
+    a large, out-of-scope refactor for a warning this rarely hit. The raw
+    `fprintf`/`stderr` call becomes a plain `eprintln!` with the same text
+    and arguments; `bkgraph.rs` loses its `libc::fprintf` and
+    `support::stdio::stderr` imports.
+  - **`glyf.rs`'s `otfcc_glyf_parse_glyph`** prints a TrueType-instruction
+    parse error (`"[OTFCC] TrueType instructions parse error : ..."`) from
+    inside a closure that already captures `options: &Options` -- the
+    exact `Logger` this file's neighboring `logger_start_sds`/
+    `logger_finish` calls already use. This one goes through the real
+    thing: `logger_log_sds(&mut *options.logger.borrow_mut(),
+    LOG_VL_IMPORTANT, LoggerType::Warning, bytesbuild!(...))`, replacing
+    the NUL-terminated byte-copies `fprintf`'s `%s` needed with
+    `bytesbuild!`'s existing `&[u8]`/`&Vec<u8>`/`i32` parts. `glyf.rs`
+    loses the same two imports (its only other `fprintf`/`stderr` call
+    sites).
+  - **`bkblock.rs`'s `bk_print_block`** -- a six-`fprintf` cell dumper a
+    previous stage's comment explicitly kept "as a manual-debugging tool
+    rather than deleted" -- has zero callers anywhere in the crate
+    (confirmed by grep across `src/`, `tests/`, `benches/`, `fuzz/`), so
+    this stage reverses that call and deletes it outright, along with the
+    `libc::fprintf`/`support::stdio::stderr` imports it was the last user
+    of in that file.
+  - **Test effectiveness**: `tests/log_output.rs`'s golden-log comparison
+    (which would have caught a change to output it actually pins) passed
+    unchanged, confirming neither touched message reaches a golden
+    fixture. All three fuzz targets (90s each) and every
+    `tests/fuzz-corpus/known-issues/*.bin` file re-run directly (including
+    the two `otf-dump-ttinstr-*` reproducers, the closest thing to a
+    regression test for the exact `parse_ttinstr` error path this stage
+    edited) came back clean.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    test -- --test-threads=1` (412 lib tests; the crate's full suite
+    showed the same 2 pre-existing timing-threshold failures both before
+    and after this change, confirmed by re-running the unmodified tree),
+    Miri (targeted: `bk::` and `table::glyf::`), all three fuzz targets,
+    all 21 `tests/fuzz-corpus/known-issues/*.bin` files. `survey-unsafe.sh`:
+    `unsafe fn` 14 -> 14 (unchanged -- none of these three functions was
+    `unsafe fn`), `unsafe blocks` 96 -> 89, raw pointer types 558 -> 539.
+
+- **Stage M-12: `GlyfIOContext`/`TuplePolymorphizerCtx`'s `fvar: *mut
+  FvarTable` is a real borrow.** Twelfth installment, stacked on M-11.
+  Both structs' one raw-pointer field (`Option`-shaped by null, mutated in
+  flight by `fvar.rs`'s region-dedup table) becomes `Option<&'a mut
+  FvarTable>`, and each struct picks up the matching lifetime parameter.
+  - **The dump side never needed `Copy`.** Every function in `glyf.rs`
+    (`glyf_dump_glyph` and its two `_dump_contours`/`_dump_references`
+    helpers, `otfcc_dump_glyf`) already took `ctx: &GlyfIOContext` and
+    only ever read through it (`json_new_vq(_, ctx.fvar.as_ref())`, an
+    `unsafe` raw-pointer-to-reference conversion the fuller field type
+    now makes unnecessary: `ctx.fvar.as_deref()` gets the same
+    `Option<&FvarTable>` safely). Nothing there ever copied the struct by
+    value or needed a second live reference to it, so this half of the
+    change is a mechanical `&GlyfIOContext` -> `&GlyfIOContext<'_>` plus
+    swapping the four `unsafe { ctx.fvar.as_ref() }` call sites for
+    `ctx.fvar.as_deref()`.
+  - **The read side genuinely mutates through it, so it's threaded by
+    `&mut`, not shared.** `otfcc_read_glyf` -> `polymorphize` ->
+    (per glyph) `TuplePolymorphizerCtx` -> `polymorphize_glyph` ->
+    `fvar_register_region` is the one call chain that needs `&mut
+    FvarTable` (region dedup inserts into `fvar.masters`). Each of those
+    four functions now takes `&mut GlyfIOContext<'_>`/`&mut
+    TuplePolymorphizerCtx<'_>` instead of a shared reference, and
+    `polymorphize`'s per-glyph loop builds each `TuplePolymorphizerCtx`
+    with `ctx.fvar.as_deref_mut()` -- a fresh reborrow every iteration,
+    consumed within that same iteration and nothing else live across it,
+    the ordinary Rust reborrow pattern the raw pointer had been standing
+    in for. `fvar_register_region` itself (`fvar.rs`, out of this stage's
+    two files) needed no signature change at all: it already took `*mut
+    FvarTable`, and a `&mut FvarTable` coerces to that raw pointer at the
+    call site -- its own unit tests already pass `&mut fvar` today, this
+    stage's one call site just joins them.
+  - **Both construction sites** (`otf_reader.rs`'s TTF branch,
+    `json_writer.rs`'s glyf-dump block) drop their `.map_or(::core::
+    ptr::null_mut(), |f| f as *mut FvarTable)` boilerplate for a plain
+    `font.fvar.as_deref_mut()` -- the `Option` now speaks for itself.
+    `otf_reader.rs`'s call site also changes `let ctx` -> `let mut ctx`
+    and `&ctx` -> `&mut ctx` (its only use of `ctx`, so nothing else needed
+    to change); `json_writer.rs`'s stays `&ctx`, since the whole dump path
+    only ever shares it. Both files lose their now-unused `FvarTable`
+    import (kept only for the cast).
+  - **No aliasing conflict, checked**: `GlyfIOContext` is built exactly
+    once per call (one per `read_otf`/`serialize_to_json` invocation) and
+    never copied elsewhere in the crate (confirmed by grep -- every use
+    site already borrowed it), so dropping `Copy`/`Clone` cost nothing;
+    the read-side `&mut` chain has exactly one live borrow at a time by
+    construction (one `GlyfIOContext` per font, one `TuplePolymorphizerCtx`
+    reborrow per glyph, never two glyphs' contexts alive simultaneously),
+    so no restructuring beyond the signature changes above was needed --
+    this is the "raw pointer wasn't actually dodging anything" case the
+    stage's own instructions anticipated, not the aliasing-conflict one.
+  - **Test effectiveness**: `tests/golden.rs`'s variable-font fixtures
+    (the ones that actually exercise `fvar`/`gvar`, confirmed by grep)
+    passed unchanged, and both `otf_dump`/`otf_parse` fuzz targets (which
+    exercise this exact `otfcc_read_glyf` -> `polymorphize` ->
+    `fvar_register_region` chain, unlike `json_build`'s build-from-JSON
+    path, which never constructs a `GlyfIOContext` at all) ran clean.
+  - **Unrelated pre-existing bug found while fuzzing, not touched**:
+    `json_build` hit a `neg_overflow` panic in `support::parsed_json.rs`'s
+    `parse_number` (an unchecked `-int_val`/`-dbl` on a value built by
+    `wrapping_mul`/`wrapping_add`, which can reach `i64::MIN`) --
+    reproduced identically against the pre-Stage-M-12 tree (confirmed by
+    stashing this stage's changes and re-running the exact crash input),
+    and with a fresh, empty fuzz corpus `json_build` instead ran 4.66M
+    iterations clean, confirming the crash was corpus state, not this
+    stage. Nothing in this stage's two files is on `json_build`'s
+    build-from-JSON path at all. Left as-is, out of scope for this stage.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    test -- --test-threads=1` (412 lib tests; full suite run twice, 1-2 of
+    the same pre-existing timing-threshold failures each time, matching
+    M-11's baseline), Miri (targeted: `table::glyf::`), all three fuzz
+    targets (90s each, `json_build` re-run again with a fresh corpus per
+    above), all 21 `tests/fuzz-corpus/known-issues/*.bin` files re-run
+    directly. `survey-unsafe.sh`: `unsafe fn` 14 -> 14, `unsafe blocks`
+    89 -> 78, raw pointer types 539 -> 535, `is_null()` calls 32 -> 31.
+
+- **Stage M-13: `parse_number` no longer panics on the `i64::MIN`
+  literal.** Fixes the pre-existing, unrelated crash Stage M-12 found
+  while fuzzing `json_build` and left out of scope.
+  - **The bug**: `int_val` is accumulated purely with `wrapping_mul`/
+    `wrapping_add`, so it can already equal `i64::MIN` before any sign is
+    applied -- the 19-digit magnitude `9223372036854775808` (one past
+    `i64::MAX`) wraps around to exactly `i64::MIN`. The final `if
+    negative { -int_val }` then computed `-i64::MIN`, which has no
+    in-range `i64` representation and panics on overflow (debug and
+    `overflow-checks` builds; a release build without them would instead
+    silently wrap, which is the behavior every other overflow in this
+    function already gets deliberately -- see the function's own doc
+    comment). The minimal repro is the literal text of `i64::MIN` itself:
+    `-9223372036854775808`.
+  - **The fix**: `int_val.wrapping_neg()` in place of unary `-int_val`.
+    `wrapping_neg()` on `i64::MIN` returns `i64::MIN` unchanged (its
+    two's-complement negation has no other representable value), which
+    is exactly the silent-wrap idiom the rest of `parse_number` already
+    uses -- no restructuring, no new branch, one operator swapped for its
+    wrapping equivalent. The float path (`-dbl`) is untouched: `f64`
+    negation has no overflow case.
+  - **Regression test**: `most_negative_i64_literal_does_not_panic`,
+    next to `number_edge_cases` in `parsed_json.rs`'s test module,
+    asserts `parse_v("-9223372036854775808") == ParsedValue::Int(i64::
+    MIN)`. Kept as its own test rather than folded into
+    `number_edge_cases` because that test is `#[cfg_attr(miri, ignore)]`
+    (its `powf` calls are non-deterministic under Miri's shim); this one
+    touches no float path, so it runs under Miri too.
+  - **Verified the test actually catches the bug**: reverted the fix
+    locally (`int_val.wrapping_neg()` back to `-int_val`) with the test
+    in place -- it panics with the exact `attempt to negate with
+    overflow` backtrace through `parse_number`, confirming the test fails
+    on the unfixed code and passes on the fixed code.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (415 lib tests: the 412 from M-12
+    plus this stage's one new test, plus two more that had landed on
+    `master` in between; the same 2 pre-existing timing-threshold tests
+    time out in this sandbox, unrelated per M-10's notes), `cargo fuzz
+    run json_build` for 100s afterward with no crash of this or any
+    other shape. `survey-unsafe.sh`: unchanged (`unsafe fn` 14, `unsafe
+    blocks` 78, raw pointer types 535) -- this stage touches no
+    `unsafe`/raw-pointer code, only a checked-vs-wrapping arithmetic
+    operator.
+
+- **Stage M-14: `cff_open_stream` returns `Box<CffFile>` instead of
+  `Box::into_raw`-ing it into `*mut CffFile`, and its one caller,
+  `otfcc_read_cff_and_glyf_tables`, drops its own `unsafe fn` marker.**
+  Fourteenth installment, stacked on M-13. Found by re-checking
+  `table/cff.rs`/`libcff/` for the same "producer already owns the value
+  as a local, boxes it only to hand back a pointer" shape Stage M-10
+  removed from `cff_dict_create`/`new_index_by_callback` -- M-10's own
+  writeup flagged `cff_open_stream`'s "ABI-like `*mut CffFile` return,
+  paired with a manual `Box::from_raw`" as exactly this pattern but out
+  of that stage's scope.
+  - **The shape.** `cff_open_stream` (`libcff/cff_parser.rs`) builds the
+    whole `CffFile` via `Box::new(...)` up front (Stage M-9's fix for the
+    calloc-then-first-write-is-UB bug -- see that function's own doc
+    comment, unchanged by this stage), fills it in via `parse_cff_bytecode`,
+    and used to `Box::into_raw` it purely to satisfy a `*mut CffFile`
+    return type. Its **one** caller, `otfcc_read_cff_and_glyf_tables`
+    (`table/cff.rs`), immediately dereferenced that pointer for the rest
+    of its own body (`(*cff_file).top_dict`, `&*cff_file`, ... -- nine
+    call sites) and, at the very end of its own scope, did the matching
+    `drop(Box::from_raw(cff_file))`. No aliasing: `cff_file` is never
+    copied, stored anywhere longer-lived, or handed to a second owner --
+    construction, every read, and disposal all happen within this one
+    caller's one function body, the same "raw pointer wasn't actually
+    dodging anything" case M-12 described for `GlyfIOContext.fvar`.
+  - **The fix.** `cff_open_stream` keeps its `Box::new(...)`-built local
+    but `return`s it directly as `Box<CffFile>`; its three internal
+    `(*file).field = ...` assignments become plain `file.field = ...`
+    (a `Box`'s `DerefMut` makes the raw-pointer deref syntax unnecessary
+    once there is no more raw pointer). `cff_open_stream` stays
+    `unsafe fn` regardless -- it still builds a slice from the
+    caller-supplied `data: *mut u8`/`len: u32` pair via
+    `::core::slice::from_raw_parts`, a real raw-pointer dependency this
+    stage leaves untouched. `otfcc_read_cff_and_glyf_tables` binds the
+    result as `let cff_file: Box<CffFile> = unsafe { cff_open_stream(...) };`
+    -- its **only** remaining unsafe operation, now an explicit `unsafe
+    {}` block around that one call instead of an implicit `unsafe fn`
+    covering the whole ~150-line body -- and every `(*cff_file).field`/
+    `&*cff_file` below becomes a plain field access or `&cff_file`
+    reborrow (Rust's usual deref coercion turns `&Box<CffFile>` into
+    `&CffFile` at each of those call/struct-literal sites with no cast
+    needed). The trailing `drop(Box::from_raw(cff_file))` is deleted
+    outright: `cff_file`'s own `Drop` glue (`CffFile`'s field-by-field
+    teardown, already relied on since M-9) now runs automatically at the
+    end of its scope, same as any other owned local.
+  - **`otfcc_read_cff_and_glyf_tables` itself is no longer `unsafe fn`.**
+    Every other operation in its body (`table_cff_new`, `table_glyf_create_n`,
+    `parse_to_callback`, `build_outline`, `apply_cff_matrix`,
+    `name_glyphs_according_to_cff`, ...) was already a safe function
+    before this stage -- confirmed by reading each one's signature --
+    so once the `cff_open_stream` call is isolated in its own `unsafe {}`
+    block, nothing else in the function needs the `unsafe fn` umbrella.
+    Its own two callers update to match: `otf_reader.rs`'s call site
+    needed no change (it already sits inside `read_otf`'s own `unsafe
+    fn` body, so calling a now-safe function there is simply legal, not
+    wrong); the direct unit test in `table/cff.rs`
+    (`cff_font_matrix_with_no_head_table_does_not_crash`) drops its
+    now-unnecessary `unsafe { ... }` wrapper around the call (kept, it
+    would be a `clippy -D warnings`-failing `unused_unsafe`).
+  - **Test effectiveness.** `libcff::cff_parser::cff_open_stream_tests`'s
+    own test (`open_and_close_on_a_font_with_an_empty_top_dict_does_not_
+    construct_invalid_values`, the one direct test of `cff_open_stream`,
+    pinning the M-9 calloc/UB fix this stage's comment above still
+    references) updates the same way: `cff_open_stream`'s return value
+    is bound as `Box<CffFile>` and every assertion drops its `(*file)`
+    deref for plain field access, with a final `drop(file)` replacing
+    the old `drop(Box::from_raw(file))`. `table/cff.rs`'s
+    `cff_font_matrix_with_no_head_table_does_not_crash` (the SIGSEGV
+    regression test from M-10) re-run under the real writer+reader round
+    trip it always used, unmodified apart from dropping its `unsafe {}`
+    wrapper, still passes -- confirming the ownership-shape change alone
+    didn't disturb the exact null-`head` path that test pins.
+  - **No aliasing/lifetime wall found.** Checked by reading, not assuming:
+    `cff_file` has exactly one owner for its entire lifetime (built by
+    `cff_open_stream`, read only within `otfcc_read_cff_and_glyf_tables`'s
+    own body, dropped at that body's end), matching this stage's own
+    instructions' description of the "genuinely just dodging the borrow
+    checker" case rather than a real aliasing conflict -- no restructuring
+    beyond the mechanical pointer-to-`Box` swap was needed.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`,
+    `cargo test -- --test-threads=1` (415 lib tests, same 2 pre-existing
+    timing-threshold failures in this sandbox as every prior stage since
+    M-10, matching baseline), targeted Miri
+    (`libcff::cff_parser::` -- 19 passed, 2 pre-existing-too-slow-for-Miri
+    ignored, matching baseline; `table::cff::cff_matrix_no_head_
+    regression_tests` -- both this stage's own most-relevant tests),
+    all three fuzz targets 100s each (`otf_parse`: ~7.0M runs; `otf_dump`:
+    ~1.2M runs; both clean), all 21 `tests/fuzz-corpus/known-issues/*.bin`
+    files re-run directly against both changed files' code paths, clean.
+    **Unrelated pre-existing bug found while fuzzing `json_build`, not
+    touched, out of scope**: an `attempt to multiply with overflow` panic
+    in `support::ttinstr.rs`'s `strtol_base0` (reached via
+    `otfcc_parse_fpgm_prep`'s TrueType-instruction text parser, nowhere
+    near this stage's two files) -- reproduced identically by stashing
+    this stage's changes, rebuilding against the unmodified `ca5cafe`
+    tree, and re-running the exact crash input, confirming it predates
+    this stage. `survey-unsafe.sh`: `unsafe fn` 14 -> 13, `unsafe blocks`
+    78 -> 79 (one net new explicit `unsafe {}` block replaces the removed
+    `unsafe fn` umbrella around a ~150-line body), raw pointer types
+    535 -> 532.

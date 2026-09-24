@@ -44,3 +44,6 @@ target/
 # Makefile is for local dev only
 makefile
 .compile_commands.native.json
+
+# Claude Code harness state (agent worktrees, etc.) -- not repo content
+.claude/

@@ -1,8 +1,5 @@
-use libc::fprintf;
-
 use crate::bk::bkblock::{BkBlock, BkCellType, BkCellValue};
 use crate::support::buffer::Buffer;
-use crate::support::stdio::stderr;
 
 // `BkGraph`/`BkGraphNode` used to hold `block: *mut BkBlock` -- a raw
 // pointer into `bkblock.rs`'s construction API, alongside the
@@ -319,15 +316,21 @@ fn getoffset(
     let offtgt: usize = offsets[blocks[target.0 as usize].index as usize];
     if (bits as i32) < 32_i32 && (offtgt < offref || offtgt.wrapping_sub(offref) >> bits as i32 != 0)
     {
-        unsafe {
-            fprintf(
-                stderr,
-                b"[otfcc-bk] Warning : Unable to fit offset %d into %d bits; output may be corrupted.\n\0"
-                    as *const u8 as *const ::core::ffi::c_char,
-                offtgt.wrapping_sub(offref) as i32,
-                bits as i32,
-            );
-        }
+        // No `Logger`/`Options` reaches this deep into the bk-block
+        // serializer (`otfcc_build_bkblock` is called from ~19 unrelated
+        // table builders, none of which carry one this far down), so this
+        // stays a plain diagnostic print rather than forcing a `Logger`
+        // parameter through that whole call graph for a rarely-hit
+        // offset-overflow warning. `eprintln!` replaces the raw
+        // `fprintf`-to-stderr call; the text (module tag, numbers, message)
+        // is unchanged and, per `tests/log_output.rs`'s own doc comment,
+        // this crate's stderr comparisons only pin output written through
+        // the `Logger`, so this is not byte-compared by any test.
+        eprintln!(
+            "[otfcc-bk] Warning : Unable to fit offset {} into {} bits; output may be corrupted.",
+            offtgt.wrapping_sub(offref) as i32,
+            bits as i32,
+        );
     }
     offtgt.wrapping_sub(offref) as u32
 }

@@ -31,9 +31,13 @@ use crate::vf::vq::{
 // `be32` (the manual byte-swaps those native-endian pointer reads needed)
 // are gone with them -- `FontReader`'s reads are big-endian by
 // construction.
-#[derive(Copy, Clone, Debug)]
-pub struct TuplePolymorphizerCtx {
-    pub fvar: *mut FvarTable,
+// No longer `Copy`/`Clone`, same reason as `GlyfIOContext` (Stage M-12):
+// `fvar` is a real `Option<&'a mut FvarTable>` now, reborrowed fresh from
+// `GlyfIOContext::fvar` once per glyph in `polymorphize`'s loop, so nothing
+// here ever needed a second aliasing copy of the field.
+#[derive(Debug)]
+pub struct TuplePolymorphizerCtx<'a> {
+    pub fvar: Option<&'a mut FvarTable>,
     pub dimensions: u16,
     pub shared_tuple_count: u16,
     // An absolute byte offset into `gvar` instead of a `*mut F2Dot14` --
@@ -761,7 +765,7 @@ fn create_region_from_tuples(
 #[inline]
 fn polymorphize_glyph(
     glyph: &mut Glyph,
-    ctx: &TuplePolymorphizerCtx,
+    ctx: &mut TuplePolymorphizerCtx<'_>,
     gvar: &[u8],
     gvd_offset: usize,
 ) -> Option<()> {
@@ -814,7 +818,17 @@ fn polymorphize_glyph(
             None
         };
         let region = create_region_from_tuples(gvar, ctx.dimensions, peak_offset, range_offset)?;
-        let r: *const VqRegion = fvar_register_region(ctx.fvar, region);
+        // `polymorphize`'s caller-side guard (`axes_len` computed via
+        // `ctx.fvar.as_deref()`) already returned early if there was no
+        // `fvar` table, so every `polymorphize_glyph` call is guaranteed
+        // a `Some` here; `fvar_register_region` still takes a `*mut
+        // FvarTable` (out of this file's scope, `fvar.rs`'s own
+        // region-dedup table), but a `&mut FvarTable` coerces to that
+        // raw pointer at the call site with no signature change needed
+        // there -- reborrowed fresh each iteration of this loop, same as
+        // the reborrow that built `ctx.fvar` itself in `polymorphize`.
+        let r: *const VqRegion =
+            fvar_register_region(ctx.fvar.as_deref_mut().expect("fvar checked non-null by polymorphize"), region);
 
         let tsd = data_offset + tsd_start;
         // `point_indeces` borrows `shared_point_indeces` by default (freed
@@ -866,13 +880,16 @@ fn polymorphize_glyph(
 // (`otl/subtables/chaining/read.rs`). `__fortable_*` (goto emulation) ->
 // the same `.iter().find()` idiom every other migrated table reader uses.
 #[inline]
-fn polymorphize(packet: &Packet, options: &Options, glyf: &mut GlyfTable, ctx: &GlyfIOContext) {
-    // `ctx.fvar` is `GlyfIOContext`'s own not-yet-safened field, shared
-    // with `fvar.rs`'s region-dedup table (`fvar_register_region` needs
-    // it raw, mutated across every `polymorphize_glyph` call below) -- a
-    // separate, deliberate pointer scheme, out of this file's scope. Its
-    // two derefs here are each a single narrow `unsafe {}`.
-    if ctx.fvar.is_null() || unsafe { (*ctx.fvar).axes.is_empty() } {
+fn polymorphize(packet: &Packet, options: &Options, glyf: &mut GlyfTable, ctx: &mut GlyfIOContext<'_>) {
+    // `ctx.fvar` is a real `Option<&mut FvarTable>` (Stage M-12): reading
+    // its length here only needs `.as_deref()`, a shared reborrow, even
+    // though `ctx` itself is `&mut` (the mutable access, for
+    // `fvar_register_region` below, is reborrowed fresh once per tuple
+    // inside `polymorphize_glyph`).
+    let Some(axes_len) = ctx.fvar.as_deref().map(|f| f.axes.len()) else {
+        return;
+    };
+    if axes_len == 0 {
         return;
     }
     let Some(table) = packet.pieces.iter().find(|p| p.tag == crate::tag::TAG_GVAR) else {
@@ -890,7 +907,7 @@ fn polymorphize(packet: &Packet, options: &Options, glyf: &mut GlyfTable, ctx: &
         return;
     } // majorVersion/minorVersion: never read by the original either
     let Ok(axis_count) = header.u16() else { return };
-    if axis_count as usize != unsafe { (*ctx.fvar).axes.len() } {
+    if axis_count as usize != axes_len {
         logger_log_sds(
             &mut *options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
@@ -938,8 +955,12 @@ fn polymorphize(packet: &Packet, options: &Options, glyf: &mut GlyfTable, ctx: &
             continue;
         };
 
-        let tpctx = TuplePolymorphizerCtx {
-            fvar: ctx.fvar,
+        // `ctx.fvar.as_deref_mut()` reborrows the `&mut FvarTable` fresh
+        // for this one iteration -- `tpctx` (and the reborrow it holds)
+        // is dropped at the end of the loop body, so the next iteration
+        // reborrows again rather than aliasing the previous one.
+        let mut tpctx = TuplePolymorphizerCtx {
+            fvar: ctx.fvar.as_deref_mut(),
             dimensions,
             shared_tuple_count,
             shared_tuples_offset: shared_tuples_offset as usize,
@@ -947,10 +968,10 @@ fn polymorphize(packet: &Packet, options: &Options, glyf: &mut GlyfTable, ctx: &
             allow_iup: !glyph_slot.as_deref().unwrap().contours.is_empty(),
             n_phantom_points: ctx.n_phantom_points,
         };
-        polymorphize_glyph(glyph_slot.as_deref_mut().unwrap(), &tpctx, gvar, gvd_offset);
+        polymorphize_glyph(glyph_slot.as_deref_mut().unwrap(), &mut tpctx, gvar, gvd_offset);
     }
 }
-pub fn otfcc_read_glyf(packet: &Packet, options: &Options, ctx: &GlyfIOContext) -> Option<GlyfTable> {
+pub fn otfcc_read_glyf(packet: &Packet, options: &Options, ctx: &mut GlyfIOContext<'_>) -> Option<GlyfTable> {
     let num_glyphs = ctx.num_glyphs;
     // A local `Vec<u32>` now, not a `__caryll_allocate_clean`'d/`free`'d
     // buffer -- `Vec`'s own allocator aborts rather than returning null on

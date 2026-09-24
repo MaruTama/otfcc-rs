@@ -8,9 +8,9 @@ use crate::font::caryll_font::{Font, FontSubtype};
 use crate::font::caryll_sfnt_builder::SfntBuilder;
 
 use crate::table::_tsi::TsiBuildTarget;
-use crate::table::cff::{CffAndGlyf, CffTable};
+use crate::table::cff::CffAndGlyfRef;
 
-use crate::table::glyf::{GlyfAndLocaBuffers, GlyfTable};
+use crate::table::glyf::GlyfAndLocaBuffers;
 
 use crate::font::caryll_sfnt_builder::{
     otfcc_sfnt_builder_push_table, otfcc_sfnt_builder_serialize,
@@ -67,25 +67,22 @@ pub fn serialize_to_otf(font: &mut Font, options: &Options) -> Buffer {
         otfcc_sfnt_builder_push_table(&mut builder, crate::tag::TAG_GLYF, Some(pair.glyf));
         otfcc_sfnt_builder_push_table(&mut builder, crate::tag::TAG_LOCA, Some(pair.loca));
     } else {
-        let r: CffAndGlyf = CffAndGlyf {
+        // `CffAndGlyfRef` borrows straight into `font`'s own `cff`/`glyf`
+        // fields -- no raw pointer, and (Stage M-10) no `unsafe` call
+        // left here at all. `meta` is required: a CFF-subtype font is
+        // assumed to have a CFF table, the same assumption the old
+        // `.map_or(ptr::null_mut(), ...)` made implicitly (and left an
+        // unchecked null deref inside `writecff_cid_keyed` if it ever
+        // didn't hold) -- `.expect()` makes that assumption explicit
+        // instead.
+        let r = CffAndGlyfRef {
             meta: (*font)
                 .cff
                 .as_deref_mut()
-                .map_or(::core::ptr::null_mut(), |c| c as *mut CffTable),
-            glyphs: (*font)
-                .glyf
-                .as_mut()
-                .map_or(::core::ptr::null_mut(), |g| g as *mut GlyfTable),
+                .expect("a CFF-subtype font must have a CFF table to build"),
+            glyphs: (*font).glyf.as_ref(),
         };
-        // The one genuinely unsafe call left in this function, and the
-        // reason it used to be an `unsafe fn` in its entirety.
-        // `otfcc_build_cff` takes `CffAndGlyf`, whose two fields are raw
-        // pointers into the CFF builder core (excluded from this
-        // migration) -- so it carries a real caller contract. Both
-        // pointers are built immediately above out of `font`'s own live
-        // `Option<Box<_>>` fields and are consumed here, before any later
-        // use of `font`, so the contract is upheld in plain sight.
-        let cff = unsafe { otfcc_build_cff(r, options) };
+        let cff = otfcc_build_cff(r, options);
         otfcc_sfnt_builder_push_table(&mut builder, crate::tag::TAG_CFF, Some(cff));
     }
     otfcc_sfnt_builder_push_table(

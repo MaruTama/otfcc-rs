@@ -1,4 +1,6 @@
-#![allow(unsafe_op_in_unsafe_fn)] // Stage 6 removes this; see RUST_MIGRATION.md
+// Stage M-10 removed this file's last `unsafe` (the `cff_index_free`/
+// `cff_index_create` shell around `CffIndex`), so the file-level allow
+// for implicit-unsafe-in-unsafe-fn is gone too.
 use crate::support::buffer::Buffer;
 use crate::support::font_reader::FontReader;
 use crate::support::primitives::Arity;
@@ -37,20 +39,14 @@ pub(crate) fn cff_index_dispose(x: &mut CffIndex) {
     x.offset = Vec::new();
     x.data = Vec::new();
 }
-#[inline]
-pub(crate) unsafe fn cff_index_free(x: *mut CffIndex) {
-    if x.is_null() {
-        return;
-    }
-    // `offset`/`data` are still freed here exactly as before -- only the
-    // outer shell's own allocator changed, from a bare `malloc`/`free`
-    // pair to `Box::into_raw`/`Box::from_raw`. Every `cff_index_create`/
-    // `cff_index_free` call site pairs consistently (confirmed by grep: no
-    // generic adapter reclaims a `*mut CffIndex` any other way, unlike
-    // `GposPairSubtable`'s `subtable_from_raw`), so this is self-contained.
-    cff_index_dispose(&mut *x);
-    drop(Box::from_raw(x));
-}
+// `cff_index_free`/`cff_index_create` (a `Box::into_raw`/`Box::from_raw`
+// shell -- the latter kept around post-Stage-7-2-d only as a test
+// convenience, per its own doc comment) are gone as of Stage M-10:
+// `new_index_by_callback` below returns `CffIndex` by value now (matching
+// this migration's Stage M-3 treatment of `ClassDef`), and every test that
+// used to reach for `cff_index_create()` just builds a plain
+// `new_empty_cff_index()` local instead -- `extract_index` already takes
+// `&mut CffIndex`, no pointer to adopt either way.
 // A real, valid, empty `CffIndex` value -- as opposed to the all-zero bit
 // pattern `__caryll_allocate_clean` (calloc) would produce, which is NOT a
 // valid `CffIndex` since it owns two `Vec`s. Also used by `cff_parser.rs`'s
@@ -66,18 +62,6 @@ pub(crate) fn new_empty_cff_index() -> CffIndex {
         offset: Vec::new(),
         data: Vec::new(),
     }
-}
-// Only this file's and `subr.rs`'s tests still call this directly (`table/
-// cff.rs`'s production dict builders switched to `new_empty_cff_index()` +
-// `Box::into_raw` inline once they started constructing `CffIndex` values
-// locally instead) -- `#[cfg_attr(not(test), ...)]` rather than deleting it
-// outright, since it's still a real, used-by-tests convenience wrapper.
-#[inline]
-#[cfg_attr(not(test), allow(dead_code))]
-pub(crate) fn cff_index_create() -> *mut CffIndex {
-    // `Box::new`/`Box::into_raw` are both safe -- see `cff_index_free`'s
-    // matching `Box::from_raw`.
-    Box::into_raw(Box::new(new_empty_cff_index()))
 }
 pub(crate) fn get_index_length(i: &CffIndex) -> u32 {
     if i.count != 0 as Arity {
@@ -202,7 +186,7 @@ pub(crate) fn extract_index(data: &[u8], pos: u32, in_0: &mut CffIndex) {
 pub(crate) fn new_index_by_callback(
     length: u32,
     mut items: impl Iterator<Item = Buffer>,
-) -> *mut CffIndex {
+) -> CffIndex {
     let count = length as Arity;
     let mut offset: Vec<u32> = vec![0_u32; count.wrapping_add(1 as Arity) as usize];
     offset[0_usize] = 1_u32;
@@ -228,13 +212,13 @@ pub(crate) fn new_index_by_callback(
         i = i.wrapping_add(1);
     }
     data.truncate(used);
-    Box::into_raw(Box::new(CffIndex {
+    CffIndex {
         count_type: CffIndexCountType::U16,
         count,
         off_size: 4_u8,
         offset,
         data,
-    }))
+    }
 }
 pub(crate) fn build_index(index: &CffIndex) -> Buffer {
     let mut blob = Buffer::new();
@@ -302,28 +286,22 @@ mod extract_index_tests {
     fn reads_a_well_formed_one_entry_index() {
         // count=1, off_size=1, offset=[1,3] (data is 2 bytes), data=[0xAA,0xBB]
         let data = [0x00u8, 0x01, 0x01, 0x01, 0x03, 0xAA, 0xBB];
-        unsafe {
-            let idx = cff_index_create();
-            extract_index(&data, 0, &mut *idx);
-            assert_eq!((*idx).count, 1);
-            assert_eq!((*idx).off_size, 1);
-            assert_eq!((*idx).offset, vec![1, 3]);
-            assert_eq!((*idx).data, vec![0xAA, 0xBB]);
-            cff_index_free(idx);
-        }
+        let mut idx = new_empty_cff_index();
+            extract_index(&data, 0, &mut idx);
+            assert_eq!(idx.count, 1);
+            assert_eq!(idx.off_size, 1);
+            assert_eq!(idx.offset, vec![1, 3]);
+            assert_eq!(idx.data, vec![0xAA, 0xBB]);
     }
 
     #[test]
     fn reads_an_empty_index() {
         let data = [0x00u8, 0x00, 0x00]; // count=0, off_size=0
-        unsafe {
-            let idx = cff_index_create();
-            extract_index(&data, 0, &mut *idx);
-            assert_eq!((*idx).count, 0);
-            assert!((*idx).offset.is_empty());
-            assert!((*idx).data.is_empty());
-            cff_index_free(idx);
-        }
+        let mut idx = new_empty_cff_index();
+            extract_index(&data, 0, &mut idx);
+            assert_eq!(idx.count, 0);
+            assert!(idx.offset.is_empty());
+            assert!(idx.data.is_empty());
     }
 
     #[test]
@@ -336,14 +314,11 @@ mod extract_index_tests {
         // happened to point -- the exact bug the plan's own writeup
         // names by file and line.
         let data = [0x00u8, 0x01, 0x01, 0x01, 0x00];
-        unsafe {
-            let idx = cff_index_create();
-            extract_index(&data, 0, &mut *idx);
-            assert_eq!((*idx).count, 0);
-            assert!((*idx).offset.is_empty());
-            assert!((*idx).data.is_empty());
-            cff_index_free(idx);
-        }
+        let mut idx = new_empty_cff_index();
+            extract_index(&data, 0, &mut idx);
+            assert_eq!(idx.count, 0);
+            assert!(idx.offset.is_empty());
+            assert!(idx.data.is_empty());
     }
 
     #[test]
@@ -353,14 +328,11 @@ mod extract_index_tests {
         // The original had no length parameter to check this against at
         // all.
         let data = [0x00u8, 0x05, 0x04];
-        unsafe {
-            let idx = cff_index_create();
-            extract_index(&data, 0, &mut *idx);
-            assert_eq!((*idx).count, 0);
-            assert!((*idx).offset.is_empty());
-            assert!((*idx).data.is_empty());
-            cff_index_free(idx);
-        }
+        let mut idx = new_empty_cff_index();
+            extract_index(&data, 0, &mut idx);
+            assert_eq!(idx.count, 0);
+            assert!(idx.offset.is_empty());
+            assert!(idx.data.is_empty());
     }
 
     #[test]
@@ -370,14 +342,11 @@ mod extract_index_tests {
         // array -- previously unguarded even when the offsets themselves
         // are internally well-formed (not the wraparound case above).
         let data = [0x00u8, 0x01, 0x01, 0x01, 200u8, 0xAA, 0xBB];
-        unsafe {
-            let idx = cff_index_create();
-            extract_index(&data, 0, &mut *idx);
-            assert_eq!((*idx).count, 0);
-            assert!((*idx).offset.is_empty());
-            assert!((*idx).data.is_empty());
-            cff_index_free(idx);
-        }
+        let mut idx = new_empty_cff_index();
+            extract_index(&data, 0, &mut idx);
+            assert_eq!(idx.count, 0);
+            assert!(idx.offset.is_empty());
+            assert!(idx.data.is_empty());
     }
 
     #[test]
@@ -391,13 +360,10 @@ mod extract_index_tests {
         // (`offset[2] - offset[1]` = 3 - 5, unsigned) is exactly the
         // `get_cff_sid` wraparound this guard exists to close.
         let data = [0x00u8, 0x02, 0x01, 0x01, 0x05, 0x03, 0xAA, 0xBB, 0xCC];
-        unsafe {
-            let idx = cff_index_create();
-            extract_index(&data, 0, &mut *idx);
-            assert_eq!((*idx).count, 0);
-            assert!((*idx).offset.is_empty());
-            cff_index_free(idx);
-        }
+        let mut idx = new_empty_cff_index();
+            extract_index(&data, 0, &mut idx);
+            assert_eq!(idx.count, 0);
+            assert!(idx.offset.is_empty());
     }
 
     #[test]
@@ -407,11 +373,8 @@ mod extract_index_tests {
         // which is just another way to reach the same wraparound bug
         // above (an all-zero offset array's last entry is 0).
         let data = [0x00u8, 0x01, 0x05, 0x00, 0x00];
-        unsafe {
-            let idx = cff_index_create();
-            extract_index(&data, 0, &mut *idx);
-            assert_eq!((*idx).count, 0);
-            cff_index_free(idx);
-        }
+        let mut idx = new_empty_cff_index();
+            extract_index(&data, 0, &mut idx);
+            assert_eq!(idx.count, 0);
     }
 }
