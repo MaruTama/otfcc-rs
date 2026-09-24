@@ -15325,3 +15325,79 @@ on the other platform before a commit is trusted.
     all 21 `tests/fuzz-corpus/known-issues/*.bin` files. `survey-unsafe.sh`:
     `unsafe fn` 14 -> 14 (unchanged -- none of these three functions was
     `unsafe fn`), `unsafe blocks` 96 -> 89, raw pointer types 558 -> 539.
+
+- **Stage M-12: `GlyfIOContext`/`TuplePolymorphizerCtx`'s `fvar: *mut
+  FvarTable` is a real borrow.** Twelfth installment, stacked on M-11.
+  Both structs' one raw-pointer field (`Option`-shaped by null, mutated in
+  flight by `fvar.rs`'s region-dedup table) becomes `Option<&'a mut
+  FvarTable>`, and each struct picks up the matching lifetime parameter.
+  - **The dump side never needed `Copy`.** Every function in `glyf.rs`
+    (`glyf_dump_glyph` and its two `_dump_contours`/`_dump_references`
+    helpers, `otfcc_dump_glyf`) already took `ctx: &GlyfIOContext` and
+    only ever read through it (`json_new_vq(_, ctx.fvar.as_ref())`, an
+    `unsafe` raw-pointer-to-reference conversion the fuller field type
+    now makes unnecessary: `ctx.fvar.as_deref()` gets the same
+    `Option<&FvarTable>` safely). Nothing there ever copied the struct by
+    value or needed a second live reference to it, so this half of the
+    change is a mechanical `&GlyfIOContext` -> `&GlyfIOContext<'_>` plus
+    swapping the four `unsafe { ctx.fvar.as_ref() }` call sites for
+    `ctx.fvar.as_deref()`.
+  - **The read side genuinely mutates through it, so it's threaded by
+    `&mut`, not shared.** `otfcc_read_glyf` -> `polymorphize` ->
+    (per glyph) `TuplePolymorphizerCtx` -> `polymorphize_glyph` ->
+    `fvar_register_region` is the one call chain that needs `&mut
+    FvarTable` (region dedup inserts into `fvar.masters`). Each of those
+    four functions now takes `&mut GlyfIOContext<'_>`/`&mut
+    TuplePolymorphizerCtx<'_>` instead of a shared reference, and
+    `polymorphize`'s per-glyph loop builds each `TuplePolymorphizerCtx`
+    with `ctx.fvar.as_deref_mut()` -- a fresh reborrow every iteration,
+    consumed within that same iteration and nothing else live across it,
+    the ordinary Rust reborrow pattern the raw pointer had been standing
+    in for. `fvar_register_region` itself (`fvar.rs`, out of this stage's
+    two files) needed no signature change at all: it already took `*mut
+    FvarTable`, and a `&mut FvarTable` coerces to that raw pointer at the
+    call site -- its own unit tests already pass `&mut fvar` today, this
+    stage's one call site just joins them.
+  - **Both construction sites** (`otf_reader.rs`'s TTF branch,
+    `json_writer.rs`'s glyf-dump block) drop their `.map_or(::core::
+    ptr::null_mut(), |f| f as *mut FvarTable)` boilerplate for a plain
+    `font.fvar.as_deref_mut()` -- the `Option` now speaks for itself.
+    `otf_reader.rs`'s call site also changes `let ctx` -> `let mut ctx`
+    and `&ctx` -> `&mut ctx` (its only use of `ctx`, so nothing else needed
+    to change); `json_writer.rs`'s stays `&ctx`, since the whole dump path
+    only ever shares it. Both files lose their now-unused `FvarTable`
+    import (kept only for the cast).
+  - **No aliasing conflict, checked**: `GlyfIOContext` is built exactly
+    once per call (one per `read_otf`/`serialize_to_json` invocation) and
+    never copied elsewhere in the crate (confirmed by grep -- every use
+    site already borrowed it), so dropping `Copy`/`Clone` cost nothing;
+    the read-side `&mut` chain has exactly one live borrow at a time by
+    construction (one `GlyfIOContext` per font, one `TuplePolymorphizerCtx`
+    reborrow per glyph, never two glyphs' contexts alive simultaneously),
+    so no restructuring beyond the signature changes above was needed --
+    this is the "raw pointer wasn't actually dodging anything" case the
+    stage's own instructions anticipated, not the aliasing-conflict one.
+  - **Test effectiveness**: `tests/golden.rs`'s variable-font fixtures
+    (the ones that actually exercise `fvar`/`gvar`, confirmed by grep)
+    passed unchanged, and both `otf_dump`/`otf_parse` fuzz targets (which
+    exercise this exact `otfcc_read_glyf` -> `polymorphize` ->
+    `fvar_register_region` chain, unlike `json_build`'s build-from-JSON
+    path, which never constructs a `GlyfIOContext` at all) ran clean.
+  - **Unrelated pre-existing bug found while fuzzing, not touched**:
+    `json_build` hit a `neg_overflow` panic in `support::parsed_json.rs`'s
+    `parse_number` (an unchecked `-int_val`/`-dbl` on a value built by
+    `wrapping_mul`/`wrapping_add`, which can reach `i64::MIN`) --
+    reproduced identically against the pre-Stage-M-12 tree (confirmed by
+    stashing this stage's changes and re-running the exact crash input),
+    and with a fresh, empty fuzz corpus `json_build` instead ran 4.66M
+    iterations clean, confirming the crash was corpus state, not this
+    stage. Nothing in this stage's two files is on `json_build`'s
+    build-from-JSON path at all. Left as-is, out of scope for this stage.
+  - **Verification**: build, `clippy --all-targets -- -D warnings`, `cargo
+    test -- --test-threads=1` (412 lib tests; full suite run twice, 1-2 of
+    the same pre-existing timing-threshold failures each time, matching
+    M-11's baseline), Miri (targeted: `table::glyf::`), all three fuzz
+    targets (90s each, `json_build` re-run again with a fresh corpus per
+    above), all 21 `tests/fuzz-corpus/known-issues/*.bin` files re-run
+    directly. `survey-unsafe.sh`: `unsafe fn` 14 -> 14, `unsafe blocks`
+    89 -> 78, raw pointer types 539 -> 535, `is_null()` calls 32 -> 31.

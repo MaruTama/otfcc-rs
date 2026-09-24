@@ -19,7 +19,7 @@ use crate::table::colr::otfcc_read_colr;
 use crate::table::cpal::otfcc_read_cpal;
 use crate::table::cvt::otfcc_read_cvt;
 use crate::table::fpgm_prep::otfcc_read_fpgm_prep;
-use crate::table::fvar::{FvarTable, otfcc_read_fvar};
+use crate::table::fvar::otfcc_read_fvar;
 use crate::table::gasp::otfcc_read_gasp;
 use crate::table::gdef::otfcc_read_gdef;
 use crate::table::glyf::read::otfcc_read_glyf;
@@ -118,18 +118,15 @@ pub unsafe fn read_otf(sfnt: &SplineFontContainer, index: u32, options: &Options
             // both, so it is left `None` (its default) rather than
             // guessing at either value.
             if font.head.is_some() && font.maxp.is_some() {
-                let ctx: GlyfIOContext = GlyfIOContext {
+                let mut ctx: GlyfIOContext = GlyfIOContext {
                     loca_is_long: font.head.as_deref().unwrap().index_to_loc_format != 0,
                     num_glyphs: font.maxp.as_deref().unwrap().num_glyphs as GlyphId,
                     n_phantom_points: 4 as ShapeId,
-                    fvar: font
-                        .fvar
-                        .as_deref_mut()
-                        .map_or(::core::ptr::null_mut(), |f| f as *mut FvarTable),
+                    fvar: font.fvar.as_deref_mut(),
                     has_vertical_metrics: false,
                     export_fd_select: false,
                 };
-                font.glyf = otfcc_read_glyf(packet, options, &ctx);
+                font.glyf = otfcc_read_glyf(packet, options, &mut ctx);
             }
         } else {
             let cffpr: CffAndGlyfOwned =
