@@ -44,7 +44,7 @@ pub fn otfcc_read_ltsh(packet: &Packet, options: &Options) -> Option<Box<LtshTab
         Ok(parsed) => parsed,
         Err(_) => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'LTSH' corrupted.\n"),

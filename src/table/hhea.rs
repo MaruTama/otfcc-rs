@@ -63,7 +63,7 @@ pub fn otfcc_read_hhea(packet: &Packet, options: &Options) -> Option<Box<HheaTab
         Ok(hhea) => Some(Box::new(hhea)),
         Err(_) => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'hhea' corrupted.\n"),
@@ -77,7 +77,7 @@ pub fn otfcc_dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue, options
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"hhea"),
     );
     let mut hhea = BuiltValue::new_object(13);
@@ -111,7 +111,7 @@ pub fn otfcc_dump_hhea(table: Option<&HheaTable>, root: &mut BuiltValue, options
     );
     hhea.push_field(b"caretOffset", BuiltValue::Int(table.caret_offset as i64));
     root.push_field(b"hhea", hhea);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 pub fn otfcc_parse_hhea(root: &ParsedValue, options: &Options) -> Option<Box<HheaTable>> {
     let mut hhea = HheaTable {
@@ -132,7 +132,7 @@ pub fn otfcc_parse_hhea(root: &ParsedValue, options: &Options) -> Option<Box<Hhe
     };
     if let Some(table) = root.get_typed(b"hhea", JsonType::Object) {
         logger_start_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"hhea"),
         );
         hhea.version = otfcc_to_fixed(table.get_num(b"version"));
@@ -146,7 +146,7 @@ pub fn otfcc_parse_hhea(root: &ParsedValue, options: &Options) -> Option<Box<Hhe
         hhea.caret_slope_rise = table.get_num(b"caretSlopeRise") as i16;
         hhea.caret_slope_run = table.get_num(b"caretSlopeRun") as i16;
         hhea.caret_offset = table.get_num(b"caretOffset") as i16;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
     Some(Box::new(hhea))
 }

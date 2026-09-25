@@ -143,12 +143,12 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
     {
         return;
     }
-    logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let mut otl = BuiltValue::new_object(3);
         logger_start_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"Languages"),
         );
         let mut ___loggedstep_v_0: bool = true;
@@ -183,10 +183,10 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
             }
             otl.push_field(b"languages", languages);
             ___loggedstep_v_0 = false;
-            logger_finish(&mut *options.logger.borrow_mut());
+            logger_finish(&mut options.logger.borrow_mut());
         }
         logger_start_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"Features"),
         );
         let mut ___loggedstep_v_1: bool = true;
@@ -210,10 +210,10 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
             }
             otl.push_field(b"features", features_0);
             ___loggedstep_v_1 = false;
-            logger_finish(&mut *options.logger.borrow_mut());
+            logger_finish(&mut options.logger.borrow_mut());
         }
         logger_start_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"Lookups"),
         );
         let mut ___loggedstep_v_2: bool = true;
@@ -230,10 +230,10 @@ pub fn otfcc_dump_otl(table: Option<&OtlTable>, root: &mut BuiltValue, options: 
             otl.push_field(b"lookups", lookups);
             otl.push_field(b"lookupOrder", lookup_order);
             ___loggedstep_v_2 = false;
-            logger_finish(&mut *options.logger.borrow_mut());
+            logger_finish(&mut options.logger.borrow_mut());
         }
         root.push_field(tag, otl);
         ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
 }

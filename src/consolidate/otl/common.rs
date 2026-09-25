@@ -23,7 +23,7 @@ pub fn fontop_consolidate_coverage(
     for glyph in coverage.iter_mut() {
         if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &glyph.name, b".\n",),
@@ -57,7 +57,7 @@ pub fn fontop_consolidate_class_def(
     for (glyph, class) in cd.glyphs.iter_mut().zip(cd.classes.iter_mut()) {
         if !otfcc_gord_consolidate_handle(glyph_order, glyph) {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &glyph.name, b".\n",),

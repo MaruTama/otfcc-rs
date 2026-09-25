@@ -224,7 +224,7 @@ pub fn otfcc_dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue, options
         None => return,
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"CPAL"),
     );
     let palettes: &Vec<CpalPalette> = &table.palettes;
@@ -239,7 +239,7 @@ pub fn otfcc_dump_cpal(table: Option<&CpalTable>, root: &mut BuiltValue, options
         _t.push_field(b"palettes", _a);
         root.push_field(b"CPAL", _t);
         ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
 }
 #[inline]
@@ -258,7 +258,7 @@ fn parse_color(color: Option<&ParsedValue>) -> CpalColor {
 pub fn otfcc_parse_cpal(root: &ParsedValue, options: &Options) -> Option<Box<CpalTable>> {
     let table = root.get_typed(b"CPAL", JsonType::Object)?;
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"CPAL"),
     );
     // Matches the pre-migration control flow exactly: an empty/missing
@@ -295,7 +295,7 @@ pub fn otfcc_parse_cpal(root: &ParsedValue, options: &Options) -> Option<Box<Cpa
         }
         cpal.palettes.push(palette);
     }
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(cpal)
 }
 #[inline]

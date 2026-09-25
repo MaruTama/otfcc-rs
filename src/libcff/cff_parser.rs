@@ -179,7 +179,7 @@ fn parse_cff_bytecode(cff: &mut CffFile, options: &Options) {
     extract_index(header_slice, pos, &mut cff.top_dict);
     if cff.name.count != cff.top_dict.count {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(
@@ -229,7 +229,7 @@ fn parse_cff_bytecode(cff: &mut CffFile, options: &Options) {
         } else {
             empty_index(&mut cff.char_strings);
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[libcff] Bad CFF font: no any glyph data.\n"),
@@ -545,7 +545,7 @@ pub fn cff_parse_outline(
 ) {
     if depth > MAX_SUBR_CALL_DEPTH {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(
@@ -711,7 +711,7 @@ pub fn cff_parse_outline(
                     4 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -746,7 +746,7 @@ pub fn cff_parse_outline(
                     21 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -783,7 +783,7 @@ pub fn cff_parse_outline(
                     22 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -946,7 +946,7 @@ pub fn cff_parse_outline(
                     24 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -991,7 +991,7 @@ pub fn cff_parse_outline(
                     25 => {
                         if (*stack).index < 6 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1164,7 +1164,7 @@ pub fn cff_parse_outline(
                             && (*stack).index < 5 as Arity
                         {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1279,7 +1279,7 @@ pub fn cff_parse_outline(
                             && (*stack).index < 5 as Arity
                         {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1389,7 +1389,7 @@ pub fn cff_parse_outline(
                     3106 => {
                         if (*stack).index < 7 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1441,7 +1441,7 @@ pub fn cff_parse_outline(
                     3107 => {
                         if (*stack).index < 12 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1501,7 +1501,7 @@ pub fn cff_parse_outline(
                     3108 => {
                         if (*stack).index < 9 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1561,7 +1561,7 @@ pub fn cff_parse_outline(
                     3109 => {
                         if (*stack).index < 11 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1650,7 +1650,7 @@ pub fn cff_parse_outline(
                     3075 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1680,7 +1680,7 @@ pub fn cff_parse_outline(
                     3076 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1710,7 +1710,7 @@ pub fn cff_parse_outline(
                     3077 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1732,7 +1732,7 @@ pub fn cff_parse_outline(
                     3081 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1754,7 +1754,7 @@ pub fn cff_parse_outline(
                     3082 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1780,7 +1780,7 @@ pub fn cff_parse_outline(
                     3083 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1806,7 +1806,7 @@ pub fn cff_parse_outline(
                     3084 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1832,7 +1832,7 @@ pub fn cff_parse_outline(
                     3086 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1854,7 +1854,7 @@ pub fn cff_parse_outline(
                     3087 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1880,7 +1880,7 @@ pub fn cff_parse_outline(
                     3090 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1898,7 +1898,7 @@ pub fn cff_parse_outline(
                     3092 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1937,7 +1937,7 @@ pub fn cff_parse_outline(
                     3093 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -1966,7 +1966,7 @@ pub fn cff_parse_outline(
                     3094 => {
                         if (*stack).index < 4 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -2002,7 +2002,7 @@ pub fn cff_parse_outline(
                             (*stack).index = (*stack).index.wrapping_add(1 as Arity);
                         } else {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -2016,7 +2016,7 @@ pub fn cff_parse_outline(
                     3096 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -2042,7 +2042,7 @@ pub fn cff_parse_outline(
                     3098 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -2064,7 +2064,7 @@ pub fn cff_parse_outline(
                     3099 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -2081,7 +2081,7 @@ pub fn cff_parse_outline(
                             (*stack).index = (*stack).index.wrapping_add(1 as Arity);
                         } else {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -2095,7 +2095,7 @@ pub fn cff_parse_outline(
                     3100 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -2122,7 +2122,7 @@ pub fn cff_parse_outline(
                     3101 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -2151,7 +2151,7 @@ pub fn cff_parse_outline(
                             // operation instead.
                             if n == 0 {
                                 logger_log_sds(
-                                    &mut *options.logger.borrow_mut(),
+                                    &mut options.logger.borrow_mut(),
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::bytesbuild!(
@@ -2176,7 +2176,7 @@ pub fn cff_parse_outline(
                     3102 => {
                         if (*stack).index < 2 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -2196,7 +2196,7 @@ pub fn cff_parse_outline(
                             ) as u32;
                             if (*stack).index < 2_u32.wrapping_add(n_0) {
                                 logger_log_sds(
-                                    &mut *options.logger.borrow_mut(),
+                                    &mut options.logger.borrow_mut(),
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::bytesbuild!(
@@ -2248,7 +2248,7 @@ pub fn cff_parse_outline(
                     10 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -2269,7 +2269,7 @@ pub fn cff_parse_outline(
                                 if *total_calls > MAX_TOTAL_SUBR_CALLS {
                                     if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
                                         logger_log_sds(
-                                            &mut *options.logger.borrow_mut(),
+                                            &mut options.logger.borrow_mut(),
                                             LOG_VL_IMPORTANT,
                                             LoggerType::Warning,
                                             crate::bytesbuild!(
@@ -2293,7 +2293,7 @@ pub fn cff_parse_outline(
                                 }
                             } else {
                                 logger_log_sds(
-                                    &mut *options.logger.borrow_mut(),
+                                    &mut options.logger.borrow_mut(),
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::bytesbuild!(
@@ -2310,7 +2310,7 @@ pub fn cff_parse_outline(
                     29 => {
                         if (*stack).index < 1 as Arity {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(
@@ -2331,7 +2331,7 @@ pub fn cff_parse_outline(
                                 if *total_calls > MAX_TOTAL_SUBR_CALLS {
                                     if *total_calls == MAX_TOTAL_SUBR_CALLS + 1 {
                                         logger_log_sds(
-                                            &mut *options.logger.borrow_mut(),
+                                            &mut options.logger.borrow_mut(),
                                             LOG_VL_IMPORTANT,
                                             LoggerType::Warning,
                                             crate::bytesbuild!(
@@ -2355,7 +2355,7 @@ pub fn cff_parse_outline(
                                 }
                             } else {
                                 logger_log_sds(
-                                    &mut *options.logger.borrow_mut(),
+                                    &mut options.logger.borrow_mut(),
                                     LOG_VL_IMPORTANT,
                                     LoggerType::Warning,
                                     crate::bytesbuild!(
@@ -2371,7 +2371,7 @@ pub fn cff_parse_outline(
                     }
                     _ => {
                         logger_log_sds(
-                            &mut *options.logger.borrow_mut(),
+                            &mut options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(
@@ -2390,7 +2390,7 @@ pub fn cff_parse_outline(
                     (*stack).index = (*stack).index.wrapping_add(1);
                 } else {
                     logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
+                        &mut options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(

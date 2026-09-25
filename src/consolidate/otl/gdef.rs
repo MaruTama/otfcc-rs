@@ -68,7 +68,7 @@ pub fn consolidate_gdef(glyph_order: Option<&GlyphOrder>, gdef: Option<&mut Gdef
                 let gid: i32 = rec.glyph.index as i32;
                 if seen.contains_key(&gid) {
                     logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
+                        &mut options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(

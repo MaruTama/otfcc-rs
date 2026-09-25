@@ -281,7 +281,7 @@ fn otfcc_read_composite_glyph(body: &[u8], options: &Options) -> Option<Box<Glyp
                 || flags.contains(ComponentFlags::WE_HAVE_A_TWO_BY_TWO))
         {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"glyf: SCALED_COMPONENT_OFFSET is not supported."),
@@ -915,7 +915,7 @@ fn polymorphize(packet: &Packet, options: &Options, glyf: &mut GlyfTable, ctx: &
     let Ok(axis_count) = header.u16() else { return };
     if axis_count as usize != axes_len {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Axes number in GVAR and FVAR are inequal"),
@@ -991,7 +991,7 @@ pub fn otfcc_read_glyf(packet: &Packet, options: &Options, ctx: &mut GlyfIOConte
     // this crate uses.
     let loca_corrupted = || {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"table 'loca' corrupted.\n"),
@@ -1046,7 +1046,7 @@ pub fn otfcc_read_glyf(packet: &Packet, options: &Options, ctx: &mut GlyfIOConte
         .find(|p| p.tag == crate::tag::TAG_GLYF)?;
     if glyf_piece.length < offsets[num_glyphs as usize] {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"table 'glyf' corrupted.\n"),

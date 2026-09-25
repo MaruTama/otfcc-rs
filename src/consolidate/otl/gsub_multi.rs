@@ -35,7 +35,7 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.from) {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.from.name, b".\n",),
@@ -45,7 +45,7 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
             shrink_coverage(&mut entry.to, false);
             if entry.to.is_empty() {
                 logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
+                    &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(b"[Consolidate] Ignoring empty one-to-many / alternative substitution for glyph /",

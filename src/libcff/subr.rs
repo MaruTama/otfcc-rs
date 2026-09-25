@@ -827,7 +827,7 @@ pub fn cff_il_graph_to_buffers(
     cff_stat_height(g, root, 0_u32);
     let max_subroutines: u32 = cff_number_subroutines(g);
     logger_log_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         LOG_VL_PROGRESS,
         LoggerType::Progress,
         crate::bytesbuild!(

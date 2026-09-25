@@ -16939,3 +16939,90 @@ on the other platform before a commit is trusted.
     nothing here changes parsing/serialization logic, only where its
     source files live. No `survey-unsafe.sh` movement (file moves, no code
     changes).
+
+- **`clippy::len_zero` fixed (24 sites), dropped from the allow-list.** The
+  already-landed Stage 9 Buffer-safe-API migration turned raw-pointer
+  comparisons like `(*c).data.len() != 0` into method calls like
+  `c.len() != 0` on a type that now implements `.is_empty()` -- exactly the
+  shape this lint fires on. Cargo.toml's own entry was stale (documented
+  "2", real count 24 unique sites, confirmed via a full `cargo clippy
+  --all-targets --message-format=json` run with every allow temporarily
+  removed). Applied via `cargo clippy --fix --all-targets -- -A clippy::all
+  -W clippy::len_zero`, scoped to just this lint (same technique as the
+  prior `needless_return` bulk-fix), every resulting hunk reviewed by hand:
+  `== 0` -> `.is_empty()`, `!= 0`/`> 0` -> `!.is_empty()`, no negation
+  errors. Re-ran the full all-lints-enabled clippy pass before and after
+  and diffed every other lint's site set: byte-identical, nothing else
+  moved. Verification: `cargo build --lib`/`--all-targets` clean, `cargo
+  clippy --all-targets -- -D warnings` clean, `cargo test
+  -- --test-threads=1` (422 passed, 1 pre-existing timing-threshold flake
+  on record since M-10), golden/abi/dll_abi/log_output/cycles suites
+  byte-for-byte, `cargo check` in `fuzz/` clean. No `survey-unsafe.sh`
+  movement (method-call rewrite, no unsafe code touched).
+
+- **`clippy::explicit_auto_deref`'s `RefCell`/`RefMut` reborrow subset
+  fixed (327 sites); the 467+ raw-pointer c2rust-idiom sites deliberately
+  left alone.** This lint's allow-list entry covers two genuinely different
+  shapes that happen to share one lint id: the original, documented
+  `(*ptr).field`-style raw-pointer deref from c2rust's transpile (explicitly
+  deferred to the later parse-boundary-safety stage, per Cargo.toml's own
+  comment) and a newer, unrelated pattern introduced by the Options/Logger
+  ownership refactor -- `&mut *options.logger.borrow_mut()`, an explicit
+  reborrow through a `RefMut` guard that's redundant now that `RefMut`
+  derefs and coerces the same way without the explicit `*`. Only the second
+  shape was in scope here; the first was left untouched on purpose.
+  - **Scope verification.** A full `cargo clippy --all-targets
+    --message-format=json` run with every allow removed (`Cargo.toml`'s
+    `[lints.rust] warnings` also had to move from `"deny"` to `"warn"` for
+    this, otherwise cargo stops after the first target fails and the
+    `--all-targets` sweep never reaches `src/bin`/tests/benches -- reverted
+    immediately after each measurement) gave 896 `explicit_auto_deref`
+    sites at the pre-fix baseline (928db34) and 569 after this fix lands,
+    a delta of exactly 327 -- matching the diff's hunk count one-for-one.
+    Every removed line was grepped for `borrow`/`RefCell`/`RefMut` before
+    touching anything: all 327 matched, zero contained a raw-pointer cast
+    or `*mut`/`*const` shape. After the fix, zero of the 569 remaining
+    `explicit_auto_deref` sites mention `borrow` in their source line --
+    confirming the split is clean in both directions, not just that this
+    fix's own hunks were the right shape. Diffed every other allow-listed
+    lint's site set (file+line+column) between the pre- and post-fix
+    clippy runs: byte-identical, nothing else moved.
+  - **Per-hunk review, not a sample.** All 327 hunks turned out to be the
+    exact same one-line transformation at 327 different call sites:
+    `&mut *options.logger.borrow_mut()` -> `&mut options.logger.
+    borrow_mut()`, verified programmatically (strip `&mut *` -> `&mut ` on
+    every removed line and diff byte-for-byte against its paired added
+    line: zero mismatches across all 327). This is the lowest-risk shape
+    this lint has: the `RefMut` is never bound to a variable, only ever
+    used inline as a single function-call argument or in an inline `&mut
+    *expr` reborrow -- so removing the explicit `*` cannot shift when the
+    borrow starts or ends (still exactly the enclosing statement/call) and
+    cannot change the coercion target (`RefMut<Logger>` derefs to `&mut
+    Logger` either way, the same site clippy is pointing at). No hunk in
+    this batch stored a guard in a `let` binding for later reuse -- the
+    task's flagged highest-risk shape simply doesn't occur here. Applied
+    via `cargo clippy --fix --all-targets -- -A clippy::all -W
+    clippy::explicit_auto_deref`, scoped to just this lint, same technique
+    as `len_zero`/`needless_return` before it.
+  - **`Cargo.toml`'s entry updated, not removed**: 467+ raw-pointer sites
+    (569 measured after this fix, none of them `RefCell`-related) remain
+    genuinely out of scope, deferred to the parse-boundary-safety stage
+    that will rewrite those call sites outright. The count comment moved
+    from the stale "286" to "569", with a note pointing at this entry for
+    why the number no longer matches the `RefCell` subset that used to
+    inflate it.
+  - **Verification**: `cargo build --lib`/`--all-targets` clean, `cargo
+    clippy --all-targets -- -D warnings` clean, `cargo test
+    -- --test-threads=1` (422 passed, 1 pre-existing timing-threshold
+    flake on record since M-10, unrelated), and -- since a `RefCell` guard
+    lifetime shift is exactly the kind of bug that changes *when* a log
+    message is emitted without necessarily crashing -- the golden/abi/
+    dll_abi/log_output/cycles integration suites explicitly re-run and
+    passing byte-for-byte, `log_output_matches_golden` in particular being
+    the direct check on logger behavior. `cargo check` in `fuzz/` clean.
+    `survey-unsafe.sh`: no movement (all 327 sites are already-safe
+    `RefCell` code, no `unsafe`/raw-pointer line touched by this fix, and
+    the script's counters were also checked unchanged: `unsafe fn`/
+    `unsafe blocks`/raw pointer types 8/48/498, `.offset(` 22,
+    `is_null()` 21, `while loops` 226, matching the prior stage's own
+    figures).

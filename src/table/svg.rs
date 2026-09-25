@@ -106,7 +106,7 @@ pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &O
         None => return,
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"SVG "),
     );
     let entries: &Vec<SvgAssignment> = svg;
@@ -129,14 +129,14 @@ pub fn otfcc_dump_svg(svg: Option<&SvgTable>, root: &mut BuiltValue, options: &O
         }
         root.push_field(b"SVG_", _svg);
         ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
 }
 pub fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable> {
     let svg_val = root.get_typed(b"SVG_", JsonType::Array)?;
     let mut svg: SvgTable = Vec::new();
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"SVG "),
     );
     let mut ___loggedstep_v: bool = true;
@@ -161,7 +161,7 @@ pub fn otfcc_parse_svg(root: &ParsedValue, options: &Options) -> Option<SvgTable
             }
         }
         ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
     return Some(svg);
 }

@@ -301,7 +301,7 @@ fn _declare_lookup_parser(
     if !matches_type {
         if type_0.is_none() {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
@@ -316,7 +316,7 @@ fn _declare_lookup_parser(
     let name_bytes: Vec<u8> = lookup_name.to_vec();
     if lh.entries.iter().any(|e| e.name == name_bytes) {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Lookup ", lookup_name, b" already exists."),
@@ -325,7 +325,7 @@ fn _declare_lookup_parser(
     }
     let Some(subtables) = lv.and_then(|v| v.get_typed(b"subtables", JsonType::Array)) else {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(
@@ -354,7 +354,7 @@ fn _declare_lookup_parser(
     }
     let subtable_items = subtables.as_array().unwrap();
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(lookup_name),
     );
     let mut ___loggedstep_v: bool = true;
@@ -366,11 +366,11 @@ fn _declare_lookup_parser(
             }
         }
         ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
     if lookup.subtables.is_empty() {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"Lookup ", lookup_name, b" does not have any subtables."),
@@ -404,7 +404,7 @@ fn figure_out_lookups_from_json(lookups: Option<&ParsedValue>, options: &Options
             let parsed: bool = _parse_lookup(Some(lookup_val), lookup_name, options, &mut lh);
             if !parsed {
                 logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
+                    &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(
@@ -509,7 +509,7 @@ fn feature_merger_activate(d: &mut ParsedValue, sametag: bool, objtype: &[u8], o
             let kthis = &fields[j].0;
             let kthat = &fields[k].0;
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_NOTICE,
                 LoggerType::Info,
                 crate::bytesbuild!(
@@ -557,7 +557,7 @@ fn figure_out_features_from_json(
                         al.push(item.lookup_id);
                     } else {
                         logger_log_sds(
-                            &mut *options.logger.borrow_mut(),
+                            &mut options.logger.borrow_mut(),
                             LOG_VL_IMPORTANT,
                             LoggerType::Warning,
                             crate::bytesbuild!(
@@ -596,7 +596,7 @@ fn figure_out_features_from_json(
                     });
                 } else {
                     logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
+                        &mut options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(
@@ -610,7 +610,7 @@ fn figure_out_features_from_json(
                 }
             } else {
                 logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
+                    &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(
@@ -704,7 +704,7 @@ fn figure_out_languages_from_json(
                     );
                 } else {
                     logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
+                        &mut options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(
@@ -718,7 +718,7 @@ fn figure_out_languages_from_json(
                 }
             } else {
                 logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
+                    &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(
@@ -771,7 +771,7 @@ pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8])
             .and_then(|t| t.get_typed(b"lookups", JsonType::Object))
             .map_or(::core::ptr::null(), |v| v as *const ParsedValue);
         if !(languages.is_null() || features.is_null() || lookups.is_null()) {
-            logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
+            logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
             // No longer a `___loggedstep_v`/`current_block`-flagged `loop`
             // simulating "run this block once, then jump past the
             // `logger_finish`+early-return on failure" -- the block below
@@ -803,7 +803,7 @@ pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8])
             let sh: std::collections::BTreeMap<Vec<u8>, PendingLanguage> =
                 figure_out_languages_from_json(unsafe { languages.as_ref() }, &fh, tag, options);
             if lh.entries.is_empty() || fh.entries.is_empty() || sh.is_empty() {
-                logger_dedent(&mut *options.logger.borrow_mut());
+                logger_dedent(&mut options.logger.borrow_mut());
             } else {
                 // `lh.entries` is an owned `Vec` now, not a chain of
                 // uthash nodes reached via a raw pointer, so there is no
@@ -902,14 +902,14 @@ pub unsafe fn otfcc_parse_otl(root: &ParsedValue, options: &Options, tag: &[u8])
                     language_box.features = features;
                     (*otl).languages.push(language_box);
                 }
-                logger_finish(&mut *options.logger.borrow_mut());
+                logger_finish(&mut options.logger.borrow_mut());
                 return otl_box;
             }
         }
     }
     if otl_box.is_some() {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(

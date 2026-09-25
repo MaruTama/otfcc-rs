@@ -48,7 +48,7 @@ ptr_offset_with_cast = "allow" # 105 -- `ptr.offset(x as isize)`
 # Stage 7-4 (C-ism mechanical cleanup) removes these as a direct consequence
 # of further mechanical passes over c2rust's transpile shape:
 needless_return = "allow" # 1426 -- c2rust's explicit `return expr;` at fn end
-explicit_auto_deref = "allow" # 286 -- c2rust's `&raw` / deref-cast idiom
+explicit_auto_deref = "allow" # 569 -- c2rust's `&raw` / deref-cast idiom (raw-pointer sites only; the RefCell/RefMut reborrow subset was fixed separately, see RUST_MIGRATION.md)
 precedence = "allow" # 24 -- `a & b == c` read as `a & (b == c)`, matches C's precedence table
 redundant_field_names = "allow" # 22 -- `Struct { field: field }`
 toplevel_ref_arg = "allow" # 34 -- `fn f(ref x: T)`, c2rust's by-value-into-by-ref idiom

@@ -96,7 +96,7 @@ pub fn otfcc_read_maxp(packet: &Packet, options: &Options) -> Option<Box<MaxpTab
         Ok(maxp) => Some(Box::new(maxp)),
         Err(_) => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'maxp' corrupted.\n"),
@@ -110,7 +110,7 @@ pub fn otfcc_dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue, options
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"maxp"),
     );
     let mut maxp = BuiltValue::new_object(15);
@@ -160,7 +160,7 @@ pub fn otfcc_dump_maxp(table: Option<&MaxpTable>, root: &mut BuiltValue, options
         BuiltValue::Int(table.max_component_depth as i64),
     );
     root.push_field(b"maxp", maxp);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 pub fn otfcc_parse_maxp(root: &ParsedValue, options: &Options) -> Option<Box<MaxpTable>> {
     // `.version` carries `init_maxp`'s `0x10000` default through if the
@@ -188,7 +188,7 @@ pub fn otfcc_parse_maxp(root: &ParsedValue, options: &Options) -> Option<Box<Max
     };
     if let Some(table) = root.get_typed(b"maxp", JsonType::Object) {
         logger_start_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"maxp"),
         );
         maxp.version = otfcc_to_fixed(table.get_num(b"version"));
@@ -199,7 +199,7 @@ pub fn otfcc_parse_maxp(root: &ParsedValue, options: &Options) -> Option<Box<Max
         maxp.max_function_defs = table.get_num(b"maxFunctionDefs") as u16;
         maxp.max_instruction_defs = table.get_num(b"maxInstructionDefs") as u16;
         maxp.max_stack_elements = table.get_num(b"maxStackElements") as u16;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
     Some(Box::new(maxp))
 }

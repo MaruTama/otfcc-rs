@@ -26,7 +26,7 @@ pub fn consolidate_gsub_ligature(
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.to) {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.to.name, b".\n",),
@@ -36,7 +36,7 @@ pub fn consolidate_gsub_ligature(
             shrink_coverage(&mut entry.from, false);
             if entry.from.is_empty() {
                 logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
+                    &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(

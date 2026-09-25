@@ -41,7 +41,7 @@ pub fn otfcc_parse_meta(root: &ParsedValue, options: &Options) -> Option<Box<Met
         entries: Vec::new(),
     });
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"meta"),
     );
     for _e in entries {
@@ -57,7 +57,7 @@ pub fn otfcc_parse_meta(root: &ParsedValue, options: &Options) -> Option<Box<Met
             meta.entries.push(MetaEntry { tag, data });
         }
     }
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(meta)
 }
 #[inline]

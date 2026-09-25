@@ -43,7 +43,7 @@ pub(crate) fn consolidate_chaining(
     };
     if !chaining_is_canonical(subtable) {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Consolidate] Ignoring non-canonical chaining subtable."),
@@ -122,7 +122,7 @@ pub(crate) fn consolidate_chaining(
                 if budget > 0 {
                     options.consolidate_warning_budget.set(budget - 1);
                     logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
+                        &mut options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(
@@ -155,7 +155,7 @@ pub(crate) fn consolidate_chaining(
                 if budget > 0 {
                     options.consolidate_warning_budget.set(budget - 1);
                     logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
+                        &mut options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(

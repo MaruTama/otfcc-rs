@@ -377,7 +377,7 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
         let (lookup_idx, lookup) = live[j];
         let heu: BuildHeuristics = get_lookup_heuristics(table, lookup_idx, lookup);
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_PROGRESS,
             LoggerType::Progress,
             crate::bytesbuild!(
@@ -411,7 +411,7 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
         let (_, lookup_0) = live[j_1];
         if subtable_quantity[j_1] == 0 {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_NOTICE,
                 LoggerType::Info,
                 crate::bytesbuild!(b"Lookup ", &lookup_0.name, b" is empty.\n",),
@@ -422,7 +422,7 @@ fn write_otl_lookups(table: &OtlTable, options: &Options, tag: &[u8]) -> BkBlock
             use_extended as i32 != 0 || prefer_ext_for_this_lut[j_1] as i32 != 0;
         if use_extended_for_it {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_NOTICE,
                 LoggerType::Info,
                 crate::bytesbuild!(
@@ -670,7 +670,7 @@ fn write_otl_script_and_languages(table: &OtlTable, feature_dense: &[Option<u16>
 pub fn otfcc_build_otl(table: Option<&OtlTable>, options: &Options, tag: &[u8]) -> Option<Buffer> {
     let table: &OtlTable = table?;
     let mut buf: Option<Buffer> = None;
-    logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
         let lookup_dense = storage_to_dense(&table.lookups);
@@ -686,7 +686,7 @@ pub fn otfcc_build_otl(table: Option<&OtlTable>, options: &Options, tag: &[u8]) 
         ]);
         buf = Some(bk_build_block(root));
         ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
     return buf;
 }

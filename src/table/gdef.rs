@@ -200,7 +200,7 @@ pub fn otfcc_dump_gdef(gdef: Option<&GdefTable>, root: &mut BuiltValue, options:
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"GDEF"),
     );
     let mut _gdef = BuiltValue::new_object(4);
@@ -214,7 +214,7 @@ pub fn otfcc_dump_gdef(gdef: Option<&GdefTable>, root: &mut BuiltValue, options:
         _gdef.push_field(b"ligCarets", dump_gdef_lig_carets(gdef));
     }
     root.push_field(b"GDEF", _gdef);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: &mut LigCaretTable) {
     let Some(fields) = carets.and_then(ParsedValue::as_object) else {
@@ -255,7 +255,7 @@ fn lig_caret_from_json(carets: Option<&ParsedValue>, lc: &mut LigCaretTable) {
 pub fn otfcc_parse_gdef(root: &ParsedValue, options: &Options) -> Option<Box<GdefTable>> {
     let table = root.get_typed(b"GDEF", JsonType::Object)?;
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"GDEF"),
     );
     let mut gdef: Box<GdefTable> = Box::new(GdefTable {
@@ -269,7 +269,7 @@ pub fn otfcc_parse_gdef(root: &ParsedValue, options: &Options) -> Option<Box<Gde
     gdef.mark_attach_class_def =
         parse_class_def(table.get(b"markAttachClassDef")).map(Box::new);
     lig_caret_from_json(table.get(b"ligCarets"), &mut gdef.lig_carets);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(gdef)
 }
 // `bk_new_block`/`bk_push`/`bk_new_block_from_buffer`/`bk_build_block`

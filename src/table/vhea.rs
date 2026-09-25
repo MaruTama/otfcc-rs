@@ -85,7 +85,7 @@ pub fn otfcc_read_vhea(packet: &Packet, options: &Options) -> Option<Box<VheaTab
         Ok(vhea) => Some(Box::new(vhea)),
         Err(_) => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Table 'vhea' corrupted."),
@@ -99,7 +99,7 @@ pub fn otfcc_dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue, options
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"vhea"),
     );
     let mut vhea = BuiltValue::new_object(11);
@@ -127,12 +127,12 @@ pub fn otfcc_dump_vhea(table: Option<&VheaTable>, root: &mut BuiltValue, options
     );
     vhea.push_field(b"caretOffset", BuiltValue::Int(table.caret_offset as i64));
     root.push_field(b"vhea", vhea);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 pub fn otfcc_parse_vhea(root: &ParsedValue, options: &Options) -> Option<Box<VheaTable>> {
     let table = root.get_typed(b"vhea", JsonType::Object)?;
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"vhea"),
     );
     let vhea = VheaTable {
@@ -154,7 +154,7 @@ pub fn otfcc_parse_vhea(root: &ParsedValue, options: &Options) -> Option<Box<Vhe
         metric_data_format: 0,
         num_of_long_ver_metrics: 0,
     };
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(Box::new(vhea))
 }
 #[allow(improper_ctypes_definitions)]

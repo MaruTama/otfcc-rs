@@ -514,7 +514,7 @@ pub fn otfcc_dump_glyf(
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"glyf"),
     );
     let mut glyf = BuiltValue::new_object(table.len());
@@ -526,7 +526,7 @@ pub fn otfcc_dump_glyf(
     if !options.ignore_glyph_order {
         otfcc_dump_glyphorder(table, root);
     }
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 fn glyf_parse_point(pointdump: &ParsedValue) -> Point {
     let mut point: Point = Point {
@@ -688,7 +688,7 @@ fn otfcc_glyf_parse_glyph(
                 // `Logger` at all before, so no golden fixture already
                 // depends on its exact old wording.
                 logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
+                    &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(
@@ -752,7 +752,7 @@ pub unsafe fn otfcc_parse_glyf(
         return None;
     }
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"glyf"),
     );
     let n = table.as_ref().and_then(ParsedValue::as_object).map_or(0, |f| f.len());
@@ -783,7 +783,7 @@ pub unsafe fn otfcc_parse_glyf(
             t.take_field(j);
         }
     }
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(glyf_val)
 }
 

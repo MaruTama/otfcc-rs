@@ -174,7 +174,7 @@ pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, options: &O
         Some(t) => t,
         None => return,
     };
-    logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let entries: &Vec<TsiEntry> = tsi;
     let mut ___loggedstep_v: bool = true;
     while ___loggedstep_v {
@@ -201,14 +201,14 @@ pub fn otfcc_dump_tsi(tsi: Option<&TsiTable>, root: &mut BuiltValue, options: &O
         _tsi.push_field(b"extra", _extra);
         root.push_field(tag, _tsi);
         ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
 }
 #[allow(improper_ctypes_definitions)]
 pub fn otfcc_parse_tsi(root: &ParsedValue, options: &Options, tag: &[u8]) -> Option<TsiTable> {
     let _tsi = root.get_typed(tag, JsonType::Object)?;
     let mut tsi: TsiTable = Vec::new();
-    logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
     if let Some(fields) = _tsi
         .get_typed(b"glyphs", JsonType::Object)
         .and_then(ParsedValue::as_object)
@@ -245,7 +245,7 @@ pub fn otfcc_parse_tsi(root: &ParsedValue, options: &Options, tag: &[u8]) -> Opt
             });
         }
     }
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(tsi)
 }
 // c2rust residue: the original had this as a numeric `switch` over
