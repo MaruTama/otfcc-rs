@@ -4,7 +4,7 @@ use crate::support::options::Options;
 
 use crate::support::base64::{base64_decode, base64_encode};
 use crate::support::built_json::BuiltValue;
-use crate::support::ctype_compat::{c_isdigit, c_tolower};
+use crate::support::cstd::ctype_compat::{c_isdigit, c_tolower};
 /// The four opcodes `parse_instrs`/`instr_typify` have to recognise, because
 /// their operands are part of the instruction stream rather than separate
 /// instructions. `u8`, since that is what `InstrData.instrs` holds.

@@ -12,7 +12,7 @@ use crate::table::otl::{
     Subtable, SubtableList,
 };
 
-use crate::support::aglfn::aglfn_setup_names;
+use crate::support::unicode::aglfn::aglfn_setup_names;
 use crate::support::glyph_order::{
     gord_lookup_name, otfcc_gord_name_a_field_shared, otfcc_set_glyph_order_by_gid,
 };

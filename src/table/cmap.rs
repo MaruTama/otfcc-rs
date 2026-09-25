@@ -1,5 +1,5 @@
 use crate::support::handle::{GlyphHandle, handle_from_index, handle_from_name};
-use crate::support::strtol::strtol;
+use crate::support::cstd::strtol::strtol;
 use crate::support::parsed_json::ParsedValue;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_ptr, bk_push};

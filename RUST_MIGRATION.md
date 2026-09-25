@@ -16889,3 +16889,53 @@ on the other platform before a commit is trusted.
   execution under Miri's interpreter is skipped (same tradeoff its sibling
   test already made). `cargo clippy --all-targets -- -D warnings`: clean.
   No `survey-unsafe.sh` movement (a test attribute, not unsafe code).
+
+- **`support/` reorganized: three low-blast-radius sub-modules pulled out
+  of its 19-file flat list.** A user question about whether the crate's
+  directory layout was appropriate led to reviewing `support/` specifically
+  -- the rest of `src/` mirrors the OpenType table taxonomy (`table/*`) or
+  otherwise has an obvious single reason to exist (`bin/`, `ffi/`,
+  `vendor/`), but `support/` had become the c2rust-era "everything else"
+  bucket: 19 files ranging from otfcc's own core vocabulary (`primitives`,
+  `buffer`, `options`, `glyph_order`, `font_reader`) to unrelated small
+  utilities with no shared theme beyond "didn't fit elsewhere."
+  - **`support::cstd`**: `ctype_compat`, `strtol`, `stdio`, `binio` -- the
+    module's own preserved doc comment already called these out as "not
+    otfcc's own vocabulary... the pieces of the C standard library that
+    `libc` does not carry"; grouping them under a name that says exactly
+    that was a two-line-diff naming fix as much as a move.
+  - **`support::unicode`**: `unicodeconv`, `aglfn` -- both are Unicode
+    code-point/glyph-name mapping, not otfcc's own font/table model.
+  - **`support::cli`**: `getopt`, `stopwatch` -- both used only by the two
+    `src/bin/` entry points, never by the library's own read/write path.
+  - **Deliberately NOT moved**: `parsed_json`/`built_json`. They are the
+    single most-referenced pair in `support/` (43 and 44 files respectively
+    grep-confirmed), so nesting them under e.g. `support::json` would have
+    touched the largest number of call sites in the crate for a purely
+    cosmetic win -- `json_reader.rs`/`json_writer.rs` at the crate root
+    already signal "this is the JSON layer" without adding a path segment
+    to every one of their ~87 combined call sites. The rest of `support/`
+    (`primitives`, `buffer`, `handle`, `options`, `glyph_order`,
+    `font_reader`, `fmt`, `base64`, `ttinstr`) stayed at the top level too
+    -- these are otfcc's own core vocabulary types, not clutter, and forcing
+    them into an artificial family would have been the same "arbitrary
+    categories" mistake in the other direction.
+  - **Mechanical, zero behavior change**: `git mv` each file, three new
+    `mod.rs`-equivalent files (`support/cstd.rs`/`unicode.rs`/`cli.rs`,
+    2018+-edition style, matching every other `foo.rs` + `foo/` pair
+    already in this crate) with a short doc comment explaining the
+    grouping, `support.rs`'s own `pub mod` list updated, then every
+    `support::<old>::` path in `src/`/`tests/`/`benches/`/`fuzz/` rewritten
+    to `support::<new-submodule>::<old>::` via a scripted per-module sed
+    pass (8 modules, ~14 files touched across the whole tree -- verified
+    with a follow-up grep that zero old-path references survived).
+  - **Verification**: `cargo build --lib`/`--all-targets`, `cargo clippy
+    --all-targets -- -D warnings`, `cargo test -- --test-threads=1` (422
+    passed, 1 pre-existing timing-threshold flake on record since M-10,
+    unrelated), the golden/ABI/dll_abi/log_output/cycles integration suites
+    explicitly re-run and passing byte-for-byte (no behavior for a pure
+    path rename to have disturbed, but checked directly rather than
+    assumed), `cargo check` in `fuzz/` clean. No fuzz re-run needed --
+    nothing here changes parsing/serialization logic, only where its
+    source files live. No `survey-unsafe.sh` movement (file moves, no code
+    changes).
