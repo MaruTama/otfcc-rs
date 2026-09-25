@@ -262,10 +262,18 @@ jobs:
       # catch that this list has gone stale, the same way `alloc.rs`'s own
       # doc comment going stale was caught by Stage M-21's fresh grep rather
       # than any automated check.
+      #
+      # All filters in ONE invocation, not a loop of 17: libtest ORs
+      # multiple positional filter arguments (any test matching ANY of them
+      # runs), confirmed locally (`cargo test --lib -- filter1 filter2 ...`
+      # runs the union). A 17-invocation loop paid ~17x cargo's own
+      # startup/incremental-check overhead for no benefit once the earlier
+      # per-test slow-test-ignore fix (see RUST_MIGRATION.md) removed the
+      # one test that had made per-filter timing worth separating out to
+      # isolate in CI logs; one invocation measured ~40% faster locally.
       - name: cargo miri test (modules with unsafe code only)
         run: |
-          status=0
-          for m in \
+          cargo +nightly-2026-08-17 miri test --lib -- \
             otf_reader \
             json_reader \
             "libcff::" \
@@ -283,9 +291,4 @@ jobs:
             table::glyf \
             table::cff \
             table::otl \
-          ; do
-            echo "::group::cargo miri test -- $m"
-            cargo +nightly-2026-08-17 miri test --lib -- "$m" --test-threads=1 || status=1
-            echo "::endgroup::"
-          done
-          exit $status
+            --test-threads=1
