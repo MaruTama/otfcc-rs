@@ -16174,3 +16174,81 @@ on the other platform before a commit is trusted.
     no such substring) but this stage's own explanatory comment mentions
     `` `*const c_char` `` once, which the script's plain text grep counts
     the same as a real type occurrence.
+
+- **Stage M-23: delete `support/fmt.rs`'s `CCharRef`/`CCharRef::from_ptr`
+  outright -- M-22 left its only production caller gone, and this stage
+  confirms no other one ever existed.** Twenty-third installment, and
+  exactly the case this stage's own instructions flagged as worth
+  re-checking: M-22's write-up explicitly declined to delete `from_ptr`
+  as "a different, larger change than this stage's own scope" while
+  noting it was down to zero production callers; that made it the first
+  thing to re-verify here rather than trust the earlier "leave it, it's
+  a genuine boundary" call.
+  - **The re-check.** `grep -rn "CCharRef::from_ptr\|CCharRef"
+    src/` found five hits total, all inside `support/fmt.rs` itself:
+    the struct definition, the `impl` block, the `impl SdsPart for
+    CCharRef` and three call sites -- all three inside `fmt.rs`'s own
+    `#[cfg(test)] mod tests`. `support/stopwatch.rs`'s two mentions
+    (from M-22's own explanatory comments) are prose, not code -- the
+    same "was X, now Y" narrative M-21 already established should stay
+    untouched. No other file in `src/`, `tests/`, `benches/` or
+    `fuzz/fuzz_targets/` names `CCharRef` at all. `CCharRef` is `pub`,
+    but this crate is `publish = false` (checked in `Cargo.toml`) and
+    exposes only the four `extern "C"` functions in `ffi/dll.rs` through
+    its `cdylib`/`staticlib` targets -- `CCharRef` was never part of
+    that surface, so "some external crate might still call it" does not
+    apply here the way it would for a published library.
+  - **What was actually left calling it.** All three surviving call
+    sites were `fmt.rs`'s own unit tests -- `c_string_is_copied_as_
+    bytes_even_when_not_utf8`, `null_c_string_prints_like_libc` and
+    `byte_slice_keeps_embedded_nul_but_c_string_does_not` -- built
+    specifically to exercise `from_ptr`'s null-pointer and NUL-
+    truncation behavior. With the production call M-22 removed gone,
+    these had become tests that exist purely to test the existence of
+    the thing they test: no code outside this trio (and the type's own
+    two-line `impl SdsPart`) ever reads a `CCharRef` or calls
+    `from_ptr` again.
+  - **The fix.** Deleted the `CCharRef` struct, its `from_ptr`
+    constructor, its `impl SdsPart for CCharRef<'_>`, the now-unused
+    `use libc::strlen;` import that only `from_ptr` needed, and the
+    three tests built solely to exercise it (77 lines total, all in
+    `src/support/fmt.rs`). Nothing else in the file changed --
+    `SdsPart`, `bytesbuild!`, `Byte`/`Hex4`/`Hex4Upper`/`Hex2`/
+    `Hex2Upper`/`Dec5` and their own tests are untouched, and the
+    `assert_matches_printf!` macro they still use survives (other tests
+    call it independently of `CCharRef`).
+  - **Why this is safe, not just tidy.** Every byte `CCharRef::from_ptr`
+    could ever have produced -- a NUL-terminated C string's bytes, or
+    `b"(null)"` for a null pointer -- had exactly one real-world source
+    left in this crate (`support/stopwatch.rs`'s `secs` buffer), and
+    M-22 already replaced that read with a direct array scan. Deleting
+    the now-orphaned constructor removes no reachable behavior: nothing
+    a font-processing run (or the CLI binaries, or the fuzz targets)
+    does is different, because nothing in that path called `from_ptr`
+    before this stage either.
+  - **Verification**: `cargo build --lib` and `cargo clippy
+    --all-targets -- -D warnings` both clean, no new `dead_code`/
+    `unused_imports` warnings elsewhere in the crate from the removal
+    (the deleted `use libc::strlen;` was the only import `from_ptr`
+    needed, and nothing else in the file used it). `cargo test --
+    --test-threads=1`: 418 passed (421 baseline minus the 3 deleted
+    `CCharRef` tests), same 2 pre-existing timing-threshold failures in
+    this sandbox as every stage since M-10. Targeted Miri (`cargo
+    +nightly-2026-08-17 miri test --lib support:: -- --test-
+    threads=1`): 100 passed, 0 failed, 14 ignored (102/15 baseline
+    minus the two non-miri-ignored deleted tests and the one
+    miri-ignored deleted test). `cargo check` in `fuzz/` is clean --
+    `grep -rln "CCharRef\|support::fmt" fuzz/fuzz_targets/*.rs` found no
+    fuzz target referencing either name -- and since `from_ptr` was
+    already unreachable from any production path before this stage
+    (per M-22's own finding), no fuzz corpus re-run applies: nothing
+    behavioral changed for any fuzz target to exercise differently.
+    `survey-unsafe.sh`: `unsafe fn` 9 -> 8 (`from_ptr` deleted), `unsafe
+    blocks` 65 -> 61 (its own internal `slice::from_raw_parts` block
+    plus the three test call sites' `unsafe { CCharRef::from_ptr(...)
+    }`/`unsafe { assert_matches_printf!(...) }` wrappers built solely
+    to call it), raw pointer types 525 -> 519 (the deleted signature's
+    `*const c_char` parameter, its internal `as *const u8` cast, and
+    the four `*const ::core::ffi::c_char` casts across the three now-
+    deleted test call sites), `is_null()` calls 22 -> 21 (`from_ptr`'s
+    own null check).
