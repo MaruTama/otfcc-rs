@@ -228,5 +228,17 @@ jobs:
       - name: Install Miri
         run: rustup toolchain install nightly-2026-08-17 --component miri
 
+      # Without this, every run rebuilds the Miri sysroot and every
+      # dependency's Miri-instrumented artifacts from scratch, which
+      # dominates this job's wall time far more than actually interpreting
+      # the (small, `--lib`-only) test suite does -- the other three jobs in
+      # this workflow finish in a few minutes each; this one alone was
+      # taking 20+ minutes for that reason. Keyed by the nightly toolchain
+      # (`prefix-key`) so a future toolchain bump above doesn't reuse a
+      # stale sysroot cache under a different compiler.
+      - uses: Swatinem/rust-cache@v2
+        with:
+          prefix-key: miri-nightly-2026-08-17
+
       - name: cargo miri test
         run: cargo +nightly-2026-08-17 miri test --lib -- --test-threads=1
