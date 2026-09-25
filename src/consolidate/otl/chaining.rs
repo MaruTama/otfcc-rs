@@ -50,11 +50,7 @@ pub(crate) fn consolidate_chaining(
         );
         return false;
     }
-    // `chaining_rule_mut` is a safe fn but still returns a raw pointer (see
-    // its own doc comment) -- this is the one narrow bridge this function
-    // needs, matching the `vqs_compare` pattern used throughout this
-    // migration.
-    let rule: &mut ChainingRule = unsafe { &mut *chaining_rule_mut(subtable) };
+    let rule: &mut ChainingRule = chaining_rule_mut(subtable);
     // Guaranteed `Some`: `consolidate_otl` (and hence every caller that
     // reaches here) only ever runs when `glyf` is present, and
     // `otfcc_consolidate_font` always populates `glyph_order` before

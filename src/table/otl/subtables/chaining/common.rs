@@ -1,13 +1,17 @@
 use crate::table::otl::{ChainingRule, ChainingRuleSet, ChainingSubtable, Subtable};
 
-/// Returns a mutable pointer into the `Canonical` variant's payload.
+/// Returns a mutable reference into the `Canonical` variant's payload.
 /// Panics (rather than reading union garbage, the old failure mode) if
 /// called on a `Poly`/`Classified` subtable -- every call site already
 /// assumed `Canonical` at that point, matching the original C code's own
-/// (unchecked) assumption.
-pub(crate) fn chaining_rule_mut(subtable: &mut ChainingSubtable) -> *mut ChainingRule {
+/// (unchecked) assumption. Safe `&mut ChainingRule` (not a raw pointer):
+/// its one call site (`consolidate/otl/chaining.rs`'s
+/// `consolidate_chaining`) already holds a real `&mut Subtable` all the
+/// way down to this call, so there is no `*mut` boundary left to preserve
+/// here -- same reasoning as `chaining_ruleset_mut`, below.
+pub(crate) fn chaining_rule_mut(subtable: &mut ChainingSubtable) -> &mut ChainingRule {
     match subtable {
-        ChainingSubtable::Canonical(rule) => rule as *mut ChainingRule,
+        ChainingSubtable::Canonical(rule) => rule,
         _ => unreachable!("chaining_rule_mut: subtable is not Canonical"),
     }
 }

@@ -16371,3 +16371,86 @@ on the other platform before a commit is trusted.
     Subtable` casts inside `subtable_at`'s old body, plus the deleted
     `SubtablePtr`-typed local bindings at each of the three `stat.rs`
     call sites).
+
+- **Stage M-25: `chaining/common.rs`'s `chaining_rule_mut` returns `&mut
+  ChainingRule` instead of `*mut ChainingRule`.** Twenty-fifth
+  installment. This stage's own brief asked for a systematic, file-by-
+  file sweep of every one of the 56 remaining `unsafe {}` blocks (not
+  just the 8 `unsafe fn`), classifying each as either a genuine FFI
+  call/aliasing case or a leftover safe-value bridge, plus a fresh grep
+  for stale "N callers" claims in doc comments.
+  - **The sweep.** Went through every `unsafe {` site printed by `grep
+    -rn "unsafe {" src/` (54 literal matches; `survey-unsafe.sh`'s own
+    `-o` counting of the pattern, including ones this grep's `-n`
+    happened to also print as comment text, gives the tool's 56). The
+    large majority sort into three already-documented, still-accurate
+    buckets, re-confirmed rather than assumed this round: (1) blocks
+    inside the crate's 8 `unsafe fn` bodies (`otf_reader.rs`,
+    `consolidate.rs`, `ffi/dll.rs`, `table/otl/parse.rs`) implementing
+    the documented "raw pointer bridges resolved fresh per statement to
+    sidestep an aliasing borrow-checker conflict during in-place JSON
+    mutation" pattern from `otfcc_parse_otl`'s own doc comment -- traced
+    that one personally this round rather than taking the comment's
+    word for it, and its reasoning (a persisted `&ParsedValue` would
+    stay "live" under Rust's aliasing rules across a later mutation of
+    an ancestor node) still holds; (2) genuine FFI calls to real
+    `extern "C"` functions -- `libcff/cff_writer.rs`'s `floor`/`modf`,
+    `libcff/subr.rs`, `table/glyf.rs`/`vf/vq.rs`'s `fabs`,
+    `otf_writer/stat.rs`'s `round`/`time`, `support/stopwatch.rs`'s
+    `clock_gettime`, plus every `libc::isdigit`/`tolower`/`strcmp`/
+    `snprintf` call in `support/ctype_compat.rs`, `support/fmt.rs`, and
+    `support/parsed_json.rs`'s test modules, all comparing this crate's
+    own reimplementation against the platform's real libc; (3) the
+    already-reported `VqRegion`/`RegionKey` raw-pointer wall
+    (`otf_reader/unconsolidate.rs:39`, `table/fvar.rs:157,414`, `vf/
+    vq.rs:148,169`) -- re-read `vf/vq.rs` and `table/fvar.rs` fresh
+    again this round (not just cited M-24's finding) and the same
+    self-referential-storage shape (a `Box<VqRegion>`'s stable heap
+    address read back long after the borrow that registered it ended)
+    still holds; nothing new makes it convertible.
+  - **The one exception.** `consolidate/otl/chaining.rs:57`'s `let
+    rule: &mut ChainingRule = unsafe { &mut *chaining_rule_mut(subtable)
+    };` did not fit any of those three buckets: its own comment called
+    `chaining_rule_mut` "a safe fn [that] still returns a raw pointer",
+    but `chaining_rule_mut(subtable: &mut ChainingSubtable) -> *mut
+    ChainingRule` already takes a real `&mut ChainingSubtable` and its
+    body (`ChainingSubtable::Canonical(rule) => rule as *mut
+    ChainingRule`) starts from a safe `&mut ChainingRule` binding
+    (`rule`) before casting it away -- the raw pointer was manufactured
+    and immediately re-dereferenced, never crossing any real FFI or
+    aliasing boundary. A fresh `grep -rn "chaining_rule_mut"
+    src/` found exactly one call site in the whole tree (this one),
+    confirming there was no second caller anywhere relying on the raw
+    form (its sibling `chaining_rule_const`, used by three other files,
+    already returns a safe `&ChainingRule` and was the template this
+    stage matched).
+  - **The fix.** `chaining_rule_mut` now returns `&mut ChainingRule`
+    directly out of the match arm, mirroring `chaining_rule_mut`'s own
+    doc comment style already used for `chaining_ruleset_mut`'s "safe
+    reference, not a raw pointer" wording. Its one call site drops the
+    `unsafe { &mut *... }` wrapper entirely, now a plain
+    `chaining_rule_mut(subtable)` call.
+  - **Verification**: `cargo build --lib` and `cargo clippy
+    --all-targets -- -D warnings` both clean. `cargo test --
+    --test-threads=1`: 418 passed, same 2 pre-existing timing-threshold
+    failures in this sandbox as every stage since M-10. Targeted Miri
+    (`cargo +nightly-2026-08-17 miri test --lib chaining:: -- --test-
+    threads=1`): 8 passed, 0 failed (the `chaining/read.rs` parser
+    tests -- neither changed file has its own `mod tests`, confirmed by
+    grep). No dedicated unit test exists for `consolidate_chaining`
+    itself; its coverage comes from the `json_build` fuzz target, which
+    drives the full JSON-to-OTF path through the real public FFI entry
+    point (`otfccbuild_json_otf`) and reaches `otfcc_consolidate_font`
+    -> `consolidate_chaining` for any chaining/context lookup in the
+    input -- confirmed reachable by reading the target's own file.
+    `otf_parse`/`otf_dump` were skipped: grepped their source for
+    `consolidate`/`otfcc_consolidate_font` and neither calls it, so
+    neither exercises the changed function. Ran `cargo +nightly fuzz
+    run json_build tests/fuzz-corpus/known-issues/ -- -runs=0` (all 21
+    known-issues corpus files, 0 crashes) and `cargo +nightly fuzz run
+    json_build -- -max_total_time=60` (3,372,680 executions in 61s, 0
+    crashes). `survey-unsafe.sh`: `unsafe fn` unchanged at 8, `unsafe
+    blocks` 56 -> 55 (the deleted `unsafe { &mut *... }` wrapper at the
+    one call site), raw pointer types 514 -> 512 (the deleted `*mut
+    ChainingRule` return type and its `as *mut ChainingRule` cast
+    inside `chaining_rule_mut`'s old body).
