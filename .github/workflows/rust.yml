@@ -228,17 +228,64 @@ jobs:
       - name: Install Miri
         run: rustup toolchain install nightly-2026-08-17 --component miri
 
-      # Without this, every run rebuilds the Miri sysroot and every
-      # dependency's Miri-instrumented artifacts from scratch, which
-      # dominates this job's wall time far more than actually interpreting
-      # the (small, `--lib`-only) test suite does -- the other three jobs in
-      # this workflow finish in a few minutes each; this one alone was
-      # taking 20+ minutes for that reason. Keyed by the nightly toolchain
-      # (`prefix-key`) so a future toolchain bump above doesn't reuse a
-      # stale sysroot cache under a different compiler.
+      # This job still took 20+ minutes across two separate PRs after the
+      # cache below was first added -- root-caused (not just guessed) by
+      # reproducing locally: `cargo miri setup` puts the actual Miri sysroot
+      # under `~/.cache/miri` (212MB), a location Swatinem/rust-cache does
+      # NOT track by default (it caches `~/.cargo/registry`/`~/.cargo/git`/
+      # `target/`, which covers `target/miri`'s dependency-build artifacts
+      # but not the separate sysroot cache dir). `cache-directories` adds it
+      # explicitly. Confirmed locally that once both are warm, rebuilding
+      # nothing and running one filtered module (below) takes single-digit
+      # seconds, not minutes -- so this, not the module filter, is what
+      # actually addresses the wall-time complaint; the filter is kept too
+      # since it's a real, if secondary, reduction once the cache is warm.
       - uses: Swatinem/rust-cache@v2
         with:
           prefix-key: miri-nightly-2026-08-17
+          cache-directories: ~/.cache/miri
 
-      - name: cargo miri test
-        run: cargo +nightly-2026-08-17 miri test --lib -- --test-threads=1
+      # Filtered to just the modules that contain `unsafe fn`/`unsafe {}`
+      # (`grep -rl "unsafe fn\|unsafe {" src --include=*.rs`, excluding
+      # src/bin/ since `--lib` never covered the two binaries anyway) instead
+      # of every `--lib` test. Miri's interpretation overhead scales with how
+      # much code actually runs under it, and most of this crate's ~420 lib
+      # tests exercise table readers/writers/JSON (de)serialization that
+      # touch zero unsafe code -- running those under Miri burns wall time
+      # without checking anything Miri exists to check. Each filter is a
+      # module-path prefix (`libcff::`/`table::otl` intentionally match their
+      # submodules too, e.g. `table::otl::parse`), so this is a coverage
+      # *narrowing* by test selection, not a scope reduction of which code
+      # is allowed to touch unsafe -- if a future stage adds `unsafe` to a
+      # module not in this list, `survey-unsafe.sh`'s own count (checked in
+      # the build-test-compare job's history, not gated here) is what would
+      # catch that this list has gone stale, the same way `alloc.rs`'s own
+      # doc comment going stale was caught by Stage M-21's fresh grep rather
+      # than any automated check.
+      - name: cargo miri test (modules with unsafe code only)
+        run: |
+          status=0
+          for m in \
+            otf_reader \
+            json_reader \
+            "libcff::" \
+            vf::vq \
+            consolidate \
+            otf_writer::stat \
+            ffi::dll \
+            support::parsed_json \
+            support::ctype_compat \
+            support::fmt \
+            support::stopwatch \
+            support::ttinstr \
+            support::strtol \
+            support::buffer \
+            table::glyf \
+            table::cff \
+            table::otl \
+          ; do
+            echo "::group::cargo miri test -- $m"
+            cargo +nightly-2026-08-17 miri test --lib -- "$m" --test-threads=1 || status=1
+            echo "::endgroup::"
+          done
+          exit $status
