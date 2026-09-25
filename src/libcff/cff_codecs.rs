@@ -814,6 +814,10 @@ mod float_encoding_tests {
     // in `cff_encode_cff_float`'s nibble-packing match, and that the
     // whole encode/format/decode pipeline never panics on any finite f64.
     #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "timing-based bulk sweep; 20,000 encode/format/decode round trips through cff_encode_cff_float's %g-style formatting is far too slow to run meaningfully under Miri's interpreter -- this is what actually made the `miri` CI job's libcff:: filter take ~19 minutes by itself, confirmed by CI job logs (108150304183) pinpointing this exact test as the ~18.7-minute gap between it and its neighbor"
+    )]
     fn encoding_many_pseudo_random_finite_values_never_panics() {
         let mut state: u64 = 0x243F_6A88_85A3_08D3;
         for _ in 0..20_000 {
