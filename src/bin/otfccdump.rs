@@ -33,9 +33,9 @@ use otfcc_rust::support::built_json::json_serialize_ex;
 use otfcc_rust::support::built_json::{
     JSON_SERIALIZE_MODE_MULTILINE, JSON_SERIALIZE_MODE_PACKED, JsonSerializeOpts,
 };
-use otfcc_rust::support::getopt::{GetoptItem, LongOpt, getopt_long};
-use otfcc_rust::support::strtol::strtol;
-use otfcc_rust::support::stopwatch::{push_stopwatch, time_now};
+use otfcc_rust::support::cli::getopt::{GetoptItem, LongOpt, getopt_long};
+use otfcc_rust::support::cstd::strtol::strtol;
+use otfcc_rust::support::cli::stopwatch::{push_stopwatch, time_now};
 use otfcc_rust::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 use std::cell::RefCell;
 use std::io::{IsTerminal, Read, Write};

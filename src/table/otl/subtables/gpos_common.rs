@@ -5,7 +5,7 @@ use crate::support::handle::{
 use crate::support::parsed_json::ParsedValue;
 use crate::table::otl::coverage::Coverage;
 
-use crate::support::binio::pos_to_u16;
+use crate::support::cstd::binio::pos_to_u16;
 use crate::support::font_reader::FontReader;
 
 use crate::bk::bkblock::{BkBlock, BkCellType, bk_int, bk_new_block, bk_push};

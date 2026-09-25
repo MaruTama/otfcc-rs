@@ -8,7 +8,7 @@ use crate::support::built_json::BuiltValue;
 use crate::support::font_reader::{FontReader, ReadError};
 use crate::support::options::Options;
 use crate::support::parsed_json::ParsedValue;
-use crate::support::unicodeconv::{utf8toutf16be, utf16be_to_utf8};
+use crate::support::unicode::unicodeconv::{utf8toutf16be, utf16be_to_utf8};
 use crate::vendor::json::JsonType;
 use crate::version::{MAIN_VER, PATCH_VER, SECONDARY_VER};
 
