@@ -16252,3 +16252,122 @@ on the other platform before a commit is trusted.
     the four `*const ::core::ffi::c_char` casts across the three now-
     deleted test call sites), `is_null()` calls 22 -> 21 (`from_ptr`'s
     own null check).
+
+- **Stage M-24: `table/otl.rs`'s `subtable_at` returns a plain
+  `&Subtable` instead of the raw-pointer `SubtablePtr` -- its doc
+  comment's caller list ("`build.rs`/`dump.rs`/`stat.rs`/the chaining
+  classifier") turned out stale, and every real caller left was
+  read-only.** Twenty-fourth installment. This stage's own brief asked
+  for a fresh trace of `src/vf/vq.rs`'s `VqSegmentDelta.region: *const
+  VqRegion` first; that investigation is reported in detail below,
+  followed by the candidate this stage actually implements.
+  - **The `VqRegion` re-check.** Re-read `vf/vq.rs`, `table/fvar.rs`,
+    and every construction/read site of `VqSegmentDelta`/`.region`
+    fresh, not trusting the existing doc comments. `fvar.rs`'s own
+    comment on `fvar_register_region` (lines 116-134) already lays out
+    the concrete shape, and grepping every `.region`/`VqSegmentDelta`
+    site in `src/` (`otf_reader/unconsolidate.rs`, `vf/vq.rs`,
+    `table/fvar.rs`, `table/glyf/read.rs`) confirms it still holds
+    exactly: `region` is the canonical pointer `fvar_register_region`
+    returns from a `Box<VqRegion>` it just inserted into
+    `FvarTable.masters` (an `IndexMap`, confirmed unchanged since the
+    prior stage that converted it), and that pointer is then stored
+    inside `VqSegmentDelta` values that live on inside individual
+    `Glyph`/`ComponentReference` structures across the *entire*
+    `glyf` table -- read back only much later, at OTF-write time
+    (`unconsolidate.rs`'s `hash_vqs`), long after the `&mut FvarTable`
+    borrow that registered the region has ended. `Font.fvar` is
+    `Option<Box<FvarTable>>` (confirmed in `font/caryll_font.rs`) and
+    `Font`'s `glyf` table is a sibling field on the same struct, so
+    turning `.region` into a real `&'a VqRegion` would need a lifetime
+    tying every `Glyph`'s contents to a borrow of `Font.fvar` while
+    `Font.glyf` is simultaneously mutated elsewhere during parsing --
+    a genuinely self-referential shape `Box`'s stable heap address
+    (which is what actually keeps this sound today) sidesteps and a
+    lifetime-carrying reference cannot express without unsafe self-
+    referential machinery of its own. The one alternative that avoids
+    a lifetime -- storing an owned `RegionKey` (already `Clone`+`Eq`+
+    `Hash`, already used for `fvar.masters`' own lookups) instead of a
+    pointer, and looking the region up by key wherever it's read --
+    would need `VqSegmentDelta` (and therefore `VqSegment`, `VQ`, and
+    every one of their several dozen call sites in `vf/vq.rs`, `table/
+    glyf.rs`, `table/glyf/read.rs`, `consolidate.rs`) to stop being
+    `Copy`, since `RegionKey` owns a `Vec`. That is a much larger,
+    higher-risk redesign than this stage's own scope (Copy-vs-Clone
+    semantics changing through code that currently relies on plain
+    assignment in hot comparison/simplification loops), not a
+    mechanical one-file change -- so, per this stage's own
+    instructions, it is reported here as a confirmed, now better-
+    understood wall rather than forced. Nothing changed in `vf/vq.rs`
+    or `table/fvar.rs` this stage.
+  - **The candidate implemented instead.** `table/otl.rs`'s
+    `subtable_at` used to return `SubtablePtr` (`*mut Subtable`), a
+    type alias whose own doc comment claimed four callers
+    (`build.rs`/`dump.rs`/`stat.rs`/"the chaining classifier") still
+    needed the raw form. A fresh `grep -rn "subtable_at" src/` (run
+    across the whole tree, not just the top-level files a first pass
+    might check) found exactly two files calling it at all --
+    `otf_writer/stat.rs` (three call sites) and `table/otl/build.rs`
+    (two call sites) -- and all five only ever read through the
+    pointer; `dump.rs` and the chaining classifier reach their
+    subtables some other way already (`chaining_subtable_ref`, added
+    in an earlier stage) and never called `subtable_at` in the first
+    place. One of the three `stat.rs` sites was even reaching for the
+    `&mut`-returning `chaining_rule_mut` purely to read `.match_count`
+    off the result, solely because `subtable_at`'s raw pointer forced
+    a reborrow to call anything on it -- switching that read to the
+    already-existing safe `chaining_rule_const` removed the last
+    reason for `&mut` there too.
+  - **The fix.** `subtable_at(list: &SubtableList, idx: usize) ->
+    &Subtable` now returns a shared reference straight out of the
+    `Vec<Option<Box<Subtable>>>` it indexes (still panicking on an
+    empty slot, same as before) instead of casting through
+    `*const`/`*mut`. The `SubtablePtr` type alias is deleted outright
+    (zero remaining uses). All five call sites drop their
+    `unsafe { &*... }`/`unsafe { &mut *... }` wrappers: `stat.rs`'s
+    `OTL_TYPE_GSUB_LIGATURE`/`OTL_TYPE_GSUB_REVERSE` arms match the
+    `&Subtable` directly, its chaining arm switches to
+    `chaining_rule_const`, and `build.rs`'s two `_declare_lookup_writer`/
+    `_declare_lookup_writer_split` helpers pass the reference straight
+    to their builder function pointers (`fn_0`, already safe fns as of
+    an earlier stage) with no reborrow at all.
+  - **Why this is safe, not just tidy.** Nothing about which bytes get
+    read changes: every site already assumed the exact same "slot is
+    `Some`, payload is this exact enum variant" invariants the old
+    unsafe code silently relied on -- `subtable_at`'s `.expect()` and
+    each call site's `let Subtable::Foo(x) = ... else { unreachable!()
+    }` enforce those same invariants explicitly now, the same
+    "silent UB on a wrong assumption becomes a clean panic" upgrade
+    the function's own doc comment already described for the empty-
+    slot case.
+  - **Verification**: `cargo build --lib` and `cargo clippy
+    --all-targets -- -D warnings` both clean (no unused-import/dead-
+    code warnings from the deleted `SubtablePtr`/`chaining_rule_mut`
+    import in `stat.rs`). `cargo test -- --test-threads=1`: 418
+    passed, same 2 pre-existing timing-threshold failures in this
+    sandbox as every stage since M-10. Targeted Miri (`cargo
+    +nightly-2026-08-17 miri test --lib table::otl:: -- --test-
+    threads=1`): 61 passed, 0 failed, 3 ignored (unchanged from
+    baseline -- this stage touches no reader logic, only how an
+    already-parsed subtable is borrowed). No dedicated unit tests
+    exist for `otf_writer/stat.rs`'s `stat_max_context_otl` or `table/
+    otl/build.rs`'s `_declare_lookup_writer{,_split}` (confirmed by
+    grep for `mod tests` in both files), so their coverage comes from
+    the `json_build` fuzz target, which drives the full JSON-to-OTF
+    build path through the real public FFI entry point
+    (`otfccbuild_json_otf`) and reaches both changed functions --
+    confirmed reachable, unlike `otf_parse`/`otf_dump` (grepped their
+    own source for `otf_writer`/`table::otl::build`; neither touches
+    the build-side code this stage changed, so neither was re-run).
+    Ran `cargo fuzz run json_build tests/fuzz-corpus/known-issues/ --
+    -runs=0` (all 21 known-issues corpus files, 0 crashes) and `cargo
+    fuzz run json_build -- -max_total_time=60` (3,411,897 executions in
+    60s, 0 crashes). `survey-unsafe.sh`: `unsafe fn` unchanged at 8
+    (this stage touches no `unsafe fn`, only plain-fn callers), `unsafe
+    blocks` 61 -> 56 (the three deleted `unsafe { &*elem_ptr }`-shaped
+    blocks in `stat.rs` plus the two deleted `unsafe { &*subtable_at(..
+    .) }` blocks in `build.rs`), raw pointer types 519 -> 514 (the
+    deleted `SubtablePtr` alias and its `*mut Subtable`/`*const
+    Subtable` casts inside `subtable_at`'s old body, plus the deleted
+    `SubtablePtr`-typed local bindings at each of the three `stat.rs`
+    call sites).
