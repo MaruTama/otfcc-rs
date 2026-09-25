@@ -15,6 +15,7 @@ use crate::vf::region::vq_axis_span_is_one;
 use crate::vf::vq::{VQ, VqSegment};
 use crate::vf::vq::{vq_create_still, vq_get_still};
 use crate::vf::vv::VV;
+use std::rc::Rc;
 #[derive(Debug)]
 pub struct FvarInstance {
     pub subfamily_name_id: u16,
@@ -31,7 +32,7 @@ pub type FvarInstanceList = Vec<FvarInstance>;
 #[derive(Debug)]
 pub struct FvarMaster {
     pub name: Vec<u8>,
-    pub region: Box<VqRegion>,
+    pub region: Rc<VqRegion>,
 }
 // A `VqRegion` used to be a fixed header (`dimensions: ShapeId`) followed
 // by a C "flexible array member" trailing `spans: [VqAxisSpan; 0]`,
@@ -98,20 +99,29 @@ pub struct FvarTable {
     pub instances: FvarInstanceList,
     pub masters: indexmap::IndexMap<RegionKey, FvarMaster>,
 }
-// `FvarMaster.region` is `Box<VqRegion>` now, not `*mut VqRegion` -- it was
-// already documented as "individually Box-owned" (see
-// `otf_reader/unconsolidate.rs`'s `hash_vqs`, whose `delta.region: *const
-// VqRegion` comment names this field as the real owner), just spelled as a
-// raw pointer with a hand-written `Drop` standing in for `Box`'s own. Now
-// that it's a real `Box`, the default derived drop glue for
-// `masters: IndexMap<RegionKey, FvarMaster>` already frees every region on
-// `FvarTable::drop`, so the explicit `Drop` impl and `dispose_fvar_master`
-// (previously `unsafe { vq_delete_region(m.region) }`, a manual
-// `Box::from_raw`+`drop`) are both deleted outright -- nothing else in
-// `FvarTable` ever needed custom drop logic (see the struct's own doc
-// comment above). `Font.fvar`/`vdmx` no longer leaking (Stage 7-2-d) is
-// unaffected: this is the same "recursive field drop is automatic" fact,
-// one field deeper.
+// `FvarMaster.region` is `Rc<VqRegion>` now, not `Box<VqRegion>` (Stage
+// M-27, the first half of retiring the last genuine raw-pointer wall in
+// this crate -- `VqSegmentDelta.region`, `vf/vq.rs`, still `*const VqRegion`
+// until Stage M-28). Two approaches were considered and rejected first: a
+// `RegionKey`-owned-value field on `VqSegmentDelta` risked silently
+// changing sort order, since `vqs_compare`/`vqs_compatible` use
+// `vq_compare_region` for actual **sorting** (true `f64` numeric order),
+// while `RegionKey` compares IEEE-754 bit patterns (chosen for `Eq`/`Hash`,
+// not for order) -- swapping one for the other would change final output
+// byte order, which this project treats as sacred; an index-into-`masters`
+// approach needed real region *content* to sort by, not just an index, so
+// it would have had to thread `&FvarTable` through `consolidate.rs`,
+// `table/cff.rs`, and `libcff/charstring_il.rs` -- well beyond this
+// pointer's actual reach. `Rc` sidesteps both: `Rc::clone` is a refcount
+// bump (no allocation, no content copy), so every consumer keeps comparing
+// the exact same `VqRegion` content via the existing `vq_compare_region`
+// (no sort-order risk), and it needs no lifetime threading through any of
+// the three files above (this crate has zero threading -- no `Send`/`Sync`
+// bounds, no `thread::spawn`/`rayon` -- so `Rc`, not `Arc`, is the right
+// tool). This stage only changes *storage*; the default derived drop glue
+// for `masters: IndexMap<RegionKey, FvarMaster>` still frees every region's
+// last `Rc` exactly once, at `FvarTable::drop`, no custom `Drop` impl
+// needed (unchanged since the `Box` version this replaces).
 //
 // Deduplicates by `region`'s content (`RegionKey`), not identity: a
 // `region` that content-matches an already-registered master is dropped
@@ -124,32 +134,26 @@ pub struct FvarTable {
 // exactly reproducing the original's `HASH_COUNT`-at-insert-time scheme).
 // The long-lived, `Font`-lifetime-spanning consumers of the returned
 // `*const VqRegion` (`VQ.region`/`ComponentReference` deltas, per
-// `vf/vq.rs`'s own doc comment) stay raw-pointer, non-owning aliases into
-// this `Box`'s stable heap address -- a `Box`'s data address never moves
-// when the `Box` handle itself is moved (e.g. by `IndexMap` insertion or
-// rehashing), so this is exactly as sound as the pointer they aliased
-// before this stage, just derived from a `Box` deref instead of an
-// already-raw pointer. Giving those call sites real lifetimes would need
-// `FvarTable`/`Font`-wide lifetime threading, the genuine "aliasing wall"
-// this stage's own instructions say not to force -- out of scope here.
+// `vf/vq.rs`'s own doc comment) still get a raw pointer out of this
+// function for now (`Rc::as_ptr`) -- `VqSegmentDelta.region` itself
+// switches to holding its own `Rc::clone` of the same allocation in Stage
+// M-28, at which point this function's return type follows suit.
 //
-// `fvar` itself is `&mut FvarTable` now, not `*mut FvarTable`: its one
-// caller (`glyf/read.rs`'s `polymorphize_glyph`) already held a real
-// `&mut FvarTable` (`ctx.fvar.as_deref_mut().expect(...)`, per this
-// function's own old comment) and only relied on Rust's implicit
-// reference-to-raw-pointer coercion to satisfy this signature -- the raw
-// pointer bought nothing here, only for the *returned* `*const VqRegion`
-// (untouched, see above). Both test call sites already pass `&mut fvar`
-// directly.
+// `fvar` itself is `&mut FvarTable`, not `*mut FvarTable`: its one caller
+// (`glyf/read.rs`'s `polymorphize_glyph`) already held a real `&mut
+// FvarTable` and only relied on Rust's implicit reference-to-raw-pointer
+// coercion to satisfy this signature. Both test call sites already pass
+// `&mut fvar` directly.
 pub(crate) fn fvar_register_region(fvar: &mut FvarTable, region: Box<VqRegion>) -> *const VqRegion {
     let key = RegionKey::from_region(&region);
     if let Some(existing) = fvar.masters.get(&key) {
-        let canonical: *const VqRegion = existing.region.as_ref();
+        let canonical: *const VqRegion = Rc::as_ptr(&existing.region);
         drop(region);
         return canonical;
     }
     let name: Vec<u8> = format!("m{}", fvar.masters.len() + 1).into_bytes();
-    let canonical: *const VqRegion = region.as_ref();
+    let region: Rc<VqRegion> = Rc::from(region);
+    let canonical: *const VqRegion = Rc::as_ptr(&region);
     fvar.masters.insert(key, FvarMaster { name, region });
     canonical
 }
