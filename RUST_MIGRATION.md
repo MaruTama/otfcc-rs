@@ -16085,3 +16085,92 @@ on the other platform before a commit is trusted.
     used, net of the file's own text going away). No fuzz re-run beyond
     the `cargo check` sanity build -- nothing behavioral changed, so the
     existing corpora remain exactly as valid as before this stage.
+
+- **Stage M-22: `push_stopwatch` reads its `%g`-formatted seconds
+  straight out of its own owned buffer, not through `CCharRef::from_ptr`'s
+  raw-pointer + `strlen` path.** Twenty-second installment, found by
+  re-checking `support/fmt.rs`'s `CCharRef::from_ptr` -- one of the 9
+  remaining `unsafe fn`s -- against its real, current call sites, per
+  this stage's own instruction to re-verify every one fresh rather than
+  trust M-20's write-up.
+  - **The shape.** `support/stopwatch.rs`'s `push_stopwatch` builds a
+    local `secs: [::core::ffi::c_char; 32]`, has `libc::snprintf` render
+    a `%g`-formatted `f64` (plus a NUL terminator) into it, and then
+    called `unsafe { crate::support::fmt::CCharRef::from_ptr(secs.as_ptr())
+    }` to read the result back out -- `CCharRef::from_ptr`'s only
+    production call site anywhere in the crate (confirmed by grep: its
+    other two call sites are `fmt.rs`'s own unit tests). But `secs` is
+    already a fully owned, fixed-size local array by the time
+    `CCharRef::from_ptr` sees it, and `snprintf` guarantees it is
+    NUL-terminated -- `from_ptr`'s `core::slice::from_raw_parts(ptr,
+    strlen(ptr))` was reconstructing a slice, and re-walking a length,
+    out of data the function already held as an array. Exactly the
+    "caller already holds a real owned value and only decomposes it to
+    match an old raw-pointer-shaped signature" pattern M-3/M-9/M-14/
+    M-16/M-17/M-19 already removed elsewhere -- here the raw-pointer
+    step is `.as_ptr()` immediately followed by `strlen`, rather than a
+    struct field or FFI argument, but the shape is the same.
+  - **Why `from_ptr` itself stays.** Its own doc comment (unchanged by
+    this stage) is right that constructing a `CCharRef` from a
+    genuinely unknown-provenance `*const c_char` -- one that might be
+    null, or come from an actual C caller -- is a real unsafe boundary;
+    that's a different case from `push_stopwatch`'s, where the pointer's
+    only possible value is `secs.as_ptr()` on an array this same function
+    owns outright. `from_ptr` is left defined, still `unsafe fn`, still
+    covered by its own three unit tests (`c_string_is_copied_as_bytes_
+    even_when_not_utf8`, `null_c_string_prints_like_libc`,
+    `byte_slice_keeps_embedded_nul_but_c_string_does_not`) -- deleting a
+    correctly-documented, still-tested general utility just because its
+    one production caller stopped needing it is a different, larger
+    change than this stage's own scope, unlike M-21's `alloc.rs` (whose
+    module doc comment was itself wrong about still having pending
+    callers).
+  - **The fix.** `push_stopwatch` converts `secs` to `[u8; 32]` with a
+    plain `.map(|c| c as u8)` (a value cast on every element, not a
+    pointer reinterpretation -- no `unsafe` needed), finds the first `0`
+    byte with `.iter().position(...)` the same way `fmt.rs`'s own
+    `&Vec<u8>` `SdsPart` impl already truncates a `Handle` name at its
+    first embedded NUL, and slices up to that position. The resulting
+    `&[u8]` goes straight into the same `bytesbuild!` call as before,
+    using the existing `impl SdsPart for &[u8]`, so `push_stopwatch`'s
+    signature and its `Vec<u8>` output are unchanged.
+  - **No behavior change.** `secs_bytes[..nul_pos]` and
+    `core::slice::from_raw_parts(secs.as_ptr() as *const u8,
+    strlen(secs.as_ptr())).to_vec()` (what `from_ptr` used to produce)
+    read the identical bytes for any NUL-terminated content `snprintf`
+    can write into a 32-byte buffer -- both stop at the same first-NUL
+    position, and `snprintf` never leaves `secs` without a NUL
+    terminator within its bounds.
+  - **New tests.** `push_stopwatch` had no dedicated unit tests before
+    this stage (only exercised indirectly via the CLI binaries' log
+    lines). Added two, in a new `stopwatch::tests` module:
+    `push_stopwatch_formats_step_time_and_advances_sofar` (a real
+    `clock_gettime` reading offset back by exactly 0.5s, pinning the
+    `"Step time = 0.5...s.\n"` shape and confirming no embedded NUL
+    leaks through) and `push_stopwatch_handles_a_near_zero_reading`
+    (a ~0s elapsed reading, exercising the shortest `%g` output the
+    buffer can hold). Both are `#[cfg_attr(miri, ignore = ...)]` for the
+    same reason every other `snprintf`/`clock_gettime`-calling test in
+    this crate already is.
+  - **Verification**: `cargo build --lib`, `cargo clippy --all-targets
+    -- -D warnings`, `cargo test -- --test-threads=1` (421 lib tests:
+    419 baseline plus 2 new `stopwatch` tests, same 2 pre-existing
+    timing-threshold failures in this sandbox as every stage since
+    M-10), targeted Miri (`cargo +nightly-2026-08-17 miri test --lib
+    support:: -- --test-threads=1`: 102 passed, 0 failed, 15 ignored --
+    13 baseline plus the 2 new tests, correctly skipped for calling
+    libc). No fuzz target exercises `support/stopwatch.rs` at all (it is
+    only reached from the two CLI binaries' timing logs, never from
+    `lib.rs`'s parse/build/dump entry points the fuzz targets drive --
+    confirmed by grep across `fuzz/fuzz_targets/`), so none was re-run;
+    this is a pure logging-format change with no parser-facing surface.
+    `survey-unsafe.sh`: `unsafe fn` unchanged at 9 (`from_ptr` itself is
+    untouched, only its one production caller stopped calling it),
+    `unsafe blocks` 66 -> 65 (the one deleted `unsafe { CCharRef::
+    from_ptr(...) }` call-site wrapper), raw pointer types 524 -> 525 --
+    a net *increase* of one, called out here rather than left
+    unexplained the way M-20 did for its own +1: the diff deletes no
+    `*mut `/`*const ` text (the removed line's `secs.as_ptr()` call has
+    no such substring) but this stage's own explanatory comment mentions
+    `` `*const c_char` `` once, which the script's plain text grep counts
+    the same as a real type occurrence.
