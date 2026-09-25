@@ -153,8 +153,8 @@ pub(crate) fn fvar_register_region(fvar: &mut FvarTable, region: Box<VqRegion>) 
     fvar.masters.insert(key, FvarMaster { name, region });
     canonical
 }
-fn fvar_find_master_by_region(fvar: &FvarTable, region: *const VqRegion) -> Option<&FvarMaster> {
-    let key = RegionKey::from_region(unsafe { &*region });
+fn fvar_find_master_by_region<'a>(fvar: &'a FvarTable, region: &VqRegion) -> Option<&'a FvarMaster> {
+    let key = RegionKey::from_region(region);
     fvar.masters.get(&key)
 }
 /// `axisSize`/`AXIS_RECORD_SIZE`(20 bytes): `axis_tag`(4) + `min`/`default`/
@@ -410,8 +410,7 @@ pub fn json_new_vq_axis_span(s: &VqAxisSpan) -> BuiltValue {
         a
     }
 }
-fn json_new_vq_region_explicit(rs: *const VqRegion, fvar: &FvarTable) -> BuiltValue {
-    let region = unsafe { &*rs };
+fn json_new_vq_region_explicit(region: &VqRegion, fvar: &FvarTable) -> BuiltValue {
     let axes: &Vec<VfAxis> = &fvar.axes;
     let dimensions = region.dimensions as usize;
     if axes.len() == dimensions {
@@ -428,11 +427,24 @@ fn json_new_vq_region_explicit(rs: *const VqRegion, fvar: &FvarTable) -> BuiltVa
         r_0
     }
 }
-pub fn json_new_vq_region(rs: *const VqRegion, fvar: &FvarTable) -> BuiltValue {
-    match fvar_find_master_by_region(fvar, rs) {
+// `rs` is the one genuinely raw, aliasing-wall pointer here (a `VQ`
+// delta's long-lived, non-owning alias into a `Box<VqRegion>`'s stable
+// heap address, per this file's own doc comment above
+// `fvar_register_region`), so this private helper -- not the public
+// `json_new_vq_region` wrapper below -- is where it gets dereferenced,
+// exactly once, into a real `&VqRegion` that both calls below share as a
+// plain safe reference instead of each re-deriving and re-dereferencing
+// their own raw pointer (as `fvar_find_master_by_region` and
+// `json_new_vq_region_explicit` used to, one apiece).
+fn json_new_vq_region_impl(rs: *const VqRegion, fvar: &FvarTable) -> BuiltValue {
+    let region = unsafe { &*rs };
+    match fvar_find_master_by_region(fvar, region) {
         Some(m) if !m.name.is_empty() => BuiltValue::str_truncated_at_nul(&m.name),
-        _ => json_new_vq_region_explicit(rs, fvar),
+        _ => json_new_vq_region_explicit(region, fvar),
     }
+}
+pub fn json_new_vq_region(rs: *const VqRegion, fvar: &FvarTable) -> BuiltValue {
+    json_new_vq_region_impl(rs, fvar)
 }
 
 #[cfg(test)]

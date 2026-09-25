@@ -16454,3 +16454,107 @@ on the other platform before a commit is trusted.
     one call site), raw pointer types 514 -> 512 (the deleted `*mut
     ChainingRule` return type and its `as *mut ChainingRule` cast
     inside `chaining_rule_mut`'s old body).
+
+- **Stage M-26: `table/fvar.rs`'s `fvar_find_master_by_region`/
+  `json_new_vq_region_explicit` take `&VqRegion`, not `*const VqRegion`.**
+  Twenty-sixth installment. This stage's own brief asked for a fresh,
+  file-by-file re-sweep of the 8 remaining `unsafe fn` bodies and every
+  `unsafe {}` outside them, a search for a sibling of M-25's
+  `chaining_rule_mut` shape (a `_mut` accessor still returning a raw
+  pointer where its `_const`/`_ref` twin is already safe), and a check
+  that the CFF/glyf/OTL parse family's `unsafe fn`s don't do more work
+  than their documented reason needs.
+  - **The sweep.** Read every one of the 8 `unsafe fn` bodies in full
+    (`json_reader.rs`'s `read_json`, `consolidate.rs`'s
+    `get_point_coordinates`/`consolidate_anchor_ref`, `ffi/dll.rs`'s test-
+    only `build`, `support/buffer.rs`'s `from_raw`, `otf_reader.rs`'s
+    `read_otf`, `table/glyf.rs`'s `otfcc_parse_glyf`, `table/otl/parse.rs`'s
+    `otfcc_parse_otl`) rather than trusting their doc comments' own
+    classification. `read_json`/`read_otf` turned out to hold no `unsafe {}`
+    at all in their own bodies (module-level `#![allow(unsafe_op_in_unsafe_
+    fn)]` covers the unsafe-fn-calling-unsafe-fn chain); `get_point_
+    coordinates`/`consolidate_anchor_ref` are a genuinely pointer-heavy
+    recursive glyf walk end to end, with no safe-value-only sub-region to
+    split out; `otfcc_parse_otl`'s five raw-pointer reborrows (`table`/
+    `languages`/`features`/`lookups`/`lookup_order`) are exactly the
+    "resolved fresh per statement to sidestep an aliasing conflict during
+    in-place JSON mutation" shape its own comment (and M-25's sweep)
+    already described -- traced the actual mutation path
+    (`figure_out_features_from_json` -> `feature_merger_activate`) again to
+    confirm a persisted `&ParsedValue` really would still be "live" there,
+    not just repeating the comment. Also re-walked every `unsafe {` outside
+    the 8 `unsafe fn`s (`grep -rn "unsafe {" src/`, ~53 literal sites): the
+    same three buckets M-25 found -- `unsafe fn` bodies, genuine `extern
+    "C"` calls (`floor`/`modf`/`strncmp`/`round`/`time`/`clock_gettime`/
+    `snprintf`, plus every libc ctype/strcmp comparison in test modules),
+    and the `VqRegion`/`RegionKey` wall (`otf_reader/unconsolidate.rs:39`,
+    `table/fvar.rs:157,414`, `vf/vq.rs:148,169`) -- all still hold, each
+    re-opened and re-read this round rather than cited from memory. A
+    fresh `grep -rn "fn .*_mut\b" src/` for a `chaining_rule_mut`-shaped
+    sibling found only already-safe accessors (`chaining_ruleset_mut`,
+    `CffSubrGraph::node_mut`/`rule_mut`, `VqSegmentDelta::delta_mut`) --
+    no leftover raw-pointer `_mut` twin anywhere.
+  - **What did turn up.** Not a `_mut`/`_ref` pair, but the same underlying
+    shape one level removed: `table/fvar.rs:157`'s `fvar_find_master_by_
+    region` and `:414`'s `json_new_vq_region_explicit` each took `*const
+    VqRegion` and dereferenced it internally with their own `unsafe {
+    &*... }`, even though one of `json_new_vq_region_explicit`'s two call
+    sites (`json_new_vq(...)`'s masters-dump loop, `master.region.as_ref()`
+    at line 336) already held a genuine safe `&VqRegion` straight out of a
+    `Box` and only relied on the implicit `&T -> *const T` coercion to
+    call it -- manufacturing a raw pointer that the callee immediately
+    re-dereferenced, never crossing the real wall. The wall itself is
+    real, just one level up: `json_new_vq_region`'s own `rs: *const
+    VqRegion` parameter (its other caller, `json_new_vq_segment`, passes
+    `delta.region`, the genuinely long-lived non-owning alias this file's
+    own doc comment above `fvar_register_region` describes) is where the
+    aliasing pointer actually originates.
+  - **The fix.** Both helpers now take `&VqRegion`; the one call site that
+    already had a safe reference passes it straight through with no cast.
+    `json_new_vq_region` itself keeps its `*const VqRegion` parameter (the
+    real wall boundary) but no longer dereferences it directly in its own,
+    `pub`, body -- `clippy::not_unsafe_ptr_arg_deref` (deny-by-default)
+    flags exactly that shape on a public function, which is why the
+    dereference moved into a new private `json_new_vq_region_impl`
+    instead of inlining `unsafe { &*rs }` at the call site (confirmed by
+    trying the inline form first and hitting the lint, not assumed).
+    `json_new_vq_region_impl` dereferences `rs` exactly once and passes
+    the resulting `&VqRegion` to both `fvar_find_master_by_region` and
+    `json_new_vq_region_explicit`, replacing the two independent
+    dereferences (one per helper, of what was frequently the same
+    underlying pointer) with one.
+  - **Why this is safe, not just tidy.** The one call site that changes
+    behavior-visibly is `master.region.as_ref()` at line 336: it always
+    held a live, valid `&VqRegion` (a `Box`-owned field read through
+    `.as_ref()`), so removing the round trip through a raw pointer and
+    back changes nothing about which bytes get read, only how many times
+    the same validity assumption gets asserted via `unsafe`. The wall
+    caller (`json_new_vq_region`, still fed a genuinely non-owning alias)
+    keeps exactly the same runtime behavior: one dereference of the same
+    pointer, at the same point in the call graph, just relabeled from two
+    scattered derefs to one.
+  - **Verification**: `cargo build --lib` and `cargo clippy --all-targets
+    -- -D warnings` both clean (the inline-deref-in-a-pub-fn form was
+    caught and reverted during this stage, not shipped). `cargo test --
+    --test-threads=1`: 418 passed, same 2 pre-existing timing-threshold
+    failures in this sandbox as every stage since M-10. Targeted Miri
+    (`cargo +nightly-2026-08-17 miri test --lib table::fvar:: -- --test-
+    threads=1`): 10 passed, 0 failed (no dedicated unit test exists for
+    `json_new_vq_region`/`_explicit`/`_impl` themselves, confirmed by grep
+    for `mod tests` in this file -- their coverage comes from the
+    `otf_dump` fuzz target instead, which drives `otfcc_read_sfnt ->
+    read_otf -> otfcc_consolidate_font -> serialize_to_json` and reaches
+    every changed function for any variable font with an `fvar` table;
+    confirmed reachable by reading the target's own source. `json_build`/
+    `otf_parse` were not re-run: `json_build` never reads an `fvar` table
+    back out to JSON (it only builds one), and `otf_parse` stops before
+    `serialize_to_json` is ever called, so neither exercises this stage's
+    changed code). Ran `cargo +nightly fuzz run otf_dump tests/fuzz-
+    corpus/known-issues/ -- -runs=0` (all 21 known-issues corpus files,
+    0 crashes) and `cargo +nightly fuzz run otf_dump --
+    -max_total_time=60` (536,035 executions in 61s, 0 crashes).
+    `survey-unsafe.sh`: `unsafe fn` unchanged at 8, `unsafe blocks` 55 ->
+    54 (the two deleted `unsafe { &*... }` blocks in the two helpers,
+    minus the one new one in `json_new_vq_region_impl`), raw pointer
+    types 512 -> 511 (the two deleted `*const VqRegion` parameter types
+    on the two helpers, minus the one added on `json_new_vq_region_impl`).
