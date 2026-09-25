@@ -16768,3 +16768,92 @@ on the other platform before a commit is trusted.
     and `libcff/charstring_il.rs` (the files the rejected index-approach
     would have needed) were never touched, confirming the `Rc` approach's
     self-containment held as the investigation predicted.
+
+- **Stage M-29: three c2rust `while` loops converted to iterator form
+  (`vf/vq.rs`'s `vq_is_still`/`vq_compare`, `libcff/cff_dict.rs`'s
+  `build_dict`), plus a module-map addition to `src/lib.rs`'s crate doc
+  comment.** Follows up a prior investigation of this crate's 230
+  c2rust-transpiled `while` loops, which sorted them into "clear, safe,
+  mechanical" / "medium-risk" / "index/pointer-entangled" thirds and named
+  these three as its "clear yes" examples. Rather than trust that
+  characterization, each was re-read in full against current line numbers
+  before converting, per this migration's standing "verify, don't just
+  trust the summary" practice -- all three held up exactly as described,
+  with no hidden index arithmetic or short-circuit subtlety the summary
+  had missed:
+  - **`vq_is_still`** (`while j < v.shift.len() { if !matches!(...) {
+    return false } j += 1 } return true`) is exactly
+    `v.shift.iter().all(|s| matches!(s, VqSegment::Still(_)))` --
+    confirmed the empty-`shift` case matches too (`.all()` on an empty
+    iterator is `true`, same as the loop never executing and falling
+    through to `return true`).
+  - **`vq_compare`** (`while j < a.shift.len() { let cr =
+    vqs_compare(&a.shift[j], &b.shift[j]); if cr != 0 { return cr } j += 1
+    } return (a.kernel - b.kernel) as i32`) is a paired-index loop over
+    two slices already confirmed equal-length by the length check just
+    above it -- `a.shift.iter().zip(b.shift.iter())` is safe precisely
+    because that length check runs first, and the `for` loop's own
+    early `return cr` on a nonzero comparison preserves the original's
+    short-circuit exactly; the empty-shift case (both lengths 0) falls
+    straight through to the `kernel` difference, unchanged.
+  - **`build_dict`** (`while i < ents.len() { ... while j < vals.len() {
+    ... j += 1 } ... i += 1 }`) is a nested loop with no index arithmetic
+    beyond a plain increment on either level -- converted to nested
+    `for ent in ents { for val in &ent.vals { ... } }`, matching a
+    `match *val { CffValue::Integer(i) => ... }` in place of the old
+    `match vals[j]` (the inner arm's own `i` binding shadows the
+    now-gone outer loop index `i`, same identifier, different meaning,
+    no behavior change).
+  - **New unit tests.** None of the three had direct test coverage
+    before this stage (`vq_is_still`/`vq_compare` were only exercised
+    indirectly through `table::glyf::read`/`table::fvar`'s suites per
+    M-28's own note; `cff_dict.rs` had no `#[cfg(test)]` module at all).
+    Added `vq_is_still_matches_manual_loop_semantics` and
+    `vq_compare_matches_manual_loop_semantics` to `vf/vq.rs` (empty
+    shift, all-`Still`, a `Delta` first vs. after a `Still` element for
+    `vq_is_still`; length short-circuit, first-element mismatch,
+    all-equal-falls-to-kernel, and both-empty for `vq_compare`) and
+    `build_dict_matches_manual_loop_semantics` to a new `cff_dict.rs`
+    test module (empty dict, and a two-entry/multi-operand dict compared
+    byte-for-byte against the same encode calls made directly).
+  - **`src/lib.rs`'s doc comment.** The investigation's premise that
+    `lib.rs` had no crate-level `//!` doc comment turned out to be stale
+    -- one already exists (added between the investigation and this
+    stage, orienting a reader to what the crate is and pointing at
+    `ffi::dll` as the only external boundary) -- so rather than skip this
+    half of the task, the existing comment was extended with a short
+    module-map paragraph grouping the fifteen `pub mod` declarations by
+    role (font model, reader/writer pairs, consolidation/variable-font
+    math, lower-level support libraries, small standalone utilities, the
+    FFI boundary), written from what each module's own top-of-file
+    comment already says rather than guessed.
+  - **Verification**: `cargo build --lib` and `cargo clippy --all-targets
+    -- -D warnings` both clean. `cargo test -- --test-threads=1`: 423
+    passed (419 + the three new tests + `build_dict`'s), 1 pre-existing
+    timing-threshold failure (`otl_feature_ref_amplification_font_parses_
+    promptly`, the same sandbox-CPU flake on record since M-10). Targeted
+    Miri, all clean -- `vf::` (3 passed, including the two new tests),
+    `libcff::cff_dict::` (1 passed, the new test), `table::glyf::read::`
+    (18 passed) and `table::fvar::` (10 passed, both re-run since they
+    exercise `vq_compare`/`vq_is_still` indirectly per M-28's own note).
+    **Golden byte-exact check**: `cargo test --test golden --
+    --test-threads=1`, all 4 tests passing unchanged, including
+    `fixed_payloads_match_golden`'s `gvar-test.ttf` variable-font
+    fixture -- no `UPDATE_GOLDEN=1` needed. Fuzz: `otf_dump` (reaches
+    `vf/vq.rs` for any variable font, per M-26/M-27/M-28's own
+    confirmation) and `json_build` (reaches `libcff/cff_dict.rs`'s
+    `build_dict` via `otfccbuild_json_otf`'s CFF write path) --
+    `cargo +nightly fuzz run otf_dump tests/fuzz-corpus/known-issues/ --
+    -runs=0` (all 21 known-issues corpus files, 0 crashes; the two
+    "slow unit" artifacts it re-wrote are the same pre-existing slow
+    inputs already on record, not new ones) and a matching
+    `cargo +nightly fuzz run json_build -- -runs=0` scoped to the
+    corpus's two `json-build-*.bin` known-issues files (0 crashes),
+    followed by `cargo +nightly fuzz run otf_dump -- -max_total_time=100`
+    (2,038,101 executions in 101s, 0 crashes) and
+    `cargo +nightly fuzz run json_build -- -max_total_time=100`
+    (5,915,500 executions in 101s, 0 crashes). `survey-unsafe.sh`:
+    `unsafe fn`/`unsafe blocks`/raw pointer types unchanged at 8/48/498
+    (expected -- this stage touches no `unsafe` code); `while loops`
+    230 -> 226, exactly the four loops converted (two in `vf/vq.rs`, two
+    nested levels in `build_dict`).
