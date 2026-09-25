@@ -223,7 +223,7 @@ pub fn consolidate_mark_to_single(glyph_order: &GlyphOrder, _subtable: &mut Subt
         subtable.class_count,
     );
     consolidate_base_array(glyph_order, options, &mut subtable.base_array);
-    subtable.mark_array.len() == 0_usize || subtable.base_array.len() == 0_usize
+    subtable.mark_array.is_empty() || subtable.base_array.is_empty()
 }
 pub fn consolidate_mark_to_ligature(glyph_order: &GlyphOrder, _subtable: &mut Subtable, options: &Options) -> bool {
     let Subtable::GposMarkToLigature(subtable) = _subtable else {
@@ -236,5 +236,5 @@ pub fn consolidate_mark_to_ligature(glyph_order: &GlyphOrder, _subtable: &mut Su
         subtable.class_count,
     );
     consolidate_lig_array(glyph_order, options, &mut subtable.lig_array);
-    subtable.mark_array.len() == 0_usize || subtable.lig_array.len() == 0_usize
+    subtable.mark_array.is_empty() || subtable.lig_array.is_empty()
 }

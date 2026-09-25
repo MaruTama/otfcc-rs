@@ -71,7 +71,7 @@ pub type OtlSplitBuilder = Option<fn(&Subtable, BuildHeuristics) -> Vec<Buffer>>
 pub const LARGE_SUBTABLE_LIMIT: i32 = 4096_i32;
 fn feature_name_to_tag(name: &[u8]) -> u32 {
     let mut tag: u32 = 0_u32;
-    if name.len() > 0_usize {
+    if !name.is_empty() {
         tag |= ((name[0_usize] as i32) << 24_i32) as u32;
     } else {
         tag |= ((' ' as i32 as u8 as i32) << 24_i32) as u32;

@@ -74,7 +74,6 @@ empty_line_after_doc_comments = "allow" # 2
 excessive_precision = "allow" # 4 -- float literals with more digits than f64 can hold
 implicit_saturating_sub = "allow" # 2
 items_after_test_module = "allow" # 1
-len_zero = "allow" # 2 -- `.len() == 0` instead of `.is_empty()`
 macro_metavars_in_unsafe = "allow" # 2 -- `bytesbuild!`'s internal `unsafe {}`, see vendor/sds.rs
 manual_c_str_literals = "allow" # 4
 manual_memcpy = "allow" # 2

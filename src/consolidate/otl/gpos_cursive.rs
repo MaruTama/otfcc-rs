@@ -75,5 +75,5 @@ pub fn consolidate_gpos_cursive(
             exit,
         });
     }
-    subtable.len() == 0_usize
+    subtable.is_empty()
 }

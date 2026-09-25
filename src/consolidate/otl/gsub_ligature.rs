@@ -54,5 +54,5 @@ pub fn consolidate_gsub_ligature(
         }
     }
     subtable_gsub_ligature_replace(subtable, nt);
-    subtable.len() == 0_usize
+    subtable.is_empty()
 }

@@ -100,5 +100,5 @@ pub fn consolidate_gsub_single(
             } as GlyphHandle,
         });
     }
-    subtable.len() == 0_usize
+    subtable.is_empty()
 }

@@ -111,7 +111,7 @@ fn build_rule(
         // `Vec<GlyphHandle>` and this function never hands the pointer to
         // anyone else in between.
         let mut cov: Coverage = Coverage::new();
-        if match_entry.len() > 0_usize {
+        if !match_entry.is_empty() {
             let h: &std::collections::BTreeMap<GlyphId, ClassifierValue> =
                 if (m as i32) < rule.input_begins as i32 {
                     hb

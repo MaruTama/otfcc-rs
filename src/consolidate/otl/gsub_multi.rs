@@ -74,7 +74,7 @@ pub fn consolidate_gsub_multi(glyph_order: &GlyphOrder, _subtable: &mut Subtable
             to,
         });
     }
-    subtable.len() == 0_usize
+    subtable.is_empty()
 }
 pub fn consolidate_gsub_alternative(glyph_order: &GlyphOrder, _subtable: &mut Subtable, options: &Options) -> bool {
     consolidate_gsub_multi(glyph_order, _subtable, options)
