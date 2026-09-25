@@ -16857,3 +16857,35 @@ on the other platform before a commit is trusted.
     (expected -- this stage touches no `unsafe` code); `while loops`
     230 -> 226, exactly the four loops converted (two in `vf/vq.rs`, two
     nested levels in `build_dict`).
+
+- **CI: the `miri` job's real wall-time cost was one un-ignored bulk test,
+  not the sysroot build the earlier caching fix targeted.** A user-reported
+  "still 20+ minutes" prompted pulling the actual CI job logs (not
+  guessing) for a run built on top of the Miri-cache-directories fix in the
+  same PR (#486). The `Swatinem/rust-cache` `cache-directories: ~/.cache/
+  miri` addition from that same PR worked exactly as intended -- `Preparing
+  a sysroot for Miri... done` completed in under 20 seconds on a warm
+  cache, down from being folded into whatever the previous ~20-minute
+  figure actually measured. Every one of the module-filtered `cargo miri
+  test` invocations (from the same PR's filtering change) finished in
+  single-digit-to-low-double-digit seconds -- except `libcff::`, whose
+  group took ~19 of the job's ~22 total minutes by itself. Line-by-line
+  timestamps in the job log (run 36155716308, job 108150304183) pinned it
+  to a single test: `libcff::cff_codecs::float_encoding_tests::encoding_
+  many_pseudo_random_finite_values_never_panics` -- an 18.7-minute gap
+  between its neighbor finishing and it finishing, with nothing else in
+  between. The test itself was fine (20,000 pseudo-random float encode/
+  decode round trips through `cff_encode_cff_float`'s %g-style nibble
+  packing, a legitimate fuzz-style sweep, 0.07s natively) -- it was simply
+  never marked `#[cfg_attr(miri, ignore = "..")]` the way its own sibling
+  test two functions up (`undefined_byte_tokens_decode_promptly_even_in_
+  bulk`, 500,000 iterations, already ignored for the identical "timing-
+  based bulk sweep, far too slow under Miri's interpreter" reason) already
+  was. Added the same attribute, citing the exact CI job/run IDs that
+  pinned the cost, so a future reader doesn't have to re-derive this from
+  scratch. Verified locally: the `libcff::` filter alone dropped from
+  1687.25s to 14.22s; native `cargo test` still runs the un-ignored test in
+  0.07s, so the real coverage this test provides is unaffected, only its
+  execution under Miri's interpreter is skipped (same tradeoff its sibling
+  test already made). `cargo clippy --all-targets -- -D warnings`: clean.
+  No `survey-unsafe.sh` movement (a test attribute, not unsafe code).
