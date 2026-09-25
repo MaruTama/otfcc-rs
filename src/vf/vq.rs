@@ -293,13 +293,11 @@ pub(crate) fn vq_compare(a: VQ, b: VQ) -> i32 {
     if a.shift.len() > b.shift.len() {
         return 1_i32;
     }
-    let mut j: usize = 0_usize;
-    while j < a.shift.len() {
-        let cr: i32 = vqs_compare(&a.shift[j], &b.shift[j]);
+    for (av, bv) in a.shift.iter().zip(b.shift.iter()) {
+        let cr: i32 = vqs_compare(av, bv);
         if cr != 0 {
             return cr;
         }
-        j = j.wrapping_add(1);
     }
     return (a.kernel - b.kernel) as i32;
 }
@@ -321,14 +319,7 @@ pub(crate) fn vq_create_still(x: Pos) -> VQ {
     }
 }
 pub(crate) fn vq_is_still(v: VQ) -> bool {
-    let mut j: usize = 0_usize;
-    while j < v.shift.len() {
-        if !matches!(v.shift[j], VqSegment::Still(_)) {
-            return false;
-        }
-        j = j.wrapping_add(1);
-    }
-    return true;
+    v.shift.iter().all(|s| matches!(s, VqSegment::Still(_)))
 }
 pub(crate) fn vq_is_zero(v: VQ, err: Pos) -> bool {
     return vq_is_still(v.clone()) as i32 != 0
@@ -377,5 +368,77 @@ mod tests {
             .discriminant_byte(),
             1
         );
+    }
+
+    // `vq_is_still` was a manual index loop returning `false` on the first
+    // non-`Still` segment, `true` otherwise (including the empty-shift
+    // case). Converted to `.iter().all(...)` -- these cases pin down the
+    // empty/all-still/short-circuit-on-first-mismatch behavior across the
+    // conversion.
+    #[test]
+    fn vq_is_still_matches_manual_loop_semantics() {
+        assert!(vq_is_still(VQ { kernel: 0., shift: Vec::new() }));
+        assert!(vq_is_still(VQ {
+            kernel: 0.,
+            shift: vec![VqSegment::Still(1.), VqSegment::Still(2.)],
+        }));
+        let delta = VqSegment::Delta(VqSegmentDelta {
+            quantity: 1.,
+            touched: false,
+            region: Rc::new(VqRegion { dimensions: 0, spans: Vec::new() }),
+        });
+        assert!(!vq_is_still(VQ {
+            kernel: 0.,
+            shift: vec![delta.clone()],
+        }));
+        // A non-`Still` segment after a `Still` one must still short-circuit
+        // to `false` (not just check the first element).
+        assert!(!vq_is_still(VQ {
+            kernel: 0.,
+            shift: vec![VqSegment::Still(1.), delta],
+        }));
+    }
+
+    // `vq_compare` compares by shift length first, then element-wise via
+    // `vqs_compare` with early return on the first nonzero result, then
+    // falls back to `kernel` difference. Converted the element-wise loop
+    // to `.iter().zip(...)` -- these cases cover the length short-circuit,
+    // the zip's own early-return, and the kernel-difference fallback when
+    // every element compares equal.
+    #[test]
+    fn vq_compare_matches_manual_loop_semantics() {
+        let a = VQ { kernel: 0., shift: vec![VqSegment::Still(1.)] };
+        let b = VQ { kernel: 0., shift: Vec::new() };
+        assert_eq!(vq_compare(a.clone(), b.clone()), 1);
+        assert_eq!(vq_compare(b, a), -1);
+
+        // Equal-length shifts, first element already differs: must return
+        // that element's comparison, not fall through to `kernel`.
+        let a = VQ {
+            kernel: 100.,
+            shift: vec![VqSegment::Still(1.), VqSegment::Still(5.)],
+        };
+        let b = VQ {
+            kernel: 0.,
+            shift: vec![VqSegment::Still(2.), VqSegment::Still(5.)],
+        };
+        assert_eq!(vq_compare(a.clone(), b.clone()), -1);
+        assert_eq!(vq_compare(b, a), 1);
+
+        // Every element equal: falls back to kernel difference.
+        let a = VQ {
+            kernel: 3.,
+            shift: vec![VqSegment::Still(1.), VqSegment::Still(5.)],
+        };
+        let b = VQ {
+            kernel: 1.,
+            shift: vec![VqSegment::Still(1.), VqSegment::Still(5.)],
+        };
+        assert_eq!(vq_compare(a, b), 2);
+
+        // Both shifts empty: no zip iterations, kernel decides.
+        let a = VQ { kernel: 0., shift: Vec::new() };
+        let b = VQ { kernel: 0., shift: Vec::new() };
+        assert_eq!(vq_compare(a, b), 0);
     }
 }

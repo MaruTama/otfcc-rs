@@ -124,21 +124,51 @@ pub(crate) fn parse_dict_key_int(data: &[u8], op: CffDictOperator, idx: u32) -> 
 pub(crate) fn build_dict(dict: &CffDict) -> Buffer {
     let mut blob = Buffer::new();
     let ents = &dict.ents;
-    let mut i: usize = 0;
-    while i < ents.len() {
-        let vals = &ents[i].vals;
-        let mut j: usize = 0;
-        while j < vals.len() {
-            let blob_val: Buffer = match vals[j] {
+    for ent in ents {
+        for val in &ent.vals {
+            let blob_val: Buffer = match *val {
                 CffValue::Integer(i) => cff_encode_cff_integer(i),
                 CffValue::Double(d) => cff_encode_cff_float(d),
                 CffValue::Unset | CffValue::Operator(_) => cff_encode_cff_integer(0_i32),
             };
             blob.write_buffer_owned(blob_val);
-            j = j.wrapping_add(1);
         }
-        blob.write_buffer_owned(cff_encode_cff_operator(ents[i].op));
-        i = i.wrapping_add(1);
+        blob.write_buffer_owned(cff_encode_cff_operator(ent.op));
     }
     blob
+}
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // `build_dict` was a nested index-loop pair (entries, then each
+    // entry's operand values) with no index arithmetic beyond a plain
+    // increment. Converted to nested `for`/`.iter()` loops -- this pins
+    // down that an empty dict, a multi-operand entry, and multiple
+    // entries all still serialize in the same order (operands then their
+    // operator, per entry, entries in original order).
+    #[test]
+    fn build_dict_matches_manual_loop_semantics() {
+        assert_eq!(build_dict(&CffDict { ents: Vec::new() }).len(), 0);
+
+        let dict = CffDict {
+            ents: vec![
+                CffDictEntry {
+                    op: CffDictOperator(15),
+                    vals: vec![CffValue::Integer(1000), CffValue::Integer(2)],
+                },
+                CffDictEntry {
+                    op: CffDictOperator(17),
+                    vals: vec![CffValue::Integer(500)],
+                },
+            ],
+        };
+        let mut expected = Buffer::new();
+        expected.write_buffer_owned(cff_encode_cff_integer(1000));
+        expected.write_buffer_owned(cff_encode_cff_integer(2));
+        expected.write_buffer_owned(cff_encode_cff_operator(CffDictOperator(15)));
+        expected.write_buffer_owned(cff_encode_cff_integer(500));
+        expected.write_buffer_owned(cff_encode_cff_operator(CffDictOperator(17)));
+        assert_eq!(build_dict(&dict).data, expected.data);
+    }
 }
