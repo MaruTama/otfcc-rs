@@ -459,7 +459,7 @@ fn parse_otl_common(
     }
     if total_languages >= MAX_TOTAL_LANGUAGES {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(

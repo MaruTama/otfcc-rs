@@ -37,7 +37,7 @@ pub fn consolidate_gpos_single(
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut entry.target) {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored missing glyph /", &entry.target.name, b".\n",),
@@ -46,7 +46,7 @@ pub fn consolidate_gpos_single(
             let fromid: i32 = entry.target.index as i32;
             if seen.contains_key(&fromid) {
                 logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
+                    &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(
@@ -73,5 +73,5 @@ pub fn consolidate_gpos_single(
             value: v,
         });
     }
-    subtable.len() == 0_usize
+    subtable.is_empty()
 }

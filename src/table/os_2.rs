@@ -206,7 +206,7 @@ pub fn otfcc_read_os_2(packet: &Packet, options: &Options) -> Option<Box<Os2Tabl
         Ok(os2) => Some(Box::new(os2)),
         Err(_) => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'OS/2' corrupted.\n"),
@@ -416,7 +416,7 @@ pub fn otfcc_dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue, options:
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"OS/2"),
     );
     let mut os_2 = BuiltValue::new_object(30);
@@ -563,7 +563,7 @@ pub fn otfcc_dump_os_2(table: Option<&Os2Table>, root: &mut BuiltValue, options:
         BuiltValue::Int(table.us_upper_optical_point_size as i64),
     );
     root.push_field(b"OS_2", os_2);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 pub fn otfcc_parse_os_2(root: &ParsedValue, options: &Options) -> Option<Box<Os2Table>> {
     let mut os_2 = Os2Table {
@@ -609,7 +609,7 @@ pub fn otfcc_parse_os_2(root: &ParsedValue, options: &Options) -> Option<Box<Os2
     };
     if let Some(table) = root.get_typed(b"OS_2", JsonType::Object) {
         logger_start_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"OS/2"),
         );
         os_2.version = table.get_num(b"version") as u16;
@@ -682,7 +682,7 @@ pub fn otfcc_parse_os_2(root: &ParsedValue, options: &Options) -> Option<Box<Os2
                 os_2.ach_vend_id[..n].copy_from_slice(&bytes[..n]);
             }
         }
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
     if (os_2.version as i32) < 1_i32 {
         os_2.version = 1_u16;

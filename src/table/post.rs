@@ -400,7 +400,7 @@ pub fn otfcc_read_post(packet: &Packet, options: &Options) -> Option<Box<PostTab
         Ok(parsed) => parsed,
         Err(_) => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'post' corrupted.\n"),
@@ -439,7 +439,7 @@ pub fn otfcc_dump_post(table: Option<&PostTable>, root: &mut BuiltValue, options
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"post"),
     );
     let mut post = BuiltValue::new_object(10);
@@ -477,7 +477,7 @@ pub fn otfcc_dump_post(table: Option<&PostTable>, root: &mut BuiltValue, options
         BuiltValue::Int(table.max_mem_type1 as i64),
     );
     root.push_field(b"post", post);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<PostTable>> {
     // `.version`'s `0x30000` default carries through if the "post" JSON key
@@ -498,7 +498,7 @@ pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<Pos
     };
     if let Some(table) = root.get_typed(b"post", JsonType::Object) {
         logger_start_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"post"),
         );
         if options.short_post {
@@ -514,7 +514,7 @@ pub fn otfcc_parse_post(root: &ParsedValue, options: &Options) -> Option<Box<Pos
         post.max_mem_type42 = table.get_num(b"maxMemType42") as u32;
         post.min_mem_type1 = table.get_num(b"minMemType1") as u32;
         post.max_mem_type1 = table.get_num(b"maxMemType1") as u32;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
     Some(Box::new(post))
 }

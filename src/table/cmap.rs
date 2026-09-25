@@ -578,7 +578,7 @@ pub fn otfcc_read_cmap(packet: &Packet, options: &Options) -> Option<Box<CmapTab
         Ok(cmap) => Some(cmap),
         Err(_) => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'cmap' corrupted.\n"),
@@ -595,7 +595,7 @@ pub fn otfcc_dump_cmap(
 ) {
     let Some(table) = table else { return };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"cmap"),
     );
     if !table.unicodes.is_empty() {
@@ -631,7 +631,7 @@ pub fn otfcc_dump_cmap(
         }
         root.push_field(b"cmap_uvs", uvs);
     }
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 // `unicode_str` borrows the object key's own storage directly (the trailing
 // storage NUL stripped by the caller, same as every other `ParsedValue`
@@ -660,7 +660,7 @@ fn parse_cmap_unicodes(cmap: &mut CmapTable, table: Option<&ParsedValue>, option
         if !otfcc_encode_cmap_by_name(cmap, unicode as i32, gname.clone()) {
             if let Some(current_map) = otfcc_cmap_lookup(cmap, unicode as i32) {
                 logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
+                    &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(
@@ -714,7 +714,7 @@ fn parse_cmap_uvs(cmap: &mut CmapTable, table: Option<&ParsedValue>, options: &O
         if !otfcc_encode_cmap_uvs_by_name(cmap, k, gname.clone()) {
             if let Some(current_map) = otfcc_cmap_lookup_uvs(cmap, k) {
                 logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
+                    &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(
@@ -741,13 +741,13 @@ pub fn otfcc_parse_cmap(root: &ParsedValue, options: &Options) -> Option<Box<Cma
     });
     let cmap: &mut CmapTable = cmap_box.as_mut();
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"cmap"),
     );
     parse_cmap_unicodes(cmap, root.get_typed(b"cmap", JsonType::Object), options);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"cmap_uvs"),
     );
     parse_cmap_uvs(
@@ -755,7 +755,7 @@ pub fn otfcc_parse_cmap(root: &ParsedValue, options: &Options) -> Option<Box<Cma
         root.get_typed(b"cmap_uvs", JsonType::Object),
         options,
     );
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(cmap_box)
 }
 fn otfcc_build_cmap_format4(cmap: &CmapTable) -> Buffer {

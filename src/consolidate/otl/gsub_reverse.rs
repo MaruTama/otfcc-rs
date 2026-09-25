@@ -60,7 +60,7 @@ pub fn consolidate_gsub_reverse(
         let fromid: i32 = from.index as i32;
         if seen.contains_key(&fromid) {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
@@ -79,7 +79,7 @@ pub fn consolidate_gsub_reverse(
     let count: usize = seen.len();
     if count != subtable.match_0[input_index].len() || count != subtable.to.len() {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(

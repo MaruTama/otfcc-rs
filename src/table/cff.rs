@@ -1527,11 +1527,11 @@ pub fn otfcc_dump_cff(table: Option<&CffTable>, root: &mut BuiltValue, options: 
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"CFF"),
     );
     root.push_field(b"CFF_", fd_to_json(table));
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 fn pd_delta_from_json(dump: Option<&ParsedValue>) -> Vec<::core::ffi::c_double> {
     let Some(items) = dump.and_then(ParsedValue::as_array) else {
@@ -1636,11 +1636,11 @@ fn fd_from_json(dump: Option<&ParsedValue>, options: &Options, top_level: bool) 
 pub fn otfcc_parse_cff(root: &ParsedValue, options: &Options) -> Option<Box<CffTable>> {
     let dump = root.get_typed(b"CFF_", JsonType::Object)?;
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"CFF"),
     );
     let cff = fd_from_json(Some(dump), options, true);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(cff)
 }
 // `CffCharstringBuilderContext.glyf`/`.options` are plain borrows now
@@ -2035,19 +2035,19 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
         .wrapping_add(n.len())
         .wrapping_add(11_usize)
         .wrapping_add(t.len()) as u32;
-    if c.len() != 0_usize {
+    if !c.is_empty() {
         additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(6_u32);
     }
-    if e.len() != 0_usize {
+    if !e.is_empty() {
         additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(7_u32);
     }
-    if s.len() != 0_usize {
+    if !s.is_empty() {
         additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(6_u32);
     }
-    if p.len() != 0_usize {
+    if !p.is_empty() {
         additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(11_u32);
     }
-    if r.len() != 0_usize {
+    if !r.is_empty() {
         additional_top_dict_ops_size = additional_top_dict_ops_size.wrapping_add(7_u32);
     }
     blob.write_buffer_owned(h);
@@ -2075,28 +2075,28 @@ fn writecff_cid_keyed(cff: &mut CffTable, glyf: Option<&GlyfTable>, options: &Op
             .wrapping_add(i.len())
             .wrapping_add(gs.len()),
     ) as u32;
-    if c.len() != 0_usize {
+    if !c.is_empty() {
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_CHARSET));
         off = (off as usize).wrapping_add(c.len()) as u32;
     }
-    if e.len() != 0_usize {
+    if !e.is_empty() {
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_FD_SELECT));
         off = (off as usize).wrapping_add(e.len()) as u32;
     }
-    if s.len() != 0_usize {
+    if !s.is_empty() {
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_CHAR_STRINGS));
         off = (off as usize).wrapping_add(s.len()) as u32;
     }
-    if p.len() != 0_usize {
+    if !p.is_empty() {
         blob.write_buffer_owned(cff_build_offset(p.len() as u32 as i32));
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_PRIVATE));
         off = (off as usize).wrapping_add(p.len()) as u32;
     }
-    if r.len() != 0_usize {
+    if !r.is_empty() {
         blob.write_buffer_owned(cff_build_offset(off as i32));
         blob.write_buffer_owned(cff_encode_cff_operator(OP_FD_ARRAY));
         off = (off as usize).wrapping_add(r.len()) as u32;

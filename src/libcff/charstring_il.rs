@@ -838,6 +838,6 @@ mod cff_compile_glyph_to_il_tests {
             on_curve: 1,
         }]);
         let il = cff_compile_glyph_to_il(&g, 0, 0);
-        assert!(il.instr.len() > 0);
+        assert!(!il.instr.is_empty());
     }
 }

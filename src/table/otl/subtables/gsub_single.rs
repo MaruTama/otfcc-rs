@@ -118,7 +118,7 @@ pub fn otfcc_build_gsub_single_subtable(
     let Subtable::GsubSingle(subtable) = _subtable else {
         unreachable!()
     };
-    let mut is_constant_difference: bool = subtable.len() > 0_usize;
+    let mut is_constant_difference: bool = !subtable.is_empty();
     if is_constant_difference {
         let difference: i32 =
             subtable[0].to.index as i32 - subtable[0].from.index as i32;

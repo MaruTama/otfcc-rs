@@ -181,7 +181,7 @@ fn parse_glyph_order(root: &ParsedValue, options: &Options) -> Option<Box<GlyphO
             let mut ignore_glyph_order: bool = options.ignore_glyph_order;
             if ignore_glyph_order && root.get_typed(b"SVG_", JsonType::Array).is_some() {
                 logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
+                    &mut options.logger.borrow_mut(),
                     LOG_VL_NOTICE,
                     LoggerType::Info,
                     crate::bytesbuild!(b"OpenType SVG table detected. Glyph order is preserved.",),

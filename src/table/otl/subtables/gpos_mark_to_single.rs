@@ -199,7 +199,7 @@ fn parse_bases(
                     match h.get(class_name) {
                         None => {
                             logger_log_sds(
-                                &mut *options.logger.borrow_mut(),
+                                &mut options.logger.borrow_mut(),
                                 LOG_VL_IMPORTANT,
                                 LoggerType::Warning,
                                 crate::bytesbuild!(

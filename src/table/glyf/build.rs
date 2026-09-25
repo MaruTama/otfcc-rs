@@ -12,7 +12,7 @@ use crate::table::head::HeadTable;
 use crate::support::primitives::otfcc_to_f2dot14;
 use crate::vf::vq::vq_get_still;
 pub fn shrink_flags(flags: Buffer) -> Buffer {
-    if flags.len() == 0 {
+    if flags.is_empty() {
         return flags;
     }
     let mut shrunk = Buffer::new();

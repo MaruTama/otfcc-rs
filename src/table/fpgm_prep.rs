@@ -52,10 +52,10 @@ pub fn table_dump_table_fpgm_prep(
     let Some(table) = table else {
         return;
     };
-    logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let dumped = dump_ttinstr(&table.bytes, options);
     root.push_field(tag, dumped);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 pub fn otfcc_parse_fpgm_prep(
     root: &ParsedValue,
@@ -63,13 +63,13 @@ pub fn otfcc_parse_fpgm_prep(
     tag: &[u8],
 ) -> Option<Box<FpgmPrepTable>> {
     let table = root.get(tag)?;
-    logger_start_sds(&mut *options.logger.borrow_mut(), crate::bytesbuild!(tag));
+    logger_start_sds(&mut options.logger.borrow_mut(), crate::bytesbuild!(tag));
     let mut boxed = Box::new(FpgmPrepTable {
         tag: tag.to_vec(),
         bytes: Vec::new(),
     });
     parse_ttinstr(Some(table), |instrs| boxed.bytes = instrs, |_reason, _pos| {});
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(boxed)
 }
 pub fn otfcc_build_fpgm_prep(table: Option<&FpgmPrepTable>) -> Option<Buffer> {

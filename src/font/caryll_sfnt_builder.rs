@@ -91,7 +91,7 @@ pub fn otfcc_sfnt_builder_push_table(builder: &mut SfntBuilder, tag: u32, buffer
     builder.tables.insert(tag as i32, entry);
     let options = builder.options;
     logger_log_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         LOG_VL_PROGRESS,
         LoggerType::Progress,
         crate::bytesbuild!(

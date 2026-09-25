@@ -223,7 +223,7 @@ pub fn otfcc_read_base(packet: &Packet, options: &Options) -> Option<Box<BaseTab
         Ok(parsed) => parsed,
         Err(_) => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Table 'BASE' Corrupted"),
@@ -265,7 +265,7 @@ fn axis_to_json(axis: &BaseAxis) -> BuiltValue {
 pub fn otfcc_dump_base(base: Option<&BaseTable>, root: &mut BuiltValue, options: &Options) {
     let Some(base) = base else { return };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"BASE"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -279,7 +279,7 @@ pub fn otfcc_dump_base(base: Option<&BaseTable>, root: &mut BuiltValue, options:
         }
         root.push_field(b"BASE", _base);
         ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
 }
 /// Returns `(default_baseline_tag, base_values)`, the JSON-side twin of
@@ -329,7 +329,7 @@ pub fn otfcc_parse_base(root: &ParsedValue, options: &Options) -> Option<Box<Bas
     let table = root.get_typed(b"BASE", JsonType::Object);
     if let Some(table) = table {
         logger_start_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"BASE"),
         );
         let mut ___loggedstep_v: bool = true;
@@ -341,7 +341,7 @@ pub fn otfcc_parse_base(root: &ParsedValue, options: &Options) -> Option<Box<Bas
                 vertical,
             }));
             ___loggedstep_v = false;
-            logger_finish(&mut *options.logger.borrow_mut());
+            logger_finish(&mut options.logger.borrow_mut());
         }
     }
     return base;

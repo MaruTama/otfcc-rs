@@ -35,7 +35,7 @@ pub fn consolidate_gsub_single(
     while k < subtable.len() {
         if !otfcc_gord_consolidate_handle(glyph_order, &mut subtable[k].from) {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
@@ -46,7 +46,7 @@ pub fn consolidate_gsub_single(
             );
         } else if !otfcc_gord_consolidate_handle(glyph_order, &mut subtable[k].to) {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(
@@ -59,7 +59,7 @@ pub fn consolidate_gsub_single(
             let fromid: i32 = subtable[k].from.index as i32;
             if seen.contains_key(&fromid) {
                 logger_log_sds(
-                    &mut *options.logger.borrow_mut(),
+                    &mut options.logger.borrow_mut(),
                     LOG_VL_IMPORTANT,
                     LoggerType::Warning,
                     crate::bytesbuild!(
@@ -79,7 +79,7 @@ pub fn consolidate_gsub_single(
     }
     if seen.len() != subtable.len() {
         logger_log_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             LOG_VL_IMPORTANT,
             LoggerType::Warning,
             crate::bytesbuild!(b"[Consolidate] In this lookup, some mappings are ignored.\n",),
@@ -100,5 +100,5 @@ pub fn consolidate_gsub_single(
             } as GlyphHandle,
         });
     }
-    subtable.len() == 0_usize
+    subtable.is_empty()
 }

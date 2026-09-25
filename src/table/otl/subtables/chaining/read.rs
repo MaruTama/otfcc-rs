@@ -716,7 +716,7 @@ pub fn otl_read_contextual(
         return Some(Subtable::Chaining(*subtable));
     }
     logger_log_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as i32, b".\n"),
@@ -1134,7 +1134,7 @@ pub fn otl_read_chaining(
         return Some(Subtable::Chaining(*subtable));
     }
     logger_log_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         LOG_VL_IMPORTANT,
         LoggerType::Warning,
         crate::bytesbuild!(b"Unsupported format ", format as i32, b".\n"),

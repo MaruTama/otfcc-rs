@@ -13,7 +13,7 @@ pub fn otfcc_dump_meta(meta: Option<&MetaTable>, root: &mut BuiltValue, options:
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"meta"),
     );
     let mut _meta = BuiltValue::new_object(3);
@@ -40,5 +40,5 @@ pub fn otfcc_dump_meta(meta: Option<&MetaTable>, root: &mut BuiltValue, options:
     }
     _meta.push_field(b"entries", _entries);
     root.push_field(b"meta", _meta);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }

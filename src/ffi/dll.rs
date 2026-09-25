@@ -20,7 +20,7 @@ pub unsafe extern "C" fn otfccbuild_json_otf(
 ) -> *mut Buffer {
     let mut options: Box<Options> = Box::default();
     options.logger = RefCell::new(Logger::new(otfcc_new_empty_target()));
-    logger_indent_sds(&mut *options.logger.borrow_mut(), b"otfccbuild".to_vec());
+    logger_indent_sds(&mut options.logger.borrow_mut(), b"otfccbuild".to_vec());
     otfcc_options_optimize_to(&mut options, olevel);
     if for_webfont {
         options.ignore_glyph_order = true;

@@ -47,7 +47,7 @@ pub fn otfcc_dump_cvt(table: Option<&CvtTable>, root: &mut BuiltValue, options: 
         None => return,
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"cvt"),
     );
     let mut ___loggedstep_v: bool = true;
@@ -58,7 +58,7 @@ pub fn otfcc_dump_cvt(table: Option<&CvtTable>, root: &mut BuiltValue, options: 
         }
         root.push_field(tag, arr);
         ___loggedstep_v = false;
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
     }
 }
 pub fn otfcc_parse_cvt(root: &ParsedValue, options: &Options, tag: &[u8]) -> Option<Box<CvtTable>> {
@@ -68,7 +68,7 @@ pub fn otfcc_parse_cvt(root: &ParsedValue, options: &Options, tag: &[u8]) -> Opt
         .and_then(ParsedValue::as_array)
     {
         logger_start_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"cvt"),
         );
         let mut words: Vec<u16> = Vec::with_capacity(items.len());
@@ -79,7 +79,7 @@ pub fn otfcc_parse_cvt(root: &ParsedValue, options: &Options, tag: &[u8]) -> Opt
                 _ => 0_u16,
             });
         }
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
         return Some(Box::new(CvtTable { words }));
     }
     if let Some(bytes) = root
@@ -87,7 +87,7 @@ pub fn otfcc_parse_cvt(root: &ParsedValue, options: &Options, tag: &[u8]) -> Opt
         .and_then(ParsedValue::as_str_bytes)
     {
         logger_start_sds(
-            &mut *options.logger.borrow_mut(),
+            &mut options.logger.borrow_mut(),
             crate::bytesbuild!(b"cvt"),
         );
         let raw = base64_decode(bytes).unwrap_or_default();
@@ -96,7 +96,7 @@ pub fn otfcc_parse_cvt(root: &ParsedValue, options: &Options, tag: &[u8]) -> Opt
         for j in 0..table_length {
             words.push(u16::from_be_bytes([raw[2 * j], raw[2 * j + 1]]));
         }
-        logger_finish(&mut *options.logger.borrow_mut());
+        logger_finish(&mut options.logger.borrow_mut());
         return Some(Box::new(CvtTable { words }));
     }
     None

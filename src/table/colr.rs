@@ -105,7 +105,7 @@ pub fn otfcc_read_colr(packet: &Packet, options: &Options) -> Option<ColrTable> 
         Ok(colr) => Some(colr),
         Err(_) => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Table 'COLR' corrupted.\n"),
@@ -119,7 +119,7 @@ pub fn otfcc_dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue, options:
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"COLR"),
     );
     let mut _colr = BuiltValue::new_array(mappings.len());
@@ -137,13 +137,13 @@ pub fn otfcc_dump_colr(colr: Option<&ColrTable>, root: &mut BuiltValue, options:
         _colr.push_item(_map);
     }
     root.push_field(b"COLR", _colr);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 pub fn otfcc_parse_colr(root: &ParsedValue, options: &Options) -> Option<ColrTable> {
     let colr_val = root.get_typed(b"COLR", JsonType::Array)?;
     let mut colr: ColrTable = Vec::new();
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"COLR"),
     );
     if let Some(mappings) = colr_val.as_array() {
@@ -183,7 +183,7 @@ pub fn otfcc_parse_colr(root: &ParsedValue, options: &Options) -> Option<ColrTab
             }
         }
     }
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(colr)
 }
 #[allow(improper_ctypes_definitions)]

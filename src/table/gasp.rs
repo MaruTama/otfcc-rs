@@ -60,7 +60,7 @@ pub fn otfcc_read_gasp(packet: &Packet, options: &Options) -> Option<Box<GaspTab
         Ok(gasp) => Some(Box::new(gasp)),
         Err(_) => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'gasp' corrupted.\n"),
@@ -74,7 +74,7 @@ pub fn otfcc_dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue, options
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"gasp"),
     );
     let mut t = BuiltValue::new_array(table.records.len());
@@ -91,12 +91,12 @@ pub fn otfcc_dump_gasp(table: Option<&GaspTable>, root: &mut BuiltValue, options
         t.push_item(rec);
     }
     root.push_field(b"gasp", t);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 pub fn otfcc_parse_gasp(root: &ParsedValue, options: &Options) -> Option<Box<GaspTable>> {
     let table = root.get_typed(b"gasp", JsonType::Array)?;
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"gasp"),
     );
     let mut gasp = GaspTable {
@@ -116,7 +116,7 @@ pub fn otfcc_parse_gasp(root: &ParsedValue, options: &Options) -> Option<Box<Gas
             }
         }
     }
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(Box::new(gasp))
 }
 pub fn otfcc_build_gasp(gasp: Option<&GaspTable>) -> Option<Buffer> {

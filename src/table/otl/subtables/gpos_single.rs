@@ -120,9 +120,9 @@ pub fn otfcc_build_gpos_single(
     let Subtable::GposSingle(subtable) = _subtable else {
         unreachable!()
     };
-    let mut is_const: bool = subtable.len() > 0_usize;
+    let mut is_const: bool = !subtable.is_empty();
     let mut format: u16 = 0_u16;
-    if subtable.len() > 0_usize {
+    if !subtable.is_empty() {
         for entry in subtable.iter() {
             is_const = is_const
                 && entry.value.dx == subtable[0].value.dx

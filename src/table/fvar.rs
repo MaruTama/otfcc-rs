@@ -281,7 +281,7 @@ pub fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTab
         Some(fvar) => Some(Box::new(fvar)),
         None => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"table 'fvar' corrupted.\n"),
@@ -293,7 +293,7 @@ pub fn otfcc_read_fvar(packet: &Packet, options: &Options) -> Option<Box<FvarTab
 pub fn otfcc_dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue, options: &Options) {
     let Some(table) = table else { return };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"fvar"),
     );
     let axes: &Vec<VfAxis> = &table.axes;
@@ -340,7 +340,7 @@ pub fn otfcc_dump_fvar(table: Option<&FvarTable>, root: &mut BuiltValue, options
     }
     t.push_field(b"masters", _masters);
     root.push_field(b"fvar", t);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 pub fn json_new_vq_segment(s: &VqSegment, fvar: Option<&FvarTable>) -> BuiltValue {
     match s {

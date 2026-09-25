@@ -68,7 +68,7 @@ pub fn otfcc_read_vdmx(packet: &Packet, options: &Options) -> Option<Box<VdmxTab
         Ok(vdmx) => Some(Box::new(vdmx)),
         Err(_) => {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"Table 'VDMX' corrupted.\n"),
@@ -82,7 +82,7 @@ pub fn otfcc_dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue, options:
         return;
     };
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"VDMX"),
     );
     let mut _vdmx = BuiltValue::new_object(2);
@@ -108,7 +108,7 @@ pub fn otfcc_dump_vdmx(vdmx: Option<&VdmxTable>, root: &mut BuiltValue, options:
     }
     _vdmx.push_field(b"ratios", _ratios);
     root.push_field(b"VDMX", _vdmx);
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
 }
 pub fn otfcc_parse_vdmx(root: &ParsedValue, options: &Options) -> Option<Box<VdmxTable>> {
     let vdmx_dump = root.get_typed(b"VDMX", JsonType::Object)?;
@@ -117,7 +117,7 @@ pub fn otfcc_parse_vdmx(root: &ParsedValue, options: &Options) -> Option<Box<Vdm
         ratios: Vec::new(),
     });
     logger_start_sds(
-        &mut *options.logger.borrow_mut(),
+        &mut options.logger.borrow_mut(),
         crate::bytesbuild!(b"VDMX"),
     );
     vdmx.version = vdmx_dump.get_num(b"version") as u16;
@@ -158,7 +158,7 @@ pub fn otfcc_parse_vdmx(root: &ParsedValue, options: &Options) -> Option<Box<Vdm
             }
         }
     }
-    logger_finish(&mut *options.logger.borrow_mut());
+    logger_finish(&mut options.logger.borrow_mut());
     Some(vdmx)
 }
 #[allow(improper_ctypes_definitions)]

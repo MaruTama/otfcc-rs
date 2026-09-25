@@ -50,7 +50,7 @@ fn consolidate_mark_array(
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ", &rec.glyph.name, b".",),
@@ -69,7 +69,7 @@ fn consolidate_mark_array(
                 }
                 _ => {
                     logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
+                        &mut options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(b"[Consolidate] Ignored invalid or double-mapping mark definition for /",
@@ -113,7 +113,7 @@ fn consolidate_base_array(
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ", &rec.glyph.name, b".",),
@@ -128,7 +128,7 @@ fn consolidate_base_array(
                 }
                 Entry::Occupied(_) => {
                     logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
+                        &mut options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(
@@ -166,7 +166,7 @@ fn consolidate_lig_array(
         // present.
         if !otfcc_gord_consolidate_handle(glyph_order, &mut rec.glyph) {
             logger_log_sds(
-                &mut *options.logger.borrow_mut(),
+                &mut options.logger.borrow_mut(),
                 LOG_VL_IMPORTANT,
                 LoggerType::Warning,
                 crate::bytesbuild!(b"[Consolidate] Ignored unknown glyph name ", &rec.glyph.name, b".",),
@@ -186,7 +186,7 @@ fn consolidate_lig_array(
                 }
                 Entry::Occupied(_) => {
                     logger_log_sds(
-                        &mut *options.logger.borrow_mut(),
+                        &mut options.logger.borrow_mut(),
                         LOG_VL_IMPORTANT,
                         LoggerType::Warning,
                         crate::bytesbuild!(
@@ -223,7 +223,7 @@ pub fn consolidate_mark_to_single(glyph_order: &GlyphOrder, _subtable: &mut Subt
         subtable.class_count,
     );
     consolidate_base_array(glyph_order, options, &mut subtable.base_array);
-    subtable.mark_array.len() == 0_usize || subtable.base_array.len() == 0_usize
+    subtable.mark_array.is_empty() || subtable.base_array.is_empty()
 }
 pub fn consolidate_mark_to_ligature(glyph_order: &GlyphOrder, _subtable: &mut Subtable, options: &Options) -> bool {
     let Subtable::GposMarkToLigature(subtable) = _subtable else {
@@ -236,5 +236,5 @@ pub fn consolidate_mark_to_ligature(glyph_order: &GlyphOrder, _subtable: &mut Su
         subtable.class_count,
     );
     consolidate_lig_array(glyph_order, options, &mut subtable.lig_array);
-    subtable.mark_array.len() == 0_usize || subtable.lig_array.len() == 0_usize
+    subtable.mark_array.is_empty() || subtable.lig_array.is_empty()
 }
