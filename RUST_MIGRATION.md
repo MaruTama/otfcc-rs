@@ -16085,3 +16085,686 @@ on the other platform before a commit is trusted.
     used, net of the file's own text going away). No fuzz re-run beyond
     the `cargo check` sanity build -- nothing behavioral changed, so the
     existing corpora remain exactly as valid as before this stage.
+
+- **Stage M-22: `push_stopwatch` reads its `%g`-formatted seconds
+  straight out of its own owned buffer, not through `CCharRef::from_ptr`'s
+  raw-pointer + `strlen` path.** Twenty-second installment, found by
+  re-checking `support/fmt.rs`'s `CCharRef::from_ptr` -- one of the 9
+  remaining `unsafe fn`s -- against its real, current call sites, per
+  this stage's own instruction to re-verify every one fresh rather than
+  trust M-20's write-up.
+  - **The shape.** `support/stopwatch.rs`'s `push_stopwatch` builds a
+    local `secs: [::core::ffi::c_char; 32]`, has `libc::snprintf` render
+    a `%g`-formatted `f64` (plus a NUL terminator) into it, and then
+    called `unsafe { crate::support::fmt::CCharRef::from_ptr(secs.as_ptr())
+    }` to read the result back out -- `CCharRef::from_ptr`'s only
+    production call site anywhere in the crate (confirmed by grep: its
+    other two call sites are `fmt.rs`'s own unit tests). But `secs` is
+    already a fully owned, fixed-size local array by the time
+    `CCharRef::from_ptr` sees it, and `snprintf` guarantees it is
+    NUL-terminated -- `from_ptr`'s `core::slice::from_raw_parts(ptr,
+    strlen(ptr))` was reconstructing a slice, and re-walking a length,
+    out of data the function already held as an array. Exactly the
+    "caller already holds a real owned value and only decomposes it to
+    match an old raw-pointer-shaped signature" pattern M-3/M-9/M-14/
+    M-16/M-17/M-19 already removed elsewhere -- here the raw-pointer
+    step is `.as_ptr()` immediately followed by `strlen`, rather than a
+    struct field or FFI argument, but the shape is the same.
+  - **Why `from_ptr` itself stays.** Its own doc comment (unchanged by
+    this stage) is right that constructing a `CCharRef` from a
+    genuinely unknown-provenance `*const c_char` -- one that might be
+    null, or come from an actual C caller -- is a real unsafe boundary;
+    that's a different case from `push_stopwatch`'s, where the pointer's
+    only possible value is `secs.as_ptr()` on an array this same function
+    owns outright. `from_ptr` is left defined, still `unsafe fn`, still
+    covered by its own three unit tests (`c_string_is_copied_as_bytes_
+    even_when_not_utf8`, `null_c_string_prints_like_libc`,
+    `byte_slice_keeps_embedded_nul_but_c_string_does_not`) -- deleting a
+    correctly-documented, still-tested general utility just because its
+    one production caller stopped needing it is a different, larger
+    change than this stage's own scope, unlike M-21's `alloc.rs` (whose
+    module doc comment was itself wrong about still having pending
+    callers).
+  - **The fix.** `push_stopwatch` converts `secs` to `[u8; 32]` with a
+    plain `.map(|c| c as u8)` (a value cast on every element, not a
+    pointer reinterpretation -- no `unsafe` needed), finds the first `0`
+    byte with `.iter().position(...)` the same way `fmt.rs`'s own
+    `&Vec<u8>` `SdsPart` impl already truncates a `Handle` name at its
+    first embedded NUL, and slices up to that position. The resulting
+    `&[u8]` goes straight into the same `bytesbuild!` call as before,
+    using the existing `impl SdsPart for &[u8]`, so `push_stopwatch`'s
+    signature and its `Vec<u8>` output are unchanged.
+  - **No behavior change.** `secs_bytes[..nul_pos]` and
+    `core::slice::from_raw_parts(secs.as_ptr() as *const u8,
+    strlen(secs.as_ptr())).to_vec()` (what `from_ptr` used to produce)
+    read the identical bytes for any NUL-terminated content `snprintf`
+    can write into a 32-byte buffer -- both stop at the same first-NUL
+    position, and `snprintf` never leaves `secs` without a NUL
+    terminator within its bounds.
+  - **New tests.** `push_stopwatch` had no dedicated unit tests before
+    this stage (only exercised indirectly via the CLI binaries' log
+    lines). Added two, in a new `stopwatch::tests` module:
+    `push_stopwatch_formats_step_time_and_advances_sofar` (a real
+    `clock_gettime` reading offset back by exactly 0.5s, pinning the
+    `"Step time = 0.5...s.\n"` shape and confirming no embedded NUL
+    leaks through) and `push_stopwatch_handles_a_near_zero_reading`
+    (a ~0s elapsed reading, exercising the shortest `%g` output the
+    buffer can hold). Both are `#[cfg_attr(miri, ignore = ...)]` for the
+    same reason every other `snprintf`/`clock_gettime`-calling test in
+    this crate already is.
+  - **Verification**: `cargo build --lib`, `cargo clippy --all-targets
+    -- -D warnings`, `cargo test -- --test-threads=1` (421 lib tests:
+    419 baseline plus 2 new `stopwatch` tests, same 2 pre-existing
+    timing-threshold failures in this sandbox as every stage since
+    M-10), targeted Miri (`cargo +nightly-2026-08-17 miri test --lib
+    support:: -- --test-threads=1`: 102 passed, 0 failed, 15 ignored --
+    13 baseline plus the 2 new tests, correctly skipped for calling
+    libc). No fuzz target exercises `support/stopwatch.rs` at all (it is
+    only reached from the two CLI binaries' timing logs, never from
+    `lib.rs`'s parse/build/dump entry points the fuzz targets drive --
+    confirmed by grep across `fuzz/fuzz_targets/`), so none was re-run;
+    this is a pure logging-format change with no parser-facing surface.
+    `survey-unsafe.sh`: `unsafe fn` unchanged at 9 (`from_ptr` itself is
+    untouched, only its one production caller stopped calling it),
+    `unsafe blocks` 66 -> 65 (the one deleted `unsafe { CCharRef::
+    from_ptr(...) }` call-site wrapper), raw pointer types 524 -> 525 --
+    a net *increase* of one, called out here rather than left
+    unexplained the way M-20 did for its own +1: the diff deletes no
+    `*mut `/`*const ` text (the removed line's `secs.as_ptr()` call has
+    no such substring) but this stage's own explanatory comment mentions
+    `` `*const c_char` `` once, which the script's plain text grep counts
+    the same as a real type occurrence.
+
+- **Stage M-23: delete `support/fmt.rs`'s `CCharRef`/`CCharRef::from_ptr`
+  outright -- M-22 left its only production caller gone, and this stage
+  confirms no other one ever existed.** Twenty-third installment, and
+  exactly the case this stage's own instructions flagged as worth
+  re-checking: M-22's write-up explicitly declined to delete `from_ptr`
+  as "a different, larger change than this stage's own scope" while
+  noting it was down to zero production callers; that made it the first
+  thing to re-verify here rather than trust the earlier "leave it, it's
+  a genuine boundary" call.
+  - **The re-check.** `grep -rn "CCharRef::from_ptr\|CCharRef"
+    src/` found five hits total, all inside `support/fmt.rs` itself:
+    the struct definition, the `impl` block, the `impl SdsPart for
+    CCharRef` and three call sites -- all three inside `fmt.rs`'s own
+    `#[cfg(test)] mod tests`. `support/stopwatch.rs`'s two mentions
+    (from M-22's own explanatory comments) are prose, not code -- the
+    same "was X, now Y" narrative M-21 already established should stay
+    untouched. No other file in `src/`, `tests/`, `benches/` or
+    `fuzz/fuzz_targets/` names `CCharRef` at all. `CCharRef` is `pub`,
+    but this crate is `publish = false` (checked in `Cargo.toml`) and
+    exposes only the four `extern "C"` functions in `ffi/dll.rs` through
+    its `cdylib`/`staticlib` targets -- `CCharRef` was never part of
+    that surface, so "some external crate might still call it" does not
+    apply here the way it would for a published library.
+  - **What was actually left calling it.** All three surviving call
+    sites were `fmt.rs`'s own unit tests -- `c_string_is_copied_as_
+    bytes_even_when_not_utf8`, `null_c_string_prints_like_libc` and
+    `byte_slice_keeps_embedded_nul_but_c_string_does_not` -- built
+    specifically to exercise `from_ptr`'s null-pointer and NUL-
+    truncation behavior. With the production call M-22 removed gone,
+    these had become tests that exist purely to test the existence of
+    the thing they test: no code outside this trio (and the type's own
+    two-line `impl SdsPart`) ever reads a `CCharRef` or calls
+    `from_ptr` again.
+  - **The fix.** Deleted the `CCharRef` struct, its `from_ptr`
+    constructor, its `impl SdsPart for CCharRef<'_>`, the now-unused
+    `use libc::strlen;` import that only `from_ptr` needed, and the
+    three tests built solely to exercise it (77 lines total, all in
+    `src/support/fmt.rs`). Nothing else in the file changed --
+    `SdsPart`, `bytesbuild!`, `Byte`/`Hex4`/`Hex4Upper`/`Hex2`/
+    `Hex2Upper`/`Dec5` and their own tests are untouched, and the
+    `assert_matches_printf!` macro they still use survives (other tests
+    call it independently of `CCharRef`).
+  - **Why this is safe, not just tidy.** Every byte `CCharRef::from_ptr`
+    could ever have produced -- a NUL-terminated C string's bytes, or
+    `b"(null)"` for a null pointer -- had exactly one real-world source
+    left in this crate (`support/stopwatch.rs`'s `secs` buffer), and
+    M-22 already replaced that read with a direct array scan. Deleting
+    the now-orphaned constructor removes no reachable behavior: nothing
+    a font-processing run (or the CLI binaries, or the fuzz targets)
+    does is different, because nothing in that path called `from_ptr`
+    before this stage either.
+  - **Verification**: `cargo build --lib` and `cargo clippy
+    --all-targets -- -D warnings` both clean, no new `dead_code`/
+    `unused_imports` warnings elsewhere in the crate from the removal
+    (the deleted `use libc::strlen;` was the only import `from_ptr`
+    needed, and nothing else in the file used it). `cargo test --
+    --test-threads=1`: 418 passed (421 baseline minus the 3 deleted
+    `CCharRef` tests), same 2 pre-existing timing-threshold failures in
+    this sandbox as every stage since M-10. Targeted Miri (`cargo
+    +nightly-2026-08-17 miri test --lib support:: -- --test-
+    threads=1`): 100 passed, 0 failed, 14 ignored (102/15 baseline
+    minus the two non-miri-ignored deleted tests and the one
+    miri-ignored deleted test). `cargo check` in `fuzz/` is clean --
+    `grep -rln "CCharRef\|support::fmt" fuzz/fuzz_targets/*.rs` found no
+    fuzz target referencing either name -- and since `from_ptr` was
+    already unreachable from any production path before this stage
+    (per M-22's own finding), no fuzz corpus re-run applies: nothing
+    behavioral changed for any fuzz target to exercise differently.
+    `survey-unsafe.sh`: `unsafe fn` 9 -> 8 (`from_ptr` deleted), `unsafe
+    blocks` 65 -> 61 (its own internal `slice::from_raw_parts` block
+    plus the three test call sites' `unsafe { CCharRef::from_ptr(...)
+    }`/`unsafe { assert_matches_printf!(...) }` wrappers built solely
+    to call it), raw pointer types 525 -> 519 (the deleted signature's
+    `*const c_char` parameter, its internal `as *const u8` cast, and
+    the four `*const ::core::ffi::c_char` casts across the three now-
+    deleted test call sites), `is_null()` calls 22 -> 21 (`from_ptr`'s
+    own null check).
+
+- **Stage M-24: `table/otl.rs`'s `subtable_at` returns a plain
+  `&Subtable` instead of the raw-pointer `SubtablePtr` -- its doc
+  comment's caller list ("`build.rs`/`dump.rs`/`stat.rs`/the chaining
+  classifier") turned out stale, and every real caller left was
+  read-only.** Twenty-fourth installment. This stage's own brief asked
+  for a fresh trace of `src/vf/vq.rs`'s `VqSegmentDelta.region: *const
+  VqRegion` first; that investigation is reported in detail below,
+  followed by the candidate this stage actually implements.
+  - **The `VqRegion` re-check.** Re-read `vf/vq.rs`, `table/fvar.rs`,
+    and every construction/read site of `VqSegmentDelta`/`.region`
+    fresh, not trusting the existing doc comments. `fvar.rs`'s own
+    comment on `fvar_register_region` (lines 116-134) already lays out
+    the concrete shape, and grepping every `.region`/`VqSegmentDelta`
+    site in `src/` (`otf_reader/unconsolidate.rs`, `vf/vq.rs`,
+    `table/fvar.rs`, `table/glyf/read.rs`) confirms it still holds
+    exactly: `region` is the canonical pointer `fvar_register_region`
+    returns from a `Box<VqRegion>` it just inserted into
+    `FvarTable.masters` (an `IndexMap`, confirmed unchanged since the
+    prior stage that converted it), and that pointer is then stored
+    inside `VqSegmentDelta` values that live on inside individual
+    `Glyph`/`ComponentReference` structures across the *entire*
+    `glyf` table -- read back only much later, at OTF-write time
+    (`unconsolidate.rs`'s `hash_vqs`), long after the `&mut FvarTable`
+    borrow that registered the region has ended. `Font.fvar` is
+    `Option<Box<FvarTable>>` (confirmed in `font/caryll_font.rs`) and
+    `Font`'s `glyf` table is a sibling field on the same struct, so
+    turning `.region` into a real `&'a VqRegion` would need a lifetime
+    tying every `Glyph`'s contents to a borrow of `Font.fvar` while
+    `Font.glyf` is simultaneously mutated elsewhere during parsing --
+    a genuinely self-referential shape `Box`'s stable heap address
+    (which is what actually keeps this sound today) sidesteps and a
+    lifetime-carrying reference cannot express without unsafe self-
+    referential machinery of its own. The one alternative that avoids
+    a lifetime -- storing an owned `RegionKey` (already `Clone`+`Eq`+
+    `Hash`, already used for `fvar.masters`' own lookups) instead of a
+    pointer, and looking the region up by key wherever it's read --
+    would need `VqSegmentDelta` (and therefore `VqSegment`, `VQ`, and
+    every one of their several dozen call sites in `vf/vq.rs`, `table/
+    glyf.rs`, `table/glyf/read.rs`, `consolidate.rs`) to stop being
+    `Copy`, since `RegionKey` owns a `Vec`. That is a much larger,
+    higher-risk redesign than this stage's own scope (Copy-vs-Clone
+    semantics changing through code that currently relies on plain
+    assignment in hot comparison/simplification loops), not a
+    mechanical one-file change -- so, per this stage's own
+    instructions, it is reported here as a confirmed, now better-
+    understood wall rather than forced. Nothing changed in `vf/vq.rs`
+    or `table/fvar.rs` this stage.
+  - **The candidate implemented instead.** `table/otl.rs`'s
+    `subtable_at` used to return `SubtablePtr` (`*mut Subtable`), a
+    type alias whose own doc comment claimed four callers
+    (`build.rs`/`dump.rs`/`stat.rs`/"the chaining classifier") still
+    needed the raw form. A fresh `grep -rn "subtable_at" src/` (run
+    across the whole tree, not just the top-level files a first pass
+    might check) found exactly two files calling it at all --
+    `otf_writer/stat.rs` (three call sites) and `table/otl/build.rs`
+    (two call sites) -- and all five only ever read through the
+    pointer; `dump.rs` and the chaining classifier reach their
+    subtables some other way already (`chaining_subtable_ref`, added
+    in an earlier stage) and never called `subtable_at` in the first
+    place. One of the three `stat.rs` sites was even reaching for the
+    `&mut`-returning `chaining_rule_mut` purely to read `.match_count`
+    off the result, solely because `subtable_at`'s raw pointer forced
+    a reborrow to call anything on it -- switching that read to the
+    already-existing safe `chaining_rule_const` removed the last
+    reason for `&mut` there too.
+  - **The fix.** `subtable_at(list: &SubtableList, idx: usize) ->
+    &Subtable` now returns a shared reference straight out of the
+    `Vec<Option<Box<Subtable>>>` it indexes (still panicking on an
+    empty slot, same as before) instead of casting through
+    `*const`/`*mut`. The `SubtablePtr` type alias is deleted outright
+    (zero remaining uses). All five call sites drop their
+    `unsafe { &*... }`/`unsafe { &mut *... }` wrappers: `stat.rs`'s
+    `OTL_TYPE_GSUB_LIGATURE`/`OTL_TYPE_GSUB_REVERSE` arms match the
+    `&Subtable` directly, its chaining arm switches to
+    `chaining_rule_const`, and `build.rs`'s two `_declare_lookup_writer`/
+    `_declare_lookup_writer_split` helpers pass the reference straight
+    to their builder function pointers (`fn_0`, already safe fns as of
+    an earlier stage) with no reborrow at all.
+  - **Why this is safe, not just tidy.** Nothing about which bytes get
+    read changes: every site already assumed the exact same "slot is
+    `Some`, payload is this exact enum variant" invariants the old
+    unsafe code silently relied on -- `subtable_at`'s `.expect()` and
+    each call site's `let Subtable::Foo(x) = ... else { unreachable!()
+    }` enforce those same invariants explicitly now, the same
+    "silent UB on a wrong assumption becomes a clean panic" upgrade
+    the function's own doc comment already described for the empty-
+    slot case.
+  - **Verification**: `cargo build --lib` and `cargo clippy
+    --all-targets -- -D warnings` both clean (no unused-import/dead-
+    code warnings from the deleted `SubtablePtr`/`chaining_rule_mut`
+    import in `stat.rs`). `cargo test -- --test-threads=1`: 418
+    passed, same 2 pre-existing timing-threshold failures in this
+    sandbox as every stage since M-10. Targeted Miri (`cargo
+    +nightly-2026-08-17 miri test --lib table::otl:: -- --test-
+    threads=1`): 61 passed, 0 failed, 3 ignored (unchanged from
+    baseline -- this stage touches no reader logic, only how an
+    already-parsed subtable is borrowed). No dedicated unit tests
+    exist for `otf_writer/stat.rs`'s `stat_max_context_otl` or `table/
+    otl/build.rs`'s `_declare_lookup_writer{,_split}` (confirmed by
+    grep for `mod tests` in both files), so their coverage comes from
+    the `json_build` fuzz target, which drives the full JSON-to-OTF
+    build path through the real public FFI entry point
+    (`otfccbuild_json_otf`) and reaches both changed functions --
+    confirmed reachable, unlike `otf_parse`/`otf_dump` (grepped their
+    own source for `otf_writer`/`table::otl::build`; neither touches
+    the build-side code this stage changed, so neither was re-run).
+    Ran `cargo fuzz run json_build tests/fuzz-corpus/known-issues/ --
+    -runs=0` (all 21 known-issues corpus files, 0 crashes) and `cargo
+    fuzz run json_build -- -max_total_time=60` (3,411,897 executions in
+    60s, 0 crashes). `survey-unsafe.sh`: `unsafe fn` unchanged at 8
+    (this stage touches no `unsafe fn`, only plain-fn callers), `unsafe
+    blocks` 61 -> 56 (the three deleted `unsafe { &*elem_ptr }`-shaped
+    blocks in `stat.rs` plus the two deleted `unsafe { &*subtable_at(..
+    .) }` blocks in `build.rs`), raw pointer types 519 -> 514 (the
+    deleted `SubtablePtr` alias and its `*mut Subtable`/`*const
+    Subtable` casts inside `subtable_at`'s old body, plus the deleted
+    `SubtablePtr`-typed local bindings at each of the three `stat.rs`
+    call sites).
+
+- **Stage M-25: `chaining/common.rs`'s `chaining_rule_mut` returns `&mut
+  ChainingRule` instead of `*mut ChainingRule`.** Twenty-fifth
+  installment. This stage's own brief asked for a systematic, file-by-
+  file sweep of every one of the 56 remaining `unsafe {}` blocks (not
+  just the 8 `unsafe fn`), classifying each as either a genuine FFI
+  call/aliasing case or a leftover safe-value bridge, plus a fresh grep
+  for stale "N callers" claims in doc comments.
+  - **The sweep.** Went through every `unsafe {` site printed by `grep
+    -rn "unsafe {" src/` (54 literal matches; `survey-unsafe.sh`'s own
+    `-o` counting of the pattern, including ones this grep's `-n`
+    happened to also print as comment text, gives the tool's 56). The
+    large majority sort into three already-documented, still-accurate
+    buckets, re-confirmed rather than assumed this round: (1) blocks
+    inside the crate's 8 `unsafe fn` bodies (`otf_reader.rs`,
+    `consolidate.rs`, `ffi/dll.rs`, `table/otl/parse.rs`) implementing
+    the documented "raw pointer bridges resolved fresh per statement to
+    sidestep an aliasing borrow-checker conflict during in-place JSON
+    mutation" pattern from `otfcc_parse_otl`'s own doc comment -- traced
+    that one personally this round rather than taking the comment's
+    word for it, and its reasoning (a persisted `&ParsedValue` would
+    stay "live" under Rust's aliasing rules across a later mutation of
+    an ancestor node) still holds; (2) genuine FFI calls to real
+    `extern "C"` functions -- `libcff/cff_writer.rs`'s `floor`/`modf`,
+    `libcff/subr.rs`, `table/glyf.rs`/`vf/vq.rs`'s `fabs`,
+    `otf_writer/stat.rs`'s `round`/`time`, `support/stopwatch.rs`'s
+    `clock_gettime`, plus every `libc::isdigit`/`tolower`/`strcmp`/
+    `snprintf` call in `support/ctype_compat.rs`, `support/fmt.rs`, and
+    `support/parsed_json.rs`'s test modules, all comparing this crate's
+    own reimplementation against the platform's real libc; (3) the
+    already-reported `VqRegion`/`RegionKey` raw-pointer wall
+    (`otf_reader/unconsolidate.rs:39`, `table/fvar.rs:157,414`, `vf/
+    vq.rs:148,169`) -- re-read `vf/vq.rs` and `table/fvar.rs` fresh
+    again this round (not just cited M-24's finding) and the same
+    self-referential-storage shape (a `Box<VqRegion>`'s stable heap
+    address read back long after the borrow that registered it ended)
+    still holds; nothing new makes it convertible.
+  - **The one exception.** `consolidate/otl/chaining.rs:57`'s `let
+    rule: &mut ChainingRule = unsafe { &mut *chaining_rule_mut(subtable)
+    };` did not fit any of those three buckets: its own comment called
+    `chaining_rule_mut` "a safe fn [that] still returns a raw pointer",
+    but `chaining_rule_mut(subtable: &mut ChainingSubtable) -> *mut
+    ChainingRule` already takes a real `&mut ChainingSubtable` and its
+    body (`ChainingSubtable::Canonical(rule) => rule as *mut
+    ChainingRule`) starts from a safe `&mut ChainingRule` binding
+    (`rule`) before casting it away -- the raw pointer was manufactured
+    and immediately re-dereferenced, never crossing any real FFI or
+    aliasing boundary. A fresh `grep -rn "chaining_rule_mut"
+    src/` found exactly one call site in the whole tree (this one),
+    confirming there was no second caller anywhere relying on the raw
+    form (its sibling `chaining_rule_const`, used by three other files,
+    already returns a safe `&ChainingRule` and was the template this
+    stage matched).
+  - **The fix.** `chaining_rule_mut` now returns `&mut ChainingRule`
+    directly out of the match arm, mirroring `chaining_rule_mut`'s own
+    doc comment style already used for `chaining_ruleset_mut`'s "safe
+    reference, not a raw pointer" wording. Its one call site drops the
+    `unsafe { &mut *... }` wrapper entirely, now a plain
+    `chaining_rule_mut(subtable)` call.
+  - **Verification**: `cargo build --lib` and `cargo clippy
+    --all-targets -- -D warnings` both clean. `cargo test --
+    --test-threads=1`: 418 passed, same 2 pre-existing timing-threshold
+    failures in this sandbox as every stage since M-10. Targeted Miri
+    (`cargo +nightly-2026-08-17 miri test --lib chaining:: -- --test-
+    threads=1`): 8 passed, 0 failed (the `chaining/read.rs` parser
+    tests -- neither changed file has its own `mod tests`, confirmed by
+    grep). No dedicated unit test exists for `consolidate_chaining`
+    itself; its coverage comes from the `json_build` fuzz target, which
+    drives the full JSON-to-OTF path through the real public FFI entry
+    point (`otfccbuild_json_otf`) and reaches `otfcc_consolidate_font`
+    -> `consolidate_chaining` for any chaining/context lookup in the
+    input -- confirmed reachable by reading the target's own file.
+    `otf_parse`/`otf_dump` were skipped: grepped their source for
+    `consolidate`/`otfcc_consolidate_font` and neither calls it, so
+    neither exercises the changed function. Ran `cargo +nightly fuzz
+    run json_build tests/fuzz-corpus/known-issues/ -- -runs=0` (all 21
+    known-issues corpus files, 0 crashes) and `cargo +nightly fuzz run
+    json_build -- -max_total_time=60` (3,372,680 executions in 61s, 0
+    crashes). `survey-unsafe.sh`: `unsafe fn` unchanged at 8, `unsafe
+    blocks` 56 -> 55 (the deleted `unsafe { &mut *... }` wrapper at the
+    one call site), raw pointer types 514 -> 512 (the deleted `*mut
+    ChainingRule` return type and its `as *mut ChainingRule` cast
+    inside `chaining_rule_mut`'s old body).
+
+- **Stage M-26: `table/fvar.rs`'s `fvar_find_master_by_region`/
+  `json_new_vq_region_explicit` take `&VqRegion`, not `*const VqRegion`.**
+  Twenty-sixth installment. This stage's own brief asked for a fresh,
+  file-by-file re-sweep of the 8 remaining `unsafe fn` bodies and every
+  `unsafe {}` outside them, a search for a sibling of M-25's
+  `chaining_rule_mut` shape (a `_mut` accessor still returning a raw
+  pointer where its `_const`/`_ref` twin is already safe), and a check
+  that the CFF/glyf/OTL parse family's `unsafe fn`s don't do more work
+  than their documented reason needs.
+  - **The sweep.** Read every one of the 8 `unsafe fn` bodies in full
+    (`json_reader.rs`'s `read_json`, `consolidate.rs`'s
+    `get_point_coordinates`/`consolidate_anchor_ref`, `ffi/dll.rs`'s test-
+    only `build`, `support/buffer.rs`'s `from_raw`, `otf_reader.rs`'s
+    `read_otf`, `table/glyf.rs`'s `otfcc_parse_glyf`, `table/otl/parse.rs`'s
+    `otfcc_parse_otl`) rather than trusting their doc comments' own
+    classification. `read_json`/`read_otf` turned out to hold no `unsafe {}`
+    at all in their own bodies (module-level `#![allow(unsafe_op_in_unsafe_
+    fn)]` covers the unsafe-fn-calling-unsafe-fn chain); `get_point_
+    coordinates`/`consolidate_anchor_ref` are a genuinely pointer-heavy
+    recursive glyf walk end to end, with no safe-value-only sub-region to
+    split out; `otfcc_parse_otl`'s five raw-pointer reborrows (`table`/
+    `languages`/`features`/`lookups`/`lookup_order`) are exactly the
+    "resolved fresh per statement to sidestep an aliasing conflict during
+    in-place JSON mutation" shape its own comment (and M-25's sweep)
+    already described -- traced the actual mutation path
+    (`figure_out_features_from_json` -> `feature_merger_activate`) again to
+    confirm a persisted `&ParsedValue` really would still be "live" there,
+    not just repeating the comment. Also re-walked every `unsafe {` outside
+    the 8 `unsafe fn`s (`grep -rn "unsafe {" src/`, ~53 literal sites): the
+    same three buckets M-25 found -- `unsafe fn` bodies, genuine `extern
+    "C"` calls (`floor`/`modf`/`strncmp`/`round`/`time`/`clock_gettime`/
+    `snprintf`, plus every libc ctype/strcmp comparison in test modules),
+    and the `VqRegion`/`RegionKey` wall (`otf_reader/unconsolidate.rs:39`,
+    `table/fvar.rs:157,414`, `vf/vq.rs:148,169`) -- all still hold, each
+    re-opened and re-read this round rather than cited from memory. A
+    fresh `grep -rn "fn .*_mut\b" src/` for a `chaining_rule_mut`-shaped
+    sibling found only already-safe accessors (`chaining_ruleset_mut`,
+    `CffSubrGraph::node_mut`/`rule_mut`, `VqSegmentDelta::delta_mut`) --
+    no leftover raw-pointer `_mut` twin anywhere.
+  - **What did turn up.** Not a `_mut`/`_ref` pair, but the same underlying
+    shape one level removed: `table/fvar.rs:157`'s `fvar_find_master_by_
+    region` and `:414`'s `json_new_vq_region_explicit` each took `*const
+    VqRegion` and dereferenced it internally with their own `unsafe {
+    &*... }`, even though one of `json_new_vq_region_explicit`'s two call
+    sites (`json_new_vq(...)`'s masters-dump loop, `master.region.as_ref()`
+    at line 336) already held a genuine safe `&VqRegion` straight out of a
+    `Box` and only relied on the implicit `&T -> *const T` coercion to
+    call it -- manufacturing a raw pointer that the callee immediately
+    re-dereferenced, never crossing the real wall. The wall itself is
+    real, just one level up: `json_new_vq_region`'s own `rs: *const
+    VqRegion` parameter (its other caller, `json_new_vq_segment`, passes
+    `delta.region`, the genuinely long-lived non-owning alias this file's
+    own doc comment above `fvar_register_region` describes) is where the
+    aliasing pointer actually originates.
+  - **The fix.** Both helpers now take `&VqRegion`; the one call site that
+    already had a safe reference passes it straight through with no cast.
+    `json_new_vq_region` itself keeps its `*const VqRegion` parameter (the
+    real wall boundary) but no longer dereferences it directly in its own,
+    `pub`, body -- `clippy::not_unsafe_ptr_arg_deref` (deny-by-default)
+    flags exactly that shape on a public function, which is why the
+    dereference moved into a new private `json_new_vq_region_impl`
+    instead of inlining `unsafe { &*rs }` at the call site (confirmed by
+    trying the inline form first and hitting the lint, not assumed).
+    `json_new_vq_region_impl` dereferences `rs` exactly once and passes
+    the resulting `&VqRegion` to both `fvar_find_master_by_region` and
+    `json_new_vq_region_explicit`, replacing the two independent
+    dereferences (one per helper, of what was frequently the same
+    underlying pointer) with one.
+  - **Why this is safe, not just tidy.** The one call site that changes
+    behavior-visibly is `master.region.as_ref()` at line 336: it always
+    held a live, valid `&VqRegion` (a `Box`-owned field read through
+    `.as_ref()`), so removing the round trip through a raw pointer and
+    back changes nothing about which bytes get read, only how many times
+    the same validity assumption gets asserted via `unsafe`. The wall
+    caller (`json_new_vq_region`, still fed a genuinely non-owning alias)
+    keeps exactly the same runtime behavior: one dereference of the same
+    pointer, at the same point in the call graph, just relabeled from two
+    scattered derefs to one.
+  - **Verification**: `cargo build --lib` and `cargo clippy --all-targets
+    -- -D warnings` both clean (the inline-deref-in-a-pub-fn form was
+    caught and reverted during this stage, not shipped). `cargo test --
+    --test-threads=1`: 418 passed, same 2 pre-existing timing-threshold
+    failures in this sandbox as every stage since M-10. Targeted Miri
+    (`cargo +nightly-2026-08-17 miri test --lib table::fvar:: -- --test-
+    threads=1`): 10 passed, 0 failed (no dedicated unit test exists for
+    `json_new_vq_region`/`_explicit`/`_impl` themselves, confirmed by grep
+    for `mod tests` in this file -- their coverage comes from the
+    `otf_dump` fuzz target instead, which drives `otfcc_read_sfnt ->
+    read_otf -> otfcc_consolidate_font -> serialize_to_json` and reaches
+    every changed function for any variable font with an `fvar` table;
+    confirmed reachable by reading the target's own source. `json_build`/
+    `otf_parse` were not re-run: `json_build` never reads an `fvar` table
+    back out to JSON (it only builds one), and `otf_parse` stops before
+    `serialize_to_json` is ever called, so neither exercises this stage's
+    changed code). Ran `cargo +nightly fuzz run otf_dump tests/fuzz-
+    corpus/known-issues/ -- -runs=0` (all 21 known-issues corpus files,
+    0 crashes) and `cargo +nightly fuzz run otf_dump --
+    -max_total_time=60` (536,035 executions in 61s, 0 crashes).
+    `survey-unsafe.sh`: `unsafe fn` unchanged at 8, `unsafe blocks` 55 ->
+    54 (the two deleted `unsafe { &*... }` blocks in the two helpers,
+    minus the one new one in `json_new_vq_region_impl`), raw pointer
+    types 512 -> 511 (the two deleted `*const VqRegion` parameter types
+    on the two helpers, minus the one added on `json_new_vq_region_impl`).
+
+- **Stage M-27: `FvarMaster.region` is `Rc<VqRegion>`, not `Box<VqRegion>`.**
+  Twenty-seventh installment, and the first of a two-stage pair (with
+  M-28) closing out `VqSegmentDelta.region` (`vf/vq.rs`) -- the one
+  remaining item M-25/M-26's sweeps kept re-confirming as a genuine
+  raw-pointer wall rather than a leftover pattern: a `*const VqRegion`
+  non-owning alias into a `Box<VqRegion>` inside `FvarTable.masters`,
+  read back at OTF-write time, long after the borrow that registered it
+  (`fvar_register_region`) had ended. A prior investigation (reported and
+  approved separately) scoped two approaches and rejected both before this
+  pair was scoped: a `RegionKey`-owned-value field on `VqSegmentDelta`
+  risked silently changing sort order -- `vqs_compare`/`vqs_compatible`
+  use `vq_compare_region` for actual **sorting** (true `f64` numeric
+  order, which determines final output byte order, treated as sacred by
+  this project), while `RegionKey` (this file's own content-hash key)
+  compares IEEE-754 bit patterns, built for `Eq`/`Hash`, not order --
+  swapping one for the other risked changing which bytes come out where.
+  An index-into-`masters` approach was rejected too: sorting needs real
+  region *content*, not just an index, so it would have needed
+  `&FvarTable` threaded through `consolidate.rs`, `table/cff.rs`, and
+  `libcff/charstring_il.rs` -- three files well outside this pointer's
+  actual reach, and the exact three files the rejected approach would
+  have needed that this pair's own instructions flagged as a stop-and-
+  reconsider signal if touched. `Rc<VqRegion>` (not `Arc`: this crate has
+  zero threading anywhere -- no `Send`/`Sync` bounds, no `thread::spawn`/
+  `rayon`, confirmed by grep) sidesteps both: `Rc::clone` is a refcount
+  bump, not a content copy or a fresh allocation, so every consumer keeps
+  comparing the exact same `VqRegion` content through the unmodified
+  `vq_compare_region` (no sort-order risk), and no lifetime needs
+  threading anywhere (no scope creep into the three files above).
+  - **This stage's own scope.** Storage only: `FvarMaster.region` becomes
+    `Rc<VqRegion>`; `fvar_register_region` still takes `region: Box<VqRegion>`
+    and still returns `*const VqRegion` (via `Rc::as_ptr`) -- `VqSegmentDelta`
+    itself, and the `Copy`-removal ripple that field type change forces
+    through `vf/vq.rs`/`table/glyf/read.rs`/`otf_reader/unconsolidate.rs`,
+    is deliberately left for M-28, keeping this stage's diff small and
+    independently verifiable (one file, `table/fvar.rs`, touched at all).
+    The dedup branch (`fvar.masters.get(&key)` hit) now returns
+    `Rc::clone(&existing.region)` instead of re-deriving a raw pointer from
+    a `Box` deref; the fresh-registration branch does `Rc::from(region)`
+    (converts the owned `Box<VqRegion>` into an `Rc<VqRegion>` with one
+    move, no realloc/copy) before inserting and returning `Rc::as_ptr` of
+    it. The two `fvar_register_region_tests` unit tests needed no
+    assertion changes (the function's return type is untouched this
+    stage, confirmed by the diff, not just expected).
+  - **Verification**: `cargo build --lib` and `cargo clippy --all-targets
+    -- -D warnings` both clean. `cargo test -- --test-threads=1`: 419
+    passed, 1 pre-existing timing-threshold failure (the usual sandbox-CPU
+    flake, same class as every stage since M-10, though this run only hit
+    one of the two documented flaky tests rather than both). Targeted
+    Miri (`cargo +nightly-2026-08-17 miri test --lib table::fvar:: --
+    --test-threads=1`): 10 passed, 0 failed. `survey-unsafe.sh`:
+    `unsafe fn` unchanged at 8; `unsafe blocks` 54 -> 53 and raw pointer
+    types 511 -> 510 both come solely from deleting stale `Box`/
+    `*mut VqRegion`-shaped wording in this function's own doc comment (the
+    script's grep-based counters match literal `unsafe {`/`*const`/`*mut`
+    text anywhere in the file, comments included) -- no unsafe block or
+    raw-pointer type was added or removed in actual code this stage,
+    confirmed by re-reading the diff line by line; M-28's counters below
+    are the ones that reflect this pair's real unsafe-code removal.
+
+- **Stage M-28: `VqSegmentDelta.region` is `Rc<VqRegion>`, not
+  `*const VqRegion`; `VqSegment`/`VqSegmentDelta` lose `Copy`.**
+  Twenty-eighth installment, the second half of the M-27/M-28 pair and the
+  stage that actually retires the last genuine raw-pointer wall in this
+  crate. `fvar_register_region`'s return type follows `VqSegmentDelta`'s
+  field to `Rc<VqRegion>` (`table/fvar.rs`); its one production caller
+  (`table/glyf/read.rs`'s `polymorphize_glyph`) now gets a real
+  `Rc<VqRegion>` straight out of it and hands a borrow of that same `Rc`
+  down through `apply_polymorphism`/`apply_coords`/`vq_add_delta`, each of
+  which clones it (a refcount bump) exactly where a new `VqSegmentDelta`
+  is actually constructed, rather than manufacturing and re-dereferencing
+  a raw pointer at every read site the way the old code did.
+  - **The `Copy`-removal ripple.** `Rc<T>` is `Clone`, not `Copy`, so
+    `VqSegment`/`VqSegmentDelta` (both previously `#[derive(Copy, Clone)]`)
+    drop `Copy` here. Rather than hand-enumerating every call site up
+    front, `Copy` was removed and the compiler's own errors were fixed one
+    at a time, confirming the instructions' own expectation that this
+    ripple can't be shrunk further without leaving the crate
+    inconsistent. What actually needed a change, all mechanical:
+    - `vf/vq.rs`: `VqSegment::unwrap_delta` clones its `Delta` payload
+      instead of copying it; `copy_vq_segment` matches its `src` argument
+      by reference and `Rc::clone`s `.region` into the new `VqSegmentDelta`
+      instead of copying the pointer; `simplify_vq`'s in-place compaction
+      (`shift[k] = shift[j]`, `let other = shift[j]`) and `vq_inplace_plus`'s
+      per-element copy (`let k: VqSegment = b.shift[p]`) each become a
+      `.clone()` of the indexed element (`Vec::index` returns a place, and
+      moving a non-`Copy` value out of it is rejected outright -- these
+      three are genuine copies of a whole segment, not a pointer alias, so
+      a `.clone()` is the direct mechanical translation); `vq_compare`'s
+      per-element `vqs_compare` call borrows the two indexed elements
+      instead of copying them; `vq_get_still`'s `if let Still(still) =
+      v.shift[j]` matches `&v.shift[j]` instead (only a `Pos`, itself
+      `Copy`, is read out, no clone needed).
+    - `table/glyf/read.rs`: `apply_coords`'s per-point `VqSegmentDelta`
+      construction (the hot per-point path the investigation flagged)
+      does one `Rc::clone(r)` per point -- confirmed to be exactly a
+      refcount increment, no allocation, by reading `Rc::clone`'s own
+      definition and by this stage's fuzz/timing checks below turning up
+      nothing anomalous; `apply_polymorphism`'s write-back pass (the only
+      place still needing `&mut Point`/`&mut ComponentReference`) clones
+      each `nudges_x[j]`/`nudges_y[j]` before pushing it onto the point's/
+      reference's own `.shift`, since each nudge is read there once but
+      the backing `Vec` isn't otherwise consumed.
+    - `otf_reader/unconsolidate.rs`: `hash_vqs` takes `&VqSegment` instead
+      of `VqSegment` by value (it only ever reads its argument to write
+      hash bytes), and its one call site (`hash_vq`) passes `&x.shift[j]`
+      instead of copying the indexed element.
+  - **`vqs_compare`/`vqs_compatible` now take `&VqSegment`.** Both used to
+    take `VqSegment`/`(VqSegment, VqSegment)` by value, relying on `Copy`;
+    per this stage's own instructions, this was the natural, still-
+    mechanical adjustment once `Copy` was gone, since every call site only
+    ever reads its arguments -- switching to `&VqSegment` avoids an
+    `Rc::clone` purely to satisfy a by-value parameter at each of their
+    three call sites (`simplify_vq`'s sort comparator and compatibility
+    check, `vq_compare`'s per-element comparison).
+  - **The four raw-pointer dereferences are gone.** `vqs_compare`/
+    `vqs_compatible`'s `unsafe { &*ad.region }`/`unsafe { &*bd.region }`
+    (four blocks total, two apiece) become plain `&ad.region`/`&bd.region`
+    -- `vq_compare_region` takes `&VqRegion`, and `Rc<VqRegion>` coerces to
+    it through `Deref`, no `unsafe {}` needed. `hash_vqs`'s
+    `unsafe { &*delta.region }` becomes a plain `&delta.region` the same
+    way. `table/fvar.rs`'s `json_new_vq_region`/`_region_impl` (M-26's own
+    private-helper split) collapse back to taking `&VqRegion` directly --
+    `json_new_vq_segment`'s one call site already held a live
+    `&VqSegmentDelta` (via `Rc`'s `Deref`), so passing `&delta.region`
+    straight through needed no cast and no `unsafe {}` either, closing
+    the "genuinely raw, aliasing-wall pointer" M-26's own comment named at
+    exactly this spot.
+  - **`vq_add_delta` takes `r: &Rc<VqRegion>`, not `Rc<VqRegion>`.** Its
+    four call sites in `apply_polymorphism` (`horizontal_origin`/
+    `advance_width`/`vertical_origin`/`advance_height`) all share the same
+    region across up to four calls plus the two `apply_coords` calls in
+    the same function -- taking a borrowed `&Rc<VqRegion>` and `Rc::clone`-
+    ing only inside `vq_add_delta`'s own `VqSegmentDelta` construction (the
+    same pattern `apply_coords` uses) avoids bumping the refcount at every
+    call site just to satisfy a by-value parameter, chosen after reading
+    all four call sites per this stage's own instructions rather than
+    guessing.
+  - **`copy_vq_segment`/`vq_segment_copy` re-read, unchanged in shape.**
+    Both already existed purely to thread `src`'s fields into `dst` one at
+    a time (preserving `dst`'s existing `.touched` when overwriting a
+    `Delta` with a `Delta`, the behavior their own doc comment already
+    explained); the only change either needed was `region: sd.region` ->
+    `region: Rc::clone(&sd.region)`, confirming neither needed
+    restructuring, just the one field's copy becoming a clone.
+  - **Why this is safe, not just tidy.** Every one of the crate's 16
+    `.region` references (grepped fresh this stage, matching the prior
+    investigation's own count) was already either a construction site or a
+    read-only comparison/dereference -- no pointer-identity (`ptr::eq`)
+    comparison exists anywhere that an `Rc::clone` could have silently
+    changed the meaning of. `Rc::clone` bumps a refcount and returns a
+    handle to the exact same heap allocation; every consumer that used to
+    dereference the raw pointer now derefs the `Rc` instead, reading the
+    exact same bytes. The one place this migration's own "byte-exact
+    output is sacred" standard was directly at stake -- `vqs_compare`/
+    `vqs_compatible`'s use of `vq_compare_region` for real sort order --
+    is untouched in substance: both still call the same
+    `vq_compare_region(&VqRegion, &VqRegion)` on the same two allocations'
+    content, just reached through `Rc`'s `Deref` instead of a raw
+    pointer's `unsafe` deref.
+  - **Verification**: `cargo build --lib` and `cargo clippy --all-targets
+    -- -D warnings` both clean. `cargo test -- --test-threads=1`: 419
+    passed, 1 pre-existing timing-threshold failure (same sandbox-CPU
+    flake as M-27 and every stage since M-10). Targeted Miri, all clean --
+    `vf::` (1 passed, the discriminant-byte test; every other `vf::vq`
+    behavior is exercised indirectly through the `table::glyf::read`/
+    `table::fvar` suites below, which is where the `Rc`-sharing/aliasing
+    behavior actually gets exercised end to end), `table::fvar::` (10
+    passed), `table::glyf::read::` (18 passed, including both
+    `gvar_polymorphize_tests` cases that call `apply_polymorphism`
+    directly, the two updated to build their test region as
+    `Rc::from(vq_create_region(1))`). **Golden byte-exact check** (the
+    standard directly at stake for this pair): `cargo test --test golden
+    -- --test-threads=1`, all 4 tests passing, including
+    `fixed_payloads_match_golden`'s `gvar-test.ttf` variable-font fixture
+    -- byte-identical output before and after, no `UPDATE_GOLDEN=1`
+    regeneration needed or attempted. Fuzz: `otf_dump` (the target that
+    reaches this code, confirmed reachable via `otfcc_read_sfnt ->
+    read_otf -> otfcc_consolidate_font -> serialize_to_json` for any
+    variable font with `fvar`/`gvar`, per the investigation and M-26's own
+    confirmation) -- `cargo +nightly fuzz run otf_dump tests/fuzz-corpus/
+    known-issues/ -- -runs=0` (all 21 known-issues corpus files, 0
+    crashes) and `cargo +nightly fuzz run otf_dump -- -max_total_time=100`
+    (3,388,806 executions in 101s, 0 crashes, no new coverage-triggered
+    slow units beyond the two pre-existing ones already on record).
+    Benchmarks: `benches/dump.rs`/`build.rs`/`subroutinize.rs` were
+    checked for a `gvar`/`fvar`/variable-font fixture to sanity-check
+    timing against -- none of the three exercise one (`Molengo-Regular.ttf`/
+    `iosevka-r.ttf`/`NotoNastaliqUrdu-Regular.ttf`/`WorkSans-Regular.json`/
+    `cid-fdselect-test.json`, none variable), so there was nothing to
+    re-time; the fuzz run's own steady throughput (no slowdown relative to
+    M-27's baseline run) is the only timing signal available for the
+    per-point `Rc::clone` in `apply_coords`, and it showed none.
+    `survey-unsafe.sh`: `unsafe fn` unchanged at 8; `unsafe blocks` 53 ->
+    48 (the five deleted `unsafe { &*... }` blocks: two apiece in
+    `vqs_compare`/`vqs_compatible`, one in `hash_vqs`); raw pointer types
+    510 -> 498 (twelve fewer: `VqSegmentDelta.region`'s field type,
+    `vq_add_delta`/`apply_coords`/`apply_polymorphism`'s `r` parameters,
+    `json_new_vq_region`/`_region_impl`'s `rs` parameters, and
+    `fvar_register_region`'s return type, each `*const VqRegion` ->
+    `Rc<VqRegion>`/`&Rc<VqRegion>`/`&VqRegion`, plus a few more from the
+    doc-comment wording changes the same way M-27's counters moved).
+    Diff scope stayed exactly within `vf/vq.rs`, `table/fvar.rs`,
+    `table/glyf/read.rs`, and `otf_reader/unconsolidate.rs` (`hash_vqs`'s
+    signature, the one call site the investigation's own "every `.region`
+    reference" count already included) -- `consolidate.rs`, `table/cff.rs`,
+    and `libcff/charstring_il.rs` (the files the rejected index-approach
+    would have needed) were never touched, confirming the `Rc` approach's
+    self-containment held as the investigation predicted.

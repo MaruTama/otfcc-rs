@@ -8,8 +8,6 @@
 //! had zero callers, confirmed by grep before this file split off). What's
 //! left is purely this: a trait deciding how to append one typed piece to a
 //! growing `Vec<u8>`, and the macro that chains pieces together.
-use libc::strlen;
-
 /// One piece of a [`bytesbuild!`] call: knows how to append itself to a
 /// growing `Vec<u8>`.
 ///
@@ -60,40 +58,6 @@ impl SdsPart for &Vec<u8> {
             None => &self[..],
         };
         bytes.append_to_vec(v);
-    }
-}
-
-/// A borrowed C string (`%s`): the bytes up to the terminating NUL, or the
-/// literal text `(null)` if the pointer was null (what both glibc and
-/// Apple's libc print for a null `%s` argument -- the old code handed the
-/// pointer straight to `vsnprintf`, so any call site that can pass null
-/// was already relying on that).
-///
-/// This -- not a blanket `impl SdsPart for *const c_char` -- is where the
-/// unsafety genuinely lives: `SdsPart::append_to_vec` is a safe, `pub`
-/// method, so a raw-pointer-typed impl of it would let any safe code
-/// dereference an arbitrary pointer with no `unsafe` marker at the call
-/// site (clippy's `not_unsafe_ptr_arg_deref` correctly flags exactly
-/// this). Constructing a `CCharRef` is the one unsafe step; once it
-/// exists, appending it is plain, safe byte-slice handling.
-#[derive(Debug)]
-pub struct CCharRef<'a>(&'a [u8]);
-
-impl<'a> CCharRef<'a> {
-    /// # Safety
-    /// `ptr` must be null, or point to a NUL-terminated C string whose
-    /// bytes stay valid for reads for at least `'a`.
-    pub unsafe fn from_ptr(ptr: *const ::core::ffi::c_char) -> Self {
-        if ptr.is_null() {
-            return CCharRef(b"(null)");
-        }
-        CCharRef(unsafe { ::core::slice::from_raw_parts(ptr as *const u8, strlen(ptr)) })
-    }
-}
-
-impl SdsPart for CCharRef<'_> {
-    fn append_to_vec(self, v: &mut Vec<u8>) {
-        v.extend_from_slice(self.0);
     }
 }
 
@@ -290,47 +254,6 @@ mod tests {
             assert_eq!(got.len(), 1);
             assert_eq!('\u{e9}'.to_string().len(), 2); // ...which this is not
         }
-    }
-
-    // The reason these helpers exist instead of `format!`: a glyph name that
-    // is not valid UTF-8 has to survive unchanged. `to_string_lossy` would
-    // replace the 0xe9 with U+FFFD and the font would come out with a
-    // different name.
-    #[test]
-    fn c_string_is_copied_as_bytes_even_when_not_utf8() {
-        let name = b"caf\xe9\0";
-        let got = bytesbuild!(unsafe { CCharRef::from_ptr(name.as_ptr() as *const ::core::ffi::c_char) });
-        assert_eq!(got, b"caf\xe9");
-    }
-
-    #[test]
-    #[cfg_attr(
-        miri,
-        ignore = "calls libc::snprintf via assert_matches_printf!, unsupported under Miri"
-    )]
-    fn null_c_string_prints_like_libc() {
-        unsafe {
-            assert_matches_printf!(
-                "%s",
-                ::core::ptr::null::<::core::ffi::c_char>(),
-                bytesbuild!(CCharRef::from_ptr(::core::ptr::null::<::core::ffi::c_char>()))
-            );
-        }
-    }
-
-    // `&[u8]`/`&[u8; N]` append every byte, embedded NULs included; a C
-    // string (`*const c_char`) stops at the first one, like `strlen`. This
-    // used to be `%S` (an `SdsRaw`'s stored length) vs. `%s` (`strlen`) --
-    // the distinction survives here as "raw byte slice" vs. "C string",
-    // since nothing left in this crate builds a length-prefixed `SdsRaw`.
-    #[test]
-    fn byte_slice_keeps_embedded_nul_but_c_string_does_not() {
-        let by_slice = bytesbuild!(b"ab\0cd");
-        assert_eq!(by_slice, b"ab\0cd");
-        let by_c_string = bytesbuild!(unsafe {
-            CCharRef::from_ptr(b"ab\0cd\0".as_ptr() as *const ::core::ffi::c_char)
-        });
-        assert_eq!(by_c_string, b"ab");
     }
 
     #[test]

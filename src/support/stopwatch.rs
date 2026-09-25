@@ -57,9 +57,80 @@ pub fn push_stopwatch(sofar: &mut timespec) -> Vec<u8> {
                 + diff.tv_nsec as ::core::ffi::c_double / BILLION as ::core::ffi::c_double,
         );
     }
-    return crate::bytesbuild!(
-        b"Step time = ",
-        unsafe { crate::support::fmt::CCharRef::from_ptr(secs.as_ptr()) },
-        b"s.\n",
-    );
+    // `secs` is already a fully owned, fixed-size local array -- `snprintf`
+    // only ever writes a NUL-terminated `%g` rendering of a float into it, so
+    // finding that terminator and slicing up to it is a plain byte scan over
+    // data this function already owns outright. The old code instead handed
+    // `secs.as_ptr()` to `CCharRef::from_ptr`, whose raw-pointer + `strlen`
+    // unsafe path exists for a genuinely unknown-provenance `*const c_char`
+    // (see that function's own doc comment) -- not this stack array, whose
+    // length and NUL-termination are both already guaranteed here. Same
+    // truncate-at-first-NUL technique `support/fmt.rs`'s own `&Vec<u8>`
+    // `SdsPart` impl already uses for the same reason.
+    let secs_bytes = secs.map(|c| c as u8);
+    let nul_pos = secs_bytes
+        .iter()
+        .position(|&b| b == 0)
+        .unwrap_or(secs_bytes.len());
+    return crate::bytesbuild!(b"Step time = ", &secs_bytes[..nul_pos], b"s.\n",);
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    // Pins the exact "Step time = <g-formatted number>s.\n" shape this
+    // stage's own conversion (reading `secs` directly instead of through
+    // `CCharRef::from_ptr`) must keep producing byte for byte.
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libc::clock_gettime/snprintf, unsupported under Miri"
+    )]
+    fn push_stopwatch_formats_step_time_and_advances_sofar() {
+        let mut sofar = timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
+        time_now(&mut sofar);
+        // Move `sofar` back by exactly half a second so the elapsed time
+        // `push_stopwatch` reports is deterministic and libc's `%g` always
+        // renders it the same way, regardless of how fast this test runs.
+        sofar.tv_nsec -= BILLION as ::core::ffi::c_long / 2;
+        if sofar.tv_nsec < 0 {
+            sofar.tv_sec -= 1;
+            sofar.tv_nsec += BILLION as ::core::ffi::c_long;
+        }
+        let out = push_stopwatch(&mut sofar);
+        let text = String::from_utf8(out).expect("only ASCII digits/'.'/'e'/'-' expected");
+        assert!(
+            text.starts_with("Step time = 0.5"),
+            "expected a ~0.5s reading, got {text:?}"
+        );
+        assert!(text.ends_with("s.\n"), "got {text:?}");
+        // No trailing NUL/garbage from the rest of the 32-byte `secs` buffer
+        // leaked past the terminator this stage now finds itself.
+        assert!(!text.contains('\0'), "got {text:?}");
+    }
+
+    // A zero-length reading (`sofar` == now) still round-trips through the
+    // same NUL-scan safely -- exercises the shortest possible `%g` output
+    // this function's buffer can hold ("0").
+    #[test]
+    #[cfg_attr(
+        miri,
+        ignore = "calls libc::clock_gettime/snprintf, unsupported under Miri"
+    )]
+    fn push_stopwatch_handles_a_near_zero_reading() {
+        let mut sofar = timespec {
+            tv_sec: 0,
+            tv_nsec: 0,
+        };
+        time_now(&mut sofar);
+        let out = push_stopwatch(&mut sofar);
+        let text = String::from_utf8(out).expect("only ASCII digits/'.'/'e'/'-' expected");
+        assert!(text.starts_with("Step time = "), "got {text:?}");
+        assert!(text.ends_with("s.\n"), "got {text:?}");
+        assert!(!text.contains('\0'), "got {text:?}");
+    }
 }

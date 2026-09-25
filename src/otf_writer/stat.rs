@@ -23,12 +23,12 @@ use crate::table::glyf::{
 
 use crate::table::hmtx::{HmtxTable, HorizontalMetric};
 
-use crate::table::otl::subtables::chaining::common::chaining_rule_mut;
+use crate::table::otl::subtables::chaining::common::chaining_rule_const;
 use crate::table::otl::{
     GsubLigatureSubtable, OTL_TYPE_GPOS_CHAINING, OTL_TYPE_GPOS_MARK_TO_BASE,
     OTL_TYPE_GPOS_MARK_TO_LIGATURE, OTL_TYPE_GPOS_MARK_TO_MARK, OTL_TYPE_GPOS_PAIR,
     OTL_TYPE_GSUB_CHAINING, OTL_TYPE_GSUB_LIGATURE, OTL_TYPE_GSUB_REVERSE, OtlTable, Subtable,
-    SubtablePtr, subtable_at,
+    subtable_at,
 };
 
 use crate::table::vmtx::{VerticalMetric, VmtxTable};
@@ -1037,18 +1037,14 @@ fn stat_max_context_otl(table: &OtlTable) -> u16 {
             }
             OTL_TYPE_GSUB_LIGATURE => {
                 for si in 0..lookup.subtables.len() {
-                    // `subtable_at`/the `*mut Subtable` it returns are a
-                    // separate, not-yet-safened shell (the lookup-type-
-                    // tagged subtable list itself) -- narrow bridge only.
-                    // Only reading here, so a shared reference suffices
-                    // even though the c2rust original took `&mut`.
-                    let entries: &GsubLigatureSubtable = unsafe {
-                        let elem_ptr: SubtablePtr = subtable_at(&lookup.subtables, si);
-                        let Subtable::GsubLigature(entries) = &*elem_ptr else {
-                            unreachable!()
-                        };
-                        entries
+                    // `subtable_at` now returns a plain `&Subtable` (Stage
+                    // M-24) -- every arm here only ever reads, so no
+                    // `unsafe` is needed to get at the payload any more.
+                    let Subtable::GsubLigature(entries) = subtable_at(&lookup.subtables, si)
+                    else {
+                        unreachable!()
                     };
+                    let entries: &GsubLigatureSubtable = entries;
                     for entry in entries {
                         if (maxc as usize) < entry.from.len() {
                             maxc = entry.from.len() as u16;
@@ -1058,17 +1054,16 @@ fn stat_max_context_otl(table: &OtlTable) -> u16 {
             }
             OTL_TYPE_GSUB_CHAINING | OTL_TYPE_GPOS_CHAINING => {
                 for si in 0..lookup.subtables.len() {
-                    // See the comment on the GSUB_LIGATURE arm above.
-                    // `chaining_rule_mut` genuinely needs `&mut
-                    // ChainingSubtable`, and its own `*mut ChainingRule`
-                    // return is a separate untouched shell.
-                    let match_count = unsafe {
-                        let elem_ptr: SubtablePtr = subtable_at(&lookup.subtables, si);
-                        let Subtable::Chaining(subtable) = &mut *elem_ptr else {
-                            unreachable!()
-                        };
-                        (*chaining_rule_mut(subtable)).match_count
+                    // See the comment on the GSUB_LIGATURE arm above. Only
+                    // `.match_count` is read here, so `chaining_rule_const`
+                    // (a safe `&ChainingRule`) is all this needs -- the old
+                    // code reached for `chaining_rule_mut` only because
+                    // `subtable_at` handed back a raw pointer it had to
+                    // reborrow as `&mut` to call anything on it at all.
+                    let Subtable::Chaining(subtable) = subtable_at(&lookup.subtables, si) else {
+                        unreachable!()
                     };
+                    let match_count = chaining_rule_const(subtable).match_count;
                     if maxc < match_count {
                         maxc = match_count;
                     }
@@ -1077,13 +1072,11 @@ fn stat_max_context_otl(table: &OtlTable) -> u16 {
             OTL_TYPE_GSUB_REVERSE => {
                 for si in 0..lookup.subtables.len() {
                     // See the comment on the GSUB_LIGATURE arm above.
-                    let match_count = unsafe {
-                        let elem_ptr: SubtablePtr = subtable_at(&lookup.subtables, si);
-                        let Subtable::GsubReverse(subtable) = &*elem_ptr else {
-                            unreachable!()
-                        };
-                        subtable.match_count
+                    let Subtable::GsubReverse(subtable) = subtable_at(&lookup.subtables, si)
+                    else {
+                        unreachable!()
                     };
+                    let match_count = subtable.match_count;
                     if maxc < match_count {
                         maxc = match_count;
                     }

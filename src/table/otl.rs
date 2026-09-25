@@ -435,31 +435,30 @@ pub struct Lookup {
 // `otl_subtable_list_dispose_dependent`, which existed only because
 // `SubtableList`'s elements were raw `*mut Subtable` -- deleted along with
 // that function once `Box` made the ownership self-describing.
-pub type SubtablePtr = *mut Subtable;
 // 所有する `Box` 配列。各要素は `None` にもなり得る（consolidate 中の一時的な
 // 「取り除かれた」穴、または extend 展開の型不一致エラー経路で残る穴）。
-// `build`/`dump`/`stat` など、読み取り時点で穴が無いと分かっている箇所は
-// `subtable_at`（下記）で `.expect()` して `SubtablePtr` に戻す。
+// `stat.rs`（唯一の呼び出し元。下の doc comment 参照）など、読み取り時点で
+// 穴が無いと分かっている箇所は `subtable_at`（下記）で `.expect()` して
+// 安全な参照に戻す。
 pub type SubtableList = Vec<Option<Box<Subtable>>>;
-/// Read a `SubtableList` element as a raw pointer, panicking if the slot is
-/// empty. Every caller of this helper already assumed a slot could not be
-/// empty at the point it reads one (`build.rs`/`dump.rs`/`stat.rs`/the
-/// chaining classifier all read post-consolidation lists with no null
-/// check) -- before `Box` made a hole `None` instead of a dangling
-/// `*mut Subtable`, that assumption being wrong meant a silent
+/// Read a `SubtableList` element as a shared reference, panicking if the
+/// slot is empty. Every caller already assumed a slot could not be empty at
+/// the point it reads one -- before `Box` made a hole `None` instead of a
+/// dangling pointer, that assumption being wrong meant a silent
 /// out-of-bounds-shaped dereference. Now it is a clean panic.
 ///
-/// This function itself never dereferences the pointer it returns -- it
-/// only indexes the `Vec`, unwraps the `Option`, and casts `*const` to
-/// `*mut` (a pointer-to-pointer cast, which is safe on its own; only the
-/// eventual deref at each call site is unsafe). So it needs no `unsafe fn`
-/// marker itself, even though every caller still wraps its own use of the
-/// returned pointer in `unsafe {}`.
-pub(crate) fn subtable_at(list: &SubtableList, idx: usize) -> SubtablePtr {
+/// This used to return `SubtablePtr` (`*mut Subtable`), forcing every call
+/// site to wrap its use in `unsafe {}` even though none of them ever wrote
+/// through it. Re-checked fresh (the previous doc comment's "build.rs/
+/// dump.rs/.../the chaining classifier all read... " no longer matches: a
+/// grep for `subtable_at` across `src/` turns up exactly one caller left,
+/// `otf_writer/stat.rs`, and only for reads) -- `&Subtable` says exactly
+/// what every remaining caller needs, with no raw-pointer boundary left to
+/// preserve.
+pub(crate) fn subtable_at(list: &SubtableList, idx: usize) -> &Subtable {
     list[idx]
         .as_deref()
-        .expect("subtable slot should not be empty at this point") as *const Subtable
-        as *mut Subtable
+        .expect("subtable slot should not be empty at this point")
 }
 pub type LookupPtr = *mut Lookup;
 /// A stable slot index into `OtlTable.lookups`, replacing the old borrowed

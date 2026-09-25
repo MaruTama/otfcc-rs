@@ -108,11 +108,11 @@ fn _declare_lookup_writer(
         let mut total_buf_size_short: usize = 0_usize;
         let mut total_buf_size_ext: usize = 0_usize;
         for j in 0..lookup.subtables.len() {
-            // `subtable_at` is this file's own not-yet-migrated raw-pointer
-            // shell (`SubtablePtr`) -- narrow bridge, same shape as
-            // `vqs_compare`'s. `fn_0` itself is a safe fn as of Stage D.
+            // `subtable_at` returns a plain `&Subtable` (Stage M-24) -- no
+            // raw-pointer bridge left to reborrow here. `fn_0` itself is a
+            // safe fn as of Stage D.
             let buf: Buffer = fn_0.expect("non-null function pointer")(
-                unsafe { &*subtable_at(&lookup.subtables, j) },
+                subtable_at(&lookup.subtables, j),
                 heuristics,
             );
             total_buf_size_short = total_buf_size_short.wrapping_add(buf.data.len());
@@ -143,9 +143,9 @@ fn _declare_lookup_writer_split(
         subtables.clear();
         let mut total_buf_size_short: usize = 0_usize;
         for j in 0..lookup.subtables.len() {
-            // Same narrow bridge as `_declare_lookup_writer` above.
+            // Same as `_declare_lookup_writer` above.
             let part: Vec<Buffer> = fn_0.expect("non-null function pointer")(
-                unsafe { &*subtable_at(&lookup.subtables, j) },
+                subtable_at(&lookup.subtables, j),
                 heuristics,
             );
             for buf in part {
